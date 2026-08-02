@@ -243,7 +243,7 @@ describe('POST /session/device/token (phase 2c — public deviceSecret mint)', (
     updatedAt: 1720000000000,
   };
 
-  it('mints a short access token and rotates the device secret on a valid secret', async () => {
+  it('mints a short access token and preserves the valid device secret', async () => {
     mockGetStateBySecret.mockResolvedValueOnce(SECRET_STATE);
     mockResolveActiveToken.mockResolvedValueOnce({ accessToken: 'jwt-mint', expiresAt: '2026-07-07T00:00:00.000Z' });
     mockIssueDeviceSecret.mockResolvedValueOnce('next-secret-value');
@@ -253,11 +253,11 @@ describe('POST /session/device/token (phase 2c — public deviceSecret mint)', (
     expect(res.status).toBe(200);
     expect(mockGetStateBySecret).toHaveBeenCalledWith('d1', 'raw-secret');
     expect(mockClearFailures).toHaveBeenCalledWith({ scope: 'device-token', identifier: 'd1' });
-    expect(mockIssueDeviceSecret).toHaveBeenCalledWith('d1');
+    expect(mockIssueDeviceSecret).not.toHaveBeenCalled();
     expect(res.body.data).toEqual({
       accessToken: 'jwt-mint',
       expiresAt: '2026-07-07T00:00:00.000Z',
-      nextDeviceSecret: 'next-secret-value',
+      nextDeviceSecret: 'raw-secret',
       state: SECRET_STATE,
     });
     expect(mockRecordFailure).not.toHaveBeenCalled();
@@ -304,16 +304,16 @@ describe('POST /session/device/token (phase 2c — public deviceSecret mint)', (
     expect(mockRecordFailure).not.toHaveBeenCalled();
   });
 
-  it('accepts an in-grace (previous) secret — the route trusts getStateBySecret and rotates', async () => {
+  it('returns the proven secret unchanged so concurrent app origins do not race', async () => {
     mockGetStateBySecret.mockResolvedValueOnce(SECRET_STATE);
     mockResolveActiveToken.mockResolvedValueOnce({ accessToken: 'jwt-grace', expiresAt: '2026-07-07T00:00:00.000Z' });
-    mockIssueDeviceSecret.mockResolvedValueOnce('rotated-again');
 
     const res = await requestJson(server, 'POST', '/session/device/token', { deviceId: 'd1', deviceSecret: 'previous-secret' });
 
     expect(res.status).toBe(200);
     expect(res.body.data.accessToken).toBe('jwt-grace');
-    expect(res.body.data.nextDeviceSecret).toBe('rotated-again');
+    expect(res.body.data.nextDeviceSecret).toBe('previous-secret');
+    expect(mockIssueDeviceSecret).not.toHaveBeenCalled();
   });
 
   it('400 when the body shape is invalid (missing deviceSecret)', async () => {
@@ -338,7 +338,7 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
     updatedAt: 1720000000000,
   };
 
-  it('mints the PINNED account token (not the active one) and rotates the secret', async () => {
+  it('mints the PINNED account token (not the active one) and preserves the secret', async () => {
     mockGetStateBySecret.mockResolvedValueOnce(PINNED_STATE);
     mockResolveTokenForAccount.mockResolvedValueOnce({ accessToken: 'jwt-a2', expiresAt: '2026-07-07T00:00:00.000Z' });
     mockIssueDeviceSecret.mockResolvedValueOnce('next-secret-value');
@@ -350,8 +350,8 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
     // The active-account resolver is never consulted on the pinned lane.
     expect(mockResolveActiveToken).not.toHaveBeenCalled();
     expect(res.body.data.accessToken).toBe('jwt-a2');
-    expect(res.body.data.nextDeviceSecret).toBe('next-secret-value');
-    expect(mockIssueDeviceSecret).toHaveBeenCalledWith('d1');
+    expect(res.body.data.nextDeviceSecret).toBe('raw-secret');
+    expect(mockIssueDeviceSecret).not.toHaveBeenCalled();
     // Telemetry discriminates the pinned lane — and carries no accountId.
     expect(logger.info).toHaveBeenCalledWith('device.token.mint', { mint_source: 'secret', deviceId: 'd1', pinned: true });
   });

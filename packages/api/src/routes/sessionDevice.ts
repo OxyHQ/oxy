@@ -50,9 +50,11 @@ const hubTicketRedeemLimiter = rateLimit({
  * mint can be initiated from any registered cross-apex origin over normal CORS.
  *
  * On a valid secret it mints a short access token for the device's active
- * account and ROTATES the secret in-use (returns `nextDeviceSecret`; the
- * presented secret stays valid for a short grace so multi-tab races don't lock
- * out). A dead/absent active session returns `no_active_session` WITHOUT rotating
+ * account. The successful response carries the same secret back as
+ * `nextDeviceSecret`: the secret is a stable device credential, so several
+ * official apps/origins sharing one device can refresh concurrently without
+ * invalidating one another. A dead/absent active session returns
+ * `no_active_session` WITHOUT changing the credential.
  * — the client must re-authenticate and keeps its still-valid secret. Per-device
  * lockout + rate limiting blunt online secret-guessing.
  *
@@ -112,15 +114,6 @@ router.post(
       return;
     }
 
-    const nextDeviceSecret = await deviceSessionService.issueDeviceSecret(deviceId);
-    if (!nextDeviceSecret) {
-      // The device doc vanished between resolve and rotate (should not happen for
-      // a live session). Fail closed rather than return a secret-less response.
-      logger.error('device.token.mint could not rotate the device secret', new Error('rotation failed'), { deviceId });
-      res.status(500).json({ error: 'Internal server error' });
-      return;
-    }
-
     // Telemetry carries the lane and the pin discriminator only — never the
     // pinned accountId, the secret, or any other user-identifying value.
     logger.info('device.token.mint', { mint_source: 'secret', deviceId, ...(accountId ? { pinned: true } : {}) });
@@ -128,7 +121,10 @@ router.post(
       data: {
         accessToken: mintedToken.accessToken,
         expiresAt: mintedToken.expiresAt,
-        nextDeviceSecret,
+        // Keep the proven credential stable. Rotating here makes separate
+        // first-party origins race over one DeviceSession secret and causes
+        // otherwise healthy sessions to disappear after the grace window.
+        nextDeviceSecret: deviceSecret,
         // The device's TRUE state — a pin never rewrites `activeAccountId`, and
         // the response must not pretend otherwise.
         state,
