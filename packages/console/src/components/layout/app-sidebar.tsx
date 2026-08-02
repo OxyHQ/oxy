@@ -11,10 +11,9 @@ import {
   Settings01Icon,
   SourceCodeIcon,
 } from '@hugeicons/core-free-icons';
-import { useAuth } from '@oxyhq/services';
+import { ProfileButton, useAuth } from '@oxyhq/services';
 import { NavMain } from './nav-main';
 import { NavApps } from './nav-apps';
-import { NavUser } from './nav-user';
 import { SidebarHeaderBrand } from './sidebar-header';
 import { Button } from '@/components/ui/button';
 import {
@@ -102,7 +101,7 @@ export function AppSidebar() {
 
       <SidebarFooter>
         {isAuthenticated ? (
-          <NavUser />
+          <SidebarProfileButton />
         ) : (
           <Button variant="ghost" className="w-full justify-start gap-2 px-2" onClick={() => signIn()}>
             <HugeiconsIcon icon={Login01Icon} size={18} />
@@ -114,4 +113,9 @@ export function AppSidebar() {
       <SidebarRail />
     </Sidebar>
   );
+}
+
+function SidebarProfileButton() {
+  const { isMobile, state } = useSidebar();
+  return <ProfileButton expanded={isMobile || state === 'expanded'} />;
 }

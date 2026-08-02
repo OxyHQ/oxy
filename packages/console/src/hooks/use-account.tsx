@@ -78,7 +78,7 @@ interface AccountContextValue {
   isLoading: boolean;
 
   // Account CRUD
-  setCurrentAccount: (account: AccountNode) => Promise<void>;
+  setCurrentAccount: (account: AccountNode) => void;
   createAccount: (data: CreateAccountInput) => Promise<AccountNode>;
   updateAccount: (accountId: string, data: UpdateAccountInput) => Promise<AccountNode>;
   archiveAccount: (accountId: string) => Promise<AccountSuccessResult>;
@@ -138,7 +138,7 @@ function hasPermission(account: AccountNode, permissions: Array<AccountPermissio
 }
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
-  const { oxyServices, switchToAccount, isAuthenticated, isReady } = useAuth();
+  const { oxyServices, isAuthenticated, isReady } = useAuth();
   const queryClient = useQueryClient();
 
   const accountsQuery = useQuery({
@@ -175,16 +175,10 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentAccount, selectedId]);
 
-  const setCurrentAccount = React.useCallback(
-    async (account: AccountNode): Promise<void> => {
-      if (account.accountId !== currentAccount?.accountId) {
-        await switchToAccount(account.accountId);
-      }
-      setSelectedId(account.accountId);
-      persistAccountId(account.accountId);
-    },
-    [currentAccount?.accountId, switchToAccount],
-  );
+  const setCurrentAccount = React.useCallback((account: AccountNode): void => {
+    setSelectedId(account.accountId);
+    persistAccountId(account.accountId);
+  }, []);
 
   const createAccountMutation = useMutation({
     mutationFn: (data: CreateAccountInput): Promise<AccountNode> => oxyServices.createAccount(data),

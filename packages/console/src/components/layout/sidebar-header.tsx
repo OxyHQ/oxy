@@ -105,7 +105,6 @@ export function SidebarHeaderBrand() {
   const [newAccountName, setNewAccountName] = React.useState('');
   const [newAccountHandle, setNewAccountHandle] = React.useState('');
   const [isCreating, setIsCreating] = React.useState(false);
-  const [switchingAccountId, setSwitchingAccountId] = React.useState<string | null>(null);
 
   // Build a relationship-grouped, two-level tree from the flat account list. A
   // node is top-level when its parent is not in the accessible set; its direct
@@ -156,20 +155,9 @@ export function SidebarHeaderBrand() {
     }
   };
 
-  const handleSelectAccount = async (account: AccountNode) => {
-    if (switchingAccountId !== null || account.accountId === currentAccount.accountId) {
-      return;
-    }
-
-    setSwitchingAccountId(account.accountId);
-    try {
-      await setCurrentAccount(account);
-      toast.success(`Switched to ${accountLabel(account)}`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : `Failed to switch to ${accountLabel(account)}`);
-    } finally {
-      setSwitchingAccountId(null);
-    }
+  const handleSelectAccount = (account: AccountNode) => {
+    setCurrentAccount(account);
+    toast.success(`Switched to ${accountLabel(account)}`);
   };
 
   if (isLoading || !currentAccount) {
@@ -199,8 +187,7 @@ export function SidebarHeaderBrand() {
       <DropdownMenuItem
         key={node.accountId}
         className={`gap-2 p-2${indented ? ' pl-7' : ''}`}
-        disabled={switchingAccountId !== null}
-        onClick={() => void handleSelectAccount(node)}
+        onClick={() => handleSelectAccount(node)}
       >
         {node.kind === 'personal' ? (
           <Avatar className="size-6 rounded-md">
