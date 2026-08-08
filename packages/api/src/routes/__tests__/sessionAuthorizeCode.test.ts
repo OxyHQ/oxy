@@ -41,45 +41,10 @@ jest.mock('../../middleware/validate', () => ({
 
 // This route only touches AuthSession through the mocked service below; the
 // bare default-export is required so sibling routes in the same module load.
-jest.mock('../../models/AuthSession', () => ({
-  __esModule: true,
-  default: { findOne: mockAuthSessionFindOne },
-  AuthSession: { findOne: mockAuthSessionFindOne },
-}));
-
-jest.mock('../../models/Session', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
-}));
-
 jest.mock('../../services/authSession.service', () => ({
   claimAuthSession: jest.fn(),
   authorizeSessionWithSignedChallenge: jest.fn(),
   authorizeSessionWithBearer: (...args: unknown[]) => mockAuthorizeSessionWithBearer(...args),
-}));
-
-jest.mock('../../models/AuthCode', () => ({
-  __esModule: true,
-  AuthCode: { create: mockAuthCodeCreate },
-  default: { create: mockAuthCodeCreate },
-}));
-
-jest.mock('../../models/Application', () => ({
-  __esModule: true,
-  Application: { findOne: mockApplicationFindOne, findById: jest.fn() },
-  default: { findOne: mockApplicationFindOne, findById: jest.fn() },
-}));
-
-jest.mock('../../models/ApplicationCredential', () => ({
-  __esModule: true,
-  ApplicationCredential: { findOne: mockApplicationCredentialFindOne },
-  default: { findOne: mockApplicationCredentialFindOne },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: { findOne: jest.fn(), findById: jest.fn() },
-  default: { findOne: jest.fn(), findById: jest.fn() },
 }));
 
 jest.mock('../../utils/userTransform', () => ({
@@ -131,11 +96,6 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('../../models/AppGrant', () => ({
-  __esModule: true,
-  AppGrant: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
-  default: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
-}));
 import authRouter from '../auth';
 import { errorHandler } from '../../middleware/errorHandler';
 

@@ -72,10 +72,8 @@ jest.mock('../../utils/authSessionSocket', () => ({
   emitAuthSessionProgress: (...args: unknown[]) => mockEmitAuthSessionProgress(...args),
 }));
 
-// Remaining static imports of routes/auth.ts — mocked so the real Mongoose
-// schemas never run under the global mongoose mock.
-jest.mock('../../models/Session', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
-jest.mock('../../models/User', () => ({ __esModule: true, User: { findOne: jest.fn(), findById: jest.fn() }, default: { findOne: jest.fn(), findById: jest.fn() } }));
+// Remaining static imports of routes/auth.ts — mocked so this suite loads the
+// route without standing up the whole auth service graph behind it.
 jest.mock('../../services/authSession.service', () => ({
   claimAuthSession: jest.fn(),
   authorizeSessionWithSignedChallenge: jest.fn(),

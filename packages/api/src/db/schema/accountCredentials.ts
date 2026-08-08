@@ -27,8 +27,11 @@ import { users } from './users';
  * CHECK: it is what stops `confidential` — meaningful on the sibling table —
  * from being written here by a backfill or a `psql` session.
  *
- * Declared here rather than imported from `models/AccountCredential.ts`, which
- * pulls in mongoose; `__tests__/applications.test.ts` holds the copies equal.
+ * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * other copy is gone. It renders the CHECK below, and
+ * `check-drizzle-snapshot-sync` holds that rendering against the migration the
+ * database was actually built from, so editing it without regenerating a
+ * migration fails CI.
  */
 export const ACCOUNT_CREDENTIAL_TYPES = ['service'] as const;
 

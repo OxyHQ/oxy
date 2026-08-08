@@ -50,10 +50,10 @@ import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { users } from './users';
 
 /**
- * The audit vocabulary. Declared here rather than imported from
- * `models/SecurityActivity.ts`, which pulls in mongoose — and `drizzle.config.ts`
- * loads this schema to emit DDL. `__tests__/authSession.test.ts` holds the two
- * copies in agreement until the model is deleted.
+ * The audit vocabulary, and the SINGLE declaration of it — the Mongoose model
+ * that carried the other copy is gone. It renders the CHECK on `event_type`,
+ * and `check-drizzle-snapshot-sync` holds that rendering against the migration
+ * the database was actually built from.
  */
 export const SECURITY_EVENT_TYPES = [
   'sign_in',

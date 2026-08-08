@@ -6,7 +6,7 @@ A comprehensive Node.js/TypeScript backend server providing JWT-based authentica
 
 - 🔐 **JWT Authentication** - Secure token-based auth with automatic refresh
 - 📱 **Device Sessions** - One server-side `DeviceSession` per device (signed-in accounts, active account, revision) with instant cross-app socket sync
-- 🗄️ **PostgreSQL** - Primary data store (Drizzle ORM); legacy Mongo scripts remain for one-shot backfill/admin only
+- 🗄️ **PostgreSQL** - The data store (Drizzle ORM). Mongo is gone: no dependency, no models, no scripts.
 - ⚡ **Express.js Server** - RESTful API with comprehensive middleware
 - 🔒 **Security Features** - Rate limiting, CORS, password hashing, brute force protection
 - 📝 **TypeScript** - Full type safety and developer experience

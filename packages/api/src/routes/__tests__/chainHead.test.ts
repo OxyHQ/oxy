@@ -49,7 +49,7 @@ jest.mock('../../services/signedRecord.service', () => ({
 }));
 
 // nodeRegistry.service is transitively imported by the identity routes (F5a);
-// mock it so the real UserNode model never loads under the global mongoose mock.
+// mock it so this suite exercises the chain-head route and not the node registry.
 jest.mock('../../services/nodeRegistry.service', () => ({
   materializeNodeFromRecord: jest.fn(),
   getUserNode: jest.fn(() => Promise.resolve(null)),

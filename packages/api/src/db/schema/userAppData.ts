@@ -52,10 +52,10 @@ import { users } from './users';
  * shorthand — `^`/`$` are explicit and `~` is the case-SENSITIVE operator, which
  * is what makes the lowercase requirement real.
  *
- * `models/UserAppData.ts` still declares its own copy for the Mongoose `match:`
- * validator the one-shot scripts run against; `__tests__/socialGraph.test.ts`
- * holds that copy and this one in agreement, behaviourally, over a corpus that
- * straddles the boundary.
+ * This is the SINGLE declaration — the Mongoose `match:` validator that carried
+ * the other copy is gone. `__tests__/socialGraph.test.ts` holds this pattern and
+ * the SQL the CHECK is built from in agreement, behaviourally, over a corpus
+ * that straddles the boundary.
  */
 export const APP_DATA_IDENTIFIER_SQL_PATTERN = '^[a-z0-9_-]{1,64}$';
 

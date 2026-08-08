@@ -11,11 +11,8 @@ jest.mock('../logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-// Session model isn't reachable from the unit under test (we only call the
-// pure `deriveStableDeviceId`), but `deviceUtils.ts` imports it at top
-// level. Stub it so the global mongoose mock in `jest.setup.cjs` (which
-// doesn't expose `Schema.Types.ObjectId`) doesn't blow up the import chain.
-jest.mock('../../models/Session', () => ({ __esModule: true, default: {} }));
+// Only the pure `deriveStableDeviceId` is under test here, so `deviceUtils.ts`'s
+// sibling imports are stubbed to keep this a unit test rather than a database one.
 jest.mock('../sessionCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
 jest.mock('../userTransform', () => ({ formatUserResponse: jest.fn() }));
 

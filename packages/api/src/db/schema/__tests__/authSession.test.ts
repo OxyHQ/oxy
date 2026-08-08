@@ -41,10 +41,6 @@ import {
 import { sessions } from '../sessions';
 import { users } from '../users';
 import { webauthnChallenges } from '../webauthnChallenges';
-import {
-  SECURITY_EVENT_SEVERITY_MAP as MONGOOSE_SECURITY_EVENT_SEVERITY_MAP,
-  SECURITY_EVENT_TYPES as MONGOOSE_SECURITY_EVENT_TYPES,
-} from '../../../models/SecurityActivity';
 
 /** Postgres `unique_violation`. */
 const UNIQUE_VIOLATION = '23505';
@@ -821,22 +817,6 @@ describe('security_activities', () => {
         .filter((row) => forbidden.test(row.column_name))
         .map((row) => `${row.table_name}.${row.column_name}`)
     ).toEqual([]);
-  });
-
-  it('holds its vocabulary in agreement with the Mongoose model', () => {
-    // The tuples are declared in the schema module rather than imported from
-    // `models/SecurityActivity.ts`, which pulls in mongoose while
-    // `drizzle.config.ts` loads this schema to emit DDL. This is what stops the
-    // two copies drifting until the model is deleted.
-    expect([...SECURITY_EVENT_TYPES].sort()).toEqual([...MONGOOSE_SECURITY_EVENT_TYPES].sort());
-    expect([...SECURITY_EVENT_SEVERITIES].sort()).toEqual(
-      [...new Set(Object.values(MONGOOSE_SECURITY_EVENT_SEVERITY_MAP))].sort()
-    );
-    // The DEFAULT-severity policy moved here too, so `securityActivityService`
-    // could stop importing the mongoose model. Both copies compared whole —
-    // comparing the schema map against the schema's own severity tuple would
-    // pass no matter how far the mapping drifted.
-    expect(SECURITY_EVENT_SEVERITY_MAP).toEqual(MONGOOSE_SECURITY_EVENT_SEVERITY_MAP);
   });
 
   it('rejects an unrecognised event type from a raw write', async () => {

@@ -23,8 +23,6 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 
-/** See the identical note in `profilesUsername.test.ts`. */
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
 
 /** Set by a test before the request; read by the mocked auth middleware. */
 let currentUserId: string | undefined;

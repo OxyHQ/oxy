@@ -50,10 +50,10 @@ import { users } from './users';
  * silently drops it for a non-staff caller (`routes/applications.ts`), so a
  * self-service third-party app can never promote itself.
  *
- * Declared here rather than imported from `models/Application.ts`: that module
- * pulls in mongoose, and `drizzle.config.ts` loads this schema to emit DDL. The
- * Mongoose copy stays authoritative until the model is deleted;
- * `__tests__/applications.test.ts` holds the two tuples equal until then.
+ * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * other copy is gone. It renders the CHECK below, and `check-drizzle-snapshot-sync`
+ * holds that rendering against the migration the database was actually built
+ * from, so editing it without regenerating a migration fails CI.
  */
 export const APPLICATION_TYPES = [
   'first_party',
@@ -71,6 +71,8 @@ export const APPLICATION_STATUSES = [
   'deleted',
   'pending_review',
 ] as const;
+
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 /** Renders a `const` tuple as a SQL `in (…)` list. */
 function inList(values: readonly string[]): string {

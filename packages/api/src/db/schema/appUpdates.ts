@@ -66,8 +66,11 @@ import { UPDATE_PLATFORMS, updateChannels } from './updateChannels';
  * Publication state. `superseded` and `rolled_back` are retained, never deleted
  * — the previous head has to remain servable.
  *
- * Declared here rather than imported from `models/AppUpdate.ts`, which pulls in
- * mongoose; `__tests__/appUpdates.test.ts` holds the two tuples equal.
+ * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * other copy is gone. It renders the CHECK below, and
+ * `check-drizzle-snapshot-sync` holds that rendering against the migration the
+ * database was actually built from, so editing it without regenerating a
+ * migration fails CI.
  */
 export const APP_UPDATE_STATUSES = ['published', 'superseded', 'rolled_back'] as const;
 

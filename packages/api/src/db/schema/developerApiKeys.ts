@@ -28,7 +28,7 @@ import { users } from './users';
 
 /**
  * What a developer API key may be used for — a NARROWER vocabulary than
- * `APPLICATION_SCOPES`, declared separately by `models/DeveloperApiKey.ts`.
+ * `APPLICATION_SCOPES`.
  *
  * `satisfies readonly ApplicationScope[]` proves every value is a real
  * application scope, so a typo here fails `tsc` rather than producing a key that

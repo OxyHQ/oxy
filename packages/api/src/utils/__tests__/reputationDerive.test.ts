@@ -25,7 +25,7 @@ import {
   CONTEXTUAL_WEIGHT_MAX,
   CONTEXTUAL_WEIGHT_MIN,
 } from '../moderation.constants';
-import type { ReputationReliability } from '../../models/ReputationBalance';
+import type { ReputationReliability } from '@oxyhq/contracts';
 
 const NEUTRAL: ReputationReliability = {
   accurateReports: 0,

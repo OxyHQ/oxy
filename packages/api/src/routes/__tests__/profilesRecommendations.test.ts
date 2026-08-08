@@ -39,8 +39,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { recommendationResponseSchema, safeParseContract } from '@oxyhq/contracts';
 
-/** See the identical note in `profilesUsername.test.ts`. */
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
 
 /** The principal the mocked dual-auth middleware attaches. */
 let currentUserId: string | undefined;

@@ -17,10 +17,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { Types } from 'mongoose';
 import { and, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
-import { APP_DATA_IDENTIFIER_PATTERN } from '../../../models/UserAppData';
+import { APP_DATA_IDENTIFIER_PATTERN } from '../userAppData';
 import { applications } from '../applications';
 import { conductStrikes } from '../conductStrikes';
 import { identityBindings } from '../identityBindings';
@@ -260,11 +259,10 @@ describe('user_follows — the string/ObjectId ambiguity is gone', () => {
     // Mongo's `followedId` was declared `ObjectId`, so a call site could pass a
     // `Types.ObjectId` OR its `.toString()` and Mongoose cast between them
     // silently — which is the only reason `followedIdToObjectId`
-    // (`routes/profiles.ts:894`) exists. The cast is CASE-INSENSITIVE, so these
-    // two spellings are one key in Mongo:
+    // (`routes/profiles.ts:894`) existed. That cast was CASE-INSENSITIVE, so
+    // these two spellings were ONE key in Mongo.
     const lower = 'a1b2c3d4e5f60718293a4b5c';
     const upper = lower.toUpperCase();
-    expect(new Types.ObjectId(lower).equals(new Types.ObjectId(upper))).toBe(true);
 
     // In Postgres they are two different `text` values, and only the stored one
     // resolves. The non-vacuity guard is the pair: the canonical spelling MUST

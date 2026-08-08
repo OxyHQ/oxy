@@ -40,7 +40,6 @@ jest.mock('../../services/civic/credential.service', () => ({
   verifyCredential: jest.fn(),
   revokeCredential: jest.fn(),
 }));
-jest.mock('../../models/PersonhoodStatus', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
   serviceAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),

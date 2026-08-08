@@ -24,14 +24,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { userResponseSchema, safeParseContract } from '@oxyhq/contracts';
 
-/**
- * `federation.service` (still Mongo-backed — a different batch owns its port)
- * declares a Mongoose model at module scope via `mongoose.models.X || …`, which
- * the wholesale mongoose stub in `jest.setup.cjs` cannot serve. Loading the real
- * mongoose here is what lets this suite keep the REAL `isFediverseHandle` and
- * spy on `resolveAndUpsert`, instead of restating handle parsing in a mock.
- */
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
 
 /** Set by a test before the request; read by the mocked optional-auth middleware. */
 let currentViewerId: string | undefined;
