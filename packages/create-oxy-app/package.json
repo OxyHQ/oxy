@@ -1,6 +1,6 @@
 {
   "name": "create-oxy-app",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Scaffold a new Oxy ecosystem app — an Expo/React Native + Express monorepo wired to the Oxy SDK (@oxyhq/services, @oxyhq/app-preset) with the canonical provider stack, device-first auth, Bloom theming, and AWS deploy. Run with `bun create oxy-app` or `bunx create-oxy-app`.",
   "type": "commonjs",
   "bin": {
