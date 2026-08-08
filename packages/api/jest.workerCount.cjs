@@ -9,10 +9,10 @@ const { cpus, totalmem } = require('node:os');
 const OXY_JEST_DATABASE_MANIFEST = 'OXY_JEST_DATABASE_MANIFEST';
 
 // Every worker opens its OWN Postgres pool against the test server. With
-// `PG_MAX_POOL_SIZE = 8` (see `jest.globalSetup.ts`, where 8 is a floor set by
-// the backfill's own copy concurrency), 10 workers ask for at most 80
-// connections against a `max_connections` of 100 — under the ceiling with room
-// for the migrator's own session and a psql.
+// `PG_MAX_POOL_SIZE = 8` (see `jest.globalSetup.ts` for where that number came
+// from), 10 workers ask for at most 80 connections against a `max_connections`
+// of 100 — under the ceiling with room for the migrator's own session and a
+// psql.
 const POSTGRES_WORKER_CEILING = 10;
 
 const WORKER_BYTES = 1_000_000_000;

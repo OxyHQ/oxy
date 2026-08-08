@@ -124,33 +124,6 @@ export function getDb(): Database {
 }
 
 /**
- * The RAW `postgres.js` handle behind {@link getDb}.
- *
- * Deliberately narrow in purpose: `COPY … FROM STDIN` is a PROTOCOL-level
- * operation drizzle does not wrap, and the one-shot Mongo→Postgres backfill
- * (`db/backfill/bulkLoad.ts`) needs it to stream a bulk load rather than issue
- * hundreds of thousands of parameterised inserts. `ANALYZE` after that load is
- * the other user.
- *
- * This is NOT an escape hatch for ordinary queries: a raw statement bypasses
- * drizzle's casing (`@oxyhq/db`), its typed row shapes, and the protected-
- * column mechanism (`schema/protectedColumns.ts`) that stops `select *` from
- * returning a phone number. Reach for it only when the operation genuinely has
- * no ORM expression, and say why at the call site.
- *
- * @throws {ConfigurationError} If called before `connectPostgres()` resolved.
- */
-export function getPostgresClient(): postgres.Sql {
-  if (!client) {
-    throw new ConfigurationError(
-      'PostgreSQL is not connected. Call connectPostgres() during startup ' +
-      'before requesting the raw client.'
-    );
-  }
-  return client;
-}
-
-/**
  * Whether `connectPostgres()` has published a handle.
  *
  * SYNCHRONOUS and cheap, so a hot synchronous caller (the CORS origin

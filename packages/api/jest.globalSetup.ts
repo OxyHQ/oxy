@@ -32,13 +32,15 @@ const { computeMaxWorkers, OXY_JEST_DATABASE_MANIFEST } = require('./jest.worker
  * against the same server, so the default asks for up to 620 connections
  * against a `max_connections` of 100.
  *
- * 8 is a FLOOR, not a preference: the backfill copies collections with
- * `DEFAULT_CONCURRENCY = 8`, so a smaller pool starves it against itself.
- * Measured at 2, the three backfill suites did not merely slow down — they ran
- * 67–74s and timed out, consistently, all three. Anything below the copier's
- * own concurrency trades a random flake for a deterministic hang.
- * `maxWorkers` in `jest.config.js` is the other half: 8 × 31 workers is still
- * far past the ceiling, so the two numbers only work together.
+ * 8 was originally a FLOOR: the Mongo→Postgres backfill copied collections with
+ * a concurrency of 8, and a smaller pool starved it against itself — measured at
+ * 2, its three suites did not merely slow down, they ran 67–74s and timed out,
+ * consistently, all three. Those suites are gone with the backfill, so nothing
+ * forces a floor any more. 8 stays because it is the number the ceiling
+ * arithmetic in `jest.config.js` is built from and the value this suite is
+ * measured green at; changing it is a measurement, not an edit. `maxWorkers`
+ * there is the other half: 8 × 31 workers is still far past the ceiling, so the
+ * two numbers only work together.
  *
  * That does not fail where the fault is. The server refuses whichever worker
  * happens to ask while it is saturated, so a DIFFERENT, entirely innocent suite
