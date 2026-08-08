@@ -13,10 +13,12 @@
  *
  * It is not hypothetical. Five files in this package carried one, four of them
  * on the migration path (`backfill/resolutions.ts`, `backfill/values.ts`,
- * `backfill/bulkLoad.ts`, `schema/signedRecords.ts`), and one agent working on
- * them concluded its shell's `grep` was broken and routed every content check
- * through python for a whole session. The blindness landed on exactly the files
- * that encode irreversible decisions about production data.
+ * `backfill/bulkLoad.ts`, `schema/signedRecords.ts` — the three backfill files
+ * went with the backfill itself once the port was done, so only git history has
+ * them now), and one agent working on them concluded its shell's `grep` was
+ * broken and routed every content check through python for a whole session. The
+ * blindness landed on exactly the files that encode irreversible decisions about
+ * production data.
  *
  * ## What is allowed instead
  *

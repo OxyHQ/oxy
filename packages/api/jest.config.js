@@ -1,10 +1,10 @@
 const { computeMaxWorkers } = require('./jest.workerCount.cjs');
 
 // Every worker opens its OWN Postgres pool against its OWN throwaway database.
-// With `PG_MAX_POOL_SIZE = 8` (see `jest.globalSetup.ts`, where 8 is a floor set
-// by the backfill's own copy concurrency), 10 workers ask for at most 80
-// connections against a `max_connections` of 100 — under the ceiling with room
-// for the migrator's own session and a psql.
+// With `PG_MAX_POOL_SIZE = 8` (see `jest.globalSetup.ts` for where that number
+// came from), 10 workers ask for at most 80 connections against a
+// `max_connections` of 100 — under the ceiling with room for the migrator's own
+// session and a psql.
 //
 // Unbounded, jest forks one worker per core minus one, which on a 32-core
 // machine is 31 workers and up to 620 connections. The server then refuses
@@ -28,7 +28,7 @@ const { computeMaxWorkers } = require('./jest.workerCount.cjs');
 // 10 workers = 13.68 GiB. Roughly a fixed 4.2 GiB for jest plus 0.95 GiB per
 // worker, because ts-jest holds a TypeScript program per worker and
 // `--coverage` instruments every file. 13.68 GiB does not fit in 16 GiB beside
-// the runner agent and the mongo and postgis service containers; 7.06 GiB does.
+// the runner agent and the postgis service container; 7.06 GiB does.
 const MAX_WORKERS = computeMaxWorkers();
 
 module.exports = {
@@ -73,8 +73,8 @@ module.exports = {
     // provisions each worker's database by SPAWNING `bun run db:migrate`, a
     // separate process no `moduleNameMapper` reaches, and `src/db/migrate.ts`
     // imports `@oxyhq/db/migrate` — which resolves into `dist/`. So `ci.yml`'s
-    // api-test and api-backfill-test jobs build the package explicitly; see the
-    // comment on that step. Do not delete the build believing this covers it.
+    // api-test job builds the package explicitly; see the comment on that step.
+    // Do not delete the build believing this covers it.
     '^@oxyhq/db$': '<rootDir>/../db/src/index.ts',
     '^@oxyhq/db/migrate$': '<rootDir>/../db/src/migrate/index.ts',
     '^@oxyhq/db/expiry$': '<rootDir>/../db/src/expiry.ts',

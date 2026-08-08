@@ -6,13 +6,12 @@
 ## next to `bun run api:dev`.
 ##
 ## Usage:
-##   docker compose -f docker-compose.dev.yml up -d postgres mongo
+##   docker compose -f docker-compose.dev.yml up -d postgres
 ##   docker compose -f docker-compose.dev.yml logs -f postgres
 ##   docker compose -f docker-compose.dev.yml down -v      # wipe (data is disposable)
 ##
 ## Then in packages/api/.env:
 ##   DATABASE_URL=postgres://oxy:oxy@127.0.0.1:5432/oxy_dev
-##   MONGODB_URI=mongodb://127.0.0.1:27017/oxy-dev
 ##
 ## SWITCHING FROM postgres:17-alpine: the image change alone does not add PostGIS
 ## to an EXISTING data volume — `postgis` ships as files under
@@ -45,7 +44,6 @@ services:
     environment:
       POSTGRES_USER: oxy
       POSTGRES_PASSWORD: oxy
-      # Matches the `oxy-{env}` naming the Mongo side uses (see config/db.ts).
       POSTGRES_DB: oxy_dev
     ports:
       - "127.0.0.1:5432:5432"
@@ -58,32 +56,5 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  mongo:
-    # The SOURCE of the Mongo→Postgres backfill, and a hard prerequisite of
-    # `src/db/backfill/__tests__/` — those suites seed a throwaway database and
-    # run the REAL audits against it, because the audits are written in Mongo's
-    # query language (`distinct` over a dotted path crossing an array, `$group`
-    # with `$toLower`/`$ifNull`) and a hand-written fake would only prove it
-    # agrees with itself.
-    #
-    # Pinned to 7 to match `.github/workflows/ci.yml`, so a developer's database
-    # and CI's cannot disagree. NOT 8: `mongo:8` segfaults on hosts without the
-    # microarchitecture it assumes, which surfaces as a connection reset
-    # mid-suite rather than as a startup failure.
-    image: mongo:7
-    container_name: oxy-mongo-dev
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:27017:27017"
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ping:1}).ok' | grep -q 1"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
-    volumes:
-      - mongo-data:/data/db
-
 volumes:
   postgres-data:
-  mongo-data:
