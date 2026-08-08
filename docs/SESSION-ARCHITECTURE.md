@@ -12,7 +12,7 @@
 ## Principles
 
 - **Server authority.** Which accounts are signed in on a device — and which one is
-  active — lives in one MongoDB document per device. Clients never own that state; they
+  active — lives in one `device_sessions` row per device. Clients never own that state; they
   project it.
 - **Silent cold boot.** `OxyProvider` restores the session on mount with zero UI. It never
   redirects to a login page and never opens a dialog on its own. Signed-out is a silent,

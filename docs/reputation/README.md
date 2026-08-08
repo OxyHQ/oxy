@@ -35,17 +35,17 @@ hash chain, and the *trigger* is always a verified signature from a third party.
 
 ## 2. The reputation ledger
 
-Three MongoDB models back the ledger (`packages/api/src/models/`):
+Three Postgres tables back the ledger (`packages/api/src/db/schema/`):
 
-- **`ReputationTransaction`** (`reputationtransactions`) — the append-only ledger.
+- **`ReputationTransaction`** (`reputation_transactions`) — the append-only ledger.
   `status` ∈ `active | disputed | reversed | voided` — **only `active` counts
   toward balance**. `category` ∈ `content | social | trust | moderation |
   physical | penalty | other`. `sourceActionId` gives idempotency.
-- **`ReputationBalance`** (`reputationbalances`) — a cached per-user snapshot:
+- **`ReputationBalance`** (`reputation_balances`) — a cached per-user snapshot:
   `total`, `positive`, `negative`, `breakdown`, `reliability`, `trustTier`,
   `influence`; recalculated on demand. Read back in **two views** — see
   [Who may read a balance](#who-may-read-a-balance).
-- **`ReputationDispute`** (`reputationdisputes`) — dispute lifecycle.
+- **`ReputationDispute`** (`reputation_disputes`) — dispute lifecycle.
 
 Reversals never delete: `reverseTransaction` marks the original `reversed` and
 inserts a compensating `-points active` transaction (nets to zero);
@@ -107,9 +107,9 @@ twice:
 | Guard | Catches |
 | --- | --- |
 | `const dto: <ContractType>` | a missing required field, a field the contract does not declare (excess-property checking), a `Date` left where the wire promises an ISO string — all at `tsc` time, naming the field |
-| `schema.parse(dto)` | what the compiler cannot see: a mongoose path typed required that an old document actually lacks |
+| `schema.parse(dto)` | what the compiler cannot see: a column typed required that an old row actually lacks |
 
-The same closed-value tuples back the mongoose enums, so a seventh category
+The same closed-value tuples back the schema enums, so a seventh category
 cannot be added on one side only. Before this, the serializers returned
 `Record<string, unknown>` and imported no reputation type from anywhere — the
 [view split below](#read-authorization) shipped server-side while the SDK type

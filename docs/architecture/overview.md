@@ -156,7 +156,7 @@ sequenceDiagram
     participant App as RP app (OxyProvider)
     participant SDK as @oxyhq/core OxyServices
     participant API as api.oxy.so (@oxyhq/api)
-    participant DB as MongoDB
+    participant DB as PostgreSQL
 
     Note over App,SDK: device-first cold boot restored a session (see auth docs)
     App->>SDK: oxyServices.getProfileByUsername("nate")

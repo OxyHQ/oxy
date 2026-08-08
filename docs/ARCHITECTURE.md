@@ -126,7 +126,7 @@ See [architecture/overview.md](./architecture/overview.md) for the full monorepo
 |                                |                                  |
 |                                v                                  |
 |   +---------------------------------------------------------+    |
-|   |                       MongoDB                            |    |
+|   |                      PostgreSQL                          |    |
 |   |  Users, Sessions, DeviceSessions, Applications, Grants   |    |
 |   +---------------------------------------------------------+    |
 +-----------------------------------------------------------------+

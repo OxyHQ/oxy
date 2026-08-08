@@ -7,7 +7,7 @@ Monorepo for the Oxy platform — authentication, user management, real-time fea
 | Page | Description |
 |------|-------------|
 | [[Architecture]] | Monorepo structure, packages, dependency graph |
-| [[Infrastructure]] | AWS resources (ECS, ALB, ECR, ElastiCache, MongoDB on EC2) |
+| [[Infrastructure]] | AWS resources (ECS, ALB, ECR, ElastiCache, RDS PostgreSQL) |
 | [[Deployment]] | GitHub OIDC, ECS Fargate, env vars, Cloudflare Pages |
 | [[Authentication]] | JWT flow, device sessions, session validation, CSRF protection |
 | [[Service Tokens]] | Internal service-to-service auth (OAuth2 Client Credentials) |

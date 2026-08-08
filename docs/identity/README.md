@@ -123,9 +123,9 @@ graph LR
     B --> H["RepoHead<br/>{ seq: 2, headRecordId: R2, recordCount: 3 }"]
 ```
 
-`RepoHead` (collection `repoheads`) is one document per `(subject, collection)`
+`RepoHead` (table `repo_heads`) is one row per `(subject, collection)`
 holding `{ seq, headRecordId, recordCount }` — an O(1) head pointer so the server
-never scans the chain to find the tip. In MongoDB the `SignedRecord` column for
+never scans the chain to find the tip. The `SignedRecord` column for
 `collection` is named **`nsid`** (query by `nsid`; `collection` is the
 schema/SDK alias).
 
