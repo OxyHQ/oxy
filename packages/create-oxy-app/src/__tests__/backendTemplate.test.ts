@@ -162,3 +162,22 @@ describe('schema barrel', () => {
     expect(() => render('packages', 'backend', 'src', 'config', 'database.ts')).toThrow();
   });
 });
+
+describe('backend tsconfig', () => {
+  test('keeps drizzle.config.ts out of the emitting build', () => {
+    // The config imports `drizzle-kit`, a devDependency the Dockerfile strips
+    // with `bun install --production`. `include: ["**/*.ts"]` sweeps it up, so
+    // without this exclusion tsc emits dist/drizzle.config.js — a module in the
+    // runtime image whose first `require` throws. Nothing requires it today,
+    // which is precisely why it has to be excluded now rather than after
+    // something does.
+    const tsconfig = render('packages', 'backend', 'tsconfig.json');
+    expect(tsconfig).toContain('"drizzle.config.ts"');
+
+    // Read out of the `exclude` array specifically, so the assertion above
+    // cannot be satisfied by the filename merely appearing in a comment.
+    const exclude = /"exclude"\s*:\s*\[([^\]]*)\]/.exec(tsconfig);
+    expect(exclude).not.toBeNull();
+    expect(exclude?.[1]).toContain('"drizzle.config.ts"');
+  });
+});
