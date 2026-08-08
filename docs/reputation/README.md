@@ -145,9 +145,11 @@ only, sweep the `GET:/reputation/` cache): `awardReputation`,
 `resolveReputationDispute`, `getReputationDisputeQueue`. All of their argument
 and return types come from `@oxyhq/contracts`.
 
-> **Pending:** the karma→reputation migration
-> (`scripts/migrate-karma-to-reputation.ts`) must run as a one-shot ECS task —
-> all balances read 0 until it does.
+> **Not pending.** Karma was hard-replaced by this ledger (b28f886b), and the
+> `karmas`/`karmarules` collections were verified empty cluster-wide before the
+> Postgres port, so `migrate-karma-to-reputation.ts` was a no-op against
+> production. It has been deleted with the rest of the Mongo one-shots; balances
+> come from `reputation_transactions` and always have.
 
 ---
 

@@ -20,7 +20,7 @@ name: Run PostgreSQL migrations
 #
 # 1. The database is on a PRIVATE VPC address, unreachable from a GitHub runner,
 #    so the migration has to run as an ECS task INSIDE the VPC ("Fargate
-#    one-shot") — the same shape as run-user-text-backfill.yml, whose comments
+#    one-shot") — the same shape as seed-oxy-applications.yml, whose comments
 #    explain the task-definition reuse in more detail.
 #
 # 2. It runs the API image's OWN migrator: `node packages/api/dist/db/migrate.js`

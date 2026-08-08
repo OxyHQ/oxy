@@ -38,7 +38,7 @@ import { eq, inArray } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
-import { exactCaseInsensitiveUsernameRegex, resolveUserByIdentifier } from './resolveUserIdentifier';
+import { resolveUserByIdentifier } from './resolveUserIdentifier';
 
 const RUN = randomUUID().replace(/-/g, '').slice(0, 12);
 const createdAccounts: string[] = [];
@@ -170,19 +170,6 @@ describe('the ambiguity the read-side guard used to cover', () => {
     const id = await insertAccount({ username });
 
     expect((await resolveUserByIdentifier(username.toUpperCase()))?.id).toBe(id);
-  });
-});
-
-describe('exactCaseInsensitiveUsernameRegex', () => {
-  it('is still anchored and escaped for the call sites that have not been ported', () => {
-    // Kept only for `server.ts` and
-    // `scripts/dedupe-own-domain-federated-users.ts`, whose Mongo reads belong
-    // to a later batch. It must go with the last of them.
-    const regex = exactCaseInsensitiveUsernameRegex('a.b+');
-
-    expect(regex.test('A.B+')).toBe(true);
-    expect(regex.test('xa.b+')).toBe(false);
-    expect(regex.test('aZb+')).toBe(false);
   });
 });
 

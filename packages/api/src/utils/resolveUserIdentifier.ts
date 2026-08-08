@@ -44,24 +44,6 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { users } from '../db/schema/users';
 
-/** Escape regex metacharacters so the identifier matches literally. */
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Build an anchored, escaped, case-insensitive regex that matches a username
- * EXACTLY (not as a substring) regardless of letter case.
- *
- * NOT used by the resolver below any more — a `lower(btrim(username))` lookup
- * is both exact and index-served. It remains exported for `server.ts` and
- * `scripts/dedupe-own-domain-federated-users.ts`, whose Mongo reads belong to a
- * later batch; it must go with the last of them.
- */
-export function exactCaseInsensitiveUsernameRegex(username: string): RegExp {
-  return new RegExp(`^${escapeRegExp(username)}$`, 'i');
-}
-
 /** The account an identifier resolved to. */
 export interface ResolvedUserIdentity {
   /** The canonical account id — never the public key. */
