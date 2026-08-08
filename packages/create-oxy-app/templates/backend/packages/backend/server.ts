@@ -12,7 +12,7 @@ import {
 } from '@oxyhq/core/server';
 import type { OxyAuthenticatedRequest } from '@oxyhq/core/server';
 import type { HealthResponse } from '@{{APP_SLUG}}/shared-types';
-import { connectToDatabase, isDatabaseConnected } from './src/config/database';
+import { checkPostgresHealth, connectPostgres } from './src/db/postgres';
 import { logger } from './src/utils/logger';
 
 dotenv.config();
@@ -36,9 +36,11 @@ app.get('/health', (_req, res) => {
   res.json(body);
 });
 
-// Readiness — reflects the MongoDB connection state.
-app.get('/ready', (_req, res) => {
-  if (isDatabaseConnected()) {
+// Readiness — a real round trip to Postgres, not a cached "we connected once"
+// flag. A pool can exist while the server behind it is unreachable, and the
+// cheap answer is the one that reports ready throughout an outage.
+app.get('/ready', async (_req, res) => {
+  if (await checkPostgresHealth()) {
     res.json({ status: 'ready' });
     return;
   }
@@ -79,10 +81,14 @@ io.on('connection', (socket: AuthedSocket) => {
 
 async function boot(): Promise<void> {
   try {
-    await connectToDatabase();
+    // Connect only. Migrations are NOT applied here: every task in a scaled
+    // service would run them at once, drizzle's migrator takes no lock, and the
+    // losers fail on DDL the winner already applied. Run `db:migrate` as its own
+    // step — see src/db/migrate.ts.
+    await connectPostgres();
     server.listen(PORT, () => logger.info(`{{APP_NAME}} backend listening on :${PORT}`));
   } catch (error) {
-    logger.error('Failed to start server — could not connect to MongoDB', error);
+    logger.error('Failed to start server — could not connect to PostgreSQL', error);
     process.exit(1);
   }
 }

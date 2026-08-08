@@ -39,6 +39,14 @@ COPY --from=builder /app/packages/frontend/package.json packages/frontend/
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
 COPY --from=builder /app/packages/backend/dist/ packages/backend/dist/
 
+# The SQL migrations, next to the compiled migrator that applies them. Without
+# this the image builds green and the migration step fails at run time with a
+# missing _journal.json — src/db/migrationsFolder.ts searches upward for this
+# folder and reports exactly that. Migrations are applied by a SEPARATE one-shot
+# task (`bun packages/backend/dist/src/db/migrate.js --target-database=<name>`),
+# never by the server on boot: N tasks racing the same DDL is not a rollout.
+COPY --from=builder /app/packages/backend/drizzle/ packages/backend/drizzle/
+
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
 USER appuser

@@ -30,7 +30,7 @@ Register an Application + public credential at https://console.oxy.so if you did
 packages/
   frontend/       Expo Router app (@oxyhq/services + @oxyhq/bloom + NativeWind)
   shared-types/   Shared TypeScript types{{#backend}}
-  backend/        Express + Mongoose + Socket.IO API{{/backend}}
+  backend/        Express + Postgres (drizzle) + Socket.IO API{{/backend}}
 ```
 
 All Expo config is centralized in `@oxyhq/app-preset` — see `AGENTS.md`.

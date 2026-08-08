@@ -10,6 +10,11 @@
     }
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "dist"],
+  // drizzle.config.ts is excluded from the EMITTING build on purpose: it imports
+  // `drizzle-kit`, a devDependency the runtime image does not install, so
+  // compiling it would put a module into dist/ that throws the moment anything
+  // requires it. drizzle-kit loads and type-checks the config itself when
+  // `db:generate` runs, which is the only place it is used.
+  "exclude": ["node_modules", "dist", "drizzle.config.ts"],
   "references": [{ "path": "../shared-types" }]
 }

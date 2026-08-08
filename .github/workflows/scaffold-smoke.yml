@@ -19,6 +19,31 @@ permissions:
 jobs:
   scaffold:
     runs-on: ubuntu-24.04-arm
+
+    # Postgres for the generated backend's migration steps. The generated app
+    # ships its own docker-compose.postgres.yml for developers; CI cannot use it
+    # (a compose file inside a service container is one layer too many), so the
+    # image is pinned to the SAME major the template's compose file names — a
+    # developer's database and CI's must not disagree about what they are testing.
+    #
+    # The migrator applies the template's own drizzle/ journal to this database
+    # from zero, which is the only check that the shipped migrations are actually
+    # applicable rather than merely present.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: smoke
+          POSTGRES_PASSWORD: smoke
+          POSTGRES_DB: smoke_app_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smoke -d smoke_app_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +99,79 @@ jobs:
           # the root node_modules, so shared-types' tsconfig extends fail. The
           # generated app MUST carry bunfig.toml with the hoisted linker.
           grep -q 'linker = "hoisted"' "$RUNNER_TEMP/smoke-app/bunfig.toml"
+
+      - name: Assert the scaffold ships its Postgres layer
+        working-directory: ${{ runner.temp }}/smoke-app
+        run: |
+          set -euo pipefail
+
+          # Pure file checks, so they run BEFORE the install and fail in seconds.
+          # These are the packed-tarball counterpart of the CLI unit tests: the
+          # tests read the template tree, this reads what the tarball RENDERED.
+          missing=0
+          for f in docker-compose.postgres.yml \
+                   packages/backend/drizzle.config.ts \
+                   packages/backend/drizzle/meta/_journal.json \
+                   packages/backend/src/db/postgres.ts \
+                   packages/backend/src/db/migrate.ts \
+                   packages/backend/src/db/migrationsFolder.ts \
+                   packages/backend/src/db/schema/index.ts; do
+            if [ ! -f "$f" ]; then echo "::error::scaffold is missing $f"; missing=1; fi
+          done
+          [ "$missing" = 0 ]
+
+          if [ -e packages/backend/src/config/database.ts ]; then
+            echo "::error::the Mongoose connector is still shipped"; exit 1
+          fi
+
+          # No unrendered template tokens anywhere in the Postgres layer. The
+          # scaffolder throws on an UNKNOWN token, but a token inside a file the
+          # renderer never visited would survive silently.
+          if grep -rn '{{' docker-compose.postgres.yml packages/backend/drizzle.config.ts packages/backend/src/db/; then
+            echo "::error::unrendered template token in the generated Postgres layer"; exit 1
+          fi
+
+          # Nothing in the generated app may still talk about Mongo.
+          if grep -rniI mongo . --exclude-dir=node_modules --exclude=bun.lock; then
+            echo "::error::generated app still mentions Mongo"; exit 1
+          fi
+
+          # The runtime image must carry the migrations next to the compiled
+          # migrator, or the migration step fails on a missing journal at deploy
+          # time — long after this workflow went green.
+          if ! grep -q 'packages/backend/drizzle/' packages/backend/Dockerfile; then
+            echo "::error::the Dockerfile runtime stage does not COPY packages/backend/drizzle/"; exit 1
+          fi
+
+          # Every migration declares exactly one recognised deploy phase. Without
+          # this the migrator refuses at deploy time rather than here.
+          for sql in packages/backend/drizzle/*.sql; do
+            n=$(grep -cE '^-- oxy:deploy-phase=(pre|post)$' "$sql" || true)
+            if [ "$n" != 1 ]; then
+              echo "::error::$sql has $n deploy-phase markers, expected exactly 1"; exit 1
+            fi
+          done
+
+      - name: Assert the generated backend pins the Postgres stack
+        working-directory: ${{ runner.temp }}/smoke-app
+        run: |
+          set -euo pipefail
+          node -e '
+            const pkg = require("./packages/backend/package.json");
+            const problems = [];
+            for (const dep of ["@oxyhq/db", "drizzle-orm", "postgres"]) {
+              if (!pkg.dependencies?.[dep]) problems.push(`missing dependency ${dep}`);
+            }
+            if (!pkg.devDependencies?.["drizzle-kit"]) problems.push("missing devDependency drizzle-kit");
+            for (const script of ["db:generate", "db:migrate"]) {
+              if (!pkg.scripts?.[script]) problems.push(`missing script ${script}`);
+            }
+            if (pkg.dependencies?.mongoose) problems.push("mongoose is still a dependency");
+            if (problems.length) {
+              for (const p of problems) console.error(`::error::${p}`);
+              process.exit(1);
+            }
+          '
 
       - name: Install the generated app (+ local @oxyhq/app-preset)
         working-directory: ${{ runner.temp }}/smoke-app
@@ -132,6 +230,81 @@ jobs:
       - name: Build the backend
         working-directory: ${{ runner.temp }}/smoke-app
         run: bun run --cwd packages/backend build
+
+      - name: Migrate the generated app from zero
+        working-directory: ${{ runner.temp }}/smoke-app/packages/backend
+        env:
+          DATABASE_URL: postgres://smoke:smoke@127.0.0.1:5432/smoke_app_ci
+        run: |
+          set -euo pipefail
+
+          # The COMPILED migrator (dist/src/db/migrate.js), deliberately, not the
+          # `db:migrate` script that runs the TypeScript. `tsconfig.json` compiles
+          # with rootDir "./", so src/db sits two levels below the package root and
+          # dist/src/db sits three — a migrations path computed with a fixed number
+          # of `..` segments therefore WORKS from source and resolves to
+          # dist/drizzle in the image. Exercising only the source path would pass
+          # against exactly that bug. This is also what a deploy actually runs.
+          # Written into the backend package so `require("postgres")` resolves
+          # from the generated app's own node_modules — this deliberately uses the
+          # driver the app already depends on rather than `psql`, since a runner
+          # image is not guaranteed to ship the PostgreSQL client and a missing
+          # binary here would read as a failed migration.
+          cat > assert-db.cjs <<'ASSERT'
+          const postgres = require('postgres');
+          const expectedLedgerRows = Number(process.argv[2]);
+
+          const sql = postgres(process.env.DATABASE_URL, { max: 1 });
+          const problems = [];
+
+          (async () => {
+            const [{ notes }] = await sql`select to_regclass('public.notes')::text as notes`;
+            const [{ applied }] = await sql`select count(*)::int as applied from drizzle.__drizzle_migrations`;
+            await sql.end();
+
+            if (notes !== 'notes') problems.push(`notes table absent after migrating (to_regclass => ${notes})`);
+            if (applied !== expectedLedgerRows) {
+              problems.push(`expected ${expectedLedgerRows} ledger row(s), found ${applied}`);
+            }
+            for (const problem of problems) console.error(`::error::${problem}`);
+            process.exit(problems.length === 0 ? 0 : 1);
+          })().catch((error) => {
+            console.error(`::error::${error.message}`);
+            process.exit(1);
+          });
+          ASSERT
+
+          node dist/src/db/migrate.js --target-database=smoke_app_ci
+          node assert-db.cjs 1
+
+          # Re-running is a clean no-op, not a second apply.
+          node dist/src/db/migrate.js --target-database=smoke_app_ci
+          node assert-db.cjs 1
+
+          # And the guard that does not fail loudly on its own: pointed at the
+          # wrong database a migrator finds an empty ledger, applies everything,
+          # prints "Applied N" and exits 0. It must REFUSE instead.
+          if node dist/src/db/migrate.js --target-database=some_other_database; then
+            echo "::error::the migrator accepted a target that is not the connected database"; exit 1
+          fi
+
+      - name: db:generate reports no drift on a fresh scaffold
+        working-directory: ${{ runner.temp }}/smoke-app/packages/backend
+        env:
+          DATABASE_URL: postgres://smoke:smoke@127.0.0.1:5432/smoke_app_ci
+        run: |
+          set -euo pipefail
+          # If the shipped snapshot disagreed with the shipped schema, every app
+          # generated from this template would start life with a phantom migration
+          # its first `db:generate` invents. Compare the whole drizzle/ tree by
+          # checksum rather than trusting drizzle-kit's summary line.
+          before=$(find drizzle -type f | sort | xargs md5sum | md5sum)
+          bun run db:generate
+          after=$(find drizzle -type f | sort | xargs md5sum | md5sum)
+          if [ "$before" != "$after" ]; then
+            echo "::error::db:generate changed drizzle/ on a fresh scaffold — the shipped snapshot does not match the shipped schema"
+            exit 1
+          fi
 
       - name: Export web
         working-directory: ${{ runner.temp }}/smoke-app/packages/frontend

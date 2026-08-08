@@ -1,0 +1,49 @@
+##
+## Local PostgreSQL for {{APP_NAME}} development.
+##
+## Usage:
+##   docker compose -f docker-compose.postgres.yml up -d postgres
+##   docker compose -f docker-compose.postgres.yml logs -f postgres
+##   docker compose -f docker-compose.postgres.yml down -v   # wipe (data is disposable)
+##
+## Then in packages/backend/.env:
+##   DATABASE_URL=postgres://{{APP_SLUG}}:{{APP_SLUG}}@127.0.0.1:5432/{{APP_SLUG}}_dev
+##
+## and apply the schema:
+##   bun run --cwd packages/backend db:migrate -- --target-database={{APP_SLUG}}_dev
+##
+
+services:
+  postgres:
+    # Pinned on the MAJOR that production runs. A floating tag means a developer's
+    # database and production's can differ in behaviour with nothing to notice.
+    #
+    # Swap this for `postgis/postgis:17-3.5` if the schema grows a `geography`
+    # column — and pin BOTH versions there, because a floating PostGIS minor is a
+    # floating set of function volatilities, and a generated column requires the
+    # functions it calls to be IMMUTABLE.
+    image: postgres:17-alpine
+    container_name: {{APP_SLUG}}-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: {{APP_SLUG}}
+      POSTGRES_PASSWORD: {{APP_SLUG}}
+      # Underscores, not hyphens: an unquoted Postgres identifier cannot hold one.
+      POSTGRES_DB: {{APP_SLUG}}_dev
+    ports:
+      # Loopback-only — this database is never exposed off the host. Change the
+      # host side (the first number) if 5432 is already bound; several Oxy repos
+      # each run their own local Postgres, so a machine with more than one
+      # checkout open will collide here.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{APP_SLUG}} -d {{APP_SLUG}}_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - {{APP_SLUG}}-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  {{APP_SLUG}}-postgres-data:

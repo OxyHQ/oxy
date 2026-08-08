@@ -36,7 +36,7 @@ my-app/
   packages/
     frontend/       Expo Router · NativeWind · Bloom · @oxyhq/services
     shared-types/   Shared TypeScript types
-    backend/        Express · Mongoose · Socket.IO · @oxyhq/core/server   (optional)
+    backend/        Express · Postgres/drizzle · Socket.IO · @oxyhq/core/server   (optional)
   .github/workflows/deploy-aws.yml                                        (optional)
 ```
 

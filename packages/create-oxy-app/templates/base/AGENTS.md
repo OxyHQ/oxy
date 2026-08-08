@@ -12,7 +12,7 @@ Always use **bun** (never npm/yarn). After changing any `package.json`, run `bun
 packages/
   frontend/       @{{APP_SLUG}}/frontend       Expo Router · NativeWind · Bloom · @oxyhq/services
   shared-types/   @{{APP_SLUG}}/shared-types   Shared TypeScript types (CJS){{#backend}}
-  backend/        @{{APP_SLUG}}/backend        Express · Mongoose · Socket.IO · @oxyhq/core/server{{/backend}}
+  backend/        @{{APP_SLUG}}/backend        Express · Postgres/drizzle · Socket.IO · @oxyhq/core/server{{/backend}}
 ```
 
 ## Commands

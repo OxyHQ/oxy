@@ -2,5 +2,16 @@
 PORT=3000
 NODE_ENV=development
 
-# MongoDB connection string (the database name is derived as {{APP_SLUG}}-<env>).
-MONGODB_URI=mongodb://127.0.0.1:27017
+# PostgreSQL connection string. Matches docker-compose.postgres.yml at the repo
+# root; apply the schema to it with:
+#   bun run --cwd packages/backend db:migrate -- --target-database={{APP_SLUG}}_dev
+DATABASE_URL=postgres://{{APP_SLUG}}:{{APP_SLUG}}@127.0.0.1:5432/{{APP_SLUG}}_dev
+
+# Connection pool tuning. The values below are the defaults the code already uses
+# when these are unset, so they are here to be found rather than because they
+# must be set. PG_MAX_POOL_SIZE is PER TASK — multiply by the task count and keep
+# the product under the server's max_connections.
+# PG_MAX_POOL_SIZE=20
+# PG_IDLE_TIMEOUT_SECONDS=30
+# PG_CONNECT_TIMEOUT_SECONDS=10
+# PG_MAX_LIFETIME_SECONDS=1800

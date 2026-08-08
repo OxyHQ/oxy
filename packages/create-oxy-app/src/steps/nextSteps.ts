@@ -15,6 +15,15 @@ export function printNextSteps(config: ResolvedConfig, installed: boolean): void
   }
   lines.push(`  ${pc.cyan('bun run dev:frontend')}   ${pc.dim('# Expo dev server')}`);
   if (config.backend) {
+    lines.push('');
+    lines.push(pc.bold('Database (Postgres):'));
+    lines.push(
+      `  ${pc.cyan('docker compose -f docker-compose.postgres.yml up -d postgres')}`,
+    );
+    lines.push(
+      `  ${pc.cyan(`bun run --cwd packages/backend db:migrate -- --target-database=${config.slug}_dev`)}`,
+    );
+    lines.push('');
     lines.push(`  ${pc.cyan('bun run dev:backend')}    ${pc.dim('# Express + Socket.IO API')}`);
   }
 
@@ -29,7 +38,7 @@ export function printNextSteps(config: ResolvedConfig, installed: boolean): void
     lines.push('');
     lines.push(pc.bold('Before your first AWS deploy:'));
     lines.push(`  1. Create the ECR repository ${pc.cyan(`oxy/${config.slug}`)}.`);
-    lines.push(`  2. Add GitHub Actions secrets (${pc.dim('MONGODB_URI, OXY_SERVICE_* , …')}).`);
+    lines.push(`  2. Add GitHub Actions secrets (${pc.dim('DATABASE_URL, OXY_SERVICE_* , …')}).`);
     lines.push(`  3. Point ${pc.cyan(config.domain)} at the shared ALB and provision the ECS service.`);
   }
 

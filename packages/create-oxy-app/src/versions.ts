@@ -76,12 +76,27 @@ export const VERSIONS = {
   eslintConfigExpo: '~57.0.0',
   nodeTypes: '^20.0.0', // @types/node
 
-  // --- Backend (Express + Mongoose + Socket.IO) ---
+  // --- Backend (Express + Postgres/drizzle + Socket.IO) ---
   express: '^4.22.2',
   expressTypes: '^4.17.23', // @types/express
-  mongoose: '^8.22.1',
   socketIo: '^4.8.1', // socket.io
   dotenv: '^16.4.7',
+
+  // --- Backend data layer (Postgres) ---
+  // `@oxyhq/db` is the Oxy Postgres substrate: the casing authority, the shared
+  // column builders, the migration ledger + deploy-phase planner, the throwaway
+  // test-database harness and the schema-convention gates. drizzle-orm and
+  // postgres are its PEER dependencies, so all three move together — bumping one
+  // in isolation is how a peer range silently stops being satisfied.
+  //
+  // drizzle-orm and postgres are pinned EXACTLY rather than with a caret. The
+  // runtime `drizzle()` handle and drizzle-kit's DDL generation must agree about
+  // column naming, and drizzle's internals are not covered by semver in a way
+  // that makes a floating minor safe across that boundary.
+  oxyDb: '^0.1.2', // @oxyhq/db
+  drizzleOrm: '0.45.2', // drizzle-orm
+  postgres: '3.4.9', // postgres (postgres.js driver)
+  drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations, never applies them
 } as const;
 
 export type VersionKey = keyof typeof VERSIONS;
