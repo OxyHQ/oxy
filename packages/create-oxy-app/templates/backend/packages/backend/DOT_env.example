@@ -2,5 +2,12 @@
 PORT=3000
 NODE_ENV=development
 
-# MongoDB connection string (the database name is derived as {{APP_SLUG}}-<env>).
-MONGODB_URI=mongodb://127.0.0.1:27017
+# PostgreSQL connection string. Required — the server refuses to start without
+# it. `docker compose -f ../../docker-compose.postgres.yml up -d postgres`
+# brings up a local server matching the value below.
+DATABASE_URL=postgres://{{APP_SCHEME}}:{{APP_SCHEME}}@127.0.0.1:5437/{{APP_SCHEME}}_dev
+
+# Connection pool (optional; the values below are the defaults the code uses).
+# DATABASE_POOL_MAX=10
+# DATABASE_IDLE_TIMEOUT_SECONDS=30
+# DATABASE_CONNECT_TIMEOUT_SECONDS=10

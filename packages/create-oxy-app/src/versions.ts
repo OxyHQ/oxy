@@ -76,12 +76,21 @@ export const VERSIONS = {
   eslintConfigExpo: '~57.0.0',
   nodeTypes: '^20.0.0', // @types/node
 
-  // --- Backend (Express + Mongoose + Socket.IO) ---
+  // --- Backend (Express + Socket.IO) ---
   express: '^4.22.2',
   expressTypes: '^4.17.23', // @types/express
-  mongoose: '^8.22.1',
   socketIo: '^4.8.1', // socket.io
   dotenv: '^16.4.7',
+
+  // --- Backend datastore (PostgreSQL via drizzle) ---
+  // drizzle-orm and postgres are pinned EXACTLY, not caret-ranged: they are the
+  // peer dependencies @oxyhq/db declares, and drizzle's minor releases have
+  // changed generated DDL. One resolved version per ecosystem backend is what
+  // keeps a scaffolded app's migrations comparable with everyone else's.
+  oxyDb: '^0.1.2', // @oxyhq/db — column builders, casing authority, migration ledger
+  drizzleOrm: '0.45.2', // drizzle-orm
+  postgres: '3.4.9', // postgres (postgres.js driver)
+  drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations only
 } as const;
 
 export type VersionKey = keyof typeof VERSIONS;

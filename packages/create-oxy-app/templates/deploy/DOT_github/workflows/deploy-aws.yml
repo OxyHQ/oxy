@@ -42,7 +42,7 @@ jobs:
           SECRETS_JSON: ${{ toJSON(secrets) }}
           # Explicit backend runtime allowlist — do not sync unrelated CI tokens.
           SSM_SECRET_ALLOWLIST: >-
-            MONGODB_URI REDIS_URL
+            DATABASE_URL REDIS_URL
             OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
             AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
         run: |
