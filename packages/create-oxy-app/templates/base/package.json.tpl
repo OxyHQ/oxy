@@ -15,6 +15,8 @@
     "postinstall": "bun run build:shared-types"{{#backend}},
     "dev:backend": "bun run --cwd packages/backend dev",
     "build:backend": "bun run --cwd packages/backend build",
+    "db:generate": "bun run --cwd packages/backend db:generate",
+    "db:migrate": "bun run --cwd packages/backend db:migrate",
     "build": "bun run build:shared-types && bun run build:backend"{{/backend}}
   },
   "overrides": {

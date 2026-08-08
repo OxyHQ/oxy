@@ -1,6 +1,7 @@
 # Nightly (and on scaffolder/preset changes) end-to-end smoke of create-oxy-app:
-# generate a full app, install, typecheck, build the backend, export web, and
-# prebuild native — catching drift against the live Oxy SDK + Expo SDK.
+# generate a full app, install, typecheck, build the backend, apply its
+# migrations to a real PostgreSQL server, export web, and prebuild native —
+# catching drift against the live Oxy SDK + Expo SDK.
 name: scaffold-smoke
 
 on:
@@ -19,6 +20,28 @@ permissions:
 jobs:
   scaffold:
     runs-on: ubuntu-24.04-arm
+
+    services:
+      # The database the generated backend migrates against. Pinned to the SAME
+      # image and mapped to the SAME port as the docker-compose.postgres.yml the
+      # scaffold ships, and seeded with the user/database that template's
+      # .env.example points at — so the migration steps below use the generated
+      # .env verbatim instead of a CI-only connection string that could pass
+      # while the shipped default is wrong.
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: smokeapp
+          POSTGRES_PASSWORD: smokeapp
+          POSTGRES_DB: smokeapp_dev
+        ports:
+          - 5437:5432
+        options: >-
+          --health-cmd "pg_isready -U smokeapp -d smokeapp_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +97,26 @@ jobs:
           # the root node_modules, so shared-types' tsconfig extends fail. The
           # generated app MUST carry bunfig.toml with the hoisted linker.
           grep -q 'linker = "hoisted"' "$RUNNER_TEMP/smoke-app/bunfig.toml"
+
+      - name: Assert the Postgres pieces rendered
+        working-directory: ${{ runner.temp }}/smoke-app
+        run: |
+          # The file set a Postgres backend cannot start without. Checked against
+          # the scaffold produced by the PACKED tarball, so a template file the
+          # packer strips (or one nobody added to `files`) fails here rather than
+          # in somebody's first `bun run db:migrate`.
+          for f in docker-compose.postgres.yml \
+                   packages/backend/drizzle.config.ts \
+                   packages/backend/drizzle/meta/_journal.json \
+                   packages/backend/src/db/postgres.ts \
+                   packages/backend/src/db/migrate.ts \
+                   packages/backend/src/db/migrationsFolder.ts \
+                   packages/backend/src/db/schema/index.ts; do
+            test -f "$f" || { echo "::error::scaffold is missing $f"; exit 1; }
+          done
+          test ! -e packages/backend/src/config/database.ts
+          ! grep -rniE 'mongo' . --exclude-dir=node_modules
+          docker compose -f docker-compose.postgres.yml config -q
 
       - name: Install the generated app (+ local @oxyhq/app-preset)
         working-directory: ${{ runner.temp }}/smoke-app
@@ -132,6 +175,71 @@ jobs:
       - name: Build the backend
         working-directory: ${{ runner.temp }}/smoke-app
         run: bun run --cwd packages/backend build
+
+      - name: Migrations apply to a real Postgres from zero
+        working-directory: ${{ runner.temp }}/smoke-app
+        run: |
+          set -euo pipefail
+          # The generated .env verbatim — the shipped DATABASE_URL is what the
+          # service container above was configured to match.
+          cp packages/backend/.env.example packages/backend/.env
+
+          # The whole point: a freshly scaffolded app has a schema that applies
+          # to an empty database with no hand-editing first.
+          bun run db:migrate --target-database=smokeapp_dev
+
+          # Re-running must be a no-op, not a second apply.
+          bun run db:migrate --target-database=smokeapp_dev 2>&1 | tee /tmp/second.log
+          grep -q 'No migrations to apply' /tmp/second.log
+
+          # The shipped snapshot must agree with the shipped schema, or the first
+          # `db:generate` a developer runs re-emits a migration for the table
+          # that already exists.
+          bun run db:generate 2>&1 | tee /tmp/generate.log
+          grep -q 'No schema changes' /tmp/generate.log
+          # Independent of that message: drizzle-kit must not have written a
+          # second migration file.
+          test "$(find packages/backend/drizzle -maxdepth 1 -name '*.sql' | wc -l)" -eq 1
+
+          # The DDL really landed — `Applied 1` above is the migrator's own
+          # report, so ask the server instead.
+          cd packages/backend && bun -e '
+            const { default: postgres } = await import("postgres");
+            const sql = postgres(process.env.DATABASE_URL, { max: 1 });
+            const rows = await sql`select column_name from information_schema.columns where table_name = ${"notes"} order by column_name`;
+            await sql.end();
+            const names = rows.map((r) => r.column_name);
+            console.log("notes columns:", names.join(", "));
+            // Casing is the invariant: the column is declared `oxyUserId` in TS
+            // and must exist as `oxy_user_id`, or queries reference columns the
+            // migrations never created.
+            if (!names.includes("oxy_user_id")) throw new Error("DATABASE_CASING did not reach the DDL");
+          '
+        env:
+          DATABASE_URL: postgres://smokeapp:smokeapp@127.0.0.1:5437/smokeapp_dev
+
+      - name: The migration guards actually refuse
+        working-directory: ${{ runner.temp }}/smoke-app/packages/backend
+        run: |
+          set -uo pipefail
+          # A gate that cannot fail is worse than no gate. `--target-database` is
+          # the guard whose ABSENCE is silent: pointed at the wrong database a
+          # migrator finds an empty ledger, applies everything and exits 0.
+          if bun run src/db/migrate.ts --phase=all > /tmp/noflag.log 2>&1; then
+            echo "::error::db:migrate accepted a run with no --target-database"; exit 1
+          fi
+          # And the compiled bundle must resolve its migrations folder too — the
+          # source and dist entrypoints sit at different depths, so a fixed
+          # relative path is right for one and silently wrong for the other.
+          node -e '
+            const fs = require("fs");
+            const { MIGRATIONS_FOLDER } = require("./dist/src/db/migrationsFolder.js");
+            if (!fs.existsSync(MIGRATIONS_FOLDER + "/meta/_journal.json")) {
+              throw new Error("dist resolved a migrations folder with no journal: " + MIGRATIONS_FOLDER);
+            }
+          '
+        env:
+          DATABASE_URL: postgres://smokeapp:smokeapp@127.0.0.1:5437/smokeapp_dev
 
       - name: Export web
         working-directory: ${{ runner.temp }}/smoke-app/packages/frontend
