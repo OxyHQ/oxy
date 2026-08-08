@@ -25,8 +25,8 @@ ECS Fargate task (oxy-cluster / oxy-api)
    |  linux/arm64, port 8080, assign_public_ip=true
    v
 +------------------+   +----------------------+
-| ElastiCache      |   | MongoDB EC2          |
-| Valkey           |   | (EIP <mongo-public-ip>) |
+| ElastiCache      |   | RDS PostgreSQL 17    |
+| Valkey           |   | (oxy-postgres)       |
 +------------------+   +----------------------+
 ```
 
@@ -52,7 +52,7 @@ Task definitions are versioned (`oxy-oxy-api:N`). New revisions are registered w
 | `ACCESS_TOKEN_SECRET` | JWT signing secret for access tokens |
 | `REFRESH_TOKEN_SECRET` | JWT signing secret for refresh tokens |
 | `DEVICE_ID_SALT` | 64-hex salt for `deriveStableDeviceId` |
-| `MONGODB_URI` | MongoDB cluster URI (no DB name) |
+| `DATABASE_URL` | Postgres connection string for the `oxy_api` database on `oxy-postgres` |
 | `REDIS_URL` | ElastiCache Valkey URI |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare Pages deploys + DNS-01 ACM validation |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account |
@@ -91,7 +91,7 @@ CMD ["bun", "run", "packages/api/dist/server.js"]
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `MONGODB_URI` | MongoDB cluster URI (no DB name -- apps pass `dbName`) | `mongodb://<private-mongo-host>:27017` |
+| `DATABASE_URL` | Postgres connection string; the database name is part of the URI | `postgres://<user>:<pass>@<private-rds-host>:5432/oxy_api` |
 | `ACCESS_TOKEN_SECRET` | JWT signing secret for access tokens | 64+ hex |
 | `REFRESH_TOKEN_SECRET` | JWT signing secret for refresh tokens | 64+ hex |
 | `DEVICE_ID_SALT` | 64-hex salt scoping `deriveStableDeviceId` | 64 hex |
@@ -150,5 +150,4 @@ curl https://api.oxy.so/health
 
 - **Logs**: ECS task stdout/stderr -> CloudWatch Logs (`/oxy/ecs`). `aws logs tail /oxy/ecs --follow --log-stream-name-prefix oxy-api` (profile `oxy`) streams live output.
 - **Rollback**: re-run a prior successful deploy workflow, or `aws ecs update-service --task-definition oxy-oxy-api:<previous-rev>`.
-- **SSH-less ops**: MongoDB EC2 has no SSH keys. Use `aws ssm start-session --target <mongo-instance-id>`.
-- **Backups**: `s3://<mongo-backup-bucket>/daily/`. Restore runbook: `~/Oxy/oxy-infra/docs/runbooks/10-mongo-restore.md`.
+- **Database access and backups**: `oxy-postgres` is an RDS instance owned by `oxy-infra` — snapshots, parameter groups and restore live there (`terraform-uswest2/postgres.tf`).

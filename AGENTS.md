@@ -406,7 +406,7 @@ Single source of truth. Key methods:
 
 ### Types (`@oxyhq/contracts` — `src/reputation.ts`)
 **`@oxyhq/contracts` owns the whole reputation type family** — the closed value sets (`REPUTATION_CATEGORIES`, `TRUST_TIERS`, `REPUTATION_TRANSACTION_STATUSES`, `REPUTATION_TARGET_ENTITY_TYPES`, `REPUTATION_DISPUTE_STATUSES`, `REPUTATION_INFLUENCE_CONTEXTS`), the response entities (`ReputationTransaction`, `ReputationBalanceSummary` / `ReputationBalance` / `ReputationBalanceView`, `ReputationBalanceBreakdown`, `ReputationInfluence`, `ReputationReliability`, `ReputationDispute`, `ReputationRule`, `ReputationLeaderboardUser` / `ReputationLeaderboardEntry`, `ReputationInfluenceResult`, `ReverseReputationTransactionResult`), the write-endpoint request schemas + input types, and the `isFullReputationBalance` narrowing guard. `@oxyhq/core` declares NONE of them and re-exports NONE of them; every consumer imports from `@oxyhq/contracts` directly.
-- The API's mongoose enums (`ReputationTransaction`/`ReputationRule`/`ReputationDispute`/`ReputationBalance`/`User`) and its `validate({ body })` schemas import the SAME tuples/schemas, so a value set cannot be widened on one side only. `packages/api/src/utils/reputation.constants.ts` keeps only the numeric TUNABLES.
+- The API's Drizzle schema enums (`ReputationTransaction`/`ReputationRule`/`ReputationDispute`/`ReputationBalance`/`User`) and its `validate({ body })` schemas import the SAME tuples/schemas, so a value set cannot be widened on one side only. `packages/api/src/utils/reputation.constants.ts` keeps only the numeric TUNABLES.
 - Each serializer in `packages/api/src/routes/reputation.routes.ts` builds a `const dto: <ContractType>` (compile-time guard: a missing field, an undeclared field, or a `Date` where the wire promises an ISO string all fail `tsc` and name the field) and returns `schema.parse(dto)` (runtime guard). Do NOT loosen a serializer's return type back to `Record<string, unknown>` — that is exactly what let the `/:userId/balance` view split diverge from the SDK type silently.
 
 ### SDK (`@oxyhq/core` — `reputation` mixin)
@@ -536,7 +536,7 @@ Self-hosted `expo-updates`-protocol OTA server, namespaced entirely under `/upda
 
 ## No User IPs At Rest (privacy invariant, owner-mandated 2026-07-14)
 
-Threat model: state-actor harassment of users. The platform must **never persist a user IP address** — raw, hashed, or geo-derived (country included, e.g. `cf-ipcountry`) — in MongoDB, logs (pino fields), metrics metadata, or response DTOs. Salted hashes of the IPv4 space are brute-forceable by anyone with server access, so hashing is NOT an acceptable at-rest form.
+Threat model: state-actor harassment of users. The platform must **never persist a user IP address** — raw, hashed, or geo-derived (country included, e.g. `cf-ipcountry`) — in the database, logs (pino fields), metrics metadata, or response DTOs. Salted hashes of the IPv4 space are brute-forceable by anyone with server access, so hashing is NOT an acceptable at-rest form.
 
 - Removed entirely: `SecurityActivity.ipAddress`, `Session.deviceInfo.{ipAddress,location}`, `ApiKeyUsage.ipAddress`, the IP input to `deriveStableDeviceId`, IP-based anomaly detection (`detectRapidIPChanges`), and the civic `shared_ip` anti-sybil signal (`graphExclusion.ts` — device-fingerprint/interaction-history/affinity-throttle only now).
 - **Anonymous rate-limit keys are the one place IPs may be touched, and only transiently:** they MUST go through `hashedIpKey` (`packages/api/src/utils/ipKey.ts` — HMAC(`DEVICE_ID_SALT`), IPv6 /56-bucketed) and live only as a Redis key with the limiter's normal TTL. Never key a limiter on raw `req.ip`.
@@ -911,7 +911,7 @@ Standalone Vite app at `auth.oxy.so` — the **OAuth authorize/consent IdP** for
 
 - **Envelope v2** (`version:2, seq, prev, collection, rkey`): adds sequential ledger semantics on top of the v1 signing envelope. `seq` = monotone counter per `(subject, collection)`; `prev` = SHA-256 of the previous envelope JSON (or null for the first). Forms a per-subject, per-collection hash chain.
 - **`RepoHead`** model (collection `repoheads`): one document per `(subject, collection)`, stores `seq + envelopeHash` — O(1) head lookup without scanning the chain.
-- **`SignedRecord.nsid`** — the MongoDB column name for `collection` is `nsid` (Namespaced Identifier, e.g. `app.oxy.card`, `app.oxy.credential`). Use `nsid` in queries; `collection` is the schema/SDK alias.
+- **`SignedRecord.nsid`** — the column name for `collection` is `nsid` (Namespaced Identifier, e.g. `app.oxy.card`, `app.oxy.credential`). Use `nsid` in queries; `collection` is the schema/SDK alias.
 - **`signedRecordSigningInput` / `canonicalize`** from `packages/core/src/crypto/canonicalJson.ts` — signing input is `canonicalize(envelopeWithoutSignature)`. Used identically by client and server.
 - **`verifyEnvelope` branching** in `packages/api/src/services/signedRecord.service.ts`: issuer === subject → self-signed (verify against subject's current VM); issuer === `OXY_DID` → custodial (verify via `verifySecret`-gated Oxy key); else → untrusted, reject.
 

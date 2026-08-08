@@ -23,8 +23,8 @@ ECS Fargate task (oxy-cluster / oxy-api)
    |  linux/arm64, port 8080, assign_public_ip=true
    v
 +------------------+   +----------------------+
-| ElastiCache      |   | MongoDB EC2          |
-| Valkey           |   | (EIP <mongo-public-ip>) |
+| ElastiCache      |   | RDS PostgreSQL 17    |
+| Valkey           |   | (oxy-postgres)       |
 +------------------+   +----------------------+
 ```
 
@@ -50,7 +50,7 @@ Task definitions are versioned (`oxy-oxy-api:N`). New revisions are registered w
 | `ACCESS_TOKEN_SECRET` | JWT signing secret for access tokens |
 | `REFRESH_TOKEN_SECRET` | JWT signing secret for refresh tokens |
 | `DEVICE_ID_SALT` | 64-hex salt for `deriveStableDeviceId` |
-| `MONGODB_URI` | MongoDB cluster URI (no DB name; apps pass `dbName`) |
+| `DATABASE_URL` | Postgres connection string for the `oxy_api` database on `oxy-postgres` |
 | `REDIS_URL` | ElastiCache Valkey URI |
 | `CLOUDFLARE_API_TOKEN` | For Cloudflare Pages deploys + DNS-01 ACM validation |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account |
@@ -78,7 +78,7 @@ The image is built for **linux/arm64** (Graviton). x86 images won't run on the F
 
 | Variable | Description |
 |----------|-------------|
-| `MONGODB_URI` | MongoDB cluster URI (no DB name -- apps pass `dbName` to `mongoose.connect`) |
+| `DATABASE_URL` | Postgres connection string; the database name is part of the URI |
 | `ACCESS_TOKEN_SECRET` | JWT signing secret for access tokens |
 | `REFRESH_TOKEN_SECRET` | JWT signing secret for refresh tokens |
 | `DEVICE_ID_SALT` | 64-hex salt scoping `deriveStableDeviceId` |
@@ -139,6 +139,5 @@ curl https://api.oxy.so/health
 
 - **Logs**: ECS task stdout/stderr is shipped to CloudWatch Logs (`/oxy/ecs`). Use `aws logs tail /oxy/ecs --follow --log-stream-name-prefix oxy-api` (profile `oxy`) to stream the live log.
 - **Rollback**: re-run a previous successful deploy workflow, or `aws ecs update-service --task-definition oxy-oxy-api:<previous-rev>`.
-- **SSH-less access**: the MongoDB EC2 instance has no SSH keys. Use AWS SSM Session Manager: `aws ssm start-session --target <mongo-instance-id>`.
-- **Backups**: `s3://<mongo-backup-bucket>/daily/`. Restore runbook lives in `~/Oxy/oxy-infra/docs/runbooks/10-mongo-restore.md`.
+- **Database access and backups**: `oxy-postgres` is an RDS instance owned by `oxy-infra` — automated snapshots, parameter groups and restore live there, not here. See `~/Oxy/oxy-infra/terraform-uswest2/postgres.tf`.
 - **Excluded from AWS**: the LiveKit cluster still runs on its own external managed host and is migrated separately. Athina, faircoin, TNP, and the OpenSearch `genai-shark` instance also stay outside AWS.

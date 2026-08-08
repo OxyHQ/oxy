@@ -22,11 +22,11 @@ Inbound:
                          ┌──────────────────┐
                          │  Oxy API         │  Validates recipient against Oxy users,
                          │  emailInbound.ts │  parses MIME, runs spam checks,
-                         │                  │  writes Mailbox/Message documents.
+                         │                  │  writes Mailbox/Message rows.
                          └────────┬─────────┘
                                   │
                                   ▼
-                            MongoDB (EC2)
+                          PostgreSQL (RDS)
                                   │
                                   ▼
                         S3 (attachments)
@@ -536,7 +536,7 @@ In production, email runs entirely on AWS:
                 │
        ┌────────┴────────┐
        ▼                 ▼
-  MongoDB (EC2)     S3 (attachments)
+  PostgreSQL (RDS)  S3 (attachments)
 ```
 
 **Key points:**
@@ -544,7 +544,7 @@ In production, email runs entirely on AWS:
 - **AWS SES** handles transport (delivery + DKIM-signed outbound) and basic spam classification.
 - **Cloudflare Email Routing** delivers inbound mail for `@oxy.so` to the API webhook (`packages/api/src/routes/emailInbound.ts`).
 - The Oxy API runs as an **ECS Fargate** task in `oxy-cluster` behind the ALB — no on-box SMTP server in this path.
-- **MongoDB** is the self-hosted EC2 instance described in [Infrastructure](INFRASTRUCTURE.md).
+- **PostgreSQL** is the shared `oxy-postgres` RDS instance described in [Infrastructure](INFRASTRUCTURE.md).
 - **Auto-deploy**: push to `main` → GitHub Actions builds an `arm64` image → pushes to ECR → `aws ecs update-service --force-new-deployment`. See [Deployment](DEPLOYMENT.md).
 
 ### Self-hosted SMTP (legacy / non-AWS deployments)

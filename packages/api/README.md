@@ -10,7 +10,7 @@ A comprehensive Node.js/TypeScript backend server providing JWT-based authentica
 - ⚡ **Express.js Server** - RESTful API with comprehensive middleware
 - 🔒 **Security Features** - Rate limiting, CORS, password hashing, brute force protection
 - 📝 **TypeScript** - Full type safety and developer experience
-- 📁 **File Management** - GridFS-based file upload, storage, and streaming
+- 📁 **File Management** - S3-backed file upload, storage, and streaming
 - 👥 **Social Features** - User profiles, following system, recommendations
 - 🔔 **Real-time Notifications** - Socket.IO powered notifications
 - 💳 **Payment Processing** - Payment method validation and processing
@@ -50,13 +50,18 @@ bun run dev
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Client Apps   │    │    Oxy API      │    │    MongoDB      │
+│   Client Apps   │    │    Oxy API      │    │   PostgreSQL    │
 │                 │    │                 │    │                 │
-│ Frontend/Backend│◄──►│ Express Server  │◄──►│   Database      │
-│ with OxyServices│    │ + Auth Routes   │    │ + Collections   │
-│                 │    │ + File Storage  │    │ + GridFS        │
-│                 │    │ + Socket.IO     │    │ + Analytics     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+│ Frontend/Backend│◄──►│ Express Server  │◄──►│  Drizzle schema │
+│ with OxyServices│    │ + Auth Routes   │    │  + migrations   │
+│                 │    │ + Socket.IO     │    │                 │
+└─────────────────┘    └────────┬────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   S3 storage    │
+                       │  (file assets)  │
+                       └─────────────────┘
 ```
 
 ## API Endpoints
@@ -304,8 +309,8 @@ Response:
 
 ## Performance
 
-- **File Streaming**: Efficient file serving via GridFS streams
-- **Database Indexing**: Optimized MongoDB queries
+- **File Streaming**: Efficient file serving from S3
+- **Database Indexing**: Optimized Postgres queries
 - **Caching**: Response caching for static content
 - **Connection Pooling**: Efficient database connections
 
