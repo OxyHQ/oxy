@@ -262,12 +262,12 @@ const SEED_APPS: SeedAppSpec[] = [
     name: 'Atlas',
     description:
       'The Oxy App Store — the storefront people browse before they choose an app, and where they review one afterwards.',
-    websiteUrl: 'https://apps.oxy.so',
+    websiteUrl: 'https://atlas.oxy.so',
     type: 'first_party',
     // The storefront is readable signed out, so this client exists for exactly
     // one thing: signing somebody in to write a review. Only the app's own
     // origin is listed; there is no second surface.
-    redirectUris: ['https://apps.oxy.so'],
+    redirectUris: ['https://atlas.oxy.so'],
   },
   {
     name: 'CrowdSource',
