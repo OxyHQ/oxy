@@ -143,8 +143,8 @@
     "@types/express-serve-static-core": "^4.19.9",
     "@types/jest": "^30.0.0",
     "jest-environment-jsdom": "^30.4.1",
-    "ts-jest": "^29.4.11",
-    "turbo": "^2.10.5"
+    "ts-jest": "^29.4.12",
+    "turbo": "^2.10.8"
   },
   "packageManager": "bun@1.3.14",
   "engines": {
@@ -175,10 +175,10 @@
     "lightningcss": "1.30.1"
   },
   "dependencies": {
-    "@expo/metro-runtime": "~57.0.5",
+    "@expo/metro-runtime": "~57.0.8",
     "@oxyhq/bloom": "catalog:",
-    "expo-contacts": "~57.0.1",
-    "expo-splash-screen": "~57.0.4",
+    "expo-contacts": "~57.0.3",
+    "expo-splash-screen": "~57.0.5",
     "is-arrayish": "^0.3.4",
     "react-native-worklets": "catalog:"
   }
