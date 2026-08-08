@@ -194,9 +194,9 @@ jobs:
         run: bun run build
         working-directory: ./packages/api
 
-      # `packages/api/scripts/**` (one-shot backfill/migration/audit scripts) is
+      # `packages/api/scripts/**` (the seed / credential / codegen one-shots) is
       # NOT part of the build program: `tsconfig.json` pins `rootDir` to `src` so
-      # `dist/` mirrors `src/`, which leaves those ~22 files with zero type
+      # `dist/` mirrors `src/`, which leaves those files with zero type
       # coverage. `tsconfig.scripts.json` typechecks them (noEmit) against the
       # same settings. It runs here, after `bun run build`, because that script
       # already builds all four workspace deps the program needs — @oxyhq/contracts,

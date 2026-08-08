@@ -10,8 +10,8 @@ name: Seed Oxy applications
 # built, deployed and serving, and no reviewer can sign in to it because no
 # credential has ever been minted.
 #
-# WHY IT IS SHAPED LIKE THIS — the same three reasons as the user-text backfill,
-# which this is modelled on:
+# WHY IT IS SHAPED LIKE THIS — three reasons. This is the reference shape for a
+# Fargate one-shot in this repo; `run-postgres-migrations.yml` follows it:
 #
 # 1. The database is on a PRIVATE VPC address, unreachable from a GitHub runner,
 #    so the script has to run as an ECS task INSIDE the VPC ("Fargate one-shot").

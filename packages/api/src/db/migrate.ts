@@ -58,7 +58,7 @@
  * the migrator compiles into the SAME image the service runs, adds no
  * dependency at all, and the one-shot ECS task can reuse the LIVE task
  * definition with only `command` overridden (the pattern
- * `.github/workflows/run-user-text-backfill.yml` established).
+ * `.github/workflows/seed-oxy-applications.yml` documents).
  *
  * drizzle-kit stays a devDependency for `db:generate`, which only ever runs on
  * a developer's machine and never opens a database.
