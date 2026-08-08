@@ -23,8 +23,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { userResponseSchema, safeParseContract } from '@oxyhq/contracts';
 
-/** See the identical note in `profilesUsername.test.ts`. */
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
 
 let currentViewerId: string | undefined;
 

@@ -98,10 +98,11 @@ import { createdAt, generatedId, textArrayLiteral, timestamptz, updatedAt } from
  * Named color presets a user may pick. `oxy` is premium-gated at the service
  * layer; the constraint permits it so an already-premium user can persist it.
  *
- * Declared here rather than imported from `models/User.ts`: that module pulls in
- * mongoose and `did.service`, and `drizzle.config.ts` loads this schema to emit
- * DDL. The Mongoose copy is authoritative until the model is deleted; the test
- * in `__tests__/users.test.ts` holds the two in agreement until then.
+ * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * other copy is gone. It renders the CHECK below, and
+ * `check-drizzle-snapshot-sync` holds that rendering against the migration the
+ * database was actually built from, so editing it without regenerating a
+ * migration fails CI.
  */
 export const USER_COLOR_PRESETS = [
   'teal',

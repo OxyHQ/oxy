@@ -52,7 +52,6 @@ jest.mock('../../services/civic/credential.service', () => ({
   verifyCredential: jest.fn(),
   revokeCredential: jest.fn(),
 }));
-jest.mock('../../models/PersonhoodStatus', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock('../../utils/validation', () => ({ isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id) }));
 
 import civicRoutes from '../civic';

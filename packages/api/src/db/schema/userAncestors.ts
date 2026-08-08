@@ -41,9 +41,11 @@ import { check, index, integer, pgTable, primaryKey, text } from 'drizzle-orm/pg
 import { users } from './users';
 
 /**
- * Maximum tree depth, guarding against pathological nesting. Mirrors
- * `MAX_ACCOUNT_DEPTH` in `models/User.ts`; the Mongoose copy is authoritative
- * until that model is deleted, and `__tests__/users.test.ts` holds them equal.
+ * Maximum tree depth, guarding against pathological nesting. The SINGLE
+ * declaration — the Mongoose copy is gone. It renders the `depth` CHECK below,
+ * and `account.service.ts` refuses a deeper move before the write; both are
+ * covered (`__tests__/account.service.test.ts` for the service,
+ * `check-drizzle-snapshot-sync` for the constraint).
  */
 export const MAX_ACCOUNT_DEPTH = 8;
 

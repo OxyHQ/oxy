@@ -29,8 +29,8 @@ jest.mock('../../config/redis', () => ({
 }));
 
 // Stub the auth middleware, service, and socket util so importing the route only
-// constructs the limiters (avoids dragging the Session/User model graph through
-// the global mongoose mock, which lacks `Schema.methods`).
+// constructs the limiters — this suite asserts which limiters are mounted, not
+// what the handlers behind them do.
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));

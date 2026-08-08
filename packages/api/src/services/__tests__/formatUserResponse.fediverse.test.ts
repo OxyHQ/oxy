@@ -9,20 +9,6 @@
  * exact field name and default-true-when-absent semantics.
  */
 
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
-});
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findById: jest.fn(), findOne: jest.fn() },
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
-}));
 
 jest.mock('../../utils/userCache', () => ({
   __esModule: true,

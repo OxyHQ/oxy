@@ -15,14 +15,6 @@ import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { maybeHashEmail, maybeHashPhone } from '../../../utils/contactHash';
 import {
-  ACCOUNT_KINDS as MONGOOSE_ACCOUNT_KINDS,
-  ACCOUNT_STATUSES as MONGOOSE_ACCOUNT_STATUSES,
-  MAX_ACCOUNT_DEPTH as MONGOOSE_MAX_ACCOUNT_DEPTH,
-  USER_COLOR_PRESETS as MONGOOSE_USER_COLOR_PRESETS,
-  isValidUserColor,
-} from '../../../models/User';
-import { MAX_ACCOUNT_DEPTH } from '../userAncestors';
-import {
   ACCOUNT_KINDS,
   ACCOUNT_STATUSES,
   USER_COLOR_PRESETS,
@@ -412,32 +404,5 @@ describe('defaults', () => {
     expect(minted).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
     );
-  });
-});
-
-describe('constants stay in step with the Mongoose model', () => {
-  // Both stacks coexist during the port, and `users.ts` cannot import
-  // `models/User.ts` (it drags in mongoose, which `drizzle.config.ts` would then
-  // load to emit DDL). These assertions are what stops the two copies drifting
-  // while both are live; they can be deleted with the Mongoose model.
-  it('declares the same color presets', () => {
-    expect([...USER_COLOR_PRESETS]).toEqual([...MONGOOSE_USER_COLOR_PRESETS]);
-  });
-
-  it('declares the same account kinds and statuses', () => {
-    expect([...ACCOUNT_KINDS]).toEqual([...MONGOOSE_ACCOUNT_KINDS]);
-    expect([...ACCOUNT_STATUSES]).toEqual([...MONGOOSE_ACCOUNT_STATUSES]);
-  });
-
-  it('declares the same maximum account depth', () => {
-    expect(MAX_ACCOUNT_DEPTH).toBe(MONGOOSE_MAX_ACCOUNT_DEPTH);
-  });
-
-  it('accepts exactly the colors the Mongoose validator accepted', () => {
-    for (const color of USER_COLOR_PRESETS) {
-      expect(isValidUserColor(color)).toBe(true);
-    }
-    expect(isValidUserColor('#ABC')).toBe(true);
-    expect(isValidUserColor('chartreuse')).toBe(false);
   });
 });

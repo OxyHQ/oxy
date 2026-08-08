@@ -17,8 +17,6 @@ import http from 'http';
 import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 
-/** See the identical note in `profilesUsername.test.ts`. */
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
 
 const mockResolveAndUpsert = jest.fn();
 

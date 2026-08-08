@@ -50,10 +50,13 @@ import { users } from './users';
  * Membership lifecycle. `removed` is retained rather than deleted so a
  * re-invitation reactivates the same row (`addMember`).
  *
- * Declared here rather than imported from `models/AccountMember.ts`, which pulls
- * in mongoose; `__tests__/applications.test.ts` holds the copies equal.
- * `ACCOUNT_ROLES` needs no such copy — `utils/accountRoles.ts` is
- * dependency-free, so it is imported directly and cannot drift at all.
+ * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * other copy is gone. It renders the CHECK below, and
+ * `check-drizzle-snapshot-sync` holds that rendering against the migration the
+ * database was actually built from, so editing it without regenerating a
+ * migration fails CI.
+ *
+ * `ACCOUNT_ROLES` lives in `utils/accountRoles.ts` and is imported directly.
  */
 export const ACCOUNT_MEMBER_STATUSES = ['active', 'invited', 'removed'] as const;
 

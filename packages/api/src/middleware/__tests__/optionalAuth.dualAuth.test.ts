@@ -54,8 +54,8 @@ jest.mock('../serviceToken', () => ({
 
 const mockAuthNonBlocking = jest.fn();
 // Fully mock authUtils (rather than requireActual) so loading optionalAuth does
-// NOT pull in the real session.service → Session model chain, which the global
-// mongoose mock cannot construct. We provide only the members optionalAuth
+// NOT pull in the real session.service chain and the database behind it. We
+// provide only the members optionalAuth
 // consumes: a pure bearer extractor and the non-blocking authenticator. The
 // scoped media token is verified by the REAL `utils/mediaToken` (pure crypto),
 // so no mock is needed for it.

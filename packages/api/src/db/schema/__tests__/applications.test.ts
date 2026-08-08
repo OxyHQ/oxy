@@ -18,21 +18,6 @@ import { closePostgres, connectPostgres, getDb } from '../../../config/postgres'
 import { sqlColumnName } from '@oxyhq/db';
 import { sweepExpiredRows } from '@oxyhq/db/expiry';
 import { EXPIRY_SWEEP_TARGETS } from '../../expiry';
-import {
-  ACCOUNT_CREDENTIAL_ENVIRONMENTS as MONGOOSE_ACCOUNT_CREDENTIAL_ENVIRONMENTS,
-  ACCOUNT_CREDENTIAL_STATUSES as MONGOOSE_ACCOUNT_CREDENTIAL_STATUSES,
-  ACCOUNT_CREDENTIAL_TYPES as MONGOOSE_ACCOUNT_CREDENTIAL_TYPES,
-} from '../../../models/AccountCredential';
-import { ACCOUNT_MEMBER_STATUSES as MONGOOSE_ACCOUNT_MEMBER_STATUSES } from '../../../models/AccountMember';
-import {
-  APPLICATION_STATUSES as MONGOOSE_APPLICATION_STATUSES,
-  APPLICATION_TYPES as MONGOOSE_APPLICATION_TYPES,
-} from '../../../models/Application';
-import {
-  APPLICATION_CREDENTIAL_ENVIRONMENTS as MONGOOSE_APPLICATION_CREDENTIAL_ENVIRONMENTS,
-  APPLICATION_CREDENTIAL_STATUSES as MONGOOSE_APPLICATION_CREDENTIAL_STATUSES,
-  APPLICATION_CREDENTIAL_TYPES as MONGOOSE_APPLICATION_CREDENTIAL_TYPES,
-} from '../../../models/ApplicationCredential';
 import { IDENTITY_APPROVAL_CAPABILITY } from '../../../utils/applicationCapabilities';
 import {
   ACCOUNT_CREDENTIAL_ENVIRONMENTS,
@@ -908,42 +893,5 @@ describe('app_grants', () => {
           scopes: ['some:retired:scope'],
         })
     ).resolves.toBeDefined();
-  });
-});
-
-describe('constants still equal the Mongoose model’s', () => {
-  // These tuples are COPIED into the schema files rather than imported from
-  // `models/*.ts` (those drag in mongoose, which `drizzle.config.ts` would then
-  // load). The Mongoose copy stays authoritative until the model is deleted, so
-  // the two are held equal here rather than by discipline.
-  it('applications', () => {
-    expect([...APPLICATION_TYPES]).toEqual([...MONGOOSE_APPLICATION_TYPES]);
-    expect([...APPLICATION_STATUSES]).toEqual([...MONGOOSE_APPLICATION_STATUSES]);
-  });
-
-  it('application credentials', () => {
-    expect([...APPLICATION_CREDENTIAL_TYPES]).toEqual([
-      ...MONGOOSE_APPLICATION_CREDENTIAL_TYPES,
-    ]);
-    expect([...APPLICATION_CREDENTIAL_ENVIRONMENTS]).toEqual([
-      ...MONGOOSE_APPLICATION_CREDENTIAL_ENVIRONMENTS,
-    ]);
-    expect([...APPLICATION_CREDENTIAL_STATUSES]).toEqual([
-      ...MONGOOSE_APPLICATION_CREDENTIAL_STATUSES,
-    ]);
-  });
-
-  it('account credentials', () => {
-    expect([...ACCOUNT_CREDENTIAL_TYPES]).toEqual([...MONGOOSE_ACCOUNT_CREDENTIAL_TYPES]);
-    expect([...ACCOUNT_CREDENTIAL_ENVIRONMENTS]).toEqual([
-      ...MONGOOSE_ACCOUNT_CREDENTIAL_ENVIRONMENTS,
-    ]);
-    expect([...ACCOUNT_CREDENTIAL_STATUSES]).toEqual([
-      ...MONGOOSE_ACCOUNT_CREDENTIAL_STATUSES,
-    ]);
-  });
-
-  it('account members', () => {
-    expect([...ACCOUNT_MEMBER_STATUSES]).toEqual([...MONGOOSE_ACCOUNT_MEMBER_STATUSES]);
   });
 });

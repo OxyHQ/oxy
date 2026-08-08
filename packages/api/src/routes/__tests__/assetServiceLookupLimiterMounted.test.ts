@@ -69,11 +69,6 @@ jest.mock('../../services/assetServiceSingleton', () => ({
   s3Service: {},
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
-}));
-
 import assetsRouter from '../assets';
 
 const LOOKUP_PREFIX = 'rl:asset-lookup:';

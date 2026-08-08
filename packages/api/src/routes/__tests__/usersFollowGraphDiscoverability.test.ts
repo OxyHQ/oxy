@@ -67,11 +67,6 @@ jest.mock('../../utils/validation', () => ({
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {},
-}));
-
 import usersRouter from '../users';
 import { errorHandler } from '../../middleware/errorHandler';
 

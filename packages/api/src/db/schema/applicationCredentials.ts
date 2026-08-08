@@ -27,9 +27,11 @@ import { users } from './users';
  * OAuth client type. `service` credentials mint service tokens; `public` clients
  * hold no secret at all.
  *
- * Declared here rather than imported from `models/ApplicationCredential.ts`,
- * which pulls in mongoose — `drizzle.config.ts` loads this schema to emit DDL.
- * `__tests__/applications.test.ts` holds the two copies equal.
+ * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * other copy is gone. It renders the CHECK below, and
+ * `check-drizzle-snapshot-sync` holds that rendering against the migration the
+ * database was actually built from, so editing it without regenerating a
+ * migration fails CI.
  */
 export const APPLICATION_CREDENTIAL_TYPES = ['public', 'confidential', 'service'] as const;
 

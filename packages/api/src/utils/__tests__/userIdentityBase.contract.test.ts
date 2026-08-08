@@ -18,21 +18,14 @@
  * this guard.
  */
 
-// Use the REAL mongoose so the imported model files can define their schemas
-// (`.set`/`.virtual`/`.pre`) — the global jest.setup mock has no `.set`. No DB
-// connection is needed: these serializers are pure and touch no query.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
-});
 
-import { Types } from 'mongoose';
+import { randomBytes } from 'node:crypto';
 import { formatUserResponse, userIdentityFields, deriveIsFederated } from '../userTransform';
 import { userService } from '../../services/user.service';
 import { formatProfileResult } from '../../routes/profiles';
 
 describe('shared identity base — all three user-DTO serializers agree', () => {
-  const _id = new Types.ObjectId();
+  const _id = randomBytes(12).toString('hex');
   const input = {
     _id,
     // A key-anchored account: once linked, `id` MUST stay the ObjectId, not this.
@@ -118,8 +111,8 @@ describe('shared deriveIsFederated — the public and recommendation serializers
   });
 
   it('both serializers that emit isFederated derive it identically', () => {
-    const federated = { _id: new Types.ObjectId(), username: 'remote', type: 'federated' };
-    const local = { _id: new Types.ObjectId(), username: 'local', type: 'local' };
+    const federated = { _id: randomBytes(12).toString('hex'), username: 'remote', type: 'federated' };
+    const local = { _id: randomBytes(12).toString('hex'), username: 'local', type: 'local' };
 
     expect(userService.formatUserResponse(federated as never).isFederated).toBe(true);
     expect(formatProfileResult(federated as never).isFederated).toBe(true);

@@ -94,11 +94,6 @@ jest.mock('../../services/s3ServiceSingleton', () => ({
   },
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
-}));
-
 import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 

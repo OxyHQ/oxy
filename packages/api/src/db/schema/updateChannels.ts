@@ -18,9 +18,11 @@ import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
  * Platforms an Oxy Update targets. Narrower than `push_tokens.platform` — there
  * is no `web` OTA channel, because expo-updates has no web client.
  *
- * Declared here rather than imported from `models/UpdateChannel.ts`, which pulls
- * in mongoose and would then be loaded by `drizzle.config.ts`;
- * `__tests__/appUpdates.test.ts` holds the two tuples equal.
+ * This tuple is the SINGLE declaration — the Mongoose model that carried the
+ * other copy is gone. It renders the CHECK below, and
+ * `check-drizzle-snapshot-sync` holds that rendering against the migration the
+ * database was actually built from, so editing it without regenerating a
+ * migration fails CI.
  */
 export const UPDATE_PLATFORMS = ['ios', 'android'] as const;
 

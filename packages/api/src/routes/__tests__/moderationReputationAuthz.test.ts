@@ -73,13 +73,6 @@ jest.mock('../../services/reputation.service', () => ({
   default: { getBalance: jest.fn() },
 }));
 
-jest.mock('../../models/ModerationEffect', () => ({
-  __esModule: true,
-  ModerationEffect: {
-    find: () => ({ sort: () => ({ limit: async () => [] }) }),
-  },
-}));
-
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));

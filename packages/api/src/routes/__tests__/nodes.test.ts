@@ -31,8 +31,6 @@ jest.mock('../../services/nodeRegistry.service', () => ({
 // Mock them so this F5a unit suite stays isolated (no DB / no BullMQ).
 jest.mock('../../utils/validation', () => ({ isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id) }));
 jest.mock('../../queue/nodeIngest.queue', () => ({ enqueueNodeIngest: jest.fn() }));
-jest.mock('../../models/UserNode', () => ({ __esModule: true, default: { exists: jest.fn() } }));
-
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));

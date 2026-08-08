@@ -31,7 +31,7 @@
  * is unit-testable without a database.
  */
 
-import type { ApplicationStatus, ApplicationType } from '../models/Application';
+import type { ApplicationStatus, ApplicationType } from '../db/schema/applications';
 import type { ApplicationCapability } from '../utils/applicationCapabilities';
 import type { ApplicationScope } from '../utils/applicationScopes';
 

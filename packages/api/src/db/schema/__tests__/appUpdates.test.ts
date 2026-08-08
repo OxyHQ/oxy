@@ -12,9 +12,6 @@
 import { randomUUID } from 'node:crypto';
 import { asc, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
-import { APP_UPDATE_STATUSES as MONGOOSE_APP_UPDATE_STATUSES } from '../../../models/AppUpdate';
-import { UPDATE_ASSET_STATUSES as MONGOOSE_UPDATE_ASSET_STATUSES } from '../../../models/UpdateAsset';
-import { UPDATE_PLATFORMS as MONGOOSE_UPDATE_PLATFORMS } from '../../../models/UpdateChannel';
 import {
   UPDATE_ASSET_KEY_PREFIX as SERVICE_UPDATE_ASSET_KEY_PREFIX,
   updateAssetS3Key,
@@ -608,13 +605,7 @@ describe('update_channels', () => {
   });
 });
 
-describe('constants still equal the Mongoose model’s', () => {
-  it('platforms, update statuses and asset statuses', () => {
-    expect([...UPDATE_PLATFORMS]).toEqual([...MONGOOSE_UPDATE_PLATFORMS]);
-    expect([...APP_UPDATE_STATUSES]).toEqual([...MONGOOSE_APP_UPDATE_STATUSES]);
-    expect([...UPDATE_ASSET_STATUSES]).toEqual([...MONGOOSE_UPDATE_ASSET_STATUSES]);
-  });
-
+describe('constants agree with their other declaration', () => {
   it('the S3 prefix baked into the generated column', () => {
     // The generated expression embeds this literal, so a change to the service
     // constant would silently stop matching stored keys without this check.

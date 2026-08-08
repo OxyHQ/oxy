@@ -36,8 +36,6 @@ import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 
-/** See the identical note in `profilesUsername.test.ts`. */
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
 
 const mockSafeFetch = jest.fn();
 
