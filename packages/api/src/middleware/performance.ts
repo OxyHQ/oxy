@@ -37,33 +37,6 @@ export const performanceMiddleware = (req: Request, res: Response, next: NextFun
 };
 
 /**
- * Times any promise-returning function under a `db:<operation>` label.
- *
- * Not middleware, and nothing to do with mongoose despite what this said until
- * the Postgres cutover was tidied up: it takes an arbitrary `queryFn`, so it
- * works for a drizzle query, a raw `postgres.js` call or anything else that
- * returns a promise. The label is whatever the caller passes.
- *
- * A rejection is timed as `success: false` and RETHROWN, so wrapping a call
- * changes its timing metadata and never its outcome.
- */
-export const monitorDatabaseQuery = async <T>(
-  operation: string,
-  queryFn: () => Promise<T>
-): Promise<T> => {
-  const endTimer = performanceMonitor.startTimer(`db:${operation}`);
-  
-  try {
-    const result = await queryFn();
-    endTimer({ success: true });
-    return result;
-  } catch (error) {
-    endTimer({ success: false, error: error instanceof Error ? error.message : String(error) });
-    throw error;
-  }
-};
-
-/**
  * Get memory usage statistics
  */
 export const getMemoryStats = () => {
