@@ -198,8 +198,19 @@ components:
       properties:
         id:
           type: string
-          description: Stable Oxy user ID (MongoDB ObjectId).
-          example: 64f7c2a1b8e9d3f4a1c2b3d4
+          description: >-
+            Stable Oxy user ID, in one of TWO formats. Accounts created before
+            the Postgres cutover keep their 24-character hexadecimal id
+            verbatim; every account created since is a uuid v7. The column is a
+            uniform string — only the value format is mixed — so treat this as
+            an opaque identifier and never assume the 24-hex shape. A client
+            that validates against ObjectId alone rejects every account created
+            after the cutover.
+          pattern: >-
+            ^(?:[0-9a-fA-F]{24}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$
+          examples:
+            - 019fb834-d8a6-73fc-9073-da304c940f28
+            - 64f7c2a1b8e9d3f4a1c2b3d4
         username:
           type: string
           example: alice
