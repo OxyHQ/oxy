@@ -88,7 +88,7 @@
     "jest": "^29.7.0",
     "postgres": "catalog:",
     "release-it": "catalog:",
-    "ts-jest": "^29.4.11",
+    "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"
   }
 }
