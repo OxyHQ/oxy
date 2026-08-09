@@ -757,7 +757,7 @@ router.get(
  * context) has no graph → every list is empty.
  *
  * Backed by a short-TTL Redis cache (`graphCache`) filled on miss and busted by
- * the follow/unfollow/block/unblock write paths; degrades to a straight Mongo
+ * the follow/unfollow/block/unblock write paths; degrades to a straight Postgres
  * recompute when Redis is unconfigured.
  *
  * Registered as a two-segment `/me/graph` path (distinct from the single-segment

@@ -2,7 +2,7 @@
  * Outbound activity delivery + the follow lifecycle (Follow / Undo(Follow) /
  * Accept(Follow)) and the `Update(Person)` actor rebroadcast.
  *
- * The delivery TRANSPORT (sign → SSRF-safe POST → BullMQ/Mongo durable queue),
+ * The delivery TRANSPORT (sign → SSRF-safe POST → BullMQ / durable fallback queue),
  * the shared-inbox dedup fan-out, and the follow-protocol activity shapes are the
  * SAME across every Oxy app, so they live here — behaviour-identical to Mention's
  * former `FollowService` delivery half. Everything app-specific is injected:
@@ -10,7 +10,7 @@
  *  - private-key CUSTODY stays behind the {@link DeliveryKeys} adapter (Mention:
  *    oxy-api `/federation/sign` + `/federation/public-key`); the key never enters
  *    this package,
- *  - the SSRF-safe single-hop POST + the BullMQ enqueue + the Mongo durable
+ *  - the SSRF-safe single-hop POST + the BullMQ enqueue + the durable
  *    fallback are the {@link DeliveryTransport}, so the delivery policy stays in
  *    one place (Mention's `fetchUpstreamSingleHop` + `FederationDeliveryQueue`),
  *  - the AP-specific `FederatedActor` / `FederatedFollow` rows stay in the app DB
@@ -83,14 +83,21 @@ export interface DeliverSingleHopInit {
  */
 export type DeliverSingleHop = (url: string, init: DeliverSingleHopInit) => Promise<DeliverSingleHopResult>;
 
-/** A durable-delivery job body (BullMQ + the Mongo fallback share this shape). */
+/** A durable-delivery job body (BullMQ + the fallback queue share this shape). */
 export interface DeliveryQueueJob {
   activityJson: Record<string, unknown>;
   targetInbox: string;
   senderOxyUserId: string;
 }
 
-/** The Mongo durable-delivery fallback (written when BullMQ is unavailable). */
+/**
+ * The durable-delivery fallback (written when BullMQ is unavailable).
+ *
+ * App-supplied, like every other store in this package: the engine never names
+ * a database. Mention backs it with Postgres; the method names below are the
+ * ones its original Mongoose collection exposed and are kept only so the
+ * adapter shape stays stable for consumers.
+ */
 export interface DeliveryFallbackQueue {
   /** Insert one fallback delivery row (`queueDelivery`). */
   create(job: DeliveryQueueJob & { nextAttemptAt: Date }): Promise<unknown>;
@@ -98,7 +105,7 @@ export interface DeliveryFallbackQueue {
   insertMany(jobs: Array<DeliveryQueueJob & { nextAttemptAt: Date }>): Promise<unknown>;
 }
 
-/** The delivery transport: BullMQ enqueue with a durable Mongo fallback. */
+/** The delivery transport: BullMQ enqueue with a durable app-supplied fallback. */
 export interface DeliveryTransport {
   /**
    * Enqueue one durable delivery. Resolves `false` when the queue is unavailable
@@ -204,7 +211,7 @@ export interface DeliveryServiceConfig<TActor extends DeliveryActorFields> {
   deliverSingleHop: DeliverSingleHop;
   /** SSRF pre-check for a durable inbox enqueue (never queue a delivery to an unsafe URL). */
   assertSafeInboxUrl(url: string): Promise<SafeUrlVerdict>;
-  /** BullMQ enqueue + Mongo durable fallback. */
+  /** BullMQ enqueue + the durable fallback queue. */
   transport: DeliveryTransport;
   /** The AP actor cache store. */
   store: DeliveryActorStore<TActor>;
@@ -261,7 +268,7 @@ export interface DeliveryService {
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<boolean>;
-  /** Queue one activity for durable delivery (BullMQ, Mongo fallback). */
+  /** Queue one activity for durable delivery (BullMQ, fallback queue). */
   queueDelivery(
     activity: Record<string, unknown>,
     targetInbox: string,
@@ -389,7 +396,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
       .enqueueDelivery({ activityJson: activity, targetInbox, senderOxyUserId })
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[FedDeliver] enqueue failed for ${targetInbox}, falling back to Mongo: ${message}`);
+        logger.warn(`[FedDeliver] enqueue failed for ${targetInbox}, falling back to the durable queue: ${message}`);
         return false;
       });
 
@@ -441,9 +448,9 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
 
     // Durable path: enqueue one BullMQ delivery per shared inbox (deduped per
     // inbox + activity id). When the queue is unavailable fall back to a single
-    // Mongo batch insert for the inboxes that were not enqueued.
+    // batch insert into the durable queue for the inboxes that were not enqueued.
     const now = new Date();
-    const mongoFallback: Array<DeliveryQueueJob & { nextAttemptAt: Date }> = [];
+    const durableFallback: Array<DeliveryQueueJob & { nextAttemptAt: Date }> = [];
 
     for (const inbox of inboxes) {
       if (isBlockedUrl(inbox)) {
@@ -460,17 +467,17 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         .enqueueDelivery({ activityJson: activity, targetInbox: inbox, senderOxyUserId })
         .catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[FedDeliver] follower enqueue failed for ${inbox}, falling back to Mongo: ${message}`);
+          logger.warn(`[FedDeliver] follower enqueue failed for ${inbox}, falling back to the durable queue: ${message}`);
           return false;
         });
 
       if (!enqueued) {
-        mongoFallback.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
+        durableFallback.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
       }
     }
 
-    if (mongoFallback.length > 0) {
-      await config.transport.fallbackQueue.insertMany(mongoFallback);
+    if (durableFallback.length > 0) {
+      await config.transport.fallbackQueue.insertMany(durableFallback);
     }
   }
 

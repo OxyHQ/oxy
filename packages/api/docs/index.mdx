@@ -138,7 +138,7 @@ Deprecations are surfaced via the `Deprecation` and `Sunset` HTTP headers and in
 ## Timestamps & IDs
 
 - All timestamps are ISO-8601 strings (`2025-05-25T12:34:56.789Z`). Always UTC.
-- All IDs are opaque strings. They look like MongoDB ObjectIds today, but treat them as opaque tokens — never parse or order them.
+- All IDs are opaque strings, in either of two formats: accounts created before the PostgreSQL cutover keep their 24-character hex id, and everything created since is a UUIDv7. Treat them as opaque tokens — never parse or order them.
 
 ## Webhooks
 

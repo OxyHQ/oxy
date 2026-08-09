@@ -33,9 +33,9 @@ export const LINK_PREVIEW_REFRESH_TTL_SECONDS = getEnvNumber(
 );
 
 /**
- * Redis hot-cache TTL for a serialized preview DTO. Mongo is the durable source
- * of truth; the hot cache only short-circuits the Mongo read on the response
- * path. Default 1 hour.
+ * Redis hot-cache TTL for a serialized preview DTO. Postgres is the durable
+ * source of truth; the hot cache only short-circuits the Postgres read on the
+ * response path. Default 1 hour.
  */
 export const LINK_PREVIEW_HOT_TTL_SECONDS = getEnvNumber('LINK_PREVIEW_HOT_TTL_SECONDS', 60 * 60);
 
