@@ -12,7 +12,9 @@
  * from failure. Start one with:
  *   docker compose -f docker-compose.dev.yml up -d postgres
  *
- * The Mongo side is untouched: `jest.setup.cjs` still mocks mongoose wholesale.
+ * There is no Mongo side any more. `jest.setup.cjs` mocks `jsonwebtoken` and
+ * `socket.io` and nothing else — no mongoose mock, because there is no mongoose
+ * in this repo to mock.
  */
 
 import { writeFileSync } from 'node:fs';
