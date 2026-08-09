@@ -130,7 +130,7 @@
     "@types/express": "catalog:",
     "@types/node": "^22.20.1",
     "@types/supertest": "catalog:",
-    "expo-crypto": "~56.0.3",
+    "expo-crypto": "~57.0.1",
     "expo-secure-store": "~56.0.4",
     "express": "catalog:",
     "jest": "^29.7.0",
