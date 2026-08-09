@@ -97,6 +97,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # Before the builds and the suite, and needing neither: it reads the tracked
+      # file listing. The backfill, 82 Mongoose models and the mongoose dependency
+      # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
+      # now always a mistake — and it would arrive as a hoisted transitive or a
+      # stray env name, neither of which breaks a build.
+      - name: Guard against MongoDB returning
+        run: bun run validate:no-mongo
+
       # api tests resolve `@oxyhq/core` (e.g. `registrableApex` in federation
       # helpers) from its published `dist`, like any normal dependency.
       # This job does not build workspace deps, so core's `dist` is absent on a
