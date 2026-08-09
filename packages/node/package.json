@@ -43,7 +43,7 @@
     "@types/supertest": "catalog:",
     "jest": "^29.7.0",
     "supertest": "catalog:",
-    "ts-jest": "^29.4.11",
+    "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"
   }
 }
