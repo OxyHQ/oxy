@@ -69,6 +69,22 @@ interface OpenApiDocument {
 // (`module: NodeNext`, no `"type": "module"`), where `import.meta` is a type
 // error. Bun populates `__dirname` identically when running this file.
 const PACKAGE_ROOT = path.resolve(__dirname, '..');
+/**
+ * Schema modules that could not be imported.
+ *
+ * This exists because the generator used to log an import failure and CARRY ON,
+ * emitting a document with those schemas silently missing and exiting 0. That is
+ * the worst possible shape for a tool that writes a PUBLISHED contract: the
+ * output looks complete, nothing about the run says otherwise, and the drift is
+ * discovered later by whoever trusted it. Measured before this change —
+ * `@oxyhq/contracts` and `@oxyhq/db` unbuilt dropped `components.schemas` from
+ * 7 to 4, and the run still reported success.
+ *
+ * A generator that quietly emits a partial contract is worse than the drift it
+ * causes, so the run now refuses to write at all.
+ */
+const schemaImportFailures: Array<{ filename: string; error: unknown }> = [];
+
 const BASE_YAML = path.join(PACKAGE_ROOT, 'openapi.base.yaml');
 const OUTPUT_JSON = path.join(PACKAGE_ROOT, 'openapi.json');
 const ROUTES_DIR = path.join(PACKAGE_ROOT, 'src', 'routes');
@@ -80,7 +96,7 @@ const SCHEMAS_DIR = path.join(PACKAGE_ROOT, 'src', 'schemas');
  * conservative subset (scalars, lists, nested maps, single-line block strings).
  * We avoid a runtime dep so the build doesn't grow.
  */
-function parseYaml(input: string): OpenApiDocument {
+export function parseYaml(input: string): OpenApiDocument {
   const lines = input.split(/\r?\n/);
   let i = 0;
 
@@ -104,9 +120,30 @@ function parseYaml(input: string): OpenApiDocument {
       const key = line.slice(0, colonIdx).trim();
       const rest = line.slice(colonIdx + 1).trim();
       i += 1;
-      if (rest === '' || rest === '>' || rest === '|') {
+      // A block-scalar header, with its optional chomping indicator: `>`, `>-`,
+      // `>+`, `|`, `|-`, `|+`.
+      //
+      // `>-` used to fall through to `parseScalar`, which returned the literal
+      // string ">-" and then read the indented body as further KEYS — silently
+      // dropping every sibling schema after it. Measured: `components.schemas`
+      // went 7 -> 4 and `User.id.description` came back as ">-", and none of it
+      // surfaced until a regeneration was compared against the committed
+      // document. A parser that mis-reads standard YAML into plausible-looking
+      // garbage is the same failure as the generator writing a partial document,
+      // one layer down, so the unrecognised case now THROWS rather than guessing.
+      const blockHeader = /^([>|])([-+]?)$/.exec(rest);
+      if (!blockHeader && (rest.startsWith('>') || rest.startsWith('|'))) {
+        throw new Error(
+          `openapi.base.yaml: unsupported block scalar header "${rest}" for key "${key}". `
+          + 'This minimal parser understands >, >-, >+, |, |- and |+ only — an explicit '
+          + 'indentation indicator (e.g. ">2") is not supported. Rewrite the value or extend '
+          + 'parseYaml; do NOT leave it, because the fallback would read the header as a '
+          + 'string and silently swallow the keys that follow.',
+        );
+      }
+      if (rest === '' || blockHeader) {
         // Possibly a folded/block scalar.
-        if (rest === '>' || rest === '|') {
+        if (blockHeader) {
           const lines2: string[] = [];
           const childIndent = indent + 2;
           while (i < lines.length) {
@@ -125,7 +162,16 @@ function parseYaml(input: string): OpenApiDocument {
             lines2.push(ln.slice(childIndent));
             i += 1;
           }
-          obj[key] = rest === '>' ? lines2.join(' ').trim() : lines2.join('\n');
+          // Folded (`>`) joins with spaces, literal (`|`) keeps newlines. The
+          // folded branch keeps its existing `.trim()` so every description
+          // already in this file renders byte-identically; `-` (strip) on the
+          // literal branch removes the trailing newlines it would otherwise
+          // keep. `+` (keep) is accepted and treated as the default, which is
+          // exact for folded and near enough for literal — no value in this
+          // document relies on trailing blank lines.
+          obj[key] = blockHeader[1] === '>'
+            ? lines2.join(' ').trim()
+            : (blockHeader[2] === '-' ? lines2.join('\n').replace(/\n+$/, '') : lines2.join('\n'));
           continue;
         }
         // Either nested object or list follows.
@@ -350,7 +396,11 @@ async function loadSchemaModule(filename: string): Promise<Record<string, ZodTyp
     const mod = await import(full);
     return mod as Record<string, ZodTypeAny>;
   } catch (err) {
-    console.error(`[generate-openapi] failed to import ${filename}:`, err);
+    // Recorded rather than swallowed. Continuing past a failed import is
+    // deliberate — one run should name EVERY unimportable module rather than
+    // stopping at the first — but the run must not then write a document, and
+    // `schemaImportFailures` is what makes that impossible to forget.
+    schemaImportFailures.push({ filename, error: err });
     return {};
   }
 }
@@ -929,16 +979,59 @@ async function main(): Promise<void> {
     seen.add(key);
   }
 
+  // Paths sorted, so the output is DETERMINISTIC. They were previously emitted
+  // in route-walk order, which depends on directory listing and on where each
+  // handler sits in its file — so an unrelated edit reshuffled the document and
+  // produced a diff in the tens of thousands of lines with a few hundred lines
+  // of actual change inside it. Measured on the regeneration this commit ships:
+  // 15,403 textual diff lines against 803 semantic ones.
+  //
+  // That is not cosmetic. An unreviewable diff is precisely how contract drift
+  // accumulates unnoticed — nobody reads 15,000 lines to find the nine routes
+  // that appeared, so nobody notices the description that silently went wrong.
+  const sortedPaths: typeof documented = {};
+  for (const route of Object.keys(documented).sort()) {
+    sortedPaths[route] = documented[route] as (typeof documented)[string];
+  }
+
   const merged: OpenApiDocument = {
     openapi: baseDoc.openapi ?? '3.1.0',
     info: baseDoc.info,
     servers: baseDoc.servers ?? [],
     components: { ...(baseDoc.components ?? {}), ...(jsdocSpec.components ?? {}) },
-    paths: documented,
+    paths: sortedPaths,
     tags: baseDoc.tags ?? [],
   };
 
   if (baseDoc.security) merged.security = baseDoc.security;
+
+  // REFUSE TO WRITE on a partial read. Everything above this point succeeded,
+  // which is exactly why it has to be checked here: the merged document looks
+  // perfectly well-formed and is simply missing whatever those modules export.
+  if (schemaImportFailures.length > 0) {
+    console.error(
+      `\n[generate-openapi] REFUSING TO WRITE: ${schemaImportFailures.length} schema module(s) `
+      + 'could not be imported, so the document would be missing their schemas.\n',
+    );
+    for (const { filename, error } of schemaImportFailures) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`  ${filename}\n    ${detail.split('\n')[0]}\n`);
+    }
+    console.error(
+      '  The usual cause is unbuilt workspace dependencies — these modules import\n'
+      + '  `@oxyhq/contracts` and `@oxyhq/db`, which resolve through their build output.\n'
+      + '  Build them first, from the repository root (this is the same sequence\n'
+      + '  `ci.yml` runs before the api tests, for the same reason):\n\n'
+      + '      bun run --filter @oxyhq/contracts build\n'
+      + '      bun run --filter @oxyhq/protocol build\n'
+      + '      bun run --filter @oxyhq/core build\n'
+      + '      bun run --filter @oxyhq/db build\n\n'
+      + `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\n`
+      + '  contract, which is the correct outcome: a stale document is recoverable,\n'
+      + '  a silently truncated one that ships to consumers is not.\n',
+    );
+    process.exit(1);
+  }
 
   await writeFile(OUTPUT_JSON, JSON.stringify(merged, null, 2));
   const totalOps = Object.values(merged.paths).reduce(
@@ -950,7 +1043,11 @@ async function main(): Promise<void> {
   );
 }
 
-main().catch((err) => {
-  console.error('[generate-openapi] fatal:', err);
-  process.exit(1);
-});
+// Guarded so the parser can be imported by a test without running a generation.
+// Bun/CommonJS: `require.main` is this module only when it was the entrypoint.
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('[generate-openapi] fatal:', err);
+    process.exit(1);
+  });
+}
