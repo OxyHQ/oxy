@@ -345,7 +345,7 @@ describe('deliverToFollowers', () => {
     expect(rig.fallbackInserts).toHaveLength(0);
   });
 
-  it('falls back to the Mongo queue when BullMQ is unavailable', async () => {
+  it('falls back to the durable queue when BullMQ is unavailable', async () => {
     const rig = makeRig({
       enqueueReturns: false,
       followerActorUris: ['a'],

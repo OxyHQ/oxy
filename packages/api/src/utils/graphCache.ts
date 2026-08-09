@@ -5,7 +5,7 @@
  * (`GET /users/me/graph` → `{ followingIds, mutualIds, blockedIds, restrictedIds }`). The graph
  * is read on nearly every feed/timeline request by consuming apps (Mention,
  * Allo, Homiio), so caching the ids-only payload for a short window removes the
- * three Mongo round trips it otherwise costs on each request.
+ * three Postgres round trips it otherwise costs on each request.
  *
  * MUST be Redis-backed (not in-memory) because the API runs multiple instances
  * behind a load balancer (the Socket.IO Redis adapter in `server.ts` confirms
@@ -16,7 +16,7 @@
  * Degrades to a no-op (never a cache, never a throw) when `getRedisClient()`
  * returns null (Redis not configured) — exactly like `userCache`/`blockCache`
  * fall back gracefully. Every operation also swallows-and-logs Redis errors so
- * a Redis blip degrades to "recompute from Mongo", never a failed request.
+ * a Redis blip degrades to "recompute from Postgres", never a failed request.
  */
 
 import { getRedisClient } from '../config/redis';
