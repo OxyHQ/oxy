@@ -50,6 +50,14 @@ BloomThemeProvider → OxyProvider → ImageResolver → LocaleProvider`) with t
 `Stack` as the sole `(auth)`↔`(app)` authority, keyed on the device-first
 session.
 
+### AWS deployment setup
+
+Before enabling the generated workflow, provision its app-specific IAM role
+(`oxy-<slug>-github-deploy`). Its OIDC trust policy must match the generated
+GitHub repository exactly, and its permissions must be limited to that app's
+`/oxy/<slug>/*` SSM parameters, `oxy/<slug>` ECR repository, and `<slug>` ECS
+service. Do not share a deploy role between generated repositories.
+
 ## Oxy client registration
 
 By default the CLI offers to register an `Application` + public credential with

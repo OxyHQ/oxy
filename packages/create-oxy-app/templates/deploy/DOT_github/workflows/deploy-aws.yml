@@ -34,7 +34,10 @@ jobs:
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          # This role must trust only this repository and grant access only to
+          # this app's SSM path, ECR repository, and ECS service. Never replace
+          # it with a role shared by generated repositories.
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-{{APP_SLUG}}-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
@@ -42,11 +45,8 @@ jobs:
           SECRETS_JSON: ${{ toJSON(secrets) }}
           # Explicit backend runtime allowlist — do not sync unrelated CI tokens.
           SSM_SECRET_ALLOWLIST: >-
-            MONGODB_URI REDIS_URL
-            OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
-            AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+            MONGODB_URI OXY_SERVICE_API_KEY OXY_SERVICE_API_SECRET
         run: |
-          SHARED="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY REDIS_URL"
           echo "$SECRETS_JSON" | jq -r --arg allowlist "$SSM_SECRET_ALLOWLIST" '
             ($allowlist | split(" ")) as $allowed
             | to_entries[]
@@ -59,7 +59,7 @@ jobs:
               echo "::warning::skip empty/placeholder secret $k; SSM unchanged"
               continue
             fi
-            case " $SHARED " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
+            path="/oxy/$APP/$k"
             aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
           done
 
