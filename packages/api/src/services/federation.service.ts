@@ -22,7 +22,6 @@ import userCache from '../utils/userCache';
 import { composeDisplayName } from '../utils/displayName';
 import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText, decodeHtmlEntities } from '../utils/sanitize';
-import { bridgeVouchesForNetwork } from '../config/federationBridgeTrust';
 
 /** The `users.kind` closed value set, derived from the column itself. */
 type AccountKind = (typeof ACCOUNT_KINDS)[number];
@@ -1228,28 +1227,13 @@ class FederationService {
       ? await userService.readAccountDocument(existingByActorUriRow.id)
       : null;
 
+    // The actor URI is the stable identity key. Never let a different
+    // WebFinger resource relabel an existing actor: a malicious domain can
+    // point its self link at any known actor URI, while the upsert below keys on
+    // that URI and would otherwise overwrite the victim's username/domain.
+    // This also preserves intentionally relabelled bridge identities.
     if (existingByActorUri) {
-      const storedDomain = existingByActorUri.federation?.domain;
-      let actorHost: string | null = null;
-      try {
-        actorHost = canonicalFederationHost(new URL(webfinger.actorUri).hostname);
-      } catch {
-        actorHost = null;
-      }
-
-      // A relabelled bridge identity (e.g. `nasa@x.com` on a bird.makeup actor)
-      // shares the bridge actor URI but not the bridge handle. Returning cached
-      // here preserves the derived identity; falling through would clobber it
-      // back to the bridge copy. A stale row on a NON-bridge actor (wrong domain
-      // stored beside a canonical actor URI) must fall through to the upsert.
-      if (
-        actorHost
-        && typeof storedDomain === 'string'
-        && storedDomain.length > 0
-        && bridgeVouchesForNetwork(actorHost, storedDomain)
-      ) {
-        return this.returnCachedFederatedRow(existingByActorUri, cleaned);
-      }
+      return this.returnCachedFederatedRow(existingByActorUri, cleaned);
     }
 
     const verifiedAcct = await this.verifiedAccountForResolution(cleaned, webfinger);
