@@ -1,21 +1,15 @@
 #!/usr/bin/env bun
 /**
- * Account migration — Phase 4: application members → account members.
+ * Account migration — Phase 4: audit legacy application members.
  *
- * Reads the legacy `applicationmembers` collection. Each active membership is
- * folded into an `AccountMember` on the application's owning account
- * (`app.ownerAccountId`) with the mapped role (app owner → account admin;
- * developer/billing/viewer unchanged).
+ * Reads the legacy `applicationmembers` collection and identifies memberships
+ * that cannot be represented by the unified account-wide authorization model.
  *
- * `ensureMember` never downgrades a stronger existing role (e.g. an account
- * owner from Phase 2), so folding is safe and idempotent.
- *
- * FLAG: an app-only `developer`/`viewer` who, under the old model, could only
- * see ONE application now gains that role across the WHOLE owning account. Those
- * are reported (`OXY_ACCOUNTS_BROADENED_MEMBERS=`) so an operator can, if
- * desired, move the single app into a `kind:'project'` sub-account and scope the
- * member there instead. This script does NOT auto-move (that is a judgement
- * call); it only surfaces the list.
+ * A per-application grant must never be converted to an AccountMember on the
+ * application's current owner: doing so grants access to every sibling app (and
+ * potentially descendant accounts). Existing account members need no migration;
+ * app-only members are reported for explicit project-account scoping and fail
+ * closed in the meantime.
  *
  * NOTHING is deleted. Run Phases 0–3 first.
  *
@@ -27,19 +21,17 @@ import mongoose from 'mongoose';
 import {
   connect,
   disconnect,
-  ensureMember,
   isDryRun,
-  mapAppRole,
   rawDb,
 } from './account-migration-lib';
+import AccountMember from '../src/models/AccountMember';
 import { logger } from '../src/utils/logger';
 
-interface BroadenedMember {
+interface UnscopedMember {
   applicationId: string;
   ownerAccountId: string;
   memberUserId: string;
   appRole: string;
-  accountRole: string;
 }
 
 async function migrate(): Promise<void> {
@@ -54,9 +46,9 @@ async function migrate(): Promise<void> {
 
   // Cache app → ownerAccountId.
   const ownerByApp = new Map<string, mongoose.Types.ObjectId>();
-  const broadened: BroadenedMember[] = [];
+  const unscoped: UnscopedMember[] = [];
 
-  let foldedMembers = 0;
+  let existingAccountMembers = 0;
   let skippedNoOwner = 0;
 
   for (const member of memberships) {
@@ -84,31 +76,33 @@ async function migrate(): Promise<void> {
       continue;
     }
 
-    const accountRole = mapAppRole(appRole);
-    const wrote = await ensureMember(ownerAccountId, memberUserId, accountRole, undefined, dryRun);
-    if (wrote) foldedMembers += 1;
-
-    // An app-only member that is not an owner now reaches the whole account.
-    if (appRole !== 'owner') {
-      broadened.push({
-        applicationId: appKey,
-        ownerAccountId: ownerAccountId.toString(),
-        memberUserId: memberUserId.toString(),
-        appRole,
-        accountRole,
-      });
+    const existingAccountMember = await AccountMember.exists({
+      accountId: ownerAccountId,
+      memberUserId,
+      status: 'active',
+    });
+    if (existingAccountMember) {
+      existingAccountMembers += 1;
+      continue;
     }
+
+    unscoped.push({
+      applicationId: appKey,
+      ownerAccountId: ownerAccountId.toString(),
+      memberUserId: memberUserId.toString(),
+      appRole,
+    });
   }
 
   logger.info('Phase 4 summary', {
     dryRun,
     memberships: memberships.length,
-    foldedMembers,
+    existingAccountMembers,
     skippedNoOwner,
-    broadenedCount: broadened.length,
+    unscopedCount: unscoped.length,
   });
   // eslint-disable-next-line no-console
-  console.log('OXY_ACCOUNTS_BROADENED_MEMBERS=' + JSON.stringify(broadened));
+  console.log('OXY_ACCOUNTS_UNSCOPED_APP_MEMBERS=' + JSON.stringify(unscoped));
 }
 
 async function main(): Promise<void> {
@@ -123,10 +117,10 @@ async function main(): Promise<void> {
 main()
   .then(() => process.exit(0))
   .catch((error) => {
-  logger.error(
-    'Phase 4 (app members → account members) failed',
-    error instanceof Error ? error : new Error(String(error)),
-    { component: 'migrate-accounts-40' }
-  );
-  process.exit(1);
-});
+    logger.error(
+      'Phase 4 (app-member audit) failed',
+      error instanceof Error ? error : new Error(String(error)),
+      { component: 'migrate-accounts-40' }
+    );
+    process.exit(1);
+  });

@@ -66,26 +66,6 @@ export function mapWorkspaceRole(role: string): AccountRole {
   }
 }
 
-/** Legacy ApplicationMember role → unified AccountRole on the owning account. */
-export function mapAppRole(role: string): AccountRole {
-  switch (role) {
-    case 'owner':
-      // An app owner becomes an admin of the owning account (account ownership
-      // is a stronger grant reserved for the account's true owner).
-      return 'admin';
-    case 'admin':
-      return 'admin';
-    case 'developer':
-      return 'developer';
-    case 'billing':
-      return 'billing';
-    case 'viewer':
-      return 'viewer';
-    default:
-      return 'viewer';
-  }
-}
-
 /** Connect to MongoDB using `MONGODB_URI`, or exit. */
 export async function connect(): Promise<void> {
   const uri = process.env.MONGODB_URI;
