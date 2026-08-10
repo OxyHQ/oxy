@@ -92,7 +92,7 @@ module.exports = function withOxyUpdates(config, options = {}) {
     clientId,
     apiOrigin = DEFAULT_API_ORIGIN,
     channel = DEFAULT_CHANNEL,
-    codeSigning = 'auto',
+    codeSigning = 'require',
     certificatePath = CERTIFICATE_PATH,
     runtimeVersionPolicy = 'appVersion',
   } = options;
