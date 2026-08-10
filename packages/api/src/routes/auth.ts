@@ -3071,11 +3071,6 @@ router.post(
       throw OAuthError.invalidGrant(INVALID_GRANT_DESCRIPTION);
     }
 
-    const sharedDeviceId =
-      typeof exchange.code.deviceId === 'string' && exchange.code.deviceId.trim()
-        ? exchange.code.deviceId.trim()
-        : undefined;
-
     // A DELEGATED code authorises the app to act as `userId` on behalf of the
     // approving identity. Carry that operator onto the session so its validity
     // stays bound to their live `account:act_as` membership — revoking the
@@ -3090,7 +3085,10 @@ router.post(
       req,
       {
         deviceName: `${app.name} OAuth`,
-        ...(sharedDeviceId ? { deviceId: sharedDeviceId } : {}),
+        // OAuth clients are an authorization boundary, so their bearer must
+        // live on an isolated device session. Reusing the authorizing app's
+        // central deviceId would let the client operate every account already
+        // registered on that shared device through /session/device/*.
         ...(operatedByUserId ? { operatedByUserId } : {}),
       },
     );

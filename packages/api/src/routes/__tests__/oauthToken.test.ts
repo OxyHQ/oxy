@@ -383,7 +383,7 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
     expect(app.lastUsedAt).toBeInstanceOf(Date);
   });
 
-  it('threads the originating device and the delegated operator onto the session', async () => {
+  it('isolates the OAuth session from the originating device while preserving delegation', async () => {
     const org = await subject({ kind: 'organization' });
     const operator = await subject();
     mockExchangeAuthCode.mockResolvedValueOnce(
@@ -395,8 +395,9 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
     expect(mockCreateSession).toHaveBeenCalledWith(
       org,
       expect.anything(),
-      expect.objectContaining({ deviceId: 'dev-shared', operatedByUserId: operator }),
+      expect.objectContaining({ operatedByUserId: operator }),
     );
+    expect(mockCreateSession.mock.calls[0]?.[2]).not.toHaveProperty('deviceId');
   });
 
   it('never serializes a protected user column into the token response', async () => {
