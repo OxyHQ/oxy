@@ -12,7 +12,11 @@
  */
 
 import express, { type Response } from 'express';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { applications } from '../db/schema';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { accountService } from '../services/account.service';
 import {
   assertFollowScopes,
   missingFollowScope,
@@ -57,6 +61,23 @@ async function requireRegistrar(req: AuthRequest): Promise<FollowCapability> {
 
   const missing = missingFollowScope(result.capability, REGISTER);
   if (missing) throw new ForbiddenError(`Missing scope: ${missing}`);
+
+  // A user's OAuth grant delegates follow operations; it does not make that
+  // user an administrator of the application-global registry. Resolve the
+  // application's owning account independently and require an administrative
+  // role before treating the application id in the capability as write
+  // authority for namespaces, kinds, or provider metadata.
+  const [application] = await getDb()
+    .select({ ownerAccountId: applications.ownerAccountId })
+    .from(applications)
+    .where(eq(applications.id, result.capability.applicationId))
+    .limit(1);
+  const access = application
+    ? await accountService.resolveEffectiveAccess(userId, application.ownerAccountId)
+    : null;
+  if (!access || (access.role !== 'owner' && access.role !== 'admin')) {
+    throw new ForbiddenError('Application owner or administrator access is required');
+  }
 
   return result.capability;
 }

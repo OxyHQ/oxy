@@ -93,12 +93,20 @@ async function request(
 }
 
 /** Mint a user, an application, an authorization and a grant with these scopes. */
-async function signIn(scopes: string[]): Promise<{ userId: string; applicationId: string }> {
+async function signIn(
+  scopes: string[],
+  options: { ownedByUser?: boolean } = {}
+): Promise<{ userId: string; applicationId: string }> {
   const db = getDb();
   const [user] = await db.insert(users).values({}).returning({ id: users.id });
+  let ownerId = user.id;
+  if (options.ownedByUser === false) {
+    const [owner] = await db.insert(users).values({}).returning({ id: users.id });
+    ownerId = owner.id;
+  }
   const [app] = await db
     .insert(applications)
-    .values({ name: unique('App '), status: 'active', ownerAccountId: user.id })
+    .values({ name: unique('App '), status: 'active', ownerAccountId: ownerId })
     .returning({ id: applications.id });
 
   const sessionId = unique('session-');
@@ -360,6 +368,17 @@ describe('the central list', () => {
 });
 
 describe('the registry, over the wire', () => {
+  it('does not treat a user OAuth grant as application administration', async () => {
+    await signIn(ALL_SCOPES, { ownedByUser: false });
+
+    const res = await request('POST', '/v2/follow-targets/namespaces', {
+      namespace: unique('unowned'),
+    });
+
+    expect(res.status).toBe(403);
+    expect(String(res.body.message ?? res.body.error)).toMatch(/owner or administrator/i);
+  });
+
   it('refuses a namespace another application already holds, as a conflict', async () => {
     await signIn(ALL_SCOPES);
     const ns = unique('rt');
