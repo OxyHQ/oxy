@@ -51,6 +51,14 @@ export async function finalizeDeviceLogin(opts: {
     if (changed) broadcastDeviceState(state);
     const deviceSecret = await deviceSessionService.issueDeviceSecret(session.deviceId);
     if (deviceSecret) result.deviceSecret = deviceSecret;
+    // LAST, and that ordering is load-bearing. `addAccount` created (or reused)
+    // this session's device account context, so the ids the access token binds
+    // to are only knowable now (issue #937, Phase 6) — but the token catches
+    // them up on its next mint, whereas the `deviceSecret` is returned exactly
+    // once and a sign-in that loses it has no restore credential at all. Every
+    // statement in this block shares one catch, so anything placed before the
+    // mint can take the mint down with it.
+    await deviceSessionService.bindSessionToContext(session.deviceId, session.sessionId);
   } catch (error) {
     logger.warn('finalizeDeviceLogin: device registration failed', { userId, error });
   }

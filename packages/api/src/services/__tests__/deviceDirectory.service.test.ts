@@ -39,6 +39,7 @@ import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { sessions } from '../../db/schema/sessions';
 import { users } from '../../db/schema/users';
+import { validateAccessToken } from '../../utils/sessionUtils';
 import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import deviceSessionService, { electReplacementContext } from '../deviceSession.service';
@@ -387,6 +388,37 @@ describe('POST /session/device/activate — the one write', () => {
       .where(eq(sessions.sessionId, context.sessionId ?? ''))
       .limit(1);
     expect(minted).toMatchObject({ userId: org, operatedByUserId: nate, deviceId: device });
+  });
+
+  it('binds the activated session to its context, and says so in the token (#937 Phase 6)', async () => {
+    const device = newDeviceId();
+    const nate = await account();
+    const org = await organization(nate);
+    await signIn(device, nate);
+    const before = await deviceSessionService.getDirectory(device);
+    const contextId = contextFor(before, nate, org)?.id ?? '';
+
+    const result = await deviceSessionService.activateContext(device, contextId, request());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const claims = validateAccessToken(result.activeToken?.accessToken ?? '').payload;
+    // The token names the context it was minted for, so a token for the
+    // PREVIOUS context can never pass as this one.
+    expect(claims?.device_context_id).toBe(contextId);
+    expect(claims?.sub).toBe(org);
+    expect(claims?.act?.sub).toBe(nate);
+
+    const stored = await storedDevice(device);
+    const [session] = await getDb()
+      .select({
+        deviceSessionId: sessions.deviceSessionId,
+        deviceContextId: sessions.deviceContextId,
+      })
+      .from(sessions)
+      .where(eq(sessions.sessionId, result.activeToken ? claims?.sessionId ?? '' : ''))
+      .limit(1);
+    expect(session).toMatchObject({ deviceSessionId: stored.id, deviceContextId: contextId });
   });
 
   it('activating the already-active context bumps nothing and reports it changed nothing', async () => {

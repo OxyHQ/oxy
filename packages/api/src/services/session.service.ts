@@ -23,7 +23,14 @@ import {
   deriveServiceDeviceId,
   DeviceFingerprint
 } from '../utils/deviceUtils';
-import { generateSessionTokens, validateAccessToken, validateRefreshToken } from '../utils/sessionUtils';
+import {
+  checkAccessTokenBinding,
+  generateSessionTokens,
+  validateAccessToken,
+  validateRefreshToken,
+  type AccessTokenBinding,
+  type SessionTokenBindingRow,
+} from '../utils/sessionUtils';
 import deviceSessionService from './deviceSession.service';
 import { broadcastDeviceState } from '../utils/socket';
 import type { Request } from 'express';
@@ -84,6 +91,15 @@ const SESSION_COLUMNS = {
   previousRefreshToken: sessions.previousRefreshToken,
   tokenRotatedAt: sessions.tokenRotatedAt,
   operatedByUserId: sessions.operatedByUserId,
+  // The access-token v2 binding. Selected on every read because it is what
+  // `validateSession` checks the presented token's claims against and what
+  // every re-mint reproduces — a session read that omitted it would mint a
+  // token asserting less than the row knows.
+  applicationId: sessions.applicationId,
+  clientId: sessions.clientId,
+  scopes: sessions.scopes,
+  deviceSessionId: sessions.deviceSessionId,
+  deviceContextId: sessions.deviceContextId,
   isActive: sessions.isActive,
   expiresAt: sessions.expiresAt,
   lastRefresh: sessions.lastRefresh,
@@ -105,6 +121,59 @@ const SESSION_COLUMNS = {
 function extractUserId(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
   return value.length > 0 ? value : undefined;
+}
+
+/**
+ * The access-token v2 binding a live session row describes (issue #937,
+ * Phase 6). The ROW is the authority in both directions: this is what a re-mint
+ * puts into the claims, and what `validateSession` checks a presented token's
+ * claims back against.
+ *
+ * `principalUserId` is `operated_by_user_id` when the session is delegated and
+ * the subject itself otherwise. That single line is the actor/subject
+ * separation the whole phase turns on — collapsing it would make a delegated
+ * session's token claim the organization authorised itself.
+ */
+function tokenBindingOf(session: CachedSession): AccessTokenBinding {
+  return {
+    subjectAccountId: session.userId,
+    principalUserId: session.operatedByUserId ?? session.userId,
+    sessionId: session.sessionId,
+    deviceId: session.deviceId,
+    deviceSessionId: session.deviceSessionId,
+    deviceContextId: session.deviceContextId,
+    clientId: session.clientId,
+    scopes: session.scopes,
+  };
+}
+
+/** The same row, in the shape `checkAccessTokenBinding` validates against. */
+function bindingRowOf(session: CachedSession): SessionTokenBindingRow {
+  return {
+    sessionId: session.sessionId,
+    userId: session.userId,
+    operatedByUserId: session.operatedByUserId,
+    applicationId: session.applicationId,
+    clientId: session.clientId,
+    deviceSessionId: session.deviceSessionId,
+    deviceContextId: session.deviceContextId,
+    scopes: session.scopes,
+  };
+}
+
+/**
+ * Whether a stored access token still describes the binding its row now
+ * carries. Read by `getAccessToken`, which is the one seam that hands back a
+ * STORED token instead of minting a fresh one — so it is also the only place a
+ * token can go stale relative to its row (the binding is written after the
+ * mint on the device-login lane, and a v1 token predates the binding
+ * entirely). A mismatch means re-mint, never "serve it anyway".
+ */
+function storedTokenMatchesBinding(session: CachedSession): boolean {
+  const validation = validateAccessToken(session.accessToken);
+  if (!validation.valid || !validation.payload) return false;
+  return checkAccessTokenBinding(validation.payload, bindingRowOf(session)).ok
+    && validation.payload.ver === 2;
 }
 
 class SessionService {
@@ -377,6 +446,23 @@ class SessionService {
         return null;
       }
 
+      // Resource-server validation (issue #937, Phase 6). The signature and
+      // expiry were proven above; this proves the token still describes THIS
+      // session — issuer, audience, `sid`, subject, actor, authorized party,
+      // device context and scopes, all against the row. A v1 token asserted
+      // none of it and resolves to the row's own binding while the migration
+      // window is open.
+      const binding = checkAccessTokenBinding(validationResult.payload, bindingRowOf(session));
+      if (!binding.ok) {
+        logger.warn('[SessionService] Access token rejected by binding check', {
+          component: 'SessionService',
+          method: 'validateSession',
+          sessionId: sessionId.substring(0, 8),
+          reason: binding.reason,
+        });
+        return null;
+      }
+
       if (sessionCache.shouldUpdateLastActive(sessionId)) {
         this.updateLastActivity(sessionId).catch(() => {
           // Silently fail - non-critical operation
@@ -386,7 +472,8 @@ class SessionService {
       return {
         session,
         user: result.user,
-        payload: validationResult.payload
+        payload: validationResult.payload,
+        token: binding.identity,
       };
     } catch (error) {
       logger.error('[SessionService] Session validation failed', error instanceof Error ? error : new Error(String(error)), {
@@ -449,7 +536,15 @@ class SessionService {
     options: SessionCreateOptions = {}
   ): Promise<CachedSession> {
     try {
-      const { deviceName, deviceFingerprint, stableDeviceKey, deviceId: explicitDeviceId, operatedByUserId } = options;
+      const {
+        deviceName,
+        deviceFingerprint,
+        stableDeviceKey,
+        deviceId: explicitDeviceId,
+        operatedByUserId,
+        application,
+        deviceContext,
+      } = options;
       // For a server-to-server session mint where the request itself carries no
       // stable client identity (UA = 'unknown', egress IP varies per call), the
       // UA/IP-derived deviceId would be random every time and sprawl a new
@@ -542,7 +637,21 @@ class SessionService {
               // because the alternative — minting a second, operator-less session
               // for a managed account — would create exactly the unbounded org
               // session the `account:act_as` re-check exists to prevent.
-              ...(operatedByUserId ? [eq(sessions.operatedByUserId, operatedByUserId)] : [])
+              ...(operatedByUserId ? [eq(sessions.operatedByUserId, operatedByUserId)] : []),
+              // An APPLICATION-bound mint may only reuse a session already
+              // bound to that same application (issue #937, Phase 6). Without
+              // this, an OAuth exchange on the user's central device finds the
+              // device's ordinary first-party session and hands the client a
+              // token for it — the third party would literally receive the
+              // shared device session, and renaming the row `"<App> OAuth"` is
+              // all that would record it happened.
+              //
+              // The reverse is deliberately NOT tightened: an unbound mint may
+              // still reuse whatever is there. An untrusted client's session
+              // lives on its own derived deviceId (see the OAuth exchange), so
+              // an unbound mint on the central device never reaches one, and
+              // adding the symmetric predicate would only mint spare rows.
+              ...(application ? [eq(sessions.applicationId, application.applicationId)] : [])
             )
           )
           .limit(1);
@@ -563,7 +672,16 @@ class SessionService {
         // central id when supplied), so the reused access token's `deviceId`
         // claim addresses the caller's real device — the room the client's
         // SessionClient joins and where cross-domain broadcasts land.
-        const { accessToken, refreshToken } = generateSessionTokens(userId, sessionId, deviceInfo.deviceId);
+        const { accessToken, refreshToken } = generateSessionTokens({
+          subjectAccountId: userId,
+          principalUserId: operatedByUserId ?? userId,
+          sessionId,
+          deviceId: deviceInfo.deviceId,
+          deviceSessionId: deviceContext?.deviceSessionId ?? null,
+          deviceContextId: deviceContext?.deviceContextId ?? null,
+          clientId: application?.clientId ?? null,
+          scopes: application?.scopes ?? [],
+        });
 
         // Migrate a reused session onto the caller's central device when an
         // explicit deviceId was supplied and the reused session still sits on a
@@ -592,6 +710,23 @@ class SessionService {
             // account switch (keeps the act_as re-check pointed at whoever just
             // switched in); leave it untouched for ordinary sessions.
             ...(operatedByUserId ? { operatedByUserId } : {}),
+            // The token minted just above already asserts these, so the row has
+            // to agree or the very next request fails its own binding check.
+            // Scopes are re-applied on every reuse because a later grant can
+            // widen or narrow them.
+            ...(application
+              ? {
+                  applicationId: application.applicationId,
+                  clientId: application.clientId,
+                  scopes: application.scopes,
+                }
+              : {}),
+            ...(deviceContext
+              ? {
+                  deviceSessionId: deviceContext.deviceSessionId,
+                  deviceContextId: deviceContext.deviceContextId,
+                }
+              : {}),
           })
           .where(eq(sessions.id, existingSession.id))
           .returning(SESSION_COLUMNS);
@@ -640,7 +775,16 @@ class SessionService {
       const sessionId = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + SESSION_EXPIRES_IN);
       const now = new Date();
-      const { accessToken, refreshToken } = generateSessionTokens(userId, sessionId, deviceInfo.deviceId);
+      const { accessToken, refreshToken } = generateSessionTokens({
+        subjectAccountId: userId,
+        principalUserId: operatedByUserId ?? userId,
+        sessionId,
+        deviceId: deviceInfo.deviceId,
+        deviceSessionId: deviceContext?.deviceSessionId ?? null,
+        deviceContextId: deviceContext?.deviceContextId ?? null,
+        clientId: application?.clientId ?? null,
+        scopes: application?.scopes ?? [],
+      });
 
       // `deviceInfo` was a nested subdocument in Mongo; the eight fields are
       // real columns now (see the table in `db/schema/sessions.ts`).
@@ -663,6 +807,13 @@ class SessionService {
           // NULL, not a placeholder: NULL here means "not a delegated session",
           // and that is what the `account:act_as` re-check keys off.
           operatedByUserId: operatedByUserId || null,
+          // NULL likewise means "not one application's session" and "no device
+          // context yet" — both first-class states, not missing data.
+          applicationId: application?.applicationId ?? null,
+          clientId: application?.clientId ?? null,
+          scopes: application?.scopes ?? [],
+          deviceSessionId: deviceContext?.deviceSessionId ?? null,
+          deviceContextId: deviceContext?.deviceContextId ?? null,
           isActive: true,
           expiresAt,
           lastRefresh: now,
@@ -788,11 +939,13 @@ class SessionService {
 
       // Standard rotation: generate new tokens and store the old one for grace period
       const now = new Date();
-      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateSessionTokens(
-        payload.userId || session.userId.toString(),
-        sessionId,
-        payload.deviceId || session.deviceId
-      );
+      // The rotation re-mints from the ROW's binding, not from the presented
+      // token's claims: a v1 refresh token carries none of them, and this is
+      // precisely how a session in the migration window graduates to v2.
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateSessionTokens({
+        ...tokenBindingOf(session),
+        deviceId: payload.deviceId || session.deviceId,
+      });
 
       // Mongo mutated the document field by field and called `.save()`. Here it
       // is ONE conditional update, and the condition is what makes the rotation
@@ -1020,11 +1173,27 @@ class SessionService {
         return null;
       }
 
+      // The stored token no longer describes its row — a v1 token minted before
+      // this session was bound, or one minted before `bindSessionToContext`
+      // wrote the device context on the login lane. Rotating is what upgrades
+      // it; handing it back would keep the session on v1 forever, since this
+      // branch is the one an unexpired session takes on every mint.
+      if (!storedTokenMatchesBinding(session)) {
+        const rebound = await this.refreshTokens(session.refreshToken);
+        if (!rebound) {
+          return null;
+        }
+        return {
+          accessToken: rebound.accessToken,
+          expiresAt: rebound.session.expiresAt,
+        };
+      }
+
       // Check if access token is expired
       try {
         const decoded = jwt.verify(session.accessToken, process.env.ACCESS_TOKEN_SECRET!) as jwt.JwtPayload;
         const currentTime = Math.floor(Date.now() / 1000);
-        
+
         if (decoded.exp && decoded.exp < currentTime) {
           // Token expired, refresh it
           const refreshResult = await this.refreshTokens(session.refreshToken);

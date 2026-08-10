@@ -60,6 +60,9 @@
 import { sql } from 'drizzle-orm';
 import { boolean, index, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { applications } from './applications';
+import { deviceAccountContexts } from './deviceAccountContexts';
+import { deviceSessions } from './deviceSessions';
 import { users } from './users';
 
 export const sessions = pgTable(
@@ -118,6 +121,54 @@ export const sessions = pgTable(
      * operator must kill the session, not launder it.
      */
     operatedByUserId: text().references(() => users.id, { onDelete: 'cascade' }),
+
+    // ---- access token v2 binding (issue #937, Phase 6) ---------------------
+    // What the token minted for this session is allowed to SAY, and what its
+    // claims are checked back against on every request. The token is derived
+    // from these columns and never the reverse, so a re-mint of a live session
+    // reproduces the same binding and a claim that disagrees with the row is a
+    // token that no longer describes its session.
+    /**
+     * The application this session BELONGS TO, when it belongs to exactly one.
+     *
+     * NULL is the ordinary shared device session that every official app on the
+     * device uses — those are not one application's, so they carry no `azp`.
+     * Set only where the session was minted for a single application and is
+     * reachable by nothing else, which today means an untrusted OAuth client.
+     *
+     * `CASCADE`, deliberately NOT `SET NULL`, for the same reason
+     * `operated_by_user_id` is: NULL here means "not an application's session",
+     * so `SET NULL` would silently PROMOTE a third-party session into a
+     * first-party one the moment the application row went away — laundering
+     * exactly the isolation this column exists to enforce.
+     */
+    applicationId: text().references(() => applications.id, { onDelete: 'cascade' }),
+    /**
+     * `azp` — the `application_credentials.public_key` (the OAuth `client_id`)
+     * that obtained this session. Stored beside `application_id` rather than
+     * derived from it because an application has several credentials and may
+     * rotate them; which one was used is a fact about this session.
+     */
+    clientId: text(),
+    /**
+     * `scope` — what `client_id` was granted. The intersection the authorize
+     * step already computed, carried forward so the token's `scope` claim has
+     * an authority to be checked against instead of being self-asserting.
+     */
+    scopes: text().array().notNull().default(sql`'{}'::text[]`),
+    /**
+     * `device_session_id` / `device_context_id` — which device, and which
+     * principal-acting-as-account on it (ADR 0001), this session serves.
+     *
+     * `SET NULL` here and NOT cascade, which is the opposite choice to
+     * `application_id` above and for the opposite reason: losing the device
+     * context must not delete a live session, it must only stop the token
+     * claiming a context that no longer exists. Both are nullable because a
+     * session minted before its device registered it has neither yet.
+     */
+    deviceSessionId: text().references(() => deviceSessions.id, { onDelete: 'set null' }),
+    deviceContextId: text().references(() => deviceAccountContexts.id, { onDelete: 'set null' }),
+
     isActive: boolean().notNull().default(true),
     expiresAt: timestamptz().notNull(),
     /** Mongoose defaulted this to `Date.now`. */

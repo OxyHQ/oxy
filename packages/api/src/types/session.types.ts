@@ -7,7 +7,7 @@
 import type { CachedSession } from '../utils/sessionCache';
 import type { AccountDocument } from '../services/user.service';
 import type { DeviceFingerprintInput } from '../utils/deviceUtils';
-import type { SessionTokenPayload } from '../utils/sessionUtils';
+import type { AccessTokenIdentity, SessionTokenPayload } from '../utils/sessionUtils';
 
 export interface SessionValidationResult {
   session: CachedSession;
@@ -24,6 +24,16 @@ export interface SessionValidationResult {
    */
   user: AccountDocument;
   payload: SessionTokenPayload;
+  /**
+   * Who the bearer resolves to once its claims have been checked against the
+   * session row (issue #937, Phase 6) — subject and actor kept apart, plus the
+   * application, device context and scopes the session is bound to.
+   *
+   * This, not `payload`, is what a route may act on: `payload` is what the
+   * token SAID, `token` is what survived validation. It is where the device
+   * lane reads `clientId` to refuse a third-party bearer.
+   */
+  token: AccessTokenIdentity;
 }
 
 export interface SessionCreateOptions {
@@ -50,6 +60,32 @@ export interface SessionCreateOptions {
    * and to bind its validity to the operator's `account:act_as` membership.
    */
   operatedByUserId?: string;
+  /**
+   * Bind this session to ONE application (issue #937, Phase 6). Set only where
+   * the session belongs to a single application and nothing else can reach it
+   * — an untrusted OAuth client's exchange. A shared device session that
+   * several official apps use is deliberately left unbound, because `azp`
+   * naming one of them would be false for the others.
+   *
+   * Binding also NARROWS session reuse: a bound mint may only reuse a session
+   * already bound to the same application, so an OAuth exchange can never be
+   * handed the device's existing first-party session.
+   */
+  application?: {
+    applicationId: string;
+    clientId: string;
+    scopes: string[];
+  };
+  /**
+   * Bind this session to a device account context (ADR 0001) at mint time.
+   * Passed by `activateContext`, which knows both ids before it mints. The
+   * device-login lane cannot: its context row is created after the session, so
+   * it binds afterwards via `deviceSessionService.bindSessionToContext`.
+   */
+  deviceContext?: {
+    deviceSessionId: string;
+    deviceContextId: string;
+  };
 }
 
 export interface SessionRefreshResult {

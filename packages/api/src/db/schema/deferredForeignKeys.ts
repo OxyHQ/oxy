@@ -183,6 +183,19 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'device has a `device_sessions` row at all.',
   },
   {
+    table: sessions,
+    column: sessions.clientId,
+    reason:
+      '(c) The OAuth `client_id` — an `application_credentials.public_key`, ' +
+      'which is that table\'s natural key and not its primary key, so there is ' +
+      'nothing for a foreign key to point at. It records WHICH credential ' +
+      'obtained this session, and must survive that credential being rotated ' +
+      'or revoked: revocation is meant to stop new exchanges, not to erase the ' +
+      'provenance of sessions already issued. The enforceable half of the ' +
+      'binding is `application_id` beside it, which IS a foreign key and does ' +
+      'CASCADE.',
+  },
+  {
     table: deviceSessions,
     column: deviceSessions.deviceId,
     reason:
