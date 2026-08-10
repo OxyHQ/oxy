@@ -56,9 +56,13 @@ const mockAddAccount = jest.fn(async () => ({
   state: { deviceId: 'op-device', accounts: [], activeAccountId: null, revision: 1, updatedAt: Date.now() },
   changed: false,
 }));
+const mockGetDeviceState = jest.fn();
 jest.mock('../../services/deviceSession.service', () => ({
   __esModule: true,
-  default: { addAccount: (...args: unknown[]) => mockAddAccount(...args) },
+  default: {
+    addAccount: (...args: unknown[]) => mockAddAccount(...args),
+    getState: (...args: unknown[]) => mockGetDeviceState(...args),
+  },
 }));
 const mockBroadcastDeviceState = jest.fn();
 jest.mock('../../utils/socket', () => ({
@@ -230,6 +234,8 @@ beforeEach(async () => {
   mockGetSession.mockResolvedValue({ operatedByUserId: null });
   mockListAccessibleAccounts.mockReset();
   mockListAccessibleAccounts.mockResolvedValue([]);
+  mockGetDeviceState.mockReset();
+  mockGetDeviceState.mockResolvedValue({ accounts: [] });
 });
 
 describe('POST /accounts/:id/switch', () => {
@@ -314,6 +320,7 @@ describe('POST /accounts/:id/switch', () => {
     // HUMAN, so the operator can reach their sibling accounts.
     const HUMAN_ID = '6a0000000000000000000099';
     mockGetSession.mockResolvedValue({ operatedByUserId: { toString: () => HUMAN_ID } });
+    mockGetDeviceState.mockResolvedValue({ accounts: [{ accountId: ORG_ID }] });
     mockVerifyActingAs.mockResolvedValue('owner');
     await seedTargetAccount({ username: 'sibling-org', kind: 'organization' });
     mockCreateSession.mockResolvedValue({
@@ -338,6 +345,20 @@ describe('POST /accounts/:id/switch', () => {
       { accountId: ORG_ID, sessionId: 'sess-2', operatedByUserId: HUMAN_ID },
       { activate: 'always' },
     );
+  });
+
+  it('rejects a sibling switch from an operated bearer unless the target is already on its device', async () => {
+    const HUMAN_ID = '6a0000000000000000000099';
+    mockGetSession.mockResolvedValue({ operatedByUserId: { toString: () => HUMAN_ID } });
+    mockVerifyActingAs.mockResolvedValue('owner');
+    await seedTargetAccount({ username: 'unregistered-sibling', kind: 'organization' });
+
+    const res = await post(server, `/accounts/${ORG_ID}/switch`);
+
+    expect(res.status).toBe(403);
+    expect(mockGetDeviceState).toHaveBeenCalledWith('dev-op');
+    expect(mockVerifyActingAs).not.toHaveBeenCalled();
+    expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
   it('falls back to a fresh device when the bearer has no resolvable deviceId', async () => {
@@ -403,16 +424,31 @@ describe('GET /accounts (operator-anchored switchable graph)', () => {
   });
 
   it('anchors an OPERATED (sub-account) session on the human operator, not the active account', async () => {
-    // Acting-as a leaf sub-account must still return the OPERATOR's full forest
-    // (their personal account + every sibling they can act_as), so the switcher
-    // never collapses to just the active sub-account.
+    // Acting-as a leaf sub-account still projects with the human operator, then
+    // constrains that projection to accounts already registered on this device.
     const HUMAN_ID = '6a0000000000000000000099';
     mockGetSession.mockResolvedValue({ operatedByUserId: { toString: () => HUMAN_ID } });
+    mockGetDeviceState.mockResolvedValue({ accounts: [{ accountId: OPERATOR_ID }] });
 
     const res = await get(server, '/accounts');
 
     expect(res.status).toBe(200);
     expect(mockListAccessibleAccounts).toHaveBeenCalledWith(HUMAN_ID);
     expect(mockListAccessibleAccounts).not.toHaveBeenCalledWith(OPERATOR_ID);
+  });
+
+  it('does not disclose unregistered siblings to an operated bearer', async () => {
+    const HUMAN_ID = '6a0000000000000000000099';
+    mockGetSession.mockResolvedValue({ operatedByUserId: { toString: () => HUMAN_ID } });
+    mockListAccessibleAccounts.mockResolvedValue([
+      { accountId: OPERATOR_ID },
+      { accountId: ORG_ID },
+    ]);
+    mockGetDeviceState.mockResolvedValue({ accounts: [{ accountId: OPERATOR_ID }] });
+
+    const res = await get(server, '/accounts');
+
+    expect(res.status).toBe(200);
+    expect(res.body.accounts).toEqual([expect.objectContaining({ accountId: OPERATOR_ID })]);
   });
 });
