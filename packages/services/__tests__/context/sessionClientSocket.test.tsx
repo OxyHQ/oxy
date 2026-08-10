@@ -122,8 +122,20 @@ function buildFakeClient(initial: DeviceSessionState) {
     bootstrap,
     push,
     getState: () => state,
+    // The dialog controller reads the directory on every snapshot build, so a
+    // stand-in that omits these is not a SessionClient. Null is the honest
+    // answer for a fake that was never given one.
+    getDirectory: () => null,
+    refreshDirectory: async () => null,
+    activateContext: async () => null,
     fakeClient: {
       getState: () => state,
+      // The dialog controller reads the directory on every snapshot build, so a
+      // stand-in that omits these is not a SessionClient. Null is the honest
+      // answer for a fake that was never given one.
+      getDirectory: () => null,
+      refreshDirectory: async () => null,
+      activateContext: async () => null,
       subscribe: (listener: StateListener) => {
         listeners.add(listener);
         return () => listeners.delete(listener);
