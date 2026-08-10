@@ -1,13 +1,17 @@
 import {
+  deviceActivateResponseSchema,
+  deviceDirectorySchema,
   deviceSessionStateSchema,
   deviceSessionSyncSchema,
   safeParseContract,
   SESSION_ACCOUNTS_CHANGED_EVENT,
   sessionAccountsChangedEventSchema,
+  type DeviceDirectory,
   type DeviceSessionState,
 } from '@oxyhq/contracts';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
+import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
 import { getSocketIO } from './socketLoader';
 import type { MinimalSocket, SocketIOFactory } from './socketLoader';
 
@@ -98,6 +102,7 @@ export interface SessionClientOptions {
 }
 
 type StateListener = (state: DeviceSessionState | null) => void;
+type DirectoryListener = (directory: DeviceDirectory | null) => void;
 
 /**
  * Same-origin `BroadcastChannel` name for instant, network-free session-state
@@ -118,7 +123,20 @@ interface SessionBroadcastChannel {
 
 export class SessionClient {
   private state: DeviceSessionState | null = null;
+  /**
+   * The device DIRECTORY (ADR 0002) — principals, the contexts each may act as,
+   * and which context is active. Held BESIDE `state` rather than replacing it:
+   * `state` is the flat compatibility projection every app renders until Phase 7
+   * moves it, and the two describe the same device at the same `revision`.
+   *
+   * `null` until something asks for it. A client that never calls
+   * {@link refreshDirectory} has no consumer for a directory and never pays for
+   * the round trip — which is also what keeps the whole account lane's request
+   * count unchanged.
+   */
+  private directory: DeviceDirectory | null = null;
   private readonly listeners = new Set<StateListener>();
+  private readonly directoryListeners = new Set<DirectoryListener>();
   protected socket: MinimalSocket | null = null;
   private tokenUnsub: (() => void) | null = null;
   private started = false;
@@ -139,6 +157,27 @@ export class SessionClient {
   }
 
   /**
+   * The device directory, or `null` when this client has never read one.
+   * Populated by {@link refreshDirectory} / {@link activateContext} and kept
+   * fresh from there on.
+   */
+  getDirectory(): DeviceDirectory | null {
+    return this.directory;
+  }
+
+  /**
+   * The active `principal acting as account` pair, with the actor and the
+   * subject kept apart. `null` when no directory has been read, or when the
+   * device genuinely has no active context.
+   *
+   * This is the answer `getState()` cannot give: `activeAccountId` names the
+   * subject and says nothing about whose authentication is behind it.
+   */
+  getActiveContext(): DeviceContext | null {
+    return resolveActiveContext(this.directory);
+  }
+
+  /**
    * The account this client's bearer is pinned to, or `null` when it follows the
    * device's active account (the default). Resolvers are expected to be a plain
    * synchronous read of already-resolved state (see
@@ -152,6 +191,20 @@ export class SessionClient {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
+    };
+  }
+
+  /**
+   * Subscribe to the directory half. Fires from the SAME {@link notify} as
+   * {@link subscribe}, so the flat state and the directory are never published
+   * at two different points of the ordering sequence — a directory subscriber
+   * and a state subscriber woken by one transition always see the same device
+   * revision under the same bearer.
+   */
+  subscribeDirectory(listener: DirectoryListener): () => void {
+    this.directoryListeners.add(listener);
+    return () => {
+      this.directoryListeners.delete(listener);
     };
   }
 
@@ -195,6 +248,13 @@ export class SessionClient {
         listener(this.state);
       } catch (error) {
         logger.error('[SessionClient] subscriber threw', error);
+      }
+    }
+    for (const listener of this.directoryListeners) {
+      try {
+        listener(this.directory);
+      } catch (error) {
+        logger.error('[SessionClient] directory subscriber threw', error);
       }
     }
   }
@@ -271,7 +331,7 @@ export class SessionClient {
       next.accounts.length > 0 &&
       (activeAccountId === null || computeIdentityTag(this.host.getAccessToken()) !== activeAccountId);
 
-    const finishApply = (): void => {
+    const publish = (): void => {
       this.notify();
       if (next.accounts.length === 0 && this.options.onUnauthenticated) {
         try {
@@ -280,6 +340,22 @@ export class SessionClient {
           logger.error('[SessionClient] onUnauthenticated threw', error);
         }
       }
+    };
+
+    // The directory half of the same ordering invariant: when this client holds
+    // a directory and the flat state has just moved past it, re-read the
+    // directory BEFORE anyone is notified — otherwise a directory-rendering
+    // consumer observes the PREVIOUS subject under the new subject's bearer,
+    // which is the account-switch race mirrored. `settleDirectory` returns null
+    // (and this stays synchronous) for every client that never read a
+    // directory, i.e. the whole account lane.
+    const finishApply = (): void => {
+      const settling = this.settleDirectory(next);
+      if (settling === null) {
+        publish();
+        return;
+      }
+      void settling.then(publish);
     };
 
     if (needsMintBeforeNotify) {
@@ -351,9 +427,212 @@ export class SessionClient {
     }
   }
 
+  /**
+   * Validate + last-writer-wins by revision, exactly as {@link applyState} does
+   * for the flat half — including the part that is easy to get wrong: the guard
+   * is `deviceId`-SCOPED. A directory belonging to a DIFFERENT device resets the
+   * baseline and is accepted at any revision, so a freshly-converged device
+   * cannot lose to a retired device's higher number.
+   *
+   * Notifies nothing. Every caller decides where in its own ordering sequence
+   * the publish belongs.
+   */
+  private applyDirectory(raw: unknown): boolean {
+    const next = safeParseContract(deviceDirectorySchema, raw);
+    if (!next) {
+      logger.warn('[SessionClient] discarded invalid device directory');
+      return false;
+    }
+    if (
+      this.directory &&
+      next.deviceId === this.directory.deviceId &&
+      next.revision <= this.directory.revision
+    ) {
+      return false;
+    }
+    this.directory = next;
+    return true;
+  }
+
+  /** `GET /session/device/directory` → {@link applyDirectory}. No notify. */
+  private async fetchDirectory(): Promise<boolean> {
+    const res = await this.host.makeRequest<unknown>('GET', '/session/device/directory', undefined, { cache: false });
+    return this.applyDirectory(res);
+  }
+
+  /**
+   * Re-read the directory when the flat state has moved past it, returning the
+   * in-flight work so the caller can hold its notify until both halves describe
+   * the same revision.
+   *
+   * `null` — meaning "nothing to settle, stay synchronous" — when this client
+   * holds no directory (nobody reads one), when the directory is already at or
+   * ahead of the state, or when there is no bearer to make the call with.
+   * Never rejects: a failed refresh leaves the previous directory in place and
+   * the next transition tries again; it must not swallow the flat state's
+   * notify.
+   */
+  private settleDirectory(state: DeviceSessionState): Promise<void> | null {
+    const held = this.directory;
+    if (held === null) {
+      return null;
+    }
+    if (held.deviceId === state.deviceId && held.revision >= state.revision) {
+      return null;
+    }
+    if (!this.host.getAccessToken()) {
+      return null;
+    }
+    return this.fetchDirectory().then(
+      () => undefined,
+      (error: unknown) => {
+        logger.warn('[SessionClient] directory refresh failed', { component: 'SessionClient' }, error);
+      },
+    );
+  }
+
+  /**
+   * The highest device revision this client currently knows for `deviceId`,
+   * across BOTH halves, or `null` when it knows nothing about that device.
+   *
+   * Used to read the server's `changed` flag, which
+   * `POST /session/device/activate` deliberately does not carry: the revision
+   * already says whether the device moved, and a second field saying the same
+   * thing is a second field that can disagree with the first.
+   */
+  private knownRevisionFor(deviceId: string): number | null {
+    const fromDirectory = this.directory?.deviceId === deviceId ? this.directory.revision : null;
+    const fromState = this.state?.deviceId === deviceId ? this.state.revision : null;
+    if (fromDirectory === null) return fromState;
+    if (fromState === null) return fromDirectory;
+    return Math.max(fromDirectory, fromState);
+  }
+
+  /**
+   * Plant the bearer `POST /session/device/activate` returned for the newly
+   * active context, under the same guards {@link applyState} applies to a
+   * sync-supplied `activeToken`: never for a null active context, never a
+   * foreign account's token while pinned, and never a redundant re-plant of the
+   * token already held.
+   *
+   * `activeToken: null` is not an error — it is an identity-pinned client, or a
+   * caller whose application is not entitled to a bearer for the new context.
+   */
+  private plantActiveContextToken(directory: DeviceDirectory, accessToken: string | undefined): void {
+    if (!accessToken) {
+      return;
+    }
+    const subjectAccountId = resolveActiveContext(directory)?.subject.accountId ?? null;
+    if (subjectAccountId === null) {
+      return;
+    }
+    const pinnedAccountId = this.pinnedAccountId();
+    if (pinnedAccountId !== null && subjectAccountId !== pinnedAccountId) {
+      return;
+    }
+    if (accessToken === this.host.getAccessToken()) {
+      return;
+    }
+    this.host.setTokens(accessToken);
+  }
+
+  /**
+   * Bring the FLAT projection back in step after a context activation.
+   *
+   * The activation response answers with the directory and a bearer and
+   * deliberately not with `DeviceSessionState` (ADR 0002) — but every app that
+   * has not moved to the directory still renders from `getState()`, and leaving
+   * it a revision behind would show the PREVIOUS subject under the new
+   * subject's bearer. So it is settled BEFORE the notify, not after.
+   *
+   * This is also what converges the bearer when the activation returned no
+   * token: `GET /session/device/state` mints one for the active account, and
+   * `applyState`'s own mint-before-notify gate holds its notify until it lands.
+   *
+   * Non-fatal on failure — the directory is applied and (usually) the bearer is
+   * planted; the socket push or the next bootstrap catches the flat half up. A
+   * network blip must not turn a completed activation into a thrown error.
+   */
+  private async reconcileFlatState(directory: DeviceDirectory): Promise<void> {
+    if (
+      this.state &&
+      this.state.deviceId === directory.deviceId &&
+      this.state.revision >= directory.revision
+    ) {
+      return;
+    }
+    if (!this.host.getAccessToken()) {
+      return;
+    }
+    try {
+      await this.bootstrap();
+    } catch (error) {
+      logger.warn('[SessionClient] flat-state reconcile after activation failed', { component: 'SessionClient' }, error);
+    }
+  }
+
   async bootstrap(): Promise<void> {
     const res = await this.host.makeRequest<unknown>('GET', '/session/device/state', undefined, { cache: false });
     this.applySync(res);
+  }
+
+  /**
+   * Read `GET /session/device/directory` and publish it.
+   *
+   * Calling this is what opts a client into the directory: from here on every
+   * applied device state re-reads it (see {@link settleDirectory}), so the two
+   * halves stay at one revision without the caller polling.
+   */
+  async refreshDirectory(): Promise<void> {
+    if (await this.fetchDirectory()) {
+      this.notify();
+    }
+  }
+
+  /**
+   * `POST /session/device/activate` — make one `principal acting as account`
+   * context active (ADR 0002).
+   *
+   * The body is `{ contextId }` and nothing else: an `accountId` cannot name
+   * what to activate on a device where two people can both reach the same
+   * organization, and the server refuses a body carrying one rather than
+   * guessing inside an authorization path.
+   *
+   * The sequence is the ADR's ordering invariant, in order — commit the bearer
+   * for the new context, publish the new snapshot, notify — with the flat
+   * projection reconciled in the middle so no consumer can observe the two
+   * halves disagreeing.
+   *
+   * An IDEMPOTENT activation (the target was already active) moves no revision,
+   * so it reconciles nothing and wakes no sibling tab, mirroring the server's
+   * "bumps nothing and broadcasts nothing". `switchAccount` remains the
+   * compatibility path for callers still keyed on account ids.
+   */
+  async activateContext(contextId: string): Promise<void> {
+    const res = await this.host.makeRequest<unknown>('POST', '/session/device/activate', { contextId }, { cache: false });
+    const activation = safeParseContract(deviceActivateResponseSchema, res);
+    if (!activation) {
+      logger.warn('[SessionClient] discarded invalid activation response');
+      return;
+    }
+    const known = this.knownRevisionFor(activation.directory.deviceId);
+    const moved = known === null || activation.directory.revision > known;
+    this.plantActiveContextToken(activation.directory, activation.activeToken?.accessToken);
+    // Applied BEFORE the reconcile, and only then: the reconcile's own
+    // `GET /session/device/state` runs the full apply path, whose
+    // `settleDirectory` would otherwise see a stale directory and issue a
+    // second, redundant `GET /session/device/directory` for the revision we are
+    // already holding in hand.
+    const applied = this.applyDirectory(activation.directory);
+    if (moved) {
+      await this.reconcileFlatState(activation.directory);
+    }
+    if (applied) {
+      this.notify();
+    }
+    if (moved) {
+      this.postCommitPing();
+    }
   }
 
   async switchAccount(accountId: string): Promise<void> {
