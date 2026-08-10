@@ -468,6 +468,7 @@ export {
     deviceDirectorySchema,
     deviceActivateRequestSchema,
     deviceActivateResponseSchema,
+    deviceDirectorySyncSchema,
 } from './deviceDirectory';
 
 export type {
@@ -478,6 +479,7 @@ export type {
     DeviceDirectory,
     DeviceActivateRequest,
     DeviceActivateResponse,
+    DeviceDirectorySync,
 } from './deviceDirectory';
 
 export {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { accountKindSchema } from './accountGraph';
+import { activeTokenSchema, deviceSessionStateSchema } from './deviceSession';
 import { userNameSchema } from './userResponse';
 
 /**
@@ -145,15 +146,41 @@ export const deviceActivateRequestSchema = z.object({
  */
 export const deviceActivateResponseSchema = z.object({
   directory: deviceDirectorySchema,
-  activeToken: z
-    .object({
-      accessToken: z.string(),
-      expiresAt: z.string(),
-    })
-    .nullable(),
+  activeToken: activeTokenSchema.nullable(),
+});
+
+/**
+ * Response of the CONTEXT-aware removals — `POST /session/device/signout` with
+ * `{ contextId }` (one `principal → account` pair) or `{ principalId }` (one
+ * person and every context they reach, and nobody else's).
+ *
+ * It carries BOTH halves because a removal elects a replacement active context,
+ * so both the directory and the flat compatibility projection move in the same
+ * transition — and a client that learned only one of them would render one
+ * half of a device that no longer exists.
+ *
+ * This is deliberately NOT {@link deviceSessionSyncSchema} and must never be
+ * merged into it. A zod object strips unknown keys, so `{directory, state,
+ * activeToken}` parses cleanly as `{state, activeToken}` — silently dropping the
+ * directory. One schema covering both shapes would therefore make "the server
+ * stopped sending the directory" and "this endpoint never sends one"
+ * indistinguishable at the parse, on the exact path that decides which identity
+ * the app is running as. Two schemas fail closed instead: `directory` is
+ * required here, so a directory-less payload is refused outright.
+ *
+ * `activeToken` is null on the same terms as everywhere else — an identity-
+ * pinned caller, or one not entitled to a bearer for the newly-elected context —
+ * and null is also the honest answer when the removal left the device with no
+ * active context at all.
+ */
+export const deviceDirectorySyncSchema = z.object({
+  directory: deviceDirectorySchema,
+  state: deviceSessionStateSchema,
+  activeToken: activeTokenSchema.nullable(),
 });
 
 export type DeviceContextRelationship = z.infer<typeof deviceContextRelationshipSchema>;
+export type DeviceDirectorySync = z.infer<typeof deviceDirectorySyncSchema>;
 export type DeviceDirectoryProfile = z.infer<typeof deviceDirectoryProfileSchema>;
 export type DeviceAccountContext = z.infer<typeof deviceAccountContextSchema>;
 export type DevicePrincipal = z.infer<typeof devicePrincipalSchema>;

@@ -1,6 +1,7 @@
 import {
   deviceActivateResponseSchema,
   deviceDirectorySchema,
+  deviceDirectorySyncSchema,
   deviceSessionStateSchema,
   deviceSessionSyncSchema,
   safeParseContract,
@@ -8,6 +9,7 @@ import {
   sessionAccountsChangedEventSchema,
   type DeviceDirectory,
   type DeviceSessionState,
+  type DeviceSessionSync,
 } from '@oxyhq/contracts';
 import { logger } from '../logger';
 import { computeIdentityTag } from '../utils/cacheKey';
@@ -401,6 +403,20 @@ export class SessionClient {
       logger.warn('[SessionClient] discarded invalid session sync', { component: 'SessionClient', issues, keys });
       return;
     }
+    this.commitSync(sync);
+  }
+
+  /**
+   * The apply + token-plant half of {@link applySync}, on an ALREADY-VALIDATED
+   * sync. Split out so the context-aware removal lane — whose response is a
+   * different wire shape and therefore a different parse — reuses this ordering
+   * verbatim instead of re-deriving it. Two implementations of
+   * "plant before notify" is two chances to get it wrong once.
+   *
+   * Returns whether `applyState` applied, so a caller holding a second half
+   * (the directory) can decide whether anything still needs publishing.
+   */
+  private commitSync(sync: DeviceSessionSync): boolean {
     // A `sync` is always the response to a direct REST call this client made
     // (bootstrap / switch / signOut / add) → a `request`-origin, authoritative
     // verdict. Hand the active token to `applyState`: in the applied path it is
@@ -425,6 +441,7 @@ export class SessionClient {
     ) {
       this.host.setTokens(sync.activeToken.accessToken);
     }
+    return applied;
   }
 
   /**
@@ -656,9 +673,76 @@ export class SessionClient {
     this.postCommitPing();
   }
 
+  /**
+   * The FLAT removal meanings, unchanged: `{ accountId }` removes that account
+   * however it is reached — plus the operator cascade — and `{ all: true }`
+   * removes the whole device including its credentials.
+   *
+   * `{ accountId }` is deliberately still account-grained. On a device holding
+   * two people it removes BOTH of their routes to that account, which is the
+   * right meaning for "sign this account out of this device" and the wrong one
+   * for "this person is done here" — see {@link signOutContext} and
+   * {@link signOutPrincipal} for the two that can tell those apart.
+   */
   async signOut(target: { accountId: string } | { all: true }): Promise<void> {
     const res = await this.host.makeRequest<unknown>('POST', '/session/device/signout', target, { cache: false });
     this.applySync(res);
+    this.postCommitPing();
+  }
+
+  /**
+   * Remove ONE `principal → account` pair, and only that pair.
+   *
+   * Never the account across the device: the same organization reached through
+   * a second person is a different session, a different audit actor and a
+   * different revocation path, and it stays. That distinction is unreachable
+   * through {@link signOut}, whose `accountId` cannot name which route to drop.
+   *
+   * Removal is not permanent while the membership lives — the server offers the
+   * pair again on the next directory read, as `onDevice: false` under a NEW id.
+   */
+  async signOutContext(contextId: string): Promise<void> {
+    await this.removeFromDevice({ contextId });
+  }
+
+  /**
+   * Remove ONE PERSON and every context they reach — and nobody else's,
+   * including when another principal independently operates the same account.
+   */
+  async signOutPrincipal(principalId: string): Promise<void> {
+    await this.removeFromDevice({ principalId });
+  }
+
+  /**
+   * The shared apply path for both context-aware removals.
+   *
+   * The response is `{directory, state, activeToken}` — its own contract, never
+   * `deviceSessionSyncSchema`, which would strip the directory silently. Both
+   * halves move in one server transition (a removal elects a replacement active
+   * context), so both are applied before anything is published: the directory
+   * first, so the flat apply's own `settleDirectory` sees a current directory
+   * and does not issue a redundant `GET /session/device/directory` for the
+   * revision already in hand.
+   *
+   * Token-before-notify is `commitSync`'s, reused verbatim rather than
+   * re-derived — including the equal-revision plant when a socket push already
+   * applied this revision.
+   */
+  private async removeFromDevice(target: { contextId: string } | { principalId: string }): Promise<void> {
+    const res = await this.host.makeRequest<unknown>('POST', '/session/device/signout', target, { cache: false });
+    const removal = safeParseContract(deviceDirectorySyncSchema, res);
+    if (!removal) {
+      logger.warn('[SessionClient] discarded invalid device removal response');
+      return;
+    }
+    const directoryApplied = this.applyDirectory(removal.directory);
+    const stateApplied = this.commitSync({ state: removal.state, activeToken: removal.activeToken });
+    // `commitSync` publishes whenever the flat state moved. When only the
+    // directory did — a socket push already applied this revision — the
+    // directory half would otherwise never reach a subscriber.
+    if (directoryApplied && !stateApplied) {
+      this.notify();
+    }
     this.postCommitPing();
   }
 

@@ -445,6 +445,164 @@ describe('SessionClient — device directory', () => {
     expect(countOf(host.urls, '/session/device/state')).toBe(0);
   });
 
+  describe('context-aware removals', () => {
+    const removalResponse = (revision: number, activeContextId: string | null) => ({
+      directory: directoryAt(revision, activeContextId),
+      state: stateAt(revision, activeContextId === 'ctx-org' ? 'org' : 'nate'),
+      activeToken: { accessToken: jwtFor(activeContextId === 'ctx-org' ? 'org' : 'nate'), expiresAt: 'x' },
+    });
+
+    it('signOutContext POSTs { contextId } and applies BOTH halves from one response', async () => {
+      const host = makeHost(
+        { '/session/device/signout': () => removalResponse(6, 'ctx-nate') },
+        jwtFor('org'),
+      );
+      const client = new TestClient(host);
+      client.apply(stateAt(5, 'org'));
+
+      await client.signOutContext('ctx-org');
+
+      expect(host.makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { contextId: 'ctx-org' }, { cache: false });
+      expect(client.getActiveContext()?.contextId).toBe('ctx-nate');
+      expect(client.getState()?.activeAccountId).toBe('nate');
+      expect(client.getState()?.revision).toBe(6);
+      // Both halves arrived together, so nothing had to be fetched back.
+      expect(countOf(host.urls, '/session/device/state')).toBe(0);
+      expect(countOf(host.urls, '/session/device/directory')).toBe(0);
+    });
+
+    it('signOutPrincipal POSTs { principalId }', async () => {
+      const host = makeHost(
+        { '/session/device/signout': () => removalResponse(7, 'ctx-nate') },
+        jwtFor('nate'),
+      );
+      const client = new SessionClient(host);
+
+      await client.signOutPrincipal('p-alice');
+
+      expect(host.makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { principalId: 'p-alice' }, { cache: false });
+    });
+
+    it('commits the replacement context bearer before any subscriber observes it', async () => {
+      const host = makeHost(
+        { '/session/device/signout': () => removalResponse(6, 'ctx-nate') },
+        jwtFor('org'),
+      );
+      const client = new TestClient(host);
+      client.apply(stateAt(5, 'org'));
+
+      const observations: Array<{ active: string | null; bearer: string }> = [];
+      client.subscribe((state) => {
+        observations.push({
+          active: state?.activeAccountId ?? null,
+          bearer: computeIdentityTag(host.getAccessToken()),
+        });
+      });
+
+      await client.signOutContext('ctx-org');
+
+      expect(observations.length).toBeGreaterThan(0);
+      for (const observation of observations) {
+        expect(observation.bearer).toBe(observation.active);
+      }
+    });
+
+    /**
+     * The removal response is `{directory, state, activeToken}` and must never
+     * be routed through the flat parser, which would strip the directory. The
+     * client-side half of that rule is that a directory-LESS payload on this
+     * lane is refused outright rather than half-applied.
+     */
+    it('discards a response missing the directory instead of applying the flat half', async () => {
+      const host = makeHost(
+        {
+          '/session/device/signout': () => ({
+            state: stateAt(6, 'nate'),
+            activeToken: { accessToken: jwtFor('nate'), expiresAt: 'x' },
+          }),
+        },
+        jwtFor('org'),
+      );
+      const client = new TestClient(host);
+      client.apply(stateAt(5, 'org'));
+
+      await client.signOutContext('ctx-org');
+
+      expect(client.getState()?.revision).toBe(5);
+      expect(client.getState()?.activeAccountId).toBe('org');
+    });
+
+    it('reports a device emptied by the removal as an authoritative sign-out', async () => {
+      const origins: string[] = [];
+      const host = makeHost(
+        {
+          '/session/device/signout': () => ({
+            directory: {
+              ...directoryAt(6, null),
+              principals: [],
+            },
+            state: { ...stateAt(6, 'nate'), accounts: [], activeAccountId: null },
+            activeToken: null,
+          }),
+        },
+        jwtFor('nate'),
+      );
+      const client = new TestClient(host, { onUnauthenticated: (origin) => origins.push(origin) });
+      client.apply(stateAt(5, 'nate'));
+
+      await client.signOutPrincipal('p-nate');
+
+      // `request` origin, not `push`: a REST removal this client asked for is
+      // authoritative enough to erase the durable device credential.
+      expect(origins).toEqual(['request']);
+      expect(client.getActiveContext()).toBeNull();
+    });
+
+    /**
+     * A socket push already applied this revision, so the flat half no-ops and
+     * publishes nothing. The directory half still moved — the push carries no
+     * directory — and without its own publish the switcher would keep rendering
+     * a context the removal deleted.
+     */
+    it('publishes the directory when only the directory half moved', async () => {
+      const host = makeHost(
+        { '/session/device/signout': () => removalResponse(6, 'ctx-nate') },
+        jwtFor('nate'),
+      );
+      const client = new TestClient(host);
+      // The push landed first: the flat state is already at revision 6.
+      client.apply(stateAt(6, 'nate'));
+
+      const seen: Array<string | null | undefined> = [];
+      client.subscribeDirectory((directory) => seen.push(directory?.activeContextId));
+
+      await client.signOutContext('ctx-org');
+
+      expect(seen).toEqual(['ctx-nate']);
+      expect(client.getActiveContext()?.contextId).toBe('ctx-nate');
+    });
+
+    it('leaves signOut({accountId}) on the flat lane untouched', async () => {
+      const host = makeHost(
+        {
+          '/session/device/signout': () => ({
+            state: stateAt(6, 'nate'),
+            activeToken: { accessToken: jwtFor('nate'), expiresAt: 'x' },
+          }),
+        },
+        jwtFor('org'),
+      );
+      const client = new TestClient(host);
+      client.apply(stateAt(5, 'org'));
+
+      await client.signOut({ accountId: 'org' });
+
+      // The flat response has no directory and is still accepted here.
+      expect(client.getState()?.revision).toBe(6);
+      expect(client.getState()?.activeAccountId).toBe('nate');
+    });
+  });
+
   describe('under an identity pin', () => {
     it('tracks an activation truthfully but never adopts the foreign bearer', async () => {
       const host = makeHost(
