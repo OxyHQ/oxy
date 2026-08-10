@@ -173,6 +173,7 @@ export const USER_CONSENT_REQUIRED_SCOPES = [
   'follows:manage',
   'follows:events',
   'follow-targets:register',
+  'chains:write',
 ] as const satisfies readonly ApplicationScope[];
 
 const USER_CONSENT_REQUIRED_SCOPE_SET: ReadonlySet<string> = new Set<string>(
