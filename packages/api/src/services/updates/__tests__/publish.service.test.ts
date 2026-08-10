@@ -16,18 +16,20 @@
  *    descriptors behind.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import type { CreateUpdateRequest } from '@oxyhq/contracts';
 
 const mockPresign = jest.fn();
 const mockHeadObject = jest.fn();
+const mockDownloadBuffer = jest.fn();
 
 jest.mock('../../s3ServiceSingleton', () => ({
   __esModule: true,
   s3Service: {
     getPresignedUploadUrl: (...args: unknown[]) => mockPresign(...args),
     headObject: (...args: unknown[]) => mockHeadObject(...args),
+    downloadBuffer: (...args: unknown[]) => mockDownloadBuffer(...args),
   },
 }));
 jest.mock('../../../utils/logger', () => ({
@@ -192,8 +194,15 @@ describe('initAssets', () => {
         storageKey: updateAssetS3Key(fresh),
         contentType: 'image/png',
         cacheControl: 'public, max-age=31536000, immutable',
+        checksumSHA256: Buffer.from(fresh, 'hex').toString('base64'),
       },
     ]);
+    expect(mockPresign).toHaveBeenCalledWith(updateAssetS3Key(fresh), {
+      contentType: 'image/png',
+      cacheControl: 'public, max-age=31536000, immutable',
+      checksumSHA256: Buffer.from(fresh, 'hex').toString('base64'),
+      expiresIn: 3600,
+    });
     expect(mockPresign).toHaveBeenCalledTimes(1);
 
     // The pending record `completeAssets` will look for, with the S3 key derived
@@ -245,22 +254,49 @@ describe('initAssets', () => {
 describe('completeAssets', () => {
   test('flips a pending asset to uploaded with the size S3 reports', async () => {
     const applicationId = await application();
-    const sha256 = sha256Hex();
+    const bytes = Buffer.from('verified update asset');
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
     await getDb()
       .insert(updateAssets)
-      .values({ sha256, contentType: 'image/png', size: 0, status: 'pending' });
-    mockHeadObject.mockResolvedValue({ size: 512, contentType: 'image/png' });
+      .values({ sha256, contentType: 'image/png', size: bytes.length, status: 'pending' });
+    mockHeadObject.mockResolvedValue({ size: bytes.length, contentType: 'image/png' });
+    mockDownloadBuffer.mockResolvedValue(bytes);
 
     const result = await publishService.completeAssets(applicationId, [sha256]);
 
     expect(mockHeadObject).toHaveBeenCalledWith(updateAssetS3Key(sha256));
-    expect(result.assets).toEqual([{ sha256, status: 'uploaded', size: 512 }]);
+    expect(mockDownloadBuffer).toHaveBeenCalledWith(updateAssetS3Key(sha256));
+    expect(result.assets).toEqual([{ sha256, status: 'uploaded', size: bytes.length }]);
 
     const [row] = await getDb()
       .select({ status: updateAssets.status, size: updateAssets.size })
       .from(updateAssets)
       .where(eq(updateAssets.sha256, sha256));
-    expect(row).toEqual({ status: 'uploaded', size: 512 });
+    expect(row).toEqual({ status: 'uploaded', size: bytes.length });
+  });
+
+  test('leaves an asset pending when its bytes do not match the claimed hash', async () => {
+    const applicationId = await application();
+    const expected = Buffer.from('legitimate asset');
+    const poisoned = Buffer.from('attacker content');
+    const sha256 = createHash('sha256').update(expected).digest('hex');
+    await getDb().insert(updateAssets).values({
+      sha256,
+      contentType: 'application/javascript',
+      size: poisoned.length,
+      status: 'pending',
+    });
+    mockHeadObject.mockResolvedValue({ size: poisoned.length });
+    mockDownloadBuffer.mockResolvedValue(poisoned);
+
+    const result = await publishService.completeAssets(applicationId, [sha256]);
+
+    expect(result.assets).toEqual([{ sha256, status: 'pending', size: 0 }]);
+    const [row] = await getDb()
+      .select({ status: updateAssets.status })
+      .from(updateAssets)
+      .where(eq(updateAssets.sha256, sha256));
+    expect(row.status).toBe('pending');
   });
 
   test('leaves an asset pending when the object is missing in S3', async () => {

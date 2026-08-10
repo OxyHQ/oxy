@@ -116,12 +116,17 @@ export class ShipClient {
     uploadUrl: string,
     contentType: string,
     cacheControl: string,
+    checksumSHA256: string,
     absPath: string
   ): Promise<void> {
     const bytes = fs.readFileSync(absPath);
     const response = await this.fetchFn(uploadUrl, {
       method: 'PUT',
-      headers: { 'content-type': contentType, 'cache-control': cacheControl },
+      headers: {
+        'content-type': contentType,
+        'cache-control': cacheControl,
+        'x-amz-checksum-sha256': checksumSHA256,
+      },
       body: bytes,
     });
     if (!response.ok) {

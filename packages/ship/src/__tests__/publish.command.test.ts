@@ -29,11 +29,17 @@ const fakeClient = {
         storageKey: `public/updates/assets/${item.sha256}`,
         contentType: item.contentType,
         cacheControl: CACHE_CONTROL,
+        checksumSHA256: Buffer.from(item.sha256, 'hex').toString('base64'),
       })),
       existing: [],
     };
   },
-  uploadAsset: async (url: string, _contentType: string, cacheControl: string) => {
+  uploadAsset: async (
+    url: string,
+    _contentType: string,
+    cacheControl: string,
+    _checksumSHA256: string
+  ) => {
     uploadCalls.push({ url, cacheControl });
   },
   completeAssets: async (sha256s: string[]) => {

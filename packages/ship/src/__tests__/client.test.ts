@@ -107,6 +107,7 @@ describe('ShipClient', () => {
         'http://s3/put',
         'image/png',
         'public, max-age=31536000, immutable',
+        'AQIDBA==',
         tmp
       );
     } finally {
@@ -116,6 +117,7 @@ describe('ShipClient', () => {
     expect(calls[0].method).toBe('PUT');
     expect(calls[0].headers['content-type']).toBe('image/png');
     expect(calls[0].headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    expect(calls[0].headers['x-amz-checksum-sha256']).toBe('AQIDBA==');
     expect(calls[0].headers.authorization).toBeUndefined();
     expect(calls[0].isBytes).toBe(true);
   });

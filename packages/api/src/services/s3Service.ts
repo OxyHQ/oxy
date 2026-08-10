@@ -338,7 +338,13 @@ export class S3Service {
     options: PresignedUrlOptions = {}
   ): Promise<string> {
     try {
-      const { expiresIn = 3600, contentType = 'application/octet-stream', metadata, cacheControl } = options;
+      const {
+        expiresIn = 3600,
+        contentType = 'application/octet-stream',
+        metadata,
+        cacheControl,
+        checksumSHA256,
+      } = options;
 
       // Sanitize metadata to ensure all values are strings
       const sanitizedMetadata: Record<string, string> = {};
@@ -355,6 +361,7 @@ export class S3Service {
         Key: key,
         ContentType: contentType,
         CacheControl: cacheControl,
+        ChecksumSHA256: checksumSHA256,
         Metadata: Object.keys(sanitizedMetadata).length > 0 ? sanitizedMetadata : undefined,
       });
 
