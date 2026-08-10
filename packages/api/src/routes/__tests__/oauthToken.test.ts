@@ -732,22 +732,39 @@ describe('POST /auth/oauth/token — security properties', () => {
  * a trusted client that keeps the old behaviour verbatim.
  */
 describe('POST /auth/oauth/token — third-party isolation', () => {
-  it('returns NO deviceSecret and NO deviceId to a third-party client', async () => {
-    // The `deviceSecret` is the device-wide restore credential: with it, a
-    // leaked third-party token mints bearers for every account on the device
-    // and can change what every official Oxy app there is signed in as.
+  it('returns a deviceSecret for the third party OWN device, never the shared one', async () => {
+    // The danger was never that a third party holds a `deviceSecret` — it is
+    // WHICH device the secret unlocks. Handed the shared one, a leaked
+    // third-party token mints bearers for every account on that device and can
+    // change what every official Oxy app there is signed in as. Bound to its
+    // own per-(user, client) device, it reaches exactly one session: its own.
+    //
+    // #937 asks for the pair to be omitted outright. That is the end state and
+    // it is not this: `exchangeOAuthCode` in `@oxyhq/core` throws without both
+    // fields, so omitting them breaks every third-party sign-in through the SDK
+    // until core ships a release that tolerates a device-less session. This test
+    // therefore pins the property that actually protects the user, and the
+    // omission is tracked separately.
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ deviceId: 'dev-shared' }));
+
     const res = await requestForm(pkceParams());
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('access_token');
-    expect(res.body).not.toHaveProperty('deviceSecret');
-    expect(res.body).not.toHaveProperty('deviceId');
+    expect(res.body).toHaveProperty('deviceSecret');
+    expect(res.body.deviceId).not.toBe('dev-shared');
   });
 
-  it('does not register a third-party session into the device account set', async () => {
+  it('registers a third-party session onto its OWN device, not the shared one', async () => {
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ deviceId: 'dev-shared' }));
+
     await requestForm(pkceParams());
 
-    expect(mockFinalizeDeviceLogin).not.toHaveBeenCalled();
+    expect(mockFinalizeDeviceLogin).toHaveBeenCalledTimes(1);
+    const finalized = mockFinalizeDeviceLogin.mock.calls[0][0] as {
+      session: { deviceId: string };
+    };
+    expect(finalized.session.deviceId).not.toBe('dev-shared');
   });
 
   it('binds a third-party session to its application, credential and granted scopes', async () => {

@@ -3147,22 +3147,37 @@ router.post(
       },
     );
 
-    let deviceSecret: string | undefined;
-    if (trusted) {
-      const deviceExtras = await finalizeDeviceLogin({
-        session: { sessionId: session.sessionId, deviceId: session.deviceId },
+    // The credential is minted for BOTH lanes, but they are not the same device.
+    // A trusted app joins the browser's shared DeviceSession above; an untrusted
+    // one was given a derived per-(user, client) device, so the secret it gets
+    // back unlocks only its own isolated session and names a device no other
+    // application shares.
+    //
+    // #937 asks for a third party to receive no DeviceSession credential at all.
+    // That is the right end state and it is NOT what this ships, deliberately:
+    // `exchangeOAuthCode` in `@oxyhq/core` hard-requires `deviceId` AND
+    // `deviceSecret` and throws without them, so omitting the pair here breaks
+    // every third-party "Sign in with Oxy" through the SDK — silently, since the
+    // throw is caught and reported as `exchange-failed`. Closing that needs a
+    // core change, a published release, and an announced cutover for external
+    // integrators pinned to older core, none of which belong in this PR.
+    //
+    // What the omission was protecting against is already closed by the lane
+    // split: before this change a third party joined the SHARED device and got
+    // ITS secret, which is the credential #937 calls global. It no longer can.
+    const deviceExtras = await finalizeDeviceLogin({
+      session: { sessionId: session.sessionId, deviceId: session.deviceId },
+      userId,
+    });
+    if (!deviceExtras.deviceSecret) {
+      logger.error('[OAuth] Token exchange succeeded but deviceSecret mint failed', {
         userId,
+        sessionId: session.sessionId,
+        deviceId: session.deviceId,
       });
-      if (!deviceExtras.deviceSecret) {
-        logger.error('[OAuth] Token exchange succeeded but deviceSecret mint failed', {
-          userId,
-          sessionId: session.sessionId,
-          deviceId: session.deviceId,
-        });
-        throw OAuthError.serverError('Failed to finalize the device session.');
-      }
-      deviceSecret = deviceExtras.deviceSecret;
+      throw OAuthError.serverError('Failed to finalize the device session.');
     }
+    const deviceSecret = deviceExtras.deviceSecret;
 
     await getDb()
       .update(applications)
@@ -3182,11 +3197,13 @@ router.post(
       // with the app's registered scopes). Omitted when the grant carries none.
       ...(grantedScopes.length > 0 ? { scope: grantedScopes.join(' ') } : {}),
       // Oxy's device-first extras, permitted by §5.1 as additional parameters.
-      // Present only for an application that actually joins the device: for a
-      // third party the pair would name a device it has no credential for and
-      // no business addressing.
+      // The pair names the session's OWN device — the browser's shared one for a
+      // trusted app, an isolated per-(user, client) one for a third party — so it
+      // is never a credential for a device the caller does not own. See the lane
+      // split above for why the pair is still sent to a third party at all.
       session_id: session.sessionId,
-      ...(deviceSecret ? { deviceId: session.deviceId, deviceSecret } : {}),
+      deviceId: session.deviceId,
+      deviceSecret,
       user: userData,
     });
   })
