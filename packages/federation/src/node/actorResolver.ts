@@ -42,6 +42,51 @@ const ACTOR_STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 /** The AP content type asked for on signed actor/collection fetches. */
 const AP_CONTENT_TYPE = 'application/activity+json';
 
+/** Maximum decompressed response sizes accepted from untrusted federation hosts. */
+const ACTOR_BODY_MAX_BYTES = 1024 * 1024;
+const COLLECTION_BODY_MAX_BYTES = 64 * 1024;
+const ERROR_BODY_MAX_BYTES = 4 * 1024;
+
+async function readBoundedResponseBody(res: Response, maxBytes: number): Promise<string> {
+  const contentLength = res.headers.get('content-length');
+  if (contentLength) {
+    const declaredBytes = Number(contentLength);
+    if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error(`Remote response exceeds ${maxBytes} byte limit`);
+    }
+  }
+
+  if (!res.body) return '';
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let bytesRead = 0;
+  let text = '';
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.byteLength;
+      if (bytesRead > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error(`Remote response exceeds ${maxBytes} byte limit`);
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    return text + decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function readBoundedJson(res: Response, maxBytes: number): Promise<Record<string, unknown>> {
+  const value: unknown = JSON.parse(await readBoundedResponseBody(res, maxBytes));
+  const record = asRecord(value);
+  if (!record) throw new Error('Remote response is not a JSON object');
+  return record;
+}
+
 function isApActorContentType(type: string | undefined): boolean {
   if (!type) return false;
   const base = type.split(';')[0]?.trim().toLowerCase();
@@ -357,7 +402,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
           await this.tombstoneGoneActor(currentUri);
           return null;
         }
-        const body = await res.text().catch(() => '');
+        const body = await readBoundedResponseBody(res, ERROR_BODY_MAX_BYTES).catch(() => '');
         this.config.logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} ${res.statusText} for ${currentUri} body=${body.slice(0, 500)}`);
 
         // If direct fetch failed, try WebFinger to resolve the canonical actor URI.
@@ -383,7 +428,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
                 await this.tombstoneGoneActor(currentUri);
                 return null;
               }
-              const body2 = await res.text().catch(() => '');
+              const body2 = await readBoundedResponseBody(res, ERROR_BODY_MAX_BYTES).catch(() => '');
               this.config.logger.info(`[FedSync] fetchRemoteActor HTTP ${res.status} for resolved ${resolved} body=${body2.slice(0, 500)}`);
               return null;
             }
@@ -396,7 +441,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         }
       }
 
-      const actor = (await res.json()) as Record<string, unknown>;
+      const actor = await readBoundedJson(res, ACTOR_BODY_MAX_BYTES);
       const actorId = asString(actor.id);
       const actorInbox = asString(actor.inbox);
       if (!actorId || !actorInbox) {
@@ -672,7 +717,7 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     try {
       const res = await this.config.signedFetch(url, AP_CONTENT_TYPE);
       if (!res.ok) return 0;
-      const col = (await res.json()) as Record<string, unknown>;
+      const col = await readBoundedJson(res, COLLECTION_BODY_MAX_BYTES);
       return typeof col.totalItems === 'number' ? col.totalItems : 0;
     } catch {
       return 0;

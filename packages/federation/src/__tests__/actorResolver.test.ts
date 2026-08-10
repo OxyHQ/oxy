@@ -23,6 +23,7 @@ function makeResolver(
     cached?: TestActor | null;
     cachedKey?: Pick<TestActor, 'uri' | 'publicKeyPem'> | null;
     blockedHosts?: string[];
+    signedFetch?: (url: string) => Promise<Response>;
   } = {},
 ) {
   const blockedHosts = overrides.blockedHosts ?? ['spam.example'];
@@ -37,6 +38,7 @@ function makeResolver(
     federationEnabled: true,
     signedFetch: async (url) => {
       signedFetchCalls.push(url);
+      if (overrides.signedFetch) return overrides.signedFetch(url);
       // A 404 ends `fetchRemoteActor` without exercising the parse/upsert path;
       // these tests only care about WHETHER the fetch was attempted.
       return new Response(null, { status: 404 });
@@ -70,6 +72,22 @@ function makeResolver(
   };
 
   return { resolver: createActorResolver(config), findActorByUriCalls, signedFetchCalls };
+}
+
+function streamedResponse(chunks: string[], init?: ResponseInit): { response: Response; cancelled: () => boolean } {
+  let cancelled = false;
+  const encoder = new TextEncoder();
+  const response = new Response(new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const chunk = chunks.shift();
+      if (chunk === undefined) controller.close();
+      else controller.enqueue(encoder.encode(chunk));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  }), init);
+  return { response, cancelled: () => cancelled };
 }
 
 describe('getOrFetchActor — instance domain policy', () => {
@@ -135,5 +153,57 @@ describe('fetchPublicKey — signature lookups stay honest', () => {
     const rig = makeResolver({ cachedKey: null, cached: null });
     await expect(rig.resolver.fetchPublicKey(`${BLOCKED_ACTOR}#main-key`)).resolves.toBeNull();
     expect(rig.signedFetchCalls).toHaveLength(0);
+  });
+});
+
+describe('fetchRemoteActor — bounded remote bodies', () => {
+  it('rejects and cancels an actor body that exceeds the decompressed-size cap', async () => {
+    const oversized = streamedResponse(['x'.repeat(1024 * 1024), 'x']);
+    const rig = makeResolver({ signedFetch: async () => oversized.response });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(oversized.cancelled()).toBe(true);
+  });
+
+  it('rejects an oversized actor from Content-Length without consuming its stream', async () => {
+    let cancelled = false;
+    const response = new Response(new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array([123]));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }), { headers: { 'content-length': String(1024 * 1024 + 1) } });
+    const rig = makeResolver({ signedFetch: async () => response });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(cancelled).toBe(true);
+  });
+
+  it('bounds actor-advertised collection responses and fails the count soft', async () => {
+    const actor = JSON.stringify({
+      id: ALLOWED_ACTOR,
+      inbox: 'https://remote.example/inbox',
+      preferredUsername: 'bob',
+      followers: 'https://remote.example/followers',
+    });
+    const oversizedCollection = streamedResponse(['x'.repeat(64 * 1024), 'x']);
+    const rig = makeResolver({
+      signedFetch: async (url) => url === ALLOWED_ACTOR
+        ? new Response(actor)
+        : oversizedCollection.response,
+    });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(oversizedCollection.cancelled()).toBe(true);
+  });
+
+  it('caps an error body before attempting the WebFinger fallback', async () => {
+    const oversized = streamedResponse(['x'.repeat(4096), 'x'], { status: 500 });
+    const rig = makeResolver({ signedFetch: async () => oversized.response });
+
+    await expect(rig.resolver.fetchRemoteActor(ALLOWED_ACTOR)).resolves.toBeNull();
+    expect(oversized.cancelled()).toBe(true);
   });
 });
