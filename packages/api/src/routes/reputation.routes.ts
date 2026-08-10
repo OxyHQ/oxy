@@ -47,6 +47,10 @@ import {
   MAX_LEADERBOARD_LIMIT,
   DEFAULT_DISPUTE_LIMIT,
   MAX_DISPUTE_LIMIT,
+  LEASE_SIGNED_ACTION,
+  LEASE_COMPLETED_ACTION,
+  CLEAN_MOVEOUT_ACTION,
+  LEASE_DEFAULT_ACTION,
 } from '../utils/reputation.constants';
 import {
   reputationUserIdParams,
@@ -61,6 +65,13 @@ const router = express.Router();
 const WINDOW_15_MIN = 15 * 60 * 1000;
 const WINDOW_1_MIN = 60 * 1000;
 const REQUIRED_AWARD_SCOPE = 'reputation:write';
+const LEASE_AWARD_SCOPE = 'reputation:lease:write';
+const LEASE_ACTION_TYPES = new Set([
+  LEASE_SIGNED_ACTION,
+  LEASE_COMPLETED_ACTION,
+  CLEAN_MOVEOUT_ACTION,
+  LEASE_DEFAULT_ACTION,
+]);
 
 /** Read limiter for public/auth read endpoints. */
 const readLimiter = rateLimit({
@@ -102,10 +113,25 @@ interface UserOrServiceRequest extends AuthRequest, ServiceAuthRequest {}
  * token resolves `req.serviceApp`; anything else falls through to the regular
  * user `authMiddleware`.
  */
-function requireReputationWriteScope(req: ServiceAuthRequest): void {
+function authorizeServiceAward(
+  req: ServiceAuthRequest,
+  actionType: string,
+  sourceActionId: string | undefined
+): void {
   const scopes = req.serviceApp?.scopes ?? [];
-  if (!scopes.includes(REQUIRED_AWARD_SCOPE)) {
-    throw new ForbiddenError(`Missing required scope: ${REQUIRED_AWARD_SCOPE}`);
+  if (scopes.includes(REQUIRED_AWARD_SCOPE)) {
+    return;
+  }
+  if (!scopes.includes(LEASE_AWARD_SCOPE)) {
+    throw new ForbiddenError(
+      `Missing required scope: ${REQUIRED_AWARD_SCOPE} or ${LEASE_AWARD_SCOPE}`
+    );
+  }
+  if (!LEASE_ACTION_TYPES.has(actionType)) {
+    throw new ForbiddenError(`${LEASE_AWARD_SCOPE} cannot award this action type`);
+  }
+  if (!sourceActionId) {
+    throw new ForbiddenError(`${LEASE_AWARD_SCOPE} requires sourceActionId`);
   }
 }
 
@@ -472,7 +498,7 @@ router.post(
     let createdByUserId: string | undefined;
 
     if (serviceApp) {
-      requireReputationWriteScope(req);
+      authorizeServiceAward(req, req.body.actionType, req.body.sourceActionId);
 
       // Canonical service path — source app identity is the token's, not the
       // client body's.
