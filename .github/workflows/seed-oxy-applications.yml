@@ -39,11 +39,6 @@ name: Seed Oxy applications
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Branch or SHA to build the seeder image from'
-        required: true
-        type: string
-        default: 'main'
       only_apps:
         description: "Comma-separated application names this run may touch (e.g. 'CrowdSource')"
         required: true
@@ -72,13 +67,16 @@ permissions:
 
 jobs:
   seed:
+    # This job receives production credentials and secrets. Only the protected
+    # main branch may select the code that runs in the production VPC.
+    if: github.ref == 'refs/heads/main'
     # Same arch as the deployed image — the service runs linux/arm64.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: main
 
       - name: Refuse an empty application list
         env:
