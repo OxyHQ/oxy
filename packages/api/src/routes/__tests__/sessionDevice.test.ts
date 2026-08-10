@@ -228,7 +228,7 @@ beforeEach(() => {
 });
 
 describe('POST /session/device/token — the public deviceSecret mint', () => {
-  it('mints an access token, preserves the shared device secret, and returns the wire shape the SDK parses', async () => {
+  it('mints an access token, rotates the stored secret, and returns the wire shape the SDK parses', async () => {
     const { deviceId, accountId, secret } = await deviceWithSecret();
     const hashBefore = (await storedDevice(deviceId)).secretHash;
 
@@ -242,12 +242,14 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect((data as { accessToken: string }).accessToken).toBe('jwt-active');
     expect((data as { state: { activeAccountId: string } }).state.activeAccountId).toBe(accountId);
 
-    // The credential is stable: separate official app origins can mint
-    // concurrently without invalidating one another.
+    // The rotation is real, not a returned string: the fresh secret's hash is
+    // now current and the presented one moved into the grace slot.
     const nextSecret = (data as { nextDeviceSecret: string }).nextDeviceSecret;
     const after = await storedDevice(deviceId);
     expect(after.secretHash).toBe(sha256(nextSecret));
-    expect(after.secretHash).toBe(hashBefore);
+    expect(after.secretHash).not.toBe(hashBefore);
+    expect(after.prevSecretHash).toBe(hashBefore);
+    expect(after.prevSecretExpiresAt?.getTime()).toBeGreaterThan(Date.now());
 
     // The raw secret is never logged — only the lane and the device id.
     expect(logger.info).toHaveBeenCalledWith('device.token.mint', {
@@ -301,7 +303,7 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
     expect((second.body.data as { accessToken: string }).accessToken).toBe('jwt-active');
   });
 
-  it('continues accepting the stable secret after the legacy grace window has passed', async () => {
+  it('REFUSES the superseded secret once the grace window has passed', async () => {
     const { deviceId, secret } = await deviceWithSecret();
 
     const first = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
@@ -315,7 +317,8 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
       .where(eq(deviceSessions.deviceId, deviceId));
 
     const late = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
-    expect(late.status).toBe(200);
+    expect(late.status).toBe(401);
+    expect(late.body.error).toBe('invalid_device_secret');
   });
 
   it('401 no_active_session WITHOUT rotating when the secret is valid but the session is dead', async () => {

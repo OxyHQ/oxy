@@ -50,7 +50,7 @@ from the request body.
 
 | Method | Route | Body | Behavior |
 |--------|-------|------|----------|
-| POST | `/session/device/token` | `{ deviceId, deviceSecret }` | **The zero-cookie mint** — PUBLIC (no bearer, no cookies): possession of the secret is the device-ownership proof. Verifies `sha256(deviceSecret)` (constant-time) against the device's `secretHash`, mints a short access token for the active account, and returns the proven secret unchanged as `nextDeviceSecret`. Keeping the credential stable lets multiple official apps/origins sharing one device refresh concurrently. Per-device lockout + rate limit blunt online guessing. |
+| POST | `/session/device/token` | `{ deviceId, deviceSecret }` | **The zero-cookie mint** — PUBLIC (no bearer, no cookies): possession of the secret is the device-ownership proof. Verifies `sha256(deviceSecret)` (constant-time) against the device's `secretHash`, mints a short access token for the active account, and rotates the secret in-use (`nextDeviceSecret`; the presented secret stays valid for a short grace). Per-device lockout + rate limit blunt online guessing. |
 | GET | `/session/device/state` | — | Returns current state for the caller's JWT device. |
 | POST | `/session/device/add` | — | Registers the caller's account into the device set. Account + session ids come from the bearer (IDOR-safe); `operatedByUserId` is resolved from the session document. Idempotent — an unchanged re-register does not broadcast. |
 | POST | `/session/device/switch` | `{ accountId }` | Sets `activeAccountId`, bumps `revision`, broadcasts. If the target session was revoked, heals the device set (drops the dead account), broadcasts the healed state, and returns 403. |
@@ -79,9 +79,10 @@ The transport that carries "which device is this?" across reloads is **`deviceId
    nothing about any other device.
 2. **Mint** — to restore or refresh, the client POSTs `{ deviceId, deviceSecret }` to
    `POST /session/device/token` (no bearer, no cookies). The server verifies the secret
-   (constant-time) and returns a short access token for the active account plus the same
-   proven secret as `nextDeviceSecret`. The credential is intentionally stable: several
-   official apps/origins can share a `DeviceSession` without rotating one another out.
+   (constant-time) and returns a short access token for the active account plus a
+   rotated `nextDeviceSecret`. **Rotation-in-use:** the presented secret stays valid for
+   a short grace window (60s) so a multi-tab race is not locked out; the client persists
+   the next secret BEFORE planting the minted token.
 3. **Revocation** — sign-out-all (`POST /session/device/signout { all: true }`) clears
    `secretHash` so a retained secret can never mint again. A theft divergence is detected
    at the next mint (the loser's secret no longer matches → `invalid_device_secret`).
