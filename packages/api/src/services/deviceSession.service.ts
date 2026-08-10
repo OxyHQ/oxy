@@ -292,6 +292,12 @@ class DeviceSessionService {
         .set({
           activeAccountId: nextActiveAccountId,
           revision: sql`${deviceSessions.revision} + 1`,
+          // A background credential authorizes the session that was present
+          // when it was provisioned. Do not let it follow the same account
+          // across a re-authentication (or a change of delegated operator).
+          ...(existing && current.backgroundSecretAccountId === input.accountId
+            ? this.clearedBackgroundCredentialFields()
+            : {}),
         })
         .where(eq(deviceSessions.id, current.id));
 

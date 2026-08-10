@@ -246,6 +246,25 @@ describe('addAccount', () => {
     expect(rows.find((r) => r.accountId === a1)?.sessionId).toBe('s-new');
   });
 
+  it('revokes a background credential when its account session is replaced', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's-old' });
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt-old', expiresAt: new Date() });
+    const credential = await deviceSessionService.issueBackgroundCredential(device, a1);
+
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's-new' });
+
+    const stored = await storedDevice(device);
+    expect(stored.backgroundSecretHash).toBeNull();
+    expect(stored.backgroundSecretAccountId).toBeNull();
+    expect(stored.backgroundSecretExpiresAt).toBeNull();
+    expect(
+      await deviceSessionService.mintFromBackgroundSecret(device, credential?.secret as string)
+    ).toEqual({ ok: false, reason: 'background_credential_invalid' });
+    expect(mockGetAccessToken).not.toHaveBeenCalled();
+  });
+
   it('idempotent re-register with the SAME sessionId is a pure no-op (no deactivate, no revision bump)', async () => {
     const device = deviceId();
     const a1 = await account();
