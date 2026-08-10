@@ -55,7 +55,6 @@ packages/accounts
 packages/auth
 packages/auth-sdk
 packages/console
-packages/inbox
 packages/services
 packages/test-app-expo
 packages/test-app-vite

@@ -115,7 +115,7 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 |---------|--------|-------|
 | `oxy-auth` | `packages/auth/` | Builds the Vite SPA as **pure-static output** — the device-account chooser runs in the device-first SDK (`useSwitchableAccounts`), so the former `/api/device-accounts` Cloudflare Pages Function was deleted in the 2c cutover. The workflow deploys via a direct `bunx wrangler@4 pages deploy` `run:` step (NOT `cloudflare/wrangler-action`, whose default `npx` path trips npm's override-conflict check against the repo-root `@oxyhq/bloom` override). A post-deploy smoke gate (`scripts/smoke-idp.ts`) re-checks the live host. Live-verified working. |
 | `oxy-accounts` | `packages/accounts/` | Expo Web export -> Cloudflare Pages |
-| `oxy-inbox` | `packages/inbox/` | Expo Web export |
+| `oxy-inbox` | [OxyHQ/Inbox](https://github.com/OxyHQ/Inbox) | Expo Web export, deployed from its own repo |
 | `oxy-console` | `packages/console/` | Nuxt or Vite output |
 
 ## Health check

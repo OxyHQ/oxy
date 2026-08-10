@@ -107,7 +107,6 @@ jspm_packages/
 !/packages/accounts/lib/
 !/packages/auth/lib/
 !/packages/console/src/lib/
-!/packages/inbox/lib/
 !/packages/commons/lib/
 
 dkim-private.pem

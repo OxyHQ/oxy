@@ -103,7 +103,6 @@ graph TD
 | [Accounts](packages/accounts/) | Keyless account management: sessions, privacy, settings |
 | [auth](packages/auth/) | `auth.oxy.so`, the OAuth authorize and consent provider |
 | [Console](packages/console/) | `console.oxy.so`, application registry and credentials |
-| [Inbox](packages/inbox/) | `inbox.oxy.so` |
 
 ### 🛠 Tooling
 

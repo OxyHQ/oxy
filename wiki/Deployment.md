@@ -126,7 +126,7 @@ openssl rand -hex 64
 |---------|--------|-------|
 | `oxy-auth` | `packages/auth/` | Pure-static Vite SPA (no Pages Function, no `_worker.js`) — the OAuth authorize/consent IdP. Post-deploy smoke gate (`bun run smoke:idp`) asserts the SPA renders and that the FedCM manifest stays deleted. |
 | `oxy-accounts` | `packages/accounts/` | Expo Web export |
-| `oxy-inbox` | `packages/inbox/` | Expo Web export |
+| `oxy-inbox` | [OxyHQ/Inbox](https://github.com/OxyHQ/Inbox) | Expo Web export, deployed from its own repo |
 | `oxy-console` | `packages/console/` | Nuxt or Vite output |
 
 ## Health check

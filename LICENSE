@@ -80,7 +80,7 @@ Commercial licensing contact: licensing@oxy.so
 ----------------------------------------------------------------------------
 
   packages/accounts         packages/auth           packages/commons
-  packages/console          packages/inbox          packages/test-app-expo
+  packages/console          packages/test-app-expo
   packages/test-app-vite
 
   and every other file in this repository that is not inside one of the
