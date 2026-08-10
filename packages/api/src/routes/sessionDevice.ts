@@ -181,9 +181,13 @@ router.post(
   }),
 );
 
-async function withActiveToken(state: DeviceSessionState) {
-  const activeToken = await deviceSessionService.resolveActiveToken(state);
-  return { state, activeToken };
+function withoutActiveToken(state: DeviceSessionState) {
+  // Bearer-authenticated device routes authorize the device, not every account
+  // registered on it. Returning another account's token here would let any
+  // account on the device disclose that token after changing activeAccountId.
+  // Token minting remains available only through /token, where the caller must
+  // prove possession of the device secret.
+  return { state, activeToken: null };
 }
 
 function resolveCallerDeviceId(req: AuthRequest): string | null {
@@ -259,7 +263,7 @@ router.get('/state', asyncHandler(async (req: AuthRequest, res: Response) => {
   const deviceId = resolveCallerDeviceId(req);
   if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
 
-  res.json({ data: await withActiveToken(await deviceSessionService.getState(deviceId)) });
+  res.json({ data: withoutActiveToken(await deviceSessionService.getState(deviceId)) });
 }));
 
 router.post('/add', asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -291,7 +295,7 @@ router.post('/add', asyncHandler(async (req: AuthRequest, res: Response) => {
     // Also signal the added account's user across their other apps/devices.
     broadcastSessionAccountsChanged(accountId, state.revision, 'add');
   }
-  res.json({ data: await withActiveToken(state) });
+  res.json({ data: withoutActiveToken(state) });
 }));
 
 router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -316,7 +320,7 @@ router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
   }
   broadcastDeviceState(outcome.state);
   broadcastSessionAccountsChanged(accountId, outcome.state.revision, 'switch');
-  res.json({ data: await withActiveToken(outcome.state) });
+  res.json({ data: withoutActiveToken(outcome.state) });
 }));
 
 router.post('/signout', asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -336,7 +340,7 @@ router.post('/signout', asyncHandler(async (req: AuthRequest, res: Response) => 
     .map((a) => a.accountId)
     .filter((id) => !remaining.has(id));
   broadcastSessionAccountsChanged(removedUserIds, state.revision, 'signout');
-  res.json({ data: await withActiveToken(state) });
+  res.json({ data: withoutActiveToken(state) });
 }));
 
 export default router;
