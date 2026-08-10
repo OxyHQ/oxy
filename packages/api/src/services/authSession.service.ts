@@ -435,10 +435,11 @@ export async function authorizeSessionWithSignedChallenge(
     return { ok: false, status: 403, message: 'Not authorized to act as the requested account' };
   }
 
-  // 5. Mint the session for the originating app, owned by the signer. When the
-  //    flow was started with a device binding (`deviceId` persisted at create
-  //    time), pass it as the explicit deviceId so the session lands on the
-  //    originating device set instead of sprawling a fresh device. An OAuth
+  // 5. Mint the session for the originating app, owned by the signer. Give the
+  //    claimant a NEW device boundary: neither its untrusted create payload nor
+  //    the approver request may select an existing DeviceSession. Claim later
+  //    returns a restore secret for this id, so reusing either device id would
+  //    disclose a durable credential for that device's other accounts. An OAuth
   //    authorization request mints nothing here — see `approvalMintsSession`.
   let sessionId: string | undefined;
   if (approvalMintsSession(authSession)) {
@@ -451,7 +452,7 @@ export async function authorizeSessionWithSignedChallenge(
     const newSession = await sessionService.createSession(userId, req, {
       deviceName: deviceName || `${appLabel} App`,
       deviceFingerprint,
-      ...(authSession.deviceId ? { deviceId: authSession.deviceId } : {}),
+      deviceId: uuidv7(),
     });
     sessionId = newSession.sessionId;
   }
@@ -608,7 +609,9 @@ export async function authorizeSessionWithBearer(
   const newSession = await sessionService.createSession(authenticatedUserId, req, {
     deviceName: deviceName || `${appLabel} App`,
     deviceFingerprint,
-    ...(claimed.deviceId ? { deviceId: claimed.deviceId } : {}),
+    // The unauthenticated requester must never choose an existing device whose
+    // durable restore secret it will receive from `/auth/session/claim`.
+    deviceId: uuidv7(),
   });
 
   // Only the winner of the atomic claim above ever reaches here, so this

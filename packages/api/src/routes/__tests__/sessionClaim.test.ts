@@ -24,6 +24,7 @@ import { randomUUID } from 'node:crypto';
 
 const mockGetAccessToken = jest.fn();
 const mockIssueDeviceSecret = jest.fn();
+const mockAddDeviceAccount = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -41,7 +42,10 @@ jest.mock('../../services/session.service', () => ({
   },
 }));
 jest.mock('../../services/deviceSession.service', () => {
-  const service = { issueDeviceSecret: (...args: unknown[]) => mockIssueDeviceSecret(...args) };
+  const service = {
+    addAccount: (...args: unknown[]) => mockAddDeviceAccount(...args),
+    issueDeviceSecret: (...args: unknown[]) => mockIssueDeviceSecret(...args),
+  };
   return { __esModule: true, default: service, deviceSessionService: service };
 });
 jest.mock('../../utils/authSessionSocket', () => ({
@@ -200,6 +204,7 @@ beforeEach(() => {
     accessToken: 'fresh-access-token',
     expiresAt: new Date(Date.now() + 15 * 60 * 1000),
   });
+  mockAddDeviceAccount.mockResolvedValue({ state: { accounts: [] }, changed: false });
   mockIssueDeviceSecret.mockResolvedValue(null);
 });
 
@@ -345,12 +350,17 @@ describe('POST /auth/session/claim — the happy path', () => {
   });
 
   it('includes a rotating deviceSecret when one could be minted', async () => {
-    const { sessionToken, deviceId } = await approvedRequest();
+    const { sessionToken, userId, sessionId, deviceId } = await approvedRequest();
     mockIssueDeviceSecret.mockResolvedValueOnce('rotating-device-secret');
 
     const res = await claim(sessionToken);
 
     expect(res.status).toBe(200);
+    expect(mockAddDeviceAccount).toHaveBeenCalledWith(
+      deviceId,
+      { accountId: userId, sessionId },
+      { activate: 'if-empty' },
+    );
     expect(mockIssueDeviceSecret).toHaveBeenCalledWith(deviceId);
     expect((res.body.data as { deviceSecret: string }).deviceSecret).toBe('rotating-device-secret');
   });

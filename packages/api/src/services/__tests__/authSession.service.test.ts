@@ -680,17 +680,15 @@ describe('authorizeSessionWithSignedChallenge', () => {
     expect((await stored(id)).status).toBe('pending');
   });
 
-  it('mints onto the originating deviceId when the request carried one', async () => {
+  it('isolates the claimant from a requester-supplied deviceId', async () => {
     const { publicKey, challenge: value } = await signer();
     const { authorizeCode } = await authSession({ deviceId: 'device-xyz' });
 
     await authorizeSessionWithSignedChallenge(input({ authorizeCode, publicKey, challenge: value }));
 
-    expect(mockCreateSession).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.anything(),
-      expect.objectContaining({ deviceId: 'device-xyz' })
-    );
+    const options = mockCreateSession.mock.calls[0]?.[2] as { deviceId: string };
+    expect(options.deviceId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(options.deviceId).not.toBe('device-xyz');
   });
 
   it('labels the minted device with the bound application name', async () => {
@@ -855,17 +853,15 @@ describe('authorizeSessionWithBearer', () => {
     expect((await stored(id)).status).toBe('pending');
   });
 
-  it('mints onto the originating deviceId when the request carried one', async () => {
+  it('isolates the claimant from a requester-supplied deviceId', async () => {
     const userId = await account();
     const { authorizeCode } = await authSession({ deviceId: 'device-xyz' });
 
     await authorizeSessionWithBearer(input({ authorizeCode, authenticatedUserId: userId }));
 
-    expect(mockCreateSession).toHaveBeenCalledWith(
-      userId,
-      expect.anything(),
-      expect.objectContaining({ deviceId: 'device-xyz' })
-    );
+    const options = mockCreateSession.mock.calls[0]?.[2] as { deviceId: string };
+    expect(options.deviceId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(options.deviceId).not.toBe('device-xyz');
   });
 });
 
