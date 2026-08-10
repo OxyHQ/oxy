@@ -1,10 +1,10 @@
 /**
- * Self-heal official Application redirect URIs when missing or drifted.
+ * Seed official Application redirect URIs when their allowlist is empty.
  *
  * Production drift blocks `POST /auth/oauth/authorize` with
  * "redirect_uri is not registered for this client", breaking password sign-in
- * hand-offs from every first-party app. Official apps declare a `websiteUrl`
- * whose origin is the canonical OAuth redirect surface.
+ * hand-offs from every first-party app. Explicitly configured allowlists are
+ * never modified because each exact callback URI is a security boundary.
  */
 
 import { eq } from 'drizzle-orm';
