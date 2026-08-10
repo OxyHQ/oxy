@@ -10,11 +10,11 @@ name: Run user-text normalization backfill
 # 1. The database is on a PRIVATE VPC address, unreachable from a GitHub runner,
 #    so the script has to run as an ECS task INSIDE the VPC ("Fargate one-shot").
 #
-# 2. It runs the CURRENTLY DEPLOYED code — the backfill script is already on
-#    `main` and in the live image. It reuses the live service's task definition
+# 2. It runs trusted code from `main` — the backfill script is already there and
+#    in the live image. It reuses the live service's task definition
 #    (same secrets, role, subnets, security groups) and only overrides the
-#    command, touching nothing the service runs. Building from `ref` is kept so a
-#    fix can be tried from a branch before it merges.
+#    command, touching nothing the service runs. Only code from the protected
+#    `main` branch may be run with the production task's privileges.
 #
 # The backfill writes each field through the SAME normalizers the profile write
 # path uses (a parity test pins this), so a cleaned document is byte-identical to
@@ -28,11 +28,6 @@ name: Run user-text normalization backfill
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Branch or SHA to build the backfill image from'
-        required: true
-        type: string
-        default: 'main'
       dry_run:
         description: 'Report what WOULD change, write nothing'
         required: true
@@ -57,13 +52,14 @@ permissions:
 
 jobs:
   backfill:
+    # workflow_dispatch can be run against arbitrary refs; only the protected
+    # main branch may assume the AWS deploy role or access the production task.
+    if: github.ref == 'refs/heads/main'
     # Same arch as the deployed image — the service runs linux/arm64.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
@@ -115,7 +111,7 @@ jobs:
 
           # A throwaway revision that differs from the live one ONLY by the image.
           # The service keeps running its own revision; this one exists so the task
-          # can run a branch image without touching the live service.
+          # can run the backfill image without touching the live service.
           aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
             --query 'taskDefinition' --output json > live-taskdef.json
 
