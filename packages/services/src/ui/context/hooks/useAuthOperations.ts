@@ -31,10 +31,10 @@ export interface UseAuthOperationsOptions {
   /** Used only by `performSignIn`'s same-user duplicate-session dedup (legacy session-validate path; unrelated to the SessionClient device-account set). */
   switchSession: (sessionId: string) => Promise<User>;
   /**
-   * The Fase 3-A/3-B `SessionClient` (server-authoritative device account
-   * set). `logout` / `logoutAll` route SERVER-side revocation through
-   * `sessionClient.signOut(...)` instead of the bearer/cookie logout
-   * endpoints.
+   * The Phase 3-A/3-B `SessionClient` (server-authoritative device account
+   * set). Device-scoped sign-out routes through `sessionClient.signOut(...)`.
+   * `logoutAll` additionally uses the global bearer endpoint so sessions on
+   * other devices and their refresh-token families are revoked.
    */
   sessionClient: SessionClient;
   /** Reprojects `sessionClient.getState()` onto sessions/activeSessionId/user (Task 1's callback). Awaited after a partial `signOut` so the exposed state reflects the server truth before the call resolves. */
@@ -365,7 +365,8 @@ export const useAuthOperations = ({
    * Logout from all sessions
    */
   const logoutAll = useCallback(async (): Promise<void> => {
-    if (!runtime.getSnapshot().activeSessionId) {
+    const activeSessionId = runtime.getSnapshot().activeSessionId;
+    if (!activeSessionId) {
       const error = new Error('No active session found');
       runtime.setError(error.message);
       onError?.({ message: error.message, code: LOGOUT_ALL_ERROR_CODE, status: 404 });
@@ -373,10 +374,12 @@ export const useAuthOperations = ({
     }
 
     try {
-      // Server-side revocation of every account on this device now flows
-      // through the SessionClient (`POST /session/device/signout` with
-      // `{ all: true }`) — replaces the bearer `logoutAllSessions` +
-      // web-cookie `logoutAllSessionsViaCookie` pair.
+      // Revoke the user's sessions on every other device and every refresh-
+      // token family first. SessionClient's `{ all: true }` operation is only
+      // device-scoped and therefore cannot implement "sign out everywhere" by
+      // itself. The global endpoint deliberately preserves the current
+      // session long enough for the device-scoped cleanup below to authenticate.
+      await oxyServices.logoutAllSessions(activeSessionId);
       await sessionClient.signOut({ all: true });
       // logoutAll is ALWAYS a full sign-out: clear the persisted device
       // credential so the next cold boot finds no session to restore, then tear
@@ -412,7 +415,7 @@ export const useAuthOperations = ({
       // would erase the server's reason from every caller's toast.
       throw error instanceof Error ? error : new Error(message);
     }
-  }, [clearSessionState, store, logger, onError, runtime, sessionClient]);
+  }, [clearSessionState, store, logger, onError, oxyServices, runtime, sessionClient]);
 
   return {
     signIn,
