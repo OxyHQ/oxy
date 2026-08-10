@@ -553,7 +553,9 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
   account: AccountRow;
   access: EffectiveAccess;
 }> {
-  const userId = requireUserId(req);
+  // An operated session authenticates as the managed account, but its RBAC
+  // remains that of the human operator recorded on the server-side session.
+  const userId = await resolveOperatorId(req);
   const id = req.params.id;
 
   // The `isValidObjectId` guard is gone: it only ever prevented a Mongoose

@@ -695,6 +695,13 @@ describe('membership inheritance + verifyActingAs', () => {
     expect(access?.membership).toBeNull();
   });
 
+  test('a managed account is not its own implicit owner', async () => {
+    const org = await seedAccount({ kind: 'organization' });
+
+    expect(await accountService.resolveEffectiveAccess(org.id, org.id)).toBeNull();
+    expect(await accountService.effectiveAccessForAccount(org.id, org)).toBeNull();
+  });
+
   test('a per-member GRANT reaches resolveEffectiveAccess', async () => {
     const org = await seedAccount({ kind: 'organization' });
     const bob = await seedAccount();
