@@ -1,8 +1,10 @@
 import * as crypto from 'crypto';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
 import type { DeviceSessionState, SessionAccount } from '@oxyhq/contracts';
+import { isUniqueViolation } from '@oxyhq/db';
 import { getDb, type Database } from '../config/postgres';
-import { deviceSessionAccounts } from '../db/schema/deviceSessionAccounts';
+import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
+import { devicePrincipals } from '../db/schema/devicePrincipals';
 import { deviceSessions } from '../db/schema/deviceSessions';
 import sessionService from './session.service';
 import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.service';
@@ -30,13 +32,32 @@ const DEVICE_SECRET_GRACE_MS = 60_000;
 type Queryable = Database | Parameters<Parameters<Database['transaction']>[0]>[0];
 
 /**
- * One account signed in on one device — a `device_session_accounts` row.
+ * How many times a device mutation is retried when a CONCURRENT one wins the
+ * race for an `authuser` slot.
+ *
+ * `device_principals_device_session_id_authuser_key` did not exist on the flat
+ * table, so two simultaneous adds could both allocate the same "lowest free"
+ * number and both succeed, leaving two people addressed by one slot. Now the
+ * loser is rejected, and one failed statement aborts the WHOLE transaction in
+ * Postgres (`25P02`) — so the retry has to restart the transaction, not the
+ * statement. One retry is enough: the winner has committed by then, so the
+ * second attempt sees its slot taken and picks the next.
+ */
+const AUTHUSER_RACE_ATTEMPTS = 2;
+
+/**
+ * One account signed in on one device — projected from a
+ * `device_account_contexts` row and its principal.
  *
  * `operatedByUserId` is the OPERATOR of a delegated (`account:act_as`) entry and
  * `null` for an ordinary personal account. That null is load-bearing, not
  * incidental: it is the whole distinction between a delegated entry, whose
  * validity is bounded by a live `account:act_as` re-check, and a plain one that
  * carries no such check. Nothing in this module may collapse the two.
+ *
+ * It is now DERIVED rather than stored — a context whose principal is somebody
+ * other than the account it names IS the delegated case — which is why the two
+ * can no longer disagree.
  */
 interface DeviceAccountRow {
   accountId: string;
@@ -46,8 +67,29 @@ interface DeviceAccountRow {
 }
 
 /**
- * A device and everything signed in on it — the `device_sessions` row plus its
- * `device_session_accounts` children, which were an embedded array in Mongo.
+ * One `principal acting as account` row, joined to its principal.
+ *
+ * The write paths work in these; `DeviceAccountRow` above is the flat
+ * projection of them that the wire contract still speaks.
+ */
+interface DeviceContextRow {
+  contextId: string;
+  principalId: string;
+  principalUserId: string;
+  authuser: number;
+  accountId: string;
+  /** NULL means "reachable, never yet used here" — see the schema module. */
+  sessionId: string | null;
+}
+
+/**
+ * A device and everything signed in on it — the `device_sessions` row plus the
+ * flat projection of its principals and contexts.
+ *
+ * `accounts` is the COMPATIBILITY view (ADR 0001): the wire contract
+ * `DeviceSessionState.accounts[]` predates the principal/context split and is
+ * kept working from the new tables until every supported client has moved to
+ * the directory contract in ADR 0002.
  */
 interface DeviceSessionRow {
   id: string;
@@ -85,11 +127,49 @@ export function projectState(doc: DeviceSessionRow): DeviceSessionState {
   };
 }
 
-function lowestFreeAuthuser(accounts: DeviceAccountRow[]): number {
-  const used = new Set(accounts.map((a) => a.authuser));
+/**
+ * The lowest slot no PERSON on this device holds.
+ *
+ * `authuser` belongs to the principal, so an organization never consumes one —
+ * on the flat table it did, which is why the number stopped naming a human
+ * (ADR 0001). The allocation rule itself is unchanged: lowest free, so a slot
+ * freed by a sign-out is reused rather than the counter climbing forever.
+ */
+function lowestFreeAuthuser(taken: readonly number[]): number {
+  const used = new Set(taken);
   let i = 0;
   while (used.has(i)) i += 1;
   return i;
+}
+
+/**
+ * The flat projection of a device's contexts, in the order the old
+ * `device_session_accounts` read produced.
+ *
+ * A context with no session is OMITTED: `SessionAccount.sessionId` is a
+ * required string on the wire, and a placeholder there would be a phantom
+ * account the mint path would then have to defend against. Such a row is
+ * "reachable, never yet used here" and belongs to the directory contract
+ * (ADR 0002), not to this one.
+ */
+function projectAccounts(contexts: readonly DeviceContextRow[]): DeviceAccountRow[] {
+  // `flatMap` rather than `filter`, because it is also what NARROWS
+  // `sessionId` to `string` — a `filter` leaves it `string | null` and the only
+  // ways out of that are a cast or a non-null assertion.
+  return contexts.flatMap((context) =>
+    context.sessionId === null
+      ? []
+      : [
+          {
+            accountId: context.accountId,
+            sessionId: context.sessionId,
+            authuser: context.authuser,
+            // The principal acting as somebody else IS the delegated case.
+            operatedByUserId:
+              context.principalUserId === context.accountId ? null : context.principalUserId,
+          },
+        ]
+  );
 }
 
 export type SwitchActiveResult =
@@ -108,22 +188,14 @@ export type BackgroundMintResult =
 export type AddAccountResult = { state: DeviceSessionState; changed: boolean };
 
 class DeviceSessionService {
-  /**
-   * Read a device and its account set.
-   *
-   * The account order is `added_at` then `authuser`, which reproduces the Mongo
-   * array order this replaced: a fresh add appended, and a re-add rebuilt the
-   * array as `[...others, account]` with a fresh `addedAt`, so both landed last.
-   * The order is not cosmetic — `signout` elects `remaining[0]` as the next
-   * active account, so an unordered read would make that election arbitrary.
-   * `authuser` breaks a same-millisecond tie so the result is total.
-   */
-  private async load(db: Queryable, deviceId: string): Promise<DeviceSessionRow | null> {
+  /** The `device_sessions` row alone, without its principals or contexts. */
+  private async loadDevice(db: Queryable, deviceId: string) {
     const [device] = await db
       .select({
         id: deviceSessions.id,
         deviceId: deviceSessions.deviceId,
         activeAccountId: deviceSessions.activeAccountId,
+        activeContextId: deviceSessions.activeContextId,
         secretHash: deviceSessions.secretHash,
         prevSecretHash: deviceSessions.prevSecretHash,
         prevSecretExpiresAt: deviceSessions.prevSecretExpiresAt,
@@ -136,20 +208,206 @@ class DeviceSessionService {
       .from(deviceSessions)
       .where(eq(deviceSessions.deviceId, deviceId))
       .limit(1);
-    if (!device) return null;
+    return device;
+  }
 
-    const accounts = await db
+  /**
+   * A device's LIVE contexts, each joined to the person acting through it.
+   *
+   * The order is `added_at`, then the principal's `authuser`, then the context
+   * id. The first two reproduce the Mongo array order this replaced (a fresh add
+   * appended; a re-add rebuilt the array with a fresh `addedAt`, so both landed
+   * last), and the order is not cosmetic — `signout` elects `remaining[0]` as
+   * the next active account, so an unordered read would make that election
+   * arbitrary. The context id is the third key because the second is no longer
+   * a tiebreak on its own: a person's personal and delegated contexts share one
+   * `authuser`, by design.
+   *
+   * A revoked principal takes its contexts with it. Filtering on `revoked_at`
+   * rather than on row existence is what keeps "was Alice ever here" answerable.
+   */
+  private async loadContexts(
+    db: Queryable,
+    deviceSessionId: string
+  ): Promise<DeviceContextRow[]> {
+    return db
       .select({
-        accountId: deviceSessionAccounts.accountId,
-        sessionId: deviceSessionAccounts.sessionId,
-        authuser: deviceSessionAccounts.authuser,
-        operatedByUserId: deviceSessionAccounts.operatedByUserId,
+        contextId: deviceAccountContexts.id,
+        principalId: devicePrincipals.id,
+        principalUserId: devicePrincipals.userId,
+        authuser: devicePrincipals.authuser,
+        accountId: deviceAccountContexts.accountId,
+        sessionId: deviceAccountContexts.sessionId,
       })
-      .from(deviceSessionAccounts)
-      .where(eq(deviceSessionAccounts.deviceSessionId, device.id))
-      .orderBy(asc(deviceSessionAccounts.addedAt), asc(deviceSessionAccounts.authuser));
+      .from(deviceAccountContexts)
+      .innerJoin(devicePrincipals, eq(deviceAccountContexts.principalId, devicePrincipals.id))
+      .where(
+        and(
+          eq(deviceAccountContexts.deviceSessionId, deviceSessionId),
+          isNull(deviceAccountContexts.revokedAt),
+          isNull(devicePrincipals.revokedAt)
+        )
+      )
+      .orderBy(
+        asc(deviceAccountContexts.addedAt),
+        asc(devicePrincipals.authuser),
+        asc(deviceAccountContexts.id)
+      );
+  }
 
-    return { ...device, accounts };
+  /**
+   * Read a device and the flat projection of what is signed in on it.
+   *
+   * Every field is named rather than spread: `active_context_id` is the new
+   * authority and deliberately absent from the flat row, so spreading would
+   * carry it into a shape whose whole purpose is to describe the OLD contract.
+   */
+  private async load(db: Queryable, deviceId: string): Promise<DeviceSessionRow | null> {
+    const device = await this.loadDevice(db, deviceId);
+    if (!device) return null;
+    const contexts = await this.loadContexts(db, device.id);
+    return {
+      id: device.id,
+      deviceId: device.deviceId,
+      activeAccountId: device.activeAccountId,
+      secretHash: device.secretHash,
+      prevSecretHash: device.prevSecretHash,
+      prevSecretExpiresAt: device.prevSecretExpiresAt,
+      backgroundSecretHash: device.backgroundSecretHash,
+      backgroundSecretAccountId: device.backgroundSecretAccountId,
+      backgroundSecretExpiresAt: device.backgroundSecretExpiresAt,
+      revision: device.revision,
+      updatedAt: device.updatedAt,
+      accounts: projectAccounts(contexts),
+    };
+  }
+
+  /**
+   * Find or create the principal for `userId` on this device, and return its id.
+   *
+   * `ON CONFLICT … DO UPDATE … RETURNING`, never read-then-write: in Postgres one
+   * failed statement aborts the WHOLE transaction (`25P02`), so Mongo's
+   * read-the-row-back-after-a-duplicate-key recovery does not port. The insert
+   * is the read.
+   *
+   * A revoked principal signing back in is un-revoked rather than duplicated —
+   * `UNIQUE(device_session_id, user_id)` means there is only ever one row per
+   * person per device to bring back.
+   */
+  private async ensurePrincipal(
+    tx: Queryable,
+    deviceSessionId: string,
+    userId: string,
+    /** The person's OWN session, set only by a personal registration. */
+    personalSessionId: string | null
+  ): Promise<string> {
+    const taken = await tx
+      .select({ authuser: devicePrincipals.authuser })
+      .from(devicePrincipals)
+      .where(eq(devicePrincipals.deviceSessionId, deviceSessionId));
+
+    const now = new Date();
+    const [row] = await tx
+      .insert(devicePrincipals)
+      .values({
+        deviceSessionId,
+        userId,
+        authuser: lowestFreeAuthuser(taken.map((entry) => entry.authuser)),
+        personalSessionId,
+        lastAuthenticatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [devicePrincipals.deviceSessionId, devicePrincipals.userId],
+        set: {
+          lastAuthenticatedAt: now,
+          revokedAt: null,
+          // A DELEGATED add must not clear the person's own session: they are
+          // still signed in as themselves, they are merely also acting as
+          // something else.
+          ...(personalSessionId === null ? {} : { personalSessionId }),
+        },
+      })
+      .returning({ id: devicePrincipals.id });
+    return row.id;
+  }
+
+  /**
+   * Delete every principal of this device that has no live context left.
+   *
+   * A person with nothing to act as here is not on this device — which is
+   * exactly what removing their last `device_session_accounts` row used to mean,
+   * and what keeps their `authuser` slot available to the next sign-in.
+   */
+  private async pruneOrphanPrincipals(tx: Queryable, deviceSessionId: string): Promise<void> {
+    const live = await tx
+      .selectDistinct({ principalId: deviceAccountContexts.principalId })
+      .from(deviceAccountContexts)
+      .where(
+        and(
+          eq(deviceAccountContexts.deviceSessionId, deviceSessionId),
+          isNull(deviceAccountContexts.revokedAt)
+        )
+      );
+    const keep = live.map((entry) => entry.principalId);
+    await tx
+      .delete(devicePrincipals)
+      .where(
+        keep.length === 0
+          ? eq(devicePrincipals.deviceSessionId, deviceSessionId)
+          : and(
+              eq(devicePrincipals.deviceSessionId, deviceSessionId),
+              notInArray(devicePrincipals.id, keep)
+            )
+      );
+  }
+
+  /**
+   * The `active_*` pair for a device that should be pointing at `accountId`.
+   *
+   * `active_context_id` is the authority (ADR 0002) and `active_account_id` is
+   * DERIVED from the elected context — computed HERE and at no other site, which
+   * is what stops the two columns from disagreeing while the flat contract still
+   * has consumers.
+   *
+   * An account with no live context resolves to `(null, null)`: NULL is the
+   * first-class "signed in, nothing selected" state, and leaving the device
+   * naming an account it cannot mint for is the durable "logged in as <org>"
+   * lie `healActiveAccount` exists to clear up.
+   */
+  private async resolveActiveFields(
+    tx: Queryable,
+    deviceSessionId: string,
+    accountId: string | null
+  ): Promise<{ activeContextId: string | null; activeAccountId: string | null }> {
+    if (accountId === null) return { activeContextId: null, activeAccountId: null };
+    const contexts = await this.loadContexts(tx, deviceSessionId);
+    const elected = contexts.find((context) => context.accountId === accountId);
+    if (!elected) return { activeContextId: null, activeAccountId: null };
+    return { activeContextId: elected.contextId, activeAccountId: accountId };
+  }
+
+  /**
+   * Run one device mutation, retrying once if a CONCURRENT one took the
+   * `authuser` slot this attempt allocated.
+   *
+   * Only that one constraint is answered for. `isUniqueViolation(error)` alone
+   * cannot tell "the slot was taken" from "some other unique fired", and mapping
+   * every duplicate onto a retry would quietly start re-running writes for
+   * reasons nobody chose.
+   */
+  private async withAuthuserRaceRetry<T>(run: () => Promise<T>): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < AUTHUSER_RACE_ATTEMPTS; attempt += 1) {
+      try {
+        return await run();
+      } catch (error) {
+        if (!isUniqueViolation(error, 'device_principals_device_session_id_authuser_key')) {
+          throw error;
+        }
+        lastError = error;
+      }
+    }
+    throw lastError;
   }
 
   /**
@@ -242,64 +500,99 @@ class DeviceSessionService {
     // updated — is unchanged.
     let displacedSessionId: string | null = null;
 
-    const result = await getDb().transaction(async (tx) => {
-      const current = await this.ensureDevice(tx, deviceId);
-      const existing = current.accounts.find((a) => a.accountId === input.accountId);
+    const result = await this.withAuthuserRaceRetry(async () => {
+      displacedSessionId = null;
+      return getDb().transaction(async (tx) => {
+        const current = await this.ensureDevice(tx, deviceId);
+        const contexts = await this.loadContexts(tx, current.id);
+        // Keyed on the ACCOUNT, not on the pair, which keeps this path
+        // producing the one-entry-per-account set the flat contract promises.
+        // The schema can now hold `Nate -> Org` beside `Alice -> Org`; reaching
+        // that state is `POST /session/device/activate`'s job (ADR 0002), not
+        // this compatibility path's.
+        const existing = contexts.find((c) => c.accountId === input.accountId);
 
-      // Case 1 — idempotent re-register (the cold-boot reload handoff).
-      if (existing && existing.sessionId === input.sessionId) {
-        return { state: projectState(current), changed: false };
-      }
+        // Case 1 — idempotent re-register (the cold-boot reload handoff).
+        if (existing && existing.sessionId === input.sessionId) {
+          const state = projectState(current);
+          return { state, changed: false };
+        }
 
-      // 'if-empty' preserves an existing active account; only claims active when
-      // the device currently has none.
-      const nextActiveAccountId =
-        activate === 'always' || !current.activeAccountId
-          ? input.accountId
-          : current.activeAccountId;
+        // Case 2 — replacing an account's session (re-add with a new sessionId)
+        // must deactivate the session it displaces — otherwise a live,
+        // server-side session is left dangling with no context referencing it.
+        // A context with no session displaces nothing: there is no session to
+        // kill, only a "reachable, never used" row to fill in.
+        if (existing) {
+          displacedSessionId = existing.sessionId;
+          await tx
+            .delete(deviceAccountContexts)
+            .where(eq(deviceAccountContexts.id, existing.contextId));
+        }
 
-      const others = current.accounts.filter((a) => a.accountId !== input.accountId);
+        const principalUserId = input.operatedByUserId ?? input.accountId;
+        const principalId = await this.ensurePrincipal(
+          tx,
+          current.id,
+          principalUserId,
+          // NULL, never a placeholder: a delegated add is exactly the one where
+          // the person is not the account, and `''` would read as a personal
+          // session belonging to nobody.
+          principalUserId === input.accountId ? input.sessionId : null
+        );
 
-      // Case 2 — replacing an account's session (re-add with a new sessionId)
-      // must deactivate the session it displaces — otherwise a live,
-      // server-side session is left dangling with no device-session entry
-      // referencing it.
-      if (existing) {
-        displacedSessionId = existing.sessionId;
         await tx
-          .delete(deviceSessionAccounts)
-          .where(
-            and(
-              eq(deviceSessionAccounts.deviceSessionId, current.id),
-              eq(deviceSessionAccounts.accountId, input.accountId),
-            ),
-          );
-      }
+          .insert(deviceAccountContexts)
+          .values({
+            deviceSessionId: current.id,
+            principalId,
+            accountId: input.accountId,
+            sessionId: input.sessionId,
+          })
+          // The pair may already exist as a revoked row, or as one this same
+          // request lost a race to. `DO UPDATE` resolves both without a
+          // read-then-write, which Postgres cannot recover from inside a
+          // transaction (a failed statement aborts all of it, 25P02).
+          // `added_at` moves because a re-add replaces the entry wholesale,
+          // which is what the flat path did too — and the read order depends
+          // on it.
+          .onConflictDoUpdate({
+            target: [
+              deviceAccountContexts.deviceSessionId,
+              deviceAccountContexts.principalId,
+              deviceAccountContexts.accountId,
+            ],
+            set: { sessionId: input.sessionId, revokedAt: null, addedAt: new Date() },
+          });
 
-      await tx.insert(deviceSessionAccounts).values({
-        deviceSessionId: current.id,
-        accountId: input.accountId,
-        sessionId: input.sessionId,
-        authuser: lowestFreeAuthuser(others),
-        // NULL, never a placeholder: a delegated entry is exactly the one with
-        // an operator set, and `''` would read as a delegated entry owned by
-        // nobody while also violating the users foreign key.
-        operatedByUserId: input.operatedByUserId ?? null,
+        // Every principal keeps at least one context here, so nothing is
+        // orphaned by the delete above — except when case 2 moved an account to
+        // a DIFFERENT operator, which leaves the previous one with nothing.
+        await this.pruneOrphanPrincipals(tx, current.id);
+
+        // 'if-empty' preserves an existing active account; only claims active
+        // when the device currently has none. The re-election still has to run
+        // in that branch: case 2 replaced the active account's context row, so
+        // `active_context_id` was nulled by its own foreign key.
+        const nextActiveAccountId =
+          activate === 'always' || !current.activeAccountId
+            ? input.accountId
+            : current.activeAccountId;
+
+        await tx
+          .update(deviceSessions)
+          .set({
+            ...(await this.resolveActiveFields(tx, current.id, nextActiveAccountId)),
+            revision: sql`${deviceSessions.revision} + 1`,
+          })
+          .where(eq(deviceSessions.id, current.id));
+
+        const updated = await this.load(tx, deviceId);
+        if (!updated) {
+          throw new Error(`device_sessions row for "${deviceId}" vanished during addAccount`);
+        }
+        return { state: projectState(updated), changed: true };
       });
-
-      await tx
-        .update(deviceSessions)
-        .set({
-          activeAccountId: nextActiveAccountId,
-          revision: sql`${deviceSessions.revision} + 1`,
-        })
-        .where(eq(deviceSessions.id, current.id));
-
-      const updated = await this.load(tx, deviceId);
-      if (!updated) {
-        throw new Error(`device_sessions row for "${deviceId}" vanished during addAccount`);
-      }
-      return { state: projectState(updated), changed: true };
     });
 
     if (displacedSessionId) {
@@ -342,7 +635,10 @@ class DeviceSessionService {
     const updated = await db.transaction(async (tx) => {
       await tx
         .update(deviceSessions)
-        .set({ activeAccountId: accountId, revision: sql`${deviceSessions.revision} + 1` })
+        .set({
+          ...(await this.resolveActiveFields(tx, current.id, accountId)),
+          revision: sql`${deviceSessions.revision} + 1`,
+        })
         .where(eq(deviceSessions.id, current.id));
       return this.load(tx, deviceId);
     });
@@ -395,9 +691,9 @@ class DeviceSessionService {
       // Cascade: signing out an operator's own account must also remove every
       // managed/org account that operator switched into on this device (one
       // level deep — operated accounts can't themselves operate others). This
-      // mirrors `device_session_accounts.operated_by_user_id`'s ON DELETE
-      // CASCADE, which is the same rule enforced for a delete that never
-      // reaches this service.
+      // is ADR 0001's "removing a principal removes exactly its own contexts",
+      // and it is the same rule `device_account_contexts.principal_id`'s
+      // ON DELETE CASCADE enforces for a delete that never reaches this service.
       for (const a of allAccounts) {
         if (a.operatedByUserId === target.accountId) {
           removingIds.add(a.accountId);
@@ -443,19 +739,27 @@ class DeviceSessionService {
 
     const updated = await db.transaction(async (tx) => {
       if (removingIds.size > 0) {
+        // Scoped by ACCOUNT, so it removes that account under every principal
+        // of this device. Under this path there is only ever one — the flat
+        // contract's own promise — and Phase 2's context-scoped removal is what
+        // ADR 0001's "remove ONE context" means once a device can hold the same
+        // account under two people.
         await tx
-          .delete(deviceSessionAccounts)
+          .delete(deviceAccountContexts)
           .where(
             and(
-              eq(deviceSessionAccounts.deviceSessionId, current.id),
-              inArray(deviceSessionAccounts.accountId, [...removingIds]),
+              eq(deviceAccountContexts.deviceSessionId, current.id),
+              inArray(deviceAccountContexts.accountId, [...removingIds]),
             ),
           );
+        // The person whose last context just went is no longer on this device,
+        // and their `authuser` slot returns to the pool.
+        await this.pruneOrphanPrincipals(tx, current.id);
       }
       await tx
         .update(deviceSessions)
         .set({
-          activeAccountId: nextActive,
+          ...(await this.resolveActiveFields(tx, current.id, nextActive)),
           revision: sql`${deviceSessions.revision} + 1`,
           ...clearedSecrets,
         })
@@ -503,16 +807,20 @@ class DeviceSessionService {
 
     await db.transaction(async (tx) => {
       await tx
-        .delete(deviceSessionAccounts)
+        .delete(deviceAccountContexts)
         .where(
           and(
-            eq(deviceSessionAccounts.deviceSessionId, current.id),
-            eq(deviceSessionAccounts.accountId, accountId),
+            eq(deviceAccountContexts.deviceSessionId, current.id),
+            eq(deviceAccountContexts.accountId, accountId),
           ),
         );
+      await this.pruneOrphanPrincipals(tx, current.id);
       await tx
         .update(deviceSessions)
-        .set({ activeAccountId: nextActive, revision: sql`${deviceSessions.revision} + 1` })
+        .set({
+          ...(await this.resolveActiveFields(tx, current.id, nextActive)),
+          revision: sql`${deviceSessions.revision} + 1`,
+        })
         .where(eq(deviceSessions.id, current.id));
     });
   }
@@ -720,16 +1028,16 @@ class DeviceSessionService {
    * Reuses the normal signout cascade (deactivates sessions, drops the account's
    * entry, and removes any managed accounts the user operated).
    *
-   * The lookup is an indexed join on `device_session_accounts.account_id`
-   * (`device_session_accounts_account_id_idx`) — under Mongo the same question
+   * The lookup is an indexed join on `device_account_contexts.account_id`
+   * (`device_account_contexts_account_id_idx`) — under Mongo the same question
    * was a scan of every document's embedded `accounts.accountId`.
    */
   async purgeAccountFromAllDevices(userId: string): Promise<void> {
     const rows = await getDb()
       .selectDistinct({ deviceId: deviceSessions.deviceId })
-      .from(deviceSessionAccounts)
-      .innerJoin(deviceSessions, eq(deviceSessionAccounts.deviceSessionId, deviceSessions.id))
-      .where(eq(deviceSessionAccounts.accountId, userId));
+      .from(deviceAccountContexts)
+      .innerJoin(deviceSessions, eq(deviceAccountContexts.deviceSessionId, deviceSessions.id))
+      .where(eq(deviceAccountContexts.accountId, userId));
     for (const row of rows) {
       try {
         await this.signout(row.deviceId, { accountId: userId });

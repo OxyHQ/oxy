@@ -86,7 +86,8 @@ jest.mock('../../utils/logger', () => ({
 
 import { deviceTokenMintResponseSchema } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { deviceSessionAccounts } from '../../db/schema/deviceSessionAccounts';
+import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
+import { devicePrincipals } from '../../db/schema/devicePrincipals';
 import { deviceSessions } from '../../db/schema/deviceSessions';
 import { users } from '../../db/schema/users';
 import deviceSessionService from '../../services/deviceSession.service';
@@ -117,14 +118,36 @@ async function storedDevice(device: string) {
   return row;
 }
 
-/** The stored account rows for a device, in the service's own read order. */
+/**
+ * The stored account rows for a device, in the service's own read order.
+ *
+ * Read straight from Postgres, never through the service — which is the whole
+ * point of this helper, and why it names `device_principals` and
+ * `device_account_contexts` since issue #937 moved the storage there.
+ *
+ * `operatedByUserId` is DERIVED from the stored principal (a context whose
+ * principal is somebody other than the account it names IS the delegated case),
+ * so an assertion on it still proves the operator was persisted: the value comes
+ * out of a `device_principals` row, not out of the service's projection.
+ */
 async function storedAccounts(device: string) {
   const row = await storedDevice(device);
-  return getDb()
-    .select()
-    .from(deviceSessionAccounts)
-    .where(eq(deviceSessionAccounts.deviceSessionId, row.id))
-    .orderBy(deviceSessionAccounts.addedAt, deviceSessionAccounts.authuser);
+  const contexts = await getDb()
+    .select({
+      accountId: deviceAccountContexts.accountId,
+      sessionId: deviceAccountContexts.sessionId,
+      authuser: devicePrincipals.authuser,
+      principalUserId: devicePrincipals.userId,
+    })
+    .from(deviceAccountContexts)
+    .innerJoin(devicePrincipals, eq(deviceAccountContexts.principalId, devicePrincipals.id))
+    .where(eq(deviceAccountContexts.deviceSessionId, row.id))
+    .orderBy(deviceAccountContexts.addedAt, devicePrincipals.authuser, deviceAccountContexts.id);
+  return contexts.map((context) => ({
+    ...context,
+    operatedByUserId:
+      context.principalUserId === context.accountId ? null : context.principalUserId,
+  }));
 }
 
 /**
@@ -825,11 +848,11 @@ describe('POST /session/device/background-token', () => {
     // removal (signout would clear it), isolating the "account gone" branch.
     const row = await storedDevice(deviceId);
     await getDb()
-      .delete(deviceSessionAccounts)
+      .delete(deviceAccountContexts)
       .where(
         and(
-          eq(deviceSessionAccounts.deviceSessionId, row.id),
-          eq(deviceSessionAccounts.accountId, accountId),
+          eq(deviceAccountContexts.deviceSessionId, row.id),
+          eq(deviceAccountContexts.accountId, accountId),
         ),
       );
 

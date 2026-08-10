@@ -434,6 +434,8 @@ Not by discipline — these fail the build.
 | Generated contact hashes match `contactHash.ts` byte for byte; identifier uniqueness; closed value sets and value CHECKs on `users`; constants still equal the Mongoose model's | `schema/__tests__/users.test.ts` |
 | Child-table relations, the coordinate fix, the search vector, ancestor-path ordering, and what deleting an account actually does | `schema/__tests__/userChildTables.test.ts` |
 | Every required extension is installed before migration and re-runnable unprivileged; `geo` is generated/stored/GiST-indexed and built as `(longitude, latitude)` | `db/__tests__/postgis.test.ts` |
+| Both halves of the `device_sessions` ⇄ `device_account_contexts` CYCLE reached `pg_constraint`; what each `ON DELETE` on a principal, a context and a device actually does; that one account under two principals is now storable | `schema/__tests__/devicePrincipals.test.ts` |
+| Migration 0028's backfill, executed VERBATIM out of the migration file against a seeded corpus — one device per class, with the two structurally-impossible conflict classes given a positive control | `schema/__tests__/devicePrincipalsBackfill.test.ts` |
 
 All of them run against a real Postgres through the application's own pool. Each
 has been mutation-tested: break the thing it guards and it goes red naming the
