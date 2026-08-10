@@ -686,7 +686,9 @@ export {
 // `DeviceSessionState` collapses them into one row, so it can neither tell
 // "signed in as an org" from "a person operating that org" nor hold two people
 // reaching the same org on one device.
-export { resolveActiveContext, resolveDeviceContext } from './session/deviceDirectory';
+// `canActivateContext` is the switchability question — `available` alone, never
+// composed with `onDevice`, which is a different fact in both directions.
+export { canActivateContext, resolveActiveContext, resolveDeviceContext } from './session/deviceDirectory';
 export type {
     DeviceContext,
     DeviceContextActor,

@@ -428,11 +428,26 @@ export class SessionClient {
   }
 
   /**
-   * Validate + last-writer-wins by revision, exactly as {@link applyState} does
-   * for the flat half — including the part that is easy to get wrong: the guard
-   * is `deviceId`-SCOPED. A directory belonging to a DIFFERENT device resets the
+   * Validate + last-writer-wins, `deviceId`-SCOPED exactly as {@link applyState}
+   * is for the flat half: a directory belonging to a DIFFERENT device resets the
    * baseline and is accepted at any revision, so a freshly-converged device
    * cannot lose to a retired device's higher number.
+   *
+   * The comparison itself is deliberately WEAKER than the flat state's. There it
+   * is `revision <= current` — correct, because a `DeviceSessionState` arrives
+   * out of band over a socket, so a straggler can genuinely land after a newer
+   * one. A directory only ever arrives as the response to a request THIS client
+   * just made, so the newest response is the freshest answer and only a strictly
+   * LOWER revision can be a straggler (two GETs racing).
+   *
+   * Equal-revision reads are not redundant, and rejecting them was a bug: the
+   * directory includes rows projected from the account GRAPH, and the server
+   * materializes a context for every account a principal may act as WITHOUT
+   * bumping `revision` — deliberately, since `revision` tracks what the device
+   * holds and must never advance on a read. So a newly-granted `account:act_as`,
+   * and a removed-then-rematerialized context under its NEW id, both appear at
+   * an unchanged revision. Under `<=` neither would ever be seen until some
+   * unrelated device mutation happened to move the number.
    *
    * Notifies nothing. Every caller decides where in its own ordering sequence
    * the publish belongs.
@@ -446,7 +461,7 @@ export class SessionClient {
     if (
       this.directory &&
       next.deviceId === this.directory.deviceId &&
-      next.revision <= this.directory.revision
+      next.revision < this.directory.revision
     ) {
       return false;
     }

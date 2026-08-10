@@ -13,6 +13,7 @@
  */
 import type { DeviceDirectory, DeviceSessionState } from '@oxyhq/contracts';
 import { SessionClient, type SessionClientHost } from '../SessionClient';
+import { resolveDeviceContext } from '../deviceDirectory';
 import { computeIdentityTag } from '../../utils/cacheKey';
 
 /** A minimal jwt-decode-able token whose `userId` claim is `accountId`. */
@@ -184,16 +185,14 @@ describe('SessionClient — device directory', () => {
     expect(seen.at(-1)?.revision).toBe(3);
   });
 
-  it('applies last-writer-wins by revision WITHIN one device', async () => {
+  it('rejects a STRICTLY LOWER revision from the same device', async () => {
     let next = directoryAt(5, 'ctx-nate');
     const host = makeHost({ '/session/device/directory': () => next }, jwtFor('nate'));
     const client = new SessionClient(host);
 
     await client.refreshDirectory();
-    next = directoryAt(5, 'ctx-org');
-    await client.refreshDirectory();
-    expect(client.getActiveContext()?.subject.accountId).toBe('nate');
 
+    // Two GETs racing: the older response landing second must not win.
     next = directoryAt(4, 'ctx-org');
     await client.refreshDirectory();
     expect(client.getActiveContext()?.subject.accountId).toBe('nate');
@@ -201,6 +200,50 @@ describe('SessionClient — device directory', () => {
     next = directoryAt(6, 'ctx-org');
     await client.refreshDirectory();
     expect(client.getActiveContext()?.subject.accountId).toBe('org');
+  });
+
+  /**
+   * The equal-revision read is NOT redundant, and rejecting it was a bug.
+   *
+   * The directory carries rows projected from the account graph, and the server
+   * materializes a context for every account a principal may act as WITHOUT
+   * bumping `revision` — deliberately, because `revision` tracks what the DEVICE
+   * holds and must never advance on a read. So a removed-then-rematerialized
+   * context comes back under a NEW id at an unchanged revision, as does a
+   * newly-granted `account:act_as`. Under a `<=` guard neither would ever be
+   * seen until some unrelated device mutation happened to move the number.
+   */
+  it('applies a re-read at the SAME revision, so a rematerialized context id lands', async () => {
+    const withOrgContextId = (contextId: string): DeviceDirectory => {
+      const base = directoryAt(5, 'ctx-nate');
+      const principal = base.principals[0];
+      return {
+        ...base,
+        principals: [
+          {
+            ...principal,
+            contexts: principal.contexts.map((context) =>
+              context.accountId === 'org' ? { ...context, id: contextId, onDevice: false } : context,
+            ),
+          },
+        ],
+      };
+    };
+
+    let next = withOrgContextId('ctx-org-first');
+    const host = makeHost({ '/session/device/directory': () => next }, jwtFor('nate'));
+    const client = new SessionClient(host);
+    await client.refreshDirectory();
+    expect(resolveDeviceContext(client.getDirectory(), 'ctx-org-first')).not.toBeNull();
+
+    // Same device, same revision — the pair is back under a fresh id.
+    next = withOrgContextId('ctx-org-rematerialized');
+    await client.refreshDirectory();
+
+    expect(resolveDeviceContext(client.getDirectory(), 'ctx-org-rematerialized')).not.toBeNull();
+    // And the id that is gone stays gone: it must read as absent, not as an
+    // error, and nothing may still be holding it.
+    expect(resolveDeviceContext(client.getDirectory(), 'ctx-org-first')).toBeNull();
   });
 
   it('accepts a LOWER-revision directory from a DIFFERENT device', async () => {

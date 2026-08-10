@@ -8,7 +8,7 @@
  * that is the wrong human.
  */
 import type { DeviceDirectory, DeviceDirectoryProfile } from '@oxyhq/contracts';
-import { resolveActiveContext, resolveDeviceContext } from '../deviceDirectory';
+import { canActivateContext, resolveActiveContext, resolveDeviceContext } from '../deviceDirectory';
 
 const profileFor = (id: string): DeviceDirectoryProfile => ({ id, username: id });
 
@@ -161,5 +161,104 @@ describe('resolveDeviceContext', () => {
   it('is null for an unknown context id and a null directory', () => {
     expect(resolveDeviceContext(sharedDeviceDirectory(null), 'nope')).toBeNull();
     expect(resolveDeviceContext(null, 'ctx-nate-self')).toBeNull();
+  });
+});
+
+describe('canActivateContext', () => {
+  /**
+   * A principal whose OWN personal session has died. Their delegated context
+   * still holds a live delegated session, so `onDevice` is true — and it is
+   * still not activatable, because activation has no proof of who is acting
+   * once the human's session is gone. The server answers such a request with a
+   * 403 and heals the row away, so a switcher that offered it would be offering
+   * a button that deletes the row it sits on.
+   */
+  function deadPrincipalDirectory(): DeviceDirectory {
+    return {
+      deviceId: 'd1',
+      revision: 3,
+      activeContextId: null,
+      updatedAt: 1_720_000_000_000,
+      principals: [
+        {
+          id: 'p-nate',
+          userId: 'nate',
+          authuser: 0,
+          user: NATE,
+          contexts: [
+            {
+              id: 'ctx-nate-self',
+              accountId: 'nate',
+              kind: 'personal',
+              relationship: 'self',
+              account: NATE,
+              onDevice: true,
+              available: false,
+              active: false,
+              lastUsedAt: null,
+            },
+            {
+              id: 'ctx-nate-org',
+              accountId: 'org',
+              kind: 'organization',
+              relationship: 'owner',
+              account: ORG,
+              // A LIVE delegated session, under a dead principal.
+              onDevice: true,
+              available: false,
+              active: false,
+              lastUsedAt: null,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it('refuses every context of a principal whose own session died', () => {
+    const directory = deadPrincipalDirectory();
+    const personal = resolveDeviceContext(directory, 'ctx-nate-self');
+    const delegated = resolveDeviceContext(directory, 'ctx-nate-org');
+
+    expect(delegated?.subject.onDevice).toBe(true);
+    expect(canActivateContext(delegated?.subject ?? { available: true })).toBe(false);
+    expect(canActivateContext(personal?.subject ?? { available: true })).toBe(false);
+  });
+
+  it('admits a reachable context that has never been activated here', () => {
+    // `onDevice: false` is the ordinary "reachable, session minted on first
+    // activation" row. Requiring `onDevice` would hide every organization the
+    // person has not used on this device yet.
+    const directory: DeviceDirectory = {
+      deviceId: 'd1',
+      revision: 3,
+      activeContextId: null,
+      updatedAt: 1_720_000_000_000,
+      principals: [
+        {
+          id: 'p-nate',
+          userId: 'nate',
+          authuser: 0,
+          user: NATE,
+          contexts: [
+            {
+              id: 'ctx-nate-org',
+              accountId: 'org',
+              kind: 'organization',
+              relationship: 'owner',
+              account: ORG,
+              onDevice: false,
+              available: true,
+              active: false,
+              lastUsedAt: null,
+            },
+          ],
+        },
+      ],
+    };
+    const context = resolveDeviceContext(directory, 'ctx-nate-org');
+
+    expect(context?.subject.onDevice).toBe(false);
+    expect(canActivateContext(context?.subject ?? { available: false })).toBe(true);
   });
 });

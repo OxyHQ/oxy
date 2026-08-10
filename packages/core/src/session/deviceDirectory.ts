@@ -41,9 +41,24 @@ export interface DeviceContextSubject {
   kind: AccountKind;
   relationship: DeviceContextRelationship;
   profile: DeviceDirectoryProfile;
-  /** `false` for a context the principal may act as but has never activated here. */
+  /**
+   * `false` for a context the principal may act as but has never activated here.
+   *
+   * NOT a synonym for activatable, in either direction — see
+   * {@link canActivateContext}.
+   */
   onDevice: boolean;
-  /** The live `account:act_as` verdict at read time — a revoked row is returned, not omitted. */
+  /**
+   * Whether this context can be activated right now — the server's whole verdict,
+   * returned as a row rather than omitted so the UI can explain a row going away.
+   *
+   * It is STRICTER than the old `/switch` gate, and stricter than the name
+   * suggests: it is the live `account:act_as` check AND the PRINCIPAL's own
+   * personal session being live. Activation has no proof of who is acting once
+   * the human's own session is gone, so a dead principal makes every one of
+   * their contexts unavailable — the delegated ones whose own sessions are
+   * perfectly alive included.
+   */
   available: boolean;
   lastUsedAt: number | null;
 }
@@ -53,7 +68,18 @@ export interface DeviceContextSubject {
  * unit, with its two halves named.
  */
 export interface DeviceContext {
-  /** The identifier `POST /session/device/activate` takes. Names the PAIR, never the account. */
+  /**
+   * The identifier `POST /session/device/activate` takes. Names the PAIR, never
+   * the account.
+   *
+   * NOT STABLE ACROSS A REMOVAL, and therefore never something to persist or to
+   * hold across a read. Removing a delegated context is not permanent while the
+   * membership lives: the server rematerializes the pair on the next directory
+   * read, as `onDevice: false` under a NEW id — and it does so WITHOUT bumping
+   * `revision`, so "the device has not changed" is not evidence the id has not.
+   * Re-resolve from the directory in hand every time, and read an id that no
+   * longer resolves as gone rather than as an error.
+   */
   contextId: string;
   actor: DeviceContextActor;
   subject: DeviceContextSubject;
@@ -123,4 +149,29 @@ export function resolveActiveContext(directory: DeviceDirectory | null): DeviceC
     return null;
   }
   return resolveDeviceContext(directory, directory.activeContextId);
+}
+
+/**
+ * Whether a switcher may offer this row — the one question it asks, answered
+ * here so no surface has to re-derive it.
+ *
+ * It is deliberately a single field. `available` is the server's complete
+ * verdict (see {@link DeviceContextSubject.available}), and switchability is an
+ * authorization question the client must READ, never recompute; this exists to
+ * name the field that answers it, not to combine several.
+ *
+ * `onDevice` is NOT part of the question and composing the two is the mistake
+ * this function exists to prevent, in both directions. `onDevice: false` is an
+ * ordinary reachable context whose session is minted on first activation, so
+ * requiring it hides every organization the person has not used here yet.
+ * `onDevice: true` does not imply activatable either: when a principal's own
+ * personal session dies, their delegated contexts keep live sessions of their
+ * own and still cannot be activated, so `available || onDevice` would render a
+ * row the server answers with 403 and then heals away.
+ *
+ * Takes a structural subset so a caller holding a raw `DeviceAccountContext`
+ * from the wire can ask it without resolving the pair first.
+ */
+export function canActivateContext(context: { available: boolean }): boolean {
+  return context.available;
 }
