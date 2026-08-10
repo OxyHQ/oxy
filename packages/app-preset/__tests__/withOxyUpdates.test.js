@@ -26,6 +26,11 @@ function baseConfig(extra = {}) {
   return { name: 'Test', slug: 'test', _internal: { projectRoot: PROJECT_ROOT }, ...extra };
 }
 
+/** Options for tests whose behavior is unrelated to code signing. */
+function unsignedOptions(extra = {}) {
+  return { clientId: CLIENT_ID, codeSigning: false, ...extra };
+}
+
 /** Write a throwaway certificate file and hand its path to `fn`, always cleaning up. */
 function withTemporaryCertificate(fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oxy-updates-cert-'));
@@ -44,7 +49,7 @@ test('rejects a missing or blank clientId', () => {
 });
 
 test('builds the manifest URL from the client id and the default origin', () => {
-  const config = withOxyUpdates(baseConfig(), { clientId: CLIENT_ID });
+  const config = withOxyUpdates(baseConfig(), unsignedOptions());
   assert.equal(
     config.updates.url,
     `https://api.oxy.so/updates/v1/apps/${CLIENT_ID}/manifest`,
@@ -52,10 +57,9 @@ test('builds the manifest URL from the client id and the default origin', () => 
 });
 
 test('honours an explicit apiOrigin and strips its trailing slashes', () => {
-  const config = withOxyUpdates(baseConfig(), {
-    clientId: CLIENT_ID,
+  const config = withOxyUpdates(baseConfig(), unsignedOptions({
     apiOrigin: 'http://localhost:3001//',
-  });
+  }));
   assert.equal(
     config.updates.url,
     `http://localhost:3001/updates/v1/apps/${CLIENT_ID}/manifest`,
@@ -65,7 +69,7 @@ test('honours an explicit apiOrigin and strips its trailing slashes', () => {
 test('sets the channel request header without dropping existing headers', () => {
   const config = withOxyUpdates(
     baseConfig({ updates: { requestHeaders: { 'x-existing': 'kept' } } }),
-    { clientId: CLIENT_ID, channel: 'pr-42' },
+    unsignedOptions({ channel: 'pr-42' }),
   );
   assert.deepEqual(config.updates.requestHeaders, {
     'x-existing': 'kept',
@@ -74,21 +78,19 @@ test('sets the channel request header without dropping existing headers', () => 
 });
 
 test('defaults the runtime version to the appVersion policy', () => {
-  const config = withOxyUpdates(baseConfig(), { clientId: CLIENT_ID });
+  const config = withOxyUpdates(baseConfig(), unsignedOptions());
   assert.deepEqual(config.runtimeVersion, { policy: 'appVersion' });
 });
 
 test('honours another runtime version policy, and leaves the app value alone when false', () => {
-  const fingerprint = withOxyUpdates(baseConfig(), {
-    clientId: CLIENT_ID,
+  const fingerprint = withOxyUpdates(baseConfig(), unsignedOptions({
     runtimeVersionPolicy: 'fingerprint',
-  });
+  }));
   assert.deepEqual(fingerprint.runtimeVersion, { policy: 'fingerprint' });
 
-  const untouched = withOxyUpdates(baseConfig({ runtimeVersion: '9.9.9' }), {
-    clientId: CLIENT_ID,
+  const untouched = withOxyUpdates(baseConfig({ runtimeVersion: '9.9.9' }), unsignedOptions({
     runtimeVersionPolicy: false,
-  });
+  }));
   assert.equal(untouched.runtimeVersion, '9.9.9');
 });
 
@@ -128,13 +130,12 @@ test('skips signing entirely when codeSigning is false, even with a certificate 
   });
 });
 
-test('throws when the certificate is absent and codeSigning is require', () => {
+test('requires code signing by default and throws when the certificate is absent', () => {
   assert.throws(
     () =>
       withOxyUpdates(baseConfig(), {
         clientId: CLIENT_ID,
         certificatePath: path.join(os.tmpdir(), 'oxy-updates-absent.pem'),
-        codeSigning: 'require',
       }),
     /code signing is required but the Oxy Updates certificate is missing/,
   );
@@ -144,6 +145,7 @@ test('wires the URL but no signing when the certificate is absent and codeSignin
   const config = withOxyUpdates(baseConfig(), {
     clientId: CLIENT_ID,
     certificatePath: path.join(os.tmpdir(), 'oxy-updates-absent.pem'),
+    codeSigning: 'auto',
   });
   assert.ok(config.updates.url.includes(CLIENT_ID));
   assert.equal(config.updates.codeSigningCertificate, undefined);
