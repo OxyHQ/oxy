@@ -2905,8 +2905,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *       The response is a FLAT JSON document (no `data` wrapper) sent with
  *       `Cache-Control: no-store`, as RFC 6749 §5.1 requires. Alongside the
  *       standard `access_token` / `token_type` / `expires_in` it carries Oxy's
- *       device-first extras (`session_id`, `deviceId`, `deviceSecret`, `user`),
- *       which §5.1 permits as additional parameters.
+ *       device-first extras (`session_id`, `user`, and — for an OFFICIAL Oxy
+ *       application only — `deviceId` and `deviceSecret`), which §5.1 permits
+ *       as additional parameters.
+ *
+ *       A THIRD-PARTY client receives an ISOLATED session: bound to its
+ *       application, its credential and its granted scopes, kept off the user's
+ *       shared device, and carrying NO `deviceId` and NO `deviceSecret`. That
+ *       secret is the device-wide restore credential, so handing it to a third
+ *       party would let one leaked token mint bearers for every account on the
+ *       device. A third-party bearer is likewise refused the whole
+ *       `/session/device/*` lane.
  *
  *       Errors follow RFC 6749 §5.2 (`{ "error": ..., "error_description": ... }`).
  *       Replaying an already-used code, sending a code past its 60-second TTL,
@@ -2962,8 +2971,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *                   type: string
  *                 deviceId:
  *                   type: string
+ *                   description: >
+ *                     Official Oxy applications only. Absent for third-party
+ *                     clients, whose session does not join the device.
  *                 deviceSecret:
  *                   type: string
+ *                   description: >
+ *                     Official Oxy applications only. The device-wide restore
+ *                     credential, returned exactly once and never to a third
+ *                     party.
  *                 user:
  *                   type: object
  *       400:
@@ -3085,27 +3101,67 @@ router.post(
       ? exchange.code.operatedByUserId.toString()
       : undefined;
 
+    const grantedScopes = Array.isArray(exchange.code.scopes) ? exchange.code.scopes : [];
+
+    // A THIRD-PARTY exchange gets an ISOLATED session, not a share of the
+    // device (issue #937, Phase 6). Three things follow from that one decision,
+    // and they only work together:
+    //
+    //   1. It is bound to this application, so `azp`/`scope` are real claims on
+    //      its token and the device lane can refuse it — and so `createSession`
+    //      refuses to hand it a session belonging to anyone else.
+    //   2. It does NOT inherit the code's shared `deviceId`. A stable
+    //      per-(user, client) device id keeps the client reusing its OWN
+    //      session across exchanges without ever landing on the user's central
+    //      device, where the reuse lookup would otherwise find the device's
+    //      first-party session and rename it `"<App> OAuth"`.
+    //   3. It is not registered into the device's account set and receives no
+    //      `deviceSecret`. That secret is the device-wide restore credential:
+    //      handing it to a third party would let a single leaked token mint
+    //      bearers for every other account on the device and change what every
+    //      official Oxy app there is signed in as.
+    //
+    // A TRUSTED application is an official Oxy app joining the shared device
+    // session, so it keeps all three unchanged. Trust is the registry's
+    // `isTrustedApplication`, never the hostname or the credential type.
+    const trusted = isTrustedApplication(app);
+
     const session = await sessionService.createSession(
       userId,
       req,
       {
         deviceName: `${app.name} OAuth`,
-        ...(sharedDeviceId ? { deviceId: sharedDeviceId } : {}),
+        ...(trusted
+          ? sharedDeviceId
+            ? { deviceId: sharedDeviceId }
+            : {}
+          : {
+              stableDeviceKey: `oauth:${credential.publicKey}`,
+              application: {
+                applicationId: app.id,
+                clientId: credential.publicKey,
+                scopes: grantedScopes,
+              },
+            }),
         ...(operatedByUserId ? { operatedByUserId } : {}),
       },
     );
 
-    const deviceExtras = await finalizeDeviceLogin({
-      session: { sessionId: session.sessionId, deviceId: session.deviceId },
-      userId,
-    });
-    if (!deviceExtras.deviceSecret) {
-      logger.error('[OAuth] Token exchange succeeded but deviceSecret mint failed', {
+    let deviceSecret: string | undefined;
+    if (trusted) {
+      const deviceExtras = await finalizeDeviceLogin({
+        session: { sessionId: session.sessionId, deviceId: session.deviceId },
         userId,
-        sessionId: session.sessionId,
-        deviceId: session.deviceId,
       });
-      throw OAuthError.serverError('Failed to finalize the device session.');
+      if (!deviceExtras.deviceSecret) {
+        logger.error('[OAuth] Token exchange succeeded but deviceSecret mint failed', {
+          userId,
+          sessionId: session.sessionId,
+          deviceId: session.deviceId,
+        });
+        throw OAuthError.serverError('Failed to finalize the device session.');
+      }
+      deviceSecret = deviceExtras.deviceSecret;
     }
 
     await getDb()
@@ -3114,7 +3170,6 @@ router.post(
       .where(eq(applications.id, app.id));
 
     const userData = formatUserResponse(user);
-    const grantedScopes = Array.isArray(exchange.code.scopes) ? exchange.code.scopes : [];
 
     // FLAT body, no `sendSuccess` wrapper — see `utils/oauthResponse.ts` for why
     // the OAuth surface is the one place that may not use the house envelope.
@@ -3127,9 +3182,11 @@ router.post(
       // with the app's registered scopes). Omitted when the grant carries none.
       ...(grantedScopes.length > 0 ? { scope: grantedScopes.join(' ') } : {}),
       // Oxy's device-first extras, permitted by §5.1 as additional parameters.
+      // Present only for an application that actually joins the device: for a
+      // third party the pair would name a device it has no credential for and
+      // no business addressing.
       session_id: session.sessionId,
-      deviceId: session.deviceId,
-      deviceSecret: deviceExtras.deviceSecret,
+      ...(deviceSecret ? { deviceId: session.deviceId, deviceSecret } : {}),
       user: userData,
     });
   })

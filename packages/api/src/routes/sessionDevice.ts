@@ -6,8 +6,12 @@ import {
   deviceBackgroundTokenRequestSchema,
   deviceTokenMintRequestSchema,
 } from '@oxyhq/contracts';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { applications } from '../db/schema/applications';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { requireSameSiteOrigin } from '../middleware/originGuard';
+import { isTrustedApplication } from '../utils/trustedApplication';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
 import { isLockedOut, recordFailure, clearFailures } from '../services/loginLockout.service';
@@ -254,7 +258,57 @@ const activateLimiter = rateLimit({
   keyGenerator: perDeviceKey('device-activate'),
 });
 
-router.use(requireSameSiteOrigin, authMiddleware);
+/**
+ * Refuse a bearer that belongs to a THIRD-PARTY application (issue #937,
+ * Phase 6).
+ *
+ * Everything below this line operates on the shared Oxy device: reading who is
+ * signed in on it, activating the globally active context, adding or removing
+ * an account, minting a long-lived background credential. Those are the
+ * device's own controls, and a third-party OAuth client must not hold any of
+ * them — a leaked third-party token must not let an attacker change what every
+ * other Oxy app on that device is signed in as, nor enumerate the people on it.
+ *
+ * The decision is the REGISTRY's, re-read per request rather than frozen into
+ * the token: flipping an application out of official status must lock it out
+ * immediately, and an application row that has gone away must fail closed
+ * rather than read as "unbound, therefore first-party". `application_id` is
+ * NULL for every shared device session, so the ordinary path does no query at
+ * all.
+ */
+const requireFirstPartyDeviceAccess = asyncHandler(
+  async (req: AuthRequest, res: Response, next: () => void) => {
+    const applicationId = req.oxyToken?.applicationId;
+    if (!applicationId) {
+      next();
+      return;
+    }
+
+    const [app] = await getDb()
+      .select({
+        status: applications.status,
+        type: applications.type,
+        isOfficial: applications.isOfficial,
+        isInternal: applications.isInternal,
+      })
+      .from(applications)
+      .where(eq(applications.id, applicationId))
+      .limit(1);
+
+    if (!app || app.status !== 'active' || !isTrustedApplication(app)) {
+      logger.warn('device.lane.third_party_refused', {
+        applicationId,
+        path: req.path,
+      });
+      res.status(403).json({ error: 'third_party_device_access_denied' });
+      return;
+    }
+
+    next();
+  }
+);
+
+router.use(requireSameSiteOrigin, authMiddleware, requireFirstPartyDeviceAccess);
 
 /**
  * POST /session/device/background-credential — provision a non-rotating

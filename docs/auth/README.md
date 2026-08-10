@@ -88,3 +88,5 @@ The code→token exchange (`POST /auth/oauth/token`, RFC 6749 §4.1.3) happens o
 - [oxy-auth-platform.md](../architecture/oxy-auth-platform.md) — master plan and decisions
 - [integration-guide.md](./integration-guide.md) — third-party "Sign in with Oxy" (OAuth + PKCE)
 - [device-session.md](./device-session.md) — `DeviceSession` API, socket sync, multi-account
+- [principals-and-account-contexts.md](./principals-and-account-contexts.md) — the vocabulary: identity, principal, account, device session, context
+- [tokens-and-credentials.md](./tokens-and-credentials.md) — access token v2 claims, resource-server validation, third-party isolation, the v1 window

@@ -7,6 +7,9 @@ wrong — these names are the ones `@oxyhq/contracts` ships.
 Design rationale: [ADR 0001](../adr/0001-multi-principal-device-model.md) and
 [ADR 0002](../adr/0002-global-account-context.md).
 
+What a token says about a principal and an account, and what the resource server
+checks: [tokens-and-credentials.md](./tokens-and-credentials.md).
+
 ## The five nouns
 
 ### Identity
