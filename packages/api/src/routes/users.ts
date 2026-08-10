@@ -750,11 +750,12 @@ router.get(
  * three per-viewer graph reads consuming apps (Mention, Allo, Homiio) otherwise
  * make as separate round trips on nearly every feed request.
  *
- * The viewer is derived SERVER-SIDE from the auth token via `resolveViewerId`
- * (the same dual-auth as `/mutual-ids` and `/follows-of-follows-ids`) — never a
- * client-supplied id, and there is no `:userId` param to spoof (anti-IDOR).
- * OPTIONAL semantics: an anonymous caller (or a service token with no user
- * context) has no graph → every list is empty.
+ * The viewer is derived SERVER-SIDE from the authenticated user session via
+ * `resolveViewerId` — never a client-supplied id, and there is no `:userId`
+ * param to spoof (anti-IDOR). Service-token delegation is intentionally not
+ * accepted because blocks and restrictions are private relationship data.
+ * OPTIONAL semantics: an anonymous or service-token caller has no graph →
+ * every list is empty.
  *
  * Backed by a short-TTL Redis cache (`graphCache`) filled on miss and busted by
  * the follow/unfollow/block/unblock write paths; degrades to a straight Mongo
@@ -769,8 +770,11 @@ router.get(
   '/me/graph',
   optionalUserOrServiceAuth,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
-    // Viewer is always the authenticated principal — never a client param.
-    const viewerId = resolveViewerId(req);
+    // This endpoint returns private relationship data (blocks/restrictions), so
+    // only a user session may select its viewer. Service delegation is limited
+    // to public personalization and must not turn X-Oxy-User-Id into access to
+    // another user's private graph.
+    const viewerId = req.serviceApp ? undefined : resolveViewerId(req);
 
     // Anonymous / no-user-context callers have no graph. Short-circuit with the
     // empty graph and never touch the cache (its keys are strictly per-viewer).
