@@ -121,3 +121,25 @@ describe('base template bunfig.toml', () => {
     expect(renderString(raw, ctx, 'bunfig.toml.tpl')).toContain('linker = "hoisted"');
   });
 });
+
+describe('AWS deploy template', () => {
+  test('uses an app-specific role and cannot overwrite shared secrets', async () => {
+    const templateFile = path.join(
+      __dirname,
+      '..',
+      '..',
+      'templates',
+      'deploy',
+      'DOT_github',
+      'workflows',
+      'deploy-aws.yml',
+    );
+    const rendered = renderString(await fs.readFile(templateFile, 'utf8'), ctx, templateFile);
+
+    expect(rendered).toContain('role/oxy-my-app-github-deploy');
+    expect(rendered).not.toContain('role/oxy-github-deploy');
+    expect(rendered).not.toContain('/oxy/_shared/');
+    expect(rendered).not.toContain('AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY');
+    expect(rendered).toContain('path="/oxy/$APP/$k"');
+  });
+});
