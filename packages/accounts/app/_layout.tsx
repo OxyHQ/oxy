@@ -8,7 +8,6 @@ import { Stack, ThemeProvider } from 'expo-router';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { Platform } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -228,17 +227,18 @@ function AppStackContent() {
   // first non-redirecting sibling, so exactly one group is active at any time.
   const needsAuth = isAuthResolved ? !isAuthenticated : true;
 
+  // No `<SafeAreaProvider>` here: this subtree renders inside the provider
+  // above, which mounts one itself (on both the ready and the boot-shell
+  // path). A second, deeper one only re-measures the same full-screen frame.
   return (
-    <SafeAreaProvider>
-      <ScrollProvider>
-        <ThemeProvider value={navTheme}>
-          <Stack>
-            <Stack.Screen name="(tabs)" redirect={needsAuth} options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" redirect={!needsAuth} options={{ headerShown: false }} />
-          </Stack>
-          <StatusBar style="auto" />
-        </ThemeProvider>
-      </ScrollProvider>
-    </SafeAreaProvider>
+    <ScrollProvider>
+      <ThemeProvider value={navTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" redirect={needsAuth} options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" redirect={!needsAuth} options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style="auto" />
+      </ThemeProvider>
+    </ScrollProvider>
   );
 }
