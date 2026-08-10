@@ -3,7 +3,7 @@
  *
  * These schemas describe ONLY the outer Oxy envelope that wraps a WebAuthn
  * ceremony request — the username the client is registering/authenticating as,
- * plus the device-session options every first-party sign-in accepts. The browser
+ * plus non-authoritative device metadata. The browser
  * `RegistrationResponseJSON` / `AuthenticationResponseJSON` payloads are NOT
  * mirrored here: they are validated by `@simplewebauthn/server` inside the route
  * (`verifyRegistrationResponse` / `verifyAuthenticationResponse`), which is the
@@ -14,15 +14,16 @@
 import { z } from 'zod';
 
 /**
- * Device-session options shared by every first-party sign-in body
- * (`deviceName`/`deviceFingerprint`/`deviceId`). Mirrors what
+ * Device metadata shared by every first-party sign-in body
+ * (`deviceName`/`deviceFingerprint`). Mirrors what
  * `sessionCreateOptionsFromBody` reads in the API so a WebAuthn login/verify can
- * name and pin its resulting session exactly like `/auth/login` or `/auth/verify`.
+ * name its resulting session exactly like `/auth/verify`. A caller-supplied
+ * `deviceId` is deliberately not accepted: possession of an id is not proof of
+ * ownership of an existing device session.
  */
 const deviceSessionEnvelope = {
   deviceName: z.string().trim().min(1).max(120).optional(),
   deviceFingerprint: z.string().trim().min(1).max(256).optional(),
-  deviceId: z.string().trim().min(1).max(256).optional(),
 } as const;
 
 /**

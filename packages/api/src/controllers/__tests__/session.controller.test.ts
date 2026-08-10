@@ -77,7 +77,22 @@ import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
 import { users } from '../../db/schema/users';
 import type { AuthRequest } from '../../middleware/auth';
-import { SessionController } from '../session.controller';
+import { SessionController, sessionCreateOptionsFromBody } from '../session.controller';
+
+describe('sessionCreateOptionsFromBody', () => {
+  it('does not trust a public authentication body to select an existing device', () => {
+    const body = {
+      deviceName: 'Browser',
+      deviceFingerprint: 'metadata-only',
+      deviceId: 'victim-device',
+    };
+
+    expect(sessionCreateOptionsFromBody(body)).toEqual({
+      deviceName: 'Browser',
+      deviceFingerprint: 'metadata-only',
+    });
+  });
+});
 
 /** A captured `res` — the status and body the handler actually produced. */
 interface CapturedResponse {
