@@ -2,7 +2,7 @@
  * Task 1 (Fase 3-B): `SessionClient` wiring into `OxyContext` is ADDITIVE and
  * INERT until Task 2 calls `client.start()`.
  *
- * `OxyProvider` now builds a `SessionClient` (via the Fase 3-A
+ * `OxyRuntimeProvider` now builds a `SessionClient` (via the Fase 3-A
  * `createSessionClient` factory) once per `oxyServices` instance and
  * subscribes to it, projecting `client.getState()` onto the exposed
  * `sessions` / `activeSessionId` / `user` through the SAME setters the
@@ -56,7 +56,7 @@ jest.mock('../../src/ui/session', () => {
   };
 });
 
-import { OxyProvider, useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
+import { OxyRuntimeProvider, useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 import { createSessionClient } from '../../src/ui/session';
 
@@ -129,9 +129,9 @@ function renderProvider(sink: { current: OxyContextState | null }): RenderResult
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyProvider baseURL="https://api.oxy.so">
+      <OxyRuntimeProvider baseURL="https://api.oxy.so">
         <Capture sink={sink} />
-      </OxyProvider>
+      </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }

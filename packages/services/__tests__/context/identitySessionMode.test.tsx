@@ -83,7 +83,7 @@ jest.mock('../../src/ui/session', () => {
   };
 });
 
-import { OxyContextProvider, useOxy } from '../../src/ui/context/OxyContext';
+import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { IdentityBoundSessionError } from '../../src/ui/session';
 import { useAuthStore } from '../../src/ui/stores/authStore';
@@ -217,14 +217,14 @@ function renderProvider(oxyServices: unknown, sessionMode?: 'account' | 'identit
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyContextProvider
+      <OxyRuntimeProvider
         oxyServices={oxyServices as never}
         baseURL={API_BASE_URL}
         clientId="oxy_test_client"
         sessionMode={sessionMode}
       >
         <Capture />
-      </OxyContextProvider>
+      </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }

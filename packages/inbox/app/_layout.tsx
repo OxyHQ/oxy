@@ -5,7 +5,6 @@ import '../global.css';
 import { Stack, ThemeProvider } from 'expo-router';
 import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Platform, View } from 'react-native';
@@ -99,12 +98,14 @@ function RootLayoutContent() {
         <InboxCacheRestoreGate>
           <BloomImageResolver>
             <LocaleProvider>
-              <SafeAreaProvider>
-                <PortalProvider>
-                  <ThemeProvider value={navTheme}>
-                    <ConnectionStatusToasts />
-                    <RootEffects />
-                    {/*
+              {/* No `<SafeAreaProvider>` here: `OxyProvider` above mounts one
+                  (on both the ready and the boot-shell path), so a second,
+                  deeper one only re-measures the same full-screen frame. */}
+              <PortalProvider>
+                <ThemeProvider value={navTheme}>
+                  <ConnectionStatusToasts />
+                  <RootEffects />
+                  {/*
                     The whole app is gated behind the shared SDK signed-out wall
                     (`RequireOxyAuth prompt="hard"`). It replaces the former
                     hand-rolled sign-in gate: it blocks the navigator until the
@@ -113,12 +114,11 @@ function RootLayoutContent() {
                     primary CTA opens the ONE shared account dialog. See
                     `GatedNavigator` for the localized copy.
                   */}
-                    <GatedNavigator />
-                    <StatusBar style="auto" />
-                  </ThemeProvider>
-                  <PortalOutlet />
-                </PortalProvider>
-              </SafeAreaProvider>
+                  <GatedNavigator />
+                  <StatusBar style="auto" />
+                </ThemeProvider>
+                <PortalOutlet />
+              </PortalProvider>
             </LocaleProvider>
           </BloomImageResolver>
         </InboxCacheRestoreGate>

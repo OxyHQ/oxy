@@ -151,7 +151,7 @@ export interface OxyContextState {
   createAccount: (data: CreateAccountInput) => Promise<AccountNode>;
 }
 
-export interface OxyContextProviderProps {
+export interface OxyRuntimeProviderProps {
   children: ReactNode;
   oxyServices?: OxyServices;
   baseURL?: string;

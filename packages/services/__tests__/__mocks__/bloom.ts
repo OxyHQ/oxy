@@ -206,20 +206,27 @@ const passthrough =
 export const BloomDialogProvider = ({ children }: { children?: ReactNode }) =>
   createElement(Fragment, null, children);
 
-export const ToastOutlet = () => null;
+/**
+ * Renders an empty marker node rather than `null` so a test can COUNT the
+ * outlets in a rendered tree. Both Bloom outlets read a module-level store, so
+ * two of either would render every toast / every surface twice — the marker is
+ * what lets `oxyProviderComposition.test.tsx` assert exactly one.
+ */
+export const ToastOutlet = () => createElement('div', { 'data-testid': 'bloom-toast-outlet' });
 
 /**
  * `@oxyhq/bloom/surfaces` stubs. The real stack renders each presented surface as
  * a stacked `<Dialog>`; here we only need the module surface so the SDK's
  * `navigation/surfaces.ts` + `OxyProvider` resolve. `present` returns a
  * never-settling promise (unit tests do not await surface dismissals) and
- * `SurfaceHost` renders nothing. The SDK's own surface behaviour is covered by
- * the browser-verification harness, not jsdom.
+ * `SurfaceHost` renders only a countable marker. The SDK's own surface behaviour
+ * is covered by the browser-verification harness, not jsdom.
  */
-export const SurfaceProvider = ({ children }: { children?: ReactNode }) =>
-  createElement(Fragment, null, children);
+export const SurfaceHost = () => createElement('div', { 'data-testid': 'bloom-surface-host' });
 
-export const SurfaceHost = () => null;
+// Mirrors the real provider, which renders `[children, <SurfaceHost/>]`.
+export const SurfaceProvider = ({ children }: { children?: ReactNode }) =>
+  createElement(Fragment, null, children, createElement(SurfaceHost));
 
 export const useSurface = (): { dismiss: (result?: unknown) => void; present: () => Promise<unknown> } => ({
   dismiss: () => {},

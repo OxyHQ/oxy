@@ -33,6 +33,10 @@ setPlatformOS(Platform.OS as PlatformOS);
 // ---------------------------------------------------------------------------
 export { default as OxyProvider } from './ui/components/OxyProvider';
 export { useOxy } from './ui/context/OxyContext';
+// `useOxy()` THROWS when no provider is mounted. `useOptionalOxy()` returns
+// `null` instead, for the rare component that renders on both sides of the
+// provider boundary; there is no fabricated forever-loading runtime.
+export { useOptionalOxy, OxyProviderMissingError } from './ui/context/OxyContext';
 export type { OxyContextState } from './ui/context/OxyContext';
 export { useAuth } from './ui/hooks/useAuth';
 export type { AuthState, AuthActions, UseAuthReturn } from './ui/hooks/useAuth';
