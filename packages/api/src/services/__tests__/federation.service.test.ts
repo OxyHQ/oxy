@@ -538,35 +538,34 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     expect(result?.avatar).toBe('new-file-id');
   });
 
-  it('upserts onto the EXISTING row when the actor URI is already known', async () => {
-    const fx = nextFixture();
-    // Seeded under a DIFFERENT username/domain, so the cached-user lookup
-    // misses and the insert path is taken — it must then collide on
-    // `users_federation_actor_uri_key` and update rather than duplicate.
-    const userId = await seedFederatedUser(fx, STALE_AGE_MS, {
-      username: `stale-${actorCounter}@elsewhere.example`,
-      federationDomain: 'elsewhere.example',
-    });
+  it('does not let a WebFinger alias relabel an existing actor URI', async () => {
+    const victim = nextFixture('victim.example');
+    const attackerHandle = `attacker${actorCounter}@evil.example`;
+    const userId = await seedFederatedUser(victim, STALE_AGE_MS);
 
-    webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
+    // The attacker's server points its self link at an already-cached victim.
+    webfingerSpy.mockResolvedValue({
+      actorUri: victim.actorUri,
+      subjectAcct: attackerHandle,
+    });
     actorSpy.mockResolvedValue({
-      actorUri: fx.actorUri,
-      domain: fx.domain,
-      username: fx.handle,
-      displayName: 'Alice Moved',
+      actorUri: victim.actorUri,
+      domain: 'evil.example',
+      username: attackerHandle,
+      displayName: 'Attacker',
       avatarUrl: undefined,
       bio: undefined,
     });
 
-    const result = await federationService.resolveAndUpsert(fx.handle);
+    const result = await federationService.resolveAndUpsert(attackerHandle);
 
-    // One row, updated — never a second row for the same actor.
     expect(result?._id).toBe(userId);
-    expect(await storedByActorUri(fx.actorUri)).toMatchObject({
+    expect(result?.username).toBe(victim.handle);
+    expect(actorSpy).not.toHaveBeenCalled();
+    expect(await storedByActorUri(victim.actorUri)).toMatchObject({
       id: userId,
-      username: fx.handle,
-      domain: fx.domain,
-      nameFirst: 'Alice Moved',
+      username: victim.handle,
+      domain: victim.domain,
     });
   });
 
