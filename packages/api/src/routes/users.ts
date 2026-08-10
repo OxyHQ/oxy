@@ -12,7 +12,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { safeFetch, SsrfRejection } from '@oxyhq/core/server';
-import { canonicalFederationHost, isSameFederationHost } from '@oxyhq/federation';
 import { readBoundedBody } from '../services/linkPreview/boundedBody';
 import { getDb } from '../config/postgres';
 import { identityBackups } from '../db/schema/identityBackups';
@@ -1577,7 +1576,7 @@ function normalizeFederatedResolveUsername(username: string): string | null {
   if (atIndex <= 0 || atIndex === cleaned.length - 1) return null;
 
   const localPart = cleaned.substring(0, atIndex).toLowerCase();
-  const domain = canonicalFederationHost(cleaned.substring(atIndex + 1));
+  const domain = cleaned.substring(atIndex + 1).trim().toLowerCase();
   if (!localPart || !domain) return null;
 
   return `${localPart}@${domain}`;
@@ -1756,13 +1755,13 @@ router.put(
           throw new BadRequestError('actorUri must be a valid http(s) URL or a did: URI');
         }
       }
-      const normalisedDomain = canonicalFederationHost(domain);
+      const normalisedDomain = domain.trim().toLowerCase();
       const normalisedUsername = normalizeFederatedResolveUsername(username);
       if (!normalisedUsername) {
         throw new BadRequestError('username must be a valid federated handle');
       }
       const usernameDomain = normalisedUsername.substring(normalisedUsername.indexOf('@') + 1);
-      if (!isSameFederationHost(usernameDomain, normalisedDomain)) {
+      if (usernameDomain !== normalisedDomain) {
         throw new BadRequestError('username domain does not match domain');
       }
 
@@ -1802,7 +1801,7 @@ router.put(
       // lookup and that is a network round trip.
       if (
         actorHostname !== null
-        && !isSameFederationHost(actorHostname, normalisedDomain)
+        && actorHostname !== normalisedDomain
         && !bridgeVouchesForNetwork(actorHostname, normalisedDomain)
         && !(await verifyFederatedWebFingerBinding(normalisedUsername, actorUri))
       ) {
