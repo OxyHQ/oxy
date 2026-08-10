@@ -1008,6 +1008,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     identity,
     syncDeviceCredentialToHost,
     sessionClient,
+    setTokenReady,
   ]);
 
   useEffect(() => {
