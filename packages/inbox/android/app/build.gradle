@@ -81,6 +81,12 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def releaseStoreFile = findProperty('MYAPP_RELEASE_STORE_FILE') ?: System.getenv('MYAPP_RELEASE_STORE_FILE')
+def releaseStorePassword = findProperty('MYAPP_RELEASE_STORE_PASSWORD') ?: System.getenv('MYAPP_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = findProperty('MYAPP_RELEASE_KEY_ALIAS') ?: System.getenv('MYAPP_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = findProperty('MYAPP_RELEASE_KEY_PASSWORD') ?: System.getenv('MYAPP_RELEASE_KEY_PASSWORD')
+def hasReleaseSigningConfig = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -104,6 +110,14 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigningConfig) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
     }
     buildTypes {
         debug {
@@ -112,7 +126,9 @@ android {
         release {
             // Caution! In production, you need to generate your own keystore file.
             // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (hasReleaseSigningConfig) {
+                signingConfig signingConfigs.release
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
