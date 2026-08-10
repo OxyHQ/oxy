@@ -31,6 +31,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import type { BaseScreenProps } from '../types/navigation';
 import LogoText from './logo/LogoText';
 import OxyAuthChooser from './OxyAuthChooser';
+import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
 
 type Translate = ReturnType<typeof useI18n>['t'];
 
@@ -67,7 +68,7 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
     [controller],
   );
   const getSnapshot = useCallback(
-    () => (controller ? controller.getSnapshot() : EMPTY_SNAPSHOT),
+    () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
     [controller],
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
@@ -158,33 +159,6 @@ function headerCopy(
           };
   }
 }
-
-const EMPTY_SNAPSHOT: AccountDialogSnapshot = {
-  view: 'accounts',
-  // The no-provider snapshot predates the directory. These three are null here
-  // for the same reason the rest of it is empty: nothing has been resolved yet.
-  directory: null,
-  activeContext: null,
-  activatingContextId: null,
-  accounts: [],
-  activeAccountId: null,
-  loading: false,
-  error: null,
-  switchingAccountId: null,
-  signIn: {
-    phase: 'idle',
-    authorizeCode: null,
-    qrPayload: null,
-    expiresAt: null,
-    error: null,
-    route: null,
-    routeFailed: false,
-    pushSentAt: null,
-    openedAt: null,
-    progress: 'idle',
-  },
-  commonsAvailability: 'unknown',
-};
 
 /**
  * The screen gutter. In the Dialog's nav-header mode the surface adds NO content

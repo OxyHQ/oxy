@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { ApiError, AuthStateStore, IdentityBinding, SessionClient, User } from '@oxyhq/core';
-import type { AuthState } from '../../stores/authStore';
 import type { ClientSession, SessionLoginResponse } from '@oxyhq/core';
+import type { OxyRuntime } from '../../runtime';
 import { DeviceManager } from '@oxyhq/core';
 import { fetchSessionsWithFallback } from '../../utils/sessionHelpers';
 import { handleAuthError, isInvalidSessionError } from '../../utils/errorHandlers';
@@ -20,9 +20,12 @@ export interface UseAuthOperationsOptions {
    * warm-restores without a redirect.
    */
   store: AuthStateStore;
-  activeSessionId: string | null;
-  setActiveSessionId: (sessionId: string | null) => void;
-  updateSessions: (sessions: ClientSession[], options?: { merge?: boolean }) => void;
+  /**
+   * The one owner of the session facts. Reads (`activeSessionId`) and writes
+   * (the account, the session mirror, the loading/error gates) both go through
+   * it, so this hook holds no copy of anything to fall out of step.
+   */
+  runtime: OxyRuntime;
   saveActiveSessionId: (sessionId: string) => Promise<void>;
   clearSessionState: () => Promise<void>;
   /** Used only by `performSignIn`'s same-user duplicate-session dedup (legacy session-validate path; unrelated to the SessionClient device-account set). */
@@ -38,10 +41,6 @@ export interface UseAuthOperationsOptions {
   syncFromClient: () => Promise<void>;
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
-  loginSuccess: (user: User) => void;
-  loginFailure: (message: string) => void;
-  logoutStore: () => void;
-  setAuthState: (state: Partial<AuthState>) => void;
   logger?: (message: string, error?: unknown) => void;
   /**
    * Identity-bound session (`sessionMode: 'identity'`). When set, a successful
@@ -91,9 +90,7 @@ export function clearPersistedAuthSafe(
 export const useAuthOperations = ({
   oxyServices,
   store,
-  activeSessionId,
-  setActiveSessionId,
-  updateSessions,
+  runtime,
   saveActiveSessionId,
   clearSessionState,
   switchSession,
@@ -101,10 +98,6 @@ export const useAuthOperations = ({
   syncFromClient,
   onAuthStateChange,
   onError,
-  loginSuccess,
-  loginFailure,
-  logoutStore,
-  setAuthState,
   logger,
   identityBinding,
   refreshPinnedAccountId,
@@ -231,7 +224,7 @@ export const useAuthOperations = ({
           }
         }
         await switchSession(existingSession.sessionId);
-        updateSessions(
+        runtime.mergeSessions(
           allDeviceSessions.filter((session) => session.sessionId !== sessionResponse.sessionId),
           { merge: false },
         );
@@ -239,27 +232,28 @@ export const useAuthOperations = ({
         return fullUser;
       }
 
-      setActiveSessionId(sessionResponse.sessionId);
+      // One transition: the active id, the session mirror and the account all
+      // land together, so nothing is woken holding two of the three.
+      runtime.batch(() => {
+        runtime.setActiveSessionId(sessionResponse.sessionId);
+        runtime.mergeSessions(allDeviceSessions, { merge: true });
+        runtime.setAccount(fullUser);
+      });
       await saveActiveSessionId(sessionResponse.sessionId);
-      updateSessions(allDeviceSessions, { merge: true });
-
-      loginSuccess(fullUser);
       onAuthStateChange?.(fullUser);
 
       return fullUser;
     },
     [
       logger,
-      loginSuccess,
       onAuthStateChange,
       oxyServices,
+      runtime,
       saveActiveSessionId,
       sessionClient,
-      setActiveSessionId,
       store,
       switchSession,
       syncFromClient,
-      updateSessions,
       identityBinding,
       refreshPinnedAccountId,
     ],
@@ -270,7 +264,10 @@ export const useAuthOperations = ({
    */
   const signIn = useCallback(
     async (publicKey: string, deviceName?: string): Promise<User> => {
-      setAuthState({ isLoading: true, error: null });
+      runtime.batch(() => {
+        runtime.setLoading(true);
+        runtime.setError(null);
+      });
 
       try {
         return await performSignIn(publicKey);
@@ -279,16 +276,16 @@ export const useAuthOperations = ({
           defaultMessage: 'Sign in failed',
           code: LOGIN_ERROR_CODE,
           onError,
-          setAuthError: (msg: string) => setAuthState({ error: msg }),
+          setAuthError: (msg: string) => runtime.setError(msg),
           logger,
         });
-        loginFailure(message);
+        runtime.setError(message);
         throw error;
       } finally {
-        setAuthState({ isLoading: false });
+        runtime.setLoading(false);
       }
     },
-    [setAuthState, performSignIn, loginFailure, onError, logger],
+    [runtime, performSignIn, onError, logger],
   );
 
   /**
@@ -296,6 +293,7 @@ export const useAuthOperations = ({
    */
   const logout = useCallback(
     async (targetSessionId?: string): Promise<void> => {
+      const activeSessionId = runtime.getSnapshot().activeSessionId;
       if (!activeSessionId) return;
 
       try {
@@ -342,20 +340,19 @@ export const useAuthOperations = ({
           defaultMessage: 'Logout failed',
           code: LOGOUT_ERROR_CODE,
           onError,
-          setAuthError: (msg: string) => setAuthState({ error: msg }),
+          setAuthError: (msg: string) => runtime.setError(msg),
           logger,
           status: isInvalid ? 401 : undefined,
         });
       }
     },
     [
-      activeSessionId,
       clearSessionState,
       store,
       logger,
       onError,
+      runtime,
       sessionClient,
-      setAuthState,
       syncFromClient,
     ],
   );
@@ -364,9 +361,9 @@ export const useAuthOperations = ({
    * Logout from all sessions
    */
   const logoutAll = useCallback(async (): Promise<void> => {
-    if (!activeSessionId) {
+    if (!runtime.getSnapshot().activeSessionId) {
       const error = new Error('No active session found');
-      setAuthState({ error: error.message });
+      runtime.setError(error.message);
       onError?.({ message: error.message, code: LOGOUT_ALL_ERROR_CODE, status: 404 });
       throw error;
     }
@@ -387,12 +384,12 @@ export const useAuthOperations = ({
         defaultMessage: 'Logout all failed',
         code: LOGOUT_ALL_ERROR_CODE,
         onError,
-        setAuthError: (msg: string) => setAuthState({ error: msg }),
+        setAuthError: (msg: string) => runtime.setError(msg),
         logger,
       });
       throw error instanceof Error ? error : new Error('Logout all failed');
     }
-  }, [activeSessionId, clearSessionState, store, logger, onError, sessionClient, setAuthState]);
+  }, [clearSessionState, store, logger, onError, runtime, sessionClient]);
 
   return {
     signIn,

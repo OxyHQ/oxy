@@ -68,6 +68,12 @@ const fakeSessionClient = {
     stateListeners.add(listener);
     return () => stateListeners.delete(listener);
   },
+  // The device DIRECTORY half (ADR 0002); this fake never reads one.
+  getDirectory: () => null,
+  refreshDirectory: jest.fn(async () => undefined),
+  activateContext: jest.fn(async () => undefined),
+  signOutContext: jest.fn(async () => undefined),
+  signOutPrincipal: jest.fn(async () => undefined),
   start: jest.fn(async () => undefined),
   bootstrap: jest.fn(async () => undefined),
   addCurrentAccount: jest.fn(async () => undefined),

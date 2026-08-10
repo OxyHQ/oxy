@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react';
-import type { QueryClient } from '@tanstack/react-query';
 import type { OxyServices, AccountNode, CreateAccountInput, AccountDialogController, SessionClient } from '@oxyhq/core';
 import { logger as loggerUtil } from '@oxyhq/core';
-import { useAuthStore } from '../stores/authStore';
 import { isUnauthorizedStatus } from './oxyContextHelpers';
-import { resetSessionScopedStores } from '../stores/resetSessionScopedStores';
-import { ASSET_DOWNLOAD_URLS_QUERY_KEY } from '../hooks/useResolvedFileUrls';
 import { IdentityBoundSessionError } from '../session';
 import type { CommitInput } from './oxyContextTypes';
 
@@ -23,7 +19,6 @@ interface UseOxyAccountGraphParams {
   sessionClient: SessionClient;
   syncFromClient: () => Promise<void>;
   commitSession: (input: CommitInput, options: { activate: boolean }) => Promise<void>;
-  queryClient: QueryClient;
   accountDialogControllerRef: RefObject<AccountDialogController | null>;
   clearSessionStateRef: RefObject<() => Promise<void>>;
 }
@@ -37,7 +32,6 @@ export function useOxyAccountGraph({
   sessionClient,
   syncFromClient,
   commitSession,
-  queryClient,
   accountDialogControllerRef,
   clearSessionStateRef,
 }: UseOxyAccountGraphParams) {
@@ -70,16 +64,6 @@ export function useOxyAccountGraph({
     }
   }, [identityBound, isAuthenticated, initialized, tokenReady, refreshAccounts, accountDialogControllerRef]);
 
-  const runPostAccountSwitchSideEffects = useCallback(async (): Promise<void> => {
-    resetSessionScopedStores();
-    // Scoped media tokens are per-viewer — drop any cached URLs immediately so
-    // `keepPreviousData`-style placeholders cannot flash the prior account's
-    // private thumbnails while the new bearer mint lands.
-    queryClient.removeQueries({ queryKey: [ASSET_DOWNLOAD_URLS_QUERY_KEY] });
-    await refreshAccounts();
-    queryClient.invalidateQueries();
-  }, [refreshAccounts, queryClient]);
-
   const switchToAccount = useCallback(
     async (accountId: string): Promise<void> => {
       if (identityBound) {
@@ -92,7 +76,6 @@ export function useOxyAccountGraph({
       if (deviceState?.accounts.some((account) => account.accountId === accountId)) {
         await sessionClient.switchAccount(accountId);
         await syncFromClient();
-        await runPostAccountSwitchSideEffects();
         return;
       }
 
@@ -114,9 +97,12 @@ export function useOxyAccountGraph({
         // `session_state` socket.
         { activate: true },
       );
-      await runPostAccountSwitchSideEffects();
     },
-    [identityBound, oxyServices, sessionClient, syncFromClient, commitSession, runPostAccountSwitchSideEffects],
+    // The account-scoped cache reset that used to trail both branches here now
+    // runs inside the runtime's subject transition, BEFORE any subscriber is
+    // woken — so a socket-pushed switch (which never reached this function at
+    // all) gets it too.
+    [identityBound, oxyServices, sessionClient, syncFromClient, commitSession],
   );
 
   const createAccount = useCallback(

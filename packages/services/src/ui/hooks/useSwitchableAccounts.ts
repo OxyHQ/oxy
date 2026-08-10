@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
-import type { SwitchableAccount, AccountDialogSnapshot } from '@oxyhq/core';
+import type { SwitchableAccount } from '@oxyhq/core';
 import { useOxy } from '../context/OxyContext';
+import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from './accountDialogSnapshot';
 
 export interface UseSwitchableAccountsResult {
     /** Every switchable account (device sign-ins + linked graph accounts). */
@@ -11,36 +12,6 @@ export interface UseSwitchableAccountsResult {
     currentSessionId: string | null;
 }
 
-/**
- * Stable empty snapshot for the no-provider loading state, so `useSyncExternalStore`
- * always has a getSnapshot that returns a constant reference before mount.
- */
-const EMPTY_SNAPSHOT: AccountDialogSnapshot = {
-    view: 'accounts',
-    // The no-provider snapshot predates the directory. These three are null here
-    // for the same reason the rest of it is empty: nothing has been resolved yet.
-    directory: null,
-    activeContext: null,
-    activatingContextId: null,
-    accounts: [],
-    activeAccountId: null,
-    loading: false,
-    error: null,
-    switchingAccountId: null,
-    signIn: {
-        phase: 'idle',
-        authorizeCode: null,
-        qrPayload: null,
-        expiresAt: null,
-        error: null,
-        route: null,
-        routeFailed: false,
-        pushSentAt: null,
-        openedAt: null,
-        progress: 'idle',
-    },
-    commonsAvailability: 'unknown',
-};
 
 /**
  * Every account the signed-in user can switch into — device sign-ins AND linked
@@ -62,7 +33,7 @@ export function useSwitchableAccounts(): UseSwitchableAccountsResult {
         [controller],
     );
     const getSnapshot = useCallback(
-        () => (controller ? controller.getSnapshot() : EMPTY_SNAPSHOT),
+        () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
         [controller],
     );
     const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

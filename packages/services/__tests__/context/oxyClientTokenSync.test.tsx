@@ -57,8 +57,10 @@ jest.mock('../../src/ui/session', () => {
         // stand-in that omits these is not a SessionClient. Null is the honest
         // answer for a fake that was never given one.
         getDirectory: () => null,
-        refreshDirectory: async () => null,
-        activateContext: async () => null,
+        refreshDirectory: async () => undefined,
+        activateContext: async () => undefined,
+        signOutContext: async () => undefined,
+        signOutPrincipal: async () => undefined,
         subscribe: () => () => undefined,
         addCurrentAccount: jest.fn(async () => undefined),
         start: jest.fn(async () => undefined),

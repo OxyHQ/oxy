@@ -150,6 +150,15 @@ function buildFakeClient(initial: DeviceSessionState) {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
+      // The device DIRECTORY half (ADR 0002). This fake never reads one, so it
+      // answers `null` — the shape a client that has not opted into the
+      // directory holds. Omitting it entirely made the runtime's projection
+      // throw and be swallowed, which reads as "the projection did nothing".
+      getDirectory: () => null,
+      refreshDirectory: async () => undefined,
+      activateContext: async () => undefined,
+      signOutContext: async () => undefined,
+      signOutPrincipal: async () => undefined,
       start,
       addCurrentAccount,
       registerAndActivate,
@@ -164,17 +173,26 @@ function buildStub(baseURL: string) {
   const getUsersByIds = jest.fn(async (ids: string[]): Promise<User[]> =>
     ids.map((id) => ({ id, username: `user-${id}` } as User)),
   );
+  // Who `GET /users/me` answers as. A mint MOVES it, exactly as the real
+  // endpoint does: the bearer planted by the commit belongs to the newly
+  // switched-into account, so `getCurrentUser` cannot keep answering with the
+  // previous one. Leaving it pinned to A1 made the subject never move, which
+  // silently disarmed every assertion about what a switch triggers.
+  let currentAccountId = ACCOUNT_A1;
   // First-time mint path for `switchToAccount` (Task 4.5's "not yet on the
   // device" branch): mints a brand-new session for whatever account id is
   // requested, mirroring `SwitchAccountResult`.
-  const switchToAccount = jest.fn(async (accountId: string) => ({
-    sessionId: SESSION_A3,
-    deviceId: 'dev-1',
-    accessToken: 'a3.access.token',
-    expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-    user: { id: accountId, username: 'user-a3' },
-    authuser: 2,
-  }));
+  const switchToAccount = jest.fn(async (accountId: string) => {
+    currentAccountId = accountId;
+    return {
+      sessionId: SESSION_A3,
+      deviceId: 'dev-1',
+      accessToken: 'a3.access.token',
+      expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      user: { id: accountId, username: 'user-a3' },
+      authuser: 2,
+    };
+  });
   return {
     getUsersByIds,
     switchToAccount,
@@ -213,8 +231,12 @@ function buildStub(baseURL: string) {
         },
       })),
       signInWithSharedIdentity: jest.fn(async () => null),
-      getCurrentUser: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)),
-      getUserBySession: jest.fn(async (): Promise<User> => ({ id: ACCOUNT_A1, username: 'user-a1' } as User)),
+      getCurrentUser: jest.fn(
+        async (): Promise<User> => ({ id: currentAccountId, username: `user-${currentAccountId}` } as User),
+      ),
+      getUserBySession: jest.fn(
+        async (): Promise<User> => ({ id: currentAccountId, username: `user-${currentAccountId}` } as User),
+      ),
       listAccounts: jest.fn(async () => []),
       switchToAccount,
       getUsersByIds,

@@ -84,6 +84,15 @@ function buildFakeClient(initialState: DeviceSessionState | null) {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
+      // The device DIRECTORY half (ADR 0002). This fake never reads one, so it
+      // answers `null` — the shape a client that has not opted into the
+      // directory holds. Omitting it entirely made the runtime's projection
+      // throw and be swallowed, which reads as "the projection did nothing".
+      getDirectory: () => null,
+      refreshDirectory: async () => undefined,
+      activateContext: async () => undefined,
+      signOutContext: async () => undefined,
+      signOutPrincipal: async () => undefined,
     },
     setState(next: DeviceSessionState | null) {
       state = next;

@@ -38,7 +38,6 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { Linking, Platform } from 'react-native';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
-import type { AccountDialogSnapshot } from '@oxyhq/core';
 import { isOxyRpOrigin } from '@oxyhq/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
@@ -61,6 +60,7 @@ import type {
   PasskeyMode,
   SignInAlternatives,
 } from './authChooser/types';
+import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
 
 /** Commons' own identity-creation deep link (mirrors the `approve`/`attest`/`card` intents). */
 const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
@@ -217,7 +217,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
     [controller, autoStartSignIn],
   );
   const getSnapshot = useCallback(
-    () => (controller ? controller.getSnapshot() : EMPTY_SNAPSHOT),
+    () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
     [controller],
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
@@ -424,37 +424,6 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       alternatives={alternatives}
     />
   );
-};
-
-// ---------------------------------------------------------------------------
-// Empty snapshot (no-provider loading state)
-// ---------------------------------------------------------------------------
-
-const EMPTY_SNAPSHOT: AccountDialogSnapshot = {
-  view: 'accounts',
-  // The no-provider snapshot predates the directory. These three are null here
-  // for the same reason the rest of it is empty: nothing has been resolved yet.
-  directory: null,
-  activeContext: null,
-  activatingContextId: null,
-  accounts: [],
-  activeAccountId: null,
-  loading: false,
-  error: null,
-  switchingAccountId: null,
-  signIn: {
-    phase: 'idle',
-    authorizeCode: null,
-    qrPayload: null,
-    expiresAt: null,
-    error: null,
-    route: null,
-    routeFailed: false,
-    pushSentAt: null,
-    openedAt: null,
-    progress: 'idle',
-  },
-  commonsAvailability: 'unknown',
 };
 
 export default OxyAuthChooser;
