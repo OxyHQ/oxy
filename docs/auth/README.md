@@ -20,6 +20,8 @@ It does **not** own account management: every `/settings/*` path permanently red
 
 Session authority and transport live entirely in `api.oxy.so`: zero-cookie `deviceId` + `deviceSecret` persisted first-party by the client, minted/refreshed via `POST /session/device/token` (no bearer, no cookies — possession of the secret is the proof). The server-side model is `DeviceSession` (`/session/device/*` + the `session_state` socket event) — see [device-session.md](./device-session.md). There is no cookie and no refresh-token family. FedCM and the legacy silent/cross-domain restore machinery were deleted from the IdP and the SDK.
 
+The multi-person evolution of that model — principals, account contexts, one globally active context, and the browser DeviceSession hub this IdP is becoming — is specified in [principals-and-account-contexts.md](./principals-and-account-contexts.md) and the records under [`docs/adr/`](../adr/). Where the two disagree, the ADRs describe the target and this page describes what is deployed.
+
 ## Provider mount — `OxyProvider`, device-first like every app
 
 The IdP mounts the single UI SDK, `@oxyhq/services`, with NO special props — it is a device-first origin exactly like accounts.oxy.so (`packages/auth/src/main.tsx`). The previous separate web SDK package no longer exists in the monorepo.
