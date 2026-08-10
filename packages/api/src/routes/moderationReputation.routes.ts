@@ -257,7 +257,8 @@ router.post(
     const result = await moderationReputationService.reverseModerationDecision(
       req.body.decisionId,
       req.body.decisionRevision,
-      req.body.reason
+      req.body.reason,
+      req.serviceApp!.credentialId
     );
 
     const dto: ReverseModerationEffectResult = {
