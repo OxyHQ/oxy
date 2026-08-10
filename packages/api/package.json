@@ -94,7 +94,7 @@
     "nodemailer": "^9.0.3",
     "pino": "catalog:",
     "postgres": "catalog:",
-    "rate-limit-redis": "^6.0.0",
+    "rate-limit-redis": "^6.0.1",
     "sharp": "catalog:",
     "smtp-server": "^3.19.2",
     "socket.io": "^4.8.1",
