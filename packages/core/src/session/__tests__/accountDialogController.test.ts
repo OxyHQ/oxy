@@ -20,9 +20,31 @@ class TestSessionClient extends SessionClient {
   }
 }
 
+/**
+ * A valid, empty directory for the host below.
+ *
+ * `refresh()` reads `GET /session/device/directory` now, so the shared host has
+ * to answer it with something the contract accepts — otherwise every test in
+ * this file logs "discarded invalid device directory" and the ones asserting on
+ * the logger fail for a reason that has nothing to do with their subject.
+ *
+ * Its `revision` sits deliberately ahead of every state revision these tests
+ * use, so the directory-settle re-read (which has its own suite) never fires
+ * here and each test's request count stays about the thing it is testing.
+ */
+const EMPTY_DIRECTORY = {
+  deviceId: 'device-1',
+  revision: 9_000,
+  activeContextId: null,
+  principals: [],
+  updatedAt: 1_720_000_000_000,
+};
+
 function host(): SessionClientHost {
   return {
-    makeRequest: jest.fn(),
+    makeRequest: jest.fn(async (_method: string, url: string) =>
+      (url === '/session/device/directory' ? EMPTY_DIRECTORY : undefined),
+    ),
     getBaseURL: () => 'http://test.invalid',
     getAccessToken: () => 'token',
     getDeviceCredential: () => null,
@@ -79,7 +101,6 @@ interface OxyMock {
   startCommonsSignIn: jest.Mock;
   deliverCommonsSignIn: jest.Mock;
   pollCommonsSignIn: jest.Mock;
-  deliverCommonsSignIn: jest.Mock;
   denyCommonsSignIn: jest.Mock;
   claimSessionByToken: jest.Mock;
   signInWithSharedIdentity: jest.Mock;
@@ -107,7 +128,6 @@ function makeOxy(): OxyMock {
     getFileDownloadUrl: jest.fn((id: string) => `https://cdn/${id}`),
     switchToAccount: jest.fn(),
     startCommonsSignIn: jest.fn(),
-    deliverCommonsSignIn: jest.fn().mockResolvedValue({ delivered: false, targets: 0 }),
     pollCommonsSignIn: jest.fn(),
     // Default: no capable Commons installation is registered. A NORMAL outcome
     // that resolves the primary route to QR — never an error.
@@ -1810,6 +1830,196 @@ describe('AccountDialogController — lifecycle', () => {
     // destroy clears all listeners; a subsequent state push notifies nobody.
     sc.set(state([{ accountId: 'a1', sessionId: 's1' }], 'a1'));
     expect(seen).toEqual([]);
+  });
+});
+
+describe('AccountDialogController — the directory (ADR 0002)', () => {
+  /** A two-principal device where `org` is reachable through BOTH people. */
+  const sharedDirectory = (revision: number, activeContextId: string | null) => ({
+    deviceId: 'device-1',
+    revision,
+    activeContextId,
+    updatedAt: 1_720_000_000_000,
+    principals: [
+      {
+        id: 'p-nate',
+        userId: 'nate',
+        authuser: 0,
+        user: { id: 'nate', username: 'nate' },
+        contexts: [
+          {
+            id: 'ctx-nate-org',
+            accountId: 'org',
+            kind: 'organization' as const,
+            relationship: 'owner' as const,
+            account: { id: 'org', username: 'oxy' },
+            onDevice: true,
+            available: true,
+            active: activeContextId === 'ctx-nate-org',
+            lastUsedAt: null,
+          },
+        ],
+      },
+      {
+        id: 'p-alice',
+        userId: 'alice',
+        authuser: 1,
+        user: { id: 'alice', username: 'alice' },
+        contexts: [
+          {
+            id: 'ctx-alice-org',
+            accountId: 'org',
+            kind: 'organization' as const,
+            relationship: 'member' as const,
+            account: { id: 'org', username: 'oxy' },
+            onDevice: true,
+            available: true,
+            active: activeContextId === 'ctx-alice-org',
+            lastUsedAt: null,
+          },
+        ],
+      },
+    ],
+  });
+
+  function directoryHarness(activeContextId: string | null) {
+    const oxy = makeOxy();
+    const urls: string[] = [];
+    const bodies: unknown[] = [];
+    const sc = new TestSessionClient({
+      makeRequest: jest.fn(async (_method: string, url: string, data?: unknown) => {
+        urls.push(url);
+        bodies.push(data);
+        if (url === '/session/device/directory') return sharedDirectory(5, activeContextId);
+        if (url === '/session/device/activate') {
+          return { directory: sharedDirectory(6, 'ctx-alice-org'), activeToken: null };
+        }
+        return undefined;
+      }),
+      getBaseURL: () => 'http://test.invalid',
+      getAccessToken: () => 'token',
+      getDeviceCredential: () => null,
+      onTokensChanged: () => () => undefined,
+      setTokens: jest.fn(),
+      getCurrentAccountId: () => null,
+    });
+    const controller = createAccountDialogController({
+      oxyServices: oxy as unknown as OxyServices,
+      sessionClient: sc,
+      clientId: 'oxy_dk_test',
+      commitSession: jest.fn().mockResolvedValue(undefined),
+      onSignedIn: jest.fn(),
+    });
+    return { controller, oxy, sc, urls, bodies };
+  }
+
+  it('publishes the directory and the active context on the snapshot', async () => {
+    const { controller, oxy } = directoryHarness('ctx-alice-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+
+    await controller.refresh();
+
+    const snap = controller.getSnapshot();
+    expect(snap.directory?.revision).toBe(5);
+    // The flat `accounts` list cannot express this: it is keyed by account id,
+    // so ONE of these two routes to `org` would be all a consumer ever saw.
+    expect(snap.directory?.principals.map((p) => p.userId)).toEqual(['nate', 'alice']);
+    expect(snap.activeContext?.contextId).toBe('ctx-alice-org');
+    expect(snap.activeContext?.actor.userId).toBe('alice');
+    expect(snap.activeContext?.subject.accountId).toBe('org');
+    expect(snap.activeContext?.isDelegated).toBe(true);
+  });
+
+  it('activateContext POSTs the contextId and reports the switch in flight', async () => {
+    const { controller, oxy, urls, bodies } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+
+    const inFlight: Array<string | null> = [];
+    controller.subscribe((s) => inFlight.push(s.activatingContextId));
+
+    expect(await controller.activateContext('ctx-alice-org')).toBe(true);
+
+    expect(urls).toContain('/session/device/activate');
+    expect(bodies[urls.indexOf('/session/device/activate')]).toEqual({ contextId: 'ctx-alice-org' });
+    // Reported while running, cleared after — a row can show a spinner.
+    expect(inFlight).toContain('ctx-alice-org');
+    expect(controller.getSnapshot().activatingContextId).toBeNull();
+    expect(controller.getSnapshot().activeContext?.actor.userId).toBe('alice');
+  });
+
+  it('refuses a second activation while one is in flight', async () => {
+    const { controller, oxy } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+
+    const first = controller.activateContext('ctx-alice-org');
+    expect(await controller.activateContext('ctx-nate-org')).toBe(false);
+    expect(await first).toBe(true);
+  });
+
+  it('surfaces an activation failure as a dialog error without wedging the flag', async () => {
+    const { controller, oxy, sc } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+    // A stale context id is an ordinary outcome, not a bug: the server 404s and
+    // heals the row away.
+    jest.spyOn(sc, 'activateContext').mockRejectedValue(new Error('Context not on this device'));
+
+    expect(await controller.activateContext('ctx-gone')).toBe(false);
+
+    expect(controller.getSnapshot().error).toBe('Context not on this device');
+    expect(controller.getSnapshot().activatingContextId).toBeNull();
+  });
+
+  it('keeps rendering the flat list when the directory read fails', async () => {
+    const oxy = makeOxy();
+    const sc = new TestSessionClient({
+      makeRequest: jest.fn(async (_method: string, url: string) => {
+        if (url === '/session/device/directory') throw new Error('boom');
+        return undefined;
+      }),
+      getBaseURL: () => 'http://test.invalid',
+      getAccessToken: () => 'token',
+      getDeviceCredential: () => null,
+      onTokensChanged: () => () => undefined,
+      setTokens: jest.fn(),
+      getCurrentAccountId: () => null,
+    });
+    const controller = createAccountDialogController({
+      oxyServices: oxy as unknown as OxyServices,
+      sessionClient: sc,
+      clientId: 'oxy_dk_test',
+      commitSession: jest.fn().mockResolvedValue(undefined),
+      onSignedIn: jest.fn(),
+    });
+    sc.set(state([{ accountId: 'a1', sessionId: 's1' }], 'a1'));
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([user('a1')]);
+
+    await controller.refresh();
+
+    // Degraded, not blank: a directory outage must not take the switcher down
+    // while the compatibility lane can still answer.
+    const snap = controller.getSnapshot();
+    expect(snap.directory).toBeNull();
+    expect(snap.accounts.map((r) => r.accountId)).toEqual(['a1']);
+    expect(snap.error).toBeNull();
+  });
+
+  it('makes no directory call while signed out', async () => {
+    const { controller, oxy, urls } = directoryHarness(null);
+    oxy.getAccessToken.mockReturnValue(null);
+    oxy.listAccounts.mockResolvedValue([]);
+
+    await controller.refresh();
+
+    expect(urls).not.toContain('/session/device/directory');
+    expect(controller.getSnapshot().directory).toBeNull();
   });
 });
 
