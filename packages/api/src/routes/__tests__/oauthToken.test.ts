@@ -300,7 +300,7 @@ beforeEach(() => {
 });
 
 describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
-  it('returns a FLAT token document (no `data` wrapper) for a PKCE public client', async () => {
+  it('returns a FLAT token document without device credentials for a third-party client', async () => {
     const res = await requestForm(pkceParams());
 
     expect(res.status).toBe(200);
@@ -310,9 +310,10 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
       token_type: 'Bearer',
       expires_in: 900,
       session_id: 'sess-1',
-      deviceId: 'device-1',
-      deviceSecret: 'device-secret-1',
     });
+    expect(res.body).not.toHaveProperty('deviceId');
+    expect(res.body).not.toHaveProperty('deviceSecret');
+    expect(mockFinalizeDeviceLogin).not.toHaveBeenCalled();
     expect(res.body).not.toHaveProperty('data');
     // The zero-cookie transport hands out no refresh token.
     expect(res.body).not.toHaveProperty('refresh_token');
@@ -320,6 +321,22 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
     const user = res.body.user as { id: string; name: { displayName?: string } };
     expect(user.id).toBe(defaultSubjectId);
     expect(user.name.displayName).toBe('Ada Lovelace');
+  });
+
+  it('returns device restore credentials only for a trusted first-party client', async () => {
+    const { clientId } = await client({}, { type: 'first_party' });
+
+    const res = await requestForm(pkceParams({ client_id: clientId }));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      deviceId: 'device-1',
+      deviceSecret: 'device-secret-1',
+    });
+    expect(mockFinalizeDeviceLogin).toHaveBeenCalledWith({
+      session: { sessionId: 'sess-1', deviceId: 'device-1' },
+      userId: defaultSubjectId,
+    });
   });
 
   it('sends the credentials with `Cache-Control: no-store` (§5.1)', async () => {
@@ -697,9 +714,10 @@ describe('POST /auth/oauth/token — security properties', () => {
   });
 
   it('fails closed with server_error when deviceSecret minting fails', async () => {
+    const { clientId } = await client({}, { type: 'first_party' });
     mockFinalizeDeviceLogin.mockResolvedValueOnce({});
 
-    const res = await requestForm(pkceParams());
+    const res = await requestForm(pkceParams({ client_id: clientId }));
 
     expect(res.status).toBe(500);
     // Still RFC-shaped, and still says nothing about what broke internally.
