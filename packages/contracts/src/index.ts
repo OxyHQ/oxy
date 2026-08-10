@@ -461,6 +461,26 @@ export type {
 } from './deviceSession';
 
 export {
+    deviceContextRelationshipSchema,
+    deviceDirectoryProfileSchema,
+    deviceAccountContextSchema,
+    devicePrincipalSchema,
+    deviceDirectorySchema,
+    deviceActivateRequestSchema,
+    deviceActivateResponseSchema,
+} from './deviceDirectory';
+
+export type {
+    DeviceContextRelationship,
+    DeviceDirectoryProfile,
+    DeviceAccountContext,
+    DevicePrincipal,
+    DeviceDirectory,
+    DeviceActivateRequest,
+    DeviceActivateResponse,
+} from './deviceDirectory';
+
+export {
     // Schemas
     loginResultSchema,
 } from './deviceBoot';
