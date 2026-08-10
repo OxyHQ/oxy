@@ -18,9 +18,7 @@ import {
 import { mutationKeys } from './mutationKeys';
 import { useOxy } from '../../context/OxyContext';
 import { toast } from '@oxyhq/bloom/toast';
-import { refreshAvatarInStore } from '../../utils/avatarUtils';
 import { useAuthStore } from '../../stores/authStore';
-import { useAccountStore } from '../../stores/accountStore';
 import {
   clearedFieldsFromProfileUpdate,
   upsertCachedUser,
@@ -114,18 +112,6 @@ export const useUpdateProfile = () => {
         cleared: cleared.length > 0 ? cleared : undefined,
       });
 
-      // Avatar add/remove: keep the account switcher in sync with profile writes
-      if (typeof updates.avatar === 'string' && activeSessionId) {
-        if (updates.avatar && oxyServices) {
-          refreshAvatarInStore(activeSessionId, updates.avatar, oxyServices);
-        } else {
-          useAccountStore.getState().updateAccount(activeSessionId, {
-            avatar: undefined,
-            avatarUrl: undefined,
-          });
-        }
-      }
-
       // Invalidate all related queries so every consumer (the account dialog,
       // session lists, managed accounts, etc.) refetches the fresh profile.
       // This is critical right after `username` is set the first time, when
@@ -209,11 +195,6 @@ export const useUploadAvatar = () => {
       // Update authStore so frontend components see the changes immediately
       useAuthStore.getState().setUser(data);
       
-      // Refresh accountStore with cache-busted URL if avatar was updated
-      if (data?.avatar && activeSessionId && oxyServices) {
-        refreshAvatarInStore(activeSessionId, data.avatar, oxyServices);
-      }
-
       // Invalidate all related queries to refresh everywhere, including the
       // sessions cache so other-account avatars update too.
       invalidateUserQueries(queryClient);

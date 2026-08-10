@@ -34,7 +34,6 @@ export { default as ManageAccountScreen } from './screens/ManageAccountScreen';
 
 // Stores
 export { useAuthStore } from './stores/authStore';
-export { useAccountStore } from './stores/accountStore';
 
 // Error handler utilities
 export {

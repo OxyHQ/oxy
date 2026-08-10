@@ -7,6 +7,7 @@ import {
   deviceStateToClientSessions,
   mergeSessions as mergeSessionLists,
   normalizeAndSortSessions,
+  normalizeUserIdentity,
   resolveActiveContext,
   sessionsArraysEqual,
 } from '@oxyhq/core';
@@ -337,11 +338,24 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
     touch();
   }
 
+  /**
+   * The one place a `User` becomes THE subject — and the one place identity is
+   * normalised, so a profile arriving as `_id` from one lane and `id` from
+   * another can never produce two accounts that are the same person.
+   */
   function setAccountFact(user: User | null): void {
+    if (user === null) {
+      if (facts.account === null) {
+        return;
+      }
+      facts.account = null;
+      touch();
+      return;
+    }
     if (facts.account === user) {
       return;
     }
-    facts.account = user;
+    facts.account = normalizeUserIdentity(user);
     touch();
   }
 

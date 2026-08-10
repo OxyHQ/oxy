@@ -49,7 +49,6 @@ export { IdentityBoundSessionError } from './ui/session/identityBinding';
 // Zustand stores
 // ---------------------------------------------------------------------------
 export { useAuthStore } from './ui/stores/authStore';
-export { useAccountStore } from './ui/stores/accountStore';
 export {
     useAssetStore,
     useAssets as useAssetsStore,

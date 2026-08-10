@@ -44,7 +44,6 @@ export { default as AccountSettingsScreen } from './screens/AccountSettingsScree
 
 // Stores
 export { useAuthStore } from './stores/authStore';
-export { useAccountStore } from './stores/accountStore';
 
 // Error handlers (pure functions)
 export {

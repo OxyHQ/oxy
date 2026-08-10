@@ -17,7 +17,8 @@ import { upsertCachedUser, upsertCachedUsers } from '../userCache';
 import { patchCachedUserRelationship } from '../userCacheRelationship';
 import type { CacheableUser } from '../userCache';
 import { queryKeys } from '../queryKeys';
-import { useAuthStore } from '../../../stores/authStore';
+import { bindAuthStoreToRuntime, useAuthStore } from '../../../stores/authStore';
+import { createTestRuntime } from '../../../../../__tests__/helpers/runtimeHarness';
 
 function makeClient(): QueryClient {
   return new QueryClient({
@@ -35,9 +36,19 @@ function readByUsername(qc: QueryClient, username: string, viewerId: string): Ca
   return qc.getQueryData<CacheableUser>(queryKeys.users.byUsername(username, viewerId));
 }
 
+// `useAuthStore` projects the runtime now, so the viewer these cases read has
+// to live somewhere: bind a runtime per test and let the writes go through it.
+let unbindAuthStore: (() => void) | null = null;
+
 beforeEach(() => {
+  unbindAuthStore = bindAuthStoreToRuntime(createTestRuntime());
   // Default to anonymous viewer unless a test sets one.
   useAuthStore.setState({ user: null });
+});
+
+afterEach(() => {
+  unbindAuthStore?.();
+  unbindAuthStore = null;
 });
 
 describe('upsertCachedUser — cold slot', () => {
