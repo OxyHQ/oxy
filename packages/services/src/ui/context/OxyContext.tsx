@@ -75,7 +75,7 @@ import {
 } from '../session';
 import type {
   OxyContextState,
-  OxyContextProviderProps,
+  OxyRuntimeProviderProps,
   CommitInput,
 } from './oxyContextTypes';
 import { DEFAULT_SESSION_VALIDITY_MS } from './oxyContextHelpers';
@@ -93,11 +93,22 @@ import {
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useOxyAccountGraph } from './useOxyAccountGraph';
 
-export type { OxyContextState, OxyContextProviderProps } from './oxyContextTypes';
+export type { OxyContextState, OxyRuntimeProviderProps } from './oxyContextTypes';
 
-const OxyContext = createContext<OxyContextState | null>(null);
+const OxyRuntimeContext = createContext<OxyContextState | null>(null);
 
-export const OxyProvider: React.FC<OxyContextProviderProps> = ({
+/**
+ * The SDK's internal runtime provider — the session/account state machine that
+ * backs `useOxy()`.
+ *
+ * This is NOT the component consumers mount. The one public composition root is
+ * `OxyProvider` (`../components/OxyProvider`), which mounts this alongside the
+ * QueryClient, Bloom's dialog/surface/toast hosts, safe areas, the gesture root
+ * and the keyboard provider. Naming both of them `OxyProvider` (as this file
+ * used to) made every error message, stack frame and doc reference ambiguous —
+ * see ADR 0004.
+ */
+export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   children,
   oxyServices: providedOxyServices,
   baseURL,
@@ -121,7 +132,7 @@ export const OxyProvider: React.FC<OxyContextProviderProps> = ({
       // link builder at the central auth host; there is no cold-boot redirect.
       oxyServicesRef.current = new OxyServices({ baseURL, authWebUrl, authRedirectUri });
     } else {
-      throw new Error('Either oxyServices or baseURL must be provided to OxyContextProvider');
+      throw new Error('Either oxyServices or baseURL must be provided to OxyProvider');
     }
   }
   const oxyServices = oxyServicesRef.current;
@@ -1327,83 +1338,44 @@ export const OxyProvider: React.FC<OxyContextProviderProps> = ({
     ],
   );
 
-  return <OxyContext.Provider value={contextValue}>{children}</OxyContext.Provider>;
+  return <OxyRuntimeContext.Provider value={contextValue}>{children}</OxyRuntimeContext.Provider>;
 };
 
-export const OxyContextProvider = OxyProvider;
+const PROVIDER_MISSING_ERROR_MESSAGE =
+  'useOxy() was called outside <OxyProvider>. Mount <OxyProvider clientId="…"> above this component, ' +
+  'or use useOptionalOxy() if this component legitimately renders both inside and outside the provider.';
+
+export class OxyProviderMissingError extends Error {
+  readonly code = 'oxy_provider_missing';
+
+  constructor() {
+    super(PROVIDER_MISSING_ERROR_MESSAGE);
+    this.name = 'OxyProviderMissingError';
+  }
+}
 
 /**
- * Loading-state stub used when `useOxy()` is called outside an OxyProvider.
- * All async methods reject with a clear error so misuse is caught early.
+ * The base runtime hook. THROWS when no `<OxyProvider>` is mounted.
+ *
+ * It used to return a fabricated forever-loading runtime — `isLoading: true`,
+ * `isPrivateApiPending: true`, every method a rejecting no-op — which turned a
+ * missing provider into a UI that spins forever with nothing in the console.
+ * Failing here names the mistake at the exact component that made it (ADR 0004).
+ *
+ * A component that legitimately renders both inside and outside the provider
+ * uses {@link useOptionalOxy} instead.
  */
-const PROVIDER_MISSING_ERROR_MESSAGE =
-  'OxyProvider is not mounted. Wrap your app in <OxyProvider> before calling useOxy() methods.';
-
-const rejectMissingProvider = <T,>(): Promise<T> =>
-  Promise.reject(new Error(PROVIDER_MISSING_ERROR_MESSAGE));
-
-const LOADING_STATE_OXY_SERVICES = new OxyServices({ baseURL: 'about:blank' });
-
-const LOADING_STATE: OxyContextState = {
-  user: null,
-  sessions: [],
-  activeSessionId: null,
-  isAuthenticated: false,
-  isLoading: true,
-  isTokenReady: false,
-  hasAccessToken: false,
-  canUsePrivateApi: false,
-  isPrivateApiPending: true,
-  isAuthResolved: false,
-  isStorageReady: false,
-  sessionMode: 'account',
-  webAuthMode: 'popup',
-  error: null,
-  currentLanguage: 'en-US',
-  currentLanguages: [],
-  currentLanguageMetadata: null,
-  currentLanguageName: 'English (United States)',
-  currentNativeLanguageName: 'English (United States)',
-  hasIdentity: () => Promise.resolve(false),
-  getPublicKey: () => Promise.resolve(null),
-  signIn: () => rejectMissingProvider<User>(),
-  signInWithPasskey: () => rejectMissingProvider<void>(),
-  registerWithPasskey: () => rejectMissingProvider<void>(),
-  addPasskey: () => rejectMissingProvider<void>(),
-  removePasskey: () => rejectMissingProvider<void>(),
-  revokeSuspiciousSignIn: () => rejectMissingProvider<void>(),
-  handleWebSession: () => rejectMissingProvider<void>(),
-  startWebOAuthSignIn: () => rejectMissingProvider<WebOAuthSignInResult>(),
-  logout: () => rejectMissingProvider<void>(),
-  logoutAll: () => rejectMissingProvider<void>(),
-  switchSession: () => rejectMissingProvider<User>(),
-  removeSession: () => rejectMissingProvider<void>(),
-  refreshSessions: () => rejectMissingProvider<void>(),
-  setLanguage: () => rejectMissingProvider<void>(),
-  getDeviceSessions: () => Promise.resolve([]),
-  logoutAllDeviceSessions: () => rejectMissingProvider<void>(),
-  updateDeviceName: () => rejectMissingProvider<void>(),
-  clearSessionState: () => rejectMissingProvider<void>(),
-  clearAllAccountData: () => rejectMissingProvider<void>(),
-  storageKeyPrefix: 'oxy_session',
-  clientId: null,
-  oxyServices: LOADING_STATE_OXY_SERVICES,
-  sessionClient: null,
-  openAvatarPicker: () => {},
-  accountDialogController: null,
-  isAccountDialogOpen: false,
-  openAccountDialog: () => {},
-  closeAccountDialog: () => {},
-  accounts: [],
-  switchToAccount: () => rejectMissingProvider<void>(),
-  refreshAccounts: () => rejectMissingProvider<void>(),
-  createAccount: () => rejectMissingProvider<import('@oxyhq/core').AccountNode>(),
-};
-
 export const useOxy = (): OxyContextState => {
-  const context = useContext(OxyContext);
+  const context = useContext(OxyRuntimeContext);
   if (!context) {
-    return LOADING_STATE;
+    throw new OxyProviderMissingError();
   }
   return context;
 };
+
+/**
+ * `useOxy()` for the rare component that renders both inside and outside the
+ * provider — returns `null` instead of throwing. Callers must handle `null`;
+ * there is no fabricated runtime to fall back on.
+ */
+export const useOptionalOxy = (): OxyContextState | null => useContext(OxyRuntimeContext);

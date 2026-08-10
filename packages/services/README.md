@@ -681,7 +681,7 @@ const metadata = getLanguageMetadata('es-ES');
 
 ### Common Issues
 
-#### 1. "useOxy must be used within an OxyContextProvider"
+#### 1. "useOxy() was called outside &lt;OxyProvider&gt;"
 
 **Solution**: Wrap your app with `OxyProvider`
 

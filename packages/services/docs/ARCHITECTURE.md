@@ -23,7 +23,8 @@ Related docs:
 
 `OxyProvider` ([src/ui/components/OxyProvider.tsx](../src/ui/components/OxyProvider.tsx)) is the app root. It mounts:
 
-`OxyContextProvider` — auth/session state machine. Implementation split across:
+`OxyRuntimeProvider` — the internal auth/session state machine (never mounted by
+consumers; `OxyProvider` is the only public provider). Implementation split across:
 
 | Module | Role |
 |--------|------|

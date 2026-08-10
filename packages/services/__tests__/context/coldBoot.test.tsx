@@ -56,7 +56,7 @@ jest.mock('../../src/ui/session', () => {
   };
 });
 
-import { OxyContextProvider, useOxy } from '../../src/ui/context/OxyContext';
+import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 
@@ -124,9 +124,9 @@ function renderProvider(oxyServices: unknown): RenderResult {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyContextProvider oxyServices={oxyServices as never} baseURL={API_BASE_URL} clientId="oxy_test_client">
+      <OxyRuntimeProvider oxyServices={oxyServices as never} baseURL={API_BASE_URL} clientId="oxy_test_client">
         <Capture />
-      </OxyContextProvider>
+      </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }

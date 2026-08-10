@@ -42,15 +42,21 @@ const startWebOAuthSignIn = jest.fn<Promise<WebOAuthSignInResult>, [StartWebOAut
 let clientId: string | null = 'oxy_dk_test';
 let webAuthMode: WebAuthMode = 'popup';
 
+const mockRuntime = () => ({
+  openAccountDialog,
+  oxyServices: { getPublicApplication },
+  clientId,
+  webAuthMode,
+  startWebOAuthSignIn,
+  currentLanguage: 'en-US',
+});
+
 jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
-  useOxy: () => ({
-    openAccountDialog,
-    oxyServices: { getPublicApplication },
-    clientId,
-    webAuthMode,
-    startWebOAuthSignIn,
-  }),
+  useOxy: () => mockRuntime(),
+  // The button's label goes through `useI18n()`, the one hook that reads the
+  // runtime optionally.
+  useOptionalOxy: () => mockRuntime(),
 }));
 
 jest.mock('../../src/ui/stores/authStore', () => ({
