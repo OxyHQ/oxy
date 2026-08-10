@@ -62,7 +62,7 @@ import { webauthnCredentials } from '../db/schema/webauthnCredentials';
 import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
-import { BadRequestError, ConflictError, UnauthorizedError, InternalServerError } from '../utils/error';
+import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError, InternalServerError } from '../utils/error';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { isOxyApexOrigin } from '../utils/origin';
@@ -113,6 +113,11 @@ interface WebauthnAccount {
   id: string;
   username: string | null;
   avatar: string | null;
+}
+
+/** Managed accounts are operated only through the audited account-switch flow. */
+function isPersonalAccount(kind: string): boolean {
+  return kind === 'personal';
 }
 
 /**
@@ -475,12 +480,15 @@ router.post(
     if (bearerUserId) {
       // Linking branch: the signed-in account adds another passkey.
       const [account] = await db
-        .select({ id: users.id, username: users.username })
+        .select({ id: users.id, username: users.username, kind: users.kind })
         .from(users)
         .where(eq(users.id, bearerUserId))
         .limit(1);
       if (!account) {
         throw new UnauthorizedError('User not found');
+      }
+      if (!isPersonalAccount(account.kind)) {
+        throw new ForbiddenError('Passkeys can only be linked to personal accounts');
       }
       userName = account.username || bearerUserId;
       userHandle = bearerUserId;
@@ -630,12 +638,15 @@ router.post(
     if (bearerUserId) {
       // ---- Linking branch --------------------------------------------------
       const [account] = await db
-        .select({ id: users.id })
+        .select({ id: users.id, kind: users.kind })
         .from(users)
         .where(eq(users.id, bearerUserId))
         .limit(1);
       if (!account) {
         throw new UnauthorizedError('User not found');
+      }
+      if (!isPersonalAccount(account.kind)) {
+        throw new ForbiddenError('Passkeys can only be linked to personal accounts');
       }
 
       // The credential row and its `user_auth_methods` row describe ONE fact, so
@@ -809,7 +820,7 @@ router.post(
       // Always resolve the user (an unparseable/nonexistent username simply finds
       // nothing — never a distinct rejection that would leak "no such account").
       const [account] = await db
-        .select({ id: users.id })
+        .select({ id: users.id, kind: users.kind })
         .from(users)
         .where(usernameMatches(normalizedUsername))
         .limit(1);
@@ -818,20 +829,21 @@ router.post(
       const decoy = decoyAllowCredentials(normalizedUsername);
       // Always issue exactly one credential query. For a missing user a throwaway
       // id keeps the query shape/cost identical while returning no rows.
-      const probeUserId = account?.id ?? crypto.randomUUID();
+      const personalAccount = account && isPersonalAccount(account.kind) ? account : undefined;
+      const probeUserId = personalAccount?.id ?? crypto.randomUUID();
       const credentials = await db
         .select({ credentialID: webauthnCredentials.credentialID, transports: webauthnCredentials.transports })
         .from(webauthnCredentials)
         .where(eq(webauthnCredentials.userId, probeUserId));
 
-      if (account && credentials.length > 0) {
+      if (personalAccount && credentials.length > 0) {
         allowCredentials = credentials.map((cred) => ({
           id: cred.credentialID,
           transports: toTransports(cred.transports),
         }));
         // Bind the challenge to the resolved account — verify asserts the presented
         // credential's owner equals this id (user A's challenge ≠ user B's key).
-        challengeUserId = account.id;
+        challengeUserId = personalAccount.id;
       } else {
         // Unknown username OR an account with no passkey → decoy. Its challenge is
         // stored PRE-BURNED (`used: true`) instead of bound to a throwaway account
@@ -1005,12 +1017,18 @@ router.post(
       .where(eq(webauthnCredentials.id, credential.id));
 
     const [account] = await db
-      .select({ id: users.id, username: users.username, avatar: users.avatar })
+      .select({ id: users.id, username: users.username, avatar: users.avatar, kind: users.kind })
       .from(users)
       .where(eq(users.id, owner))
       .limit(1);
     if (!account) {
       throw new UnauthorizedError('User not found');
+    }
+    if (!isPersonalAccount(account.kind)) {
+      // Managed accounts must remain bound to an operator session whose
+      // `account:act_as` permission is revalidated; a passkey cannot encode that
+      // delegation, so direct authentication is deliberately unavailable.
+      throw new UnauthorizedError('Invalid passkey');
     }
 
     await mintWebauthnSession(req, res, account, envelope);

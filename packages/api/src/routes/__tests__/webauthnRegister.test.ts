@@ -148,10 +148,10 @@ function freshCredentialId(): string {
 }
 
 /** A real `users` row — every `user_id` in this suite carries a foreign key. */
-async function account(username?: string): Promise<string> {
+async function account(username?: string, kind: 'personal' | 'organization' = 'personal'): Promise<string> {
   const [row] = await getDb()
     .insert(users)
-    .values(username === undefined ? {} : { username })
+    .values({ ...(username === undefined ? {} : { username }), kind })
     .returning({ id: users.id });
   return row.id;
 }
@@ -349,6 +349,21 @@ describe('POST /webauthn/register/options', () => {
     const stored = await storedChallenge(currentChallenge);
     expect(stored.userId).toBe(userId);
     expect(stored.used).toBe(false);
+  });
+
+  it('rejects linking a passkey to a managed account bearer', async () => {
+    mockBearerUserId = await account(freshUsername(), 'organization');
+
+    const res = await request(
+      server,
+      'POST',
+      '/webauthn/register/options',
+      {},
+      { authorization: 'Bearer valid-token' },
+    );
+
+    expect(res.status).toBe(403);
+    expect(await storedChallenge(currentChallenge)).toBeUndefined();
   });
 
   it('offers residentKey:preferred + UV:preferred and does NOT pin authenticatorAttachment (roaming/hardware keys can enrol)', async () => {
@@ -561,6 +576,30 @@ describe('POST /webauthn/register/verify — signup branch', () => {
 });
 
 describe('POST /webauthn/register/verify — linking branch', () => {
+  it('rejects a managed account even if a linking challenge already exists', async () => {
+    const managedId = await account(freshUsername(), 'organization');
+    mockBearerUserId = managedId;
+    await getDb().insert(webauthnChallenges).values({
+      challenge: currentChallenge,
+      type: 'registration',
+      userId: managedId,
+      expiresAt: new Date(Date.now() + 60_000),
+      used: false,
+    });
+
+    const res = await request(
+      server,
+      'POST',
+      '/webauthn/register/verify',
+      { response: registrationResponse() },
+      { authorization: 'Bearer valid-token' },
+    );
+
+    expect(res.status).toBe(403);
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+    expect(await storedAuthMethods(managedId)).toHaveLength(0);
+  });
+
   it('links the passkey to the bearer account (credential row + auth-method row + cache invalidate)', async () => {
     const userId = await account(freshUsername());
     mockBearerUserId = userId;
