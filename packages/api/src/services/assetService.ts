@@ -455,7 +455,11 @@ export class AssetService {
         return variant;
       }
       if (this.variantService.isVideoMp4Rendition(variantType)) {
-        return this.variantService.ensureVideoMp4Rendition(fileObj, variantType);
+        // MP4 renditions are generated during the trusted upload pipeline. Do
+        // not generate a missing rendition here: ensureVariant is also reached
+        // from unauthenticated public media routes, where transcoding on demand
+        // would let arbitrary callers consume unbounded FFmpeg CPU and memory.
+        throw new Error(`Video rendition ${variantType} is not available`);
       }
       // A SIZE name (`thumb`, `w320`, …) asked of a video means "an image of
       // this asset at that size", which for a video is a render of its poster
