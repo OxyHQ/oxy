@@ -781,13 +781,27 @@ class DeviceSessionService {
    * session that just moved (which stays active on its new device). Best-effort
    * cleanup: a no-op when the row is absent or the account is not listed. Never
    * throws for a missing account so callers can fire it without guarding.
+   *
+   * Returns the OLD device's new state when it actually detached something, and
+   * null when it was a no-op. This method advances `revision`, so the caller has
+   * to announce it: a silent advance leaves every client on the old device
+   * holding a revision the server has moved past, with no signal to re-fetch and
+   * no event that would ever arrive later — the device would only converge on
+   * its next mutation, which for a graveyard device may be never. The broadcast
+   * lives at the call site rather than here because every socket emit in this
+   * codebase does, and because the caller is the only party that knows the
+   * detach was part of a larger operation.
    */
-  async detachMigratedAccount(deviceId: string, accountId: string, preserveSessionId: string): Promise<void> {
+  async detachMigratedAccount(
+    deviceId: string,
+    accountId: string,
+    preserveSessionId: string
+  ): Promise<DeviceSessionState | null> {
     const db = getDb();
     const current = await this.load(db, deviceId);
-    if (!current) return;
+    if (!current) return null;
     const entry = current.accounts.find((a) => a.accountId === accountId);
-    if (!entry) return;
+    if (!entry) return null;
 
     // Deactivate a DIFFERENT (genuinely stale) session the row referenced —
     // never the one that just migrated and is now live on the caller's device.
@@ -805,7 +819,7 @@ class DeviceSessionService {
       ? current.activeAccountId
       : (remaining[0] ? remaining[0].accountId : null);
 
-    await db.transaction(async (tx) => {
+    const updated = await db.transaction(async (tx) => {
       await tx
         .delete(deviceAccountContexts)
         .where(
@@ -822,7 +836,12 @@ class DeviceSessionService {
           revision: sql`${deviceSessions.revision} + 1`,
         })
         .where(eq(deviceSessions.id, current.id));
+      return this.load(tx, deviceId);
     });
+    if (!updated) {
+      throw new Error(`device_sessions row for "${deviceId}" vanished during detachMigratedAccount`);
+    }
+    return projectState(updated);
   }
 
   /**
