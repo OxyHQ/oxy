@@ -156,6 +156,43 @@ function patchMember(
   });
 }
 
+function inviteMember(
+  accountId: string,
+  payload: Record<string, unknown>
+): Promise<JsonResponse> {
+  const address = server.address() as AddressInfo;
+  const body = JSON.stringify(payload);
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: '127.0.0.1',
+        port: address.port,
+        path: `/accounts/${accountId}/members`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          Authorization: 'Bearer user-token',
+        },
+      },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () => {
+          resolve({
+            status: res.statusCode ?? 0,
+            body: raw ? (JSON.parse(raw) as JsonResponse['body']) : {},
+          });
+        });
+      }
+    );
+    req.on('error', reject);
+    req.end(body);
+  });
+}
+
 async function rowById(memberId: string) {
   const [row] = await getDb()
     .select()
@@ -267,6 +304,37 @@ describe('per-member permission editing', () => {
 
     expect(res.status).toBe(403);
     expect((await rowById(targetMemberId)).permissionGrants).toEqual([]);
+  });
+
+  test('a role change may not restore a permission revoked from the actor', async () => {
+    const { org, adminUserId, adminMemberId, targetMemberId } = await seedOrg();
+    await getDb()
+      .update(accountMembers)
+      .set({ permissionRevokes: ['credentials:create'] })
+      .where(eq(accountMembers.id, adminMemberId));
+    actingUserId = adminUserId;
+
+    const res = await patchMember(org, targetMemberId, { role: 'developer' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toContain('credentials:create');
+    expect((await rowById(targetMemberId)).role).toBe('viewer');
+  });
+
+  test('an invite may not restore a permission revoked from the actor', async () => {
+    const { org, adminUserId, adminMemberId } = await seedOrg();
+    const invitee = uniqueUsername('invitee');
+    await getDb().insert(users).values({ color: 'teal', username: invitee, kind: 'personal' });
+    await getDb()
+      .update(accountMembers)
+      .set({ permissionRevokes: ['account:act_as'] })
+      .where(eq(accountMembers.id, adminMemberId));
+    actingUserId = adminUserId;
+
+    const res = await inviteMember(org, { usernameOrEmail: invitee, role: 'editor' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toContain('account:act_as');
   });
 
   test('a grant BEYOND the actor is refused even when bundled with a legal one', async () => {
@@ -420,10 +488,10 @@ describe('per-member permission editing', () => {
     expect(permissionsForAccountRole('developer')).not.toContain('members:update');
     actingUserId = targetUserId;
 
-    const res = await patchMember(org, victimMemberId, { role: 'billing' });
+    const res = await patchMember(org, victimMemberId, { role: 'developer' });
 
     expect(res.status).toBe(200);
-    expect(res.body.member?.role).toBe('billing');
+    expect(res.body.member?.role).toBe('developer');
   });
 
   test('an INHERITED actor is bound by the same rules as a direct one', async () => {
