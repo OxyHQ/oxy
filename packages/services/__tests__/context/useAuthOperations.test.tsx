@@ -11,10 +11,10 @@
  * so the test exercises the orchestration logic only — actual network, crypto,
  * and persistence belong to `@oxyhq/core` and are covered by its own tests.
  *
- * `logout` / `logoutAll` route SERVER-side revocation through a mocked
- * `SessionClient` (device-first) rather than the bearer/cookie logout
- * endpoints. A genuine FULL sign-out additionally clears the persisted refresh
- * family via `store.clear()` (`clearPersistedAuthSafe`).
+ * `logout` routes server-side revocation through a mocked `SessionClient`.
+ * `logoutAll` combines user-wide revocation with device-set removal. A genuine
+ * full sign-out additionally clears the persisted device credential via
+ * `store.clear()` (`clearPersistedAuthSafe`).
  */
 
 import { renderHook, act } from '@testing-library/react';
@@ -61,6 +61,7 @@ interface FakeServices {
   setTokens: jest.Mock;
   getCurrentUser: jest.Mock;
   logoutSession: jest.Mock;
+  logoutAllSessions: jest.Mock;
 }
 
 const makeOxyServices = (overrides: Partial<FakeServices> = {}): FakeServices => ({
@@ -91,6 +92,7 @@ const makeOxyServices = (overrides: Partial<FakeServices> = {}): FakeServices =>
   // Still used by `performSignIn`'s same-user duplicate-session dedup path —
   // unrelated to the SessionClient-routed `logout`/`logoutAll`.
   logoutSession: jest.fn(async () => undefined),
+  logoutAllSessions: jest.fn(async () => undefined),
   ...overrides,
 });
 
@@ -555,7 +557,7 @@ describe('useAuthOperations.logoutAll', () => {
     }));
   });
 
-  it('revokes every device account via SessionClient and clears local state + the persisted store on success', async () => {
+  it('revokes remote sessions before every device account and clears local state + the persisted store on success', async () => {
     const sessionClient = buildFakeSessionClient([
       { accountId: 'acc-1', sessionId: 'session-1', authuser: 0 },
       { accountId: 'acc-2', sessionId: 'session-2', authuser: 1 },
@@ -564,11 +566,29 @@ describe('useAuthOperations.logoutAll', () => {
     await act(async () => {
       await helpers.result.current.logoutAll();
     });
+    expect(helpers.oxyServices.logoutAllSessions).toHaveBeenCalledWith('session-1');
     expect(sessionClient.signOut).toHaveBeenCalledWith({ all: true });
     expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
     // logoutAll is ALWAYS a full sign-out → the persisted device credential is
     // cleared so the next cold boot finds nothing to restore.
     expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not perform device sign-out when all-device revocation fails', async () => {
+    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    const helpers = setup({
+      activeSessionId: 'session-1',
+      sessionClient,
+      oxyServices: { logoutAllSessions: jest.fn(async () => { throw new Error('global revoke failed'); }) },
+    });
+
+    await expect(act(async () => {
+      await helpers.result.current.logoutAll();
+    })).rejects.toThrow('global revoke failed');
+
+    expect(sessionClient.signOut).not.toHaveBeenCalled();
+    expect(helpers.clearSessionState).not.toHaveBeenCalled();
+    expect(helpers.store.clear).not.toHaveBeenCalled();
   });
 
   it('re-throws and reports when SessionClient.signOut({ all: true }) fails', async () => {
