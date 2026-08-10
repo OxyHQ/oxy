@@ -9,31 +9,32 @@
 ## Run:    docker run --env-file .env -p 8080:8080 oxy-api
 ##
 
-FROM node:20-alpine AS builder
-
-RUN npm install -g bun
+FROM alpine:3.22 AS workspace-manifests
 
 WORKDIR /app
 
-# Copy workspace root and override workspaces to only include api + core +
-# protocol + contracts + federation. `@oxyhq/api` depends on `@oxyhq/contracts` +
-# `@oxyhq/protocol` + `@oxyhq/federation` (workspace:*); core is retained for the
-# admin scripts that import packages/core/src/* at runtime (and core depends on
-# protocol).
-# Remove bun.lock since the workspace change invalidates it — bun will
-# resolve fresh dependencies (still deterministic from package.json versions).
-COPY package.json ./
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
+# Keep the committed monorepo lockfile and every workspace manifest together so
+# Bun can validate the lockfile, while excluding unrelated workspace source.
+COPY package.json bun.lock ./
+COPY packages/ packages/
+RUN find packages -type f ! -name package.json -delete
 
-# Copy package.json files for dependency resolution
-COPY packages/api/package.json packages/api/
-COPY packages/core/package.json packages/core/
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/federation/package.json packages/federation/
+FROM node:20-alpine AS builder
 
-# Install dependencies (no lockfile — workspace subset doesn't match the full monorepo lock)
-RUN bun install
+RUN npm install -g bun@1.3.14
+
+WORKDIR /app
+
+# Validate the committed lockfile against the complete workspace manifest set,
+# but materialize only the API dependency closure. This avoids frontend-only
+# dependencies (notably esbuild) in the arm64 production build.
+COPY --from=workspace-manifests /app/ ./
+RUN bun install --frozen-lockfile \
+    --filter @oxyhq/contracts \
+    --filter @oxyhq/protocol \
+    --filter @oxyhq/federation \
+    --filter @oxyhq/core \
+    --filter @oxyhq/api
 
 # Copy source code
 COPY packages/core/ packages/core/
@@ -56,21 +57,19 @@ RUN bun run --filter @oxyhq/api build
 FROM node:20-alpine
 
 RUN apk add --no-cache python3 make g++ ffmpeg curl
-RUN npm install -g bun
+RUN npm install -g bun@1.3.14
 
 WORKDIR /app
 
-# Copy workspace root and override workspaces
-COPY package.json ./
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
-COPY packages/api/package.json packages/api/
-COPY packages/core/package.json packages/core/
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/federation/package.json packages/federation/
+COPY --from=workspace-manifests /app/ ./
 
-# Install production dependencies
-RUN bun install --production
+# Install only the frozen production dependency closure used by the API.
+RUN bun install --production --frozen-lockfile \
+    --filter @oxyhq/contracts \
+    --filter @oxyhq/protocol \
+    --filter @oxyhq/federation \
+    --filter @oxyhq/core \
+    --filter @oxyhq/api
 
 # Copy built artifacts
 COPY --from=builder /app/packages/api/dist packages/api/dist
