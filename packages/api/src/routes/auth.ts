@@ -3095,17 +3095,21 @@ router.post(
       },
     );
 
-    const deviceExtras = await finalizeDeviceLogin({
-      session: { sessionId: session.sessionId, deviceId: session.deviceId },
-      userId,
-    });
-    if (!deviceExtras.deviceSecret) {
-      logger.error('[OAuth] Token exchange succeeded but deviceSecret mint failed', {
+    let deviceExtras: { deviceSecret: string } | undefined;
+    if (isTrustedApplication(app)) {
+      const finalized = await finalizeDeviceLogin({
+        session: { sessionId: session.sessionId, deviceId: session.deviceId },
         userId,
-        sessionId: session.sessionId,
-        deviceId: session.deviceId,
       });
-      throw OAuthError.serverError('Failed to finalize the device session.');
+      if (!finalized.deviceSecret) {
+        logger.error('[OAuth] Token exchange succeeded but deviceSecret mint failed', {
+          userId,
+          sessionId: session.sessionId,
+          deviceId: session.deviceId,
+        });
+        throw OAuthError.serverError('Failed to finalize the device session.');
+      }
+      deviceExtras = { deviceSecret: finalized.deviceSecret };
     }
 
     await getDb()
@@ -3126,10 +3130,12 @@ router.post(
       // requested one, which it can (the authorize step intersects the request
       // with the app's registered scopes). Omitted when the grant carries none.
       ...(grantedScopes.length > 0 ? { scope: grantedScopes.join(' ') } : {}),
-      // Oxy's device-first extras, permitted by §5.1 as additional parameters.
+      // The session id identifies this OAuth grant. Device restore credentials
+      // are first-party credentials and must never cross into third-party apps.
       session_id: session.sessionId,
-      deviceId: session.deviceId,
-      deviceSecret: deviceExtras.deviceSecret,
+      ...(deviceExtras
+        ? { deviceId: session.deviceId, deviceSecret: deviceExtras.deviceSecret }
+        : {}),
       user: userData,
     });
   })
