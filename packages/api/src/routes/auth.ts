@@ -830,16 +830,17 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   }
 
   // Authoritative anti-phishing signal for the Commons approval UI. True ONLY
-  // when a platform-trusted Application proved it is running on one of its OWN
-  // registered redirect origins. Native callers (no Origin) and untrusted /
-  // third-party apps are `false` — Commons warns the approver in that case. The
-  // guard above already rejected a trusted browser caller on a NON-registered
-  // origin, so reaching here with a trusted app + allowed origin is the only way
-  // this is true. This flag is never a gate by itself.
+  // when a platform-trusted Application proved the REQUEST came from one of its
+  // own registered redirect origins. `boundOrigin` may intentionally name the
+  // OAuth relying party while the request itself came from the IdP shell, so it
+  // must never be used as that proof: client IDs, redirect URIs and PKCE
+  // challenges are all public / caller-controlled. Native callers (no Origin)
+  // and untrusted / third-party apps are `false` and Commons warns the approver.
+  // This flag is never a gate by itself.
   const originVerified =
     isTrustedApplication(resolvedApp) &&
-    !!boundOrigin &&
-    applicationAllowsOrigin(resolvedApp, boundOrigin);
+    !!requestOriginHeader &&
+    applicationAllowsOrigin(resolvedApp, requestOriginHeader);
 
   // COARSE requester descriptor for the approval screen ("Chrome on Windows"),
   // so the approver can see WHERE the request came from. It is derived
