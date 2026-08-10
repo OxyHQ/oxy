@@ -78,6 +78,19 @@ describe('computeSeedApplicationPlan', () => {
     expect(plan.changes).toEqual([]);
   });
 
+  it('revokes redirect URIs which are absent from the canonical seed', () => {
+    const current = {
+      ...commonsMissingCapability(),
+      redirectUris: ['commons://', 'oxycommons://', 'https://stale.example/callback'],
+      capabilities: ['identity:approval'],
+    };
+
+    const plan = computeSeedApplicationPlan(current, COMMONS_TARGET);
+
+    expect(plan.changes.map((change) => change.field)).toEqual(['redirectUris']);
+    expect(plan.desired.redirectUris).toEqual(['commons://', 'oxycommons://']);
+  });
+
   it('applySeedApplicationPlan writes exactly the fields the plan reported', () => {
     const plan = computeSeedApplicationPlan(commonsMissingCapability(), COMMONS_TARGET);
     const record = mutableRecord(commonsMissingCapability());

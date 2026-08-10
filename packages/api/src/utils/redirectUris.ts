@@ -1,15 +1,4 @@
-/**
- * Non-destructive redirect-uri helpers. Official-app reconciliation must never
- * replace an existing allowlist — only append missing canonical entries.
- */
-
-/** Union preserving order: existing entries first, then additions, de-duplicated. */
-export function unionRedirectUris(
-  current: readonly string[] | null | undefined,
-  additions: readonly string[],
-): string[] {
-  return Array.from(new Set([...(current ?? []), ...additions]));
-}
+/** Redirect-uri helpers for converging official apps to canonical origins. */
 
 /** Exact-match helper — redirect URIs are compared literally, not by prefix. */
 export function includesRedirectUri(
@@ -29,9 +18,9 @@ export function originOfWebsiteUrl(websiteUrl: string): string | null {
 }
 
 /**
- * When a trusted app's `websiteUrl` origin is missing from `redirectUris`,
- * return the unioned allowlist that repairs it. Returns `null` when no change
- * is needed or the website URL is unusable.
+ * Converge a trusted web app's redirect allowlist to its declared website
+ * origin. Redirect URIs are an authorization boundary, so entries which are
+ * no longer canonical must be revoked rather than retained indefinitely.
  */
 export function computeOfficialRedirectUriRepair(
   redirectUris: readonly string[] | null | undefined,
@@ -42,7 +31,7 @@ export function computeOfficialRedirectUriRepair(
 
   const origin = originOfWebsiteUrl(trimmed);
   if (!origin) return null;
-  if (includesRedirectUri(redirectUris, origin)) return null;
+  if (redirectUris?.length === 1 && includesRedirectUri(redirectUris, origin)) return null;
 
-  return unionRedirectUris(redirectUris, [origin]);
+  return [origin];
 }
