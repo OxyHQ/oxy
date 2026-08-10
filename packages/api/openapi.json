@@ -15435,6 +15435,34 @@
         }
       }
     },
+    "/session/device/activate": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "The one write of ADR 0002 — make one `principal acting as account` active.",
+        "description": "Takes a `contextId` and NOTHING else. An `accountId` cannot name what to\nactivate on a device where two people can both reach the same organization,\nand resolving that ambiguity server-side would mean guessing inside an\nauthorization path — so a body carrying one is refused outright rather than\nquietly falling back to `/switch`'s semantics under a new endpoint's name.\n\n`/switch` remains, unchanged, as the compatibility path for clients that have\nnot moved yet.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/session/device/add": {
       "post": {
         "tags": [
@@ -15498,6 +15526,34 @@
         ],
         "summary": "code. Possession of the provisioned background secret IS the proof; the secret",
         "description": "is NEVER rotated (unlike `POST /token`). Returns only the short access token,\nits expiry, and the account it belongs to — no device state.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/session/device/directory": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "The one server-authoritative read model an account switcher renders.",
+        "description": "Issue #937, ADR 0002.\n`/state` above is the FLAT compatibility projection of the same device and\nstays exactly as it is. This one adds what that shape structurally cannot\ncarry: who each account is reachable THROUGH, and whether it is reachable at\nall right now. Switchability is an authorization question, and a client on a\ndevice holding two people can only ever answer it for one of them — it holds\nONE caller's account graph and cannot enumerate the other principals'.",
         "parameters": [],
         "responses": {
           "200": {
@@ -15637,8 +15693,8 @@
         "tags": [
           "Sessions"
         ],
-        "summary": "POST /session/device/signout",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/sessionDevice.ts` to fill in summary, description, request/response examples.",
+        "summary": "The four `/signout` shapes, and why they are four.",
+        "description": "`docs/auth/principals-and-account-contexts.md` states five distinct meanings\nof \"sign out\"; conflating any two of them is a bug. This route serves\nmeanings 2, 3 and 4:\n\n - `{ contextId }`   — remove ONE `principal → account` pair. Never the\n                       account across the device: the same organization\n                       reached through a second person is a different\n                       session, a different audit actor and a different\n                       revocation path, and it stays.\n - `{ principalId }` — remove ONE PERSON and every context they reach, and\n                       NOBODY ELSE'S — including when another principal\n                       independently operates the same account.\n - `{ accountId }`   — the FLAT compatibility meaning: that account, however\n                       it is reached, plus the operator cascade. Unchanged.\n - `{ all: true }`   — the whole device, credentials included. Unchanged.\n\nThe first two elect a replacement active context in the documented order\n(same principal's personal, then another of that principal's, then the next\nprincipal's personal, then none).",
         "parameters": [],
         "responses": {
           "200": {
