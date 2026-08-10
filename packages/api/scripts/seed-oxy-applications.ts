@@ -166,9 +166,9 @@ const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://homiio.com',
     type: 'first_party',
     redirectUris: ['https://homiio.com'],
-    // Homiio awards Oxy Trust on lease lifecycle events via its service credential.
-    // `reputation:write` is staff-gated — the seed script grants it to official apps.
-    scopes: ['user:read', 'reputation:write'],
+    // Homiio may report only idempotent lease-lifecycle events; unlike the broad
+    // `reputation:write` authority this scope cannot invoke unrelated rules.
+    scopes: ['user:read', 'reputation:lease:write'],
   },
   {
     name: 'Allo',

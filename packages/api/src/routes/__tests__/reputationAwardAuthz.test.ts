@@ -86,6 +86,7 @@ import { applications } from '../../db/schema/applications';
 import { reputationRules } from '../../db/schema/reputationRules';
 import { reputationTransactions } from '../../db/schema/reputationTransactions';
 import { users } from '../../db/schema/users';
+import { LEASE_SIGNED_ACTION } from '../../utils/reputation.constants';
 import { errorHandler } from '../../middleware/errorHandler';
 import reputationRouter from '../reputation.routes';
 
@@ -249,6 +250,56 @@ describe('POST /reputation/award — service-token scope gate', () => {
     expect(transaction.category).toBe('content');
     expect(transaction.status).toBe('active');
     expect(safeParseContract(reputationTransactionSchema, transaction)).not.toBeNull();
+  });
+
+  it('limits reputation:lease:write to lease actions', async () => {
+    const service = await serviceApplication();
+    const subject = await account();
+    const unrelatedAction = await awardableAction();
+    currentServiceApp = { ...service, scopes: ['reputation:lease:write'] };
+
+    const res = await award(
+      { userId: subject, actionType: unrelatedAction, sourceActionId: 'lease-123' },
+      'service',
+    );
+
+    expect(res.status).toBe(403);
+    expect(await storedTransactions(subject)).toHaveLength(0);
+  });
+
+  it('requires an idempotency key for reputation:lease:write', async () => {
+    const service = await serviceApplication();
+    const subject = await account();
+    currentServiceApp = { ...service, scopes: ['reputation:lease:write'] };
+
+    const res = await award({ userId: subject, actionType: LEASE_SIGNED_ACTION }, 'service');
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/sourceActionId/);
+    expect(await storedTransactions(subject)).toHaveLength(0);
+  });
+
+  it('allows an idempotent lease action with reputation:lease:write', async () => {
+    const service = await serviceApplication();
+    const subject = await account();
+    await getDb()
+      .insert(reputationRules)
+      .values({
+        actionType: LEASE_SIGNED_ACTION,
+        points: 10,
+        category: 'trust',
+        description: 'Lease signed',
+      })
+      .onConflictDoNothing();
+    currentServiceApp = { ...service, scopes: ['reputation:lease:write'] };
+
+    const res = await award(
+      { userId: subject, actionType: LEASE_SIGNED_ACTION, sourceActionId: 'lease-456:signed' },
+      'service',
+    );
+
+    expect(res.status).toBe(201);
+    expect(await storedTransactions(subject)).toHaveLength(1);
   });
 
   it('attributes the stored row to the TOKEN, ignoring a spoofed body attribution', async () => {

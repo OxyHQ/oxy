@@ -17,6 +17,8 @@
  * - `reputation:write` permits service credentials to create reputation ledger
  *   awards/penalties for arbitrary users. PRIVILEGED — only Oxy platform staff
  *   may grant it.
+ * - `reputation:lease:write` permits a service credential to report only the
+ *   allowlisted lease-lifecycle actions accepted by `/reputation/award`.
  * - `signals:write` permits trusted services to write cross-app ranking signals
  *   (endorsement/interest edges) that influence recommendation rankings and can
  *   trigger reputation awards. PRIVILEGED — only Oxy platform staff may grant it.
@@ -55,6 +57,7 @@ export const APPLICATION_SCOPES = [
   'federation:write',
   'signals:write',
   'reputation:write',
+  'reputation:lease:write',
   'reputation:moderation:apply',
   'reputation:binding:register',
   'notifications:write',
@@ -123,6 +126,7 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
 export const PRIVILEGED_APPLICATION_SCOPES = [
   'federation:write',
   'reputation:write',
+  'reputation:lease:write',
   'reputation:moderation:apply',
   'reputation:binding:register',
   'signals:write',
