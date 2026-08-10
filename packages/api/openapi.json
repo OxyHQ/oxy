@@ -5531,7 +5531,7 @@
         ],
         "security": [],
         "summary": "Exchange an OAuth2 authorization code for tokens (RFC 6749)",
-        "description": "Standards-compliant RFC 6749 §4.1.3 token endpoint. Single-use exchange of an authorization code (from `POST /auth/oauth/authorize`) for a bearer access token, rotating device credentials, and session ID.\nThe request MUST be `application/x-www-form-urlencoded` with `grant_type=authorization_code`. Confidential clients authenticate with `client_secret` — either in the body (`client_secret_post`) or via HTTP Basic (`client_secret_basic`), never both. Public clients send `client_id` plus the PKCE `code_verifier`.\nThe response is a FLAT JSON document (no `data` wrapper) sent with `Cache-Control: no-store`, as RFC 6749 §5.1 requires. Alongside the standard `access_token` / `token_type` / `expires_in` it carries Oxy's device-first extras (`session_id`, `deviceId`, `deviceSecret`, `user`), which §5.1 permits as additional parameters.\nErrors follow RFC 6749 §5.2 (`{ \"error\": ..., \"error_description\": ... }`). Replaying an already-used code, sending a code past its 60-second TTL, or mismatching the `redirect_uri` all return the same `400 invalid_grant` with no detail about which check failed.\n",
+        "description": "Standards-compliant RFC 6749 §4.1.3 token endpoint. Single-use exchange of an authorization code (from `POST /auth/oauth/authorize`) for a bearer access token, rotating device credentials, and session ID.\nThe request MUST be `application/x-www-form-urlencoded` with `grant_type=authorization_code`. Confidential clients authenticate with `client_secret` — either in the body (`client_secret_post`) or via HTTP Basic (`client_secret_basic`), never both. Public clients send `client_id` plus the PKCE `code_verifier`.\nThe response is a FLAT JSON document (no `data` wrapper) sent with `Cache-Control: no-store`, as RFC 6749 §5.1 requires. Alongside the standard `access_token` / `token_type` / `expires_in` it carries Oxy's device-first extras (`session_id`, `user`, and — for an OFFICIAL Oxy application only — `deviceId` and `deviceSecret`), which §5.1 permits as additional parameters.\nA THIRD-PARTY client receives an ISOLATED session: bound to its application, its credential and its granted scopes, kept off the user's shared device, and carrying NO `deviceId` and NO `deviceSecret`. That secret is the device-wide restore credential, so handing it to a third party would let one leaked token mint bearers for every account on the device. A third-party bearer is likewise refused the whole `/session/device/*` lane.\nErrors follow RFC 6749 §5.2 (`{ \"error\": ..., \"error_description\": ... }`). Replaying an already-used code, sending a code past its 60-second TTL, or mismatching the `redirect_uri` all return the same `400 invalid_grant` with no detail about which check failed.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -5602,10 +5602,12 @@
                       "type": "string"
                     },
                     "deviceId": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Official Oxy applications only. Absent for third-party clients, whose session does not join the device.\n"
                     },
                     "deviceSecret": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Official Oxy applications only. The device-wide restore credential, returned exactly once and never to a third party.\n"
                     },
                     "user": {
                       "type": "object"

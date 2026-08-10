@@ -17,7 +17,9 @@ import { getDb, type Database } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
 import { devicePrincipals } from '../db/schema/devicePrincipals';
 import { deviceSessions } from '../db/schema/deviceSessions';
+import { sessions } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
+import sessionCache from '../utils/sessionCache';
 import sessionService from './session.service';
 import { sha256Hex, base64UrlEncode, timingSafeStringEqual } from './oauthCode.service';
 import { effectivePermissionsForMember } from '../utils/accountRoles';
@@ -1385,6 +1387,16 @@ class DeviceSessionService {
       } else if (target.sessionId !== null && (await this.isSessionLive(target.sessionId))) {
         sessionId = target.sessionId;
       } else {
+        // NO `deviceContext` here, deliberately, even though both ids are in
+        // hand. This call runs on the POOL, outside the transaction — which is
+        // only safe while the rows it writes are ones the transaction never
+        // touches (see this method's docblock). Writing
+        // `sessions.device_session_id` would take a FK KEY-SHARE lock on the
+        // very `device_sessions` row locked `FOR UPDATE` above: the pool
+        // connection waits for the transaction, the transaction waits for this
+        // call to return, and nothing breaks the cycle because only one half of
+        // it is a lock Postgres can see. The binding is written after COMMIT
+        // instead (issue #937, Phase 6).
         const minted = await sessionService.createSession(target.accountId, req, {
           operatedByUserId: principal.userId,
           deviceId: locked.deviceId,
@@ -1429,6 +1441,14 @@ class DeviceSessionService {
     const state = await this.readState(deviceId);
     if (outcome.kind === 'unauthorized') {
       return { ok: false, reason: 'unauthorized', accountId: outcome.accountId, directory, state };
+    }
+    // Post-COMMIT, so the FK write cannot contend with the lock the transaction
+    // held. Only on a real activation: an idempotent one changed no binding, and
+    // writing the same values back would invalidate the session cache for
+    // nothing. `resolveTokenForSession` below then re-mints, because the stored
+    // token no longer matches the row it now points at.
+    if (outcome.kind === 'activated') {
+      await this.bindSessionToContext(deviceId, outcome.sessionId);
     }
     return {
       ok: true,
@@ -1667,6 +1687,56 @@ class DeviceSessionService {
       throw new Error(`device_sessions row for "${deviceId}" vanished during detachMigratedAccount`);
     }
     return projectState(updated);
+  }
+
+  /**
+   * Record on the `sessions` row which device and which account context this
+   * session serves, so its access token can carry `device_session_id` /
+   * `device_context_id` and have them checked back (issue #937, Phase 6).
+   *
+   * The device-login lane needs this as a SEPARATE write because its ordering
+   * is the reverse of `activateContext`'s: the context row is created by
+   * `addAccount` AFTER the session exists, so the ids are not knowable at mint
+   * time. The token catches up on the next mint — `getAccessToken` re-mints
+   * whenever the stored token disagrees with the row.
+   *
+   * Best-effort by contract: returns false when the device, the session or the
+   * context cannot be resolved. A missing binding costs the token two claims,
+   * never a sign-in.
+   */
+  async bindSessionToContext(deviceId: string, sessionId: string): Promise<boolean> {
+    const db = getDb();
+    const [context] = await db
+      .select({
+        deviceSessionId: deviceAccountContexts.deviceSessionId,
+        contextId: deviceAccountContexts.id,
+      })
+      .from(deviceAccountContexts)
+      .innerJoin(deviceSessions, eq(deviceAccountContexts.deviceSessionId, deviceSessions.id))
+      .where(
+        and(
+          eq(deviceSessions.deviceId, deviceId),
+          eq(deviceAccountContexts.sessionId, sessionId),
+          isNull(deviceAccountContexts.revokedAt)
+        )
+      )
+      .limit(1);
+    if (!context) return false;
+
+    const updated = await db
+      .update(sessions)
+      .set({
+        deviceSessionId: context.deviceSessionId,
+        deviceContextId: context.contextId,
+      })
+      .where(eq(sessions.sessionId, sessionId));
+    if (updated.count === 0) return false;
+
+    // The cached row is what `getAccessToken` compares the stored token
+    // against; leaving a stale copy there would hide the drift it exists to
+    // detect and the token would never pick the claims up.
+    sessionCache.invalidate(sessionId);
+    return true;
   }
 
   /**

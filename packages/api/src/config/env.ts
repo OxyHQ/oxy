@@ -26,6 +26,14 @@ export interface RequiredEnvVars {
   ACCESS_TOKEN_SECRET: string;
   REFRESH_TOKEN_SECRET: string;
 
+  // Access token v2 migration window (issue #937, Phase 6). A token is v2 iff
+  // it carries `ver: 2`; anything else is v1. Set to the literal `closed` to
+  // refuse every remaining v1 bearer — safe once one refresh-token lifetime
+  // (7 days) has passed since deploy, because by then no v1 token can still be
+  // live. Absent/anything else keeps the window open. Read per request in
+  // `utils/sessionUtils.ts`; NOT a secret, so it is not synced to SSM.
+  ACCESS_TOKEN_V1_WINDOW?: string;
+
   // Legacy cross-domain SSO secret (FedCM / POST /sso/code removed in wave 2).
   // Still synced from GitHub → SSM for environments that haven't dropped it yet;
   // no live route reads it. Safe to omit in new deployments.

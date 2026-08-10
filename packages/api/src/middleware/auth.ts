@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { logger } from '../utils/logger';
 import sessionService from '../services/session.service';
 import type { AccountDocument } from '../services/user.service';
+import type { AccessTokenIdentity } from '../utils/sessionUtils';
 import { verifyServiceToken, type ServiceTokenPayload } from './serviceToken';
 import {
   extractTokenFromRequest,
@@ -63,6 +64,16 @@ export interface AuthRequest extends Request {
    * checked.
    */
   sessionId?: string;
+  /**
+   * What the bearer resolved to once its claims were checked against the
+   * session row (issue #937, Phase 6): subject and actor kept apart, plus the
+   * application, device context and scopes the session is bound to.
+   *
+   * This is the ONE place a route may learn which application is behind a user
+   * bearer. The token's own claims are never read again downstream — `req.user`
+   * answers "who", this answers "as whom, through what, with which scopes".
+   */
+  oxyToken?: AccessTokenIdentity;
 }
 
 /**
@@ -200,6 +211,7 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
         // the `fullUser.id = …` this replaces wrote through to the cache entry.
         req.user = { ...user, id: user._id };
         (req as AuthRequest).sessionId = decoded.sessionId;
+        req.oxyToken = validationResult.token;
 
         next();
       } catch (dbError) {

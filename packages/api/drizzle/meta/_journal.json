@@ -197,6 +197,13 @@
       "when": 1786350532586,
       "tag": "0028_device_principals_and_contexts",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786361328335,
+      "tag": "0029_session_token_binding",
+      "breakpoints": true
     }
   ]
 }

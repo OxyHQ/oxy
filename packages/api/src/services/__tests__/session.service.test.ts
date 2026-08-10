@@ -51,6 +51,8 @@ jest.mock('../securityActivityService', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
+import { applications } from '../../db/schema/applications';
 import { sessions } from '../../db/schema/sessions';
 import { users } from '../../db/schema/users';
 import sessionCache from '../../utils/sessionCache';
@@ -93,34 +95,27 @@ async function storedSession(sessionId: string) {
 
 const deviceId = () => `dev-${randomUUID()}`;
 
-/**
- * Wait until the wall-clock SECOND advances.
- *
- * ## This is a WORKAROUND for an open token-minter defect. Do not "fix" it here.
- *
- * `generateSessionTokens` (`utils/sessionUtils.ts`) signs a payload of
- * `{userId, sessionId, deviceId, type}` with NO nonce, and a JWT's `iat`/`exp`
- * have one-second resolution. So a rotation that completes inside the same
- * second re-mints a BYTE-IDENTICAL refresh token and leaves
- * `previous_refresh_token === refresh_token` — meaning **a rotation that fast
- * does not actually invalidate a stolen refresh token**.
- *
- * That is a defect in the MINTER, not in this port and not in this test: the
- * behaviour predates the Drizzle migration and is unchanged by it. It is
- * reported and escalated; the fix (a per-mint nonce / `jti`) changes the token
- * format, which is a wire-contract change and deliberately out of scope here.
- *
- * These sleeps exist ONLY so the rotation cases exercise a REAL rotation
- * instead of silently passing against the collision. If you are here because
- * they look slow or superfluous: the correct change is to give
- * `generateSessionTokens` a nonce and then DELETE this helper — not to relax
- * the assertions that depend on it.
- */
-async function nextSecond(): Promise<void> {
-  const start = Math.floor(Date.now() / 1000);
-  while (Math.floor(Date.now() / 1000) === start) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
+/** A registered application plus one credential, for the binding cases. */
+async function applicationRow(): Promise<{ id: string; clientId: string }> {
+  const owner = await account();
+  const [app] = await getDb()
+    .insert(applications)
+    .values({
+      name: `App ${randomUUID()}`,
+      type: 'third_party',
+      redirectUris: ['https://example.test/cb'],
+      ownerAccountId: owner,
+    })
+    .returning({ id: applications.id });
+  const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
+  await getDb().insert(applicationCredentials).values({
+    applicationId: app.id,
+    name: 'client',
+    type: 'public',
+    environment: 'production',
+    publicKey: clientId,
+  });
+  return { id: app.id, clientId };
 }
 
 beforeAll(async () => {
@@ -472,7 +467,6 @@ describe('refreshTokens', () => {
     const user = await account();
     const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
     const before = await storedSession(created.sessionId);
-    await nextSecond();
 
     const result = await sessionService.refreshTokens(created.refreshToken);
 
@@ -502,7 +496,6 @@ describe('refreshTokens', () => {
   it('rejects the superseded token once the grace window has passed', async () => {
     const user = await account();
     const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
-    await nextSecond();
     await sessionService.refreshTokens(created.refreshToken);
     await getDb()
       .update(sessions)
@@ -629,7 +622,6 @@ describe("managed-account sessions stay bound to the operator's act_as", () => {
     });
     sessionCache.clear();
     mockVerifyActingAs.mockResolvedValue('admin');
-    await nextSecond();
 
     const result = await sessionService.refreshTokens(created.refreshToken);
 
@@ -694,5 +686,156 @@ describe('validateSession / getSessionWithUser', () => {
     await getDb().delete(users).where(eq(users.id, user));
 
     expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+  });
+});
+
+/**
+ * Issue #937, Phase 6 — the access-token v2 binding, at the seam where it is
+ * written and re-read rather than in the pure claim-set unit
+ * (`utils/__tests__/accessTokenV2.test.ts`).
+ */
+describe('access token v2 binding', () => {
+  it('mints a v2 token whose subject and actor come from the ROW', async () => {
+    const operator = await account();
+    const managed = await account({ kind: 'organization' });
+    mockVerifyActingAs.mockResolvedValue('admin');
+
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+
+    const claims = validateAccessToken(created.accessToken).payload;
+    expect(claims?.ver).toBe(2);
+    expect(claims?.sub).toBe(managed);
+    expect(claims?.act?.sub).toBe(operator);
+    expect(claims?.sid).toBe(created.sessionId);
+  });
+
+  it('records the application binding on the row and mints azp/scope from it', async () => {
+    const user = await account();
+    const app = await applicationRow();
+
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: deviceId(),
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read'] },
+    });
+
+    const stored = await storedSession(created.sessionId);
+    expect(stored.applicationId).toBe(app.id);
+    expect(stored.clientId).toBe(app.clientId);
+    expect(stored.scopes).toEqual(['profile:read']);
+
+    const claims = validateAccessToken(created.accessToken).payload;
+    expect(claims?.azp).toBe(app.clientId);
+    expect(claims?.scope).toBe('profile:read');
+  });
+
+  it('never hands an application-bound mint somebody else’s session on the same device', async () => {
+    // The capture case. Before the reuse guard, an OAuth exchange landing on
+    // the user's central device found the device's own first-party session and
+    // took it over — the client received a token for the shared session and the
+    // only trace was the row being renamed.
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const shared = await sessionService.createSession(user, request(), { deviceId: device });
+
+    const bound = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: [] },
+    });
+
+    expect(bound.sessionId).not.toBe(shared.sessionId);
+    // ...and the shared session is untouched, still belonging to no application.
+    const sharedAfter = await storedSession(shared.sessionId);
+    expect(sharedAfter.applicationId).toBeNull();
+  });
+
+  it('reuses the SAME application’s session across exchanges', async () => {
+    // The other half of the guard: isolation must not mean one row per
+    // exchange.
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const options = {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: [] },
+    };
+
+    const first = await sessionService.createSession(user, request(), options);
+    const second = await sessionService.createSession(user, request(), options);
+
+    expect(second.sessionId).toBe(first.sessionId);
+  });
+
+  it('rejects a bearer once its session is bound to a DIFFERENT application', async () => {
+    const user = await account();
+    const app = await applicationRow();
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: deviceId(),
+      application: { applicationId: app.id, clientId: app.clientId, scopes: [] },
+    });
+    expect(await sessionService.validateSession(created.accessToken)).not.toBeNull();
+
+    const other = await applicationRow();
+    await getDb()
+      .update(sessions)
+      .set({ applicationId: other.id, clientId: other.clientId })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
+
+    // The token still verifies and its session is still live — the row moved
+    // out from under it, and that alone is enough.
+    expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+  });
+
+  it('upgrades a v1 token to v2 on the next mint, without rotating a matching one', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+
+    // Rewrite the stored token into the pre-Phase-6 shape, exactly as a session
+    // that survived the deploy carries it.
+    const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
+    const legacy = jwt.sign(
+      { userId: user, sessionId: created.sessionId, deviceId: created.deviceId, type: 'access' },
+      process.env.ACCESS_TOKEN_SECRET as string,
+      { expiresIn: '15m' }
+    );
+    await getDb()
+      .update(sessions)
+      .set({ accessToken: legacy })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
+
+    const upgraded = await sessionService.getAccessToken(created.sessionId);
+    expect(upgraded).not.toBeNull();
+    expect(upgraded?.accessToken).not.toBe(legacy);
+    expect(validateAccessToken(upgraded?.accessToken ?? '').payload?.ver).toBe(2);
+
+    // A second mint of the now-matching token must NOT rotate again, or every
+    // request would burn a refresh.
+    sessionCache.clear();
+    const again = await sessionService.getAccessToken(created.sessionId);
+    expect(again?.accessToken).toBe(upgraded?.accessToken);
+  });
+
+  it('carries the device context onto the token once the login lane binds it', async () => {
+    const user = await account();
+    const device = deviceId();
+    const created = await sessionService.createSession(user, request(), { deviceId: device });
+    // The token at this point predates the context: `addAccount` has not run.
+    expect(validateAccessToken(created.accessToken).payload?.device_context_id).toBeUndefined();
+
+    await deviceSessionService.addAccount(device, {
+      accountId: user,
+      sessionId: created.sessionId,
+    });
+    await deviceSessionService.bindSessionToContext(device, created.sessionId);
+
+    const minted = await sessionService.getAccessToken(created.sessionId);
+    const claims = validateAccessToken(minted?.accessToken ?? '').payload;
+    expect(typeof claims?.device_context_id).toBe('string');
+    expect(typeof claims?.device_session_id).toBe('string');
   });
 });

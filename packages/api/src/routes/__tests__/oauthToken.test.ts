@@ -213,6 +213,16 @@ function pkceParams(overrides: Record<string, string> = {}): Record<string, stri
 
 const sha256 = (value: string) => nodeCrypto.createHash('sha256').update(value).digest('hex');
 
+/**
+ * An OFFICIAL Oxy application. The default fixture is `third_party`, which is
+ * now the ISOLATED lane (issue #937, Phase 6) — a case that needs the shared
+ * device session has to ask for a trusted client explicitly.
+ */
+const OFFICIAL_APP: Partial<typeof applications.$inferInsert> = {
+  type: 'first_party',
+  isOfficial: true,
+};
+
 async function client(
   credentialFields: Partial<typeof applicationCredentials.$inferInsert> = {},
   appFields: Partial<typeof applications.$inferInsert> = {},
@@ -310,8 +320,6 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
       token_type: 'Bearer',
       expires_in: 900,
       session_id: 'sess-1',
-      deviceId: 'device-1',
-      deviceSecret: 'device-secret-1',
     });
     expect(res.body).not.toHaveProperty('data');
     // The zero-cookie transport hands out no refresh token.
@@ -383,14 +391,15 @@ describe('POST /auth/oauth/token — RFC 6749 §5.1 success response', () => {
     expect(app.lastUsedAt).toBeInstanceOf(Date);
   });
 
-  it('threads the originating device and the delegated operator onto the session', async () => {
+  it('threads the originating device and the delegated operator onto a TRUSTED app session', async () => {
+    const { clientId } = await client({}, OFFICIAL_APP);
     const org = await subject({ kind: 'organization' });
     const operator = await subject();
     mockExchangeAuthCode.mockResolvedValueOnce(
       grant({ userId: org, deviceId: '  dev-shared  ', operatedByUserId: operator }),
     );
 
-    await requestForm(pkceParams());
+    await requestForm(pkceParams({ client_id: clientId }));
 
     expect(mockCreateSession).toHaveBeenCalledWith(
       org,
@@ -697,9 +706,12 @@ describe('POST /auth/oauth/token — security properties', () => {
   });
 
   it('fails closed with server_error when deviceSecret minting fails', async () => {
+    // Only an application that actually joins the device mints one, so the
+    // subject of this case has to be a trusted client.
+    const { clientId } = await client({}, OFFICIAL_APP);
     mockFinalizeDeviceLogin.mockResolvedValueOnce({});
 
-    const res = await requestForm(pkceParams());
+    const res = await requestForm(pkceParams({ client_id: clientId }));
 
     expect(res.status).toBe(500);
     // Still RFC-shaped, and still says nothing about what broke internally.
@@ -708,5 +720,106 @@ describe('POST /auth/oauth/token — security properties', () => {
       error_description: expect.any(String),
     });
     expect(res.body).not.toHaveProperty('access_token');
+  });
+});
+
+/**
+ * Issue #937, Phase 6 — a third-party exchange yields an ISOLATED session, not
+ * a share of the user's device.
+ *
+ * The three properties are one decision and only work together, so each is
+ * asserted against the same default `third_party` fixture and contrasted with
+ * a trusted client that keeps the old behaviour verbatim.
+ */
+describe('POST /auth/oauth/token — third-party isolation', () => {
+  it('returns a deviceSecret for the third party OWN device, never the shared one', async () => {
+    // The danger was never that a third party holds a `deviceSecret` — it is
+    // WHICH device the secret unlocks. Handed the shared one, a leaked
+    // third-party token mints bearers for every account on that device and can
+    // change what every official Oxy app there is signed in as. Bound to its
+    // own per-(user, client) device, it reaches exactly one session: its own.
+    //
+    // #937 asks for the pair to be omitted outright. That is the end state and
+    // it is not this: `exchangeOAuthCode` in `@oxyhq/core` throws without both
+    // fields, so omitting them breaks every third-party sign-in through the SDK
+    // until core ships a release that tolerates a device-less session. This test
+    // therefore pins the property that actually protects the user, and the
+    // omission is tracked separately.
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ deviceId: 'dev-shared' }));
+
+    const res = await requestForm(pkceParams());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('access_token');
+    expect(res.body).toHaveProperty('deviceSecret');
+    expect(res.body.deviceId).not.toBe('dev-shared');
+  });
+
+  it('registers a third-party session onto its OWN device, not the shared one', async () => {
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ deviceId: 'dev-shared' }));
+
+    await requestForm(pkceParams());
+
+    expect(mockFinalizeDeviceLogin).toHaveBeenCalledTimes(1);
+    const finalized = mockFinalizeDeviceLogin.mock.calls[0][0] as {
+      session: { deviceId: string };
+    };
+    expect(finalized.session.deviceId).not.toBe('dev-shared');
+  });
+
+  it('binds a third-party session to its application, credential and granted scopes', async () => {
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ scopes: ['profile:read'] }));
+
+    await requestForm(pkceParams());
+
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      defaultSubjectId,
+      expect.anything(),
+      expect.objectContaining({
+        application: {
+          applicationId: defaultApplicationId,
+          clientId: defaultClientId,
+          scopes: ['profile:read'],
+        },
+      }),
+    );
+  });
+
+  it('keeps a third-party session OFF the shared device id the code carried', async () => {
+    // The code's `deviceId` is the user's central device. Reusing it would put
+    // the third party's session where `createSession`'s reuse lookup finds the
+    // device's own first-party session. A stable per-(user, client) key keeps
+    // the client reusing ITS OWN session across exchanges instead.
+    mockExchangeAuthCode.mockResolvedValueOnce(grant({ deviceId: 'dev-shared' }));
+
+    await requestForm(pkceParams());
+
+    const options = mockCreateSession.mock.calls[0][2] as Record<string, unknown>;
+    expect(options.deviceId).toBeUndefined();
+    expect(options.stableDeviceKey).toBe(`oauth:${defaultClientId}`);
+  });
+
+  it('still hands an OFFICIAL application the shared device credential', async () => {
+    // The contrast case. Without it, "no deviceSecret" would pass just as well
+    // against a route that stopped minting one for anybody.
+    const { clientId } = await client({}, OFFICIAL_APP);
+
+    const res = await requestForm(pkceParams({ client_id: clientId }));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ deviceId: 'device-1', deviceSecret: 'device-secret-1' });
+    expect(mockFinalizeDeviceLogin).toHaveBeenCalled();
+  });
+
+  it('leaves an OFFICIAL application session unbound to any single application', async () => {
+    // An official app joins the SHARED device session, which belongs to no one
+    // application — so it gets no `azp`, and the device lane keeps serving it.
+    const { clientId } = await client({}, OFFICIAL_APP);
+
+    await requestForm(pkceParams({ client_id: clientId }));
+
+    const options = mockCreateSession.mock.calls[0][2] as Record<string, unknown>;
+    expect(options.application).toBeUndefined();
+    expect(options.stableDeviceKey).toBeUndefined();
   });
 });
