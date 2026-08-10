@@ -25,6 +25,7 @@ import {
 } from '../utils/deviceUtils';
 import { generateSessionTokens, validateAccessToken, validateRefreshToken } from '../utils/sessionUtils';
 import deviceSessionService from './deviceSession.service';
+import { broadcastDeviceState } from '../utils/socket';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -164,15 +165,27 @@ class SessionService {
       managedSessionRecheckAt.set(sessionId, Date.now());
       return true;
     } catch (error) {
-      // Never hard-fail auth on a transient membership-lookup error; the refresh
-      // path will re-check. Fail OPEN here (keep the session) to avoid locking a
-      // legitimately-switched operator out on a flaky DB read.
-      logger.error('[SessionService] Managed-session act_as re-check failed', error instanceof Error ? error : new Error(String(error)), {
+      // FAIL CLOSED. This used to return `true` — "never hard-fail auth on a
+      // transient lookup error" — which made a database fault an ANSWER: for as
+      // long as the membership read was broken, every managed-account session on
+      // the platform authorized itself, including the ones whose `account:act_as`
+      // had just been revoked. That is the whole grant this check exists to be
+      // able to withdraw, and it is not a grant that may be extended by an
+      // outage. `verifyActingAs` already fails closed on every negative it can
+      // establish; an unanswerable question is not weaker evidence than "no
+      // membership", it is no evidence at all.
+      //
+      // The session is NOT deactivated: an unanswered question is not a
+      // revocation, and destroying a session on a flaky read would turn a blip
+      // into a sign-out the user has to recover from. The recheck timestamp is
+      // deliberately not written either, so the very next request re-asks rather
+      // than inheriting this failure for the throttle window.
+      logger.error('[SessionService] Managed-session act_as re-check failed — failing closed', error instanceof Error ? error : new Error(String(error)), {
         component: 'SessionService',
         method: 'ensureManagedSessionAuthorized',
         sessionId: sessionId.substring(0, 8),
       });
-      return true;
+      return false;
     }
   }
 
@@ -515,7 +528,21 @@ class SessionService {
               eq(sessions.userId, userId),
               eq(sessions.deviceId, candidateDeviceId),
               eq(sessions.isActive, true),
-              gt(sessions.expiresAt, new Date())
+              gt(sessions.expiresAt, new Date()),
+              // A DELEGATED mint may only reuse a session belonging to the SAME
+              // operator. One device can legitimately hold two people who both
+              // act as the same organization (issue #937, ADR 0001), and without
+              // this the second one silently takes over the first one's session
+              // row: `operated_by_user_id` is rewritten below, so the audit actor
+              // changes underneath a live session and removing either person
+              // revokes the other's access.
+              //
+              // The reverse is deliberately NOT tightened. A mint with no
+              // operator reuses whatever is there, including a delegated row,
+              // because the alternative — minting a second, operator-less session
+              // for a managed account — would create exactly the unbounded org
+              // session the `account:act_as` re-check exists to prevent.
+              ...(operatedByUserId ? [eq(sessions.operatedByUserId, operatedByUserId)] : [])
             )
           )
           .limit(1);
@@ -586,7 +613,16 @@ class SessionService {
             // device); detach only deactivates a DIFFERENT stale session the old
             // doc referenced. Never fail the mint on cleanup errors.
             try {
-              await deviceSessionService.detachMigratedAccount(previousDeviceId, userId, sessionId);
+              // The detach advances the OLD device's `revision`, so it has to be
+              // announced: without this the clients still listening on that
+              // device room hold a revision the server has moved past, with no
+              // event that would ever tell them to re-fetch.
+              const detached = await deviceSessionService.detachMigratedAccount(
+                previousDeviceId,
+                userId,
+                sessionId
+              );
+              if (detached) broadcastDeviceState(detached);
             } catch (error) {
               logger.warn('[SessionService] Failed to detach migrated account from old device doc', {
                 component: 'SessionService',

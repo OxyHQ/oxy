@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from 'express';
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceActivateResponse, DeviceSessionState } from '@oxyhq/contracts';
 import {
+  deviceActivateRequestSchema,
+  deviceActivateResponseSchema,
   deviceBackgroundTokenRequestSchema,
   deviceTokenMintRequestSchema,
 } from '@oxyhq/contracts';
@@ -213,6 +215,45 @@ const backgroundCredentialLimiter = rateLimit({
   },
 });
 
+/**
+ * Per-device budgets for the two ADR 0002 endpoints.
+ *
+ * Keyed on the caller's own device rather than their IP: several official apps
+ * share one device and one directory, and an office behind one NAT is not one
+ * client. The IP fallback only catches a request whose bearer carried no
+ * deviceId, which the handlers reject anyway.
+ *
+ * Each carries its OWN `prefix`. Two limiters sharing one Redis key double-count
+ * every request that passes through both (`ERR_ERL_DOUBLE_COUNT`) and silently
+ * halve the budget — the factory requires the field for exactly that reason.
+ */
+function perDeviceKey(scope: string) {
+  return (req: Request) => {
+    const deviceId = resolveCallerDeviceId(req as AuthRequest);
+    const userId = (req as AuthRequest).user?._id?.toString();
+    if (deviceId && userId) return `${scope}:${deviceId}:${userId}`;
+    return `${scope}:ip:${hashedIpKey(req)}`;
+  };
+}
+
+// The directory is read on every cold boot, every switcher open and every
+// `session_state` push, by each official app on the device independently.
+const directoryLimiter = rateLimit({
+  prefix: 'rl:session:device-directory:',
+  windowMs: 60_000,
+  max: 120,
+  keyGenerator: perDeviceKey('device-directory'),
+});
+
+// Activation is a deliberate human action; the ceiling only has to sit above a
+// user impatiently switching back and forth.
+const activateLimiter = rateLimit({
+  prefix: 'rl:session:device-activate:',
+  windowMs: 60_000,
+  max: 30,
+  keyGenerator: perDeviceKey('device-activate'),
+});
+
 router.use(requireSameSiteOrigin, authMiddleware);
 
 /**
@@ -260,6 +301,80 @@ router.get('/state', asyncHandler(async (req: AuthRequest, res: Response) => {
   if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
 
   res.json({ data: await withActiveToken(await deviceSessionService.getState(deviceId)) });
+}));
+
+/**
+ * GET /session/device/directory
+ *
+ * The one server-authoritative read model an account switcher renders.
+ *
+ * Issue #937, ADR 0002.
+ * `/state` above is the FLAT compatibility projection of the same device and
+ * stays exactly as it is. This one adds what that shape structurally cannot
+ * carry: who each account is reachable THROUGH, and whether it is reachable at
+ * all right now. Switchability is an authorization question, and a client on a
+ * device holding two people can only ever answer it for one of them — it holds
+ * ONE caller's account graph and cannot enumerate the other principals'.
+ */
+router.get('/directory', directoryLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const deviceId = resolveCallerDeviceId(req);
+  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
+
+  res.json({ data: await deviceSessionService.getDirectory(deviceId) });
+}));
+
+/**
+ * POST /session/device/activate
+ *
+ * The one write of ADR 0002 — make one `principal acting as account` active.
+ *
+ * Takes a `contextId` and NOTHING else. An `accountId` cannot name what to
+ * activate on a device where two people can both reach the same organization,
+ * and resolving that ambiguity server-side would mean guessing inside an
+ * authorization path — so a body carrying one is refused outright rather than
+ * quietly falling back to `/switch`'s semantics under a new endpoint's name.
+ *
+ * `/switch` remains, unchanged, as the compatibility path for clients that have
+ * not moved yet.
+ */
+router.post('/activate', activateLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const deviceId = resolveCallerDeviceId(req);
+  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
+
+  const body: unknown = req.body ?? {};
+  if (typeof body === 'object' && body !== null && 'accountId' in body) {
+    res.status(400).json({ error: 'accountId_not_accepted' });
+    return;
+  }
+  const parsed = deviceActivateRequestSchema.safeParse(body);
+  if (!parsed.success) { res.status(400).json({ error: 'contextId required' }); return; }
+
+  const outcome = await deviceSessionService.activateContext(deviceId, parsed.data.contextId, req);
+  if (!outcome.ok) {
+    if (outcome.reason === 'unauthorized') {
+      // The target was stale or revoked and has been healed out of the device.
+      // Broadcast the healed state so the device's other apps drop it too, then
+      // reject — exactly what `/switch` does on the same class of failure.
+      broadcastDeviceState(outcome.state);
+      broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'revoke');
+      res.status(403).json({ error: 'Context not authorized' });
+      return;
+    }
+    res.status(404).json({ error: 'Context not on this device' });
+    return;
+  }
+
+  // An idempotent activation changed nothing — no revision moved, so there is
+  // nothing for the other apps on this device to converge on.
+  if (outcome.changed) {
+    broadcastDeviceState(outcome.state);
+    broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'switch');
+  }
+  const dto: DeviceActivateResponse = {
+    directory: outcome.directory,
+    activeToken: outcome.activeToken,
+  };
+  res.json({ data: deviceActivateResponseSchema.parse(dto) });
 }));
 
 router.post('/add', asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -319,12 +434,56 @@ router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
   res.json({ data: await withActiveToken(outcome.state) });
 }));
 
+/**
+ * POST /session/device/signout
+ *
+ * The four `/signout` shapes, and why they are four.
+ *
+ * `docs/auth/principals-and-account-contexts.md` states five distinct meanings
+ * of "sign out"; conflating any two of them is a bug. This route serves
+ * meanings 2, 3 and 4:
+ *
+ *  - `{ contextId }`   — remove ONE `principal → account` pair. Never the
+ *                        account across the device: the same organization
+ *                        reached through a second person is a different
+ *                        session, a different audit actor and a different
+ *                        revocation path, and it stays.
+ *  - `{ principalId }` — remove ONE PERSON and every context they reach, and
+ *                        NOBODY ELSE'S — including when another principal
+ *                        independently operates the same account.
+ *  - `{ accountId }`   — the FLAT compatibility meaning: that account, however
+ *                        it is reached, plus the operator cascade. Unchanged.
+ *  - `{ all: true }`   — the whole device, credentials included. Unchanged.
+ *
+ * The first two elect a replacement active context in the documented order
+ * (same principal's personal, then another of that principal's, then the next
+ * principal's personal, then none).
+ */
 router.post('/signout', asyncHandler(async (req: AuthRequest, res: Response) => {
   const deviceId = resolveCallerDeviceId(req);
   if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
-  const { accountId, all } = req.body ?? {};
+  const { accountId, all, contextId, principalId } = req.body ?? {};
+
+  if (typeof contextId === 'string' || typeof principalId === 'string') {
+    if (typeof contextId === 'string' && typeof principalId === 'string') {
+      res.status(400).json({ error: 'contextId and principalId are different operations' });
+      return;
+    }
+    const outcome = typeof contextId === 'string'
+      ? await deviceSessionService.removeContext(deviceId, contextId)
+      : await deviceSessionService.removePrincipal(deviceId, String(principalId));
+    if (!outcome.ok) {
+      res.status(404).json({ error: 'Not on this device' });
+      return;
+    }
+    broadcastDeviceState(outcome.state);
+    broadcastSessionAccountsChanged(outcome.removedAccountIds, outcome.state.revision, 'signout');
+    res.json({ data: { directory: outcome.directory, ...(await withActiveToken(outcome.state)) } });
+    return;
+  }
+
   const target = all === true ? { all: true as const } : accountId ? { accountId } : null;
-  if (!target) { res.status(400).json({ error: 'accountId or all required' }); return; }
+  if (!target) { res.status(400).json({ error: 'accountId, contextId, principalId or all required' }); return; }
   // Capture the account set BEFORE signout so we can signal every user actually
   // removed — this covers `all`, a single account, AND the operator-cascade
   // (signing out an operator removes their managed accounts too).

@@ -13,6 +13,9 @@
  *  - `securityActivityService` — a different batch, still on Mongoose.
  *  - `account.service` — the `account:act_as` membership oracle, imported
  *    lazily; mocking it is what lets a test revoke membership deterministically.
+ *
+ * `utils/socket` is mocked for the opposite reason: the migration path emits a
+ * device-state broadcast, and the emit is the assertion.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -31,6 +34,12 @@ jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
 const mockVerifyActingAs = jest.fn();
 const mockLogDeviceAdded = jest.fn();
+const mockBroadcastDeviceState = jest.fn();
+
+jest.mock('../../utils/socket', () => ({
+  broadcastDeviceState: (...a: unknown[]) => mockBroadcastDeviceState(...a),
+  broadcastSessionAccountsChanged: jest.fn(),
+}));
 
 jest.mock('../account.service.js', () => ({
   __esModule: true,
@@ -47,6 +56,8 @@ import { users } from '../../db/schema/users';
 import sessionCache from '../../utils/sessionCache';
 import userCache from '../../utils/userCache';
 import { validateAccessToken } from '../../utils/sessionUtils';
+import { deviceSessions } from '../../db/schema/deviceSessions';
+import deviceSessionService from '../deviceSession.service';
 import sessionService from '../session.service';
 
 const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000;
@@ -233,6 +244,58 @@ describe('createSession', () => {
     expect((await storedSession(legacy.sessionId)).deviceId).toBe(central);
   });
 
+  /**
+   * The detach advances the OLD device's `revision`, and for a long time it did
+   * so SILENTLY — the one revision bump in `deviceSession.service` with no
+   * broadcast beside it. A client still listening on that device room then held
+   * a revision the server had moved past, with no event that would ever tell it
+   * to re-fetch: a graveyard device has no next mutation to converge on.
+   */
+  it('announces the OLD device state when a reused session migrates off it', async () => {
+    const user = await account();
+    const central = deviceId();
+    const legacy = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://rp.example',
+    });
+    await deviceSessionService.addAccount(legacy.deviceId, {
+      accountId: user,
+      sessionId: legacy.sessionId,
+    });
+    const [before] = await getDb()
+      .select({ revision: deviceSessions.revision })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, legacy.deviceId))
+      .limit(1);
+    mockBroadcastDeviceState.mockClear();
+
+    await sessionService.createSession(user, request(), {
+      deviceId: central,
+      stableDeviceKey: 'https://rp.example',
+    });
+
+    expect(mockBroadcastDeviceState).toHaveBeenCalledTimes(1);
+    const [state] = mockBroadcastDeviceState.mock.calls[0] as [
+      { deviceId: string; revision: number; accounts: unknown[] },
+    ];
+    expect(state.deviceId).toBe(legacy.deviceId);
+    expect(state.revision).toBeGreaterThan(before.revision);
+    expect(state.accounts).toEqual([]);
+  });
+
+  it('says nothing when the migration had no old device entry to detach', async () => {
+    const user = await account();
+    const central = deviceId();
+    await sessionService.createSession(user, request(), { stableDeviceKey: 'https://rp.other' });
+    mockBroadcastDeviceState.mockClear();
+
+    await sessionService.createSession(user, request(), {
+      deviceId: central,
+      stableDeviceKey: 'https://rp.other',
+    });
+
+    expect(mockBroadcastDeviceState).not.toHaveBeenCalled();
+  });
+
   it('does NOT migrate on reuse when no explicit deviceId is supplied', async () => {
     const user = await account();
     const first = await sessionService.createSession(user, request(), {
@@ -259,6 +322,51 @@ describe('createSession', () => {
     expect((await storedSession(delegated.sessionId)).operatedByUserId).toBe(operator);
     // NULL is the distinction: "not a delegated session".
     expect((await storedSession(ordinary.sessionId)).operatedByUserId).toBeNull();
+  });
+
+  /**
+   * One device can hold two people who both act as the same organization
+   * (issue #937, ADR 0001). Reuse keyed on `(user, device)` alone collapses them
+   * onto ONE row and then rewrites `operated_by_user_id` — so the audit actor
+   * changes underneath a live session, and removing either person revokes the
+   * other's access to an account they hold in their own right.
+   */
+  it('never reuses ANOTHER operator’s delegated session on the same device', async () => {
+    const org = await account({ kind: 'organization' });
+    const nate = await account();
+    const alice = await account();
+    const device = deviceId();
+
+    const viaNate = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: nate,
+    });
+    const viaAlice = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: alice,
+    });
+
+    expect(viaAlice.sessionId).not.toBe(viaNate.sessionId);
+    expect((await storedSession(viaNate.sessionId)).operatedByUserId).toBe(nate);
+    expect((await storedSession(viaNate.sessionId)).isActive).toBe(true);
+    expect((await storedSession(viaAlice.sessionId)).operatedByUserId).toBe(alice);
+  });
+
+  it('still reuses the SAME operator’s delegated session', async () => {
+    const org = await account({ kind: 'organization' });
+    const nate = await account();
+    const device = deviceId();
+
+    const first = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: nate,
+    });
+    const second = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: nate,
+    });
+
+    expect(second.sessionId).toBe(first.sessionId);
   });
 });
 
