@@ -476,6 +476,31 @@ describe('POST /assets/service/user-media', () => {
     expect(mockUploadUserMediaStream).not.toHaveBeenCalled();
   });
 
+  it('requires privileged act-as authority in addition to files:write', async () => {
+    mockServiceAuthMiddleware.mockImplementationOnce(
+      (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
+        req.serviceApp = {
+          type: 'service',
+          appId: 'unprivileged-app',
+          appName: 'unprivileged',
+          scopes: ['files:write'],
+        };
+        next();
+      }
+    );
+
+    const res = await requestRaw(
+      server,
+      'POST',
+      '/assets/service/user-media',
+      { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': LOCAL_OWNER_ID },
+      Buffer.from('PNG!')
+    );
+
+    expect(res.status).toBe(403);
+    expect(mockUploadUserMediaStream).not.toHaveBeenCalled();
+  });
+
   it('requires the files:write service scope', async () => {
     mockServiceAuthMiddleware.mockImplementationOnce(
       (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
