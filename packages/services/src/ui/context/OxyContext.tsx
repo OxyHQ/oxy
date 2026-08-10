@@ -63,6 +63,7 @@ import { resetSessionScopedStores } from '../stores/resetSessionScopedStores';
 import { ASSET_DOWNLOAD_URLS_QUERY_KEY } from '../hooks/useResolvedFileUrls';
 import {
   createOxyRuntime,
+  OxyRuntimeHandleProvider,
   useRuntimeSnapshot,
   type OxyRuntime,
   type SubjectTransition,
@@ -1319,7 +1320,16 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     ],
   );
 
-  return <OxyRuntimeContext.Provider value={contextValue}>{children}</OxyRuntimeContext.Provider>;
+  // Two contexts, deliberately. The inner one carries the wide compatibility
+  // value every `useOxy()` consumer reads, rebuilt whenever any of its members
+  // moves. The outer one carries the runtime reference, which never changes
+  // identity — so `useActiveAccount()` and friends re-render on the fact they
+  // selected and nothing else. Phase 8 retires the inner one.
+  return (
+    <OxyRuntimeHandleProvider value={runtime}>
+      <OxyRuntimeContext.Provider value={contextValue}>{children}</OxyRuntimeContext.Provider>
+    </OxyRuntimeHandleProvider>
+  );
 };
 
 const PROVIDER_MISSING_ERROR_MESSAGE =

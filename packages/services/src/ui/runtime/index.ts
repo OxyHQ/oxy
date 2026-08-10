@@ -17,6 +17,15 @@ export type {
   SubjectTransition,
 } from './createOxyRuntime';
 export { useRuntimeSnapshot, useRuntimeSelector } from './useRuntimeSnapshot';
+export {
+  OxyRuntimeHandleProvider,
+  OxyRuntimeMissingError,
+  useActiveAccount,
+  useDeviceDirectory,
+  useOxyRuntime,
+  useOxySnapshot,
+} from './runtimeContext';
+export type { ActiveAccount } from './runtimeContext';
 export type {
   OxyRuntimeError,
   OxyRuntimeSnapshot,

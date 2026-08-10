@@ -37,6 +37,25 @@ export { useOxy } from './ui/context/OxyContext';
 // `null` instead, for the rare component that renders on both sides of the
 // provider boundary; there is no fabricated forever-loading runtime.
 export { useOptionalOxy, OxyProviderMissingError } from './ui/context/OxyContext';
+
+// The runtime surface (ADR 0004). These subscribe to the ONE runtime with a
+// selector, so — unlike `useOxy()`, whose value is rebuilt by any of its fifty
+// members moving — a locale change or a dialog opening does not re-render them.
+export {
+  useOxyRuntime,
+  useOxySnapshot,
+  useActiveAccount,
+  useDeviceDirectory,
+  OxyRuntimeMissingError,
+} from './ui/runtime';
+export type {
+  ActiveAccount,
+  OxyRuntime,
+  OxyRuntimeError,
+  OxyRuntimeSnapshot,
+  OxyRuntimeStatus,
+  OxyTokenStatus,
+} from './ui/runtime';
 export type { OxyContextState } from './ui/context/OxyContext';
 export { useAuth } from './ui/hooks/useAuth';
 export type { AuthState, AuthActions, UseAuthReturn } from './ui/hooks/useAuth';
