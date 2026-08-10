@@ -44,6 +44,7 @@ import { formatUserResponse } from '../utils/userTransform';
 import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
 import {
   effectivePermissionsForMember,
+  resolveEffectivePermissions,
   type AccountPermission,
   type AccountRole,
 } from '../utils/accountRoles';
@@ -101,6 +102,21 @@ function requireOperatorId(req: AccountContextRequest): string {
     );
   }
   return operatorId;
+}
+
+/** Refuse any permission conferral outside the actor's effective permission set. */
+function requireConferredPermissions(
+  actorPermissions: readonly AccountPermission[],
+  conferredPermissions: readonly AccountPermission[]
+): void {
+  const beyondActor = [...new Set(conferredPermissions)].filter(
+    (permission) => !actorPermissions.includes(permission)
+  );
+  if (beyondActor.length > 0) {
+    throw new ForbiddenError(
+      `You cannot grant permissions you do not hold: ${beyondActor.join(', ')}`
+    );
+  }
 }
 
 const router = express.Router();
@@ -1052,7 +1068,8 @@ router.post(
   requireAccountPermission('members:invite'),
   asyncHandler(async (req: AccountContextRequest, res) => {
     const account = req.account;
-    if (!account) {
+    const access = req.access;
+    if (!account || !access) {
       throw new NotFoundError('Account not found');
     }
     const { usernameOrEmail, role, inherit } = req.body as {
@@ -1060,6 +1077,14 @@ router.post(
       role: Exclude<AccountRole, 'owner'>;
       inherit?: boolean;
     };
+
+    // A role is itself a bundle of grants. Checking only `members:invite`
+    // would let a narrowed admin restore one of their revoked permissions on a
+    // confederate by choosing a role whose baseline contains it.
+    requireConferredPermissions(
+      access.permissions,
+      resolveEffectivePermissions(role, [], [])
+    );
 
     const targetUser = await resolveUserByIdentifier(usernameOrEmail);
     if (!targetUser) {
@@ -1149,17 +1174,23 @@ router.patch(
       throw new ForbiddenError('You cannot change your own membership');
     }
 
-    // Rule 1.
-    if (permissionGrants && permissionGrants.length > 0) {
-      const beyondActor = permissionGrants.filter(
-        (permission) => !access.permissions.includes(permission)
-      );
-      if (beyondActor.length > 0) {
-        throw new ForbiddenError(
-          `You cannot grant permissions you do not hold: ${beyondActor.join(', ')}`
-        );
-      }
-    }
+    // Rule 1. Role baselines are grants too. Compare the target's current and
+    // prospective effective sets so an actor may still revoke or otherwise
+    // edit a member who already holds a permission beyond the actor. Explicit
+    // grants remain checked even when a baseline currently makes them a no-op.
+    const currentPermissions = effectivePermissionsForMember(target);
+    const prospectivePermissions = resolveEffectivePermissions(
+      role ?? target.role,
+      permissionGrants ?? target.permissionGrants,
+      permissionRevokes ?? target.permissionRevokes
+    );
+    const newlyConferred = prospectivePermissions.filter(
+      (permission) => !currentPermissions.includes(permission)
+    );
+    requireConferredPermissions(access.permissions, [
+      ...newlyConferred,
+      ...(permissionGrants ?? []),
+    ]);
 
     const member = await accountService.updateMember(account.id, req.params.memberId, {
       ...(role !== undefined ? { role } : {}),
