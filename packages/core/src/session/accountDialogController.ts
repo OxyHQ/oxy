@@ -55,6 +55,7 @@
  * teardown), never an `open` / `close` / `visible`.
  */
 
+import type { DeviceDirectory } from '@oxyhq/contracts';
 import type { OxyServices } from '../OxyServices';
 import type { SessionLoginResponse, MinimalUserData } from '../models/session';
 import type { User } from '../models/interfaces';
@@ -68,6 +69,7 @@ import {
   switchableAccountIds,
   type SwitchableAccount,
 } from './accountProjection';
+import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
 import type { AccountNode } from '../mixins/OxyServices.accounts';
 import type { CommonsSignInHandle } from '../mixins/OxyServices.auth';
 import {
@@ -262,7 +264,26 @@ function deriveSignInProgress(facts: SignInFlowFacts): SignInProgress {
 export interface AccountDialogSnapshot {
   /** The current view. */
   view: AccountDialogView;
-  /** The unified, deduped account list (device sign-ins ∪ graph accounts). */
+  /**
+   * The server-authoritative device directory — principals and the contexts
+   * each may act as (ADR 0002) — or `null` before the first read.
+   *
+   * This is the read model a switcher should render. {@link accounts} below is
+   * the compatibility adapter it replaces, and the two are NOT redundant: the
+   * flat list is keyed by account id, so on a device holding two people it can
+   * show one route to a shared organization and never both.
+   */
+  directory: DeviceDirectory | null;
+  /** The active `principal acting as account` pair, actor and subject apart. */
+  activeContext: DeviceContext | null;
+  /**
+   * The unified, deduped account list (device sign-ins ∪ graph accounts).
+   *
+   * The COMPATIBILITY projection, kept while consumers move to
+   * {@link directory}. It is the one place this controller still reconstructs a
+   * caller's account graph — which ADR 0002 removes precisely because a client
+   * holds one caller's graph and cannot enumerate the other principals'.
+   */
   accounts: SwitchableAccount[];
   /** The currently-active account id, or `null` when signed out. */
   activeAccountId: string | null;
@@ -272,6 +293,8 @@ export interface AccountDialogSnapshot {
   error: string | null;
   /** The `accountId` of an in-flight switch, or `null`. */
   switchingAccountId: string | null;
+  /** The `contextId` of an in-flight activation, or `null`. */
+  activatingContextId: string | null;
   /** The "Sign in with Oxy" device-flow state. */
   signIn: SignInFlowState;
   /** Whether Commons is installed on this device. See {@link CommonsAvailability}. */
@@ -457,6 +480,7 @@ export class AccountDialogController {
   private loading = false;
   private error: string | null = null;
   private switchingAccountId: string | null = null;
+  private activatingContextId: string | null = null;
   private signIn: SignInFlowState = IDLE_SIGN_IN;
   private commonsAvailability: CommonsAvailability = 'unknown';
 
@@ -691,6 +715,22 @@ export class AccountDialogController {
     this.error = null;
     this.emit();
 
+    // The directory (ADR 0002) — the read model that replaces the union below.
+    // Both lanes run while consumers migrate, which is the cost of not breaking
+    // every switcher in one commit; the flat half goes when they have moved.
+    // A failure here is never fatal: the compatibility projection still renders
+    // from device state, so a directory outage degrades rather than blanks.
+    try {
+      await this.sessionClient.refreshDirectory();
+    } catch (error) {
+      if (extractErrorStatus(error) === 401) {
+        logger.debug('[AccountDialogController] directory unauthorized (signed out)', { component: 'AccountDialogController' }, error);
+      } else {
+        logger.warn('[AccountDialogController] directory refresh failed', { component: 'AccountDialogController' }, error);
+      }
+    }
+    if (seq !== this.refreshSeq) return; // superseded by a newer refresh
+
     let graph: AccountNode[] = this.graph;
     try {
       graph = await this.oxyServices.listAccounts();
@@ -821,6 +861,40 @@ export class AccountDialogController {
       return false;
     } finally {
       this.switchingAccountId = null;
+      this.emit();
+    }
+  }
+
+  /**
+   * Activate one `principal acting as account` context — the ADR 0002 switch,
+   * and the one that can express what {@link switchTo} cannot: WHICH person's
+   * route to a shared organization to become.
+   *
+   * There is no on-device/graph fork here. That fork exists in `switchTo`
+   * because the flat model has no row for an account the caller may act as but
+   * has never entered, so the first entry has to mint through a different
+   * endpoint. The directory has a row for both, and `POST /session/device/
+   * activate` reuses or mints the delegated session server-side, so one call
+   * covers both cases.
+   *
+   * A context id is not stable across a removal, so a stale one is an ordinary
+   * outcome rather than a bug: the server answers 404 or 403, heals the row, and
+   * the refresh below re-reads a directory that no longer offers it.
+   */
+  async activateContext(contextId: string): Promise<boolean> {
+    if (this.activatingContextId) return false;
+    this.activatingContextId = contextId;
+    this.error = null;
+    this.emit();
+    try {
+      await this.sessionClient.activateContext(contextId);
+      await this.refresh();
+      return true;
+    } catch (error) {
+      this.error = errorMessage(error);
+      return false;
+    } finally {
+      this.activatingContextId = null;
       this.emit();
     }
   }
@@ -1491,8 +1565,11 @@ export class AccountDialogController {
 
   private computeSnapshot(): AccountDialogSnapshot {
     const state = this.sessionClient.getState();
+    const directory = this.sessionClient.getDirectory();
     return {
       view: this.view,
+      directory,
+      activeContext: resolveActiveContext(directory),
       accounts: projectSwitchableAccounts({
         state,
         graph: this.graph,
@@ -1505,6 +1582,7 @@ export class AccountDialogController {
       loading: this.loading,
       error: this.error,
       switchingAccountId: this.switchingAccountId,
+      activatingContextId: this.activatingContextId,
       signIn: this.signIn,
       commonsAvailability: this.commonsAvailability,
     };

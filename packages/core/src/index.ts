@@ -680,6 +680,21 @@ export {
     accountIdsOf,
 } from './session/projectSessionState';
 
+// Pure projections over the device DIRECTORY (`GET /session/device/directory`,
+// ADR 0002) — the read model that keeps the actor (the human who authenticated)
+// and the subject (the account being acted as) apart. The flat
+// `DeviceSessionState` collapses them into one row, so it can neither tell
+// "signed in as an org" from "a person operating that org" nor hold two people
+// reaching the same org on one device.
+// `canActivateContext` is the switchability question — `available` alone, never
+// composed with `onDevice`, which is a different fact in both directions.
+export { canActivateContext, resolveActiveContext, resolveDeviceContext } from './session/deviceDirectory';
+export type {
+    DeviceContext,
+    DeviceContextActor,
+    DeviceContextSubject,
+} from './session/deviceDirectory';
+
 // Unified account-list projection (THE single source of truth for the account
 // chooser: device sign-ins ∪ account graph, deduped by accountId). Pure +
 // I/O-free — the caller hydrates profiles via `getUsersByIds`. Shared by

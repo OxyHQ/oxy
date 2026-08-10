@@ -3,7 +3,9 @@ import {
   deviceActivateRequestSchema,
   deviceActivateResponseSchema,
   deviceDirectorySchema,
+  deviceDirectorySyncSchema,
   devicePrincipalSchema,
+  deviceSessionSyncSchema,
   safeParseContract,
 } from '../index';
 
@@ -165,5 +167,50 @@ describe('device activation contracts', () => {
 
   it('rejects a response with no activeToken key at all', () => {
     expect(safeParseContract(deviceActivateResponseSchema, { directory })).toBeNull();
+  });
+});
+
+describe('deviceDirectorySyncSchema — the context-aware removal response', () => {
+  const state = {
+    deviceId: 'device_x',
+    accounts: [{ accountId: 'nate', sessionId: 'sess_nate', authuser: 0 }],
+    activeAccountId: 'nate',
+    revision: 43,
+    updatedAt: 1720000003000,
+  };
+  const removal = {
+    directory,
+    state,
+    activeToken: { accessToken: 'tok', expiresAt: '2026-08-10T10:00:00.000Z' },
+  };
+
+  it('parses both halves plus the token', () => {
+    expect(safeParseContract(deviceDirectorySyncSchema, removal)).toEqual(removal);
+  });
+
+  it('accepts activeToken=null, including "the removal left no active context"', () => {
+    expect(safeParseContract(deviceDirectorySyncSchema, { ...removal, activeToken: null })?.activeToken).toBeNull();
+  });
+
+  /**
+   * The reason this is a SECOND schema rather than a widened first one.
+   *
+   * Zod strips unknown keys, so the removal response parses cleanly as a
+   * `deviceSessionSync` — silently dropping the directory. That direction is
+   * lossy and gives no signal, which is why the removal lane must never be
+   * routed through `applySync`. The reverse direction is the one that has to
+   * fail, and does: `directory` is required, so a directory-less payload is
+   * refused instead of being read as "this device has no principals".
+   */
+  it('is not interchangeable with deviceSessionSyncSchema', () => {
+    expect(safeParseContract(deviceSessionSyncSchema, removal)).toEqual({
+      state,
+      activeToken: removal.activeToken,
+    });
+    expect(safeParseContract(deviceDirectorySyncSchema, { state, activeToken: removal.activeToken })).toBeNull();
+  });
+
+  it('rejects a payload missing the flat state', () => {
+    expect(safeParseContract(deviceDirectorySyncSchema, { directory, activeToken: null })).toBeNull();
   });
 });

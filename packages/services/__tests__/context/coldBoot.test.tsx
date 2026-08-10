@@ -37,6 +37,12 @@ const fakeSessionClientHost = {
 };
 const fakeSessionClient = {
   getState: jest.fn(() => null),
+  // The dialog controller reads the directory on every snapshot build, so a
+  // stand-in that omits these is not a SessionClient. Null is the honest
+  // answer for a fake that was never given one.
+  getDirectory: jest.fn(() => null),
+  refreshDirectory: jest.fn(async () => null),
+  activateContext: jest.fn(async () => null),
   subscribe: jest.fn(() => () => undefined),
   start: jest.fn(async () => undefined),
   bootstrap: jest.fn(async () => undefined),

@@ -17,6 +17,11 @@ export interface UseSwitchableAccountsResult {
  */
 const EMPTY_SNAPSHOT: AccountDialogSnapshot = {
     view: 'accounts',
+    // The no-provider snapshot predates the directory. These three are null here
+    // for the same reason the rest of it is empty: nothing has been resolved yet.
+    directory: null,
+    activeContext: null,
+    activatingContextId: null,
     accounts: [],
     activeAccountId: null,
     loading: false,
