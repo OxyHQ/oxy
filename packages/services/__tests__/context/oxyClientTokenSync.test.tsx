@@ -59,6 +59,8 @@ jest.mock('../../src/ui/session', () => {
         getDirectory: () => null,
         refreshDirectory: async () => undefined,
         activateContext: async () => undefined,
+        signOutContext: async () => undefined,
+        signOutPrincipal: async () => undefined,
         subscribe: () => () => undefined,
         addCurrentAccount: jest.fn(async () => undefined),
         start: jest.fn(async () => undefined),

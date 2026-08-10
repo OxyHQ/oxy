@@ -45,6 +45,9 @@ export interface RuntimeSessionClient {
   getDirectory(): DeviceDirectory | null;
   subscribe(listener: (state: DeviceSessionState | null) => void): () => void;
   refreshDirectory(): Promise<void>;
+  activateContext(contextId: string): Promise<void>;
+  signOutContext(contextId: string): Promise<void>;
+  signOutPrincipal(principalId: string): Promise<void>;
 }
 
 export interface RuntimeSessionHost {
@@ -110,6 +113,29 @@ export interface OxyRuntime {
 
   /** Read the device directory and publish it (opts this runtime into ADR 0002). */
   refreshDirectory(): Promise<void>;
+
+  /**
+   * Make one `principal acting as account` context active (ADR 0002).
+   *
+   * `contextId`, never an account id: on a device holding two people the same
+   * organization is reachable through both, and an account id cannot name which
+   * route to take.
+   */
+  activateContext(contextId: string): Promise<void>;
+
+  /**
+   * Remove ONE `principal → account` pair. The same account reached through a
+   * second person is a different session with a different audit actor, and it
+   * stays.
+   *
+   * Context ids are NOT stable across a removal: the server offers the pair
+   * again under a NEW id on the next directory read, so nothing may cache one
+   * across this call.
+   */
+  signOutContext(contextId: string): Promise<void>;
+
+  /** Remove ONE PERSON and every context they reach, and nobody else's. */
+  signOutPrincipal(principalId: string): Promise<void>;
 
   /**
    * Run several fact changes as ONE transition.
@@ -453,6 +479,29 @@ export function createOxyRuntime(config: OxyRuntimeConfig): OxyRuntime {
 
     batch(mutate) {
       transition(mutate);
+    },
+
+    async activateContext(contextId) {
+      // `switching` is published BEFORE the request so a switcher can disable
+      // its rows for the whole round trip, and cleared in `finally` so a
+      // refused activation does not strand it on.
+      this.setSwitching(true);
+      try {
+        await sessionClient.activateContext(contextId);
+        await reconcileFromClient();
+      } finally {
+        this.setSwitching(false);
+      }
+    },
+
+    async signOutContext(contextId) {
+      await sessionClient.signOutContext(contextId);
+      await reconcileFromClient();
+    },
+
+    async signOutPrincipal(principalId) {
+      await sessionClient.signOutPrincipal(principalId);
+      await reconcileFromClient();
     },
 
     async refreshDirectory() {

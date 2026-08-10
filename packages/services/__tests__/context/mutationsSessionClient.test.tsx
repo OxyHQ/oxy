@@ -156,6 +156,9 @@ function buildFakeClient(initial: DeviceSessionState) {
       // throw and be swallowed, which reads as "the projection did nothing".
       getDirectory: () => null,
       refreshDirectory: async () => undefined,
+      activateContext: async () => undefined,
+      signOutContext: async () => undefined,
+      signOutPrincipal: async () => undefined,
       start,
       addCurrentAccount,
       registerAndActivate,

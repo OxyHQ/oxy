@@ -83,6 +83,7 @@ interface Harness {
   deviceEmptyCalls: number;
   identityUnbound: number[];
   profileFetches: string[][];
+  calls: { activate: string[]; signOutContext: string[]; signOutPrincipal: string[] };
   /** Resolve the pending `getUsersByIds` promise, gating the projection. */
   releaseProfiles(): void;
   dispose(): void;
@@ -94,6 +95,8 @@ interface HarnessOptions {
   pinnedAccountId?: string | null;
   /** Fires from `onSubjectChange`; used to record what a reset can observe. */
   onSubjectChangeExtra?: () => void;
+  /** Make `POST /session/device/activate` refuse. */
+  rejectActivation?: boolean;
 }
 
 function buildHarness(options: HarnessOptions = {}): Harness {
@@ -121,6 +124,8 @@ function buildHarness(options: HarnessOptions = {}): Harness {
     },
   };
 
+  const calls = { activate: [] as string[], signOutContext: [] as string[], signOutPrincipal: [] as string[] };
+
   const sessionClient: RuntimeSessionClient = {
     getState: () => state,
     getDirectory: () => directory,
@@ -131,6 +136,20 @@ function buildHarness(options: HarnessOptions = {}): Harness {
       };
     },
     refreshDirectory: () => Promise.resolve(),
+    activateContext: (contextId) => {
+      calls.activate.push(contextId);
+      return options.rejectActivation
+        ? Promise.reject(new Error('refused'))
+        : Promise.resolve();
+    },
+    signOutContext: (contextId) => {
+      calls.signOutContext.push(contextId);
+      return Promise.resolve();
+    },
+    signOutPrincipal: (principalId) => {
+      calls.signOutPrincipal.push(principalId);
+      return Promise.resolve();
+    },
   };
 
   const sessionClientHost: RuntimeSessionHost = { setCurrentAccountId: () => undefined };
@@ -187,6 +206,7 @@ function buildHarness(options: HarnessOptions = {}): Harness {
     },
     identityUnbound,
     profileFetches,
+    calls,
     releaseProfiles: () => releaseProfiles(),
     dispose,
   };
@@ -504,6 +524,54 @@ describe('createOxyRuntime — the ordering invariant (ADR 0002)', () => {
     await settle();
 
     expect(harness.subjectChanges).toEqual([{ previous: null, next: 'a1' }]);
+    harness.dispose();
+  });
+});
+
+describe('createOxyRuntime — activation and the two removal meanings', () => {
+  it('activates by contextId and publishes `switching` for the whole round trip', async () => {
+    const harness = buildHarness();
+    const switchingSeen: boolean[] = [];
+    const unsubscribe = harness.runtime.subscribe(() => {
+      switchingSeen.push(harness.runtime.getSnapshot().switching);
+    });
+
+    harness.setState(buildState('a2'));
+    await harness.runtime.activateContext('ctx-nate-collective');
+
+    expect(harness.calls.activate).toEqual(['ctx-nate-collective']);
+    // A switcher must be able to disable its rows for the duration, so
+    // `switching` has to be observable as true and then false — not merely be
+    // false again by the time the promise resolves.
+    expect(switchingSeen).toContain(true);
+    expect(harness.runtime.getSnapshot().switching).toBe(false);
+    unsubscribe();
+    harness.dispose();
+  });
+
+  it('clears `switching` when the activation is refused', async () => {
+    const harness = buildHarness({ rejectActivation: true });
+
+    await expect(harness.runtime.activateContext('ctx-x')).rejects.toThrow('refused');
+
+    // A refused activation must not strand the flag on, or a switcher stays
+    // disabled forever with no error it can see.
+    expect(harness.runtime.getSnapshot().switching).toBe(false);
+    harness.dispose();
+  });
+
+  it('removes one principal-to-account pair, and one person, through distinct calls', async () => {
+    const harness = buildHarness();
+    harness.setState(buildState('a1'));
+
+    await harness.runtime.signOutContext('ctx-nate-collective');
+    await harness.runtime.signOutPrincipal('p-nate');
+
+    // Two different questions, two different endpoints. Collapsing them onto
+    // `signOut({accountId})` removes every person's route to that account.
+    expect(harness.calls.signOutContext).toEqual(['ctx-nate-collective']);
+    expect(harness.calls.signOutPrincipal).toEqual(['p-nate']);
+    expect(harness.calls.activate).toEqual([]);
     harness.dispose();
   });
 });
