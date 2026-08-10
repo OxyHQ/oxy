@@ -57,11 +57,22 @@ export const deviceDirectoryProfileSchema = z.object({
  * its delegated session is minted on first activation rather than eagerly for
  * every organization the principal belongs to.
  *
- * `available` is the live `account:act_as` verdict at read time. A managed
- * account whose membership was revoked is returned with `available: false`
- * rather than silently omitted, so the UI can explain a row disappearing
- * instead of just dropping it. A personal context is always available while its
- * principal is live.
+ * `available` is `principalLive && (personal || live account:act_as)`, and the
+ * principal clause is not decoration: a principal whose own personal session
+ * has died makes EVERY context of theirs unavailable, including delegated ones
+ * whose sessions are perfectly alive. Activation verifies the principal's
+ * personal session (ADR 0002 step 3), so a client that models availability as
+ * "delegated context has a live session ⇒ activatable" will be refused by the
+ * server and the context healed away.
+ *
+ * A managed account whose membership was revoked is returned with
+ * `available: false` rather than silently omitted, so the UI can explain a row
+ * disappearing instead of just dropping it.
+ *
+ * (An earlier version of this comment described `available` as the
+ * `account:act_as` verdict alone. It was written before the server existed and
+ * was weaker than the code that shipped — the kind of wrong statement nothing
+ * recomputes, so it is spelled out here in full.)
  */
 export const deviceAccountContextSchema = z.object({
   id: z.string().min(1),
