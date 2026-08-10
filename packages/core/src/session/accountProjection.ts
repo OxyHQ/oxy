@@ -28,6 +28,7 @@ import type {
 } from '../mixins/OxyServices.accounts';
 import { getAccountDisplayName, getAccountFallbackHandle } from '../utils/accountUtils';
 import { getNormalizedUserHandle } from '../utils/userHandle';
+import { boundAccountIdOf } from './projectSessionState';
 
 /**
  * The per-account user shape carried by a {@link SwitchableAccount}. The SDK's
@@ -66,7 +67,23 @@ export interface SwitchableAccount {
    * `SessionAccount`. Absent for graph-only rows.
    */
   authuser?: number;
-  /** Whether this account is the currently-active one (`accountId === activeAccountId`). */
+  /**
+   * The HUMAN this account is being operated by, for a delegated device session.
+   * Absent for a row the account itself signed into, and for every graph-only
+   * row (nobody operates an account that has no session here yet).
+   *
+   * Lets a switcher say "The Oxy Collective — operated by Nate" instead of
+   * rendering a delegated session identically to a direct one. On a device
+   * holding two people the flat lane still cannot show BOTH routes to one
+   * account — the unique key is the account id — which is exactly the limit
+   * `SessionClient.getDirectory()` exists to lift.
+   */
+  operatedByUserId?: string;
+  /**
+   * Whether this account is the currently-active one — `accountId` equals the
+   * BOUND account, i.e. the pin when {@link ProjectSwitchableAccountsInput.pinnedAccountId}
+   * is supplied and the device's `activeAccountId` otherwise.
+   */
   isCurrent: boolean;
   /** Whether this account is signed in on THIS device (has a `sessionId`). */
   onDevice: boolean;
@@ -189,6 +206,21 @@ export interface ProjectSwitchableAccountsInput {
    * `profilesById` alone when omitted.
    */
   activeUser?: User | null;
+  /**
+   * The PINNED account id for an identity-bound client, or `null`/omitted for
+   * every ordinary one — the same parameter every projection in
+   * `projectSessionState.ts` takes, resolved through the same
+   * `boundAccountIdOf`.
+   *
+   * It exists here because the alternative was a structural coupling, not a
+   * guarantee: reading `state.activeAccountId` directly is correct only while
+   * identity mode never builds a switcher, and "this projection happens not to
+   * be reachable from that mode today" is not a property anything checks. With
+   * the pin threaded, a pinned client that DID render a switcher marks its own
+   * identity current instead of whichever account another app on the device
+   * last activated.
+   */
+  pinnedAccountId?: string | null;
   /** Locale for display-name resolution (passed to `getAccountDisplayName`). */
   locale?: string;
   /**
@@ -210,16 +242,23 @@ export interface ProjectSwitchableAccountsInput {
  * Graph nodes the caller cannot switch into — a `channel`, or a managed account
  * whose membership lacks `account:act_as` — are omitted.
  * {@link canSwitchIntoAccount} is the rule; see the filter below.
+ *
+ * `isCurrent` marks the BOUND account — the pin when
+ * {@link ProjectSwitchableAccountsInput.pinnedAccountId} is supplied, the
+ * device's `activeAccountId` otherwise — through the same `boundAccountIdOf`
+ * every projection in `projectSessionState.ts` uses, so the two can never
+ * disagree about which row is current for one pin.
  */
 export function projectSwitchableAccounts(input: ProjectSwitchableAccountsInput): SwitchableAccount[] {
-  const { state, graph, profilesById, activeUser, locale, resolveAvatarUrl } = input;
-  const activeAccountId = state?.activeAccountId ?? null;
+  const { state, graph, profilesById, activeUser, pinnedAccountId, locale, resolveAvatarUrl } = input;
+  const boundAccountId = boundAccountIdOf(state, pinnedAccountId);
 
   const toRow = (
     accountUser: User,
     opts: {
       sessionId?: string;
       authuser?: number;
+      operatedByUserId?: string;
       relationship?: AccountRelationship;
       kind?: AccountKind;
       parentAccountId?: string | null;
@@ -233,7 +272,8 @@ export function projectSwitchableAccounts(input: ProjectSwitchableAccountsInput)
       accountId,
       sessionId: opts.sessionId,
       authuser: opts.authuser,
-      isCurrent: Boolean(accountId) && accountId === activeAccountId,
+      operatedByUserId: opts.operatedByUserId,
+      isCurrent: Boolean(accountId) && accountId === boundAccountId,
       onDevice: Boolean(opts.sessionId),
       relationship: opts.relationship,
       kind: opts.kind,
@@ -253,7 +293,7 @@ export function projectSwitchableAccounts(input: ProjectSwitchableAccountsInput)
 
   // --- Device rows (from the server-authoritative session set) ---
   const deviceRows = (state?.accounts ?? []).flatMap((account): SwitchableAccount[] => {
-    const isActive = account.accountId === activeAccountId;
+    const isActive = account.accountId === boundAccountId;
     // The active row prefers the freshest `activeUser` (when supplied), then the
     // batch-resolved profile; every other row uses the batch-resolved profile.
     const accountUser: User | undefined = isActive && activeUser
@@ -262,7 +302,11 @@ export function projectSwitchableAccounts(input: ProjectSwitchableAccountsInput)
     if (!accountUser) {
       return [];
     }
-    return [toRow(accountUser, { sessionId: account.sessionId, authuser: account.authuser })];
+    return [toRow(accountUser, {
+      sessionId: account.sessionId,
+      authuser: account.authuser,
+      operatedByUserId: account.operatedByUserId,
+    })];
   });
 
   // --- Merge graph nodes, deduping by account id ---

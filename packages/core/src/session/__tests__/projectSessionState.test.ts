@@ -86,3 +86,20 @@ describe('projections — pinned', () => {
     expect(accountIdsOf(STATE)).toEqual([PINNED, OTHER]);
   });
 });
+
+describe('the operator behind a delegated session', () => {
+  it('carries operatedByUserId through instead of dropping it', () => {
+    const operated: DeviceSessionState = {
+      ...STATE,
+      accounts: [
+        { accountId: PINNED, sessionId: 'sess-vault', authuser: 0 },
+        { accountId: OTHER, sessionId: 'sess-other', authuser: 1, operatedByUserId: PINNED },
+      ],
+    };
+
+    const sessions = deviceStateToClientSessions(operated, USERS);
+
+    // The delegated row names the human behind it; the direct one has nobody.
+    expect(sessions.map((session) => session.operatedByUserId)).toEqual([undefined, PINNED]);
+  });
+});

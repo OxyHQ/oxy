@@ -20,12 +20,17 @@ function user(id: string, over: Partial<User> = {}): User {
 }
 
 function state(
-  accounts: Array<{ accountId: string; sessionId: string; authuser?: number }>,
+  accounts: Array<{ accountId: string; sessionId: string; authuser?: number; operatedByUserId?: string }>,
   activeAccountId: string | null,
 ): DeviceSessionState {
   return {
     deviceId: 'device-1',
-    accounts: accounts.map((a) => ({ accountId: a.accountId, sessionId: a.sessionId, authuser: a.authuser ?? 0 })),
+    accounts: accounts.map((a) => ({
+      accountId: a.accountId,
+      sessionId: a.sessionId,
+      authuser: a.authuser ?? 0,
+      operatedByUserId: a.operatedByUserId,
+    })),
     activeAccountId,
     revision: 1,
     updatedAt: 1_720_000_000_000,
@@ -411,6 +416,80 @@ describe('projectSwitchableAccounts', () => {
     // Graph-only siblings (operable but not yet on this device) still appear.
     expect(rows.find((r) => r.accountId === 'oxy')?.onDevice).toBe(false);
     expect(rows.find((r) => r.accountId === 'faircoin')?.onDevice).toBe(false);
+  });
+
+  /**
+   * The pin, which this projection did not take until #937.
+   *
+   * Reading `state.activeAccountId` directly was correct only for as long as an
+   * identity-bound client never built a switcher — a coupling to what happens to
+   * be reachable from where, not a property anything checks. Every projection in
+   * `projectSessionState.ts` already took the pin; this one now answers through
+   * the same `boundAccountIdOf`, so the switcher and the session projection can
+   * never disagree about which row is current.
+   */
+  it('marks the PINNED row current rather than the device’s active account', () => {
+    const rows = projectSwitchableAccounts({
+      state: state([{ accountId: 'vault', sessionId: 's-vault' }, { accountId: 'other', sessionId: 's-other' }], 'other'),
+      graph: [],
+      profilesById: mapOf(user('vault'), user('other')),
+      pinnedAccountId: 'vault',
+      resolveAvatarUrl: noAvatar,
+    });
+
+    expect(rows.find((r) => r.accountId === 'vault')?.isCurrent).toBe(true);
+    expect(rows.find((r) => r.accountId === 'other')?.isCurrent).toBe(false);
+  });
+
+  it('treats an empty-string pin as no pin at all', () => {
+    const rows = projectSwitchableAccounts({
+      state: state([{ accountId: 'vault', sessionId: 's-vault' }, { accountId: 'other', sessionId: 's-other' }], 'other'),
+      graph: [],
+      profilesById: mapOf(user('vault'), user('other')),
+      pinnedAccountId: '',
+      resolveAvatarUrl: noAvatar,
+    });
+
+    expect(rows.find((r) => r.accountId === 'other')?.isCurrent).toBe(true);
+  });
+
+  it('prefers activeUser for the PINNED row, not for the device’s active one', () => {
+    const fresh = user('vault', { name: { displayName: 'Freshly Renamed' } });
+    const rows = projectSwitchableAccounts({
+      state: state([{ accountId: 'vault', sessionId: 's-vault' }, { accountId: 'other', sessionId: 's-other' }], 'other'),
+      graph: [],
+      profilesById: mapOf(user('vault'), user('other')),
+      activeUser: fresh,
+      pinnedAccountId: 'vault',
+      resolveAvatarUrl: noAvatar,
+    });
+
+    expect(rows.find((r) => r.accountId === 'vault')?.displayName).toBe('Freshly Renamed');
+  });
+
+  /**
+   * `operatedByUserId` has ridden the wire since the multi-account model shipped
+   * and no client has ever read it, so an org somebody is OPERATING has rendered
+   * identically to one signed in directly — different audit actor, same row.
+   * The directory is the full answer; this is the same fact on the flat lane.
+   */
+  it('surfaces the human operating a delegated device row', () => {
+    const rows = projectSwitchableAccounts({
+      state: state(
+        [
+          { accountId: 'nate', sessionId: 's-nate' },
+          { accountId: 'org', sessionId: 's-org', authuser: 1, operatedByUserId: 'nate' },
+        ],
+        'org',
+      ),
+      graph: [],
+      profilesById: mapOf(user('nate'), user('org')),
+      resolveAvatarUrl: noAvatar,
+    });
+
+    expect(rows.find((r) => r.accountId === 'org')?.operatedByUserId).toBe('nate');
+    // A directly signed-in account carries no operator — absence is the signal.
+    expect(rows.find((r) => r.accountId === 'nate')?.operatedByUserId).toBeUndefined();
   });
 });
 
