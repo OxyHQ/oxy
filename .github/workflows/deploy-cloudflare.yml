@@ -11,7 +11,6 @@ jobs:
     outputs:
       accounts: ${{ steps.filter.outputs.accounts }}
       auth: ${{ steps.filter.outputs.auth }}
-      inbox: ${{ steps.filter.outputs.inbox }}
       console: ${{ steps.filter.outputs.console }}
     steps:
       - uses: actions/checkout@v7
@@ -32,15 +31,6 @@ jobs:
               - 'packages/auth/**'
               - 'packages/app-preset/**'
               - 'packages/bloom/**'
-              - 'packages/core/**'
-              - 'packages/protocol/**'
-              - 'packages/services/**'
-              - 'packages/contracts/**'
-            inbox:
-              - 'packages/inbox/**'
-              - 'packages/app-preset/**'
-              - 'packages/bloom/**'
-              - 'packages/expo-splash/**'
               - 'packages/core/**'
               - 'packages/protocol/**'
               - 'packages/services/**'
@@ -146,7 +136,9 @@ jobs:
           # Accounts' PRODUCTION Oxy client id. `packages/accounts/constants/oxy.ts`
           # falls back to a committed id when this is unset. A repo VARIABLE rather
           # than a secret — the id ships inside the bundle. Named per APP because
-          # accounts, commons, and inbox share `EXPO_PUBLIC_OXY_CLIENT_ID`.
+          # accounts and commons share `EXPO_PUBLIC_OXY_CLIENT_ID` (inbox did too,
+          # until it moved to OxyHQ/Inbox), so one variable per var NAME could not
+          # serve them.
           EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.ACCOUNTS_OXY_CLIENT_ID }}
       - name: Deploy to Cloudflare Pages
         env:
@@ -154,43 +146,20 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bunx wrangler@4 pages deploy packages/accounts/dist --project-name=oxy-accounts --branch=main
 
-  deploy-inbox:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.inbox == 'true' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: main
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.3.14
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '22.x'
-      # bun 1.3.14 `--frozen-lockfile` false-positives on a perfectly-synced
-      # lock (non-deterministic configVersion churn), failing deploys. Lockfile
-      # sync is already gated pre-push (test-build) and in PR CI, so the deploy
-      # installs without the buggy frozen flag.
-      - run: bun install
-      - run: bun x turbo run build --filter=inbox
-        env:
-          # Inbox's PRODUCTION Oxy client id. `packages/inbox/constants/oxy.ts`
-          # falls back to a committed id when this is unset, so nothing errors —
-          # the deployed bundle just authenticates against the wrong Oxy
-          # application. A repo VARIABLE rather than a secret: the id travels
-          # inside the bundle, so it is public by construction, and a secret
-          # would only make it unreadable in the UI. The variable is named per
-          # APP because five apps in this monorepo share two env-var names —
-          # EXPO_PUBLIC_OXY_CLIENT_ID (accounts, commons, inbox) and
-          # VITE_OXY_CLIENT_ID (console, auth) — so one variable per var name
-          # could not serve them.
-          EXPO_PUBLIC_OXY_CLIENT_ID: ${{ vars.INBOX_OXY_CLIENT_ID }}
-      - name: Deploy to Cloudflare Pages
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: bunx wrangler@4 pages deploy packages/inbox/dist --project-name=oxy-inbox --branch=main
+  # deploy-inbox is GONE: the app moved to OxyHQ/Inbox, which now owns the
+  # `oxy-inbox` Pages project and inbox.oxy.so.
+  #
+  # This job had to go BEFORE packages/inbox is deleted, not with it, because
+  # its paths-filter fired on packages/{app-preset,bloom,expo-splash,core,
+  # protocol,services,contracts}/** as well as on packages/inbox/** — packages
+  # that change weekly. Left in place, any routine SDK commit here would rebuild
+  # the old copy of the app and overwrite whatever OxyHQ/Inbox had deployed. Two
+  # writers, both green, and the symptom is "inbox.oxy.so reverted itself" with
+  # nothing to point at.
+  #
+  # packages/inbox itself is removed separately, once the new repo has served a
+  # deploy. Until then the code here is still built and tested by ci.yml's
+  # inbox-test — it just cannot deploy.
 
   deploy-console:
     needs: detect-changes
