@@ -351,7 +351,7 @@ describe('POST /webauthn/register/options', () => {
     expect(stored.used).toBe(false);
   });
 
-  it('offers residentKey:preferred + UV:preferred and does NOT pin authenticatorAttachment (roaming/hardware keys can enrol)', async () => {
+  it('offers residentKey:preferred + UV:required and does NOT pin authenticatorAttachment (roaming/hardware keys can enrol)', async () => {
     const res = await request(server, 'POST', '/webauthn/register/options', { username: freshUsername() });
     expect(res.status).toBe(200);
     const opts = mockGenerateRegistration.mock.calls[0][0] as {
@@ -364,9 +364,7 @@ describe('POST /webauthn/register/options', () => {
     // `preferred` (not `required`) is what lets a Google Titan / roaming key with no
     // resident-key support still register a non-discoverable credential.
     expect(opts.authenticatorSelection.residentKey).toBe('preferred');
-    // UV is `preferred` (owner possession-credential policy): UV-capable keys still
-    // verify; a UV-incapable U2F key falls back to presence-only.
-    expect(opts.authenticatorSelection.userVerification).toBe('preferred');
+    expect(opts.authenticatorSelection.userVerification).toBe('required');
     // Attachment is unpinned so both platform and cross-platform authenticators show.
     expect(opts.authenticatorSelection.authenticatorAttachment).toBeUndefined();
   });
@@ -425,9 +423,8 @@ describe('POST /webauthn/register/verify — signup branch', () => {
       deviceType: 'web',
       platform: 'web',
     });
-    // Possession-only credentials are accepted — UV is not required at verify.
     const verifyArg = mockVerifyRegistration.mock.calls[0][0] as { requireUserVerification: boolean };
-    expect(verifyArg.requireUserVerification).toBe(false);
+    expect(verifyArg.requireUserVerification).toBe(true);
   });
 
   it('defaults the credential name when the client sends none', async () => {
@@ -436,23 +433,6 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
 
     expect((await storedCredential(currentCredentialId)).name).toBe('Passkey');
-  });
-
-  it('records userVerified:false for a possession-only (no-UV) enrollment and still creates the account', async () => {
-    mockRegisterUserVerified = false;
-    const username = freshUsername();
-    await request(server, 'POST', '/webauthn/register/options', { username });
-
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username,
-      deviceName: 'Titan Key',
-      response: registrationResponse(),
-    });
-
-    expect(res.status).toBe(200);
-    // Presence-only assertion → recorded as an unverified (possession-only) credential.
-    expect((await storedCredential(currentCredentialId)).userVerified).toBe(false);
-    expect(await storedUserByUsername(username)).toBeDefined();
   });
 
   it('leaves NO account behind when the credential collides — the whole signup rolls back (409)', async () => {

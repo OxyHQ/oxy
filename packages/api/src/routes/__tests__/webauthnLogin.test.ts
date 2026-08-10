@@ -258,7 +258,7 @@ describe('POST /webauthn/login/options', () => {
     // The user's real credential id is surfaced so a non-discoverable hardware key
     // can be invoked by the browser.
     expect(opts.allowCredentials).toEqual([{ id: credentialID, transports: ['usb', 'nfc'] }]);
-    expect(opts.userVerification).toBe('preferred');
+    expect(opts.userVerification).toBe('required');
 
     // The stored challenge is bound to the resolved account and is SPENDABLE.
     const stored = await storedChallenge(currentChallenge);
@@ -422,9 +422,8 @@ describe('POST /webauthn/login/verify', () => {
       deviceType: 'web',
       platform: 'web',
     });
-    // Possession-only assertions are accepted — UV is not required at verify.
     const verifyArg = mockVerifyAuthentication.mock.calls[0][0] as { requireUserVerification: boolean };
-    expect(verifyArg.requireUserVerification).toBe(false);
+    expect(verifyArg.requireUserVerification).toBe(true);
   });
 
   it('feeds the verifier the STORED public key, counter and transports', async () => {
@@ -453,20 +452,6 @@ describe('POST /webauthn/login/verify', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.user).toMatchObject({ id: userId });
-  });
-
-  it('accepts a possession-only (userVerified:false) assertion and records the flag', async () => {
-    // A stored credential that had verified previously authenticates presence-only
-    // now (e.g. a U2F key with no PIN) → still succeeds, flag refreshed to false.
-    const { username, credentialID } = await accountWithPasskey({ userVerified: true });
-    presentedCredentialId = credentialID;
-    await request(server, 'POST', '/webauthn/login/options', { username });
-    mockVerifyAuthentication.mockResolvedValue({ verified: true, authenticationInfo: { newCounter: 6, userVerified: false } });
-
-    const res = await request(server, 'POST', '/webauthn/login/verify', { response: authenticationResponse() });
-
-    expect(res.status).toBe(200);
-    expect((await storedCredential(credentialID)).userVerified).toBe(false);
   });
 
   it('accepts a platform authenticator that never increments (newCounter === 0, stored 0)', async () => {
