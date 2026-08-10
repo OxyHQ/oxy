@@ -6,14 +6,19 @@
  * thing in the schema to a credential store and each nullable column below is
  * load-bearing.
  *
- * ## `accounts[]` is a CHILD TABLE, not `jsonb`
+ * ## What is signed in here lives in TWO child tables
  *
- * Each entry carries TWO user references (`accountId`, `operatedByUserId`). As
- * `jsonb` both would be orphanable ids inside an opaque value — un-joinable,
- * un-constrained, and invisible to `ON DELETE`. `device_session_accounts` makes
- * them real foreign keys, which is what makes deleting an account actually
- * remove it from every device instead of leaving a dangling entry that the
- * mint path would have to defend against. See `deviceSessionAccounts.ts`.
+ * `device_principals` (the PEOPLE who authenticated on this device) and
+ * `device_account_contexts` (one principal acting as one account). Issue #937,
+ * ADR 0001. They replace the flat `device_session_accounts`, which is left in
+ * place, unread and unwritten, until Phase 8's clean cut.
+ *
+ * Child tables rather than `jsonb` for a reason stronger than style: every id
+ * involved is a real user, and inside a `jsonb` value each would be an
+ * orphanable string — un-joinable, un-constrained, invisible to `ON DELETE`. The
+ * foreign keys are what make deleting an account actually remove it from every
+ * device instead of leaving a dangling entry the mint path has to defend
+ * against.
  *
  * ## The `default: undefined` workaround does NOT travel
  *
@@ -26,8 +31,9 @@
  * unique at all. `__tests__/authSession.test.ts` pins this.
  */
 
-import { integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { deviceAccountContexts } from './deviceAccountContexts';
 import { users } from './users';
 
 export const deviceSessions = pgTable(
@@ -42,6 +48,15 @@ export const deviceSessions = pgTable(
     /**
      * Whichever account of the device's set is currently active.
      *
+     * Since issue #937 this is a PROJECTION of `active_context_id` below, not an
+     * authority: `deviceSession.service.ts`'s `resolveActiveFields` derives it
+     * from the elected context at the one site that writes either column, so the
+     * two cannot disagree. It survives only while the flat
+     * `DeviceSessionState.accounts[]` wire contract has consumers, and is
+     * ambiguous by construction on a device where two people can reach the same
+     * organization — which is exactly why `contextId` is what the activation
+     * endpoint takes.
+     *
      * `SET NULL`, and NULL is a first-class state here (the Mongoose default):
      * "signed in, nothing selected". `CASCADE` would delete the whole DEVICE
      * when one of possibly several accounts is deleted, taking every other
@@ -50,6 +65,33 @@ export const deviceSessions = pgTable(
      * `getState`, so `SET NULL` fails closed.
      */
     activeAccountId: text().references(() => users.id, { onDelete: 'set null' }),
+    /**
+     * The device's active CONTEXT — one principal acting as one account, and the
+     * authority `active_account_id` above is now derived from (ADR 0002).
+     *
+     * An account id cannot name what to activate on a device holding two people:
+     * `Nate → The Oxy Collective` and `Alice → The Oxy Collective` are different
+     * sessions with different permissions and different audit actors, and
+     * resolving that ambiguity server-side would mean guessing inside an
+     * authorization path.
+     *
+     * `SET NULL` for the same reason `active_account_id` is: NULL is the
+     * first-class "signed in, nothing selected" state, and `CASCADE` would
+     * delete the whole DEVICE when one of several contexts goes.
+     *
+     * ## This closes a cycle, and the cycle is real
+     *
+     * `device_account_contexts.device_session_id` points back here. Both
+     * constraints must exist — a column-level circular reference has been
+     * silently dropped from a generated migration and its snapshot before now,
+     * with nothing failing — so `__tests__/devicePrincipals.test.ts` reads both
+     * out of `pg_constraint` rather than trusting the declaration. The reference
+     * is a lazily-evaluated arrow returning `AnyPgColumn`, which is what keeps
+     * the module cycle from resolving to `undefined` at definition time.
+     */
+    activeContextId: text().references((): AnyPgColumn => deviceAccountContexts.id, {
+      onDelete: 'set null',
+    }),
     /**
      * `sha256(deviceSecret)` — the zero-cookie transport's proof. The raw secret
      * is held only by the client, so this is a verifier, not a credential: a

@@ -1,7 +1,27 @@
 /**
- * `device_session_accounts` — one account signed in on one device.
+ * `device_session_accounts` — one account signed in on one device. SUPERSEDED.
  *
- * Ported from the `accounts[]` subdocument array in `models/DeviceSession.ts`.
+ * Ported from the `accounts[]` subdocument array in `models/DeviceSession.ts`,
+ * and replaced by `device_principals` + `device_account_contexts` in issue #937
+ * (ADR 0001). Nothing reads or writes this table any more: migration 0028
+ * translated every row, and `deviceSession.service.ts` moved to the new pair.
+ *
+ * It is left in place rather than dropped in the same change, because a `pre`
+ * migration lands while the PREVIOUS image is still serving and still writing
+ * here. The drop is Phase 8's clean cut, once no supported client speaks the
+ * flat `DeviceSessionState.accounts[]` contract.
+ *
+ * ## Why the shape had to go
+ *
+ * `UNIQUE(device_session_id, account_id)` made an ordinary state
+ * unrepresentable: `Nate -> The Oxy Collective` and `Alice -> The Oxy
+ * Collective` could not both exist on one device, though they are different
+ * sessions with different permissions, audit actors and revocation paths. And
+ * `authuser` was allocated per ACCOUNT, so adding an organization consumed a
+ * human's signed-in slot.
+ *
+ * Everything below describes the table as it was written, and is kept because
+ * the rows it describes are still here.
  *
  * A child table rather than `jsonb` for a reason stronger than style: each entry
  * carries TWO user references (`account_id` and, for a delegated switch,

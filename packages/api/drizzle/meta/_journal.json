@@ -190,6 +190,13 @@
       "when": 1786138918454,
       "tag": "0027_app_store_listings_and_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786350532586,
+      "tag": "0028_device_principals_and_contexts",
+      "breakpoints": true
     }
   ]
 }

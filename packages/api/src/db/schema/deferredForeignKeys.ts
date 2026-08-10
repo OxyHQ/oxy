@@ -39,7 +39,10 @@ import { billingTransactions } from './billingTransactions';
 import { followEvents } from './followEvents';
 import { bookmarks } from './bookmarks';
 import { conductStrikes } from './conductStrikes';
+import { deviceAccountContexts } from './deviceAccountContexts';
 import { devicePairingSessions } from './devicePairingSessions';
+import { devicePrincipalBackfillConflicts } from './devicePrincipalBackfillConflicts';
+import { devicePrincipals } from './devicePrincipals';
 import { deviceSessionAccounts } from './deviceSessionAccounts';
 import { deviceSessions } from './deviceSessions';
 import { federationKeyPairs } from './federationKeyPairs';
@@ -198,6 +201,42 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'silently shrinking — a shrink that would also skip the `revision` bump ' +
       'every real membership change makes. CASCADE would cause exactly that ' +
       'shrink; RESTRICT would stop the sweep.',
+  },
+  {
+    table: devicePrincipals,
+    column: devicePrincipals.personalSessionId,
+    reason:
+      '(c) The `sessions.session_id` minted when this PERSON authenticated on ' +
+      'this device. Same independent lifecycle as ' +
+      '`device_session_accounts.session_id`: the sweep deletes the session, the ' +
+      'principal must survive it so the mint path answers "dead session" rather ' +
+      'than the person vanishing from the device.',
+  },
+  {
+    table: deviceAccountContexts,
+    column: deviceAccountContexts.sessionId,
+    reason:
+      '(c) Names a `sessions` row by its natural key, and NULL additionally ' +
+      'means "reachable, never yet used here" — a state no constraint can ' +
+      'express. Same independent lifecycle as ' +
+      '`device_session_accounts.session_id`: CASCADE would shrink the device set ' +
+      'silently, RESTRICT would stop the expiry sweep.',
+  },
+  {
+    table: devicePrincipalBackfillConflicts,
+    column: devicePrincipalBackfillConflicts.deviceId,
+    reason:
+      '(b) Central device id of the device the backfill could not map cleanly. ' +
+      'Not a row id, and deliberately unconstrained so the report outlives its ' +
+      'subject — a CASCADE would delete exactly the evidence.',
+  },
+  {
+    table: devicePrincipalBackfillConflicts,
+    column: devicePrincipalBackfillConflicts.subjectId,
+    reason:
+      '(b) The account or user a backfill conflict is about, recorded as a bare ' +
+      'id for the same reason as `device_id` above: a report that disappears ' +
+      'when its subject does cannot answer "did the backfill lose anything?".',
   },
   {
     table: authCodes,
