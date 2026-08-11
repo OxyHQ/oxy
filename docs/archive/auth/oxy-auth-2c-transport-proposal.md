@@ -1,3 +1,11 @@
+> **ARCHIVED — historical, not current.** Last substantive change 2026-07-07 (`ccfd1b68`), archived 2026-08-11.
+>
+> This document predates the multi-principal device model and describes a
+> state of the world that no longer exists. It is kept for provenance.
+> For what is actually built, and what is decided but unbuilt, read
+> [`docs/auth/index.md`](../../auth/index.md) and the ADRs under
+> [`docs/adr/`](../../adr/).
+
 # Fase 2c — Transporte cero-cookies
 
 > **Estado:** IMPLEMENTADO (ver § "Estado: implementado" al final). El workshop cerró §4 con las recomendaciones del §2 (deviceSecret rotante-en-uso, la familia refresh MUERE, grace 60s multi-pestaña).

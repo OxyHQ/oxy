@@ -1,3 +1,11 @@
+> **ARCHIVED — historical, not current.** Last substantive change 2026-07-08 (`1c3b8e41`), archived 2026-08-11.
+>
+> This document predates the multi-principal device model and describes a
+> state of the world that no longer exists. It is kept for provenance.
+> For what is actually built, and what is decided but unbuilt, read
+> [`docs/auth/index.md`](../../auth/index.md) and the ADRs under
+> [`docs/adr/`](../../adr/).
+
 # Oxy Auth Platform — Auditoría Fase 0
 
 > **ARCHIVO HISTÓRICO (snapshot 2026-07-05).** El proyecto auth-platform está **CERRADO** (2026-07-07). Para arquitectura vigente usa [`oxy-auth-platform.md`](./oxy-auth-platform.md), [`SESSION-ARCHITECTURE.md`](../SESSION-ARCHITECTURE.md) y [`AGENTS.md`](../../AGENTS.md). Las tablas §2–§7 abajo describen el punto de partida, no el estado actual.
