@@ -49,10 +49,9 @@ function node(
  * here is an affordance for something `POST /accounts/:id/switch` answers 403
  * to, every time.
  *
- * The Console reaches this list through its own `listAccounts()` React Query
- * rather than through `projectSwitchableAccounts`, which is exactly how it kept
- * rendering channels after the SDK's projection learned to drop them — so this
- * suite exists to keep the two answers together.
+ * The Console reaches this list through its own `listAccounts()` React Query,
+ * which is exactly how it kept rendering channels after the shared predicate
+ * learned to drop them — so this suite exists to keep the two answers together.
  */
 describe('buildWorkspaceTree', () => {
   /**

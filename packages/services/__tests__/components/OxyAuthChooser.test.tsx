@@ -3,10 +3,16 @@
  * (extracted from `OxyAccountDialog`, no Dialog chrome).
  *
  * These tests isolate the RN binding over the headless `AccountDialogController`
- * (mocked): the chooser renders the correct view from `snapshot.view`, taps a row
- * through `controller.switchTo`, and auto-starts "Sign in with Oxy" on web when
- * the sign-in entry is reached. The controller's own state machine + projection
- * are unit-tested in `@oxyhq/core`.
+ * (mocked): the chooser renders the correct view from `snapshot.view`, activates
+ * a `principal acting as account` pair through `controller.activateContext`, and
+ * auto-starts "Sign in with Oxy" on web when the sign-in entry is reached. The
+ * controller's own state machine is unit-tested in `@oxyhq/core`.
+ *
+ * The switcher's rows come from the device DIRECTORY (ADR 0002), so the fixtures
+ * here put the SAME organization under TWO people wherever the grouping matters:
+ * that is the shape the flat list could not hold, and the one where "select the
+ * row for this account" and "select the row for this person's route to this
+ * account" stop being the same instruction.
  *
  * ONE PRIMARY ACTION (issue #691, Phase 5). The normal surface never presents a
  * menu of authentication methods:
@@ -25,26 +31,66 @@
  */
 
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { toast } from '@oxyhq/bloom';
-import type {
-  AccountDialogSnapshot,
-  SignInFlowState,
-  SwitchableAccount,
-  User,
-} from '@oxyhq/core';
+import { surfaces, toast } from '@oxyhq/bloom';
+import type { DeviceDirectory } from '@oxyhq/contracts';
+import type { AccountDialogSnapshot, SignInFlowState, User } from '@oxyhq/core';
+import { resolveActiveContext } from '@oxyhq/core';
 
-const makeUser = (id: string): User => ({ id, username: id, name: { displayName: id } } as unknown as User);
+const makeUser = (id: string, displayName: string): User =>
+  ({ id, username: id, name: { displayName } } as unknown as User);
 
-const makeAccount = (
-  over: Partial<SwitchableAccount> & Pick<SwitchableAccount, 'accountId' | 'displayName'>,
-): SwitchableAccount => ({
-  isCurrent: false,
-  onDevice: true,
-  email: null,
-  color: null,
-  user: makeUser(over.accountId),
-  ...over,
+interface ContextSpec {
+  id: string;
+  accountId: string;
+  displayName: string;
+  available?: boolean;
+}
+
+interface PrincipalSpec {
+  id: string;
+  userId: string;
+  displayName: string;
+  contexts: ContextSpec[];
+}
+
+/** A device directory built from a compact spec, with the wire shape verbatim. */
+const makeDirectory = (
+  principals: PrincipalSpec[],
+  activeContextId: string | null,
+): DeviceDirectory => ({
+  deviceId: 'device-1',
+  revision: 3,
+  activeContextId,
+  updatedAt: 1_720_000_000_000,
+  principals: principals.map((principal, index) => ({
+    id: principal.id,
+    userId: principal.userId,
+    authuser: index,
+    user: { id: principal.userId, username: principal.userId, name: { displayName: principal.displayName } },
+    contexts: principal.contexts.map((context) => ({
+      id: context.id,
+      accountId: context.accountId,
+      kind: context.accountId === principal.userId ? ('personal' as const) : ('organization' as const),
+      relationship: context.accountId === principal.userId ? ('self' as const) : ('owner' as const),
+      account: {
+        id: context.accountId,
+        username: context.accountId,
+        name: { displayName: context.displayName },
+      },
+      onDevice: true,
+      available: context.available ?? true,
+      active: context.id === activeContextId,
+      lastUsedAt: null,
+    })),
+  })),
 });
+
+/** The one-person, one-account device — the ordinary case. */
+const soloDirectory = (activeContextId: string | null = 'ctx-alice'): DeviceDirectory =>
+  makeDirectory(
+    [{ id: 'p-alice', userId: 'a', displayName: 'Alice', contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }] }],
+    activeContextId,
+  );
 
 const IDLE_SIGN_IN: SignInFlowState = {
   phase: 'idle',
@@ -59,17 +105,25 @@ const IDLE_SIGN_IN: SignInFlowState = {
   progress: 'idle',
 };
 
-const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnapshot => ({
-  view: 'accounts',
-  accounts: [],
-  activeAccountId: null,
-  loading: false,
-  error: null,
-  switchingAccountId: null,
-  signIn: IDLE_SIGN_IN,
-  commonsAvailability: 'unknown',
-  ...over,
-});
+const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnapshot => {
+  const directory = over?.directory ?? null;
+  return {
+    view: 'accounts',
+    directory,
+    // Derived here rather than hand-set, so a fixture can never claim an active
+    // context the directory it ships does not hold.
+    activeContext: resolveActiveContext(directory),
+    loading: false,
+    error: null,
+    activatingContextId: null,
+    removingContextId: null,
+    removingPrincipalId: null,
+    signIn: IDLE_SIGN_IN,
+    commonsAvailability: 'unknown',
+    ...over,
+    ...(over?.directory !== undefined ? { activeContext: resolveActiveContext(over.directory) } : {}),
+  };
+};
 
 /** An active request on the `qr` view, with a live device-flow session. */
 const requestSnapshot = (
@@ -98,7 +152,9 @@ let snapshot = makeSnapshot();
 const controller = {
   subscribe: jest.fn((_l: () => void) => () => undefined),
   getSnapshot: () => snapshot,
-  switchTo: jest.fn(async () => true),
+  activateContext: jest.fn(async () => true),
+  signOutContext: jest.fn(async () => true),
+  signOutPrincipal: jest.fn(async () => true),
   add: jest.fn(),
   startSignup: jest.fn(),
   showQr: jest.fn(),
@@ -120,6 +176,15 @@ const checkUsernameAvailability = jest.fn(async () => ({ available: true, messag
 /** `null` reproduces `sessionMode: 'identity'`, where no controller is built. */
 let mockController: typeof controller | null = controller;
 
+/**
+ * The signed-in account, as `useOxy()` reports it.
+ *
+ * The hero renders from THIS and not from a directory row: it is the one account
+ * this client holds a full profile for, so it keeps its real email and accent
+ * while the rows below it show only what the directory carries.
+ */
+let mockUser: User | null = makeUser('a', 'Alice');
+
 jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
   useOxy: () => ({
@@ -129,11 +194,11 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
     showBottomSheet,
     logout,
     logoutAll: jest.fn(async () => undefined),
-    refreshAccounts: jest.fn(async () => undefined),
     signInWithPasskey,
     registerWithPasskey,
     openAvatarPicker,
-    oxyServices: { checkUsernameAvailability },
+    user: mockUser,
+    oxyServices: { checkUsernameAvailability, getFileDownloadUrl: (id: string) => `https://cdn/${id}` },
   }),
 }));
 
@@ -198,13 +263,20 @@ describe('OxyAuthChooser', () => {
     mockController = controller;
     jest.clearAllMocks();
     // `clearAllMocks` clears recorded calls but does NOT drain a queued
-    // `mockImplementationOnce`. The failed-switch test queues one; if its click
-    // does not reach `switchTo` the one-shot survives into the NEXT test, which
-    // then takes the failure branch and never runs the success side effects.
-    // Restore the default implementation explicitly so no test inherits another
-    // test's one-shot.
-    controller.switchTo.mockReset();
-    controller.switchTo.mockImplementation(async () => undefined);
+    // `mockImplementationOnce`. The failed-activation test queues one; if its
+    // click does not reach `activateContext` the one-shot survives into the NEXT
+    // test, which then takes the failure branch and never runs the success side
+    // effects. Restore the default implementations explicitly so no test
+    // inherits another test's one-shot.
+    mockUser = makeUser('a', 'Alice');
+    controller.activateContext.mockReset();
+    controller.activateContext.mockImplementation(async () => true);
+    controller.signOutContext.mockReset();
+    controller.signOutContext.mockImplementation(async () => true);
+    controller.signOutPrincipal.mockReset();
+    controller.signOutPrincipal.mockImplementation(async () => true);
+    surfaces.confirm.mockReset();
+    surfaces.confirm.mockResolvedValue(true);
     isWebBrowserMock.mockReturnValue(true);
     isOxyRpOriginMock.mockReturnValue(true);
   });
@@ -221,11 +293,23 @@ describe('OxyAuthChooser', () => {
 
   it('leads with the hero and collapses the switch list behind the "Switch account" row', () => {
     snapshot = makeSnapshot({
-      activeAccountId: 'a',
-      accounts: [
-        makeAccount({ accountId: 'a', displayName: 'Alice', isCurrent: true, sessionId: 's-a' }),
-        makeAccount({ accountId: 'b', displayName: 'Bob', sessionId: 's-b' }),
-      ],
+      directory: makeDirectory(
+        [
+          {
+            id: 'p-alice',
+            userId: 'a',
+            displayName: 'Alice',
+            contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }],
+          },
+          {
+            id: 'p-bob',
+            userId: 'b',
+            displayName: 'Bob',
+            contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob' }],
+          },
+        ],
+        'ctx-alice',
+      ),
     });
 
     render(<OxyAuthChooser />);
@@ -256,11 +340,23 @@ describe('OxyAuthChooser', () => {
     registerAccountDialogConsumerHooks({ onNavigateManage, onAddAccount });
 
     snapshot = makeSnapshot({
-      activeAccountId: 'a',
-      accounts: [
-        makeAccount({ accountId: 'a', displayName: 'Alice', isCurrent: true, sessionId: 's-a' }),
-        makeAccount({ accountId: 'b', displayName: 'Bob', sessionId: 's-b' }),
-      ],
+      directory: makeDirectory(
+        [
+          {
+            id: 'p-alice',
+            userId: 'a',
+            displayName: 'Alice',
+            contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }],
+          },
+          {
+            id: 'p-bob',
+            userId: 'b',
+            displayName: 'Bob',
+            contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob' }],
+          },
+        ],
+        'ctx-alice',
+      ),
     });
 
     render(<OxyAuthChooser />);
@@ -282,8 +378,7 @@ describe('OxyAuthChooser', () => {
     });
 
     snapshot = makeSnapshot({
-      activeAccountId: 'a',
-      accounts: [makeAccount({ accountId: 'a', displayName: 'Alice', isCurrent: true, sessionId: 's-a' })],
+      directory: soloDirectory(),
     });
 
     render(<OxyAuthChooser />);
@@ -292,18 +387,30 @@ describe('OxyAuthChooser', () => {
     expect(onCustom).toHaveBeenCalledTimes(1);
   });
 
-  it('toasts a failed account switch instead of rendering an inline banner', async () => {
+  it('toasts a failed activation instead of rendering an inline banner', async () => {
     snapshot = makeSnapshot({
-      activeAccountId: 'a',
-      accounts: [
-        makeAccount({ accountId: 'a', displayName: 'Alice', isCurrent: true, sessionId: 's-a' }),
-        makeAccount({ accountId: 'b', displayName: 'Bob', sessionId: 's-b' }),
-      ],
+      directory: makeDirectory(
+        [
+          {
+            id: 'p-alice',
+            userId: 'a',
+            displayName: 'Alice',
+            contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }],
+          },
+          {
+            id: 'p-bob',
+            userId: 'b',
+            displayName: 'Bob',
+            contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob' }],
+          },
+        ],
+        'ctx-alice',
+      ),
     });
-    // `switchTo` never throws — it records the failure on the controller's
-    // snapshot, which the chooser reads back at the point the switch settles.
-    controller.switchTo.mockImplementationOnce(async () => {
-      snapshot = makeSnapshot({ ...snapshot, error: 'Account switch did not return a valid session' });
+    // `activateContext` never throws — it records the failure on the
+    // controller's snapshot, which the chooser reads back once it settles.
+    controller.activateContext.mockImplementationOnce(async () => {
+      snapshot = makeSnapshot({ ...snapshot, error: 'Context not on this device' });
       return false;
     });
 
@@ -321,7 +428,7 @@ describe('OxyAuthChooser', () => {
     // the raw controller error string is painted in the dialog body), and the
     // success side effects never run.
     expect(screen.queryByText('There was a problem switching accounts. Please try again.')).toBeNull();
-    expect(screen.queryByText('Account switch did not return a valid session')).toBeNull();
+    expect(screen.queryByText('Context not on this device')).toBeNull();
     expect(invalidateQueries).not.toHaveBeenCalled();
   });
 
@@ -336,13 +443,255 @@ describe('OxyAuthChooser', () => {
     expect(screen.queryByText('Something went wrong.')).toBeNull();
   });
 
-  it('switches through controller.switchTo when a non-active row is tapped', async () => {
+  describe('grouped by person (ADR 0002)', () => {
+    /**
+     * `The Oxy Collective` reachable through Nate (who owns it) AND through
+     * Alice (a member), plus Nate's own account. This is the device the flat
+     * list could not describe: one organization, two routes, two humans.
+     */
+    const sharedDeviceDirectory = (activeContextId: string | null = 'ctx-nate') =>
+      makeDirectory(
+        [
+          {
+            id: 'p-nate',
+            userId: 'nate',
+            displayName: 'Nate',
+            contexts: [
+              { id: 'ctx-nate', accountId: 'nate', displayName: 'Nate' },
+              { id: 'ctx-nate-org', accountId: 'org', displayName: 'The Oxy Collective' },
+            ],
+          },
+          {
+            id: 'p-alice',
+            userId: 'alice',
+            displayName: 'Alice',
+            contexts: [
+              { id: 'ctx-alice', accountId: 'alice', displayName: 'Alice' },
+              { id: 'ctx-alice-org', accountId: 'org', displayName: 'The Oxy Collective' },
+            ],
+          },
+        ],
+        activeContextId,
+      );
+
+    const openSwitcher = () => {
+      render(<OxyAuthChooser />);
+      fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
+    };
+
+    it('renders the shared organization TWICE, under each person who reaches it', () => {
+      snapshot = makeSnapshot({ directory: sharedDeviceDirectory() });
+
+      openSwitcher();
+
+      // Two rows for one account. A list keyed by account id has exactly one
+      // slot for `org` and would silently drop whichever route it enumerated
+      // second — along with the fact that they are different sessions with
+      // different audit actors.
+      expect(screen.getAllByRole('button', { name: 'The Oxy Collective' })).toHaveLength(2);
+      // And each is named by the person who can operate it.
+      expect(screen.getAllByText('Nate').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Alice').length).toBeGreaterThan(0);
+    });
+
+    it('activates the route the pressed row belongs to, not the other person’s', async () => {
+      snapshot = makeSnapshot({ directory: sharedDeviceDirectory() });
+
+      openSwitcher();
+      // The SECOND `org` row is Alice's — the directory enumerates Nate first.
+      fireEvent.click(screen.getAllByRole('button', { name: 'The Oxy Collective' })[1]);
+
+      await waitFor(() =>
+        expect(controller.activateContext).toHaveBeenCalledWith('ctx-alice-org'),
+      );
+      expect(controller.activateContext).not.toHaveBeenCalledWith('ctx-nate-org');
+    });
+
+    it('does NOT name the operator when every person holds one account', () => {
+      // Two people, one personal account each: every row already IS a person, so
+      // a header would print each name twice and say nothing.
+      snapshot = makeSnapshot({
+        directory: makeDirectory(
+          [
+            { id: 'p-alice', userId: 'a', displayName: 'Alice', contexts: [{ id: 'ctx-a', accountId: 'a', displayName: 'Alice' }] },
+            { id: 'p-bob', userId: 'b', displayName: 'Bob', contexts: [{ id: 'ctx-b', accountId: 'b', displayName: 'Bob' }] },
+          ],
+          'ctx-a',
+        ),
+      });
+
+      openSwitcher();
+
+      // Once as the row. The hero renders the greeting, never a bare name.
+      expect(screen.getAllByText('Alice')).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: 'Sign Alice out of this device' })).toBeNull();
+    });
+
+    it('names the operator — and offers per-person sign-out — once somebody holds two', () => {
+      snapshot = makeSnapshot({ directory: sharedDeviceDirectory() });
+
+      openSwitcher();
+
+      // Every group gets a header, including single-context ones: an
+      // inconsistent list is harder to read than a slightly redundant one.
+      expect(screen.getByRole('button', { name: 'Sign Nate out of this device' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Sign Alice out of this device' })).toBeTruthy();
+    });
+
+    it('offers a row the server marked unavailable, disabled rather than hidden', async () => {
+      snapshot = makeSnapshot({
+        directory: makeDirectory(
+          [
+            {
+              id: 'p-nate',
+              userId: 'nate',
+              displayName: 'Nate',
+              contexts: [
+                { id: 'ctx-nate', accountId: 'nate', displayName: 'Nate' },
+                // A revoked membership. The server returns it rather than
+                // omitting it, so the UI can explain the row instead of having
+                // it silently vanish.
+                { id: 'ctx-nate-org', accountId: 'org', displayName: 'The Oxy Collective', available: false },
+              ],
+            },
+          ],
+          'ctx-nate',
+        ),
+      });
+
+      openSwitcher();
+
+      const row = screen.getByRole('button', { name: 'The Oxy Collective' }) as HTMLButtonElement;
+      expect(row.disabled).toBe(true);
+      expect(screen.getByText('Unavailable right now')).toBeTruthy();
+      fireEvent.click(row);
+      await Promise.resolve();
+      // `available` alone decides this. `onDevice` is true here — the delegated
+      // session is perfectly alive — and offering the row on that ground would
+      // be offering a button the server answers 403 to and then heals away.
+      expect(controller.activateContext).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the two removals are not the same removal', () => {
+    const nateAndAlice = (activeContextId: string | null = 'ctx-nate') =>
+      makeDirectory(
+        [
+          {
+            id: 'p-nate',
+            userId: 'nate',
+            displayName: 'Nate',
+            contexts: [
+              { id: 'ctx-nate', accountId: 'nate', displayName: 'Nate' },
+              { id: 'ctx-nate-org', accountId: 'org', displayName: 'The Oxy Collective' },
+            ],
+          },
+          {
+            id: 'p-alice',
+            userId: 'alice',
+            displayName: 'Alice',
+            contexts: [
+              { id: 'ctx-alice', accountId: 'alice', displayName: 'Alice' },
+              { id: 'ctx-alice-org', accountId: 'org', displayName: 'The Oxy Collective' },
+            ],
+          },
+        ],
+        activeContextId,
+      );
+
+    const openSwitcher = () => {
+      render(<OxyAuthChooser />);
+      fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
+    };
+
+    it('removes ONE pair through signOutContext, naming the person in the confirmation', async () => {
+      snapshot = makeSnapshot({ directory: nateAndAlice() });
+
+      openSwitcher();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }),
+      );
+
+      await waitFor(() =>
+        expect(controller.signOutContext).toHaveBeenCalledWith('ctx-alice-org'),
+      );
+      // Never the principal endpoint, and never Nate's route to the same
+      // organization — that is a different session with a different actor.
+      expect(controller.signOutPrincipal).not.toHaveBeenCalled();
+      expect(controller.signOutContext).not.toHaveBeenCalledWith('ctx-nate-org');
+      expect(surfaces.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Alice'),
+          destructive: true,
+        }),
+      );
+    });
+
+    it('removes ONE PERSON through signOutPrincipal, never by looping their contexts', async () => {
+      snapshot = makeSnapshot({ directory: nateAndAlice() });
+
+      openSwitcher();
+      fireEvent.click(screen.getByRole('button', { name: 'Sign Alice out of this device' }));
+
+      await waitFor(() => expect(controller.signOutPrincipal).toHaveBeenCalledWith('p-alice'));
+      expect(controller.signOutPrincipal).toHaveBeenCalledTimes(1);
+      // Pointing this at the context endpoint would drop one pair and leave the
+      // person on the device — the exact conflation the two calls exist to stop.
+      expect(controller.signOutContext).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the confirmation is declined', async () => {
+      surfaces.confirm.mockResolvedValue(false);
+      snapshot = makeSnapshot({ directory: nateAndAlice() });
+
+      openSwitcher();
+      fireEvent.click(screen.getByRole('button', { name: 'Sign Alice out of this device' }));
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }),
+      );
+
+      await waitFor(() => expect(surfaces.confirm).toHaveBeenCalledTimes(2));
+      expect(controller.signOutPrincipal).not.toHaveBeenCalled();
+      expect(controller.signOutContext).not.toHaveBeenCalled();
+    });
+
+    it('toasts a refused removal instead of pretending it worked', async () => {
+      controller.signOutContext.mockResolvedValue(false);
+      snapshot = makeSnapshot({ directory: nateAndAlice() });
+
+      openSwitcher();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Remove The Oxy Collective from Alice' }),
+      );
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          'There was a problem removing that account. Please try again.',
+        ),
+      );
+      expect(toast.success).not.toHaveBeenCalled();
+    });
+  });
+
+  it('activates the CONTEXT id, not the account id, when a non-active row is tapped', async () => {
     snapshot = makeSnapshot({
-      activeAccountId: 'a',
-      accounts: [
-        makeAccount({ accountId: 'a', displayName: 'Alice', isCurrent: true, sessionId: 's-a' }),
-        makeAccount({ accountId: 'b', displayName: 'Bob', sessionId: 's-b' }),
-      ],
+      directory: makeDirectory(
+        [
+          {
+            id: 'p-alice',
+            userId: 'a',
+            displayName: 'Alice',
+            contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice' }],
+          },
+          {
+            id: 'p-bob',
+            userId: 'b',
+            displayName: 'Bob',
+            contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob' }],
+          },
+        ],
+        'ctx-alice',
+      ),
     });
 
     render(<OxyAuthChooser />);
@@ -350,9 +699,12 @@ describe('OxyAuthChooser', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Switch account' }));
     fireEvent.click(screen.getByRole('button', { name: 'Bob' }));
 
-    await waitFor(() => expect(controller.switchTo).toHaveBeenCalledWith('b'));
-    // `invalidateQueries` runs AFTER `await controller.switchTo(...)` resolves,
-    // so it needs its own wait rather than being asserted on the next line.
+    // `ctx-bob`, never `b`: the row names a `principal acting as account` pair,
+    // and on a shared device an account id cannot say which person's route it is.
+    await waitFor(() => expect(controller.activateContext).toHaveBeenCalledWith('ctx-bob'));
+    expect(controller.activateContext).not.toHaveBeenCalledWith('b');
+    // `invalidateQueries` runs AFTER `await controller.activateContext(...)`
+    // resolves, so it needs its own wait rather than the next line.
     await waitFor(() => expect(invalidateQueries).toHaveBeenCalled());
     // A successful switch fires no error toast.
     expect(toast.error).not.toHaveBeenCalled();

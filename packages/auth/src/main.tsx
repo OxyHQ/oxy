@@ -42,7 +42,7 @@ function App() {
                 {/* The IdP is a device-first origin like every other Oxy app: it
                     runs the normal SDK cold boot (restore this origin's device
                     session from its own persisted `{deviceId, deviceSecret}`),
-                    enumerates device accounts through `useSwitchableAccounts`, and
+                    enumerates the device directory through `useDeviceSwitcher`, and
                     supplies the OxyAccountDialog + OxyConsentScreen context. It
                     stays a shell OAuth/authorize/consent surface — NOT a Relying
                     Party. The former `coldBoot={false}` IdP exception existed for

@@ -342,7 +342,7 @@ function Home() {
 
 auth.oxy.so is the OAuth authorize/consent surface, **not** a relying party. It mounts
 `OxyProvider` device-first like every Oxy app (normal cold boot from its own per-origin
-`{deviceId, deviceSecret}`, `useSwitchableAccounts` chooser) but stays a SHELL that emits
+`{deviceId, deviceSecret}`, `useDeviceSwitcher` chooser) but stays a SHELL that emits
 the OAuth code after authenticating — it does not bounce elsewhere for its own session.
 It redirects all `/settings/*` paths to accounts.oxy.so, which is the sole owner of
 account management. (The former `coldBoot={false}` exception existed for the deleted

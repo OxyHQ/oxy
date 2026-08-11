@@ -9,15 +9,16 @@
  * replaces.
  *
  * The controller owns:
- *   - the unified account list (via {@link projectSwitchableAccounts}), fetched
- *     from `SessionClient` state ∪ `oxyServices.listAccounts()` and hydrated
- *     with `oxyServices.getUsersByIds()`;
+ *   - the device DIRECTORY (ADR 0002) — the server-authoritative read model of
+ *     who is on this device and what each of them may act as, read through
+ *     `SessionClient.refreshDirectory()`. It is not assembled here: the client
+ *     holds one caller's account graph and cannot enumerate another principal's,
+ *     so switchability is the server's answer and the controller only reads it;
  *   - the dialog `view` state machine (`accounts` | `signin` | `qr` | `add` |
  *     `signup`);
- *   - `switchTo` (the uniform switch: `SessionClient.switchAccount` for an
- *     account already on the device, `oxyServices.switchToAccount` to mint on
- *     first entry into a graph account — reusing the existing SDK primitives, no
- *     new switch path);
+ *   - `activateContext` (the ADR 0002 switch, keyed on the `principal acting as
+ *     account` pair) and the two removals an account id cannot name —
+ *     `signOutContext` and `signOutPrincipal`;
  *   - the "Sign in with Oxy" device flow (same-device shared-keychain via
  *     `oxyServices.signInWithSharedIdentity`, else the cross-device QR handoff
  *     via `startCommonsSignIn` → poll → `claimSessionByToken`);
@@ -64,13 +65,7 @@ import { extractErrorStatus } from '../utils/errorUtils';
 import { CENTRAL_IDP_APEX } from '../utils/authWebUrl';
 import type { SessionClient } from './SessionClient';
 import type { MinimalSocket, SocketIOFactory } from './socketLoader';
-import {
-  projectSwitchableAccounts,
-  switchableAccountIds,
-  type SwitchableAccount,
-} from './accountProjection';
 import { resolveActiveContext, type DeviceContext } from './deviceDirectory';
-import type { AccountNode } from '../mixins/OxyServices.accounts';
 import type { CommonsSignInHandle } from '../mixins/OxyServices.auth';
 import {
   pushTargetsFromDelivery,
@@ -268,33 +263,23 @@ export interface AccountDialogSnapshot {
    * The server-authoritative device directory — principals and the contexts
    * each may act as (ADR 0002) — or `null` before the first read.
    *
-   * This is the read model a switcher should render. {@link accounts} below is
-   * the compatibility adapter it replaces, and the two are NOT redundant: the
-   * flat list is keyed by account id, so on a device holding two people it can
-   * show one route to a shared organization and never both.
+   * The ONE read model a switcher renders. The flat list this replaced was
+   * keyed by account id, so on a device holding two people it could show one
+   * route to a shared organization and never both.
    */
   directory: DeviceDirectory | null;
   /** The active `principal acting as account` pair, actor and subject apart. */
   activeContext: DeviceContext | null;
-  /**
-   * The unified, deduped account list (device sign-ins ∪ graph accounts).
-   *
-   * The COMPATIBILITY projection, kept while consumers move to
-   * {@link directory}. It is the one place this controller still reconstructs a
-   * caller's account graph — which ADR 0002 removes precisely because a client
-   * holds one caller's graph and cannot enumerate the other principals'.
-   */
-  accounts: SwitchableAccount[];
-  /** The currently-active account id, or `null` when signed out. */
-  activeAccountId: string | null;
-  /** `true` while the initial account-list fetch is in flight with no data yet. */
+  /** `true` while the first directory read is in flight with nothing to show. */
   loading: boolean;
-  /** A human-readable account-list error, or `null`. */
+  /** A human-readable directory error, or `null`. */
   error: string | null;
-  /** The `accountId` of an in-flight switch, or `null`. */
-  switchingAccountId: string | null;
   /** The `contextId` of an in-flight activation, or `null`. */
   activatingContextId: string | null;
+  /** The `contextId` of an in-flight context removal, or `null`. */
+  removingContextId: string | null;
+  /** The `principalId` of an in-flight principal removal, or `null`. */
+  removingPrincipalId: string | null;
   /** The "Sign in with Oxy" device-flow state. */
   signIn: SignInFlowState;
   /** Whether Commons is installed on this device. See {@link CommonsAvailability}. */
@@ -314,8 +299,6 @@ export interface AccountDialogControllerOptions {
    * server would reject.
    */
   clientId?: string | null;
-  /** Locale for display-name resolution. */
-  locale?: string;
   /**
    * Commit a freshly-authorized SIGN-IN session (device flow / shared identity)
    * into the host's session set — device-first registration + durable persist +
@@ -325,24 +308,12 @@ export interface AccountDialogControllerOptions {
    * `SessionClient.registerAndActivate` (registration + activation only — no
    * provider-side durable persist/hydration).
    *
-   * This is the SIGN-IN commit: registers the session into the host's device
-   * set with durable persist + profile hydration. An account SWITCH uses
-   * {@link commitSwitchedSession} instead — see below.
+   * Sign-in is the only thing that commits a session here. An account SWITCH
+   * used to mint one too, on first entry into a graph account; activation mints
+   * the delegated session SERVER-side and hands back a bearer, so there is no
+   * second commit funnel to keep in step with this one.
    */
   commitSession?: (session: SessionLoginResponse) => Promise<void>;
-  /**
-   * Commit a minted graph SWITCH session into the host's session set — same
-   * device-first registration + durable persist + profile hydration as
-   * {@link commitSession}, but IN-PLACE: it must NOT re-run sign-in side effects
-   * that belong only to a fresh authorization (for example, a redundant full
-   * device-set reconcile on switch). Cross-tab/app propagation of the switch
-   * still happens instantly via the server's device-scoped `session_state` /
-   * `session_accounts_changed` socket broadcast — no navigation required.
-   *
-   * When omitted the controller falls back to {@link commitSession} (if wired)
-   * and then to `SessionClient.registerAndActivate`.
-   */
-  commitSwitchedSession?: (session: SessionLoginResponse) => Promise<void>;
   /** Notified after a completed sign-in (bearer planted + session committed). */
   onSignedIn?: (user: MinimalUserData) => void;
   /**
@@ -459,9 +430,7 @@ export class AccountDialogController {
   private readonly oxyServices: OxyServices;
   private readonly sessionClient: SessionClient;
   private readonly clientId: string | null;
-  private readonly locale?: string;
   private readonly commitSession?: (session: SessionLoginResponse) => Promise<void>;
-  private readonly commitSwitchedSession?: (session: SessionLoginResponse) => Promise<void>;
   private readonly onSignedIn?: (user: MinimalUserData) => void;
   private readonly pollIntervalMs: number;
   private readonly openUrl?: (url: string) => void;
@@ -475,12 +444,11 @@ export class AccountDialogController {
 
   // --- Internal (unprojected) state ---
   private view: AccountDialogView = 'accounts';
-  private graph: AccountNode[] = [];
-  private profilesById = new Map<string, User>();
   private loading = false;
   private error: string | null = null;
-  private switchingAccountId: string | null = null;
   private activatingContextId: string | null = null;
+  private removingContextId: string | null = null;
+  private removingPrincipalId: string | null = null;
   private signIn: SignInFlowState = IDLE_SIGN_IN;
   private commonsAvailability: CommonsAvailability = 'unknown';
 
@@ -518,9 +486,7 @@ export class AccountDialogController {
     this.oxyServices = options.oxyServices;
     this.sessionClient = options.sessionClient;
     this.clientId = options.clientId ?? null;
-    this.locale = options.locale;
     this.commitSession = options.commitSession;
-    this.commitSwitchedSession = options.commitSwitchedSession;
     this.onSignedIn = options.onSignedIn;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
     this.openUrl = options.openUrl;
@@ -563,11 +529,12 @@ export class AccountDialogController {
     this.started = true;
     this.authed = this.isAuthenticated();
     this.unsubscribeSession = this.sessionClient.subscribe(() => {
-      // A device-state change (switch / sign-out / sibling sign-in) can add or
-      // remove accounts — re-project immediately, refetch profiles when new
-      // account ids appeared, and reconcile the auth-readiness edge.
+      // A device change (switch / sign-out / sibling sign-in) re-reads the
+      // directory inside `SessionClient` before it notifies, so the snapshot
+      // this rebuilds is already the new one — publish it and reconcile the
+      // auth-readiness edge. No profile fetch: the directory carries the display
+      // metadata a row needs.
       this.emit();
-      void this.ensureProfiles();
       this.reconcileAuth();
     });
     // The access token is planted AFTER `SessionClient.applyState` fires its
@@ -650,9 +617,9 @@ export class AccountDialogController {
       void this.refresh();
       return;
     }
-    // Signed out: the graph is no longer fetchable/switchable — drop it and
-    // re-project from the device session set alone.
-    this.graph = [];
+    // Signed out. The directory is bearer-read and `SessionClient` drops the one
+    // it holds when the device empties, so there is nothing to clear here — only
+    // the in-flight bookkeeping, which no longer describes anything.
     this.error = null;
     this.loading = false;
     this.emit();
@@ -687,193 +654,71 @@ export class AccountDialogController {
   }
 
   // =========================================================================
-  // Account list
+  // The directory
   // =========================================================================
 
   /**
-   * Reload the account graph and per-account profiles, then re-project. Safe to
-   * call repeatedly; concurrent calls are reconciled by a sequence guard so a
-   * slow earlier fetch never overwrites a newer result.
+   * Re-read `GET /session/device/directory`. Safe to call repeatedly;
+   * concurrent calls are reconciled by a sequence guard so a slow earlier read
+   * never overwrites a newer result.
+   *
+   * This is ONE request. It used to be three — the directory, plus
+   * `listAccounts()` and `getUsersByIds()` to rebuild the same tree client-side
+   * — and the reconstruction was not merely redundant: it enumerated the
+   * CALLER's account graph, which on a device holding two people is one
+   * person's answer presented as the device's.
    */
   async refresh(): Promise<void> {
     const seq = ++this.refreshSeq;
 
-    // Never hit the private `listAccounts()` while signed out: at cold boot the
-    // bearer is not planted yet, so the call 401s → `HttpService` clears the
-    // token and signs the user out. Re-project from the device session set alone
-    // (`projectSwitchableAccounts` works from `SessionClient` state) and stop.
+    // Never read the directory while signed out: at cold boot the bearer is not
+    // planted yet, so the call 401s → `HttpService` clears the token and signs
+    // the user out.
     if (!this.isAuthenticated()) {
-      this.graph = [];
       this.loading = false;
       this.error = null;
       this.emit();
       return;
     }
 
-    const hadAccounts = this.snapshot.accounts.length > 0;
-    this.loading = !hadAccounts;
+    // Nothing to show yet is the only state worth a spinner; a re-read behind an
+    // already-rendered directory refreshes in place.
+    this.loading = this.sessionClient.getDirectory() === null;
     this.error = null;
     this.emit();
 
-    // The directory (ADR 0002) — the read model that replaces the union below.
-    // Both lanes run while consumers migrate, which is the cost of not breaking
-    // every switcher in one commit; the flat half goes when they have moved.
-    // A failure here is never fatal: the compatibility projection still renders
-    // from device state, so a directory outage degrades rather than blanks.
     try {
       await this.sessionClient.refreshDirectory();
     } catch (error) {
+      // A 401 is the EXPECTED signed-out edge, not a failure: the bearer was
+      // stale/revoked, so `HttpService` already cleared it and emitted
+      // `onTokensChanged(null)`. Any OTHER error (network, 5xx, malformed) IS
+      // unexpected — surface it, and keep whatever directory is already held so
+      // an outage degrades rather than blanks the switcher.
       if (extractErrorStatus(error) === 401) {
         logger.debug('[AccountDialogController] directory unauthorized (signed out)', { component: 'AccountDialogController' }, error);
       } else {
+        this.error = errorMessage(error);
         logger.warn('[AccountDialogController] directory refresh failed', { component: 'AccountDialogController' }, error);
       }
     }
     if (seq !== this.refreshSeq) return; // superseded by a newer refresh
 
-    let graph: AccountNode[] = this.graph;
-    try {
-      graph = await this.oxyServices.listAccounts();
-    } catch (error) {
-      // A 401 here is the EXPECTED signed-out edge, not a failure: the bearer was
-      // stale/revoked, so `HttpService` already cleared it and emitted
-      // `onTokensChanged(null)`, which drops the graph via `reconcileAuth`. Log at
-      // debug and leave the dialog error-free — a signed-out device with zero
-      // accounts is a normal state, not a warning. Any other error (network, 5xx,
-      // malformed) IS unexpected: surface it and warn while keeping the prior graph
-      // so device rows still render.
-      if (extractErrorStatus(error) === 401) {
-        logger.debug('[AccountDialogController] listAccounts unauthorized (signed out)', { component: 'AccountDialogController' }, error);
-      } else {
-        this.error = errorMessage(error);
-        logger.warn('[AccountDialogController] listAccounts failed', { component: 'AccountDialogController' }, error);
-      }
-    }
-    if (seq !== this.refreshSeq) return; // superseded by a newer refresh
-
-    this.graph = graph;
-    await this.loadProfiles(seq);
-    if (seq !== this.refreshSeq) return;
-
     this.loading = false;
     this.emit();
   }
 
-  /**
-   * Fetch profiles for any account id (device set ∪ graph) not yet resolved.
-   * Cheap no-op when everything is already hydrated — used from the session
-   * subscription so a newly-added device account gets a name/avatar.
-   */
-  private async ensureProfiles(): Promise<void> {
-    // `getUsersByIds` is private — skip the whole path while signed out.
-    if (!this.isAuthenticated()) return;
-    const ids = switchableAccountIds(this.sessionClient.getState(), this.graph);
-    if (ids.every((id) => this.profilesById.has(id))) return;
-    await this.loadProfiles(this.refreshSeq);
-    this.emit();
-  }
-
-  private async loadProfiles(seq: number): Promise<void> {
-    // `getUsersByIds` (`POST /users/by-ids`) is a private call — never issue it
-    // while signed out (the 401 → sign-out cascade). Callers already gate; this
-    // guards the network chokepoint too (e.g. the token was cleared mid-refresh).
-    if (!this.isAuthenticated()) return;
-    const ids = switchableAccountIds(this.sessionClient.getState(), this.graph);
-    if (ids.length === 0) return;
-    let profiles: User[] = [];
-    try {
-      profiles = await this.oxyServices.getUsersByIds(ids);
-    } catch (error) {
-      // A 401 is the EXPECTED signed-out edge (stale/cleared bearer) — log at debug.
-      // `getUsersByIds` already swallows per-chunk failures and returns `[]`, so any
-      // OTHER error here is an unexpected total failure worth a warn. Either way keep
-      // the prior profile map.
-      if (extractErrorStatus(error) === 401) {
-        logger.debug('[AccountDialogController] getUsersByIds unauthorized (signed out)', { component: 'AccountDialogController' }, error);
-      } else {
-        logger.warn('[AccountDialogController] getUsersByIds failed', { component: 'AccountDialogController' }, error);
-      }
-      return;
-    }
-    if (seq !== this.refreshSeq) return; // superseded
-    const next = new Map(this.profilesById);
-    for (const profile of profiles) {
-      next.set(profile.id, profile);
-    }
-    this.profilesById = next;
-  }
-
   // =========================================================================
-  // Switching (uniform switch model — reuses the existing SDK primitives)
+  // Activation and the two removals (ADR 0002)
   // =========================================================================
-
-  /**
-   * Switch the active account to `accountId`.
-   *
-   * Uniform switch model, mirroring the SDK's existing path — NOT a new switch
-   * mechanism:
-   *   - already on this device → `SessionClient.switchAccount` (device-first
-   *     switch of `/session/device/switch`);
-   *   - a graph account not yet on the device (first entry) →
-   *     `oxyServices.switchToAccount` mints + plants a real session and the
-   *     server registers it into the device set, then it is committed
-   *     (`commitSession` when supplied, else `SessionClient.registerAndActivate`).
-   *
-   * The resulting device-state change flows back through the `SessionClient`
-   * subscription, which re-projects the active row. Concurrent switches are
-   * ignored while one is in flight.
-   */
-  async switchTo(accountId: string): Promise<boolean> {
-    if (this.switchingAccountId) return false;
-    this.switchingAccountId = accountId;
-    this.error = null;
-    this.emit();
-    try {
-      const state = this.sessionClient.getState();
-      const onDevice = state?.accounts.some((account) => account.accountId === accountId) ?? false;
-      if (onDevice) {
-        await this.sessionClient.switchAccount(accountId);
-      } else {
-        const result = await this.oxyServices.switchToAccount(accountId);
-        if (!result?.user || !result?.sessionId) {
-          throw new Error('Account switch did not return a valid session');
-        }
-        await this.commitAuthorizedSession(
-          {
-            sessionId: result.sessionId,
-            deviceId: result.deviceId,
-            expiresAt: result.expiresAt,
-            user: result.user,
-            accessToken: result.accessToken,
-          },
-          result.user,
-          // A switch is IN-PLACE: use the switch commit funnel (not sign-in).
-          // Cross-tab/app propagation rides the server's `session_state` socket
-          // broadcast, not a navigation.
-          { fromSwitch: true },
-        );
-      }
-      // Re-project + refetch immediately; the subscription also fires.
-      await this.refresh();
-      return true;
-    } catch (error) {
-      this.error = errorMessage(error);
-      return false;
-    } finally {
-      this.switchingAccountId = null;
-      this.emit();
-    }
-  }
 
   /**
    * Activate one `principal acting as account` context — the ADR 0002 switch,
-   * and the one that can express what {@link switchTo} cannot: WHICH person's
+   * and the one that can express what an account id cannot: WHICH person's
    * route to a shared organization to become.
    *
-   * There is no on-device/graph fork here. That fork exists in `switchTo`
-   * because the flat model has no row for an account the caller may act as but
-   * has never entered, so the first entry has to mint through a different
-   * endpoint. The directory has a row for both, and `POST /session/device/
+   * There is no on-device/graph fork. The directory has a row for a context the
+   * principal may act as but has never entered, and `POST /session/device/
    * activate` reuses or mints the delegated session server-side, so one call
    * covers both cases.
    *
@@ -895,6 +740,62 @@ export class AccountDialogController {
       return false;
     } finally {
       this.activatingContextId = null;
+      this.emit();
+    }
+  }
+
+  /**
+   * Remove ONE `principal → account` pair, and only that pair.
+   *
+   * Not the account across the device: the same organization reached through a
+   * second person is a different session with a different audit actor, and it
+   * stays. Routing this through `signOut({accountId})` would revoke that second
+   * person's access as a side effect of one person tidying their own list.
+   *
+   * The removed pair is not gone for good while the membership lives — the
+   * server offers it again on the next read, under a NEW id and at an unchanged
+   * revision — so nothing may hold a context id across this call.
+   */
+  async signOutContext(contextId: string): Promise<boolean> {
+    if (this.removingContextId || this.removingPrincipalId) return false;
+    this.removingContextId = contextId;
+    this.error = null;
+    this.emit();
+    try {
+      await this.sessionClient.signOutContext(contextId);
+      await this.refresh();
+      return true;
+    } catch (error) {
+      this.error = errorMessage(error);
+      return false;
+    } finally {
+      this.removingContextId = null;
+      this.emit();
+    }
+  }
+
+  /**
+   * Remove ONE PERSON and every context they reach — and nobody else's,
+   * including when another principal independently operates the same account.
+   *
+   * A separate call from {@link signOutContext} because it is a separate
+   * question, not a loop over the first one: the server removes the principal
+   * and elects a replacement active context in one transition.
+   */
+  async signOutPrincipal(principalId: string): Promise<boolean> {
+    if (this.removingContextId || this.removingPrincipalId) return false;
+    this.removingPrincipalId = principalId;
+    this.error = null;
+    this.emit();
+    try {
+      await this.sessionClient.signOutPrincipal(principalId);
+      await this.refresh();
+      return true;
+    } catch (error) {
+      this.error = errorMessage(error);
+      return false;
+    } finally {
+      this.removingPrincipalId = null;
       this.emit();
     }
   }
@@ -1420,21 +1321,13 @@ export class AccountDialogController {
    * Register a token-planted session into the device set. Prefers the
    * consumer's commit funnel (durable persist + hydration); falls back to
    * `SessionClient.registerAndActivate` (registration + activation only).
-   *
-   * A SWITCH (`opts.fromSwitch`) uses the IN-PLACE `commitSwitchedSession` funnel;
-   * a SIGN-IN uses `commitSession`. When the switch funnel is not wired it falls
-   * back to the sign-in funnel, then to `registerAndActivate`.
    */
   private async commitAuthorizedSession(
     session: SessionLoginResponse,
     user: MinimalUserData,
-    opts?: { fromSwitch?: boolean },
   ): Promise<void> {
-    const commit = opts?.fromSwitch
-      ? this.commitSwitchedSession ?? this.commitSession
-      : this.commitSession;
-    if (commit) {
-      await commit(session);
+    if (this.commitSession) {
+      await this.commitSession(session);
     } else {
       await this.sessionClient.registerAndActivate(user.id);
     }
@@ -1564,25 +1457,16 @@ export class AccountDialogController {
   }
 
   private computeSnapshot(): AccountDialogSnapshot {
-    const state = this.sessionClient.getState();
     const directory = this.sessionClient.getDirectory();
     return {
       view: this.view,
       directory,
       activeContext: resolveActiveContext(directory),
-      accounts: projectSwitchableAccounts({
-        state,
-        graph: this.graph,
-        profilesById: this.profilesById,
-        locale: this.locale,
-        resolveAvatarUrl: (avatar) =>
-          (avatar ? this.oxyServices.getFileDownloadUrl(avatar, 'thumb') : undefined),
-      }),
-      activeAccountId: state?.activeAccountId ?? null,
       loading: this.loading,
       error: this.error,
-      switchingAccountId: this.switchingAccountId,
       activatingContextId: this.activatingContextId,
+      removingContextId: this.removingContextId,
+      removingPrincipalId: this.removingPrincipalId,
       signIn: this.signIn,
       commonsAvailability: this.commonsAvailability,
     };

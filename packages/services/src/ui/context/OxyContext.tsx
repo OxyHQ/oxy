@@ -677,31 +677,6 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [commitSession],
   );
 
-  // Commit a minted graph-SWITCH session through the same funnel as
-  // `handleWebSession`. Nothing extra to do IN-PLACE: the switch already
-  // propagates across tabs/apps via the server's `session_state` socket
-  // broadcast.
-  const commitSwitchedSession = useCallback(
-    async (session: SessionLoginResponse): Promise<void> => {
-      if (!session?.user || !session?.sessionId || !session.accessToken) {
-        throw new Error('Session response did not include a usable session');
-      }
-      await commitSession(
-        {
-          sessionId: session.sessionId,
-          accessToken: session.accessToken,
-          deviceSecret: session.deviceSecret,
-          deviceId: session.deviceId,
-          expiresAt: session.expiresAt,
-          userId: session.user.id,
-          user: session.user,
-        },
-        { activate: true },
-      );
-    },
-    [commitSession],
-  );
-
   // ── Web third-party OAuth sign-in ──────────────────────────────────────────
   // The shared operation `OxySignInButton` (and any RP-owned button) delegates
   // to, so no consumer ever writes popup listeners or a token exchange. The
@@ -726,13 +701,11 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // ── Unified account dialog ─────────────────────────────────────────────────
   // The single account-chooser + sign-in surface. Built ONCE per provider mount
   // and bound to the live `oxyServices` + `sessionClient` + this provider's
-  // commit funnels. Both funnels are threaded through refs so the controller
-  // keeps STABLE commit callbacks (rebuilding the controller on every
-  // commit-identity change would drop its subscription + state).
+  // sign-in commit funnel, threaded through a ref so the controller keeps a
+  // STABLE commit callback (rebuilding the controller on every commit-identity
+  // change would drop its subscription + state).
   const handleWebSessionRef = useRef(handleWebSession);
   handleWebSessionRef.current = handleWebSession;
-  const commitSwitchedSessionRef = useRef(commitSwitchedSession);
-  commitSwitchedSessionRef.current = commitSwitchedSession;
 
   // The live AccountDialog surface (a stacked Bloom surface), while open — the
   // SINGLE source of truth for "is the account dialog open". Held so
@@ -775,12 +748,10 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       oxyServices,
       sessionClient,
       clientId,
-      locale: currentLanguage,
       // Same statically-injected `io` as the SessionClient: gives the QR flow an
       // instant `/auth-session` `auth_update` wake instead of a slow poll.
       socketFactory: io,
       commitSession: (session) => handleWebSessionRef.current(session),
-      commitSwitchedSession: (session) => commitSwitchedSessionRef.current(session),
       onSignedIn: () => {
         // Close the dialog: pop the morphed frame back to its host surface, or
         // dismiss the detached surface (whose settle flips `accountDialogOpen`).

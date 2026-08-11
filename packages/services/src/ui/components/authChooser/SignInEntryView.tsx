@@ -19,7 +19,11 @@
 import type React from 'react';
 import { View } from 'react-native';
 import { Button } from '@oxyhq/bloom/button';
-import type { AccountDialogSnapshot } from '@oxyhq/core';
+import {
+  showsPrincipalHeaders,
+  type AccountDialogSnapshot,
+  type SwitcherPrincipalRow,
+} from '@oxyhq/core';
 import TroubleDisclosure from './TroubleDisclosure';
 import { AccountRow, Dividerish, SubtleLink } from './primitives';
 import { authChooserStyles as styles } from './styles';
@@ -33,6 +37,8 @@ import type {
 
 interface SignInEntryViewProps {
   snapshot: AccountDialogSnapshot;
+  /** The device's people, each with the accounts they may act as. */
+  principals: SwitcherPrincipalRow[];
   theme: Theme;
   t: Translate;
   handlers: OxyAuthChooserHandlers;
@@ -43,6 +49,7 @@ interface SignInEntryViewProps {
 
 const SignInEntryView: React.FC<SignInEntryViewProps> = ({
   snapshot,
+  principals,
   theme,
   t,
   handlers,
@@ -76,18 +83,34 @@ const SignInEntryView: React.FC<SignInEntryViewProps> = ({
     },
   ];
 
+  // Whose route this is only needs naming when the list holds more than one
+  // person, or somebody with more than one account — the same rule the account
+  // menu's group headers follow, so the two surfaces agree on when the actor is
+  // worth stating.
+  const namesTheOperator = showsPrincipalHeaders(principals);
+  const rows = principals.flatMap((principal) =>
+    principal.contexts.map((context) => ({
+      context,
+      operatedBy:
+        namesTheOperator && context.isDelegated
+          ? t('accountSwitcher.context.operatedBy', { name: principal.displayName })
+          : null,
+    })),
+  );
+
   return (
     <View style={styles.signInBlock}>
-      {snapshot.accounts.length > 0 ? (
+      {rows.length > 0 ? (
         <View style={styles.rows}>
-          {snapshot.accounts.map((account) => (
+          {rows.map(({ context, operatedBy }) => (
             <AccountRow
-              key={account.accountId}
-              account={account}
+              key={context.contextId}
+              context={context}
+              operatedBy={operatedBy}
               theme={theme}
-              switching={snapshot.switchingAccountId === account.accountId}
-              disabled={snapshot.switchingAccountId !== null}
-              onPress={() => handlers.onSwitch(account.accountId)}
+              activating={snapshot.activatingContextId === context.contextId}
+              disabled={snapshot.activatingContextId !== null}
+              onPress={() => handlers.onActivate(context.contextId)}
             />
           ))}
           <Dividerish theme={theme} label={t('signin.or')} />

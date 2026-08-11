@@ -10,10 +10,9 @@ import { Pressable, View } from 'react-native-css/components';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { Text } from '@oxyhq/bloom/typography';
-import { BloomColorScope } from '@oxyhq/bloom/theme';
-import type { SwitchableAccount } from '@oxyhq/core';
+import type { SwitcherContextRow } from '@oxyhq/core';
 import { authChooserStyles as styles } from './styles';
-import { resolveAccentHex, toPreset, type Theme } from './types';
+import type { Theme } from './types';
 
 /** Diameter of a row avatar (the sign-in view's account rows). */
 const ROW_AVATAR_SIZE = 40;
@@ -83,62 +82,69 @@ export const Dividerish: React.FC<{ theme: Theme; label: string }> = ({ theme, l
 );
 
 /**
- * An account row on the sign-in entry — "continue as one of these" rather than a
- * choice of authentication METHOD, which is why it stays above the primary CTA
- * instead of behind the trouble disclosure.
+ * A `principal acting as account` row on the sign-in entry — "continue as one of
+ * these" rather than a choice of authentication METHOD, which is why it stays
+ * above the primary CTA instead of behind the trouble disclosure.
+ *
+ * Pressing it activates the PAIR. The secondary line is the account's `@handle`:
+ * the device directory carries a handle and no email, deliberately — it is the
+ * minimum that renders a row for every person on the device, and this surface is
+ * reached while signed out, where fetching anyone's profile is not an option.
  */
 export const AccountRow: React.FC<{
-  account: SwitchableAccount;
+  context: SwitcherContextRow;
+  /** The person this account is reached through, when that is not obvious. */
+  operatedBy: string | null;
   theme: Theme;
-  switching: boolean;
+  activating: boolean;
   disabled: boolean;
   onPress: () => void;
-}> = ({ account, theme, switching, disabled, onPress }) => {
-  const accent = resolveAccentHex(account.color, theme.colors.primary);
+}> = ({ context, operatedBy, theme, activating, disabled, onPress }) => {
+  const accent = theme.colors.primary;
+  const rowDisabled = disabled || !context.canActivate;
+  const secondary = operatedBy ?? (context.handle ? `@${context.handle}` : null);
 
   return (
-    <BloomColorScope colorPreset={toPreset(account.color)} asChild>
-      <Pressable
+    <Pressable
         style={[
           styles.accountRow,
           {
-            borderColor: account.isCurrent ? accent : theme.colors.border,
+            borderColor: context.isActive ? accent : theme.colors.border,
             backgroundColor: theme.colors.card,
           },
-          disabled && !switching ? styles.rowDisabled : null,
+          rowDisabled && !activating ? styles.rowDisabled : null,
         ]}
         onPress={onPress}
-        disabled={disabled}
+        disabled={rowDisabled}
         accessibilityRole="button"
-        accessibilityState={{ selected: account.isCurrent, disabled }}
-        accessibilityLabel={account.displayName}
+        accessibilityState={{ selected: context.isActive, disabled: rowDisabled }}
+        accessibilityLabel={context.displayName}
       >
-        <View style={[styles.avatarRing, { borderColor: account.isCurrent ? accent : 'transparent' }]}>
+        <View style={[styles.avatarRing, { borderColor: context.isActive ? accent : 'transparent' }]}>
           <Avatar
-            source={account.avatarUrl ?? undefined}
+            source={context.avatarUrl ?? undefined}
             variant="thumb"
-            name={account.displayName}
+            name={context.displayName}
             size={ROW_AVATAR_SIZE}
           />
         </View>
         <View style={styles.rowMeta}>
           <Text style={[styles.rowName, { color: theme.colors.text }]} numberOfLines={1}>
-            {account.displayName}
+            {context.displayName}
           </Text>
-          {account.email ? (
+          {secondary ? (
             <Text style={[styles.rowHandle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-              {account.email}
+              {secondary}
             </Text>
           ) : null}
         </View>
-        {switching ? (
+        {activating ? (
           <MaterialCommunityIcons name="loading" size={20} color={accent} />
-        ) : account.isCurrent ? (
+        ) : context.isActive ? (
           <MaterialCommunityIcons name="check-circle" size={20} color={accent} />
         ) : (
           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textSecondary} />
         )}
-      </Pressable>
-    </BloomColorScope>
+    </Pressable>
   );
 };

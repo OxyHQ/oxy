@@ -19,7 +19,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test"
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { MemoryRouter } from "react-router-dom"
-import { createServicesMock, defaultSwitchableAccounts } from "@/lib/__tests__/setup-services-mock"
+import { createServicesMock, defaultDeviceSwitcher } from "@/lib/__tests__/setup-services-mock"
 
 const getCommonsApprovalInfo = mock(async () => ({
     application: { id: "app1", name: "Acme Widgets" },
@@ -56,7 +56,7 @@ mock.module(
                 accountDialogController: stableController,
                 user: stableUser,
             }),
-            useSwitchableAccounts: defaultSwitchableAccounts,
+            useDeviceSwitcher: defaultDeviceSwitcher,
             // Minimal stub: a single button that fires the SAME onComplete prop
             // OxyAuthChooser fires on every completion path (ceremony, QR,
             // active-account tap) — the real component's own paths are tested in

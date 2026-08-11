@@ -34,7 +34,21 @@ export interface OxySignInSurfaceAction {
 
 /** The account-row actions the container wires for the switcher + menu views. */
 export interface OxyAuthChooserHandlers {
-  onSwitch: (accountId: string) => void;
+  /**
+   * Become one `principal acting as account` pair.
+   *
+   * A `contextId`, never an `accountId`: on a device holding two people the
+   * same organization is reachable through both, and an account id cannot name
+   * which person's route to take.
+   */
+  onActivate: (contextId: string) => void;
+  /**
+   * Drop ONE pair. The same account reached through somebody else stays — that
+   * is a different session with a different audit actor.
+   */
+  onRemoveContext: (contextId: string) => void;
+  /** Drop ONE PERSON and every account they reach here, and nobody else's. */
+  onRemovePrincipal: (principalId: string) => void;
   onAdd: () => void;
   onManage: () => void;
   /**
@@ -44,6 +58,25 @@ export interface OxyAuthChooserHandlers {
    * flow ManageAccount's avatar uses; it never stacks a new dialog.
    */
   onEditAvatar: () => void;
+}
+
+/**
+ * The account menu's HERO block — the current account, rendered large.
+ *
+ * Built by the container from `useOxy().user`, not from a directory row, and
+ * that asymmetry is deliberate rather than an oversight: the directory carries
+ * the minimum that renders a row (name, handle, avatar) for EVERY person on the
+ * device, while the account this client is actually signed in as is the one it
+ * legitimately holds a full profile for — so the hero keeps its real email and
+ * its own accent colour, and the rows below it do not pretend to.
+ */
+export interface AccountHeroModel {
+  displayName: string;
+  /** The canonical `@oxy.so` email when there is one, else the `@handle`. */
+  addressLine: string | null;
+  avatarUrl: string | undefined;
+  /** The account's own Bloom accent, resolved to a hex. */
+  accentHex: string;
 }
 
 /** Used/total storage bytes for the "Oxy storage" block, or `null` when unknown. */

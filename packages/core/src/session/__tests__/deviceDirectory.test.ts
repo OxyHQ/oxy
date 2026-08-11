@@ -8,7 +8,14 @@
  * that is the wrong human.
  */
 import type { DeviceDirectory, DeviceDirectoryProfile } from '@oxyhq/contracts';
-import { canActivateContext, resolveActiveContext, resolveDeviceContext } from '../deviceDirectory';
+import {
+  canActivateContext,
+  directoryDisplayName,
+  directoryHandle,
+  projectDevicePrincipals,
+  resolveActiveContext,
+  resolveDeviceContext,
+} from '../deviceDirectory';
 
 const profileFor = (id: string): DeviceDirectoryProfile => ({ id, username: id });
 
@@ -260,5 +267,156 @@ describe('canActivateContext', () => {
 
     expect(context?.subject.onDevice).toBe(false);
     expect(canActivateContext(context?.subject ?? { available: false })).toBe(true);
+  });
+});
+
+describe('projectDevicePrincipals', () => {
+  it('puts the same organization under BOTH people, as two distinct rows', () => {
+    const groups = projectDevicePrincipals(sharedDeviceDirectory('ctx-alice-org'));
+
+    expect(groups.map((group) => group.principalId)).toEqual(['p-nate', 'p-alice']);
+    // The fact the flat list structurally cannot hold: one account, two routes,
+    // two different humans, two different context ids.
+    const orgRows = groups.flatMap((group) =>
+      group.contexts.filter((context) => context.subject.accountId === 'org'),
+    );
+    expect(orgRows).toHaveLength(2);
+    expect(orgRows.map((context) => context.contextId)).toEqual(['ctx-nate-org', 'ctx-alice-org']);
+    expect(orgRows.map((context) => context.actor.userId)).toEqual(['nate', 'alice']);
+  });
+
+  it('marks only the person the ACTIVE context belongs to as active', () => {
+    const throughAlice = projectDevicePrincipals(sharedDeviceDirectory('ctx-alice-org'));
+    expect(throughAlice.map((group) => group.isActive)).toEqual([false, true]);
+
+    // Same account, reached through the other person: the active flag moves.
+    const throughNate = projectDevicePrincipals(sharedDeviceDirectory('ctx-nate-org'));
+    expect(throughNate.map((group) => group.isActive)).toEqual([true, false]);
+  });
+
+  it('marks nobody active when the active id names a row nobody holds', () => {
+    const groups = projectDevicePrincipals(sharedDeviceDirectory('ctx-healed-away'));
+    expect(groups.some((group) => group.isActive)).toBe(false);
+
+    // An ACCOUNT id is not a context id, so it activates nobody either — the
+    // same refusal `resolveActiveContext` makes, and for the same reason.
+    expect(projectDevicePrincipals(sharedDeviceDirectory('org')).some((g) => g.isActive)).toBe(
+      false,
+    );
+    expect(projectDevicePrincipals(sharedDeviceDirectory(null)).some((g) => g.isActive)).toBe(
+      false,
+    );
+  });
+
+  it('preserves the server order and does not re-sort', () => {
+    // The account ids are chosen so the server's order and a plausible
+    // client-side re-sort DISAGREE: the server puts a principal's PERSONAL
+    // context first, and `zeta` sorts after `org`. With ids that happen to
+    // already be alphabetical, a re-sorting projection passes this test.
+    const directory: DeviceDirectory = {
+      deviceId: 'd1',
+      revision: 8,
+      activeContextId: null,
+      updatedAt: 1_720_000_000_000,
+      principals: [
+        {
+          id: 'p-zeta',
+          userId: 'zeta',
+          authuser: 0,
+          user: profileFor('zeta'),
+          contexts: [
+            {
+              id: 'ctx-zeta-self',
+              accountId: 'zeta',
+              kind: 'personal',
+              relationship: 'self',
+              account: profileFor('zeta'),
+              onDevice: true,
+              available: true,
+              active: false,
+              lastUsedAt: null,
+            },
+            {
+              id: 'ctx-zeta-org',
+              accountId: 'org',
+              kind: 'organization',
+              relationship: 'owner',
+              account: ORG,
+              onDevice: true,
+              available: true,
+              active: false,
+              lastUsedAt: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    const groups = projectDevicePrincipals(directory);
+
+    expect(groups[0].contexts.map((context) => context.contextId)).toEqual([
+      'ctx-zeta-self',
+      'ctx-zeta-org',
+    ]);
+    // And principals keep the server's `authuser` ordering, not a re-derived one.
+    expect(projectDevicePrincipals(sharedDeviceDirectory(null)).map((g) => g.authuser)).toEqual([
+      0, 1,
+    ]);
+  });
+
+  it('keeps a person who has no contexts left', () => {
+    // Their every context was removed while they remain on the device. Dropping
+    // the group would strand "sign out of this person" with no row to hang off.
+    const directory: DeviceDirectory = {
+      deviceId: 'd1',
+      revision: 4,
+      activeContextId: null,
+      updatedAt: 1_720_000_000_000,
+      principals: [{ id: 'p-nate', userId: 'nate', authuser: 0, user: NATE, contexts: [] }],
+    };
+    const groups = projectDevicePrincipals(directory);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].principalId).toBe('p-nate');
+    expect(groups[0].contexts).toEqual([]);
+    expect(groups[0].isActive).toBe(false);
+  });
+
+  it('is empty for no directory', () => {
+    expect(projectDevicePrincipals(null)).toEqual([]);
+  });
+});
+
+describe('directoryDisplayName / directoryHandle', () => {
+  it('prefers the API displayName, then the handle, then the sentinel', () => {
+    expect(directoryDisplayName({ id: 'u', username: 'nate', name: { displayName: 'Nate I.' } }))
+      .toBe('Nate I.');
+    expect(directoryDisplayName({ id: 'u', username: 'nate' })).toBe('nate');
+    // No displayName and no username: the localized unnamed sentinel, never an
+    // account id and never a synthesized name.
+    const unnamed = directoryDisplayName({ id: 'u', username: '' });
+    expect(unnamed).not.toBe('');
+    expect(unnamed).not.toBe('u');
+  });
+
+  it('does not rebuild the first/last chain the identity contract forbids', () => {
+    // `name.first`/`name.last` without a `displayName` means the server
+    // deliberately composed no display name. Falling through to the handle is
+    // the contract; recomposing "Nate Isern" here would put a second, divergent
+    // naming rule in the client.
+    expect(
+      directoryDisplayName({ id: 'u', username: 'nate', name: { first: 'Nate', last: 'Isern' } }),
+    ).toBe('nate');
+  });
+
+  it('treats a whitespace-only displayName as absent', () => {
+    expect(directoryDisplayName({ id: 'u', username: 'nate', name: { displayName: '  ' } })).toBe(
+      'nate',
+    );
+  });
+
+  it('answers the handle, or null when there is no usable username', () => {
+    expect(directoryHandle({ id: 'u', username: 'nate' })).toBe('nate');
+    expect(directoryHandle({ id: 'u', username: '' })).toBeNull();
   });
 });

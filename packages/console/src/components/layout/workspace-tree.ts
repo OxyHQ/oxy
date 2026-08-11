@@ -26,12 +26,16 @@ export interface WorkspaceTree {
  * (a channel's members, its profile, its applications) — so the narrowing
  * belongs here, at the one place that asks "which identity can I become?".
  *
- * It asks {@link canSwitchIntoAccount} so the answer is the SAME one
- * `projectSwitchableAccounts` gives the SDK's own switcher. The Console reaches
- * its list through its own `listAccounts()` query rather than through that
- * projection, which is precisely how it went on offering channel rows after the
- * projection learned to drop them: a second enumeration of switch targets is a
- * second place for the rule to be missing.
+ * It asks {@link canSwitchIntoAccount} — the SAME predicate the Accounts app's
+ * managed-account rows ask — rather than testing a kind literal. A second
+ * enumeration of switch targets is a second place for the rule to go missing,
+ * which is precisely how the Console went on offering channel rows after the
+ * rule learned to drop them.
+ *
+ * This is the account GRAPH, not the device switcher. The switcher renders the
+ * server's device directory (ADR 0002) and asks it nothing: what the Console
+ * lists here is the forest of accounts a caller can MANAGE, which is a longer
+ * list than the identities this device can become.
  *
  * Filtering BEFORE the top-level pass is what keeps a descendant reachable — an
  * account parented to a channel finds its parent absent and promotes to a root,

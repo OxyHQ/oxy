@@ -26,8 +26,8 @@ import type { User } from '../models/interfaces';
  * non-empty, else the device's active account. An empty-string pin is treated as
  * "not pinned" rather than as an account that can never match.
  *
- * Exported for `accountProjection.ts`, which asks the same question of the same
- * state and must not answer it a second, subtly different way. A null state with
+ * Exported so no other projection over the same state answers it a second,
+ * subtly different way. A null state with
  * a pin still resolves to the pin: the pinned identity is bound by a local key,
  * not by device membership.
  */

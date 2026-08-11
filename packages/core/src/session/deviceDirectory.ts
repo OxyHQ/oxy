@@ -1,9 +1,13 @@
 import type {
   AccountKind,
+  DeviceAccountContext,
   DeviceContextRelationship,
   DeviceDirectory,
   DeviceDirectoryProfile,
+  DevicePrincipal,
 } from '@oxyhq/contracts';
+import { getAccountDisplayName } from '../utils/accountUtils';
+import { getNormalizedUserHandle } from '../utils/userHandle';
 
 /**
  * Pure projections over the device directory (`GET /session/device/directory`,
@@ -91,6 +95,29 @@ export interface DeviceContext {
   isDelegated: boolean;
 }
 
+/** Resolve one wire context under the principal it hangs off. */
+function toDeviceContext(principal: DevicePrincipal, context: DeviceAccountContext): DeviceContext {
+  return {
+    contextId: context.id,
+    actor: {
+      principalId: principal.id,
+      userId: principal.userId,
+      authuser: principal.authuser,
+      profile: principal.user,
+    },
+    subject: {
+      accountId: context.accountId,
+      kind: context.kind,
+      relationship: context.relationship,
+      profile: context.account,
+      onDevice: context.onDevice,
+      available: context.available,
+      lastUsedAt: context.lastUsedAt,
+    },
+    isDelegated: context.accountId !== principal.userId,
+  };
+}
+
 /**
  * Resolve one context by its id.
  *
@@ -108,31 +135,66 @@ export function resolveDeviceContext(
   }
   for (const principal of directory.principals) {
     for (const context of principal.contexts) {
-      if (context.id !== contextId) {
-        continue;
+      if (context.id === contextId) {
+        return toDeviceContext(principal, context);
       }
-      return {
-        contextId: context.id,
-        actor: {
-          principalId: principal.id,
-          userId: principal.userId,
-          authuser: principal.authuser,
-          profile: principal.user,
-        },
-        subject: {
-          accountId: context.accountId,
-          kind: context.kind,
-          relationship: context.relationship,
-          profile: context.account,
-          onDevice: context.onDevice,
-          available: context.available,
-          lastUsedAt: context.lastUsedAt,
-        },
-        isDelegated: context.accountId !== principal.userId,
-      };
     }
   }
   return null;
+}
+
+/**
+ * One person on the device, with every account they can act as beneath them.
+ *
+ * This is the switcher's shape, and it is grouped rather than flat because the
+ * flat one cannot state the fact the whole model exists for: the same
+ * organization reachable through two people is TWO rows, under two different
+ * humans, and a list keyed by account can only ever show one of them.
+ */
+export interface DevicePrincipalGroup {
+  /** The id `POST /session/device/signout { principalId }` takes. */
+  principalId: string;
+  /** The person's own account id. */
+  userId: string;
+  /** Google-style signed-in-human slot. An organization consumes none. */
+  authuser: number;
+  profile: DeviceDirectoryProfile;
+  /**
+   * Every context this person can reach, in the server's order (their personal
+   * account first, then the accounts they act as, by account id). Not re-sorted
+   * here: the server's order is already total and revision-stable, and a second
+   * ordering rule on the client would be a second thing to keep in agreement.
+   */
+  contexts: DeviceContext[];
+  /** Whether the device's ACTIVE context belongs to this person. */
+  isActive: boolean;
+}
+
+/**
+ * The directory as the switcher renders it: people, each with what they may
+ * become.
+ *
+ * A principal with no contexts is kept rather than dropped. It is a real state
+ * — a person whose every context was removed while they remain on the device —
+ * and rendering them with nothing under them is how "sign out of this person"
+ * stays reachable. Silently omitting them would strand the row.
+ */
+export function projectDevicePrincipals(
+  directory: DeviceDirectory | null,
+): DevicePrincipalGroup[] {
+  if (directory === null) {
+    return [];
+  }
+  return directory.principals.map((principal) => ({
+    principalId: principal.id,
+    userId: principal.userId,
+    authuser: principal.authuser,
+    profile: principal.user,
+    contexts: principal.contexts.map((context) => toDeviceContext(principal, context)),
+    isActive:
+      directory.activeContextId !== null &&
+      principal.contexts.some((context) => context.id === directory.activeContextId),
+  }));
 }
 
 /**
@@ -149,6 +211,36 @@ export function resolveActiveContext(directory: DeviceDirectory | null): DeviceC
     return null;
   }
   return resolveDeviceContext(directory, directory.activeContextId);
+}
+
+/**
+ * The name a directory row renders: the API's `displayName` when it has one,
+ * otherwise the normalized handle, otherwise the localized unnamed sentinel.
+ *
+ * The identity contract's `displayName ?? handle`, and deliberately not
+ * `getAccountDisplayName`'s multi-field chain — that one is for LOCAL account
+ * surfaces, and the directory profile is an API DTO whose `name.displayName`
+ * the server already composed or deliberately omitted. `getAccountDisplayName`
+ * appears here only for its `null` case, which is the sentinel.
+ */
+export function directoryDisplayName(profile: DeviceDirectoryProfile, locale?: string): string {
+  const displayName = profile.name?.displayName?.trim();
+  if (displayName) {
+    return displayName;
+  }
+  return getNormalizedUserHandle(profile) ?? getAccountDisplayName(null, locale);
+}
+
+/**
+ * A directory row's `@handle`, or `null` when the profile carries no usable
+ * username.
+ *
+ * The directory profile has no email — by design, it is the minimum that
+ * renders a row — so the handle is the secondary line, never a synthesized
+ * `username@oxy.so` address.
+ */
+export function directoryHandle(profile: DeviceDirectoryProfile): string | null {
+  return getNormalizedUserHandle(profile);
 }
 
 /**

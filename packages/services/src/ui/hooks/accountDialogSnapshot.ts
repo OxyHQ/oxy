@@ -14,14 +14,13 @@ import type { AccountDialogSnapshot } from '@oxyhq/core';
  */
 export const EMPTY_ACCOUNT_DIALOG_SNAPSHOT: AccountDialogSnapshot = {
   view: 'accounts',
-  accounts: [],
-  activeAccountId: null,
   directory: null,
   activeContext: null,
   activatingContextId: null,
+  removingContextId: null,
+  removingPrincipalId: null,
   loading: false,
   error: null,
-  switchingAccountId: null,
   signIn: {
     phase: 'idle',
     authorizeCode: null,

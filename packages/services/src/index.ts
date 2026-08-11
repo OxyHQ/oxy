@@ -365,14 +365,14 @@ export { OxySignInRequestSurface } from './ui/components/OxySignInRequestSurface
 export type { OxySignInRequestSurfaceProps } from './ui/components/OxySignInRequestSurface';
 export type { OxySignInSurfaceAction } from './ui/components/authChooser/types';
 
-// Unified switchable-accounts hook — the single source of everything the user
-// can switch into: device sign-ins AND linked graph accounts (owned orgs +
-// shared-with-you), deduped by account id and hydrated with real
-// name/email/avatar/color. Backed by the shared `AccountDialogController` in
-// `@oxyhq/core`. Every switch routes through `useOxy().switchToAccount`.
-// The `SwitchableAccount` type lives in `@oxyhq/core` — import it from there.
-export { useSwitchableAccounts } from './ui/hooks/useSwitchableAccounts';
-export type { UseSwitchableAccountsResult } from './ui/hooks/useSwitchableAccounts';
+// The device switcher — the server's own directory (ADR 0002) of who is signed
+// in here and what each of them may act as, grouped by PERSON, with the two
+// removals an account id cannot name. Backed by the shared
+// `AccountDialogController` in `@oxyhq/core`; selecting a row activates a
+// `contextId`. `DevicePrincipalGroup` and `DeviceContext` live in `@oxyhq/core`
+// — import them from there.
+export { useDeviceSwitcher } from './ui/hooks/useDeviceSwitcher';
+export type { UseDeviceSwitcherResult } from './ui/hooks/useDeviceSwitcher';
 
 // Unified "Manage your Oxy Account" screen (the caller's own personal account)
 export { default as ProfileScreen } from './ui/screens/ProfileScreen';

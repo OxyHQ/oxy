@@ -688,33 +688,47 @@ export {
 // reaching the same org on one device.
 // `canActivateContext` is the switchability question — `available` alone, never
 // composed with `onDevice`, which is a different fact in both directions.
-export { canActivateContext, resolveActiveContext, resolveDeviceContext } from './session/deviceDirectory';
+// `projectDevicePrincipals` is the switcher's shape: people, each with what
+// they may become. Grouped rather than flat because the same organization
+// reached through two people is TWO rows under two humans, which a list keyed
+// by account cannot say.
+export {
+    canActivateContext,
+    directoryDisplayName,
+    directoryHandle,
+    projectDevicePrincipals,
+    resolveActiveContext,
+    resolveDeviceContext,
+} from './session/deviceDirectory';
 export type {
     DeviceContext,
     DeviceContextActor,
     DeviceContextSubject,
+    DevicePrincipalGroup,
 } from './session/deviceDirectory';
 
-// Unified account-list projection (THE single source of truth for the account
-// chooser: device sign-ins ∪ account graph, deduped by accountId). Pure +
-// I/O-free — the caller hydrates profiles via `getUsersByIds`. Shared by
-// `@oxyhq/services` and auth.oxy.so so the list can't diverge.
-// `isSwitchTargetAccount` is the structural half ("is this kind switchable at
-// all?"); `canSwitchIntoAccount` adds the caller's `account:act_as` permission.
-// Both are exported so surfaces that render `AccountNode`s rather than the
-// projection — the Console workspace switcher, managed-accounts rows — ask the
-// SAME questions instead of testing a kind literal.
+// The switcher's RENDER model over that projection — names, handles and avatar
+// URLs resolved once. Shared by `@oxyhq/services`' account dialog and the
+// auth.oxy.so chooser so the two cannot drift, the same reason the flat
+// projection lived here before it.
+export { buildSwitcherRows, showsPrincipalHeaders } from './session/deviceSwitcherRows';
+export type {
+    ResolveAvatarUrl,
+    SwitcherContextRow,
+    SwitcherPrincipalRow,
+} from './session/deviceSwitcherRows';
+
+// The switch-target predicates over the account GRAPH — a list of accounts to
+// manage, not the device's list of identities to become (that is the directory
+// above). `isSwitchTargetAccount` is the structural half ("is this kind
+// switchable at all?"); `canSwitchIntoAccount` adds the caller's
+// `account:act_as` permission. Exported so the surfaces that render
+// `AccountNode`s — the Console workspace switcher, managed-accounts rows — ask
+// the SAME questions instead of testing a kind literal.
 export {
     isSwitchTargetAccount,
     canSwitchIntoAccount,
-    projectSwitchableAccounts,
-    switchableAccountIds,
-} from './session/accountProjection';
-export type {
-    SwitchableAccount,
-    SwitchableAccountUser,
-    ProjectSwitchableAccountsInput,
-} from './session/accountProjection';
+} from './session/accountSwitchTargets';
 
 // Headless controller for the unified account dialog. Framework-agnostic
 // state machine + subscribe/getSnapshot store (bind via `useSyncExternalStore`)

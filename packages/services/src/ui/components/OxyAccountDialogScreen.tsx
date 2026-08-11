@@ -62,7 +62,7 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
 
   // A lightweight, header-only binding to the same controller `OxyAuthChooser`
   // binds independently — cheap, and the established pattern here (
-  // `useSwitchableAccounts` also binds to this controller on its own).
+  // `useDeviceSwitcher` also binds to this controller on its own).
   const subscribe = useCallback(
     (listener: () => void) => (controller ? controller.subscribe(listener) : () => undefined),
     [controller],
@@ -74,8 +74,10 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const { view } = snapshot;
-  const showBack =
-    view === 'qr' || view === 'signup' || (view === 'add' && snapshot.accounts.length > 0);
+  // "Add another account" only makes sense as a back destination when there IS
+  // another — i.e. somebody is already signed in on this device.
+  const hasSignedInAccounts = (snapshot.directory?.principals.length ?? 0) > 0;
+  const showBack = view === 'qr' || view === 'signup' || (view === 'add' && hasSignedInAccounts);
   const goToAccounts = useCallback(() => {
     if (!controller) return;
     const { view: currentView, signIn } = controller.getSnapshot();
@@ -101,7 +103,7 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   // by the bar. Every OTHER view keeps the SHARED Dialog nav header the rest of
   // the SDK uses — a large in-content title/subtitle that collapses into the bar
   // on scroll — because their copy is informative.
-  const copy = view === 'accounts' ? null : headerCopy(view, snapshot.accounts.length, t);
+  const copy = view === 'accounts' ? null : headerCopy(view, hasSignedInAccounts, t);
 
   useSurfaceHeader({
     titleContent: copy ? undefined : NAV_LOGO,
@@ -127,7 +129,7 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
 
 function headerCopy(
   view: Exclude<AccountDialogSnapshot['view'], 'accounts'>,
-  accountCount: number,
+  hasSignedInAccounts: boolean,
   t: Translate,
 ): { title: string; subtitle: string | null } {
   switch (view) {
@@ -148,7 +150,7 @@ function headerCopy(
         subtitle: t('signup.subtitle') || 'One identity for the whole ecosystem.',
       };
     default:
-      return accountCount > 0
+      return hasSignedInAccounts
         ? {
             title: t('signin.addAccountTitle') || 'Add another account',
             subtitle: t('signin.addAccountSubtitle') || 'Sign in with another account.',

@@ -7,7 +7,7 @@
  * of silently breaking sign-in for the whole ecosystem.
  *
  * The IdP is now a pure static SPA — it enumerates device accounts through the
- * SAME device-first SDK path every app uses (`useSwitchableAccounts`), so there
+ * SAME device-first SDK path every app uses (`useDeviceSwitcher`), so there
  * is no bespoke chooser-feed Pages Function to probe anymore.
  *
  * What it catches:

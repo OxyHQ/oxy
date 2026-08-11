@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link, useNavigate, Navigate } from "react-router-dom";
-import type { PublicApplication, SwitchableAccount } from "@oxyhq/core";
-import { OxyConsentScreen, useOxy, useSwitchableAccounts } from "@oxyhq/services";
+import type { PublicApplication, SwitcherContextRow } from "@oxyhq/core";
+import { OxyConsentScreen, useDeviceSwitcher, useOxy } from "@oxyhq/services";
 
 import { Button } from "@oxyhq/bloom/button";
 import {
@@ -35,7 +35,7 @@ import {
 /**
  * The requesting-application + auth-request resolution state. The signed-in
  * USER, the access token, and the device session id come from the device-first
- * SDK (`useOxy().user` / `oxyServices.getAccessToken()` / `useSwitchableAccounts`)
+ * SDK (`useOxy().user` / `oxyServices.getAccessToken()` / `useDeviceSwitcher`)
  * — the IdP no longer resolves per-account bearers itself.
  */
 type AuthorizeData = {
@@ -175,22 +175,25 @@ function AuthorizeRequest() {
   // `lib/oauth-web-message.ts`).
   const responseMode = searchParams.get("response_mode");
 
-  // Device-first SDK: the signed-in user + active bearer + device account set.
-  // The bearer for the OAuth authorize call is ALWAYS the SDK's active-account
-  // token; switching accounts (`switchToAccount`) re-plants it — there is no
-  // per-row bearer anymore.
+  // Device-first SDK: the signed-in user + active bearer + the device directory.
+  // The bearer for the OAuth authorize call is ALWAYS the SDK's active-context
+  // token; activating another context re-plants it — there is no per-row bearer.
   const {
     user,
     oxyServices,
-    switchToAccount,
     isAuthResolved,
     isAuthenticated,
   } = useOxy();
   const {
-    accounts: deviceAccounts,
-    currentSessionId,
-    isLoading: deviceAccountsLoading,
-  } = useSwitchableAccounts();
+    principals,
+    activeContext,
+    activateContext,
+    isLoading: directoryLoading,
+  } = useDeviceSwitcher();
+  // How many `principal acting as account` pairs the device offers. The chooser
+  // is worth showing from two upwards — and on a device holding two people who
+  // both reach one organization that is FOUR rows, where the flat count was two.
+  const contextCount = principals.reduce((total, p) => total + p.contexts.length, 0);
 
   const [data, setData] = useState<AuthorizeData>({
     sessionStatus: statusParam,
@@ -216,7 +219,7 @@ function AuthorizeRequest() {
   // `<AccountChooser>` and disables sibling rows so the user can't fire a second
   // switch while one is in flight. Cleared on success (consent reveal) or on
   // failure (re-auth fallback).
-  const [chooserPendingAccountId, setChooserPendingAccountId] = useState<
+  const [chooserPendingContextId, setChooserPendingContextId] = useState<
     string | null
   >(null);
   // The auto-approve probe runs at most once per mount for the active account.
@@ -231,7 +234,7 @@ function AuthorizeRequest() {
   // device rows alone are not enough (stale accounts after a failed mint).
   const hasUsableBearer =
     isAuthenticated ||
-    !!currentSessionId ||
+    activeContext !== null ||
     !!oxyServices.getAccessToken();
 
   // The additional no-session lane (issue #691). A request that carries a full
@@ -458,21 +461,26 @@ function AuthorizeRequest() {
     );
   }
 
-  async function handleChooseAccount(entry: SwitchableAccount): Promise<void> {
-    setChooserPendingAccountId(entry.accountId);
+  async function handleChooseContext(context: SwitcherContextRow): Promise<void> {
+    setChooserPendingContextId(context.contextId);
     try {
-      // Switching into the account re-plants the active bearer; with a token in
-      // hand the OAuth path can skip the consent screen when consent isn't
-      // required. The active account needs no switch.
-      if (!entry.isCurrent) {
-        await switchToAccount(entry.accountId);
+      // Activating the pair re-plants the active bearer; with a token in hand
+      // the OAuth path can skip the consent screen when consent isn't required.
+      // The already-active pair needs no activation.
+      //
+      // A refusal resolves `false` rather than throwing — a context id is not
+      // stable across a removal, so "this pair is gone" is an ordinary answer —
+      // and lands on the same re-auth fallback as a thrown failure.
+      if (!context.isActive && !(await activateContext(context.contextId))) {
+        gotoLoginWithHint(context.handle ?? undefined);
+        return;
       }
       setChooserDismissed(true);
       await maybeAutoApprove(oxyServices.getAccessToken());
     } catch {
-      gotoLoginWithHint(entry.user.username ?? undefined);
+      gotoLoginWithHint(context.handle ?? undefined);
     } finally {
-      setChooserPendingAccountId(null);
+      setChooserPendingContextId(null);
     }
   }
 
@@ -481,21 +489,21 @@ function AuthorizeRequest() {
   // per mount. Multi-account devices go through the chooser first.
   useEffect(() => {
     if (
-      deviceAccountsLoading ||
+      directoryLoading ||
       autoApproveAttemptedRef.current ||
       data.error ||
       (data.sessionStatus && data.sessionStatus !== "pending") ||
-      !currentSessionId ||
-      deviceAccounts.length > 1
+      activeContext === null ||
+      contextCount > 1
     ) {
       return;
     }
     autoApproveAttemptedRef.current = true;
     void maybeAutoApprove(oxyServices.getAccessToken());
   }, [
-    deviceAccounts.length,
-    deviceAccountsLoading,
-    currentSessionId,
+    contextCount,
+    directoryLoading,
+    activeContext,
     data.error,
     data.sessionStatus,
     oxyServices,
@@ -795,7 +803,7 @@ function AuthorizeRequest() {
     );
   }
 
-  if (loading || deviceAccountsLoading) {
+  if (loading || directoryLoading) {
     return <LoadingSpinner />;
   }
 
@@ -888,17 +896,17 @@ function AuthorizeRequest() {
   if (
     showActions &&
     !chooserDismissed &&
-    currentSessionId &&
-    deviceAccounts.length > 1
+    activeContext !== null &&
+    contextCount > 1
   ) {
     return (
       <AccountChooser
-        accounts={deviceAccounts}
+        principals={principals}
         appName={application?.name}
-        onSelectAccount={handleChooseAccount}
+        onSelectContext={handleChooseContext}
         onUseAnother={() => gotoLoginWithHint()}
-        pendingAccountId={chooserPendingAccountId}
-        isLoading={submitting || chooserPendingAccountId !== null}
+        pendingContextId={chooserPendingContextId}
+        isLoading={submitting || chooserPendingContextId !== null}
       />
     );
   }

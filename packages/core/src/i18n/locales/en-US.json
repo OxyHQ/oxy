@@ -396,13 +396,22 @@
       "remoteSignOutFailed": "There was a problem signing out from the device. Please try again.",
       "noOtherDeviceSessions": "No other device sessions found to sign out from.",
       "signOutOthersSuccess": "Signed out from all other devices successfully!",
-      "signOutOthersFailed": "There was a problem signing out from other devices. Please try again."
+      "signOutOthersFailed": "There was a problem signing out from other devices. Please try again.",
+      "contextRemoved": "Removed {{account}}",
+      "contextRemoveFailed": "There was a problem removing that account. Please try again.",
+      "principalRemoved": "Signed {{name}} out of this device",
+      "principalRemoveFailed": "There was a problem signing that person out. Please try again.",
+      "activateFailed": "There was a problem switching accounts. Please try again."
     },
     "confirms": {
       "remove": "Are you sure you want to remove {{displayName}} from this device? You'll need to sign in again to access this account.",
       "logoutAll": "Are you sure you want to sign out of all accounts? This will remove all saved accounts from this device.",
       "remoteLogout": "Are you sure you want to sign out from \"{{deviceName}}\"? This will end the session on that device.",
-      "logoutOthers": "Are you sure you want to sign out from all {{count}} other device(s)? This will end sessions on all other devices except this one."
+      "logoutOthers": "Are you sure you want to sign out from all {{count}} other device(s)? This will end sessions on all other devices except this one.",
+      "removeContextTitle": "Remove this account?",
+      "removeContext": "Stop {{person}} acting as {{account}} on this device? Anyone else who reaches {{account}} here keeps their access.",
+      "removePrincipalTitle": "Sign out of this device?",
+      "removePrincipal": "Sign {{name}} out of this device? Every account they reach here is removed. Nobody else is affected."
     },
     "device": {
       "loadingTitle": "Loading device sessions...",
@@ -439,6 +448,14 @@
       "openedInCommons": "Opened in Commons",
       "confirming": "Confirming identity",
       "confirmed": "Identity confirmed"
+    },
+    "context": {
+      "unavailable": "Unavailable right now",
+      "operatedBy": "Operated by {{name}}",
+      "remove": "Remove {{account}} from {{person}}"
+    },
+    "principal": {
+      "signOut": "Sign {{name}} out of this device"
     }
   },
   "reputation": {

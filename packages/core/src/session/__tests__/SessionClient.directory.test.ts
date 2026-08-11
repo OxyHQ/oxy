@@ -642,3 +642,47 @@ describe('SessionClient — device directory', () => {
     });
   });
 });
+
+describe('SessionClient — the directory does not outlive the device', () => {
+  it('drops the held directory when the device empties', async () => {
+    const host = makeHost(
+      { '/session/device/directory': () => directoryAt(3, 'ctx-nate') },
+      jwtFor('nate'),
+    );
+    const client = new TestClient(host);
+    await client.refreshDirectory();
+    expect(client.getDirectory()?.revision).toBe(3);
+
+    // A sign-out: the device reports zero accounts.
+    client.apply({
+      deviceId: 'd1',
+      accounts: [],
+      activeAccountId: null,
+      revision: 4,
+      updatedAt: 1_720_000_000_100,
+    });
+
+    // The directory is bearer-read, and a sign-out leaves no bearer to re-read
+    // it with — so nothing downstream could ever correct a stale one. Without
+    // this, a directory-rendering switcher goes on showing the people who were
+    // signed in here.
+    expect(client.getDirectory()).toBeNull();
+    expect(client.getActiveContext()).toBeNull();
+  });
+
+  it('keeps the directory across an ordinary state change that still has accounts', async () => {
+    const host = makeHost(
+      {
+        '/session/device/directory': () => directoryAt(5, 'ctx-nate'),
+      },
+      jwtFor('nate'),
+    );
+    const client = new TestClient(host);
+    await client.refreshDirectory();
+
+    // A switch, not a sign-out: the directory stays and settles on its own.
+    client.apply(stateAt(5, 'org'));
+
+    expect(client.getDirectory()?.revision).toBe(5);
+  });
+});
