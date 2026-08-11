@@ -105,6 +105,14 @@ jobs:
       - name: Guard against MongoDB returning
         run: bun run validate:no-mongo
 
+      # Same shape, same reason, one layer up. The switcher's flat account list
+      # was replaced by the server's device directory (ADR 0002, issue #937), and
+      # it would come back the way the Mongo references would: one surface
+      # reaching for `listAccounts()` because it is right there, one hook
+      # flattening the grouped rows. None of that fails a build on its own.
+      - name: Guard against the flat account list returning
+        run: bun run validate:no-flat-account-list
+
       # api tests resolve `@oxyhq/core` (e.g. `registrableApex` in federation
       # helpers) from its published `dist`, like any normal dependency.
       # This job does not build workspace deps, so core's `dist` is absent on a
