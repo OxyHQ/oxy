@@ -1,5 +1,14 @@
 # Dependencies
 node_modules/
+
+# Expo's per-app scratch dir. Every Expo package here ignored this in its OWN
+# .gitignore, which works right up until the package is deleted: the ignore
+# rules leave with it, and the next `git add -A` commits whatever a lint or
+# dev run left behind. That is how packages/inbox/.expo/cache/eslint/ survived
+# the removal of packages/inbox. Ignored at the root so the rule outlives any
+# one package.
+.expo/
+.expo-shared/
 package-lock.json
 packages/*/package-lock.json
 npm-debug.log*
