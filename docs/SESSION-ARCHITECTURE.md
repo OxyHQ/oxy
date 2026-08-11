@@ -420,7 +420,29 @@ handing the SPA a bearer. CSRF is live again for these six and nowhere else: `PO
 `Origin` exactly equal to the deployment's own origin (absent is refused),
 `Sec-Fetch-Site: same-origin` when sent, and a required `X-Oxy-Hub: 1`.
 
+**The page half, and the flag.** `VITE_OXY_BROWSER_HUB=1` routes `/authorize` to
+`packages/auth/src/pages/hub-authorize.tsx` and mounts `OxyProvider` with
+`deviceCredentialStorage="ephemeral"`; unset — the default — leaves the IdP
+byte-for-byte as it was, with not one `/hub/*` request made. `ephemeral` is what makes
+the hub AUTHORITATIVE rather than merely first in line: the origin persists no
+`{deviceId, deviceSecret}` of its own, so there is exactly one durable credential for
+the browser profile. "Try the hub, else localStorage" would be the same dual authority
+under a politer name, and its failure mode is a revoked hub the browser silently
+survives.
+
+With the flag on, a browser the hub knows goes straight to a code (resolve → pick a
+context if there is more than one → mint). A browser it does not know runs ONE Commons
+approval that establishes the hub (`lib/hub-establish.ts`) and then takes the first
+lane. That is a plain `device_sign_in` request, not the OAuth-bound one the ordinary
+page uses: an OAuth approval mints no session by design, so it could never establish a
+hub, and a browser that joined that way would be back at a QR on the next origin.
+
+**Flipping the flag is the browser-verification gate** — it comes out when somebody has
+run Chrome, Safari and Firefox, private windows, and third-party-cookies-blocked against
+the lane, never on reasoning.
+
 **Still forbidden**, unchanged: third-party cookies, hidden or silent iframes,
 cross-origin `localStorage`, Storage Access API as the mechanism, gesture-less popups,
 silent `prompt=none` loops, FedCM, and automatic redirect chains across Oxy origins. No
-hub endpoint answers with a redirect.
+hub endpoint answers with a redirect, and the hub page refuses `prompt=none` before
+doing any work at all.

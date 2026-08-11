@@ -27,7 +27,8 @@ import { getNormalizedUserHandle } from "../../../core/src/utils/userHandle"
 import { translate } from "../../../core/src/i18n"
 import { getBaseLanguage, normalizeLocale } from "../../../core/src/utils/languageUtils"
 import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
-import { showsPrincipalHeaders } from "../../../core/src/session/deviceSwitcherRows"
+import { buildSwitcherRows, showsPrincipalHeaders } from "../../../core/src/session/deviceSwitcherRows"
+import { projectDevicePrincipals } from "../../../core/src/session/deviceDirectory"
 
 mock.module("@oxyhq/core", () => ({
     isOxyRpOrigin,
@@ -43,4 +44,9 @@ mock.module("@oxyhq/core", () => ({
     // asks the SAME question the SDK's own switcher asks, rather than deciding
     // for itself when an operator is worth stating.
     showsPrincipalHeaders,
+    // The hub authorize page renders the chooser from the hub's directory
+    // through the SAME projection the SDK's own switcher uses — one ordering and
+    // grouping rule, not a second one for the IdP.
+    buildSwitcherRows,
+    projectDevicePrincipals,
 }))
