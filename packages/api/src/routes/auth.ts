@@ -6,7 +6,15 @@
  * and social OAuth sign-in were removed ecosystem-wide.
  */
 
-import type { CommonsDenyReason } from '@oxyhq/contracts';
+import type {
+  CommonsDenyReason,
+  OauthAuthorizeCodeResponse,
+  OauthConsentDecision,
+} from '@oxyhq/contracts';
+import {
+  oauthAuthorizeCodeResponseSchema,
+  oauthConsentDecisionSchema,
+} from '@oxyhq/contracts';
 import express from 'express';
 import { and, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import crypto from 'crypto';
@@ -2550,12 +2558,17 @@ router.post(
       hasPkce: Boolean(codeChallenge),
     });
 
-    sendSuccess(res, {
+    // Typed against the contract and parsed on the way out: this response now
+    // has TWO independently deployed consumers — the IdP SPA and, since the
+    // browser hub (issue #937 Phase 5), its edge layer — so the shape is a
+    // contract rather than an implementation detail of one page.
+    const dto: OauthAuthorizeCodeResponse = {
       code: rawCode,
       state: state ?? null,
       redirectUri,
       expiresIn: Math.floor(AUTH_CODE_TTL_MS / 1000),
-    });
+    };
+    sendSuccess(res, oauthAuthorizeCodeResponseSchema.parse(dto));
   })
 );
 
@@ -2642,9 +2655,17 @@ router.get(
     // being asked. Everything else keeps the "Google with its own apps" model.
     const mustAsk = userConsentRequiredScopes(requestedScopes);
 
+    // Each arm builds a `const dto: OauthConsentDecision` and parses it on the
+    // way out. Both halves of the guard matter: the annotation makes a missing
+    // or misspelled field a `tsc` error naming the field, and the parse makes a
+    // value that is legal TypeScript but not a legal reason (a widened enum on
+    // one side only) fail here rather than at whichever consumer reads it.
+    const decide = (dto: OauthConsentDecision) =>
+      sendSuccess(res, oauthConsentDecisionSchema.parse(dto));
+
     // Trusted apps are auto-approved for the rest, regardless of scope.
     if (isTrustedApplication(app) && mustAsk.length === 0) {
-      sendSuccess(res, { consentRequired: false, reason: 'trusted' });
+      decide({ consentRequired: false, reason: 'trusted' });
       return;
     }
     const [grant] = await getDb()
@@ -2657,10 +2678,10 @@ router.get(
       const granted = new Set(grant.scopes ?? []);
       const covered = requestedScopes.every((s) => granted.has(s));
       if (covered) {
-        sendSuccess(res, { consentRequired: false, reason: 'granted' });
+        decide({ consentRequired: false, reason: 'granted' });
         return;
       }
-      sendSuccess(res, {
+      decide({
         consentRequired: true,
         reason: 'scope_changed',
         ...(mustAsk.length > 0 ? { userConsentScopes: mustAsk } : {}),
@@ -2671,7 +2692,7 @@ router.get(
     // The scopes that FORCED the screen travel with the answer so the consent UI
     // can say which one it is asking about. A bare `true` cannot produce the
     // sentence the user needs to make the decision.
-    sendSuccess(res, {
+    decide({
       consentRequired: true,
       reason: 'new',
       ...(mustAsk.length > 0 ? { userConsentScopes: mustAsk } : {}),

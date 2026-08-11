@@ -483,6 +483,46 @@ export type {
 } from './deviceDirectory';
 
 export {
+    oauthConsentDecisionSchema,
+    oauthAuthorizeCodeResponseSchema,
+} from './oauth';
+
+export type {
+    OauthConsentDecision,
+    OauthAuthorizeCodeResponse,
+} from './oauth';
+
+export {
+    BROWSER_HUB_COOKIE_NAME,
+    BROWSER_HUB_COOKIE_ATTRIBUTES,
+    BROWSER_HUB_HANDLE_TTL_MS,
+    browserHubHandleSchema,
+    browserHubHandleRequestSchema,
+    browserHubHandleResponseSchema,
+    browserHubResolveResponseSchema,
+    browserHubErrorSchema,
+    browserHubRevokeResponseSchema,
+    hubSessionSchema,
+    hubClaimRequestSchema,
+    hubActivateRequestSchema,
+    hubAuthorizeRequestSchema,
+    hubAuthorizeResultSchema,
+} from './browserHub';
+
+export type {
+    BrowserHubHandleRequest,
+    BrowserHubHandleResponse,
+    BrowserHubResolveResponse,
+    BrowserHubError,
+    BrowserHubRevokeResponse,
+    HubSession,
+    HubClaimRequest,
+    HubActivateRequest,
+    HubAuthorizeRequest,
+    HubAuthorizeResult,
+} from './browserHub';
+
+export {
     // Schemas
     loginResultSchema,
 } from './deviceBoot';

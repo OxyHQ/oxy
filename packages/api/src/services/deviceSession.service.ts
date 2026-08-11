@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 import type { Request } from 'express';
-import { and, asc, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, notInArray, or, sql } from 'drizzle-orm';
 import type {
   AccountKind,
   DeviceAccountContext,
@@ -11,7 +11,11 @@ import type {
   DeviceSessionState,
   SessionAccount,
 } from '@oxyhq/contracts';
-import { deviceDirectorySchema, isActAsEligibleKind } from '@oxyhq/contracts';
+import {
+  BROWSER_HUB_HANDLE_TTL_MS,
+  deviceDirectorySchema,
+  isActAsEligibleKind,
+} from '@oxyhq/contracts';
 import { isUniqueViolation } from '@oxyhq/db';
 import { getDb, type Database } from '../config/postgres';
 import { deviceAccountContexts } from '../db/schema/deviceAccountContexts';
@@ -927,9 +931,22 @@ class DeviceSessionService {
     // `device_sessions_secret_hash_key` across devices, and `getStateBySecret`
     // guards on a non-empty hash, so `''` would also read as "no secret" while
     // occupying the unique slot.
+    //
+    // The browser hub handle goes with signout-ALL for the same reason and on
+    // the same terms (ADR 0003: "revoked with the DeviceSession"). Leaving it
+    // behind would let a retained `__Host-oxy-device` cookie keep resolving a
+    // device whose accounts were all just signed out — and since that handle is
+    // what a later official origin joins through, the sign-out would appear to
+    // have worked while the next app silently rejoined. Single-account signout
+    // leaves it alone: the browser's other accounts still legitimately use it.
     const clearedSecrets = {
       ...('all' in target
-        ? { secretHash: null, prevSecretHash: null, prevSecretExpiresAt: null }
+        ? {
+            secretHash: null,
+            prevSecretHash: null,
+            prevSecretExpiresAt: null,
+            ...this.clearedHubHandleFields(),
+          }
         : {}),
       ...(shouldClearBackground ? this.clearedBackgroundCredentialFields() : {}),
     };
@@ -1926,6 +1943,152 @@ class DeviceSessionService {
       accessToken: token.accessToken,
       expiresAt: token.expiresAt,
       accountId: boundAccountId,
+    };
+  }
+
+  // =========================================================================
+  // The browser hub handle (issue #937 Phase 5, ADR 0003)
+  // =========================================================================
+
+  /**
+   * Issue (or replace) the browser hub handle for one device, returning the raw
+   * value exactly ONCE.
+   *
+   * The caller is the IdP's own edge layer, acting for a browser that has just
+   * authenticated at `auth.oxy.so`; the route gates it on a first-party bearer
+   * whose `deviceId` names this row. Only `sha256(handle)` is stored, so this
+   * value cannot be recovered afterwards from anywhere but the cookie jar it is
+   * about to be written into.
+   *
+   * Replacing an existing handle keeps the previous hash alive for
+   * {@link DEVICE_SECRET_GRACE_MS} — a browser's tabs share one cookie jar, so a
+   * request already in flight from a sibling tab still carries the old value and
+   * must not be treated as a forged one. Returns null when the device is
+   * unknown, which is the only failure: whether the device currently has a live
+   * account is a question for `resolve`, not for issuance.
+   */
+  async issueHubHandle(deviceId: string): Promise<{ handle: string; expiresAt: string } | null> {
+    if (typeof deviceId !== 'string' || deviceId.length === 0) return null;
+
+    const [current] = await getDb()
+      .select({ hubSecretHash: deviceSessions.hubSecretHash })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, deviceId))
+      .limit(1);
+    if (!current) return null;
+
+    const handle = base64UrlEncode(crypto.randomBytes(DEVICE_SECRET_BYTES));
+    const expiresAt = new Date(Date.now() + BROWSER_HUB_HANDLE_TTL_MS);
+
+    const updated = await getDb()
+      .update(deviceSessions)
+      .set({
+        hubSecretHash: sha256Hex(handle),
+        hubSecretExpiresAt: expiresAt,
+        // Only carry a PREVIOUS hash forward when there was one. Writing the
+        // grace columns unconditionally would arm a window around NULL, and
+        // `resolveHubDeviceId` guards on a non-empty hash for exactly that
+        // reason — but arming it is still a lie about what happened.
+        ...(current.hubSecretHash
+          ? {
+              hubPrevSecretHash: current.hubSecretHash,
+              hubPrevSecretExpiresAt: new Date(Date.now() + DEVICE_SECRET_GRACE_MS),
+            }
+          : {}),
+      })
+      .where(eq(deviceSessions.deviceId, deviceId))
+      .returning({ id: deviceSessions.id });
+    if (updated.length === 0) return null;
+
+    return { handle, expiresAt: expiresAt.toISOString() };
+  }
+
+  /**
+   * The `deviceId` a raw hub handle addresses, or null.
+   *
+   * The ONLY credential here looked up BY its hash rather than verified after
+   * the row was found by `device_id`: the cookie carries the handle and nothing
+   * else, so the hash is the sole address. That is why the live column is UNIQUE
+   * and the previous one is indexed.
+   *
+   * There is no constant-time comparison and none is meaningful. A timing-safe
+   * compare defends a LOW-entropy secret against an attacker who can measure the
+   * prefix they got right; the input here is 256 bits from `crypto.randomBytes`,
+   * and what performs the comparison is a btree index inside Postgres, whose
+   * timing this process does not control in the first place. The control against
+   * guessing is the entropy, which is why the issuer's byte count is the number
+   * that matters.
+   *
+   * An EXPIRED handle resolves to null while its row stays untouched: expiry is
+   * a read-side verdict, so a clock that was wrong for an hour does not
+   * permanently destroy a live browser session.
+   */
+  async resolveHubDeviceId(rawHandle: string): Promise<string | null> {
+    if (typeof rawHandle !== 'string' || rawHandle.length === 0) return null;
+
+    const hash = sha256Hex(rawHandle);
+    const now = new Date();
+    const [row] = await getDb()
+      .select({
+        deviceId: deviceSessions.deviceId,
+        hubSecretHash: deviceSessions.hubSecretHash,
+        hubSecretExpiresAt: deviceSessions.hubSecretExpiresAt,
+      })
+      .from(deviceSessions)
+      .where(
+        or(
+          eq(deviceSessions.hubSecretHash, hash),
+          and(
+            eq(deviceSessions.hubPrevSecretHash, hash),
+            gt(deviceSessions.hubPrevSecretExpiresAt, now),
+          ),
+        ),
+      )
+      .limit(1);
+    if (!row) return null;
+
+    // The TTL is carried by the live handle's column and applies to the grace
+    // window too: a handle superseded five seconds before its own expiry does
+    // not get a fresh minute of life out of the rotation.
+    if (!(row.hubSecretExpiresAt instanceof Date) || row.hubSecretExpiresAt.getTime() <= now.getTime()) {
+      return null;
+    }
+    return row.deviceId;
+  }
+
+  /**
+   * Revoke the hub handle a raw value addresses. Idempotent: a handle that
+   * resolves to nothing reports `false` and changes nothing.
+   *
+   * This is "sign out of `auth.oxy.so`", NOT "sign out this device". The device
+   * session, its principals and every other app on it are untouched — revoking
+   * the browser's whole device session is `POST /session/device/signout` with
+   * `{ all: true }`, which clears these columns as part of the same sweep.
+   */
+  async revokeHubHandle(rawHandle: string): Promise<boolean> {
+    const deviceId = await this.resolveHubDeviceId(rawHandle);
+    if (!deviceId) return false;
+
+    const updated = await getDb()
+      .update(deviceSessions)
+      .set(this.clearedHubHandleFields())
+      .where(eq(deviceSessions.deviceId, deviceId))
+      .returning({ id: deviceSessions.id });
+    return updated.length > 0;
+  }
+
+  /** The hub-handle quadruple, cleared. NULL is "absent"; `''` is a value. */
+  private clearedHubHandleFields(): {
+    hubSecretHash: null;
+    hubPrevSecretHash: null;
+    hubPrevSecretExpiresAt: null;
+    hubSecretExpiresAt: null;
+  } {
+    return {
+      hubSecretHash: null,
+      hubPrevSecretHash: null,
+      hubPrevSecretExpiresAt: null,
+      hubSecretExpiresAt: null,
     };
   }
 
