@@ -9,6 +9,7 @@ import { beforeEach, afterEach, describe, expect, mock, test } from "bun:test"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { MemoryRouter } from "react-router-dom"
+import { defaultDeviceSwitcher } from "@/lib/__tests__/setup-services-mock"
 
 const registerWithPasskey = mock(async (_params: { username: string }) => undefined)
 
@@ -26,9 +27,8 @@ mock.module("@oxyhq/services", () => ({
         signInWithPasskey: async () => undefined,
         completeTwoFactorSignIn: async () => ({}),
         revokeSuspiciousSignIn: async () => undefined,
-        switchToAccount: async () => undefined,
     }),
-    useSwitchableAccounts: () => ({ isLoading: false, currentSessionId: null, accounts: [] }),
+    useDeviceSwitcher: defaultDeviceSwitcher,
     // No-op stubs — this suite never renders them, but `mock.module` is
     // process-global (last writer wins across files), so every export a
     // sibling suite's page imports statically must be defined here too:

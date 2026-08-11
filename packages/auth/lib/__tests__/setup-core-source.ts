@@ -27,6 +27,7 @@ import { getNormalizedUserHandle } from "../../../core/src/utils/userHandle"
 import { translate } from "../../../core/src/i18n"
 import { getBaseLanguage, normalizeLocale } from "../../../core/src/utils/languageUtils"
 import { selectCommonsDelivery } from "../../../core/src/utils/commonsDelivery"
+import { showsPrincipalHeaders } from "../../../core/src/session/deviceSwitcherRows"
 
 mock.module("@oxyhq/core", () => ({
     isOxyRpOrigin,
@@ -38,4 +39,8 @@ mock.module("@oxyhq/core", () => ({
     // The shared "one primary delivery route" decision the OAuth-bound Commons
     // lane (`lib/commons-oauth-request.ts`) reuses rather than re-deciding.
     selectCommonsDelivery,
+    // When the account chooser names the person above a row (ADR 0002). The IdP
+    // asks the SAME question the SDK's own switcher asks, rather than deciding
+    // for itself when an operator is worth stating.
+    showsPrincipalHeaders,
 }))

@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { toast } from "@oxyhq/bloom/toast"
 import { ArrowLeft, KeyRound, QrCode, Usb } from "lucide-react"
-import { isOxyRpOrigin, type SwitchableAccount } from "@oxyhq/core"
-import { useOxy, useSwitchableAccounts } from "@oxyhq/services"
+import { isOxyRpOrigin, type SwitcherContextRow } from "@oxyhq/core"
+import { useDeviceSwitcher, useOxy } from "@oxyhq/services"
 import { buildPostLoginRedirect } from "@/lib/auth-utils"
 import { describePasskeyError } from "@/lib/passkey-error"
 import { setBasePreset } from "@/lib/bloom-css"
@@ -89,7 +89,6 @@ export function LoginForm({
     // mounted by the OxyProvider at the app root.
     const {
         signInWithPasskey,
-        switchToAccount,
         openAccountDialog,
     } = useOxy()
     const { setLogoSlot } = useLayoutContext()
@@ -108,16 +107,16 @@ export function LoginForm({
     const displayError = rateLimitSeconds > 0 ? `Too many attempts. Try again in ${rateLimitSeconds}s.` : (localError ?? error)
 
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [pendingAccountId, setPendingAccountId] = useState<string | null>(null)
+    const [pendingContextId, setPendingContextId] = useState<string | null>(null)
     // When a login_hint is supplied (the chooser routed a non-active account
     // here for re-auth), bypass the chooser and go straight to the sign-in form.
     const [showLoginForm, setShowLoginForm] = useState(Boolean(loginHint))
 
-    // Every account signed in on this device (1..N) — the same device-first SDK
-    // projection every Oxy app renders. The chooser is shown as an additive front
-    // screen whenever at least one account is present and the user hasn't opted
-    // into "Use a different account".
-    const { isLoading, currentSessionId, accounts } = useSwitchableAccounts()
+    // Everyone signed in on this device and what each may act as — the same
+    // device directory (ADR 0002) every Oxy app renders. The chooser is shown as
+    // an additive front screen whenever the device holds an active context and
+    // the user hasn't opted into "Use a different account".
+    const { isLoading, activeContext, principals, activateContext } = useDeviceSwitcher()
 
     const [stepState, setStepState] = useState<{ step: LoginStep; direction: "forward" | "back" }>({
         step: "identifier",
@@ -271,36 +270,39 @@ export function LoginForm({
     }
 
     /**
-     * Reveal the sign-in form pre-filled for `entry`'s account so the user can
+     * Reveal the sign-in form pre-filled for `context`'s account so the user can
      * re-authenticate explicitly (a username-first passkey assertion). Used when
-     * a chosen account cannot be switched into silently. Clears any in-flight
-     * pending state so the chooser row never spins while we transition.
+     * a chosen pair cannot be activated silently. Clears any in-flight pending
+     * state so the chooser row never spins while we transition.
      */
-    function routeToReauth(entry: SwitchableAccount): void {
-        setPendingAccountId(null)
+    function routeToReauth(context: SwitcherContextRow): void {
+        setPendingContextId(null)
         setIsSubmitting(false)
-        const hint = entry.user.username ?? undefined
-        if (hint) setIdentifier(hint)
+        if (context.handle) setIdentifier(context.handle)
         setShowLoginForm(true)
     }
 
     /**
-     * A chooser row was selected. Google-style: EVERY signed-in account continues
-     * without a fresh assertion. The active account proceeds straight to
-     * `/authorize`; any sibling is switched into first (the uniform device-first
-     * switch), then `/authorize` targets it. A switch failure falls back to
-     * explicit re-auth.
+     * A chooser row was selected. Google-style: every pair already on the device
+     * continues without a fresh assertion. The ACTIVE one proceeds straight to
+     * `/authorize`; any other is activated first, then `/authorize` targets it.
+     *
+     * A refusal is an ordinary outcome, not an exception: a context id is not
+     * stable across a removal, so the server can answer that this pair is gone —
+     * and `activateContext` reports that by resolving `false`. Either way the
+     * fallback is explicit re-auth.
      */
-    async function handleSelectAccount(entry: SwitchableAccount): Promise<void> {
-        setPendingAccountId(entry.accountId)
+    async function handleSelectContext(context: SwitcherContextRow): Promise<void> {
+        setPendingContextId(context.contextId)
         setIsSubmitting(true)
         try {
-            if (!entry.isCurrent) {
-                await switchToAccount(entry.accountId)
+            if (!context.isActive && !(await activateContext(context.contextId))) {
+                routeToReauth(context)
+                return
             }
             redirectAfterLogin()
         } catch {
-            routeToReauth(entry)
+            routeToReauth(context)
         }
     }
 
@@ -315,17 +317,17 @@ export function LoginForm({
     if (isLoading) return <LoadingSpinner className={className} />
 
     // The chooser is the INITIAL front screen (returning device). Gate it on the
-    // identifier step so the reactive `useSwitchableAccounts` update that fires
-    // once a sign-in commits (the just-created account appears on the device)
-    // cannot re-mask a later step.
-    if (step === "identifier" && accounts.length > 0 && currentSessionId && !showLoginForm) {
+    // identifier step so the reactive directory update that fires once a sign-in
+    // commits (the just-created account appears on the device) cannot re-mask a
+    // later step.
+    if (step === "identifier" && activeContext && principals.length > 0 && !showLoginForm) {
         return (
             <AccountChooser
                 className={className}
-                accounts={accounts}
-                onSelectAccount={handleSelectAccount}
+                principals={principals}
+                onSelectContext={handleSelectContext}
                 onUseAnother={handleUseDifferentAccount}
-                pendingAccountId={pendingAccountId}
+                pendingContextId={pendingContextId}
                 isLoading={isSubmitting}
                 {...props}
             />

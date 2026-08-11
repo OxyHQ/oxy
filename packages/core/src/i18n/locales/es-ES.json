@@ -636,13 +636,22 @@
       "remoteSignOutFailed": "Hubo un problema al cerrar sesión en el dispositivo. Inténtalo de nuevo.",
       "noOtherDeviceSessions": "No se encontraron otras sesiones de dispositivo para cerrar.",
       "signOutOthersSuccess": "¡Sesiones cerradas correctamente en los demás dispositivos!",
-      "signOutOthersFailed": "Hubo un problema al cerrar sesión en otros dispositivos. Inténtalo de nuevo."
+      "signOutOthersFailed": "Hubo un problema al cerrar sesión en otros dispositivos. Inténtalo de nuevo.",
+      "contextRemoved": "Se quitó {{account}}",
+      "contextRemoveFailed": "Hubo un problema al quitar esa cuenta. Inténtalo de nuevo.",
+      "principalRemoved": "Se cerró la sesión de {{name}} en este dispositivo",
+      "principalRemoveFailed": "Hubo un problema al cerrar esa sesión. Inténtalo de nuevo.",
+      "activateFailed": "Hubo un problema al cambiar de cuenta. Inténtalo de nuevo."
     },
     "confirms": {
       "remove": "¿Seguro que quieres eliminar a {{displayName}} de este dispositivo? Tendrás que iniciar sesión de nuevo para acceder a esta cuenta.",
       "logoutAll": "¿Seguro que quieres cerrar sesión en todas las cuentas? Esto eliminará todas las cuentas guardadas de este dispositivo.",
       "remoteLogout": "¿Seguro que quieres cerrar sesión en \"{{deviceName}}\"? Esto finalizará la sesión en ese dispositivo.",
-      "logoutOthers": "¿Seguro que quieres cerrar sesión en los otros {{count}} dispositivo(s)? Esto finalizará las sesiones en todos los demás dispositivos excepto en este."
+      "logoutOthers": "¿Seguro que quieres cerrar sesión en los otros {{count}} dispositivo(s)? Esto finalizará las sesiones en todos los demás dispositivos excepto en este.",
+      "removeContextTitle": "¿Quitar esta cuenta?",
+      "removeContext": "¿Dejar de usar {{account}} como {{person}} en este dispositivo? Quien más acceda a {{account}} aquí lo conserva.",
+      "removePrincipalTitle": "¿Cerrar sesión en este dispositivo?",
+      "removePrincipal": "¿Cerrar la sesión de {{name}} en este dispositivo? Se quitan todas las cuentas a las que llega desde aquí. No afecta a nadie más."
     },
     "device": {
       "loadingTitle": "Cargando sesiones de dispositivo...",
@@ -679,6 +688,14 @@
       "openedInCommons": "Abierto en Commons",
       "confirming": "Confirmando identidad",
       "confirmed": "Identidad confirmada"
+    },
+    "context": {
+      "unavailable": "No disponible ahora mismo",
+      "operatedBy": "Gestionada por {{name}}",
+      "remove": "Quitar {{account}} de {{person}}"
+    },
+    "principal": {
+      "signOut": "Cerrar la sesión de {{name}} en este dispositivo"
     }
   },
   "feedback": {

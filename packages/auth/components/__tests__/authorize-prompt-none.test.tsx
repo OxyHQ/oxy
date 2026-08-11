@@ -111,41 +111,76 @@ const deliverOAuthResult = mock((input: DeliverInput) =>
 // SDK surface
 // ---------------------------------------------------------------------------
 
+/**
+ * One `principal acting as account` row, in the shape `useDeviceSwitcher`
+ * publishes. Built by hand rather than through the real projection: the point
+ * of these suites is what the PAGE does with the rows, and a hand-built row is
+ * exactly what a hand-built directory would have produced.
+ */
+function contextRow(over: { contextId: string; displayName: string; handle: string; isActive: boolean }) {
+  return {
+    contextId: over.contextId,
+    accountId: over.contextId,
+    displayName: over.displayName,
+    handle: over.handle,
+    avatarUrl: undefined,
+    isActive: over.isActive,
+    isDelegated: false,
+    canActivate: true,
+  }
+}
+
+/** One person holding one account. */
+function personWith(row: ReturnType<typeof contextRow>) {
+  return {
+    principalId: `p-${row.contextId}`,
+    displayName: row.displayName,
+    handle: row.handle,
+    avatarUrl: undefined,
+    isActive: row.isActive,
+    contexts: [row],
+  }
+}
+
 interface SessionState {
   isAuthenticated: boolean
-  currentSessionId: string | null
-  accounts: unknown[]
+  /** The device's active `principal acting as account` pair, or `null`. */
+  activeContext: ReturnType<typeof contextRow> | null
+  principals: ReturnType<typeof personWith>[]
   accessToken: string | null
 }
 
 /** No session at all: cold boot resolved and found nothing on this origin. */
 const NO_SESSION: SessionState = {
   isAuthenticated: false,
-  currentSessionId: null,
-  accounts: [],
+  activeContext: null,
+  principals: [],
   accessToken: null,
 }
 
-/** Device rows survived a failed mint, but there is no usable bearer. */
+/** Directory rows survived a failed mint, but there is no usable bearer. */
 const STALE_ACCOUNTS: SessionState = {
   isAuthenticated: false,
-  currentSessionId: null,
-  accounts: [{ accountId: "acct-1", displayName: "Stale" }],
+  // Rows, but nothing ACTIVE: the pair a bearer would have belonged to is not
+  // established, which is exactly what "the mint failed" leaves behind.
+  activeContext: null,
+  principals: [
+    personWith(contextRow({ contextId: "ctx-1", displayName: "Stale", handle: "stale", isActive: false })),
+  ],
   accessToken: null,
 }
 
 /** Fully signed in here — the state a silent probe is fishing for. */
+const NATE_CONTEXT = contextRow({
+  contextId: "ctx-1",
+  displayName: "Nate",
+  handle: "nate",
+  isActive: true,
+})
 const SIGNED_IN: SessionState = {
   isAuthenticated: true,
-  currentSessionId: "device-session-1",
-  accounts: [
-    {
-      accountId: "acct-1",
-      displayName: "Nate",
-      isCurrent: true,
-      user: { username: "nate" },
-    },
-  ],
+  activeContext: NATE_CONTEXT,
+  principals: [personWith(NATE_CONTEXT)],
   accessToken: "bearer-token",
 }
 
@@ -176,14 +211,19 @@ function installMocks(): void {
       useOxy: () => ({
         user: null,
         oxyServices,
-        switchToAccount: async () => undefined,
         isAuthResolved: true,
         isAuthenticated: sessionState.isAuthenticated,
       }),
-      useSwitchableAccounts: () => ({
+      useDeviceSwitcher: () => ({
         isLoading: false,
-        currentSessionId: sessionState.currentSessionId,
-        accounts: sessionState.accounts,
+        activeContext: sessionState.activeContext,
+        principals: sessionState.principals,
+        activatingContextId: null,
+        removingContextId: null,
+        removingPrincipalId: null,
+        activateContext: async () => true,
+        signOutContext: async () => false,
+        signOutPrincipal: async () => false,
       }),
       OxyConsentScreen: () =>
         React.createElement("div", { "data-testid": "consent-screen" }),

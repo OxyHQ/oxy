@@ -688,12 +688,35 @@ export {
 // reaching the same org on one device.
 // `canActivateContext` is the switchability question — `available` alone, never
 // composed with `onDevice`, which is a different fact in both directions.
-export { canActivateContext, resolveActiveContext, resolveDeviceContext } from './session/deviceDirectory';
+// `projectDevicePrincipals` is the switcher's shape: people, each with what
+// they may become. Grouped rather than flat because the same organization
+// reached through two people is TWO rows under two humans, which a list keyed
+// by account cannot say.
+export {
+    canActivateContext,
+    directoryDisplayName,
+    directoryHandle,
+    projectDevicePrincipals,
+    resolveActiveContext,
+    resolveDeviceContext,
+} from './session/deviceDirectory';
 export type {
     DeviceContext,
     DeviceContextActor,
     DeviceContextSubject,
+    DevicePrincipalGroup,
 } from './session/deviceDirectory';
+
+// The switcher's RENDER model over that projection — names, handles and avatar
+// URLs resolved once. Shared by `@oxyhq/services`' account dialog and the
+// auth.oxy.so chooser so the two cannot drift, the same reason the flat
+// projection lives beside it.
+export { buildSwitcherRows, showsPrincipalHeaders } from './session/deviceSwitcherRows';
+export type {
+    ResolveAvatarUrl,
+    SwitcherContextRow,
+    SwitcherPrincipalRow,
+} from './session/deviceSwitcherRows';
 
 // Unified account-list projection (THE single source of truth for the account
 // chooser: device sign-ins ∪ account graph, deduped by accountId). Pure +

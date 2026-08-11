@@ -1894,6 +1894,16 @@ describe('AccountDialogController — the directory (ADR 0002)', () => {
         if (url === '/session/device/activate') {
           return { directory: sharedDirectory(6, 'ctx-alice-org'), activeToken: null };
         }
+        if (url === '/session/device/signout') {
+          // The context-aware removals answer with their OWN contract — the
+          // directory AND the flat state, because a removal elects a
+          // replacement active context and both halves move together.
+          return {
+            directory: sharedDirectory(7, null),
+            state: state([{ accountId: 'org', sessionId: 's-org' }], 'org', 7),
+            activeToken: null,
+          };
+        }
         return undefined;
       }),
       getBaseURL: () => 'http://test.invalid',
@@ -2009,6 +2019,84 @@ describe('AccountDialogController — the directory (ADR 0002)', () => {
     expect(snap.directory).toBeNull();
     expect(snap.accounts.map((r) => r.accountId)).toEqual(['a1']);
     expect(snap.error).toBeNull();
+  });
+
+  it('removes ONE route to a shared account, naming the pair and not the account', async () => {
+    const { controller, oxy, urls, bodies } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+
+    const inFlight: Array<string | null> = [];
+    controller.subscribe((s) => inFlight.push(s.removingContextId));
+
+    expect(await controller.signOutContext('ctx-alice-org')).toBe(true);
+
+    const index = urls.indexOf('/session/device/signout');
+    expect(index).toBeGreaterThanOrEqual(0);
+    // `{ contextId }`, never `{ accountId }`. Both people reach `org` here, and
+    // an account id would revoke Nate's route as a side effect of Alice tidying
+    // her own list.
+    expect(bodies[index]).toEqual({ contextId: 'ctx-alice-org' });
+    expect(inFlight).toContain('ctx-alice-org');
+    expect(controller.getSnapshot().removingContextId).toBeNull();
+  });
+
+  it('removes ONE PERSON through the principal id, not through their contexts', async () => {
+    const { controller, oxy, urls, bodies } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+
+    const inFlight: Array<string | null> = [];
+    controller.subscribe((s) => inFlight.push(s.removingPrincipalId));
+
+    expect(await controller.signOutPrincipal('p-alice')).toBe(true);
+
+    const index = urls.indexOf('/session/device/signout');
+    // `{ principalId }` — one call, not a loop over that person's contexts, and
+    // emphatically not the context endpoint: pointing this at `{ contextId }`
+    // would drop one pair and leave the person on the device.
+    expect(bodies[index]).toEqual({ principalId: 'p-alice' });
+    expect(urls.filter((u) => u === '/session/device/signout')).toHaveLength(1);
+    expect(inFlight).toContain('p-alice');
+    expect(controller.getSnapshot().removingPrincipalId).toBeNull();
+  });
+
+  it('refuses a second removal while one is in flight, of either kind', async () => {
+    const { controller, oxy, sc } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+    let release: () => void = () => undefined;
+    jest.spyOn(sc, 'signOutContext').mockImplementation(
+      () => new Promise<void>((resolve) => { release = resolve; }),
+    );
+    const principalSpy = jest.spyOn(sc, 'signOutPrincipal').mockResolvedValue(undefined);
+
+    const first = controller.signOutContext('ctx-alice-org');
+    // The two removals share one gate: they mutate the same device and a
+    // concurrent pair would race for which replacement context ends up active.
+    expect(await controller.signOutPrincipal('p-alice')).toBe(false);
+    expect(principalSpy).not.toHaveBeenCalled();
+
+    release();
+    expect(await first).toBe(true);
+  });
+
+  it('surfaces a failed removal without wedging the flag', async () => {
+    const { controller, oxy, sc } = directoryHarness('ctx-nate-org');
+    oxy.listAccounts.mockResolvedValue([]);
+    oxy.getUsersByIds.mockResolvedValue([]);
+    await controller.refresh();
+    // A context id is not stable across a removal, so a stale one is ordinary:
+    // the server refuses and the next read simply does not offer it.
+    jest.spyOn(sc, 'signOutContext').mockRejectedValue(new Error('Context not on this device'));
+
+    expect(await controller.signOutContext('ctx-gone')).toBe(false);
+
+    expect(controller.getSnapshot().error).toBe('Context not on this device');
+    expect(controller.getSnapshot().removingContextId).toBeNull();
   });
 
   it('makes no directory call while signed out', async () => {

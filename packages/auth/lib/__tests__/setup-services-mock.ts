@@ -4,16 +4,29 @@
  * The real package pulls `react-native` at module load time, which bun cannot
  * parse in a node test env. `mock.module` is process-global and last-writer-wins
  * per test file — any per-file mock MUST include every export sibling suites
- * import (notably `useSwitchableAccounts`), or later files that import
+ * import (notably `useDeviceSwitcher`), or later files that import
  * `login-form.tsx` fall through to the real module and crash.
  */
 import { mock } from "bun:test"
 import React from "react"
 
-export const defaultSwitchableAccounts = () => ({
+/**
+ * A device with nobody on it — the chooser's "no rows" state.
+ *
+ * `principals` is grouped by PERSON (ADR 0002), so an empty array means no
+ * signed-in humans, and `activeContext: null` means nothing is active. A suite
+ * that needs rows overrides the whole hook.
+ */
+export const defaultDeviceSwitcher = () => ({
     isLoading: false,
-    currentSessionId: null,
-    accounts: [] as unknown[],
+    activeContext: null,
+    principals: [] as unknown[],
+    activatingContextId: null,
+    removingContextId: null,
+    removingPrincipalId: null,
+    activateContext: async () => false,
+    signOutContext: async () => false,
+    signOutPrincipal: async () => false,
 })
 
 export const defaultUseOxyValue = {
@@ -27,13 +40,12 @@ export const defaultUseOxyValue = {
     signInWithPasskey: async () => undefined,
     completeTwoFactorSignIn: async () => ({}),
     revokeSuspiciousSignIn: async () => undefined,
-    switchToAccount: async () => undefined,
 }
 
 export function createServicesMock(
     overrides: Partial<{
         useOxy: () => Record<string, unknown>
-        useSwitchableAccounts: typeof defaultSwitchableAccounts
+        useDeviceSwitcher: typeof defaultDeviceSwitcher
         OxyAuthChooser: React.ComponentType<{ onComplete?: () => void }>
         OxyConsentScreen: React.ComponentType<Record<string, unknown>>
         OxySignInRequestSurface: React.ComponentType<Record<string, unknown>>
@@ -41,7 +53,7 @@ export function createServicesMock(
 ) {
     return {
         useOxy: overrides.useOxy ?? (() => defaultUseOxyValue),
-        useSwitchableAccounts: overrides.useSwitchableAccounts ?? defaultSwitchableAccounts,
+        useDeviceSwitcher: overrides.useDeviceSwitcher ?? defaultDeviceSwitcher,
         OxyAuthChooser:
             overrides.OxyAuthChooser ??
             (() => null as React.ReactElement | null),

@@ -17,7 +17,8 @@
  *   - `switchTo` (the uniform switch: `SessionClient.switchAccount` for an
  *     account already on the device, `oxyServices.switchToAccount` to mint on
  *     first entry into a graph account — reusing the existing SDK primitives, no
- *     new switch path);
+ *     new switch path), plus `activateContext` and the two removals an account
+ *     id cannot name, `signOutContext` and `signOutPrincipal` (ADR 0002);
  *   - the "Sign in with Oxy" device flow (same-device shared-keychain via
  *     `oxyServices.signInWithSharedIdentity`, else the cross-device QR handoff
  *     via `startCommonsSignIn` → poll → `claimSessionByToken`);
@@ -295,6 +296,10 @@ export interface AccountDialogSnapshot {
   switchingAccountId: string | null;
   /** The `contextId` of an in-flight activation, or `null`. */
   activatingContextId: string | null;
+  /** The `contextId` of an in-flight context removal, or `null`. */
+  removingContextId: string | null;
+  /** The `principalId` of an in-flight principal removal, or `null`. */
+  removingPrincipalId: string | null;
   /** The "Sign in with Oxy" device-flow state. */
   signIn: SignInFlowState;
   /** Whether Commons is installed on this device. See {@link CommonsAvailability}. */
@@ -481,6 +486,8 @@ export class AccountDialogController {
   private error: string | null = null;
   private switchingAccountId: string | null = null;
   private activatingContextId: string | null = null;
+  private removingContextId: string | null = null;
+  private removingPrincipalId: string | null = null;
   private signIn: SignInFlowState = IDLE_SIGN_IN;
   private commonsAvailability: CommonsAvailability = 'unknown';
 
@@ -895,6 +902,62 @@ export class AccountDialogController {
       return false;
     } finally {
       this.activatingContextId = null;
+      this.emit();
+    }
+  }
+
+  /**
+   * Remove ONE `principal → account` pair, and only that pair.
+   *
+   * Not the account across the device: the same organization reached through a
+   * second person is a different session with a different audit actor, and it
+   * stays. Routing this through `signOut({accountId})` would revoke that second
+   * person's access as a side effect of one person tidying their own list.
+   *
+   * The removed pair is not gone for good while the membership lives — the
+   * server offers it again on the next read, under a NEW id and at an unchanged
+   * revision — so nothing may hold a context id across this call.
+   */
+  async signOutContext(contextId: string): Promise<boolean> {
+    if (this.removingContextId || this.removingPrincipalId) return false;
+    this.removingContextId = contextId;
+    this.error = null;
+    this.emit();
+    try {
+      await this.sessionClient.signOutContext(contextId);
+      await this.refresh();
+      return true;
+    } catch (error) {
+      this.error = errorMessage(error);
+      return false;
+    } finally {
+      this.removingContextId = null;
+      this.emit();
+    }
+  }
+
+  /**
+   * Remove ONE PERSON and every context they reach — and nobody else's,
+   * including when another principal independently operates the same account.
+   *
+   * A separate call from {@link signOutContext} because it is a separate
+   * question, not a loop over the first one: the server removes the principal
+   * and elects a replacement active context in one transition.
+   */
+  async signOutPrincipal(principalId: string): Promise<boolean> {
+    if (this.removingContextId || this.removingPrincipalId) return false;
+    this.removingPrincipalId = principalId;
+    this.error = null;
+    this.emit();
+    try {
+      await this.sessionClient.signOutPrincipal(principalId);
+      await this.refresh();
+      return true;
+    } catch (error) {
+      this.error = errorMessage(error);
+      return false;
+    } finally {
+      this.removingPrincipalId = null;
       this.emit();
     }
   }
@@ -1583,6 +1646,8 @@ export class AccountDialogController {
       error: this.error,
       switchingAccountId: this.switchingAccountId,
       activatingContextId: this.activatingContextId,
+      removingContextId: this.removingContextId,
+      removingPrincipalId: this.removingPrincipalId,
       signIn: this.signIn,
       commonsAvailability: this.commonsAvailability,
     };

@@ -206,15 +206,46 @@ let pollResult: PollResult = {
   openedAt: null,
 }
 
+/**
+ * One `principal acting as account` row, in the shape `useDeviceSwitcher`
+ * publishes. Built by hand rather than through the real projection: the point
+ * of these suites is what the PAGE does with the rows, and a hand-built row is
+ * exactly what a hand-built directory would have produced.
+ */
+function contextRow(over: { contextId: string; displayName: string; handle: string; isActive: boolean }) {
+  return {
+    contextId: over.contextId,
+    accountId: over.contextId,
+    displayName: over.displayName,
+    handle: over.handle,
+    avatarUrl: undefined,
+    isActive: over.isActive,
+    isDelegated: false,
+    canActivate: true,
+  }
+}
+
+/** One person holding one account. */
+function personWith(row: ReturnType<typeof contextRow>) {
+  return {
+    principalId: `p-${row.contextId}`,
+    displayName: row.displayName,
+    handle: row.handle,
+    avatarUrl: undefined,
+    isActive: row.isActive,
+    contexts: [row],
+  }
+}
+
 let sessionState: {
   isAuthenticated: boolean
-  currentSessionId: string | null
-  accounts: unknown[]
+  activeContext: ReturnType<typeof contextRow> | null
+  principals: ReturnType<typeof personWith>[]
   accessToken: string | null
 } = {
   isAuthenticated: false,
-  currentSessionId: null,
-  accounts: [],
+  activeContext: null,
+  principals: [],
   accessToken: null,
 }
 
@@ -231,7 +262,6 @@ function installMocks(): void {
     useOxy: () => ({
       user: null,
       oxyServices,
-      switchToAccount: async () => undefined,
       isAuthResolved: true,
       isAuthenticated: sessionState.isAuthenticated,
       openAccountDialog: () => undefined,
@@ -242,10 +272,16 @@ function installMocks(): void {
       completeTwoFactorSignIn: async () => ({}),
       revokeSuspiciousSignIn: async () => undefined,
     }),
-    useSwitchableAccounts: () => ({
+    useDeviceSwitcher: () => ({
       isLoading: false,
-      currentSessionId: sessionState.currentSessionId,
-      accounts: sessionState.accounts,
+      activeContext: sessionState.activeContext,
+      principals: sessionState.principals,
+      activatingContextId: null,
+      removingContextId: null,
+      removingPrincipalId: null,
+      activateContext: async () => true,
+      signOutContext: async () => false,
+      signOutPrincipal: async () => false,
     }),
     OxyConsentScreen: () =>
       React.createElement("div", { "data-testid": "consent-screen" }),
@@ -364,8 +400,8 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     pollResult = { authorized: false, status: "pending", pushSentAt: null, openedAt: null }
     sessionState = {
       isAuthenticated: false,
-      currentSessionId: null,
-      accounts: [],
+      activeContext: null,
+      principals: [],
       accessToken: null,
     }
     surfaceProps = null
@@ -664,8 +700,11 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
   test("stale device accounts without a bearer still open the Commons lane", async () => {
     sessionState = {
       isAuthenticated: false,
-      currentSessionId: null,
-      accounts: [{ accountId: "acct-1", displayName: "Stale" }],
+      // Rows, but nothing ACTIVE — what a failed mint leaves behind.
+      activeContext: null,
+      principals: [
+        personWith(contextRow({ contextId: "ctx-1", displayName: "Stale", handle: "stale", isActive: false })),
+      ],
       accessToken: null,
     }
 
@@ -688,20 +727,16 @@ describe("AuthorizePage — a visitor who already has a session here", () => {
       status: 200,
       body: { data: { application: { id: "app-1", name: "Example App", scopes: [] } } },
     }
+    const nate = contextRow({
+      contextId: "ctx-1",
+      displayName: "Nate",
+      handle: "nate",
+      isActive: true,
+    })
     sessionState = {
       isAuthenticated: true,
-      currentSessionId: "device-session-1",
-      accounts: [
-        {
-          accountId: "acct-1",
-          displayName: "Nate",
-          email: "nate@oxy.so",
-          avatarUrl: null,
-          color: null,
-          isCurrent: true,
-          user: { username: "nate" },
-        },
-      ],
+      activeContext: nate,
+      principals: [personWith(nate)],
       accessToken: "bearer-token",
     }
     harness.opener = null

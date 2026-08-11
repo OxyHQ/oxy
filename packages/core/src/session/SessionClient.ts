@@ -300,6 +300,13 @@ export class SessionClient {
     }
     const previousState = this.state;
     this.state = next;
+    if (next.accounts.length === 0) {
+      // A device with nobody signed in has no principals either. The directory
+      // is only ever refreshed by a bearer-carrying read and a sign-out leaves
+      // no bearer, so `settleDirectory` below cannot correct it — without this,
+      // the switcher would go on rendering the people who used to be here.
+      this.directory = null;
+    }
     const pinnedAccountId = this.pinnedAccountId();
     // Plant the sync-supplied active token (it is for `next.activeAccountId`)
     // now — before the notify below — so the bearer matches the new active

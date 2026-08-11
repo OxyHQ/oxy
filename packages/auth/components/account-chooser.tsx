@@ -1,46 +1,50 @@
 import { ChevronRight, UserPlus } from "lucide-react"
-import type { SwitchableAccount } from "@oxyhq/core"
+import { showsPrincipalHeaders, type SwitcherContextRow, type SwitcherPrincipalRow } from "@oxyhq/core"
 import { cn } from "@/lib/utils"
 import { Button } from "@oxyhq/bloom/button"
 import { Avatar } from "@oxyhq/bloom/avatar"
 import { AuthFormHeader } from "@/components/auth-form-layout"
-import { useHoverColorPreset } from "@/lib/use-hover-color-preset"
 
 type AccountChooserProps = React.ComponentProps<"div"> & {
     /**
-     * Accounts signed in on this device (1..N), current account first. Sourced
-     * from the SAME device-first SDK projection every Oxy app uses
-     * (`useSwitchableAccounts` → `projectSwitchableAccounts`). Each row carries a
-     * resolved `displayName` / `email` / `avatarUrl` / `color` — the IdP no
-     * longer re-derives any of them.
+     * Everyone signed in on this device, each with the accounts they may act as.
+     *
+     * The device DIRECTORY (ADR 0002), through the SAME projection the SDK's own
+     * switcher renders (`useDeviceSwitcher` → `buildSwitcherRows`). It is grouped
+     * by person rather than flat because the same organization reachable through
+     * two people is two rows under two humans, and a list keyed by account id has
+     * one slot for it.
      */
-    accounts: SwitchableAccount[]
+    principals: SwitcherPrincipalRow[]
     /** App name to continue to, e.g. "Console". Falls back to a generic label. */
     appName?: string | null
-    /** Selecting an account row. The IdP switches INTO `account.accountId`. */
-    onSelectAccount: (account: SwitchableAccount) => void
+    /**
+     * Selecting a row. The IdP activates `context.contextId` — the PAIR, never an
+     * account id, which cannot say which person's route was chosen.
+     */
+    onSelectContext: (context: SwitcherContextRow) => void
     /** "Use a different account" → reveals the sign-in form. */
     onUseAnother: () => void
-    /** The accountId currently being switched to (disables that row's spinner peers). */
-    pendingAccountId?: string | null
+    /** The `contextId` currently being activated (drives that row's busy state). */
+    pendingContextId?: string | null
     /** Disables every row while a selection is in flight. */
     isLoading?: boolean
 }
 
 /**
- * Google-style account chooser. Lists every account signed in on this device
- * and a "Use a different account" affordance. Rendered as an additive FRONT
- * screen before the sign-in form / OAuth consent — selecting a row switches into
- * that account through the shared device-first switch path
- * (`useOxy().switchToAccount`) exactly like every other Oxy surface.
+ * Google-style account chooser. Lists every `principal acting as account` pair
+ * on this device and a "Use a different account" affordance. Rendered as an
+ * additive FRONT screen before the sign-in form / OAuth consent — selecting a row
+ * activates that pair through the shared device-first path
+ * (`useDeviceSwitcher().activateContext`) exactly like every other Oxy surface.
  */
 export function AccountChooser({
     className,
-    accounts,
+    principals,
     appName,
-    onSelectAccount,
+    onSelectContext,
     onUseAnother,
-    pendingAccountId,
+    pendingContextId,
     isLoading,
     ...props
 }: AccountChooserProps) {
@@ -48,51 +52,58 @@ export function AccountChooser({
         ? `to continue to ${appName}`
         : "Choose an account to continue"
 
-    const hoverPreset = useHoverColorPreset("chooser-hover")
+    // Naming the operator is only worth the line once somebody holds more than
+    // one account here; two people with one account each is a plain list where
+    // every row already IS a person. Same rule the SDK's switcher uses, so the
+    // two surfaces agree on when the actor matters.
+    const namesTheOperator = showsPrincipalHeaders(principals)
 
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
             <AuthFormHeader title="Choose an account" description={description} />
             <div className="space-y-2">
-                {accounts.map((entry) => {
-                    const isPending = pendingAccountId === entry.accountId
-                    const hoverHandlers = hoverPreset.getHandlers(entry.color)
-                    return (
-                        // The hover/focus handlers drive the per-account color
-                        // preset; the Bloom Button forwards no DOM hover/focus
-                        // events, so they live on a wrapping element that also
-                        // bubbles keyboard focus (React onFocus/onBlur bubble).
-                        <div
-                            key={entry.accountId}
-                            onMouseEnter={hoverHandlers.onMouseEnter}
-                            onMouseLeave={hoverHandlers.onMouseLeave}
-                            onFocus={hoverHandlers.onFocus}
-                            onBlur={hoverHandlers.onBlur}
-                        >
-                            <Button
-                                variant="outline"
-                                size="lg"
-                                className="w-full h-auto p-4 justify-start"
-                                onClick={() => onSelectAccount(entry)}
-                                disabled={isLoading}
-                                aria-label={`Continue as ${entry.displayName}`}
-                            >
-                                <Avatar source={entry.avatarUrl} size={40} />
-                                <div className="flex-1 text-left ml-3 min-w-0" aria-busy={isPending}>
-                                    <div className="font-medium truncate">
-                                        {entry.displayName}
-                                    </div>
-                                    {entry.email && (
-                                        <div className="text-sm text-muted-foreground truncate">
-                                            {entry.email}
+                {principals.flatMap((principal) =>
+                    principal.contexts.map((context) => {
+                        const isPending = pendingContextId === context.contextId
+                        const secondary =
+                            namesTheOperator && context.isDelegated
+                                ? `Operated by ${principal.displayName}`
+                                : context.handle
+                                  ? `@${context.handle}`
+                                  : null
+                        return (
+                            <div key={context.contextId}>
+                                <Button
+                                    variant="outline"
+                                    size="lg"
+                                    className="w-full h-auto p-4 justify-start"
+                                    onClick={() => onSelectContext(context)}
+                                    // A row the server marked unavailable is
+                                    // rendered rather than hidden, so a revoked
+                                    // membership is visible instead of a row that
+                                    // silently stopped existing — and disabled,
+                                    // because activating it is a request the
+                                    // server refuses and then heals away.
+                                    disabled={isLoading || !context.canActivate}
+                                    aria-label={`Continue as ${context.displayName}`}
+                                >
+                                    <Avatar source={context.avatarUrl} size={40} />
+                                    <div className="flex-1 text-left ml-3 min-w-0" aria-busy={isPending}>
+                                        <div className="font-medium truncate">
+                                            {context.displayName}
                                         </div>
-                                    )}
-                                </div>
-                                <ChevronRight className="size-5 text-muted-foreground shrink-0" />
-                            </Button>
-                        </div>
-                    )
-                })}
+                                        {secondary && (
+                                            <div className="text-sm text-muted-foreground truncate">
+                                                {context.canActivate ? secondary : "Unavailable right now"}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <ChevronRight className="size-5 text-muted-foreground shrink-0" />
+                                </Button>
+                            </div>
+                        )
+                    }),
+                )}
 
                 <Button
                     variant="outline"
