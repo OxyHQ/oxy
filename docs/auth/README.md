@@ -39,7 +39,7 @@ import { OxyProvider } from '@oxyhq/services';
 </OxyProvider>
 ```
 
-The provider runs the SAME device-first cold boot every Oxy app runs (restore this origin's session from its own persisted `{deviceId, deviceSecret}`), enumerates device accounts through `useSwitchableAccounts`, authenticates through the SDK funnels (`signInWithPassword` / `completeTwoFactorSignIn` / `handleWebSession`), and switches accounts through `switchToAccount`. It still supplies the `OxyAccountDialog` (Commons QR device-flow sign-in) and the `OxyConsentScreen` context. **It remains a SHELL** — after authenticating device-first it emits the OAuth authorization code for the third-party; it is NOT a Relying Party that bounces elsewhere for its own session. The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.
+The provider runs the SAME device-first cold boot every Oxy app runs (restore this origin's session from its own persisted `{deviceId, deviceSecret}`), enumerates the device directory through `useDeviceSwitcher`, authenticates through the SDK funnels (`signInWithPassword` / `completeTwoFactorSignIn` / `handleWebSession`), and switches through `activateContext`. It still supplies the `OxyAccountDialog` (Commons QR device-flow sign-in) and the `OxyConsentScreen` context. **It remains a SHELL** — after authenticating device-first it emits the OAuth authorization code for the third-party; it is NOT a Relying Party that bounces elsewhere for its own session. The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.
 
 ## Routes / pages
 
@@ -59,9 +59,9 @@ The provider runs the SAME device-first cold boot every Oxy app runs (restore th
 
 The chooser ("Choose an account to continue") uses the SAME device-first SDK chain every Oxy app uses — there is NO server-side feed, NO `oxy_device` cookie, and NO Pages Function anymore (all deleted in the 2c cutover):
 
-1. `useSwitchableAccounts()` (from `@oxyhq/services`) projects the device's account set (`projectSwitchableAccounts` — the same projection accounts.oxy.so renders).
-2. `components/account-chooser.tsx` renders that `SwitchableAccount[]` on `/login` and `/authorize`.
-3. Selecting the active account continues immediately; selecting a sibling calls `useOxy().switchToAccount(accountId)` (the uniform device-first switch, which re-plants the active bearer), then proceeds. A switch that can't complete falls back to `/login?login_hint=…` for explicit re-auth.
+1. `useDeviceSwitcher()` (from `@oxyhq/services`) reads the server's device directory (ADR 0002) — every principal on this device and the contexts each may act as — through the same `buildSwitcherRows` projection the SDK's own switcher renders.
+2. `components/account-chooser.tsx` renders those rows on `/login` and `/authorize`, grouped by person: the same organization reachable through two people is two rows, and the operator is named once anybody holds more than one account.
+3. Selecting the active context continues immediately; selecting any other calls `activateContext(contextId)` — the pair, never an account id — which re-plants the active bearer, then proceeds. A refusal (including a context id the server has since healed away) falls back to `/login?login_hint=…` for explicit re-auth.
 
 The whole app (login, signup, authorize, recover) is a pure-static Vite SPA with history-fallback — no dynamic routes, no Pages Function, no advanced-mode worker.
 

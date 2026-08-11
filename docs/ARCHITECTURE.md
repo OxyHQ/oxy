@@ -321,7 +321,7 @@ for the consent surface. Full walkthrough:
 
 `auth.oxy.so` (packages/auth) is the OAuth authorize/consent IdP. It mounts
 `OxyProvider` from `@oxyhq/services` device-first like every Oxy app (normal
-cold boot from its own `{deviceId, deviceSecret}`, `useSwitchableAccounts`
+cold boot from its own `{deviceId, deviceSecret}`, `useDeviceSwitcher`
 chooser, `signInWithPassword`/`completeTwoFactorSignIn`/`handleWebSession`
 funnels). It stays a SHELL that emits the OAuth code after authenticating —
 NOT a Relying Party. Account management lives exclusively on

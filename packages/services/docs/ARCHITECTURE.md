@@ -84,7 +84,8 @@ The SDK contains no session logic of its own — it binds UI to the shared sessi
 |--------|------|
 | `SessionClient` / `createSessionClient` / `createSessionClientHost` | Client of the server-authoritative device session: fetch/mutate state, subscribe to realtime sync. Consumers inject a `TokenTransport` and a `socketFactory` (socket.io-client's `io`). |
 | `projectSessionState` helpers | Pure projections of `DeviceSessionState` → client sessions / active user. |
-| `accountProjection` | `SwitchableAccount[]` — the ONE account list: device sign-ins ∪ account graph, deduped by account id. |
+| `deviceDirectory` / `deviceSwitcherRows` | The ONE switcher list: the server's device directory (ADR 0002) grouped by PRINCIPAL, with names/handles/avatars resolved. The client no longer unions device sign-ins with a fetched account graph — it cannot enumerate another principal's memberships, so switchability is the server's answer. |
+| `accountSwitchTargets` | `isSwitchTargetAccount` / `canSwitchIntoAccount` — the switch-target predicates over the account GRAPH (what a caller can manage), asked by the Console's workspace tree and the Accounts app's managed-account rows. Not the device switcher. |
 | `accountDialogController` | Headless state machine for the account dialog (views, sign-in flow phases). Framework-agnostic; bound via `useSyncExternalStore`. |
 | `authStateStore`, `refresh` | Persisted auth state + the unified token-refresh handler/scheduler. |
 | `boot/sessionColdBoot` | `runSessionColdBoot` — ordered cold-boot runner (`device-secret-mint` then `shared-key-signin`). |
@@ -99,7 +100,7 @@ The SDK contains no session logic of its own — it binds UI to the shared sessi
 
 [src/ui/components/OxyAccountDialog.tsx](../src/ui/components/OxyAccountDialog.tsx) — the ONE unified account dialog, mounted automatically by `OxyProvider`. A thin RN binding over core's `AccountDialogController`, presented on Bloom's `<Dialog>` (`@oxyhq/bloom/dialog`) with responsive placement — bottom sheet on narrow viewports, centered card on wide ones (`placement={{ base: 'bottom', md: 'center' }}`). It replaced the five drifting legacy surfaces (profile/account menus, switcher, chooser, standalone sign-in modal).
 
-Views: `accounts` (the `SwitchableAccount[]` switcher + "Add account"), `signin`/`add` (primary "Sign in with Oxy" device flow, QR scan, collapsed password), and `qr` (cross-device QR). Per-account theming uses Bloom `BloomColorScope`; base styling is `useTheme()` + `StyleSheet` so it renders in apps without NativeWind.
+Views: `accounts` (the device switcher, grouped by person, + "Add account"), `signin`/`add` (primary "Sign in with Oxy" device flow, QR scan), and `qr` (cross-device QR). Selecting a row activates a `contextId`; each person carries a sign-out of their own, and each row a removal of that pair alone. Base styling is `useTheme()` + `StyleSheet` so it renders in apps without NativeWind.
 
 Entry points: `useOxy().openAccountDialog(view?)` inside React, `ProfileButton` (sidebar trigger), or imperative `openAccountDialog('signin')`.
 
