@@ -1,9 +1,8 @@
 /**
- * AssetService.ensureVariant — video mp4 rendition routing (#759).
+ * AssetService.ensureVariant — safe video mp4 rendition routing.
  *
- * Upload-time generation can leave a video with poster/hls_master but no
- * `360p`/`720p`/`1080p`. `ensureVariant` must lazily regenerate those on
- * request instead of throwing "not supported for mime video/*".
+ * Public media routes reach ensureVariant, so missing MP4 renditions must not
+ * start expensive FFmpeg work on the request path.
  */
 
 import { AssetService } from '../assetService';
@@ -62,16 +61,15 @@ beforeEach(() => {
 });
 
 describe('AssetService.ensureVariant — video mp4 renditions', () => {
-  it('routes 720p to ensureVideoMp4Rendition', async () => {
-    mockEnsureVideoMp4Rendition.mockResolvedValue(RENDITION_ROW);
+  it('does not lazily generate a missing mp4 rendition', async () => {
     const service = buildService();
 
-    const result = await service.ensureVariant('file-video-1', '720p', VIDEO_FILE);
+    await expect(service.ensureVariant('file-video-1', '720p', VIDEO_FILE))
+      .rejects.toThrow('Video rendition 720p is not available');
 
     expect(mockIsVideoMp4Rendition).toHaveBeenCalledWith('720p');
-    expect(mockEnsureVideoMp4Rendition).toHaveBeenCalledWith(VIDEO_FILE, '720p');
+    expect(mockEnsureVideoMp4Rendition).not.toHaveBeenCalled();
     expect(mockEnsureVideoImageVariant).not.toHaveBeenCalled();
-    expect(result).toBe(RENDITION_ROW);
   });
 
   it('still routes poster to ensureVideoPoster', async () => {
