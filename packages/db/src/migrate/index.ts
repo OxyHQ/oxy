@@ -14,6 +14,17 @@ export {
   type JournalEntry,
 } from './ledger';
 export {
+  type AppliedMigrationRow,
+  type JournalEntryWithHash,
+  type LedgerComparison,
+  type LedgerHashMismatch,
+  compareLedger,
+  formatLedgerComparison,
+  readAppliedRows,
+  readJournalWithHashes,
+  verifyMigrationLedger,
+} from './verify';
+export {
   MissingMigrationTargetError,
   WrongMigrationTargetError,
   assertMigrationTarget,
