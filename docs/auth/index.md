@@ -26,7 +26,8 @@ the five distinct meanings of "sign out":
 
 | Area | Page | State |
 |---|---|---|
-| Device session, zero-cookie transport | [device-session.md](./device-session.md) | shipped |
+| Device session, device-first transport | [device-session.md](./device-session.md) | shipped |
+| The browser hub at `auth.oxy.so` | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § The browser hub | built, unverified, not deployed |
 | Principals, contexts, the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
 | Tokens and credentials (v2 claims) | [tokens-and-credentials.md](./tokens-and-credentials.md) | shipped |
 | Third-party integration | [integration-guide.md](./integration-guide.md) | shipped |
@@ -47,12 +48,20 @@ these before proposing a change to the model:
 Stated here rather than left for a reader to infer from silence. Each is an
 accepted gap with a named reason, not an oversight:
 
-- **ADR 0003's browser hub is a decision, not a deployment.** `auth.oxy.so` is
-  still a pure-static SPA and sets no cookie. Until it does, a new web origin
-  cold-boots signed out and joins by its own device credential — the accepted
-  trade of the zero-cookie cutover. **Relying-party origins remain zero-cookie
-  regardless**; the host-only handle ADR 0003 describes is for the IdP alone,
-  and `AGENTS.md` must be amended in the same change that ships it.
+- **ADR 0003's browser hub is BUILT but UNVERIFIED and NOT DEPLOYED, and the IdP
+  SPA does not call it yet.** The server layer
+  (`POST /session/browser-hub/{establish,resolve,rotate,revoke}`), the
+  `__Host-oxy-device` cookie, and the edge layer
+  (`POST /hub/{session,claim,activate,authorize,rotate,revoke}` in
+  `packages/auth/functions/hub/`) exist and are covered by tests — see
+  [SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § The browser hub. What is
+  NOT done: no `packages/auth` React code calls `/hub/*`, so no browser has ever
+  been handed a handle; the establishment lane is Commons-approval only (passkey
+  is not wired); revocation from the Accounts/Commons security UI is not surfaced;
+  and none of the browser-matrix acceptance items (Chrome/Safari/Firefox, private
+  windows, third-party cookies blocked, popup lifecycle) has been run. Until the
+  SPA is wired, a new web origin still cold-boots signed out and joins by its own
+  device credential. **Relying-party origins remain zero-cookie regardless.**
 - **The native shared DeviceSession credential is not built.** Ordinary apps
   still restore through the paths `device-session.md` describes. Separating the
   Commons private key from the ordinary cross-app session credential rewrites

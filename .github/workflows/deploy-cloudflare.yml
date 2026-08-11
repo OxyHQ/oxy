@@ -63,11 +63,16 @@ jobs:
       # sync is already gated pre-push (test-build) and in PR CI, so the deploy
       # installs without the buggy frozen flag.
       - run: bun install
-      # Build the Vite SPA into packages/auth/dist. Post-2c the IdP is a
-      # PURE-STATIC SPA: the former `/api/device-accounts` Pages Function was
-      # deleted when the IdP moved to the device-first SDK (zero-cookie chooser
-      # via useSwitchableAccounts), so there is no `functions/` directory left
-      # to compile or deploy.
+      # Build the Vite SPA into packages/auth/dist. The IdP is static apart from
+      # ONE Pages Functions directory: `packages/auth/functions/hub/*`, the
+      # browser DeviceSession hub (issue #937 Phase 5, ADR 0003). The former
+      # `/api/device-accounts` function deleted in the 2c cutover stays deleted —
+      # the chooser is served by the device-first SDK.
+      #
+      # `wrangler pages deploy` compiles `./functions` from the WORKING DIRECTORY,
+      # which the deploy step below sets to `packages/auth`. It must stay a
+      # Functions DIRECTORY: CF Pages did not detect an advanced-mode
+      # `dist/_worker.js` on this project at all.
       - run: bun x turbo run build --filter=auth
         env:
           # Auth IdP's OWN registered Oxy client id. `packages/auth/lib/oxy-client.ts`

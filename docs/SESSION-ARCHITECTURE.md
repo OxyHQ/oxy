@@ -66,10 +66,22 @@ Contracts (`packages/contracts/src/deviceSession.ts`): `sessionAccountSchema`,
 `deviceSessionStateSchema`, `activeTokenSchema`, `deviceSessionSyncSchema` — shared by
 the server (output validation) and `SessionClient` (input validation).
 
-## Session transport (zero-cookie)
+## Session transport (device-first)
 
 The transport that carries "which device is this?" across reloads is **`deviceId` +
-`deviceSecret`** — no cookies, no refresh-token family, no boot-fragment hop.
+`deviceSecret`** — no refresh-token family, no boot-fragment hop, and, on every
+relying-party origin, no cookie.
+
+> **The one cookie, and where it lives.** Issue #937 Phase 5
+> ([ADR 0003](adr/0003-browser-device-session-hub.md)) reopens exactly one of the
+> mechanisms the zero-cookie cutover deleted, at exactly one origin.
+> **Relying-party origins remain zero-cookie** and set no cookie of any kind.
+> **`auth.oxy.so` alone** holds `__Host-oxy-device` — host-only (no `Domain`),
+> `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/` — whose value is an opaque random
+> handle and nothing else. The server stores only `sha256(handle)`. It is a
+> POINTER to a server-side `DeviceSession`, never a credential the browser can
+> spend against the resource API, and it is never required in a third-party
+> context. See "The browser hub" below.
 
 1. **`deviceId` + `deviceSecret`** — every successful sign-in (password, 2FA, QR claim,
    challenge verify) returns the session's `deviceId` and a 256-bit `deviceSecret`. The
@@ -370,6 +382,45 @@ value on `buildOAuthAuthorizeUrl`) and the post-sign-in **hub-ticket sync**
 for a sign-in the user actually asked for.
 
 Cold boot is the device-secret chain above plus the `?code=` return leg — nothing else.
-Do not reintroduce cookies, a refresh-token family, a boot-fragment hop, an anonymous
-device socket, per-app session restore, a silent `prompt=none` bounce, or a hub-sync
-redirect.
+Do not reintroduce a refresh-token family, a boot-fragment hop, an anonymous device
+socket, per-app session restore, a silent `prompt=none` bounce, or a hub-sync redirect.
+Do not add a cookie to any relying-party origin; the ONE cookie the platform now has is
+`auth.oxy.so`'s own `__Host-oxy-device`, described next.
+
+## The browser hub (`auth.oxy.so`)
+
+Issue #937 Phase 5, [ADR 0003](adr/0003-browser-device-session-hub.md). A browser
+profile that authenticated on one origin used to start signed out on the next, because
+each origin holds its own `{deviceId, deviceSecret}` and nothing may read another's. The
+hub closes that without any of the browser tricks the cutover deleted: `auth.oxy.so`
+keeps a first-party `DeviceSession` for the profile, and a later official origin joins it
+over ordinary Authorization Code + PKCE.
+
+**The handle.** `__Host-oxy-device=<opaque random handle>; Secure; HttpOnly;
+SameSite=Lax; Path=/`, plus a `Max-Age` derived from the same
+`BROWSER_HUB_HANDLE_TTL_MS` the server writes into `device_sessions.hub_secret_expires_at`
+— the cookie and the credential expire together. The `__Host-` prefix makes the browser
+itself refuse a `Domain`, so no other `oxy.so` host can read or overwrite it. The value
+carries no token, user id, device id, account id or serialized state; the server stores
+only `sha256(handle)`. Rotation keeps the previous hash for a short grace window, because
+a browser's tabs share one cookie jar.
+
+**The server half** — `POST /session/browser-hub/{establish,resolve,rotate,revoke}`
+(`packages/api/src/routes/browserHub.ts`). `establish` takes a first-party bearer and
+returns the raw handle exactly once; the other three take the handle itself, since
+possession is the proof. `signout({all:true})` clears the hub credential with the rest,
+so a retained cookie cannot keep resolving a device that was just signed out.
+
+**The edge half** — `POST /hub/{session,claim,activate,authorize,rotate,revoke}`, a
+Cloudflare Pages Functions *directory* at `packages/auth/functions/hub/` over handlers in
+`packages/auth/hub/`. Neither credential reaches the page: the handle is `HttpOnly`, and
+the device-wide access token the API mints from it is used at the edge and discarded —
+which is why `/hub/authorize` runs the consent + authorize calls server-side instead of
+handing the SPA a bearer. CSRF is live again for these six and nowhere else: `POST`-only,
+`Origin` exactly equal to the deployment's own origin (absent is refused),
+`Sec-Fetch-Site: same-origin` when sent, and a required `X-Oxy-Hub: 1`.
+
+**Still forbidden**, unchanged: third-party cookies, hidden or silent iframes,
+cross-origin `localStorage`, Storage Access API as the mechanism, gesture-less popups,
+silent `prompt=none` loops, FedCM, and automatic redirect chains across Oxy origins. No
+hub endpoint answers with a redirect.

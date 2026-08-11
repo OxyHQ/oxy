@@ -23,6 +23,7 @@
     "components/**/*.ts",
     "components/**/*.tsx",
     "lib/**/*.ts",
+    "hub/**/*.ts",
     "functions/**/*.ts",
     "app/**/*.css",
     "vite.config.ts",
@@ -32,6 +33,7 @@
     "node_modules",
     "dist",
     "lib/**/__tests__/**",
-    "components/**/__tests__/**"
+    "components/**/__tests__/**",
+    "hub/**/__tests__/**"
   ]
 }
