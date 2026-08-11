@@ -1,6 +1,0 @@
-{
-  "csp": {
-    "workerSrc": ["'self'"],
-    "imgSrc": ["blob:", "https:"]
-  }
-}

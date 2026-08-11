@@ -23,7 +23,6 @@
       "packages/auth",
       "packages/accounts",
       "packages/commons",
-      "packages/inbox",
       "packages/test-app-expo",
       "packages/console",
       "packages/ship",
@@ -133,9 +132,6 @@
     "accounts:start": "bun run --filter accounts start",
     "commons:dev": "bun run --filter commons start",
     "commons:start": "bun run --filter commons start",
-    "inbox:build": "bun run --filter inbox build",
-    "inbox:dev": "bun run --filter inbox start",
-    "inbox:start": "bun run --filter inbox start",
     "console:dev": "bun run --filter oxy-console dev",
     "console:build": "bun run --filter oxy-console build"
   },
@@ -179,6 +175,7 @@
     "@expo/metro-runtime": "~57.0.8",
     "@oxyhq/bloom": "catalog:",
     "expo-contacts": "~57.0.3",
+    "expo-image-picker": "~57.0.7",
     "expo-splash-screen": "~57.0.5",
     "is-arrayish": "^0.3.4",
     "react-native-worklets": "catalog:"

@@ -35,7 +35,7 @@ All tasks run `assign_public_ip=true` so there is no NAT gateway in the path.
 |---------|-----------|
 | `oxy-accounts` | accounts.oxy.so |
 | `oxy-auth` | auth.oxy.so (third-party OAuth authorize/consent IdP — pure-static Vite SPA; the device-account chooser runs in the device-first SDK, so there is no Pages Function) |
-| `oxy-inbox` | inbox.oxy.so |
+| `oxy-inbox` | inbox.oxy.so — deployed from [OxyHQ/Inbox](https://github.com/OxyHQ/Inbox) |
 | `oxy-console` | console.oxy.so |
 
 ## Networking

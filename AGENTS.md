@@ -126,7 +126,6 @@ packages/
   commons/                          Expo identity vault app ("Commons by Oxy" — NATIVE-ONLY, no web build)
   auth/                             Vite IdP app (auth.oxy.so — OAuth authorize/consent on @oxyhq/services, device-first like every app)
   console/                          Developer portal (Vite + @oxyhq/services)
-  inbox/                            Inbox app
   test-app-expo/                    Expo test/playground app
   expo-splash/    @oxyhq/expo-splash
   app-preset/     @oxyhq/app-preset Shared Expo config plugin + Metro/Babel/CSS/ESLint/tsconfig bases for every Oxy app
@@ -148,7 +147,7 @@ auth (IdP)            dep: @oxyhq/core + @oxyhq/services  (RN Web via Vite, devi
 test-app-expo         dep: @oxyhq/services
 ```
 
-**Expo native-module version alignment (accounts, commons, inbox, test-app-expo):** when `@oxyhq/services`' pinned version of a native module (e.g. `react-native-svg`, `react-native-safe-area-context`, `react-native-keyboard-controller`) diverges from the version the current Expo SDK bundles, align the whole monorepo UP to the higher version and add that package to `expo.install.exclude` in the app's `package.json` — this stops `expo install --fix` / expo-doctor from downgrading it back to the SDK-bundled version. Never let two versions of the same native module coexist across the workspace. `react-native-svg` + `react-native-safe-area-context` are excluded in all four apps; `react-native-keyboard-controller` is additionally excluded in accounts, commons, and inbox (test-app-expo doesn't depend on it).
+**Expo native-module version alignment (accounts, commons, test-app-expo):** when `@oxyhq/services`' pinned version of a native module (e.g. `react-native-svg`, `react-native-safe-area-context`, `react-native-keyboard-controller`) diverges from the version the current Expo SDK bundles, align the whole monorepo UP to the higher version and add that package to `expo.install.exclude` in the app's `package.json` — this stops `expo install --fix` / expo-doctor from downgrading it back to the SDK-bundled version. Never let two versions of the same native module coexist across the workspace. `react-native-svg` + `react-native-safe-area-context` are excluded in all three apps; `react-native-keyboard-controller` is additionally excluded in accounts and commons (test-app-expo doesn't depend on it).
 
 ## Package Boundaries (strict)
 
