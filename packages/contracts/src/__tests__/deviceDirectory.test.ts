@@ -134,6 +134,57 @@ describe('deviceDirectorySchema', () => {
   it('rejects a profile without an id', () => {
     expect(safeParseContract(devicePrincipalSchema, { ...nate, user: { username: 'nate' } })).toBeNull();
   });
+
+  /**
+   * The accent survives the parse (issue #961).
+   *
+   * A zod object STRIPS unknown keys, so a schema that does not declare `color`
+   * does not reject a payload carrying one — it silently drops it, and the row
+   * renders in the ambient theme accent with nothing anywhere saying why. This
+   * asserts the value on the far side of the parse for that reason.
+   */
+  it('carries the accent each row is drawn in, per account', () => {
+    const parsed = safeParseContract(deviceDirectorySchema, {
+      ...directory,
+      principals: [
+        {
+          ...nate,
+          user: { id: 'nate', username: 'nate', color: 'purple' },
+          contexts: [
+            { ...natePersonal, account: { id: 'nate', username: 'nate', color: 'purple' } },
+            { ...nateOxy, account: { id: 'oxy_collective', username: 'oxy', color: 'amber' } },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed?.principals[0].user.color).toBe('purple');
+    // Two accounts under ONE person, drawn in two different accents — the case
+    // a single ambient theme accent cannot represent.
+    expect(parsed?.principals[0].contexts.map((context) => context.account.color)).toEqual([
+      'purple',
+      'amber',
+    ]);
+  });
+
+  it('accepts a profile with no colour at all, and an explicitly null one', () => {
+    expect(safeParseContract(devicePrincipalSchema, nate)?.user.color).toBeUndefined();
+    expect(
+      safeParseContract(devicePrincipalSchema, {
+        ...nate,
+        user: { id: 'nate', username: 'nate', color: null },
+      })?.user.color
+    ).toBeNull();
+  });
+
+  it('rejects a colour that is not a string', () => {
+    expect(
+      safeParseContract(devicePrincipalSchema, {
+        ...nate,
+        user: { id: 'nate', username: 'nate', color: { preset: 'purple' } },
+      })
+    ).toBeNull();
+  });
 });
 
 describe('device activation contracts', () => {

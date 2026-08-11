@@ -116,16 +116,45 @@ export const Divider = () => createElement('hr', null);
 
 /**
  * `@oxyhq/bloom/theme` per-account color-scope stubs used by `OxyAccountDialog`.
- * `BloomColorScope` just renders its children (the real one merges scoped CSS
- * vars); the preset registry is empty so the dialog's accent resolves to the
- * theme fallback in tests.
+ *
+ * The real `BloomColorScope` merges scoped CSS vars, which jsdom cannot show —
+ * so the stub surfaces the preset it was handed as `data-color-preset`, the one
+ * observable that says WHICH account's colour a row was scoped to. Style props
+ * are unreachable here (the `react-native` stub drops `style` entirely), so this
+ * attribute is the only way a per-row accent can be asserted at all.
+ *
+ * The registry carries the real preset NAMES and stand-in hexes. It was empty,
+ * which made `toPreset` narrow everything to `undefined` and `resolveAccentHex`
+ * answer the theme fallback for every account — so a suite could not have told
+ * per-account theming from none, in either direction. The hex VALUES are not
+ * Bloom's and nothing should assert them; all that matters is that a name
+ * resolves and two names resolve differently.
  */
-export const BloomColorScope = ({ children }: { children?: ReactNode }) =>
-  createElement('div', null, children);
+export const BloomColorScope = ({
+  children,
+  colorPreset,
+}: { children?: ReactNode; colorPreset?: string }) =>
+  createElement('div', { 'data-color-preset': colorPreset }, children);
 
-export const APP_COLOR_NAMES: readonly string[] = [];
+export const APP_COLOR_NAMES: readonly string[] = [
+  'teal',
+  'blue',
+  'green',
+  'amber',
+  'yellow',
+  'red',
+  'purple',
+  'pink',
+  'sky',
+  'orange',
+  'mint',
+  'oxy',
+  'faircoin',
+];
 
-export const APP_COLOR_PRESETS: Record<string, { hex: string }> = {};
+export const APP_COLOR_PRESETS: Record<string, { hex: string }> = Object.fromEntries(
+  APP_COLOR_NAMES.map((name, index) => [name, { hex: `#0000${(index + 16).toString(16)}` }]),
+);
 
 /**
  * `@oxyhq/bloom/dialog` `<Dialog>` stub. The real component renders its own

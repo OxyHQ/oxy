@@ -219,6 +219,7 @@ function contextRow(over: { contextId: string; displayName: string; handle: stri
     displayName: over.displayName,
     handle: over.handle,
     avatarUrl: undefined,
+    color: null,
     isActive: over.isActive,
     isDelegated: false,
     canActivate: true,
@@ -232,6 +233,7 @@ function personWith(row: ReturnType<typeof contextRow>) {
     displayName: row.displayName,
     handle: row.handle,
     avatarUrl: undefined,
+    color: null,
     isActive: row.isActive,
     contexts: [row],
   }

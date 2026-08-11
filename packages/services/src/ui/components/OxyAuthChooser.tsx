@@ -376,8 +376,9 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
    *
    * The directory carries the minimum that renders a row for every person on
    * the device; this is the one account we legitimately hold everything for, so
-   * the hero keeps its real email and its own accent, and the rows below do not
-   * pretend to have either.
+   * the hero keeps its real EMAIL, which the rows below do not pretend to have.
+   * The accent is not in that category — every row is drawn in its own account's
+   * (issue #961), this one included, from the same field.
    */
   const hero = useMemo<AccountHeroModel | null>(() => (user ? buildHero(user, theme.colors.primary, oxyServices) : null),
     [user, theme.colors.primary, oxyServices],

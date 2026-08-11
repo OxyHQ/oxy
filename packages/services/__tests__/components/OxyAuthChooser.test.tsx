@@ -44,6 +44,8 @@ interface ContextSpec {
   accountId: string;
   displayName: string;
   available?: boolean;
+  /** The account's own Bloom preset, as the directory carries it (issue #961). */
+  color?: string;
 }
 
 interface PrincipalSpec {
@@ -76,6 +78,7 @@ const makeDirectory = (
         id: context.accountId,
         username: context.accountId,
         name: { displayName: context.displayName },
+        color: context.color ?? null,
       },
       onDevice: true,
       available: context.available ?? true,
@@ -735,6 +738,64 @@ describe('OxyAuthChooser', () => {
       isWebBrowserMock.mockReturnValue(false);
       isOxyRpOriginMock.mockReturnValue(false);
       snapshot = makeSnapshot({ view: 'signin' });
+    });
+
+    /**
+     * Issue #961 — each row is drawn in ITS OWN account's accent.
+     *
+     * The scoped preset is the one observable a jsdom render has for this: the
+     * `react-native` stub drops `style`, so the accent hex on the ring, the
+     * border and the icon reaches no DOM node. `BloomColorScope` is also what
+     * carries the colour to everything INSIDE the row, so asserting it is not a
+     * proxy for the accent — it is the mechanism.
+     */
+    it('scopes each account row to its own colour, not to one ambient accent', () => {
+      snapshot = makeSnapshot({
+        view: 'signin',
+        directory: makeDirectory(
+          [
+            {
+              id: 'p-alice',
+              userId: 'a',
+              displayName: 'Alice',
+              contexts: [{ id: 'ctx-alice', accountId: 'a', displayName: 'Alice', color: 'purple' }],
+            },
+            {
+              id: 'p-bob',
+              userId: 'b',
+              displayName: 'Bob',
+              contexts: [{ id: 'ctx-bob', accountId: 'b', displayName: 'Bob', color: 'amber' }],
+            },
+          ],
+          null,
+        ),
+      });
+
+      const { container } = render(<OxyAuthChooser />);
+
+      const scoped = [...container.querySelectorAll('[data-color-preset]')].map((node) =>
+        node.getAttribute('data-color-preset'),
+      );
+      // Two people on one device, drawn in two accents. One shared value here —
+      // whatever it was — is the regression this test exists for.
+      expect(scoped).toEqual(['purple', 'amber']);
+    });
+
+    it('leaves a row with no colour on the ambient accent rather than inventing one', () => {
+      snapshot = makeSnapshot({
+        view: 'signin',
+        directory: soloDirectory(null),
+      });
+
+      const { container } = render(<OxyAuthChooser />);
+
+      // The row is there — and carries no scope at all, rather than being
+      // scoped to some stand-in. React omits an attribute whose value is
+      // `undefined`, so "no preset" is the ABSENCE of the attribute; the
+      // preceding case is the positive control that this query finds one when
+      // there is one to find.
+      expect(screen.getByLabelText('Alice').closest('[data-color-preset]')).toBeNull();
+      expect(container.querySelectorAll('[data-color-preset]')).toHaveLength(0);
     });
 
     it('renders exactly ONE primary action and no competing method buttons', () => {

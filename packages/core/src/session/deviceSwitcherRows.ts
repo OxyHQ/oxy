@@ -3,21 +3,22 @@
  * their names, handles and avatar URLs already resolved.
  *
  * Pure. It takes the projection {@link projectDevicePrincipals} produces from
- * the directory and answers the four questions a row asks —
- * what is it called, what is its handle, where is its avatar, may it be
- * activated — so the views stay presentational and neither of them re-derives
- * a display rule.
+ * the directory and answers the five questions a row asks —
+ * what is it called, what is its handle, where is its avatar, what accent is it
+ * drawn in, may it be activated — so the views stay presentational and neither
+ * of them re-derives a display rule.
  *
- * Two things the flat account rows this replaced carried are deliberately absent,
- * because the directory does not carry them and inventing them would mean going
- * back to fetching another person's profiles:
+ * One thing the flat account rows this replaced carried is deliberately absent,
+ * because the directory does not carry it and inventing it would mean going back
+ * to fetching another person's profiles: **email**. The directory profile is the
+ * minimum that renders a row, so the secondary line is the `@handle` — never a
+ * synthesized `username@oxy.so`.
  *
- *  - **email** — the directory profile is the minimum that renders a row, so the
- *    secondary line is the `@handle`. Never a synthesized `username@oxy.so`.
- *  - **per-account accent colour** — every row uses the ambient theme accent.
- *    The ACTIVE account's own colour is still available to the surfaces that
- *    want it, from the signed-in user, because that is the one account this
- *    client legitimately holds a full profile for.
+ * The accent is NOT in that category. It was, briefly, and it was wrong: an
+ * accent is part of drawing the row rather than profile data about its owner,
+ * and without it every non-active row falls back to the ambient theme accent, so
+ * a device holding two people draws them identically (issue #961). The server
+ * carries it on the directory profile, so no client has to guess or fetch.
  *
  * It lives here rather than in a UI package because there is more than one
  * switcher — the SDK's account dialog and the `auth.oxy.so` chooser — and the
@@ -46,6 +47,14 @@ export interface SwitcherContextRow {
   /** The `@handle` secondary line, or `null` when the profile has no username. */
   handle: string | null;
   avatarUrl: string | undefined;
+  /**
+   * The SUBJECT account's own accent — a named Bloom preset, or `null` when it
+   * has none and the renderer should use the ambient theme accent.
+   *
+   * Forwarded verbatim, never resolved to a colour here: mapping a preset name
+   * to a hex is Bloom's job, and `@oxyhq/core` cannot import a UI package.
+   */
+  color: string | null;
   /** Whether this pair is the device's active context. */
   isActive: boolean;
   /** Whether the actor and the subject are different accounts. */
@@ -65,6 +74,8 @@ export interface SwitcherPrincipalRow {
   displayName: string;
   handle: string | null;
   avatarUrl: string | undefined;
+  /** The PERSON's own accent, on the same terms as a context row's. */
+  color: string | null;
   /** Whether the device's ACTIVE context belongs to this person. */
   isActive: boolean;
   contexts: SwitcherContextRow[];
@@ -85,6 +96,7 @@ function toContextRow(
     displayName: directoryDisplayName(context.subject.profile, locale),
     handle: directoryHandle(context.subject.profile),
     avatarUrl: resolveAvatarUrl(context.subject.profile.avatar),
+    color: context.subject.profile.color ?? null,
     // Compared on the CONTEXT id, never the account id: on a device holding two
     // people the same account is active through exactly one of them, and an
     // account comparison would light up both rows.
@@ -106,6 +118,7 @@ export function buildSwitcherRows(
     displayName: directoryDisplayName(group.profile, locale),
     handle: directoryHandle(group.profile),
     avatarUrl: resolveAvatarUrl(group.profile.avatar),
+    color: group.profile.color ?? null,
     isActive: group.isActive,
     contexts: group.contexts.map((context) =>
       toContextRow(context, activeContextId, resolveAvatarUrl, locale),

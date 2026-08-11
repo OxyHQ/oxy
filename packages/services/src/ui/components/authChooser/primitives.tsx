@@ -9,10 +9,11 @@ import { useState } from 'react';
 import { Pressable, View } from 'react-native-css/components';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxyhq/bloom/avatar';
+import { BloomColorScope } from '@oxyhq/bloom/theme';
 import { Text } from '@oxyhq/bloom/typography';
 import type { SwitcherContextRow } from '@oxyhq/core';
 import { authChooserStyles as styles } from './styles';
-import type { Theme } from './types';
+import { resolveAccentHex, toPreset, type Theme } from './types';
 
 /** Diameter of a row avatar (the sign-in view's account rows). */
 const ROW_AVATAR_SIZE = 40;
@@ -90,6 +91,11 @@ export const Dividerish: React.FC<{ theme: Theme; label: string }> = ({ theme, l
  * the device directory carries a handle and no email, deliberately — it is the
  * minimum that renders a row for every person on the device, and this surface is
  * reached while signed out, where fetching anyone's profile is not an option.
+ *
+ * The accent comes from the row's OWN account (`context.color`, straight off the
+ * directory), not from the theme and not from whoever is signed in. This surface
+ * is where a device holding two people is most visible, and it is reached while
+ * signed out — so there is no "current user" whose colour could stand in.
  */
 export const AccountRow: React.FC<{
   context: SwitcherContextRow;
@@ -100,12 +106,13 @@ export const AccountRow: React.FC<{
   disabled: boolean;
   onPress: () => void;
 }> = ({ context, operatedBy, theme, activating, disabled, onPress }) => {
-  const accent = theme.colors.primary;
+  const accent = resolveAccentHex(context.color, theme.colors.primary);
   const rowDisabled = disabled || !context.canActivate;
   const secondary = operatedBy ?? (context.handle ? `@${context.handle}` : null);
 
   return (
-    <Pressable
+    <BloomColorScope colorPreset={toPreset(context.color)} asChild>
+      <Pressable
         style={[
           styles.accountRow,
           {
@@ -145,6 +152,7 @@ export const AccountRow: React.FC<{
         ) : (
           <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.textSecondary} />
         )}
-    </Pressable>
+      </Pressable>
+    </BloomColorScope>
   );
 };
