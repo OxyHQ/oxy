@@ -8,6 +8,7 @@ import {
 } from '@oxyhq/core';
 import type { SessionClient } from '@oxyhq/core';
 import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
+import { createPlatformSharedDeviceCredentialStore } from '../session/sharedDeviceCredentialStore';
 import { tryCompleteOAuthReturn } from '../utils/oauthReturn';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { isNetConnectivityExplicitlyOffline } from '../utils/netConnectivity';
@@ -161,6 +162,12 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
       platform: { isWeb: isWebBrowser(), isNative: !isWebBrowser() },
       sessionMode,
       identity,
+      // The device-wide shared credential slot, enabling the `shared-device-adopt`
+      // lane: a newly installed official app joins this device's existing session
+      // instead of falling back to signing a challenge with the Commons identity
+      // key. `null` on web, where each origin is its own device by design; the
+      // core lane is also skipped outright in `sessionMode: 'identity'`.
+      sharedDeviceCredential: createPlatformSharedDeviceCredentialStore() ?? undefined,
       overallDeadlineMs: COLD_BOOT_OVERALL_DEADLINE_MS,
       isOffline: () => offline,
       onStepDeadline: (stepId) => {

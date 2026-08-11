@@ -149,7 +149,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
   // provider mount.
   const authStoreRef = useRef<AuthStateStore | null>(null);
   if (!authStoreRef.current) {
-    authStoreRef.current = createPlatformAuthStateStore();
+    authStoreRef.current = createPlatformAuthStateStore({ sessionMode });
   }
   const authStore = authStoreRef.current;
 

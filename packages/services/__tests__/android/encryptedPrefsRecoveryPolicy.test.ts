@@ -32,7 +32,20 @@ const ANDROID_SOURCE_ROOT = resolve(__dirname, '../../android/src/main/java/so/o
 
 /** The store whose loss is unrecoverable, named in failures so the stakes are legible. */
 const IRREPLACEABLE_STORE = 'oxy_shared_identity';
-const DISPOSABLE_STORE = 'oxy_background_session';
+
+/**
+ * Every store whose contents some other authority can re-create, and which
+ * therefore must NOT be allowed to escalate to a UID-shared master-key reset.
+ *
+ * `oxy_background_session` holds a credential the app re-provisions on its next
+ * foreground. `oxy_shared_device_session` holds the cross-app DeviceSession
+ * credential, which every signed-in app re-publishes from its own durable copy.
+ * Losing either costs at most one sign-in; escalating destroys an identity.
+ */
+const DISPOSABLE_STORES = [
+  { store: 'oxy_background_session', file: 'OxyBackgroundSessionStore.kt' },
+  { store: 'oxy_shared_device_session', file: 'OxyDeviceSessionStore.kt' },
+];
 
 /** Every `.kt` file under the android source tree, so a NEW store cannot hide. */
 function kotlinSources(dir: string): string[] {
@@ -65,44 +78,48 @@ describe('OxyEncryptedPrefs recovery policy', () => {
     // Vacuity floor: a broken path or a moved tree must fail here rather than
     // silently turn every assertion below into a pass over an empty list.
     const sources = kotlinSources(ANDROID_SOURCE_ROOT);
-    expect(sources.length).toBeGreaterThanOrEqual(6);
+    expect(sources.length).toBeGreaterThanOrEqual(9);
     expect(sources.some((f) => f.endsWith('OxyEncryptedPrefs.kt'))).toBe(true);
     expect(sources.some((f) => f.endsWith('OxyIdentityStore.kt'))).toBe(true);
     expect(sources.some((f) => f.endsWith('OxyBackgroundSessionStore.kt'))).toBe(true);
+    expect(sources.some((f) => f.endsWith('OxyDeviceSessionStore.kt'))).toBe(true);
   });
 
   test('every store states its recovery policy explicitly', () => {
     const sites = openCallSites();
-    // Two stores today. A THIRD failing here is the point: adding a store must be
-    // a deliberate choice about what it may destroy, reviewed with this rule in
+    // Three stores today. A FOURTH failing here is the point: adding a store must
+    // be a deliberate choice about what it may destroy, reviewed with this rule in
     // view — not something inherited by copying a neighbour.
-    expect(sites.map((s) => s.line)).toHaveLength(2);
+    expect(sites.map((s) => s.line)).toHaveLength(3);
     for (const site of sites) {
       expect(site.line).toMatch(/RecoveryPolicy\.(RebuildFileOnly|RegenerateSharedMasterKey)/);
     }
   });
 
-  test(`the disposable store cannot delete the master key that protects ${IRREPLACEABLE_STORE}`, () => {
-    const site = openCallSites().find((s) => s.file.endsWith('OxyBackgroundSessionStore.kt'));
-    expect(site).toBeDefined();
-    const line = site?.line ?? '';
-    expect(line).not.toHaveLength(0);
+  test.each(DISPOSABLE_STORES)(
+    `$store cannot delete the master key that protects ${IRREPLACEABLE_STORE}`,
+    ({ store, file }) => {
+      const site = openCallSites().find((s) => s.file.endsWith(file));
+      expect(site).toBeDefined();
+      const line = site?.line ?? '';
+      expect(line).not.toHaveLength(0);
 
-    // The whole safety property. Thrown rather than `expect`ed (jest's expect takes
-    // no message) so the failure explains what breaks and why, not just which
-    // substring was missing — whoever trips this needs the stakes, not a diff.
-    if (!line.includes('RecoveryPolicy.RebuildFileOnly')) {
-      throw new Error(
-        `${DISPOSABLE_STORE} must open with RecoveryPolicy.RebuildFileOnly.\n` +
-          `  found: ${line}\n\n` +
-          `It holds a credential the app re-provisions on its next foreground, so giving up ` +
-          `costs the user nothing. Escalating instead deletes the UID-shared androidx master ` +
-          `key, which makes every sibling Oxy store unreadable — including ${IRREPLACEABLE_STORE}, ` +
-          `the self-custody identity keypair, which CANNOT be re-created. As written, a widget's ` +
-          `throwaway credential failing to open would destroy the user's identity key.`,
-      );
-    }
-  });
+      // The whole safety property. Thrown rather than `expect`ed (jest's expect takes
+      // no message) so the failure explains what breaks and why, not just which
+      // substring was missing — whoever trips this needs the stakes, not a diff.
+      if (!line.includes('RecoveryPolicy.RebuildFileOnly')) {
+        throw new Error(
+          `${store} must open with RecoveryPolicy.RebuildFileOnly.\n` +
+            `  found: ${line}\n\n` +
+            `It holds data some other authority re-creates on demand, so giving up ` +
+            `costs the user at most one sign-in. Escalating instead deletes the UID-shared androidx ` +
+            `master key, which makes every sibling Oxy store unreadable — including ${IRREPLACEABLE_STORE}, ` +
+            `the self-custody identity keypair, which CANNOT be re-created. As written, a throwaway ` +
+            `credential failing to open would destroy the user's identity key.`,
+        );
+      }
+    },
+  );
 
   test('the identity store keeps its original escalating behaviour', () => {
     const site = openCallSites().find((s) => s.file.endsWith('OxyIdentityStore.kt'));
