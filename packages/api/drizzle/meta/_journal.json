@@ -204,6 +204,13 @@
       "when": 1786361328335,
       "tag": "0029_session_token_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786448414910,
+      "tag": "0030_browser_hub_handle",
+      "breakpoints": true
     }
   ]
 }

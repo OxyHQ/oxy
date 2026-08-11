@@ -7,6 +7,7 @@ import usersRouter from "./routes/users";
 import notificationsRouter from "./routes/notifications.routes";
 import sessionRouter from "./routes/session";
 import sessionDeviceRouter from "./routes/sessionDevice";
+import browserHubRouter from "./routes/browserHub";
 import dotenv from "dotenv";
 import searchRoutes from "./routes/search";
 import { rateLimiter, authRateLimiter, userRateLimiter, federationServiceLimiter, bruteForceProtection, securityHeaders } from "./middleware/security";
@@ -601,6 +602,13 @@ app.use("/profiles", csrfProtection, profilesRouter);
 app.use("/users/me/app-data", userRateLimiter, csrfProtection, userDataRouter);
 app.use("/users", userRateLimiter, csrfProtection, usersRouter); // Per-user rate limiting for authenticated routes
 app.use("/session/device", userRateLimiter, sessionDeviceRouter);
+// The browser DeviceSession hub (issue #937 Phase 5). Mounted BEFORE `/session`
+// so its own router owns the prefix, and deliberately OUTSIDE `csrfProtection`:
+// three of its four endpoints carry no bearer and no cookie — the raw hub
+// handle in the body is the credential — and the fourth is bearer-gated with
+// its own same-site origin guard. An app-local CSRF token would be a token the
+// only legitimate caller (the IdP edge, a server) can never hold.
+app.use("/session/browser-hub", userRateLimiter, browserHubRouter);
 app.use("/session", userRateLimiter, csrfProtection, sessionRouter);
 app.use("/privacy", userRateLimiter, csrfProtection, privacyRoutes);
 app.use("/analytics", userRateLimiter, authMiddleware, analyticsRoutes);

@@ -13,6 +13,13 @@ interface ImportMetaEnv {
    * the per-request `?client_id=` of the RP it is authorizing.
    */
   readonly VITE_OXY_CLIENT_ID: string;
+  /**
+   * Whether `/authorize` is served by the browser DeviceSession hub (issue #937
+   * Phase 5, ADR 0003). Strictly `"1"` enables it; unset — the default, and
+   * every build so far — leaves the IdP byte-for-byte as it was. Flipping it is
+   * the browser-verification gate; see `lib/hub-client.ts`.
+   */
+  readonly VITE_OXY_BROWSER_HUB?: string;
 }
 
 interface ImportMeta {

@@ -31,7 +31,7 @@
  * unique at all. `__tests__/authSession.test.ts` pins this.
  */
 
-import { type AnyPgColumn, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import { type AnyPgColumn, index, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { deviceAccountContexts } from './deviceAccountContexts';
 import { users } from './users';
@@ -123,6 +123,53 @@ export const deviceSessions = pgTable(
      */
     backgroundSecretAccountId: text().references(() => users.id, { onDelete: 'set null' }),
     backgroundSecretExpiresAt: timestamptz(),
+    /**
+     * `sha256` of the BROWSER HUB handle — the opaque value inside
+     * `__Host-oxy-device` at `auth.oxy.so` (issue #937 Phase 5, ADR 0003).
+     *
+     * A third credential rather than a reuse of `secret_hash`, for the same
+     * reason the background one is a fourth: the two have different holders,
+     * different lifetimes and different rotation rules, and a shared column
+     * would make each a writer of a value the other depends on. This one is
+     * held by nothing the user can read — the browser stores it `HttpOnly`, so
+     * no script on the IdP origin can reach it, and the raw value exists in
+     * exactly two places: that cookie jar and the `Set-Cookie` line that put it
+     * there.
+     *
+     * ## Why this one is looked up BY hash and the others are not
+     *
+     * Every other credential here is verified after the row has already been
+     * found by `device_id`, because its holder knows the device id. The hub's
+     * holder does not: the cookie carries the handle and NOTHING else — no
+     * device id, no user id, no account id, no serialized state — so the hash is
+     * the only address there is. Hence the UNIQUE below, which is both the
+     * lookup index and the guarantee that one handle can never address two
+     * browsers.
+     */
+    hubSecretHash: text(),
+    /**
+     * The just-rotated hub handle's hash, honoured until
+     * `hub_prev_secret_expires_at`.
+     *
+     * The grace exists because a cookie jar is shared across a browser's tabs:
+     * a rotation committed by one tab lands in the jar of every other, and a
+     * request already in flight from a sibling tab still carries the old value.
+     * Without the window that races into a spurious sign-out on an ordinary
+     * rotation. Indexed, unlike `prev_secret_hash`, for the reason above: a
+     * grace-window presentation has no other way in.
+     */
+    hubPrevSecretHash: text(),
+    hubPrevSecretExpiresAt: timestamptz(),
+    /**
+     * When the current hub handle stops resolving, server-side.
+     *
+     * The cookie's `Max-Age` is derived from the SAME constant
+     * (`BROWSER_HUB_HANDLE_TTL_MS` in `@oxyhq/contracts`), so the credential and
+     * the thing addressing it expire together. NULL means no hub handle has been
+     * issued for this device, which is every native device and every browser
+     * that has not authenticated at the IdP.
+     */
+    hubSecretExpiresAt: timestamptz(),
     /** Bumped on every mutation; the client's cross-app resync signal. */
     revision: integer().notNull().default(0),
     createdAt: createdAt(),
@@ -137,5 +184,13 @@ export const deviceSessions = pgTable(
     // `prev_secret_hash` and `background_secret_hash` are deliberately NOT
     // indexed: both are read only after the row has already been found by
     // `device_id`, and both churn on every rotation.
+    //
+    // The two hub columns ARE indexed, and the asymmetry is the point: the hub
+    // handle is the only credential here whose holder cannot name the device it
+    // belongs to, so the hash is the sole lookup key. UNIQUE on the live one
+    // additionally makes "one handle addresses one browser" a constraint rather
+    // than a property of the random generator.
+    unique('device_sessions_hub_secret_hash_key').on(t.hubSecretHash),
+    index('device_sessions_hub_prev_secret_hash_idx').on(t.hubPrevSecretHash),
   ]
 );

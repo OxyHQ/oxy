@@ -143,4 +143,30 @@ export interface OxyProviderProps {
      * @default false
      */
     backgroundSession?: boolean;
+    /**
+     * Whether this origin/app may persist the durable device credential
+     * (`deviceId` + `deviceSecret`) at all.
+     *
+     * `'persistent'` (the default, and every app's behaviour) stores it — web
+     * localStorage per origin, SecureStore per app on native — so the SDK can
+     * re-mint an access token on the next cold boot.
+     *
+     * `'ephemeral'` stores NOTHING durable: the session lives in memory for the
+     * lifetime of the page and is gone on reload. It exists for ONE caller,
+     * `auth.oxy.so` with the browser hub enabled (issue #937 Phase 5, ADR 0003),
+     * where the durable credential for the browser profile is the server-side
+     * DeviceSession behind the `__Host-oxy-device` handle. Two durable
+     * credentials for one origin is the dual authority that phase exists to
+     * remove — revoking the hub while a localStorage secret still mints would
+     * make a sign-out look like it worked — so the way to let the hub be
+     * authoritative is to stop persisting the other one, not to consult it
+     * second.
+     *
+     * Do NOT reach for this to make an app "more private". A relying-party
+     * origin set to `'ephemeral'` simply signs the user out on every reload,
+     * because nothing else on that origin remembers the device.
+     *
+     * @default 'persistent'
+     */
+    deviceCredentialStorage?: 'persistent' | 'ephemeral';
 }

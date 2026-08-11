@@ -6,9 +6,17 @@
  * post-FedCM-deletion contract so a broken deploy turns the workflow RED instead
  * of silently breaking sign-in for the whole ecosystem.
  *
- * The IdP is now a pure static SPA — it enumerates device accounts through the
- * SAME device-first SDK path every app uses (`useDeviceSwitcher`), so there
- * is no bespoke chooser-feed Pages Function to probe anymore.
+ * The IdP is a static SPA plus ONE Pages Functions directory, `functions/hub/*`
+ * (the browser DeviceSession hub — issue #937 Phase 5, ADR 0003). It still
+ * enumerates device accounts through the SAME device-first SDK path every app
+ * uses (`useDeviceSwitcher`), so the bespoke chooser-feed Pages Function deleted
+ * in the 2c cutover has not come back and is not probed here.
+ *
+ * The hub routes are deliberately NOT probed either: every one of them is a
+ * `POST` behind three CSRF gates, so a request this script could make is one the
+ * edge must refuse — a check whose only passing answer is 403 says nothing about
+ * whether the layer works. Verifying the hub means driving a real browser, which
+ * is not what a post-deploy curl gate is for.
  *
  * What it catches:
  *   - SPA renders blank / build totally broken   → `/`, `/login`, `/signup`, `/authorize` lose the SPA root marker.

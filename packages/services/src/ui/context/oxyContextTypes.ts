@@ -198,6 +198,14 @@ export interface OxyRuntimeProviderProps {
    * @default false
    */
   backgroundSession?: boolean;
+  /**
+   * Whether this origin/app persists the durable device credential at all. See
+   * `OxyProviderProps.deviceCredentialStorage` for the full rule and the one
+   * caller of `'ephemeral'`.
+   *
+   * @default 'persistent'
+   */
+  deviceCredentialStorage?: 'persistent' | 'ephemeral';
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
 }
