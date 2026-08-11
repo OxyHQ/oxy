@@ -78,10 +78,6 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
   const directory = over?.directory ?? null;
   return {
     view: 'accounts',
-    // Still on the snapshot at this stage; retiring them is the next commit.
-    accounts: [],
-    activeAccountId: null,
-    switchingAccountId: null,
     directory,
     activeContext: resolveActiveContext(directory),
     loading: false,

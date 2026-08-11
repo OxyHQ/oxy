@@ -109,11 +109,6 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
   const directory = over?.directory ?? null;
   return {
     view: 'accounts',
-    // Still on the snapshot at this stage — the migration stops READING these;
-    // retiring them is the next commit.
-    accounts: [],
-    activeAccountId: null,
-    switchingAccountId: null,
     directory,
     // Derived here rather than hand-set, so a fixture can never claim an active
     // context the directory it ships does not hold.

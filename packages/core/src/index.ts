@@ -710,7 +710,7 @@ export type {
 // The switcher's RENDER model over that projection — names, handles and avatar
 // URLs resolved once. Shared by `@oxyhq/services`' account dialog and the
 // auth.oxy.so chooser so the two cannot drift, the same reason the flat
-// projection lives beside it.
+// projection lived here before it.
 export { buildSwitcherRows, showsPrincipalHeaders } from './session/deviceSwitcherRows';
 export type {
     ResolveAvatarUrl,
@@ -718,26 +718,17 @@ export type {
     SwitcherPrincipalRow,
 } from './session/deviceSwitcherRows';
 
-// Unified account-list projection (THE single source of truth for the account
-// chooser: device sign-ins ∪ account graph, deduped by accountId). Pure +
-// I/O-free — the caller hydrates profiles via `getUsersByIds`. Shared by
-// `@oxyhq/services` and auth.oxy.so so the list can't diverge.
-// `isSwitchTargetAccount` is the structural half ("is this kind switchable at
-// all?"); `canSwitchIntoAccount` adds the caller's `account:act_as` permission.
-// Both are exported so surfaces that render `AccountNode`s rather than the
-// projection — the Console workspace switcher, managed-accounts rows — ask the
-// SAME questions instead of testing a kind literal.
+// The switch-target predicates over the account GRAPH — a list of accounts to
+// manage, not the device's list of identities to become (that is the directory
+// above). `isSwitchTargetAccount` is the structural half ("is this kind
+// switchable at all?"); `canSwitchIntoAccount` adds the caller's
+// `account:act_as` permission. Exported so the surfaces that render
+// `AccountNode`s — the Console workspace switcher, managed-accounts rows — ask
+// the SAME questions instead of testing a kind literal.
 export {
     isSwitchTargetAccount,
     canSwitchIntoAccount,
-    projectSwitchableAccounts,
-    switchableAccountIds,
-} from './session/accountProjection';
-export type {
-    SwitchableAccount,
-    SwitchableAccountUser,
-    ProjectSwitchableAccountsInput,
-} from './session/accountProjection';
+} from './session/accountSwitchTargets';
 
 // Headless controller for the unified account dialog. Framework-agnostic
 // state machine + subscribe/getSnapshot store (bind via `useSyncExternalStore`)
