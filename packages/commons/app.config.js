@@ -149,6 +149,13 @@ module.exports = {
       // shared identity keypair Commons writes. Commons is the ONLY app that
       // hosts it.
       '@oxyhq/services/plugins/withSharedIdentityProvider',
+      // Also hosts the OxyDeviceSessionProvider — a SEPARATE provider, permission
+      // and encrypted file for the shared DEVICE SESSION credential. Commons is
+      // identity-bound and never publishes into that slot itself; it hosts the
+      // provider because, as a member of the so.oxy.shared UID, it serves the
+      // same file its UID siblings write, so a same-signature app outside the UID
+      // can join the device session even when Accounts is not installed.
+      '@oxyhq/services/plugins/withSharedDeviceSessionProvider',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy
       // and wires the ecosystem code-signing certificate. `expo-updates` itself

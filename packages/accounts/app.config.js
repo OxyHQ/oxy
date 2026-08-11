@@ -114,6 +114,14 @@ module.exports = {
       // module now ships inside @oxyhq/services). Reader-only: it never hosts
       // the provider.
       '@oxyhq/services/plugins/withSharedIdentityReader',
+      // Hosts the signature-protected OxyDeviceSessionProvider for the SHARED
+      // DEVICE SESSION credential — a different secret from the identity key, on
+      // its own permission and its own encrypted file. Accounts is a hub because
+      // it is inside the so.oxy.shared UID, so the file it serves is the one
+      // every UID sibling already sees. This is what lets a newly installed
+      // official app join the device's session without a QR and without ever
+      // reading the Commons private key.
+      '@oxyhq/services/plugins/withSharedDeviceSessionProvider',
       // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
       // the self-hosted update server in oxy-api, sets the runtimeVersion policy
       // and wires the ecosystem code-signing certificate. `expo-updates` itself

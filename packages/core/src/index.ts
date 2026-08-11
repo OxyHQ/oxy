@@ -774,6 +774,30 @@ export type {
     NativeKeyValueStorage,
 } from './session/authStateStore';
 
+// The shared NATIVE DeviceSession credential — how several official apps on one
+// device end up on ONE `DeviceSession` and therefore one active context. It is an
+// ordinary rotatable/revocable `deviceId` + `deviceSecret`, deliberately NOT the
+// Commons private identity key: an app that only needs a session must never be
+// handed the key that signs identity approvals.
+export {
+    createSharedMirroringAuthStateStore,
+    decideSharedDeviceJoin,
+    decideSharedDevicePublish,
+    normalizeSharedDeviceSessionRead,
+    publishProvenDeviceCredential,
+    readLocalDeviceCredential,
+} from './session/sharedDeviceCredential';
+export type {
+    SharedDeviceCredential,
+    SharedDeviceCredentialRead,
+    SharedDeviceCredentialStore,
+    SharedDeviceJoinDecision,
+    SharedDeviceJoinSkipReason,
+    SharedDevicePublishDecision,
+    SharedDevicePublishOutcome,
+    SharedDevicePublishSkipReason,
+} from './session/sharedDeviceCredential';
+
 // Identity-bound sessions (the identity vault). The pin is the durable
 // `{publicKey, accountId}` binding between this device's PRIMARY identity key
 // and the account it authenticates as; it is what keeps such a client from
