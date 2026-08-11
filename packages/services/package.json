@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/services",
-  "version": "28.0.0",
+  "version": "29.0.0",
   "description": "OxyHQ Expo/React Native SDK \u2014 UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -190,7 +190,7 @@
   "peerDependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@oxyhq/bloom": ">=0.59.0",
-    "@oxyhq/core": "^20.0.0",
+    "@oxyhq/core": "^21.0.0",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": ">=11.4.1",
     "@tanstack/query-async-storage-persister": "catalog:",
