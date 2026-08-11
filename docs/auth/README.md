@@ -1,5 +1,10 @@
 # auth.oxy.so — the Oxy IdP
 
+> This page describes ONE component. The canonical entry for the whole
+> authentication model is [index.md](./index.md) — read that first if you
+> are looking for principals, contexts, the device directory, or what is
+> and is not built.
+
 `packages/auth` is the standalone identity-provider app served at **auth.oxy.so**: a pure-static Vite + React DOM SPA deployed to Cloudflare Pages (no Pages Function — see "Development" below). It owns:
 
 - The **OAuth 2.0 authorize + consent** surface for third-party "Sign in with Oxy" (Authorization Code + PKCE) — see [integration-guide.md](./integration-guide.md).
