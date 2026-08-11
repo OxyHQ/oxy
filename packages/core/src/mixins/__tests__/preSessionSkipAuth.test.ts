@@ -158,7 +158,40 @@ describe('pre-session public endpoints use skipAuth', () => {
     });
   });
 
-  it('exchangeOAuthCode rejects a response without deviceSecret', async () => {
+  // A third-party grant is meant to be ISOLATED from the browser's shared
+  // DeviceSession, so the token endpoint must be free to return no device
+  // credential. Core used to require the pair, which made that omission
+  // unshippable: every third-party sign-in through the SDK would have collapsed
+  // into a silent `exchange-failed` (issue #954).
+  it('exchangeOAuthCode accepts a device-less grant and still plants the token', async () => {
+    makeRequest.mockResolvedValueOnce({
+      access_token: 'tok',
+      token_type: 'Bearer',
+      expires_in: 900,
+      session_id: 's1',
+      user: { id: 'u1', username: 'alice' },
+    });
+
+    const result = await oxy.exchangeOAuthCode({
+      code: 'code-1',
+      clientId: 'oxy_dk_test',
+      redirectUri: 'https://app.example/callback',
+      codeVerifier: 'verifier',
+    });
+
+    expect(result).toMatchObject({
+      sessionId: 's1',
+      accessToken: 'tok',
+      user: { id: 'u1', username: 'alice' },
+    });
+    // Absent, not `undefined`-valued: a device-less grant carries no device keys
+    // at all, so nothing downstream can read one and persist an empty credential.
+    expect(result).not.toHaveProperty('deviceId');
+    expect(result).not.toHaveProperty('deviceSecret');
+    expect(oxy.getAccessToken()).toBe('tok');
+  });
+
+  it('exchangeOAuthCode accepts a deviceId with no deviceSecret', async () => {
     makeRequest.mockResolvedValueOnce({
       access_token: 'tok',
       token_type: 'Bearer',
@@ -167,6 +200,26 @@ describe('pre-session public endpoints use skipAuth', () => {
       deviceId: 'd1',
       user: { id: 'u1' },
     });
+
+    const result = await oxy.exchangeOAuthCode({
+      code: 'code-1',
+      clientId: 'oxy_dk_test',
+      redirectUri: 'https://app.example/callback',
+      codeVerifier: 'verifier',
+    });
+
+    expect(result).toMatchObject({ sessionId: 's1', deviceId: 'd1' });
+    expect(result).not.toHaveProperty('deviceSecret');
+  });
+
+  // The device pair left the guard; what identifies the session did NOT. Without
+  // these two the whole guard could be deleted and every test above would stay
+  // green — `sessionId` would silently become `undefined` on the returned session.
+  it.each([
+    ['session_id', { access_token: 'tok', expires_in: 900, user: { id: 'u1' } }],
+    ['user', { access_token: 'tok', expires_in: 900, session_id: 's1' }],
+  ])('exchangeOAuthCode still rejects a response missing %s', async (_field, response) => {
+    makeRequest.mockResolvedValueOnce(response);
     await expect(
       oxy.exchangeOAuthCode({
         code: 'code-1',
