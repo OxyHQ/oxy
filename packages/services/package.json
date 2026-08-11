@@ -171,7 +171,7 @@
     "expo-linear-gradient": "catalog:",
     "expo-notifications": "catalog:",
     "expo-web-browser": "catalog:",
-    "husky": "^4.3.8",
+    "husky": "^9.1.7",
     "jest": "~29.7.0",
     "lint-staged": "^15.2.4",
     "nativewind": "catalog:",
