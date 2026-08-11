@@ -7,7 +7,6 @@ import type { User } from '../models/interfaces';
 import type {
   UserNameResponse,
   LoginResult,
-  LoginSessionResult,
   CommonsDenyReason,
 } from '@oxyhq/contracts';
 import { loginResultSchema, safeParseContract } from '@oxyhq/contracts';
@@ -72,6 +71,42 @@ export interface OAuthUserInfoResponse {
   preferred_username?: string;
   name?: string;
   picture?: string;
+}
+
+/**
+ * The session an OAuth authorization-code exchange yields.
+ *
+ * Deliberately NOT `LoginSessionResult`. That type mirrors the API's
+ * `buildSessionAuthResponse`, which every FIRST-PARTY sign-in lane emits, and it
+ * requires `deviceId` because those lanes always join the origin's DeviceSession.
+ * `POST /auth/oauth/token` is the RFC 6749 token endpoint and serves third
+ * parties, whose grant is deliberately ISOLATED: an untrusted application must be
+ * able to receive a session carrying NO DeviceSession credential at all.
+ *
+ * Both device fields are therefore optional here, and a response omitting them is
+ * a well-formed device-less grant rather than a malformed payload. What that
+ * costs the session is spelled out on `exchangeOAuthCode` below.
+ */
+export interface OAuthTokenExchangeResult {
+  sessionId: string;
+  /** ISO-8601 expiry of {@link accessToken}, derived from RFC 6749 `expires_in`. */
+  expiresAt: string;
+  accessToken?: string;
+  /**
+   * The DeviceSession this grant joined, when the server issued one. ABSENT for
+   * an isolated third-party grant — never assume a string.
+   */
+  deviceId?: string;
+  /**
+   * The zero-cookie mint credential for {@link deviceId}. Present only alongside
+   * it; absent for an isolated third-party grant.
+   */
+  deviceSecret?: string;
+  user: {
+    id: string;
+    username?: string;
+    avatar?: string;
+  };
 }
 
 // ===========================================================================
@@ -1699,13 +1734,30 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      * response this method used before were an Oxy invention no OAuth library
      * could interoperate with; the endpoint no longer accepts them. The method's
      * OWN signature is unchanged, so callers are unaffected.
+     *
+     * `deviceId` + `deviceSecret` are OPTIONAL and their absence is a valid
+     * outcome, not an error. A third-party grant is meant to be isolated from the
+     * browser's shared DeviceSession, so the token endpoint must be free to return
+     * no device credential at all — the guard that used to require the pair made
+     * that omission unshippable, since it turned every third-party sign-in through
+     * the SDK into a silent `exchange-failed`.
+     *
+     * The cost is real and deliberate: a DEVICE-LESS session cannot use the
+     * zero-cookie mint lane (`POST /session/device/token`), because that lane's
+     * whole proof is possession of a `deviceSecret`. Its lifetime is therefore the
+     * access token itself — nothing persists a restore credential, the cold boot's
+     * `device-secret-mint` step reports `no-secret` and skips, and the refresh
+     * scheduler has nothing to re-mint from. When the token expires the session
+     * ends LOUDLY: the 401 lane clears the tokens and the provider resolves signed
+     * out, so the app can run the OAuth flow again. It never degrades into a
+     * session that looks alive and cannot refresh.
      */
     async exchangeOAuthCode(params: {
       code: string;
       clientId: string;
       redirectUri: string;
       codeVerifier: string;
-    }): Promise<LoginSessionResult> {
+    }): Promise<OAuthTokenExchangeResult> {
       try {
         const form = new URLSearchParams({
           grant_type: 'authorization_code',
@@ -1730,7 +1782,9 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         const deviceId = typeof record.deviceId === 'string' ? record.deviceId : undefined;
         const deviceSecret = typeof record.deviceSecret === 'string' ? record.deviceSecret : undefined;
         const userRaw = record.user;
-        if (!sessionId || !deviceId || !deviceSecret || !userRaw || typeof userRaw !== 'object') {
+        // The device pair is NOT part of this guard — see the note above. What is
+        // still mandatory is what identifies the session at all.
+        if (!sessionId || !userRaw || typeof userRaw !== 'object') {
           throw new Error('auth/oauth/token returned an incomplete session payload');
         }
         const userObj = userRaw as Record<string, unknown>;
@@ -1744,12 +1798,20 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         if (accessToken) {
           this.setTokens(accessToken);
         }
+        if (!deviceId || !deviceSecret) {
+          logger.debug(
+            'auth/oauth/token returned no device credential — this session lives only as long as its access token',
+            { component: 'oxy.auth', method: 'exchangeOAuthCode' },
+          );
+        }
         return {
           sessionId,
-          deviceId,
           expiresAt,
           accessToken,
-          deviceSecret,
+          // Omitted rather than set to `undefined` when the server sent no device
+          // credential, so a device-less grant serializes as the absence it is.
+          ...(deviceId ? { deviceId } : {}),
+          ...(deviceSecret ? { deviceSecret } : {}),
           user: {
             id: userId,
             username: typeof userObj.username === 'string' ? userObj.username : undefined,

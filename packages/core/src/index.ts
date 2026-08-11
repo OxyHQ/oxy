@@ -49,7 +49,11 @@ export type {
     CommonsDeliveryPlatform,
     CommonsDeliveryRoute,
 } from './utils/commonsDelivery';
-export type { ServiceTokenResponse, OAuthUserInfoResponse } from './mixins/OxyServices.auth';
+export type {
+    ServiceTokenResponse,
+    OAuthUserInfoResponse,
+    OAuthTokenExchangeResult,
+} from './mixins/OxyServices.auth';
 // "Sign in with Oxy" — handoff (Workstream C)
 export type {
     CommonsSignInHandle,
