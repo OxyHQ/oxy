@@ -27,14 +27,26 @@ function sharedDirectory(activeContextId: string | null): DeviceDirectory {
         id: 'p-nate',
         userId: 'nate',
         authuser: 0,
-        user: { id: 'nate', username: 'nate', name: { displayName: 'Nate I.' }, avatar: 'av-nate' },
+        user: {
+          id: 'nate',
+          username: 'nate',
+          name: { displayName: 'Nate I.' },
+          avatar: 'av-nate',
+          color: 'purple',
+        },
         contexts: [
           {
             id: 'ctx-nate',
             accountId: 'nate',
             kind: 'personal',
             relationship: 'self',
-            account: { id: 'nate', username: 'nate', name: { displayName: 'Nate I.' }, avatar: 'av-nate' },
+            account: {
+              id: 'nate',
+              username: 'nate',
+              name: { displayName: 'Nate I.' },
+              avatar: 'av-nate',
+              color: 'purple',
+            },
             onDevice: true,
             available: true,
             active: activeContextId === 'ctx-nate',
@@ -45,7 +57,7 @@ function sharedDirectory(activeContextId: string | null): DeviceDirectory {
             accountId: 'org',
             kind: 'organization',
             relationship: 'owner',
-            account: { id: 'org', username: 'oxy', avatar: null },
+            account: { id: 'org', username: 'oxy', avatar: null, color: 'amber' },
             onDevice: true,
             available: true,
             active: activeContextId === 'ctx-nate-org',
@@ -64,7 +76,7 @@ function sharedDirectory(activeContextId: string | null): DeviceDirectory {
             accountId: 'org',
             kind: 'organization',
             relationship: 'member',
-            account: { id: 'org', username: 'oxy', avatar: null },
+            account: { id: 'org', username: 'oxy', avatar: null, color: 'amber' },
             // A live delegated session under a principal whose own session died:
             // on the device, and still not activatable.
             onDevice: true,
@@ -128,6 +140,29 @@ describe('buildSwitcherRows', () => {
     expect(rows[0].contexts[1].avatarUrl).toBeUndefined();
   });
 
+  /**
+   * Issue #961. The row model dropped the accent when the switcher moved onto
+   * the directory, so every non-active row fell back to the ambient theme accent
+   * and a device holding two people drew them identically.
+   */
+  it('carries each account’s own accent, per row', () => {
+    const rows = rowsFor(sharedDirectory('ctx-nate'), 'ctx-nate');
+
+    expect(rows[0].color).toBe('purple');
+    expect(rows[0].contexts[0].color).toBe('purple');
+    // The SUBJECT's colour, not the person's: this row is Nate acting as the
+    // organization, and it is the organization being drawn.
+    expect(rows[0].contexts[1].color).toBe('amber');
+  });
+
+  it('answers null for an account with no colour, so the renderer uses the theme accent', () => {
+    const rows = rowsFor(sharedDirectory('ctx-nate'), 'ctx-nate');
+
+    // Alice's profile carries no `color` at all — absent must reach the renderer
+    // as null, never as `undefined` it has to re-guess the meaning of.
+    expect(rows[1].color).toBeNull();
+  });
+
   it('flags delegation by comparing the pair, not by reading the relationship word', () => {
     const rows = rowsFor(sharedDirectory('ctx-nate'), 'ctx-nate');
 
@@ -153,6 +188,7 @@ describe('showsPrincipalHeaders', () => {
     displayName: id,
     handle: id,
     avatarUrl: undefined,
+    color: null,
     isActive: false,
     contexts: contextIds.map((contextId) => ({
       contextId,
@@ -160,6 +196,7 @@ describe('showsPrincipalHeaders', () => {
       displayName: contextId,
       handle: contextId,
       avatarUrl: undefined,
+      color: null,
       isActive: false,
       isDelegated: false,
       canActivate: true,

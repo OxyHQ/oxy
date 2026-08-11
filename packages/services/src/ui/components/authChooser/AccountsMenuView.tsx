@@ -53,13 +53,14 @@ import {
 import AvatarCameraBadge from '../AvatarCameraBadge';
 import { HoverPressable } from './primitives';
 import { authChooserStyles as styles } from './styles';
-import type {
-  AccountHeroModel,
-  AccountStorageModel,
-  AccountsMenuActions,
-  OxyAuthChooserHandlers,
-  Theme,
-  Translate,
+import {
+  resolveAccentHex,
+  type AccountHeroModel,
+  type AccountStorageModel,
+  type AccountsMenuActions,
+  type OxyAuthChooserHandlers,
+  type Theme,
+  type Translate,
 } from './types';
 
 /**
@@ -280,7 +281,7 @@ const AccountsMenuView: React.FC<AccountsMenuViewProps> = ({
               <ContextRow
                 context={context}
                 principalName={principal.displayName}
-                accent={context.isActive ? currentAccent : theme.colors.primary}
+                accent={resolveAccentHex(context.color, theme.colors.primary)}
                 activating={snapshot.activatingContextId === context.contextId}
                 removing={snapshot.removingContextId === context.contextId}
                 disabled={busy}
@@ -578,6 +579,11 @@ const PrincipalHeaderRow: React.FC<{
 const ContextRow: React.FC<{
   context: SwitcherContextRow;
   principalName: string;
+  /**
+   * This ROW's own accent, resolved from `context.color` by the caller. Never
+   * the signed-in account's: two people on one device would then be drawn in
+   * whichever of them happens to be active.
+   */
   accent: string;
   activating: boolean;
   removing: boolean;
