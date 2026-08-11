@@ -265,6 +265,15 @@ async function follow(followerId: string, followedId: string): Promise<void> {
   await getDb().insert(userFollows).values({ followerId, followedId });
 }
 
+async function followExists(followerId: string, followedId: string): Promise<boolean> {
+  const [row] = await getDb()
+    .select({ id: userFollows.id })
+    .from(userFollows)
+    .where(and(eq(userFollows.followerId, followerId), eq(userFollows.followedId, followedId)))
+    .limit(1);
+  return row !== undefined;
+}
+
 async function userExists(id: string): Promise<boolean> {
   const [row] = await getDb().select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1);
   return row !== undefined;
@@ -423,10 +432,10 @@ describe('POST /federation/domain-purge — dry run writes nothing', () => {
     // The plan is non-empty: "wrote nothing" cannot be satisfied by "did nothing".
     expect(data.actorsMatched).toBe(2);
     expect(data.actorsProcessed).toBe(2);
-    expect(data.actorsDeleted).toBe(2);
+    expect(data.actorsDeleted).toBe(0);
     expect(data.filesDeleted).toBe(2);
-    expect(data.avatarsDeleted).toBe(2);
-    expect(data.bytesDeleted).toBe(500 + 20 + 700 + 30);
+    expect(data.avatarsDeleted).toBe(0);
+    expect(data.bytesDeleted).toBe(500 + 700);
     expect(data.dryRun).toBe(true);
 
     await expectStoreUnchanged(before);
@@ -439,7 +448,7 @@ describe('POST /federation/domain-purge — dry run writes nothing', () => {
     const data = planOf(await purge({ domain: corpus.domain }));
 
     expect(data.dryRun).toBe(true);
-    expect(data.actorsDeleted).toBe(2);
+    expect(data.actorsDeleted).toBe(0);
     await expectStoreUnchanged(before);
   });
 
@@ -454,12 +463,12 @@ describe('POST /federation/domain-purge — dry run writes nothing', () => {
     expect(applied.avatarsDeleted).toBe(planned.avatarsDeleted);
     expect(applied.bytesDeleted).toBe(planned.bytesDeleted);
 
-    // And the applied numbers describe the store: both actors gone, and their
-    // files with them (`files.owner_user_id` cascades).
-    expect(await userExists(corpus.actors[0])).toBe(false);
-    expect(await userExists(corpus.actors[1])).toBe(false);
-    expect(await fileState(corpus.fileA)).toBe('gone');
-    expect(await fileState(corpus.avatarB)).toBe('gone');
+    // Caller-owned files are tombstoned, while globally shared actors and
+    // unattributed avatars remain available to other applications.
+    expect(await userExists(corpus.actors[0])).toBe(true);
+    expect(await userExists(corpus.actors[1])).toBe(true);
+    expect(await fileState(corpus.fileA)).toBe('deleted');
+    expect(await fileState(corpus.avatarB)).toBe('active');
   });
 });
 
@@ -475,11 +484,11 @@ describe('POST /federation/domain-purge — a non-blocked domain is never touche
 
     const data = planOf(await purge({ domain, dryRun: false }));
 
-    expect(data.actorsDeleted).toBe(1);
+    expect(data.actorsDeleted).toBe(0);
     // The subdomain actor and its file survive: the engine still federates with it.
     expect(await userExists(subdomainActor)).toBe(true);
     expect(await fileState(subdomainFile)).toBe('active');
-    expect(await userExists(blockedActor)).toBe(false);
+    expect(await userExists(blockedActor)).toBe(true);
   });
 
   it('leaves an unrelated domain untouched', async () => {
@@ -493,7 +502,7 @@ describe('POST /federation/domain-purge — a non-blocked domain is never touche
 
     planOf(await purge({ domain, dryRun: false }));
 
-    expect(await userExists(blockedActor)).toBe(false);
+    expect(await userExists(blockedActor)).toBe(true);
     expect(await userExists(otherActor)).toBe(true);
     expect(await fileState(otherFile)).toBe('active');
   });
@@ -534,10 +543,10 @@ describe('POST /federation/domain-purge — canonical host matching', () => {
 
     const data = planOf(await purge({ domain, dryRun: false }));
 
-    expect(data.actorsDeleted).toBe(1);
+    expect(data.actorsDeleted).toBe(0);
     expect(data.candidatesRejected).toBe(0);
-    expect(await userExists(actor)).toBe(false);
-    expect(await fileState(file)).toBe('gone');
+    expect(await userExists(actor)).toBe(true);
+    expect(await fileState(file)).toBe('deleted');
   });
 
   it('matches when the CALLER spells the domain with www. and the store does not', async () => {
@@ -547,7 +556,7 @@ describe('POST /federation/domain-purge — canonical host matching', () => {
     const data = planOf(await purge({ domain: `www.${domain}`, dryRun: false }));
 
     expect(data.canonicalDomain).toBe(domain);
-    expect(await userExists(actor)).toBe(false);
+    expect(await userExists(actor)).toBe(true);
   });
 
   /**
@@ -599,6 +608,32 @@ describe('POST /federation/domain-purge — canonical host matching', () => {
 });
 
 describe('POST /federation/domain-purge — multi-tenancy', () => {
+  it('retains an actor when another application may reference it without owning a file', async () => {
+    const domain = freshDomain();
+    const actor = await seedFederatedUser(domain);
+    const localFollower = await seedLocalUser();
+    await follow(localFollower, actor);
+    const mine = await seedFile(actor, {
+      source: 'federation',
+      serviceAppId: CALLER_APP_ID,
+    });
+
+    const data = planOf(await purge({ domain, dryRun: false }));
+
+    expect(data.actorsDeleted).toBe(0);
+    expect(data.followEdgesRemoved).toBe(0);
+    expect(data.actorsRetained).toEqual([
+      expect.objectContaining({
+        oxyUserId: actor,
+        referencedByAppIds: [],
+        retentionReason: 'application_references_unknown',
+      }),
+    ]);
+    expect(await userExists(actor)).toBe(true);
+    expect(await fileState(mine)).toBe('deleted');
+    expect(await followExists(localFollower, actor)).toBe(true);
+  });
+
   it("never deletes another application's files, and RETAINS the shared row", async () => {
     const domain = freshDomain();
     const actor = await seedFederatedUser(domain);
@@ -682,7 +717,7 @@ describe('POST /federation/domain-purge — multi-tenancy', () => {
 
     expect(data.filesDeleted).toBe(1);
     expect(data.bytesDeleted).toBe(100);
-    expect(await userExists(actor)).toBe(false);
+    expect(await userExists(actor)).toBe(true);
   });
 });
 
@@ -726,7 +761,7 @@ describe('POST /federation/domain-purge — authorisation and arming', () => {
 
     const data = planOf(await purge({ domain: corpus.domain, dryRun: true }));
 
-    expect(data.actorsDeleted).toBe(2);
+    expect(data.actorsDeleted).toBe(0);
     await expectStoreUnchanged(before);
   });
 });
@@ -739,10 +774,10 @@ describe('POST /federation/domain-purge — bounded, resumable, idempotent', () 
     const first = planOf(await purge({ domain: corpus.domain, dryRun: false, limit: 1 }));
 
     expect(first.actorsProcessed).toBe(1);
-    expect(first.actorsDeleted).toBe(1);
+    expect(first.actorsDeleted).toBe(0);
     expect(first.done).toBe(false);
     expect(first.nextCursor).toBe(actorA);
-    expect(await userExists(actorA)).toBe(false);
+    expect(await userExists(actorA)).toBe(true);
     expect(await userExists(actorB)).toBe(true);
 
     const second = planOf(
@@ -755,11 +790,14 @@ describe('POST /federation/domain-purge — bounded, resumable, idempotent', () 
     );
 
     expect(second.actorsProcessed).toBe(1);
-    expect(second.remaining).toBe(0);
-    expect(await userExists(actorB)).toBe(false);
-    // Every file of both actors went with them.
-    for (const fileId of [corpus.fileA, corpus.avatarA, corpus.fileB, corpus.avatarB]) {
-      expect(await fileState(fileId)).toBe('gone');
+    expect(second.remaining).toBe(2);
+    expect(await userExists(actorB)).toBe(true);
+    // Only caller-owned files are removed; shared rows and avatars survive.
+    for (const fileId of [corpus.fileA, corpus.fileB]) {
+      expect(await fileState(fileId)).toBe('deleted');
+    }
+    for (const fileId of [corpus.avatarA, corpus.avatarB]) {
+      expect(await fileState(fileId)).toBe('active');
     }
   });
 
@@ -800,11 +838,11 @@ describe('POST /federation/domain-purge — bounded, resumable, idempotent', () 
 
     const repeat = planOf(await purge({ domain: corpus.domain, dryRun: false }));
 
-    expect(repeat.actorsMatched).toBe(0);
-    expect(repeat.actorsProcessed).toBe(0);
+    expect(repeat.actorsMatched).toBe(2);
+    expect(repeat.actorsProcessed).toBe(2);
     expect(repeat.actorsDeleted).toBe(0);
     expect(repeat.done).toBe(true);
-    expect(repeat.nextCursor).toBeNull();
+    expect(repeat.nextCursor).not.toBeNull();
     await expectStoreUnchanged(before);
   });
 
@@ -836,9 +874,9 @@ describe('POST /federation/domain-purge — bounded, resumable, idempotent', () 
     );
 
     // The cursor moved past the retained row onto the next actor.
-    expect(pass2.actorsDeleted).toBe(1);
-    expect(await userExists(deletable)).toBe(false);
-    expect(await fileState(mine)).toBe('gone');
+    expect(pass2.actorsDeleted).toBe(0);
+    expect(await userExists(deletable)).toBe(true);
+    expect(await fileState(mine)).toBe('deleted');
     expect(await userExists(retained)).toBe(true);
     expect(await fileState(theirs)).toBe('active');
   });

@@ -427,9 +427,9 @@ function isDomainPurgeArmed(): boolean {
 /**
  * POST /federation/domain-purge
  *
- * Removes what the Oxy PLATFORM holds for a fediverse instance the calling app
- * has blocked: the app's mirrored media, the avatars Oxy fetched, and the
- * `type:'federated'` user rows themselves with their social-graph edges.
+ * Removes caller-owned mirrored media for a fediverse instance the calling app
+ * has blocked. Shared actor rows, platform avatars, and graph edges are retained
+ * because file ownership cannot prove that another app does not use an actor.
  *
  * Oxy holds NO blocklist and never will — the calling app owns that policy and
  * names one domain per call. The rationale, the ownership rules and the exact
@@ -440,8 +440,9 @@ function isDomainPurgeArmed(): boolean {
  * WHOSE DATA: files are deleted only when their recorded `serviceAppId` is the
  * caller's own application id, taken from the SERVICE CREDENTIAL
  * (`req.serviceApp.appId`) and never from the request body — an app cannot ask
- * Oxy to delete another app's data. A user row shared with another application
- * is archived and kept, and the response names the apps that kept it.
+ * Oxy to delete another app's data. Every globally shared actor row is archived
+ * and kept; tagged files can identify known app references, but their absence
+ * is not proof that no untagged application reference exists.
  *
  * SAFE BY DEFAULT: `dryRun` defaults to true, so a caller that omits it gets a
  * plan. A real deletion needs `dryRun:false` AND
