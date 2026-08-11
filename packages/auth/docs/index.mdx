@@ -28,7 +28,7 @@ The IdP renders `@oxyhq/services` components via React Native Web, so its sign-i
 </OxyProvider>
 ```
 
-- No special props — the IdP is a device-first origin exactly like every other Oxy app: it runs the normal cold boot (restores this origin's own session from its persisted `{deviceId, deviceSecret}`) and enumerates device accounts via `useSwitchableAccounts`. It stays a SHELL that emits the OAuth code after authenticating — it does not bounce elsewhere for its own session. (The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.)
+- No special props — the IdP is a device-first origin exactly like every other Oxy app: it runs the normal cold boot (restores this origin's own session from its persisted `{deviceId, deviceSecret}`) and reads the device directory via `useDeviceSwitcher`, selecting a `principal acting as account` pair with `activateContext(contextId)`. It stays a SHELL that emits the OAuth code after authenticating — it does not bounce elsewhere for its own session. (The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.)
 - The sign-in surface is the shared SDK device-first funnels (`signInWithPassword`, `completeTwoFactorSignIn`) via the multi-step login form (identifier → password → 2FA). OAuth visitors with no local session use the Commons QR lane (`CommonsOAuthLane`).
 - Consent renders `OxyConsentScreen` from `@oxyhq/services`, fed by the registered `Application` (name, logo, scopes, `privacyPolicyUrl`, `termsUrl`).
 

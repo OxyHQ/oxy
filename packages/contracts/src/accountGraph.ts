@@ -14,8 +14,8 @@ import { z } from 'zod';
  *
  * `personal` is the only kind minted by signup and the only one that carries
  * its own credentials; every other kind is a child account created under a
- * parent and operated through `account_members`. The API schema, the Mongoose
- * model and the SDK all derive from this list rather than restating it, so a
+ * parent and operated through `account_members`. The API schema, the Drizzle
+ * table and the SDK all derive from this list rather than restating it, so a
  * new kind is one edit here instead of four literals that can drift.
  */
 export type AccountKind = 'personal' | 'organization' | 'project' | 'bot' | 'channel';
@@ -27,9 +27,10 @@ export type AccountKind = 'personal' | 'organization' | 'project' | 'bot' | 'cha
  * `db/schema/users.ts` mirrors to keep the `users_kind_check` CHECK honest.
  *
  * Deriving the union from the array instead would cost nothing here and be paid
- * by consumers: `kind` travels into `@oxyhq/services` through
- * `SwitchableAccount`, where an indexed-access type is materially more
- * expensive to check than a literal union.
+ * by consumers: `kind` travels into `@oxyhq/services` on every device-directory
+ * context (`deviceContextSchema.kind` → `DeviceContext` → the switcher rows),
+ * and an indexed-access type is materially more expensive to check there than a
+ * literal union.
  */
 export const ACCOUNT_KINDS = [
   'personal',

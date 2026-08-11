@@ -161,11 +161,27 @@ PRIMARY identity key owns the session PERMANENTLY, independent of the device's m
    (`account_not_on_device`) falls through to step 3 without dropping the secret. A
    `no_active_session` 401 is an authoritative signed-out; an `invalid_device_secret` 401
    drops the (diverged) secret and falls through.
-3. **`shared-key-signin`** (native, `'account'` mode) — re-mint from the shared Commons
-   identity in the app-group keychain — **replaced by `identity-key-signin`** in
+3. **`shared-device-adopt`** (native, `'account'` mode) — read the cross-app shared slot
+   (a dedicated `keychainService` inside the app group on iOS; the signature-protected
+   `OxyDeviceSession` broker on Android) and, if it holds a `deviceId` + `deviceSecret`
+   this app does not already have one of, adopt it and prove it with an ordinary mint.
+   What travels here is an individually revocable SESSION credential, never the Commons
+   private key — that separation is the point of the lane. `decideSharedDeviceJoin`
+   gates it in both directions: an app already holding its own credential is never
+   moved, and a slot that could not be READ is never mistaken for an empty one, so the
+   lane can sign nobody out in either upgrade order. A failed mint reverts the store to
+   exactly what it held before. In `'identity'` mode this lane does not run — the vault
+   never lets a background credential decide which session its siblings boot into.
+4. **`shared-key-signin`** (native, `'account'` mode) — the RECOVERY lane, and now the
+   LAST one: sign a challenge with the shared Commons identity key in the app-group
+   keychain to re-mint a session. Using a self-custody identity key to obtain an
+   ordinary session is the over-sharing issue #937 exists to end, so it is reachable
+   only where step 3 found nothing — an install predating the shared slot, or a slot
+   that is unreadable. Its own persist seeds the slot, so the first boot that needs it
+   is the last one that does. It is **replaced by `identity-key-signin`** in
    `'identity'` mode, which re-mints from THIS device's PRIMARY key
    (`KeyManager.getPublicKey()` → challenge → sign → `verifyChallenge`) and
-   (re)establishes the identity pin. Both are network steps, gated on the same
+   (re)establishes the identity pin. Steps 3 and 4 are network steps, gated on the same
    best-effort offline hint as step 2, and both run with `{ retry: false }` (the proactive
    refresh scheduler and the reactive 401 lane own retries).
 
@@ -174,7 +190,7 @@ navigation and no dialog. One more lane runs around it, in `@oxyhq/services`, fo
 apps in `'account'` mode only (it is inert in `sessionMode: 'identity'`, which would
 otherwise commit whichever account the IdP resolves rather than the local key's owner):
 
-4. **OAuth authorization-code return** (`tryCompleteOAuthReturn`) — consumes a `?code=`
+5. **OAuth authorization-code return** (`tryCompleteOAuthReturn`) — consumes a `?code=`
    **already on the URL**, BEFORE `runSessionColdBoot` runs. Always enabled in both
    `webAuthMode`s: this is not a navigation the SDK started, it is the return leg of a
    full-page authorize the user themselves triggered — either an explicit
@@ -183,7 +199,7 @@ otherwise commit whichever account the IdP resolves rather than the local key's 
    OAuth `?error=` landing on the URL (the params and the stale PKCE handshake are
    stripped, and the boot continues).
 
-There is no fifth lane. The `prompt=none` silent cross-origin restore that used to run
+There is no sixth lane. The `prompt=none` silent cross-origin restore that used to run
 here was deleted in issue #691 phase 7b, in **both** transports — not gated, removed.
 A web origin with no local device credential resolves signed out and waits for the
 user's next explicit "Continue with Oxy".
@@ -203,8 +219,11 @@ flowchart TD
   Mint -->|session| In
   Mint -->|"401 no_active_session"| Native
   Mint -->|"401 invalid_device_secret / transient"| Native
-  Secret -->|no| Native{"account mode: native + Commons key? / identity mode: primary key"}
-  Native -->|yes| Shared["shared-key-signin (account) / identity-key-signin (identity)"]
+  Secret -->|no| Slot{"native, account mode: shared device credential in the cross-app slot?"}
+  Slot -->|yes| Adopt["shared-device-adopt — adopt + prove by mint"]
+  Adopt --> In
+  Slot -->|"no / unreadable"| Native{"account mode: native + Commons key? / identity mode: primary key"}
+  Native -->|yes| Shared["shared-key-signin (account, recovery) / identity-key-signin (identity)"]
   Shared --> In
   Native -->|"no / web"| Out["Signed out — silent, no navigation"]
   Out --> Btn["User taps Continue with Oxy -> OxyAccountDialog / OxySignInButton"]
@@ -281,17 +300,27 @@ Two distinct layers — do not conflate them:
 | **DeviceSession** (device set) | Accounts signed in **on this device** right now | `/session/device/*`, `SessionClient` |
 | **Account graph** | Accounts the user **may** use — own, child orgs/projects/bots, shared via membership | `GET /accounts`, `POST /accounts/:id/switch` (`account.service.ts`) |
 
-The account switcher (`OxyAccountDialog`) shows both: the device set, plus graph accounts
-available for `act_as` that are not yet signed in here.
+**The account switcher does not read either of those layers directly, and does not
+combine them.** It renders one request — `GET /session/device/directory` (ADR 0002) —
+which is the SERVER's answer to "who is on this device, and what may each of them act
+as". The union it replaced was assembled in the client from `listAccounts()` and the
+device's session set, and that was wrong rather than merely redundant: a client holds
+exactly ONE caller's account graph and cannot enumerate another principal's, so on a
+device holding two people it presented one person's accounts as the device's, and
+switchability — an authorization question — was decided client-side.
 
-Switch semantics (`useOxy().switchToAccount(accountId)`):
+Switch semantics, in the switcher (`useDeviceSwitcher().activateContext(contextId)` →
+`POST /session/device/activate`): one endpoint, one shape. `contextId` names a
+`principal acting as account` PAIR, so the same organization reachable through two
+people is two rows under two humans rather than one row that picks for the user. The
+server mints the delegated session when a context is entered for the first time, so
+there is no client-side fork between "already on the device" and "first entry".
 
-- **Account already in the device set** → `POST /session/device/switch` — flips
-  `activeAccountId`, no new session minted.
-- **Graph account not yet in the device set** (first entry) → `POST /accounts/:id/switch`
-  mints a real session with `operatedByUserId` set to the operator, then registers it via
-  `POST /session/device/add` — after which it switches like any other account. One
-  uniform path; minting happens only on first entry.
+`useOxy().switchToAccount(accountId)` still exists for surfaces that render
+`AccountNode`s rather than the directory — the Console workspace switcher, the managed
+accounts screens — and keeps the two-branch behaviour above (`POST /session/device/switch`
+when the account is already on the device, `POST /accounts/:id/switch` + `POST
+/session/device/add` on first entry). It is not what the account dialog calls.
 
 Because the state lives server-side keyed by device, **a switch persists across reloads**
 — the next cold boot reads the same `DeviceSession` and restores the same
@@ -304,9 +333,11 @@ membership. See [device-session.md](./auth/device-session.md) for the full API d
 
 | Module | Role |
 |--------|------|
+| `runtime/createOxyRuntime.ts` | The headless runtime that OWNS the session facts and the order they appear in (ADR 0004) — the provider reads its snapshot rather than keeping a second copy |
 | `OxyContext.tsx` | `OxyProvider` / `useOxy()` — session commit, cold boot, token side-effects |
 | `oxyContextTypes.ts` | `OxyContextState`, `PasswordSignInResult` |
-| `useOxyAccountGraph.ts` | `accounts`, `switchToAccount`, `createAccount` |
+| `hooks/useDeviceSwitcher.ts` | The switcher: `principals`, `activeContext`, `activateContext`, `signOutContext`, `signOutPrincipal` — straight from the device directory |
+| `useOxyAccountGraph.ts` | `accounts`, `switchToAccount`, `createAccount` — the `AccountNode` surface (Console, managed accounts), NOT the switcher |
 | `navigation/accountDialogManager.ts` | Imperative `openAccountDialog('signin')` |
 
 ```tsx
