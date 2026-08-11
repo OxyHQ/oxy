@@ -97,6 +97,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
     queryClient: providedQueryClient,
     requireAuth = 'off',
     backgroundSession = false,
+    deviceCredentialStorage = 'persistent',
 }) => {
 
     // Dynamic KeyboardProvider for native. Uses variable indirection
@@ -295,6 +296,7 @@ const OxyProvider: FC<OxyProviderProps> = ({
                     sessionMode={sessionMode}
                     webAuthMode={webAuthMode}
                     backgroundSession={backgroundSession}
+                    deviceCredentialStorage={deviceCredentialStorage}
                     onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
                 >
                     <SurfaceProvider>
