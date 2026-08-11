@@ -65,6 +65,35 @@ function readCode(relative: string): string {
 }
 
 /**
+ * The body of the brace-delimited block that follows `header`, by brace
+ * matching.
+ *
+ * Needed because the arms of a `when` are only bounded by the block's closing
+ * brace: scanning "from this arm to the next one" runs the LAST arm to the end
+ * of the file, where the companion object's constants make every assertion about
+ * that arm pass.
+ */
+function blockAfter(source: string, header: string): string {
+  const start = source.indexOf(header);
+  if (start < 0) {
+    throw new Error(`could not find '${header}'`);
+  }
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') {
+      depth += 1;
+    } else if (source[i] === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(open + 1, i);
+      }
+    }
+  }
+  throw new Error(`unterminated block after '${header}'`);
+}
+
+/**
  * Every `so.oxy.…devicesession` authority string in a file, deduped and sorted.
  * Matches the LITERAL strings in either quote style (Kotlin uses `"`, the
  * plugins use `'`), so a list expressed as a template or a loop simply yields
@@ -147,6 +176,7 @@ describe('shared DeviceSession credential — Android wiring', () => {
     // nothing. Asserting per-arm rather than just "the file mentions
     // STATUS_UNAVAILABLE" — a collapsed arm leaves the constant in the file.
     const provider = readCode('android/src/main/java/so/oxy/devicesession/OxyDeviceSessionProvider.kt');
+    const when = blockAfter(provider, 'return when (val read = OxyDeviceSessionStore.read(ctx))');
     const arms: [string, string][] = [
       ['Present', 'STATUS_PRESENT'],
       ['Absent', 'STATUS_ABSENT'],
@@ -154,9 +184,9 @@ describe('shared DeviceSession credential — Android wiring', () => {
     ];
     const marker = (name: string) => `is DeviceSessionRead.${name} ->`;
     for (const [name, expected] of arms) {
-      const start = provider.indexOf(marker(name));
+      const start = when.indexOf(marker(name));
       expect(start).toBeGreaterThanOrEqual(0);
-      const rest = provider.slice(start + marker(name).length);
+      const rest = when.slice(start + marker(name).length);
       const nextArm = arms
         .map(([other]) => rest.indexOf(marker(other)))
         .filter((index) => index >= 0);
