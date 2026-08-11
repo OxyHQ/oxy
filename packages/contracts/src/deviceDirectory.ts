@@ -32,17 +32,32 @@ export const deviceContextRelationshipSchema = z.enum(['self', 'owner', 'member'
 /**
  * Sanitized display metadata for a principal or an account context.
  *
- * Deliberately NOT `userResponseSchema`: a switcher needs a handle, a name and
- * an avatar, and the directory is read by every app on the device — so it
- * carries the minimum that renders a row and nothing that would make it a
- * general profile feed. `name.displayName` stays OPTIONAL; consumers fall back
- * to the handle (`getNormalizedUserHandle`), never to a synthesized name.
+ * Deliberately NOT `userResponseSchema`: a switcher needs a handle, a name, an
+ * avatar and the accent the row is drawn in, and the directory is read by every
+ * app on the device — so it carries the minimum that renders a row and nothing
+ * that would make it a general profile feed. `name.displayName` stays OPTIONAL;
+ * consumers fall back to the handle (`getNormalizedUserHandle`), never to a
+ * synthesized name.
+ *
+ * `color` is here and `email` is not, and the line between them is what the
+ * field is FOR rather than how sensitive it looks. An accent is a property of
+ * drawing the row — without it every non-active row falls back to the ambient
+ * theme accent and a device holding two people renders them identically
+ * (issue #961). An address is somebody's contact detail, and the `@handle` the
+ * secondary line already shows fills the same slot, so putting one in a payload
+ * every installed app reads would widen the profile for no rendering gain.
  */
 export const deviceDirectoryProfileSchema = z.object({
   id: z.string().min(1),
   username: z.string(),
   name: userNameSchema.optional(),
   avatar: z.string().nullable().optional(),
+  /**
+   * Named Bloom color preset (e.g. `"blue"`), or null when the account has
+   * none. Same shape as `userResponseSchema.color` — one spelling of one fact,
+   * so a consumer that themes a row from either source reads the same values.
+   */
+  color: z.string().nullable().optional(),
 });
 
 /**

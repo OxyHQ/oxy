@@ -143,6 +143,7 @@ function directoryProfile(row: {
   nameLast: string | null;
   nameDisplay: string | null;
   avatar: string | null;
+  color: string | null;
 }): DeviceDirectoryProfile {
   const name = formatUserNameResponse({
     name: { first: row.nameFirst, last: row.nameLast, displayName: row.nameDisplay },
@@ -152,6 +153,9 @@ function directoryProfile(row: {
     id: row.id,
     username: row.username ?? '',
     avatar: row.avatar ?? null,
+    // The accent the row is DRAWN in, not profile data: without it every
+    // non-active row falls back to the ambient theme accent (issue #961).
+    color: row.color ?? null,
   };
   // `name.displayName` stays OPTIONAL and the whole object is omitted when the
   // account has no real name at all — consumers fall back to the handle, never
@@ -1060,6 +1064,7 @@ class DeviceSessionService {
         nameLast: users.nameLast,
         nameDisplay: users.nameDisplay,
         avatar: users.avatar,
+        color: users.color,
         kind: users.kind,
       })
       .from(users)

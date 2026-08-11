@@ -328,11 +328,61 @@ describe('GET /session/device/directory — the server-authoritative read model'
     const directory = await deviceSessionService.getDirectory(device);
     const personal = contextFor(directory, nate, nate);
 
-    expect(Object.keys(personal?.account ?? {}).sort()).toEqual(['avatar', 'id', 'name', 'username']);
+    expect(Object.keys(personal?.account ?? {}).sort()).toEqual([
+      'avatar',
+      'color',
+      'id',
+      'name',
+      'username',
+    ]);
     expect(personal?.account.name).toEqual({ displayName: 'Nate Isern', first: 'Nate', last: 'Isern', full: 'Nate Isern' });
     const serialized = JSON.stringify(directory);
     expect(serialized).not.toContain('@example.com');
     expect(serialized).not.toContain('a bio nobody asked');
+  });
+
+  it('draws every row in its own account’s accent, not one theme accent', async () => {
+    const device = newDeviceId();
+    const nate = await account({ color: 'purple' });
+    const org = await organization(nate);
+    await getDb().update(users).set({ color: 'amber' }).where(eq(users.id, org));
+    await signIn(device, nate);
+
+    const directory = await deviceSessionService.getDirectory(device);
+
+    const principal = directory.principals.find((entry) => entry.userId === nate);
+    expect(principal?.user.color).toBe('purple');
+    expect(contextFor(directory, nate, nate)?.account.color).toBe('purple');
+    // The row that regressed when the switcher moved onto the directory
+    // (issue #961): a non-active row, whose accent no client holds a profile
+    // for and can therefore only learn from here.
+    expect(contextFor(directory, nate, org)?.account.color).toBe('amber');
+  });
+
+  it('keeps the accent on a revoked context, which reads from a different query', async () => {
+    const device = newDeviceId();
+    const nate = await account();
+    const org = await organization(nate);
+    await getDb().update(users).set({ color: 'sky' }).where(eq(users.id, org));
+    await signIn(device, nate);
+
+    const before = await deviceSessionService.getDirectory(device);
+    const contextId = contextFor(before, nate, org)?.id;
+    if (!contextId) throw new Error('the organization context was not materialized');
+    // Use it, so revoking leaves a reported row rather than dropping it.
+    await deviceSessionService.activateContext(device, contextId, request());
+    await getDb()
+      .delete(accountMembers)
+      .where(and(eq(accountMembers.accountId, org), eq(accountMembers.memberUserId, nate)));
+
+    const after = await deviceSessionService.getDirectory(device);
+
+    // A revoked row's profile cannot come from the act-as set it just fell out
+    // of, so it is built by the fallback lookup — a SECOND place the accent has
+    // to be selected, and one whose omission is invisible in the ordinary case.
+    const revoked = contextFor(after, nate, org);
+    expect(revoked?.available).toBe(false);
+    expect(revoked?.account.color).toBe('sky');
   });
 
   it('validates its own output against the published contract', async () => {
