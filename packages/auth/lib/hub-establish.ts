@@ -33,8 +33,9 @@
  * ## Single-shot, like the OAuth lane and for the same reason
  *
  * The server spends the request atomically, so a blind retry on an ambiguous
- * failure burns it. `claimStarted` is set BEFORE the call and never cleared;
- * recovery is a brand-new request, never a second claim of the old one.
+ * failure burns it. The request is marked SETTLED before the claim call rather
+ * than after it — beginning the spend is what makes it terminal — and recovery
+ * is a brand-new request, never a second claim of the old one.
  */
 
 import type { CommonsSignInHandle, CommonsSignInStatus } from "@oxyhq/core"
@@ -93,7 +94,6 @@ export class HubEstablishRequest {
     /** The SECRET. Never in the snapshot, never rendered, never in the QR. */
     private sessionToken: string | null = null
     private timer: ReturnType<typeof setTimeout> | null = null
-    private claimStarted = false
     private settled = false
 
     constructor(
@@ -171,11 +171,19 @@ export class HubEstablishRequest {
     }
 
     private async claim(): Promise<void> {
-        // Set BEFORE the call. An ambiguous failure must never be retried: the
-        // server spent the request, and a second claim would only burn a fresh
-        // one if the first had actually failed.
-        if (this.claimStarted || this.sessionToken === null) return
-        this.claimStarted = true
+        if (this.sessionToken === null) return
+        // Settled BEFORE the call, not after it. Beginning the spend is what
+        // makes this request terminal: the server spends it atomically, so an
+        // ambiguous failure must never be retried — a second claim would only
+        // burn a fresh request if the first had in fact succeeded. Recovery is a
+        // brand-new `HubEstablishRequest`, and `fail()` below leaves this set.
+        //
+        // One flag, not two. An extra `claimStarted` latch beside this one read
+        // as defence and was unreachable: nothing schedules a poll while a claim
+        // is in flight, so no test could distinguish it from `settled` — and a
+        // guard nothing can reach is a comment shaped like code.
+        this.settled = true
+        this.clearTimer()
         this.emit({ phase: "claiming" })
 
         const outcome = await this.deps.hub.claim(this.sessionToken)
@@ -186,8 +194,6 @@ export class HubEstablishRequest {
             this.fail("claim_failed")
             return
         }
-        this.settled = true
-        this.clearTimer()
         this.emit({ phase: "established", session: outcome.value, error: null })
     }
 
