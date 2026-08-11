@@ -27,14 +27,15 @@
  * ## What authorizes the write
  *
  * A service credential proves which APP is calling. It does not prove the person
- * asked for anything, and nothing here pretends otherwise. Two independent gates
+ * asked for anything, and nothing here pretends otherwise. Three independent gates
  * stand between a credential and someone's chain:
  *
- *  1. the `chains:write` scope on the service token, and
- *  2. the collection falling under one of the application's own
+ *  1. the `chains:write` scope on the service token,
+ *  2. the subject's revocable OAuth grant of `chains:write` to the app, and
+ *  3. the collection falling under one of the application's own
  *     `chainNamespaces` prefixes.
  *
- * The second is the real boundary: it is what stops an app with a valid
+ * The third is the namespace boundary: it is what stops an app with a valid
  * credential writing `app.someoneelse.*` records into every account it can name.
  * An application with no granted namespace can write nothing — the empty list
  * authorizes nothing rather than everything.
@@ -50,10 +51,11 @@
  * environment that cannot sign must not accept writes it will silently drop.
  */
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
+import { appGrants } from '../db/schema/appGrants';
 import { buildUserDid, OXY_DID } from './did.service';
 import { oxyRecordStore } from './oxyRecordStore';
 import { signRecordEnvelope, verifyAndStoreRecord, type StoredRecordRef } from './signedRecord.service';
@@ -77,7 +79,16 @@ const MAX_APPEND_ATTEMPTS = 3;
 /** Outcomes a caller has to distinguish. Never thrown — every one maps to a status. */
 export type AppChainWriteResult =
   | { ok: true; record: StoredRecordRef }
-  | { ok: false; reason: 'namespace_forbidden' | 'signing_disabled' | 'unknown_application' | 'rejected'; detail?: string };
+  | {
+      ok: false;
+      reason:
+        | 'namespace_forbidden'
+        | 'subject_forbidden'
+        | 'signing_disabled'
+        | 'unknown_application'
+        | 'rejected';
+      detail?: string;
+    };
 
 /** The namespace prefixes an application may write under, or `null` if unknown. */
 export async function chainNamespacesForApplication(appId: string): Promise<string[] | null> {
@@ -131,6 +142,15 @@ export async function appendAppRecord(args: {
   }
   if (!collectionIsWithinNamespaces(args.collection, namespaces)) {
     return { ok: false, reason: 'namespace_forbidden', detail: args.collection };
+  }
+
+  const [grant] = await getDb()
+    .select({ scopes: appGrants.scopes })
+    .from(appGrants)
+    .where(and(eq(appGrants.applicationId, args.appId), eq(appGrants.userId, args.oxyUserId)))
+    .limit(1);
+  if (!grant?.scopes.includes(CHAINS_WRITE_SCOPE)) {
+    return { ok: false, reason: 'subject_forbidden' };
   }
 
   const subject = buildUserDid(args.oxyUserId);

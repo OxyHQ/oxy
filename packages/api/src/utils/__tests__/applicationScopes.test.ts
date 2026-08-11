@@ -144,7 +144,7 @@ describe('payments:read / payments:write (F2.0)', () => {
   });
 });
 
-describe('follow scopes: the user grants them, the platform never assumes them', () => {
+describe('user-consent scopes: the user grants them, the platform never assumes them', () => {
   /*
    * Written out rather than derived from the constant. Iterating
    * `USER_CONSENT_REQUIRED_SCOPES` to check facts ABOUT it proves nothing:
@@ -158,9 +158,10 @@ describe('follow scopes: the user grants them, the platform never assumes them',
     'follows:manage',
     'follows:events',
     'follow-targets:register',
+    'chains:write',
   ] as const;
 
-  it('holds exactly the follow family, and loses none of it silently', () => {
+  it('holds exactly the user-authority scopes, and loses none of them silently', () => {
     expect([...USER_CONSENT_REQUIRED_SCOPES].sort()).toEqual([...MUST_BE_CONSENTED].sort());
   });
 
@@ -171,24 +172,29 @@ describe('follow scopes: the user grants them, the platform never assumes them',
     }
   });
 
-  it('recognises the whole family as valid application scopes', () => {
+  it('recognises every consent-required scope as a valid application scope', () => {
     for (const scope of MUST_BE_CONSENTED) {
       expect(isValidApplicationScope(scope)).toBe(true);
     }
   });
 
-  it('keeps them OUT of the privileged set', () => {
+  it('keeps follow scopes OUT of the privileged set', () => {
     // Privileged asks "may the app's owner grant this to themselves?" and its
     // answer is about platform staff. A follow scope's authority comes from the
     // subject user, so staff-gating it would be answering the wrong question —
     // and would block a third-party app the user genuinely authorized.
-    for (const scope of MUST_BE_CONSENTED) {
+    for (const scope of MUST_BE_CONSENTED.filter((scope) => scope !== 'chains:write')) {
       expect(isPrivilegedScope(scope)).toBe(false);
     }
   });
 
-  it('and the two sets do not overlap in the other direction either', () => {
-    for (const scope of PRIVILEGED_APPLICATION_SCOPES) {
+  it('requires both staff approval and user consent for chains:write', () => {
+    expect(isPrivilegedScope('chains:write')).toBe(true);
+    expect(isUserConsentRequiredScope('chains:write')).toBe(true);
+  });
+
+  it('does not require user consent for the other privileged scopes', () => {
+    for (const scope of PRIVILEGED_APPLICATION_SCOPES.filter((scope) => scope !== 'chains:write')) {
       expect(isUserConsentRequiredScope(scope)).toBe(false);
     }
   });

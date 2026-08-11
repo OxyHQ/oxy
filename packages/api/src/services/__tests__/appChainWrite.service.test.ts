@@ -21,6 +21,7 @@ import { ec as EC } from 'elliptic';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
+import { appGrants } from '../../db/schema/appGrants';
 import { signedRecords } from '../../db/schema/signedRecords';
 import { users } from '../../db/schema/users';
 import { OXY_DID } from '../did.service';
@@ -57,6 +58,12 @@ async function application(chainNamespaces: string[]): Promise<string> {
     .values({ name: `test-${randomUUID()}`, ownerAccountId, chainNamespaces })
     .returning({ id: applications.id });
   return row.id;
+}
+
+async function authorize(appId: string, userId: string): Promise<void> {
+  await getDb()
+    .insert(appGrants)
+    .values({ applicationId: appId, userId, scopes: ['chains:write'] });
 }
 
 describe('collectionIsWithinNamespaces', () => {
@@ -96,6 +103,7 @@ describe('collectionIsWithinNamespaces', () => {
 describe('appendAppRecord', () => {
   it('appends under the subject’s chain, issued by Oxy', async () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
+    await authorize(appId, userId);
 
     const result = await appendAppRecord({
       appId,
@@ -123,6 +131,7 @@ describe('appendAppRecord', () => {
 
   it('chains a second record onto the first', async () => {
     const [appId, userId] = [await application(['app.mention.']), await account()];
+    await authorize(appId, userId);
     const first = await appendAppRecord({
       appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'a', record: { text: '1' },
     });
@@ -144,6 +153,16 @@ describe('appendAppRecord', () => {
     });
 
     expect(result).toEqual({ ok: false, reason: 'namespace_forbidden', detail: 'app.syra.listen' });
+  });
+
+  it('refuses a subject who has not authorized the application', async () => {
+    const [appId, userId] = [await application(['app.mention.']), await account()];
+
+    const result = await appendAppRecord({
+      appId, oxyUserId: userId, collection: 'app.mention.feed.post', rkey: 'x', record: {},
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'subject_forbidden' });
   });
 
   it('refuses everything for an application with no grant', async () => {
