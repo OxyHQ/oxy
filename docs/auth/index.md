@@ -32,6 +32,8 @@ the five distinct meanings of "sign out":
 | Tokens and credentials (v2 claims) | [tokens-and-credentials.md](./tokens-and-credentials.md) | shipped |
 | Third-party integration | [integration-guide.md](./integration-guide.md) | shipped |
 | The IdP's own shape | [README.md](./README.md) | shipped |
+| The native cross-app device credential | [../SESSION-ARCHITECTURE.md](../SESSION-ARCHITECTURE.md) § Cold boot | built, not verified on a device |
+| The account switcher on the directory | [principals-and-account-contexts.md](./principals-and-account-contexts.md) | shipped |
 
 ## Why it is shaped this way
 
@@ -73,16 +75,35 @@ accepted gap with a named reason, not an oversight:
   rides four columns on `device_sessions` rather than the `device_credentials`
   table the target model describes. **Relying-party origins remain zero-cookie in
   both flag states.**
-- **The native shared DeviceSession credential is not built.** Ordinary apps
-  still restore through the paths `device-session.md` describes. Separating the
-  Commons private key from the ordinary cross-app session credential rewrites
-  keystore slot layout, where the failure mode is permanent, unrecoverable
-  identity loss — it needs real device verification, not reasoning.
-- **Third-party OAuth token exchange still returns `deviceId`/`deviceSecret`.**
-  The credential is for the client's own isolated per-`(user, client)` device,
-  never the shared one, so the global-credential hole is closed; omitting the
-  pair outright needs a `@oxyhq/core` release and an announced cutover. Tracked
-  in #954, with the reasoning at the call site.
+- **The native shared DeviceSession credential is BUILT and UNVERIFIED ON A
+  DEVICE.** A sibling official app's `deviceId` + `deviceSecret` now lives in a
+  dedicated cross-app slot — its own `keychainService` inside the approved access
+  group on iOS, a signature-protected `OxyDeviceSession` broker on Android — and
+  the cold boot's `shared-device-adopt` step joins it before falling back to
+  `shared-key-signin`. That is what separates the self-custody identity key from
+  ordinary session transport: an ordinary app never needs identity-key access.
+
+  **What has not happened is a device run.** There is no gradle job in CI, the
+  Kotlin is not compiled here, and a real ContentProvider needs an instrumented
+  test — so the Android and manifest invariants are held by source-level gates
+  that run on every `bun run test` instead, each mutation-tested. Those gates
+  read source; they cannot tell you the broker answers on a phone.
+
+  Deliberately still out of scope: the identity vault is excluded from both the
+  mirror and the adoption (a background persist inside the vault must not decide
+  which session five other apps boot into), and `shared-key-signin` is retained
+  as the last-resort recovery lane for devices where nothing has published a
+  credential yet.
+- **Third-party OAuth token exchange still returns `deviceId`/`deviceSecret` from
+  the API.** The client half landed: `exchangeOAuthCode` no longer REQUIRES the
+  pair, and a device-less grant boots, runs and expires correctly (its lifetime
+  is the access token — the zero-cookie mint lane's whole proof is possession of
+  a `deviceSecret`, so there is nothing to re-mint from and the 401 lane ends it
+  loudly). The server still sends both fields, because removing them breaks
+  external integrators pinned to older `@oxyhq/core` and needs an announced
+  cutover. The credential is for the client's own isolated per-`(user, client)`
+  device, never the shared one, so the global-credential hole is already closed.
+  Tracked in #954, with the reasoning at the call site.
 
 ## Rules that keep biting
 

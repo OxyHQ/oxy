@@ -25,10 +25,13 @@
  * The compatibility projection in `deviceSession.service.ts` therefore reports a
  * delegated account under its OPERATOR's `authuser`, which is a deliberate
  * consequence: on a device where one person operates an organization, the two
- * flat entries now share a slot number. Nothing keys on it — `@oxyhq/core`'s
- * `projectSwitchableAccounts` dedupes by `accountId` and carries `authuser`
- * through as display metadata — and the alternative would be to keep allocating
- * a human slot to a thing.
+ * flat entries now share a slot number. Nothing keys on it. The switcher does
+ * not read the flat shape at all any more — it renders the directory, where
+ * `authuser` sits on the PRINCIPAL (`deviceDirectory.ts`), which is the level
+ * the slot always meant. The only client that still sees a per-account
+ * `authuser` is `@oxyhq/core`'s `projectSessionState`, which copies it through
+ * as display metadata and never groups or dedupes on it. The alternative would
+ * be to keep allocating a human slot to a thing.
  *
  * ## `personal_session_id` is a reference WITHOUT a constraint, deliberately
  *
