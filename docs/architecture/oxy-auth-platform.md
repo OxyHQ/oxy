@@ -1,6 +1,6 @@
 # Oxy Authentication, Sessions & Account System — Plan Maestro
 
-> **Estado:** ✅ **IMPLEMENTADO — proyecto cerrado (2026-07-07).** Fases 0–7 + 2c en `main` y en producción (core 9 / services 19 / contracts 0.13; sesión device-first cero-cookie; IdP device-first sin excepción de transporte/chooser). Este documento es el plan maestro de referencia; el estado de ejecución y el cierre están en [`oxy-auth-audit.md`](./oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO". Aprobado para ejecución 2026-07-05 (Nate + agente planificación).  
+> **Estado:** ✅ **IMPLEMENTADO — proyecto cerrado (2026-07-07).** Fases 0–7 + 2c en `main` y en producción (core 9 / services 19 / contracts 0.13; sesión device-first cero-cookie; IdP device-first sin excepción de transporte/chooser). Este documento es el plan maestro de referencia; el estado de ejecución y el cierre están en [`oxy-auth-audit.md`](../archive/auth/oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO". Aprobado para ejecución 2026-07-05 (Nate + agente planificación).  
 > **Ubicación canónica:** `docs/architecture/oxy-auth-platform.md`  
 > **Handoff agente implementador (archivado):** [`docs/architecture/archive/oxy-auth-agent-handoff.md`](./archive/oxy-auth-agent-handoff.md) — checklist, gates, subagentes, inventario borrado  
 >
@@ -23,7 +23,7 @@
 
 | Fase | ID | Entregable clave |
 |------|-----|------------------|
-| 0 | `audit` | `docs/architecture/oxy-auth-audit.md` |
+| 0 | `audit` | `docs/archive/auth/oxy-auth-audit.md` |
 | 1 | `reconcile-p1` | DeviceSession + socket en main, sync instantáneo verificado |
 | 2 | `contracts` | Schemas en `@oxyhq/contracts` + publish |
 | 2b | `console-registry` | privacy/terms URLs, docs Console |
@@ -578,7 +578,7 @@ API existente a conservar (ya implementada): [`auth.ts` OAuth section](../../pac
 
 ### Fase 0 — Auditoría
 
-Checklist → `docs/architecture/oxy-auth-audit.md`. Incluir:
+Checklist → `docs/archive/auth/oxy-auth-audit.md`. Incluir:
 
 - Duplicación auth-sdk vs services; consumidores `@oxyhq/auth` en monorepo y repos externos
 - Auth local por app (interceptors, restore, `/__oxy/sso-callback`)
@@ -610,7 +610,7 @@ Cherry-pick DeviceSession + SessionClient + socket. Centralizar socket emits en 
 **Regla:** borrar código y docs obsoletos en el mismo PR que introduce el reemplazo. Nada de `@deprecated`, shims, feature flags legacy, ni “mantener un release por si acaso”. Si un test solo cubre comportamiento eliminado, se borra con el código.
 
 Entregables Fase 7:
-- `docs/architecture/oxy-auth-audit.md` marcado **DONE** con checklist verificada
+- `docs/archive/auth/oxy-auth-audit.md` marcado **DONE** con checklist verificada
 - [`AGENTS.md`](../../AGENTS.md) reescrito (solo device-first, cero FedCM/SSO/cookies)
 - Docs listadas abajo reemplazadas o eliminadas
 - Grep en repo = **0 hits** en la lista “must be zero” (salvo CHANGELOG histórico si se decide conservarlo)
@@ -737,7 +737,7 @@ También alinear [`~/AGENTS.md`](../../../AGENTS.md) (global) y [`~/Oxy/AGENTS.m
 |-----|-----------|
 | `docs/auth/integration-guide.md` | Sign in with Oxy third party: Console setup, OAuth+PKCE web SPA, confidential server, native custom scheme, OxySignInButton, backend `@oxyhq/core/server`, connected apps revoke |
 | `docs/auth/device-session.md` | DeviceSession API, socket events, multicuenta |
-| `docs/architecture/oxy-auth-audit.md` | Checklist Fase 0 — fuente de verificación borrado |
+| `docs/archive/auth/oxy-auth-audit.md` | Checklist Fase 0 — fuente de verificación borrado |
 
 ---
 
