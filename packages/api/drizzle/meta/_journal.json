@@ -239,6 +239,20 @@
       "when": 1786829542848,
       "tag": "0034_inference_ledger_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786831813559,
+      "tag": "0035_inference_catalogue",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786831814559,
+      "tag": "0036_inference_revision_immutability",
+      "breakpoints": true
     }
   ]
 }
