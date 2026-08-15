@@ -48,6 +48,8 @@ import { deviceSessions } from './deviceSessions';
 import { federationKeyPairs } from './federationKeyPairs';
 import { fileLinks } from './fileLinks';
 import { identityBindings } from './identityBindings';
+import { inferenceDeployments } from './inferenceDeployments';
+import { inferenceModels } from './inferenceModels';
 import { inferenceUsageEvents } from './inferenceUsageEvents';
 import { messageAttachments } from './messageAttachments';
 import { messages } from './messages';
@@ -85,8 +87,7 @@ export interface IdColumnWithoutForeignKey {
  * `applications`, which has not landed yet.
  */
 
-export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [
-];
+export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
   {
@@ -487,6 +488,32 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       "The update's OWN public handle — the UUID served as the expo-updates " +
       'manifest `id`, not a reference to another row. It is the TARGET of ' +
       '`app_updates.promoted_from_update_id`, which does carry a constraint.',
+  },
+  {
+    table: inferenceModels,
+    column: inferenceModels.modelId,
+    reason:
+      "The model's OWN canonical id, `<publisher>/<model>` — a GENERATED column " +
+      'composed from `publisher_slug` and `slug`, and the string customers write ' +
+      'in their code. It is the TARGET other things name, not a reference of its ' +
+      'own; the columns it is derived from carry the only constraint there is.',
+  },
+  {
+    table: inferenceModels,
+    column: inferenceModels.licenseId,
+    reason:
+      'An SPDX licence identifier (`apache-2.0`, `mit`), or the publisher’s own ' +
+      'name for a bespoke licence. Id-shaped by name only — it names a licence ' +
+      'in a global vocabulary, not a row in this database.',
+  },
+  {
+    table: inferenceDeployments,
+    column: inferenceDeployments.internalRouteId,
+    reason:
+      'The DATA PLANE’s own identifier for this route, stored so operations can ' +
+      'correlate a catalogue row with what Relay is running. Relay’s id space, ' +
+      'not Oxy’s, and deliberately never dereferenced here. PROTECTED: it is ' +
+      'operational topology and never reaches a customer.',
   },
   {
     table: appEndorsementEdges,
