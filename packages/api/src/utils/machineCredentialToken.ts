@@ -99,16 +99,3 @@ export function machineCredentialTokenPrefix(value: string): string | null {
   const match = MACHINE_TOKEN_PATTERN.exec(value);
   return match ? `${MACHINE_TOKEN_PREFIX}${match[1]}` : null;
 }
-
-/**
- * True when `value` merely CLAIMS to be a machine token — it starts with the
- * scheme.
- *
- * Deliberately distinct from {@link machineCredentialTokenPrefix}: a malformed
- * `oxy_sk_…` must be answered by the machine lane with "invalid credentials"
- * rather than fall through to the session-token lane, which would report
- * "token could not be decoded" and send an SDK author chasing JWTs.
- */
-export function looksLikeMachineCredentialToken(value: string): boolean {
-  return value.startsWith(MACHINE_TOKEN_PREFIX);
-}

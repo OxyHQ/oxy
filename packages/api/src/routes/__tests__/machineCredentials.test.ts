@@ -2,23 +2,34 @@
  * `oxy_sk_…` machine credentials end to end (issue #972 §2.3).
  *
  * Runs against the REAL Postgres the harness migrated, through the application's
- * own pool and the shipped routers: the credential lifecycle routes on
- * `/applications`, and the machine bearer lane on the `/v1/chat/completions`
- * mount an OpenAI SDK actually points at. What passes is what the shipped DDL,
- * the shipped middleware and the shipped queries do together.
+ * own pool: the credential lifecycle routes on `/applications` (the shipped
+ * router, mounted as production mounts it), and the machine bearer lane through
+ * the shipped `requireMachineCredential` middleware and the two shipped
+ * limiters. What passes is what the shipped DDL, the shipped middleware and the
+ * shipped queries do together.
  *
- * Three seams are mocked, and each for a reason that is NOT the subject here:
+ * ## Why the lane is mounted HERE and nowhere in `src/`
  *
- *   - `account.service`, which grants the caller an effective account role;
- *   - `middleware/auth`, whose `authMiddleware` supplies the Console caller's
- *     identity AND is the lane `machineOrUserAuth` falls through to. The stub
- *     accepts exactly one session bearer and 401s everything else, so the
- *     fall-through is observable rather than assumed;
- *   - `axios`, so a successful proxy is a deterministic 200 rather than a
- *     network call. That 200 is the positive marker for "the request got past
- *     authentication and reached the handler" — asserting a 401 did not happen
- *     is not the same claim, and a config error would produce the same 500 for
- *     an authenticated and an unauthenticated caller alike.
+ * No production route mounts `requireMachineCredential`, deliberately — see the
+ * header of `middleware/machineCredential.ts`: the only plausible endpoint today
+ * forwards a caller-chosen `max_tokens` to Alia on one shared static key, and
+ * nothing reserves or meters spend yet, so a request limit would bound requests
+ * and not cost. Workstream 4 mounts the lane on the real inference edge, behind
+ * workstream 7's reservation.
+ *
+ * That leaves this file as the lane's only caller, which is exactly the shape
+ * this repo's rules warn about — so the mount below is written to be the real
+ * middleware chain and nothing else: the shipped `requireMachineCredential`, the
+ * shipped `machineCredentialLimiter` and `machineApplicationLimiter`, in the
+ * order a route must use them, over real Express and a real HTTP client. Only
+ * the handler at the end is a stand-in, and it does nothing but echo the
+ * principal the middleware resolved. Nothing about the lane is mocked, so when
+ * workstream 4 mounts it, what is under test here is what will be under load
+ * there.
+ *
+ * The one seam that IS mocked is `account.service` (it grants the Console
+ * caller an effective account role) and `middleware/auth` (it supplies that
+ * caller's identity) — both for the `/applications` half, neither on the lane.
  *
  * Every row is minted per test with a database-generated id, so no assertion
  * depends on a table being empty and this file may run beside the others.
@@ -73,12 +84,6 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (...args: unknown[]) => mockAuthMiddleware(...args),
 }));
 
-const mockAxiosPost = jest.fn(async () => ({ data: { id: 'chatcmpl-test' } }));
-jest.mock('axios', () => ({
-  __esModule: true,
-  default: { post: (...args: unknown[]) => mockAxiosPost(...args) },
-}));
-
 const mockRefreshOriginRegistry = jest.fn(async () => {});
 jest.mock('../../config/dynamicOriginRegistry', () => ({
   __esModule: true,
@@ -89,20 +94,18 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-// Set BEFORE the router is required, because `alia.ts` reads it once at module
-// load. With `axios` stubbed nothing leaves the process; this only decides which
-// branch of the handler runs, and it has to be the one that proxies.
-process.env.ALIA_API_KEY = 'test-upstream-key';
-
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentialAuditEvents } from '../../db/schema/applicationCredentialAuditEvents';
 import { applicationCredentials, applications, users } from '../../db/schema';
 import applicationsRouter from '../applications';
-import aliaRouter from '../alia';
 import { errorHandler } from '../../middleware/errorHandler';
 import {
   MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE,
+  machineApplicationLimiter,
+  machineCredentialLimiter,
+  requireMachineCredential,
   resolveMachineCredential,
+  type MachineCredentialRequest,
 } from '../../middleware/machineCredential';
 import { resetFailureAuditCooldown } from '../../services/applicationCredentialAudit.service';
 import { CREDENTIAL_ENVIRONMENT_VAR } from '../../utils/credentialEnvironment';
@@ -118,6 +121,8 @@ interface JsonResponse {
     token?: string;
     rotatedFrom?: string;
     graceExpiresAt?: string | null;
+    /** What the machine lane resolved, echoed by the stand-in handler. */
+    principal?: Record<string, unknown>;
     error?: string;
     message?: string;
   };
@@ -258,12 +263,15 @@ async function auditEventsFor(
     .orderBy(applicationCredentialAuditEvents.createdAt);
 }
 
-/** Ask a chat completion with `token` as the bearer. */
-async function chat(token: string): Promise<JsonResponse> {
-  return request('POST', '/v1/chat/completions', {
-    bearer: token,
-    payload: { model: 'gpt-test', messages: [] },
-  });
+/**
+ * Call the machine lane with `token` as the bearer.
+ *
+ * The path behind it is the shipped middleware chain (see the file header); a
+ * 200 means the lane authenticated the bearer, authorised the scope, and passed
+ * both limiters, and the echoed principal is what the lane resolved.
+ */
+async function callLane(token: string): Promise<JsonResponse> {
+  return request('POST', LANE_PATH, { bearer: token, payload: {} });
 }
 
 /**
@@ -280,12 +288,45 @@ function hashColumnHoldsPlaintext(
   return row.tokenHash === token || row.tokenHash.includes(secretHalf);
 }
 
+/**
+ * Where the lane is exercised. Not a production path — see the file header for
+ * why the lane is deliberately unmounted in `src/` and which workstream mounts
+ * it.
+ */
+const LANE_PATH = '/machine-lane-under-test';
+
+/**
+ * The limiters WITHOUT the lane in front — what a mixed-principal route looks
+ * like from a limiter's point of view. Exists so the `skip` predicate can be
+ * tested where it operates rather than asserted about.
+ */
+const LIMITER_ONLY_PATH = '/machine-limiters-under-test';
+
+/** The scope the lane under test requires, and the one the fixtures grant. */
+const LANE_SCOPE = 'inference:invoke';
+
 beforeAll(async () => {
   await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/applications', applicationsRouter);
-  app.use('/v1', aliaRouter);
+  // The shipped chain, in the order a route must use it: authenticate and
+  // authorise first (the limiters' keys do not exist before it), then the
+  // per-credential budget, then the per-application one. Only the handler is a
+  // stand-in, and it echoes the resolved principal so a 200 is evidence about
+  // WHAT the lane resolved rather than merely that it did not refuse.
+  app.post(
+    LANE_PATH,
+    requireMachineCredential(LANE_SCOPE),
+    machineCredentialLimiter,
+    machineApplicationLimiter,
+    (req, res) => {
+      res.json({ principal: (req as MachineCredentialRequest).machineCredential });
+    }
+  );
+  app.post(LIMITER_ONLY_PATH, machineCredentialLimiter, machineApplicationLimiter, (_req, res) => {
+    res.json({ ok: true });
+  });
   app.use(errorHandler);
   await new Promise<void>((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
@@ -305,7 +346,6 @@ beforeEach(async () => {
   resetFailureAuditCooldown();
   delete process.env[CREDENTIAL_ENVIRONMENT_VAR];
   OWNER_ID = await account();
-  mockAxiosPost.mockImplementation(async () => ({ data: { id: 'chatcmpl-test' } }));
   mockAuthMiddleware.mockImplementation(
     (
       req: { headers: Record<string, string | undefined>; user?: unknown },
@@ -470,15 +510,16 @@ describe('POST /applications/:appId/credentials — machine', () => {
 // ---------------------------------------------------------------------------
 
 describe('the machine bearer lane', () => {
-  it('authenticates a valid token on POST /v1/chat/completions', async () => {
-    const { token } = await createMachineCredential();
-    const res = await chat(token);
+  it('authenticates a valid token and hands the handler the resolved principal', async () => {
+    const { applicationId, credentialId, token } = await createMachineCredential();
+    const res = await callLane(token);
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ id: 'chatcmpl-test' });
-    expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+    // The handler ran, and what it received is the attribution — not merely
+    // "no 401 happened", which a chain that never called `next()` also produces.
+    expect(res.body.principal).toMatchObject({ credentialId, applicationId });
   });
 
-  it('refuses a tampered token, and never reaches the upstream', async () => {
+  it('refuses a tampered token, and the handler never runs', async () => {
     const { token } = await createMachineCredential();
     // Flip one character of the SECRET half — the prefix still resolves a real
     // credential, so this is the case the constant-time comparison decides.
@@ -486,9 +527,9 @@ describe('the machine bearer lane', () => {
     const flipped = token[secretStart] === 'a' ? 'b' : 'a';
     const tampered = `${token.slice(0, secretStart)}${flipped}${token.slice(secretStart + 1)}`;
 
-    const res = await chat(tampered);
+    const res = await callLane(tampered);
     expect(res.status).toBe(401);
-    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(res.body.principal).toBeUndefined();
   });
 
   it('refuses a token whose credential has expired', async () => {
@@ -498,32 +539,29 @@ describe('the machine bearer lane', () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(applicationCredentials.id, credentialId));
 
-    expect(await chat(token)).toMatchObject({ status: 401 });
-    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(await callLane(token)).toMatchObject({ status: 401 });
   });
 
   it('refuses a token whose credential has been revoked', async () => {
     const { applicationId, credentialId, token } = await createMachineCredential();
-    expect(await chat(token)).toMatchObject({ status: 200 });
+    expect(await callLane(token)).toMatchObject({ status: 200 });
 
     const revoke = await request('DELETE', `/applications/${applicationId}/credentials/${credentialId}`);
     expect(revoke.status).toBe(200);
 
-    mockAxiosPost.mockClear();
-    expect(await chat(token)).toMatchObject({ status: 401 });
-    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(await callLane(token)).toMatchObject({ status: 401 });
   });
 
   it('refuses a credential minted for another environment', async () => {
     const { token } = await createMachineCredential({ environment: 'production' });
-    expect(await chat(token)).toMatchObject({ status: 401 });
+    expect(await callLane(token)).toMatchObject({ status: 401 });
 
     // …and the override is what makes `staging` reachable at all: the SAME token
     // is accepted once the deployment declares the environment it was minted
     // for. Without this the check would be indistinguishable from "production
     // credentials never work".
     process.env[CREDENTIAL_ENVIRONMENT_VAR] = 'production';
-    expect(await chat(token)).toMatchObject({ status: 200 });
+    expect(await callLane(token)).toMatchObject({ status: 200 });
   });
 
   it('refuses a credential whose application is no longer active', async () => {
@@ -533,10 +571,10 @@ describe('the machine bearer lane', () => {
       .set({ status: 'suspended' })
       .where(eq(applications.id, applicationId));
 
-    expect(await chat(token)).toMatchObject({ status: 401 });
+    expect(await callLane(token)).toMatchObject({ status: 401 });
   });
 
-  it('refuses a bare oxy_dk_ public identifier — it resolves nothing, and falls through', async () => {
+  it('refuses a bare oxy_dk_ public identifier — it resolves nothing (issue #972 §2.1)', async () => {
     const { applicationId } = await createMachineCredential();
     const [credential] = await getDb()
       .select({ publicKey: applicationCredentials.publicKey })
@@ -544,33 +582,41 @@ describe('the machine bearer lane', () => {
       .where(eq(applicationCredentials.applicationId, applicationId))
       .limit(1);
 
-    // Structural: the public identifier is not a machine token shape at all, so
-    // the lane never issues a query for it.
+    // Structural, and this is the assertion that matters: an OAuth public
+    // identifier is not a machine token SHAPE, so the lane never issues a query
+    // for it — it cannot be a check somebody forgets, it is a column the value
+    // is not in.
+    //
+    // `middleware/__tests__/publicIdentifierNotABearer.test.ts` holds the same
+    // property for the two lanes that existed when 2.1 landed (the user session
+    // lane and the service-token lane). This is the third, and it lives here
+    // because the machine lane's refusal has a different mechanism: those two
+    // fail at session resolution and signature verification, this one never
+    // resolves at all.
     expect(await resolveMachineCredential(credential.publicKey)).toEqual({
       ok: false,
       reason: 'not_machine_token',
     });
 
-    // …and over HTTP it reaches the session lane, which refuses it. Asserting
-    // the stub was CALLED is what separates "fell through and was refused" from
-    // "the machine lane silently accepted it".
-    const res = await chat(credential.publicKey);
+    const res = await callLane(credential.publicKey);
     expect(res.status).toBe(401);
-    expect(mockAuthMiddleware).toHaveBeenCalled();
-    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(res.body.principal).toBeUndefined();
   });
 
-  it('answers a malformed oxy_sk_ in the machine lane rather than the session lane', async () => {
-    const res = await chat('oxy_sk_not-a-real-token');
+  it('refuses a malformed oxy_sk_ with the lane’s own message', async () => {
+    const res = await callLane('oxy_sk_not-a-real-token');
     expect(res.status).toBe(401);
     expect(res.body.message).toMatch(/API key/i);
-    expect(mockAuthMiddleware).not.toHaveBeenCalled();
   });
 
-  it('still serves an ordinary session bearer on the same route', async () => {
-    const res = await chat(SESSION_BEARER);
-    expect(res.status).toBe(200);
-    expect(mockAuthMiddleware).toHaveBeenCalled();
+  it('refuses an ordinary session bearer — this lane accepts machine credentials only', async () => {
+    // The lane sets `req.machineCredential` and never `req.serviceApp`, and it
+    // authenticates nothing but an `oxy_sk_…`. A session bearer belongs to a
+    // different middleware, and reaching this one is a refusal, not a fallback.
+    const res = await callLane(SESSION_BEARER);
+    expect(res.status).toBe(401);
+    expect(res.body.principal).toBeUndefined();
+    expect(mockAuthMiddleware).not.toHaveBeenCalled();
   });
 
   it('resolves the attribution every inference request must carry', async () => {
@@ -593,7 +639,7 @@ describe('the machine bearer lane', () => {
     const { credentialId, token } = await createMachineCredential();
     expect((await readCredentialRow(credentialId))?.lastUsedAt).toBeNull();
 
-    expect(await chat(token)).toMatchObject({ status: 200 });
+    expect(await callLane(token)).toMatchObject({ status: 200 });
     // The refresh is detached from the response, so poll rather than assume the
     // write has landed by the time the body arrives.
     let lastUsedAt: Date | null = null;
@@ -638,10 +684,9 @@ describe('scope intersection', () => {
       scopes: ['files:read'],
     });
 
-    const res = await chat(token);
+    const res = await callLane(token);
     expect(res.status).toBe(403);
     expect(res.body.message).toContain('inference:invoke');
-    expect(mockAxiosPost).not.toHaveBeenCalled();
 
     const failures = (await auditEventsFor(credentialId)).filter(
       (event) => event.eventType === 'validation_failed'
@@ -659,7 +704,7 @@ describe('scope intersection', () => {
 describe('POST /applications/:appId/credentials/:credId/rotate — machine', () => {
   it('with NO grace configured, the previous token stops working immediately', async () => {
     const { applicationId, credentialId, token } = await createMachineCredential();
-    expect(await chat(token)).toMatchObject({ status: 200 });
+    expect(await callLane(token)).toMatchObject({ status: 200 });
 
     const rotate = await request(
       'POST',
@@ -676,11 +721,9 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
     // Immediately, with no waiting: the previous credential is `revoked`, not
     // `deprecated` with a deadline.
     expect((await readCredentialRow(credentialId))?.status).toBe('revoked');
-    mockAxiosPost.mockClear();
-    expect(await chat(token)).toMatchObject({ status: 401 });
-    expect(mockAxiosPost).not.toHaveBeenCalled();
+    expect(await callLane(token)).toMatchObject({ status: 401 });
 
-    expect(await chat(rotatedToken)).toMatchObject({ status: 200 });
+    expect(await callLane(rotatedToken)).toMatchObject({ status: 200 });
   });
 
   it('with a grace configured, the previous token keeps working until the window ends', async () => {
@@ -696,18 +739,16 @@ describe('POST /applications/:appId/credentials/:credId/rotate — machine', () 
     expect((await readCredentialRow(credentialId))?.status).toBe('deprecated');
 
     // Inside the window: both tokens serve.
-    expect(await chat(token)).toMatchObject({ status: 200 });
-    expect(await chat(rotate.body.token as string)).toMatchObject({ status: 200 });
+    expect(await callLane(token)).toMatchObject({ status: 200 });
+    expect(await callLane(rotate.body.token as string)).toMatchObject({ status: 200 });
 
     // Past it: only the replacement does. This waits on the real clock rather
     // than moving the row underneath the code, so what is measured is
     // `isCredentialUsable` reading the deadline the route wrote.
     await new Promise((resolve) => setTimeout(resolve, 1300));
     resetFailureAuditCooldown();
-    mockAxiosPost.mockClear();
-    expect(await chat(token)).toMatchObject({ status: 401 });
-    expect(mockAxiosPost).not.toHaveBeenCalled();
-    expect(await chat(rotate.body.token as string)).toMatchObject({ status: 200 });
+    expect(await callLane(token)).toMatchObject({ status: 401 });
+    expect(await callLane(rotate.body.token as string)).toMatchObject({ status: 200 });
   }, 20000);
 
   it('refuses graceSeconds when rotating a credential that is not a machine one', async () => {
@@ -824,7 +865,7 @@ describe('credential audit events', () => {
     const { credentialId, token } = await createMachineCredential();
     const secretStart = token.lastIndexOf('_') + 1;
     const flipped = token[secretStart] === 'a' ? 'b' : 'a';
-    await chat(`${token.slice(0, secretStart)}${flipped}${token.slice(secretStart + 1)}`);
+    await callLane(`${token.slice(0, secretStart)}${flipped}${token.slice(secretStart + 1)}`);
 
     const failures = (await auditEventsFor(credentialId)).filter(
       (event) => event.eventType === 'validation_failed'
@@ -843,7 +884,7 @@ describe('credential audit events', () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(applicationCredentials.id, credentialId));
 
-    await chat(token);
+    await callLane(token);
     const failures = (await auditEventsFor(credentialId)).filter(
       (event) => event.eventType === 'validation_failed'
     );
@@ -853,7 +894,7 @@ describe('credential audit events', () => {
 
   it('writes NOTHING for a bearer that resolves to no credential', async () => {
     const before = await getDb().select().from(applicationCredentialAuditEvents);
-    await chat(`oxy_sk_${'0'.repeat(16)}_${'0'.repeat(64)}`);
+    await callLane(`oxy_sk_${'0'.repeat(16)}_${'0'.repeat(64)}`);
     const after = await getDb().select().from(applicationCredentialAuditEvents);
     // An unresolvable prefix names no application to attribute a row to, and
     // persisting one would let an anonymous caller drive unbounded inserts.
@@ -867,7 +908,7 @@ describe('credential audit events', () => {
     const tampered = `${token.slice(0, secretStart)}${flipped}${token.slice(secretStart + 1)}`;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      await chat(tampered);
+      await callLane(tampered);
     }
     const failures = (await auditEventsFor(credentialId)).filter(
       (event) => event.eventType === 'validation_failed'
@@ -878,7 +919,7 @@ describe('credential audit events', () => {
     // failing again writes the next row — otherwise this test would pass just as
     // well against a writer that had given up entirely.
     resetFailureAuditCooldown();
-    await chat(tampered);
+    await callLane(tampered);
     expect(
       (await auditEventsFor(credentialId)).filter(
         (event) => event.eventType === 'validation_failed'
@@ -896,10 +937,10 @@ describe('per-credential and per-application request limits', () => {
     const { token } = await createMachineCredential();
 
     for (let sent = 0; sent < MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE; sent += 1) {
-      const res = await chat(token);
+      const res = await callLane(token);
       expect(res.status).toBe(200);
     }
-    const overflow = await chat(token);
+    const overflow = await callLane(token);
     expect(overflow.status).toBe(429);
     // Names WHICH limiter fired. The per-application ceiling is higher, so a 429
     // here that came from the wrong bucket would be a different bug wearing the
@@ -907,13 +948,38 @@ describe('per-credential and per-application request limits', () => {
     expect(overflow.raw).toContain('API key request limit');
   }, 60000);
 
-  it('does not consume a machine budget for a session-authenticated request', async () => {
-    // The limiters `skip` when there is no principal to key on. Without that
-    // they would bucket every session request under one empty key and exhaust
-    // the budget for every real key at once — so the assertion is that many
-    // session requests in a row all still serve.
-    for (let sent = 0; sent < MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE + 5; sent += 1) {
-      expect(await chat(SESSION_BEARER)).toMatchObject({ status: 200 });
+  it('counts each credential separately', async () => {
+    // The per-credential budget is keyed on `credentialId`, so exhausting one
+    // key must not touch another — including another key of the SAME
+    // application, which the higher per-application ceiling still permits.
+    const applicationId = await seedApp();
+    const first = await createMachineCredential({ applicationId });
+    const second = await createMachineCredential({ applicationId });
+
+    for (let sent = 0; sent < MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE; sent += 1) {
+      expect(await callLane(first.token)).toMatchObject({ status: 200 });
     }
+    expect(await callLane(first.token)).toMatchObject({ status: 429 });
+    expect(await callLane(second.token)).toMatchObject({ status: 200 });
   }, 60000);
+
+  it('does not consume a budget for a request carrying no machine principal', async () => {
+    // The `skip` predicate, tested where it operates. Mounted WITHOUT the lane
+    // in front — which is what a mixed-principal route looks like from the
+    // limiter's point of view — a request has no `credentialId` to key on;
+    // without `skip` every such request buckets under one empty key and the
+    // budget it exhausts is shared with every real key.
+    for (let sent = 0; sent < MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE + 5; sent += 1) {
+      expect(await request('POST', LIMITER_ONLY_PATH)).toMatchObject({ status: 200 });
+    }
+
+    // …and the positive control for that: a real credential still gets its FULL
+    // budget afterwards. Without it, "all 65 served" is also what a limiter that
+    // was never mounted would report.
+    const { token } = await createMachineCredential();
+    for (let sent = 0; sent < MACHINE_CREDENTIAL_REQUESTS_PER_MINUTE; sent += 1) {
+      expect(await callLane(token)).toMatchObject({ status: 200 });
+    }
+    expect(await callLane(token)).toMatchObject({ status: 429 });
+  }, 120000);
 });

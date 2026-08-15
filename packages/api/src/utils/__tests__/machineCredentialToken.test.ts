@@ -13,7 +13,6 @@ import {
   MACHINE_TOKEN_PREFIX,
   generateMachineCredentialToken,
   hashMachineCredentialToken,
-  looksLikeMachineCredentialToken,
   machineCredentialTokenPrefix,
 } from '../machineCredentialToken';
 
@@ -86,19 +85,11 @@ describe('machineCredentialTokenPrefix', () => {
     const { token } = generateMachineCredentialToken();
     expect(machineCredentialTokenPrefix(token.replace('oxy_sk_', 'oxy_pk_'))).toBeNull();
   });
-});
 
-describe('looksLikeMachineCredentialToken', () => {
-  it('claims the scheme even when the rest is malformed', () => {
-    // The whole point of this predicate: a caller who typed an Oxy API key badly
-    // must be answered by the machine lane, not handed the session lane's
-    // "token must be session-based" and sent looking for a JWT.
-    expect(looksLikeMachineCredentialToken(`${MACHINE_TOKEN_PREFIX}nonsense`)).toBe(true);
+  it('refuses a value that merely STARTS with the scheme', () => {
+    // The parse is the whole gate: there is no second, looser predicate that
+    // says "this claims to be an Oxy API key". Anything that is not the exact
+    // shape resolves nothing and reaches no query.
     expect(machineCredentialTokenPrefix(`${MACHINE_TOKEN_PREFIX}nonsense`)).toBeNull();
-  });
-
-  it('does not claim an OAuth public identifier or a session token', () => {
-    expect(looksLikeMachineCredentialToken(`oxy_dk_${'a'.repeat(48)}`)).toBe(false);
-    expect(looksLikeMachineCredentialToken('eyJhbGciOiJIUzI1NiJ9.e30.sig')).toBe(false);
   });
 });

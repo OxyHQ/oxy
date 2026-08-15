@@ -6,6 +6,28 @@
  * to: `applicationId`, `credentialId`, `ownerAccountId`, `environment` and the
  * effective scopes.
  *
+ * ## NOTHING MOUNTS THIS YET, AND THAT IS THE DECISION
+ *
+ * No route in this package uses {@link requireMachineCredential}. That is
+ * deliberate and it is not an oversight to be tidied away by wiring it to the
+ * nearest plausible endpoint.
+ *
+ * The nearest plausible endpoint is `POST /v1/chat/completions`
+ * (`routes/alia.ts`), and mounting it there was wrong for a reason a rate limit
+ * cannot fix: that route forwards the caller's body verbatim to Alia on ONE
+ * static `ALIA_API_KEY`, and `max_tokens` is the caller's to choose — so a cap
+ * of N requests per window bounds requests, never cost. Worse, the cost lands on
+ * a single shared Oxy budget with no per-account attribution, so one key cannot
+ * be stopped without stopping all of them. The epic's own invariant is "reserve
+ * spend before the request enters the data plane", and nothing in the platform
+ * reserves, meters or charges anything yet — `api_key_usage_events` has no
+ * writer and `deductCredits` has no production caller (audit, #976).
+ *
+ * **Workstream 4 mounts this**, on the real public inference edge, behind the
+ * reservation workstream 7 is building. Until both exist, an `oxy_sk_…`
+ * credential can be minted, rotated, revoked and audited — and authenticates
+ * nowhere. That is the intended state, not a gap.
+ *
  * ## Its own lane, and its own request property
  *
  * This does NOT set `req.serviceApp`, and that is the security-relevant choice
@@ -47,11 +69,9 @@ import { intersectScopes, type ApplicationScope } from '../utils/applicationScop
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { deploymentCredentialEnvironment } from '../utils/credentialEnvironment';
 import { extractTokenFromRequest } from './authUtils';
-import { authMiddleware } from './auth';
 import { logger } from '../utils/logger';
 import {
   hashMachineCredentialToken,
-  looksLikeMachineCredentialToken,
   machineCredentialTokenPrefix,
 } from '../utils/machineCredentialToken';
 import { rateLimit } from './rateLimiter';
@@ -167,9 +187,10 @@ export async function resolveMachineCredential(
 ): Promise<MachineCredentialResolution> {
   const tokenPrefix = machineCredentialTokenPrefix(token);
   if (!tokenPrefix) {
-    // Either a bearer of another kind, or a malformed machine token. The caller
-    // distinguishes the two with `looksLikeMachineCredentialToken`; nothing
-    // downstream of a resolution needs to.
+    // Either a bearer of another kind, or a malformed machine token — one
+    // answer for both, deliberately. Distinguishing them would hand a caller a
+    // way to ask whether a string looks like an Oxy API key, and nothing
+    // downstream of a resolution needs to know which it was.
     return { ok: false, reason: 'not_machine_token' };
   }
 
@@ -269,8 +290,8 @@ function refuse(res: Response): void {
 /**
  * Authenticate an `oxy_sk_…` bearer and require `scope`.
  *
- * A route mounting this accepts ONLY machine credentials. Use
- * {@link machineOrUserAuth} where a session bearer is also valid.
+ * A route mounting this accepts ONLY machine credentials — see the module
+ * header for why no route mounts it yet, and which workstream will.
  */
 export function requireMachineCredential(scope: ApplicationScope): RequestHandler {
   return async (req: MachineCredentialRequest, res: Response, next: NextFunction) => {
@@ -303,37 +324,20 @@ export function requireMachineCredential(scope: ApplicationScope): RequestHandle
   };
 }
 
-/**
- * Accept EITHER an `oxy_sk_…` machine credential holding `scope`, or an ordinary
- * user session bearer.
- *
- * The discriminator is the bearer's own scheme, not a fallback chain: a token
- * that CLAIMS to be a machine key is answered by the machine lane even when it
- * is malformed. Falling through in that case would hand an SDK author the
- * session lane's "token must be session-based" and send them looking for a JWT
- * they were never supposed to have.
- */
-export function machineOrUserAuth(scope: ApplicationScope): RequestHandler {
-  const machineLane = requireMachineCredential(scope);
-  return (req: Request, res: Response, next: NextFunction) => {
-    const token = extractTokenFromRequest(req);
-    if (token && looksLikeMachineCredentialToken(token)) {
-      return machineLane(req, res, next);
-    }
-    return authMiddleware(req, res, next);
-  };
-}
-
 /** True once the machine lane has authenticated this request. */
 function hasMachinePrincipal(req: Request): boolean {
   return Boolean((req as MachineCredentialRequest).machineCredential);
 }
 
 /**
- * Per-credential request budget. Mounted AFTER the lane, and skipped for any
- * request the lane did not authenticate — a session-authenticated request on the
- * same route has no `credentialId` to key on, and bucketing them all under one
- * key would exhaust the budget for every real key at once.
+ * Per-credential request budget. Belongs AFTER {@link requireMachineCredential}
+ * in a chain, because its key does not exist before it.
+ *
+ * `skip` is the negation of "the key exists", never a policy: a request the lane
+ * did not authenticate has no `credentialId`, and without the skip every such
+ * request would bucket under one empty key and exhaust the budget for every real
+ * key at once. It is not a substitute for a spend reservation and never was —
+ * see the module header.
  */
 export const machineCredentialLimiter = rateLimit({
   prefix: 'rl:machine:credential:',
