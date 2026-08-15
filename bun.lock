@@ -526,10 +526,10 @@
     },
     "packages/federation": {
       "name": "@oxyhq/federation",
-      "version": "0.16.0",
+      "version": "0.16.1",
       "dependencies": {
-        "@oxyhq/contracts": "workspace:^",
-        "@oxyhq/core": "workspace:^",
+        "@oxyhq/contracts": ">=0.25.0 <0.28.0",
+        "@oxyhq/core": "^20.1.0 || ^21.0.0",
       },
       "devDependencies": {
         "@biomejs/biome": "catalog:",

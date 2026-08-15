@@ -1,5 +1,37 @@
 # Changelog: `@oxyhq/federation`
 
+## 0.16.1
+
+### Fixed: 0.16.0's dependency floors were unconsumable
+
+0.16.0 declared `@oxyhq/core@^21.0.0` and `@oxyhq/contracts@^0.27.0`. Neither
+floor was a decision: both come from `workspace:^`, which substitutes whatever
+version the monorepo happened to hold at publish time, and `main` had moved past
+what this package uses. The result was that the WebFinger fix in 0.16.0 — a fix
+for a total outage of signed fetches — could not be installed by the app it was
+written for, whose `@oxyhq/core` override resolves 20.1.0.
+
+The floors are now the ones the code needs. This package's entire core/contracts
+surface is five symbols: `User` and `getErrorMessage`/`getErrorStatus` from
+`@oxyhq/core`, `AccountKind` and `isAccountKind` from `@oxyhq/contracts` (plus
+`ACCOUNT_KINDS` in a test). All five are present and behaviourally identical
+across `@oxyhq/core` 20.1.x–21.x and `@oxyhq/contracts` 0.25–0.27, and
+`ACCOUNT_KINDS` holds the same five kinds throughout, so
+`LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND`'s `satisfies Record<AccountKind, …>`
+exhaustiveness check is equally total against the floor.
+
+The ranges are written as bounded disjunctions rather than `workspace:^`
+deliberately. A disjunction whose upper clause the monorepo's own version
+satisfies still links the workspace copy locally — verified, with the
+non-satisfying single-caret form as a negative control, which sends bun to the
+registry instead — while publishing the literal range a consumer needs. The
+upper bound is not decoration: when core or contracts takes its next major here,
+resolution fails loudly in this package at bump time, which is the moment to
+re-verify the five symbols rather than to discover a floor by outage.
+
+No behavioural change. The code, the API surface and `dist` are identical to
+0.16.0.
+
 ## 0.16.0
 
 ### Fixed: the instance actor was served but was not WebFinger-resolvable
