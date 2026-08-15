@@ -55,6 +55,30 @@ import {
   type AuthRequest,
   type ServiceAuthRequest,
 } from '../auth';
+import { rateLimit } from '../rateLimiter';
+
+/**
+ * The probe routes below carry the repo's real limiter, exactly as a production
+ * route that performs authorization does.
+ *
+ * It is SCAFFOLDING — nothing here asserts anything about rate limiting, and the
+ * ceiling is far above what these few cases send, so it can never colour a
+ * result. It exists because a probe app that mounts real authorization
+ * middleware without a limiter is not a faithful model of production, and
+ * static analysis is right to say so. Keep it: removing it makes this harness
+ * describe a shape the API does not actually ship.
+ *
+ * The prefix follows the `rl:<scope>:` convention and is unique to this file —
+ * two limiters sharing one key would double-count and throw
+ * `ERR_ERL_DOUBLE_COUNT`. With no Redis configured under test the factory falls
+ * back to express-rate-limit's in-memory store, whose sweep interval is
+ * `unref`'d, so it cannot hold jest open.
+ */
+const probeLimiter = rateLimit({
+  prefix: 'rl:test:public-identifier-probe:',
+  windowMs: 60_000,
+  max: 10_000,
+});
 
 /**
  * A public identifier of exactly the shape `applications.ts` mints:
@@ -179,12 +203,17 @@ beforeAll(async () => {
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
 
   const app = express();
-  app.get('/probe/user', authMiddleware, (req: AuthRequest, res: Response) => {
+  app.get('/probe/user', probeLimiter, authMiddleware, (req: AuthRequest, res: Response) => {
     res.json({ authenticated: Boolean(req.user), userId: req.user?._id });
   });
-  app.get('/probe/service', serviceAuthMiddleware, (req: ServiceAuthRequest, res: Response) => {
-    res.json({ authenticated: Boolean(req.serviceApp), appId: req.serviceApp?.appId });
-  });
+  app.get(
+    '/probe/service',
+    probeLimiter,
+    serviceAuthMiddleware,
+    (req: ServiceAuthRequest, res: Response) => {
+      res.json({ authenticated: Boolean(req.serviceApp), appId: req.serviceApp?.appId });
+    },
+  );
   await new Promise<void>((resolve) => {
     server = app.listen(0, '127.0.0.1', resolve);
   });
