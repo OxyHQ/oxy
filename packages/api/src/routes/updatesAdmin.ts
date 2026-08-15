@@ -39,7 +39,7 @@ import { logger } from '../utils/logger';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema';
 import { accountService } from '../services/account.service';
-import { appPermissionsForAccountRole } from '../utils/accountRoles';
+import { appPermissionsForAccountAccess } from '../utils/accountRoles';
 import * as publishService from '../services/updates/publish.service';
 
 const router = express.Router();
@@ -128,7 +128,11 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
   if (!access) {
     throw new ForbiddenError('You do not have access to this application');
   }
-  if (!appPermissionsForAccountRole(access.role).includes('updates:manage')) {
+  // From the caller's EFFECTIVE account access, never their role: a per-member
+  // revoke has to reach this gate too (issue #978). `updates:manage` answers to
+  // `apps:update` — publishing an OTA update replaces the code the app ships,
+  // so a member whose `apps:update` was withdrawn cannot keep doing it.
+  if (!appPermissionsForAccountAccess(access).includes('updates:manage')) {
     throw new ForbiddenError('Missing required permission: updates:manage');
   }
 }

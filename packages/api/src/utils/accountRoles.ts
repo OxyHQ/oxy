@@ -11,6 +11,16 @@
  * combined, and every gate reads its output — routes check individual permission
  * strings (see `requireAccountPermission`), never a role name.
  *
+ * That holds across BOTH vocabularies. Applications are gated on a second set
+ * of strings ({@link APPLICATION_PERMISSIONS}) that names several of the same
+ * powers differently, and the bridge between them is
+ * {@link appPermissionsForAccountAccess} — which reads the member's EFFECTIVE
+ * account permissions, not their role. It has to: for as long as it read the
+ * role, `credentials:rotate` revoked from a member was refused on
+ * `/accounts/*` and permitted on `/applications/*` (issue #978). A gate on
+ * either lane calls a `…ForAccountAccess` / `…ForMember` function; nothing
+ * outside this module may turn a role name into permissions.
+ *
  * `account:act_as` (the right to switch INTO the account via
  * `POST /accounts/:id/switch`, minting a real session AS it) is baseline for
  * owner/admin/editor only — billing/developer/viewer may manage facets of the
@@ -27,9 +37,10 @@
 
 /**
  * Application-level permissions. An application's access is DERIVED from the
- * caller's effective {@link AccountRole} over the app's owning account (there is
- * no separate per-app member table) via {@link appPermissionsForAccountRole}.
- * Routes in `applications.ts` gate on these strings.
+ * caller's effective access over the app's owning account (there is no separate
+ * per-app member table) via {@link appPermissionsForAccountAccess} — the role's
+ * baseline WITH the member's own grants and revokes translated into this
+ * vocabulary. Routes in `applications.ts` gate on these strings.
  */
 export const APPLICATION_PERMISSIONS = [
   'app:read',
@@ -253,14 +264,15 @@ export function effectivePermissionsForMember(member: {
 }
 
 /**
- * Per-role application-permission grants, mirroring the legacy
- * `applicationRoles` map so that — once `Application.ownerAccountId` lands and
- * `ApplicationMember` is retired — an application can derive a caller's access
- * directly from their effective {@link AccountMember} role over the owning
- * account, with NO per-app membership row required.
+ * Per-role application-permission BASELINE — what a role alone confers over
+ * applications the account owns, before the member's own deltas.
  *
- * UNIONed with any explicit per-app grant at the application route's RBAC site
- * during the additive phase, exactly like `appPermissionsForWorkspaceRole`.
+ * Deliberately NOT exported: a role name is not an authorization answer here.
+ * {@link appPermissionsForAccountAccess} is the only reader, and it is the only
+ * thing any gate may call. The role-only form used to be public
+ * (`appPermissionsForAccountRole`), and three separate gates called it directly
+ * — which is how a per-member revoke came to be honoured on `/accounts/*` and
+ * ignored on `/applications/*` (issue #978).
  */
 const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly ApplicationPermission[]>> = {
   owner: [...APPLICATION_PERMISSIONS],
@@ -307,9 +319,112 @@ const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly Application
 };
 
 /**
- * Map an Account membership role to the Application permissions it grants over
- * applications owned by that account. Returns a fresh array.
+ * The account permission each application permission ANSWERS TO.
+ *
+ * The two vocabularies name the same powers differently — `app:update` is
+ * `apps:update` on the account side — so a per-member delta written in the
+ * account vocabulary can only reach the application lane through a stated
+ * correspondence. This is that statement, and it is TOTAL: the `Record` over
+ * {@link ApplicationPermission} means a newly declared application permission
+ * fails the typecheck until somebody classifies it. There is no `null` arm on
+ * purpose — "this one has no counterpart" is a claim that should cost a
+ * deliberate type change, not a default.
+ *
+ * Most entries are the same power under two spellings. Four are a BROADER
+ * account permission that CONTAINS the application one:
+ *
+ *  - `webhooks:read` / `usage:read` ← `apps:read`: a webhook URL and a usage
+ *    summary are things you read about an app.
+ *  - `webhooks:update` ← `apps:update`: the webhook URL is app configuration,
+ *    and `PATCH /applications/:id` (gated on `app:update`) already writes it.
+ *  - `updates:manage` ← `apps:update`: publishing an OTA update replaces the
+ *    code the app ships. It is the strongest form of updating an application,
+ *    so an account whose `apps:update` was withdrawn cannot keep it.
+ *
+ * Containment is what makes the broader entries safe in BOTH directions:
+ * withdrawing the container withdraws the contained power, and conferring the
+ * container confers it. An account permission that merely SUGGESTED a
+ * relationship (`credentials:read` for a webhook secret, say) would not belong
+ * here — it would let a grant confer more than the granter's words.
  */
-export function appPermissionsForAccountRole(role: AccountRole): ApplicationPermission[] {
-  return [...APP_PERMISSIONS_BY_ROLE[role]];
+const ACCOUNT_COUNTERPART: Readonly<Record<ApplicationPermission, AccountPermission>> = {
+  'app:read': 'apps:read',
+  'app:update': 'apps:update',
+  'app:delete': 'apps:delete',
+  'members:read': 'members:read',
+  'members:invite': 'members:invite',
+  'members:update': 'members:update',
+  'members:remove': 'members:remove',
+  'credentials:read': 'credentials:read',
+  'credentials:create': 'credentials:create',
+  'credentials:rotate': 'credentials:rotate',
+  'credentials:revoke': 'credentials:revoke',
+  'webhooks:read': 'apps:read',
+  'webhooks:update': 'apps:update',
+  'usage:read': 'apps:read',
+  'billing:read': 'billing:read',
+  'billing:manage': 'billing:manage',
+  'ownership:transfer': 'ownership:transfer',
+  'updates:manage': 'apps:update',
+};
+
+/**
+ * The application permissions a caller holds over applications owned by an
+ * account — the ONE derivation, and the only thing an application gate may ask.
+ *
+ * ## The rule
+ *
+ * The role's application baseline ({@link APP_PERMISSIONS_BY_ROLE}), with the
+ * member's own DELTAS translated through {@link ACCOUNT_COUNTERPART}:
+ *
+ *  - a REVOKE subtracts — the role would have conferred the counterpart and the
+ *    member no longer holds it, so every application permission answering to
+ *    that counterpart goes;
+ *  - a GRANT adds — the member holds a counterpart their role does not confer,
+ *    so the application permissions answering to it arrive.
+ *
+ * Grants add because the account lane already says they do, and because
+ * `PATCH /accounts/:id/members/:memberId` bounds them: an actor may only grant
+ * what they themselves effectively hold, so honouring a grant here can never
+ * let a permission into an account that was not already inside it. Ignoring
+ * them would reproduce this very bug mirrored — an administrator's grant taking
+ * effect on `/accounts/*` and silently not on `/applications/*`.
+ *
+ * ## What it does NOT do
+ *
+ * It never consults the two role maps against each other. The deltas are read
+ * as SET DIFFERENCES against the member's own role baseline, so a member with
+ * no deltas gets exactly `APP_PERMISSIONS_BY_ROLE[role]` by construction —
+ * whatever the two maps happen to disagree about. (They do disagree: an account
+ * `editor` holds `billing:read` while an application `editor` does not. That is
+ * a role definition, not a per-member decision, and this function leaves it
+ * alone.)
+ *
+ * Output order follows the {@link APPLICATION_PERMISSIONS} declaration order,
+ * for the same reason {@link resolveEffectivePermissions} filters the
+ * vocabulary: the wire value is deterministic and two members' sets diff
+ * meaningfully.
+ *
+ * The parameter is structural so `accountService.resolveEffectiveAccess`'s
+ * `EffectiveAccess` passes straight in, without this dependency-free module
+ * importing the service (see {@link effectivePermissionsForMember}).
+ */
+export function appPermissionsForAccountAccess(access: {
+  role: AccountRole;
+  permissions: readonly AccountPermission[];
+}): ApplicationPermission[] {
+  const baseline = new Set<ApplicationPermission>(APP_PERMISSIONS_BY_ROLE[access.role]);
+  const roleBaseline = new Set<AccountPermission>(ROLE_PERMISSIONS[access.role]);
+  const held = new Set<AccountPermission>(access.permissions);
+
+  return APPLICATION_PERMISSIONS.filter((permission) => {
+    const counterpart = ACCOUNT_COUNTERPART[permission];
+    if (roleBaseline.has(counterpart)) {
+      // The role confers the counterpart: the member keeps the application
+      // permission unless it was REVOKED from them.
+      return held.has(counterpart) && baseline.has(permission);
+    }
+    // The role does not confer it: only a GRANT can put it there.
+    return held.has(counterpart) || baseline.has(permission);
+  });
 }

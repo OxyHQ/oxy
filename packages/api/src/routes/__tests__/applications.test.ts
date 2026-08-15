@@ -9,8 +9,11 @@
  * caller identity).
  *
  * Access to an application is DERIVED from the caller's effective
- * `AccountMember` role over `app.ownerAccountId` (via
- * `appPermissionsForAccountRole`); there is no per-app member table.
+ * `AccountMember` access over `app.ownerAccountId` (via
+ * `appPermissionsForAccountAccess`); there is no per-app member table. The
+ * fixtures here carry no per-member grants or revokes, so every case is the
+ * role's plain baseline — the delta cases live in
+ * `applicationPermissionOverrides.test.ts`, against the REAL account service.
  *
  * Every row is minted per test with a database-generated id, so no assertion
  * depends on a table being empty and test files may run in parallel against the
@@ -68,7 +71,16 @@ const accountServiceMock = {
         nodes.push({
           accountId,
           relationship: role === 'owner' ? 'owner' : 'member',
-          callerMembership: { role, permissions: [], source: 'direct', inherit: true },
+          // The real node carries the membership ROW, delta columns included —
+          // the route resolves the effective permissions off it. A fake missing
+          // them would throw inside the route rather than answer wrongly.
+          callerMembership: {
+            role,
+            permissionGrants: [],
+            permissionRevokes: [],
+            source: 'direct',
+            inherit: true,
+          },
         });
       }
     }

@@ -25,10 +25,12 @@
  * (`routes/updatesAdmin.ts`), the store publisher-reply gate
  * (`services/store.service.ts`) and the recommendation `clientId` gate
  * (`routes/profiles.ts`). Each spells out the same `select ownerAccountId` →
- * `accountService.resolveEffectiveAccess` → `appPermissionsForAccountRole`
+ * `accountService.resolveEffectiveAccess` → `appPermissionsForAccountAccess`
  * chain. Four copies of an authorization chain is four places for the answers to
  * diverge, and the direction they diverge in is not symmetric: one copy that
- * forgets the `status <> 'deleted'` filter admits an app the others 404.
+ * forgets the `status <> 'deleted'` filter admits an app the others 404, and
+ * three of them derived the application permissions from the ROLE alone until
+ * issue #978, silently ignoring every per-member revoke.
  *
  * Hop 2 has NO implementation today outside the service-token mint's own inline
  * lookup, and hop 4 has none at all — the billing routes never resolve an owner
@@ -78,7 +80,7 @@ import { users } from '../db/schema/users';
 import type { AccountKind } from '../db/schema/users';
 import { accountService } from './account.service';
 import {
-  appPermissionsForAccountRole,
+  appPermissionsForAccountAccess,
   type AccountPermission,
   type AccountRole,
   type ApplicationPermission,
@@ -288,10 +290,12 @@ export async function resolveCredentialAttribution(
  * `accountPermissions` is what `accountService.resolveEffectiveAccess` already
  * returns — the role's baseline adjusted by the membership row's own grants and
  * revokes. `applicationPermissions` is the part every existing gate recomputes
- * for itself: the application-level rights that account role confers over apps
- * the account owns (`appPermissionsForAccountRole`). Carrying both is the whole
- * reason this type exists; a caller holding only one of them has to reach for the
- * role and re-derive the other, which is the duplication this replaces.
+ * for itself: the SAME effective access mapped into the application vocabulary
+ * (`appPermissionsForAccountAccess`), so the two arrays always answer for one
+ * membership row. Carrying both is the whole reason this type exists; a caller
+ * holding only one of them has to reach for the role and re-derive the other,
+ * which is the duplication this replaces — and re-deriving from a role is how a
+ * revoke came to be honoured on one array and not the other (issue #978).
  */
 export interface CallerAccountAccess {
   accountId: string;
@@ -338,7 +342,7 @@ export async function resolveCallerAccountAccess(
       accountId,
       role: access.role,
       accountPermissions: access.permissions,
-      applicationPermissions: appPermissionsForAccountRole(access.role),
+      applicationPermissions: appPermissionsForAccountAccess(access),
       source: access.source,
     },
   };
