@@ -415,14 +415,36 @@ Every resolution is a discriminated result rather than a nullable value, so
 "no application", "revoked credential" and "this account has never been billed"
 cannot collapse into one value that reads as "nothing to charge".
 
-**Not done in this PR, deliberately:** the four existing gates are NOT rewired onto
-the helpers. `packages/api` is being edited by several concurrent sessions in this
-wave, and rewriting an authorization chain in `routes/applications.ts` under those
-conditions risks a silent mid-air merge on a security-critical function. The
-helpers are additive and the four sites are named above; adopting them is a
-follow-up that one owner of that file should make in one pass, at which point the
-`status = 'deleted'` divergence in §2.1 and the grants/revokes gap in §3 can be
-resolved with it.
+**Not done in this PR, deliberately:** the four existing gates are NOT rewired
+onto the helpers.
+
+Concurrent editing of `packages/api` was the first reason and it no longer
+applies — ownership of `routes/applications.ts` was confirmed clear before this
+was written. The reason that stands on its own is about what adoption would
+actually change:
+
+- **A behaviour-neutral swap buys almost nothing here.** `loadApplicationContext`
+  needs the FULL application row — `serializeApplication`
+  (`packages/api/src/routes/applications.ts:372`) reads eighteen columns, and the
+  PATCH path reads `req.application`'s stored `scopes` to reconcile privileged
+  scopes (`packages/api/src/routes/applications.ts:757`, `:795`) — while
+  `ApplicationOwnerAccount` is deliberately a narrow projection (id, name, status,
+  owner id, owner kind). Widening it is not an option: `resolveCredentialAttribution`
+  returns the same type, and an application row carries `webhook_secret`, which
+  that resolver must never be able to hand back. So the route keeps its own
+  `select()` either way, and adoption reduces to delegating the access half —
+  about two lines.
+- **The change worth making at that site is NOT behaviour-neutral.** The real
+  defect is the one in §3: all four gates discard `access.permissions` and
+  re-derive from the role alone, so per-member revokes never reach application
+  permissions. Fixing it changes what real members can do to real applications.
+  That is a product decision with its own tests, not something to fold into a
+  PR whose subject is resolvers.
+
+So the sites stay as they are and are named above. The follow-up should make one
+pass that adopts the helpers AND resolves both §2.1's `status = 'deleted'`
+divergence and §3's grants/revokes gap together, because doing the refactor
+without the behaviour fix would leave the same defect behind a new call.
 
 ---
 
