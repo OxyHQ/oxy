@@ -22,6 +22,7 @@ interface JwtPayload {
   type?: string;
   appId?: string;
   credentialId?: string;
+  ownerAccountId?: string;
   appName?: string;
   scopes?: string[];
   aud?: string | string[];
@@ -49,9 +50,21 @@ export interface ServiceActingAsVerification {
 
 /**
  * Service app metadata attached to requests authenticated with service tokens.
- * `scopes` reflects the scopes granted to the app at signup time (from the
- * `Application.scopes` field); route-level checks can require additional
- * scope-narrowing via `requireScope()`.
+ *
+ * Every field comes from the token's SIGNED payload and is populated only after
+ * the signature, `iss`/`aud`/`type` binding and expiry all pass — so a verifier
+ * holding this object can name the responsible principals without a lookup of
+ * its own. Together with `credentialId` and `ownerAccountId` it is the canonical
+ * attribution tuple of ADR 0007 minus the delegated user.
+ *
+ * `scopes` are the EFFECTIVE scopes: the credential's own scopes intersected
+ * with the owning application's grant at mint time (the API's `intersectScopes`
+ * is the single authority for that intersection — nothing re-intersects here).
+ * Route-level checks narrow further via `requireScope()`.
+ *
+ * A delegated end user is NOT a field of this type, and must never become one.
+ * It lives in `req.serviceActingAs` / `req.userId`, is authorised per request,
+ * and is attribution only.
  */
 export interface ServiceApp {
   appId: string;
@@ -59,6 +72,12 @@ export interface ServiceApp {
   scopes: string[];
   /** The credentialId of the specific service credential that minted this token. */
   credentialId: string;
+  /**
+   * The Oxy account that owns `appId` and is financially responsible for it.
+   * The BILLING principal — never a user id, and never the delegated
+   * `X-Oxy-User-Id` (ADR 0007).
+   */
+  ownerAccountId: string;
   /** Test/live isolation (F2.0): which `ApplicationCredential.environment` minted this token. */
   environment: OxyServiceEnvironment;
 }
@@ -122,11 +141,24 @@ interface AuthMiddlewareOptions {
    * When provided, service tokens will be cryptographically verified.
    * When omitted, service tokens will be rejected (secure default).
    *
-   * **Migration note (>=1.11.14):** the Oxy API now signs service tokens
-   * with a dedicated `SERVICE_TOKEN_SECRET` distinct from `ACCESS_TOKEN_SECRET`.
-   * Pass that value here. If you keep passing the access-token secret you will
-   * still verify ALL signed-by-Oxy tokens (which is the whole class of bug
-   * H4 was supposed to prevent — DO NOT do that in production).
+   * **The only value that works is `ACCESS_TOKEN_SECRET`, and you should not
+   * want to hold it — see issue #987 and ADR 0012.** The Oxy API signs service
+   * tokens with `ACCESS_TOKEN_SECRET` (`packages/api/src/routes/auth.ts`),
+   * which is also the key that signs every user access token. There is no
+   * separate service-token secret: earlier revisions of this comment named a
+   * `SERVICE_TOKEN_SECRET` that has never existed in the API, in any workflow or
+   * in any task definition, and passing one would fail every verification.
+   *
+   * The consequence to hold onto: the scheme is symmetric, so a host that can
+   * VERIFY a service token can also MINT one — including a user access token.
+   * **Local verification is therefore appropriate only inside the Oxy API's own
+   * trust boundary, and no service outside it holds this key today.** Do not be
+   * the first: if you need to verify Oxy service tokens from another service,
+   * follow #987 rather than copying the secret.
+   *
+   * `docs/adr/0012-service-token-signing-key-model.md` records the decision to
+   * retire this option in favour of asymmetric signing against a published
+   * JWKS, at which point it is removed rather than deprecated.
    */
   jwtSecret?: string;
   /**
@@ -266,7 +298,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      *   additionally checked for `aud`, `iss`, and `type` claims to prevent
      *   cross-token-type confusion attacks.
      * - The backend's own `authMiddleware` uses `jwt.verify()` because it has
-     *   direct access to `SERVICE_TOKEN_SECRET` / `ACCESS_TOKEN_SECRET`.
+     *   direct access to `ACCESS_TOKEN_SECRET`.
      *
      * **Why session-less user tokens are refused rather than trusted:**
      * every user access token the Oxy API issues carries a `sessionId` (see
@@ -298,7 +330,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
      *
      * // Protect all routes under /protected
-     * app.use('/protected', oxy.auth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }));
+     * app.use('/protected', oxy.auth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }));
      *
      * // Access user in route handler
      * app.get('/protected/me', (req, res) => {
@@ -312,7 +344,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * app.use('/public', oxy.auth({ optional: true }));
      *
      * // Require a specific scope on a service-token-protected route
-     * app.use('/internal/files', oxy.serviceAuth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }), oxy.requireScope('files:write'));
+     * app.use('/internal/files', oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }), oxy.requireScope('files:write'));
      * ```
      *
      * @param options Optional configuration
@@ -490,14 +522,20 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               return res.status(401).json(error);
             }
 
-            // Validate required service token fields
+            // Validate required service token fields. All of them are
+            // required, `ownerAccountId` included: an optional billing
+            // principal is one fallback away from being resolved from the
+            // delegated user, which is the exact confusion ADR 0007 forbids.
             const appId = decoded.appId;
             const credentialId = decoded.credentialId;
+            const ownerAccountId = decoded.ownerAccountId;
             const environment = decoded.environment;
             if (
               !appId ||
               typeof credentialId !== 'string' ||
               credentialId.length === 0 ||
+              typeof ownerAccountId !== 'string' ||
+              ownerAccountId.length === 0 ||
               !isOxyServiceEnvironment(environment)
             ) {
               if (optional) {
@@ -538,6 +576,11 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
                 return res.status(403).json(error);
               }
 
+              // ATTRIBUTION ONLY. `req.userId` answers "on whose behalf", never
+              // "who pays": the billing principal stays `req.serviceApp
+              // .ownerAccountId`, which this branch does not touch. Read it
+              // through `getOxyBillingPrincipal` (`@oxyhq/core/server`), whose
+              // return type a user id cannot satisfy (ADR 0007).
               req.userId = oxyUserId;
               req.user = { id: oxyUserId } as User;
               req.serviceActingAs = { userId: oxyUserId, scopes: grant.scopes };
@@ -552,6 +595,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               appId,
               appName: decoded.appName || 'unknown',
               credentialId,
+              ownerAccountId,
               scopes: Array.isArray(decoded.scopes) ? decoded.scopes : [],
               environment,
             };
@@ -896,7 +940,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * @example
      * ```typescript
      * // Protect internal endpoints
-     * app.use('/internal', oxy.serviceAuth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }));
+     * app.use('/internal', oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }));
      *
      * app.post('/internal/trigger', (req, res) => {
      *   console.log('Service app:', req.serviceApp);
@@ -936,7 +980,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * ```typescript
      * app.use(
      *   '/internal/files',
-     *   oxy.serviceAuth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }),
+     *   oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }),
      *   oxy.requireScope('files:write'),
      * );
      * ```

@@ -188,6 +188,10 @@ function serviceToken(): string {
       appId: randomUUID(),
       appName: 'Probe',
       credentialId: randomUUID(),
+      // The full attribution tuple the real mint emits (ADR 0007). Omitting
+      // `ownerAccountId` makes `verifyServiceToken` answer `not_service`, which
+      // would quietly turn the positive control below into a second negative.
+      ownerAccountId: randomUUID(),
       environment: 'production',
       scopes: ['user:read'],
     },

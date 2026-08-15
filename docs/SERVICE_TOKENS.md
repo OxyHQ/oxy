@@ -62,8 +62,8 @@ app.use('/internal', oxy.serviceAuth({
 }));
 
 app.post('/internal/trigger', (req, res) => {
-  req.serviceApp; // { appId, appName, credentialId, scopes }
-  req.userId;     // from X-Oxy-User-Id (or null)
+  req.serviceApp; // { appId, appName, credentialId, ownerAccountId, scopes, environment }
+  req.userId;     // from X-Oxy-User-Id (or null) — attribution, NEVER the payer
 });
 ```
 
@@ -91,20 +91,61 @@ app.get('/data', (req, res) => {
   "appId": "<applicationId>",
   "appName": "mention-backend",
   "credentialId": "<applicationCredentialId>",
+  "ownerAccountId": "<accountId>",
+  "environment": "production",
   "scopes": ["notifications:write"],
+  "iss": "oxy-auth",
+  "aud": "oxy-api",
   "iat": 1707235200,
   "exp": 1707238800
 }
 ```
 
-- `appId` is the `Application._id` (the claim name is intentionally stable).
+Every one of `appId`, `appName`, `credentialId`, `ownerAccountId` and `environment`
+is REQUIRED. A signature-valid token missing any of them is refused by both
+verifiers — the API's `verifyServiceToken` answers `not_service`, and
+`@oxyhq/core`'s middleware answers `401 INVALID_SERVICE_TOKEN`.
+
+- `appId` is the `Application._id` (the claim name is intentionally stable — `@oxyhq/core` reads it under this name).
 - `credentialId` attributes the token to the specific `ApplicationCredential` that minted it (useful for post-rotation revocation).
-- `scopes` = the credential's requested scopes **intersected** with the application's granted scopes; a credential with no explicit scopes inherits the app's full set.
+- `ownerAccountId` is `applications.owner_account_id`: the Oxy account that owns the application and is **financially responsible** for what it does (ADR 0007). It is resolved server-side from the presented credential at mint time and is never accepted from the request; it is read live, so an application transferred to another account mints the new owner from the next token onward.
+- `environment` mirrors the minting `ApplicationCredential.environment`, for test/live isolation.
+- `scopes` are the EFFECTIVE scopes: the credential's requested scopes **intersected** with the application's granted scopes (`intersectScopes`, the single authority — nothing intersects a second time downstream). A credential with no explicit scopes inherits the app's full set. The intersection runs at MINT time, so a scope the application has since lost is gone from the next token even though the credential row still names it.
+
+There is deliberately **no user claim**. A delegated end user travels in the
+`X-Oxy-User-Id` header, is authorised per request against an explicit acting-as
+grant, and is attribution only.
+
+## Attribution — who pays vs. on whose behalf
+
+The five claims above are the canonical attribution tuple of
+[ADR 0007](adr/0007-canonical-request-attribution.md) minus the delegated user.
+`@oxyhq/core/server` exposes them as two deliberately different shapes:
+
+```typescript
+import {
+  getOxyBillingPrincipal,      // OxyBillingPrincipal | null  — who is charged
+  getOxyDelegatedUserId,       // string | null               — on whose behalf
+  getOxyRequestAttribution,    // both, as one object
+} from '@oxyhq/core/server';
+
+const principal = getOxyBillingPrincipal(req);
+// { accountId, applicationId, credentialId, environment, scopes }
+```
+
+`getOxyBillingPrincipal` reads `req.serviceApp` and nothing else — never
+`req.userId`, `req.user` or `req.serviceActingAs`. And because it returns an
+OBJECT while every user-identity accessor returns a `string`, a delegated user
+id cannot be passed where a billing principal is expected: the substitution
+ADR 0007 forbids is a compile error, not a review question.
+
+Restated as the rule a reviewer applies: **if removing `X-Oxy-User-Id` from a
+request would change what any account is charged, the code is wrong.**
 
 ## Security
 
 - Service tokens verified via **HMAC-SHA256 signature** (not just decoded)
-- `jwtSecret` must be provided to `auth()` / `serviceAuth()` for verification
+- `jwtSecret` must be provided to `auth()` / `serviceAuth()` for verification, and the only value that works is **`ACCESS_TOKEN_SECRET`** — there is no separate service-token secret (issue #987; earlier SDK docs named a `SERVICE_TOKEN_SECRET` that has never existed). Because the scheme is symmetric, a host that can VERIFY a service token can also MINT one, and that same secret signs every user access token. **So local verification belongs inside the Oxy API's own trust boundary only, and no service outside it holds the key today** — the hazard is a documented configuration nobody has followed, not a live exposure. [ADR 0012](adr/0012-service-token-signing-key-model.md) records the decision to retire it for asymmetric signing against a published JWKS, the dual-accept window any key change needs, and the two sub-decisions (key custody, cutover schedule) that need the owner.
 - Without `jwtSecret`, service tokens are **rejected** (secure default)
 - Secrets stored as sha256 hashes; timing-safe comparison on exchange
 - Service tokens bypass CSRF (bearer-only, not vulnerable)

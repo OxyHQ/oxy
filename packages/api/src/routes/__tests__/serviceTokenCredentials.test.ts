@@ -110,6 +110,7 @@ interface ServiceClient {
   apiSecret: string;
   applicationId: string;
   credentialId: string;
+  ownerAccountId: string;
   appName: string;
 }
 
@@ -151,7 +152,14 @@ async function serviceClient(
     })
     .returning({ id: applicationCredentials.id });
 
-  return { apiKey, apiSecret, applicationId: app.id, credentialId: credential.id, appName };
+  return {
+    apiKey,
+    apiSecret,
+    applicationId: app.id,
+    credentialId: credential.id,
+    ownerAccountId: owner.id,
+    appName,
+  };
 }
 
 interface ServiceClaims {
@@ -159,6 +167,7 @@ interface ServiceClaims {
   appId?: string;
   appName?: string;
   credentialId?: string;
+  ownerAccountId?: string;
   scopes?: string[];
   environment?: string;
   iss?: string;
@@ -362,7 +371,7 @@ describe('POST /auth/service-token — the trust gate and the Oxy Pay carve-out'
 });
 
 describe('POST /auth/service-token — the minted claims', () => {
-  it('embeds appId, appName, credentialId, environment and iss/aud', async () => {
+  it('embeds appId, appName, credentialId, ownerAccountId, environment and iss/aud', async () => {
     const client = await serviceClient({ environment: 'staging' });
 
     const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
@@ -377,6 +386,80 @@ describe('POST /auth/service-token — the minted claims', () => {
     expect(claims.environment).toBe('staging');
     expect(claims.iss).toBe('oxy-auth');
     expect(claims.aud).toBe('oxy-api');
+    // ADR 0007: the financially responsible account, resolved server-side from
+    // the credential's application. Asserted against the row the fixture
+    // inserted, not against a value echoed back by the endpoint.
+    expect(claims.ownerAccountId).toBe(client.ownerAccountId);
+  });
+
+  /**
+   * The negative direction of the assertion above. `ownerAccountId` is what a
+   * verifier will charge, so it must come from the APPLICATION's owner row and
+   * from nowhere else — not from the request, and not from whoever happens to
+   * have created the application.
+   */
+  it('resolves ownerAccountId from the application row, never from the request body', async () => {
+    const [impostor] = await getDb().insert(users).values({}).returning({ id: users.id });
+    const client = await serviceClient();
+
+    const res = await post({
+      apiKey: client.apiKey,
+      apiSecret: client.apiSecret,
+      ownerAccountId: impostor.id,
+      accountId: impostor.id,
+    });
+
+    const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+    expect(claims.ownerAccountId).toBe(client.ownerAccountId);
+    expect(claims.ownerAccountId).not.toBe(impostor.id);
+  });
+
+  it('follows the application when its owner account changes', async () => {
+    // The control for the test above: the claim is a live read of
+    // `applications.owner_account_id`, so it tracks a transfer rather than
+    // being frozen at credential-creation time.
+    const client = await serviceClient();
+    const [newOwner] = await getDb().insert(users).values({}).returning({ id: users.id });
+    await getDb()
+      .update(applications)
+      .set({ ownerAccountId: newOwner.id })
+      .where(eq(applications.id, client.applicationId));
+
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+
+    const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+    expect(claims.ownerAccountId).toBe(newOwner.id);
+    expect(claims.ownerAccountId).not.toBe(client.ownerAccountId);
+  });
+
+  /**
+   * `intersectScopes` runs at MINT time, not at credential-creation time, so a
+   * scope the application has since lost disappears from the next token even
+   * though the credential row still names it. Distinct from the fixtures that
+   * create the mismatch up front: here the credential was legitimately granted
+   * the scope and the grant was withdrawn afterwards.
+   */
+  it('drops a scope the application has SINCE lost', async () => {
+    const client = await serviceClient(
+      { scopes: ['user:read', 'files:write'] },
+      { scopes: ['user:read', 'files:write'] },
+    );
+
+    const before = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+    expect(decodeServiceJwt((before.body.data as { token: string }).token).scopes).toEqual([
+      'user:read',
+      'files:write',
+    ]);
+
+    await getDb()
+      .update(applications)
+      .set({ scopes: ['user:read'] })
+      .where(eq(applications.id, client.applicationId));
+
+    const after = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+    expect(decodeServiceJwt((after.body.data as { token: string }).token).scopes).toEqual([
+      'user:read',
+    ]);
   });
 
   it('INTERSECTS credential scopes with app scopes — a scope the app lacks is stripped', async () => {
