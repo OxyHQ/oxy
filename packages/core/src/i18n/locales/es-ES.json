@@ -2136,8 +2136,13 @@
       "filesWrite": "Subir y modificar tus archivos",
       "filesDelete": "Eliminar tus archivos",
       "webhooksReceive": "Recibir webhooks",
-      "chatCompletions": "Usar el chat con IA en tu nombre",
-      "modelsRead": "Ver los modelos de IA disponibles",
+      "inferenceInvoke": "Ejecutar peticiones de IA en tu nombre",
+      "inferenceModelsRead": "Ver los modelos de IA disponibles",
+      "inferenceUsageRead": "Ver su consumo y costes de IA",
+      "inferenceRoutingRead": "Ver cómo se enrutan las peticiones de IA",
+      "inferenceRoutingWrite": "Cambiar cómo se enrutan las peticiones de IA",
+      "inferenceProvidersRead": "Ver sus proveedores de IA conectados",
+      "inferenceProvidersWrite": "Gestionar sus proveedores de IA conectados",
       "federationWrite": "Actuar en servicios federados"
     },
     "account": {

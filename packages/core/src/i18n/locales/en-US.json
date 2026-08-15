@@ -2136,8 +2136,13 @@
       "filesWrite": "Upload and modify your files",
       "filesDelete": "Delete your files",
       "webhooksReceive": "Receive webhooks",
-      "chatCompletions": "Use AI chat on your behalf",
-      "modelsRead": "List available AI models",
+      "inferenceInvoke": "Run AI requests on your behalf",
+      "inferenceModelsRead": "List available AI models",
+      "inferenceUsageRead": "Read its AI usage and costs",
+      "inferenceRoutingRead": "Read how AI requests are routed",
+      "inferenceRoutingWrite": "Change how AI requests are routed",
+      "inferenceProvidersRead": "Read its connected AI providers",
+      "inferenceProvidersWrite": "Manage its connected AI providers",
       "federationWrite": "Act across federated services"
     },
     "account": {

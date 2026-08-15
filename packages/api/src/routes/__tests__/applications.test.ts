@@ -345,6 +345,63 @@ describe('POST /applications — create', () => {
     expect(res.status).toBe(201);
     expect(res.body.application?.scopes).toContain('federation:write');
   });
+
+  /**
+   * The inference classification (#972 workstream 3) reaching the write path,
+   * not just the constant: `inference:providers:write` manages provider/BYOK
+   * connections and `inference:routing:write` decides where requests are served
+   * from, so neither is self-grantable — while the five reads and the invoke
+   * are, and an ordinary owner must not need staff to build against inference.
+   */
+  it('403 when a non-staff creator self-grants an inference WRITE scope', async () => {
+    for (const scope of ['inference:providers:write', 'inference:routing:write']) {
+      const res = await requestJson(server, 'POST', '/applications', {
+        name: `Inference ${scope}`,
+        scopes: ['inference:invoke', scope],
+      });
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it('lets a non-staff creator self-grant the whole non-privileged inference family', async () => {
+    // The control for the refusal above. Without it, a create path that had
+    // broken into 403-ing every inference scope would look like correct
+    // staff-gating.
+    const selfGrantable = [
+      'inference:invoke',
+      'inference:models:read',
+      'inference:usage:read',
+      'inference:routing:read',
+      'inference:providers:read',
+    ];
+    const res = await requestJson(server, 'POST', '/applications', {
+      name: 'Inference reader',
+      scopes: selfGrantable,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.application?.scopes).toEqual(selfGrantable);
+  });
+
+  it('allows a STAFF creator to grant an inference WRITE scope', async () => {
+    actAs(OWNER_ID, true);
+    const res = await requestJson(server, 'POST', '/applications', {
+      name: 'BYOK manager',
+      scopes: ['inference:providers:write'],
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.application?.scopes).toContain('inference:providers:write');
+  });
+
+  it('400s a retired scope name outright — there is no alias', async () => {
+    // The clean cut, at the request boundary: `chat:completions` is no longer
+    // in the Zod enum, so it is rejected as an unknown value rather than
+    // silently translated to `inference:invoke`.
+    const res = await requestJson(server, 'POST', '/applications', {
+      name: 'Legacy',
+      scopes: ['chat:completions'],
+    });
+    expect(res.status).toBe(400);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -734,6 +791,57 @@ describe('credentials', () => {
       scopes: ['federation:write'],
     });
     expect(res.status).toBe(400);
+  });
+
+  it('refuses a credential naming inference:providers:write on an app without it', async () => {
+    // The escalation refused one step earlier than the mint: a credential row
+    // that could hold the scope is never created in the first place.
+    const app = await seedApp({ scopes: ['inference:invoke', 'inference:providers:read'] });
+    const res = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
+      name: 'byok',
+      type: 'confidential',
+      environment: 'production',
+      scopes: ['inference:invoke', 'inference:providers:write'],
+    });
+    expect(res.status).toBe(400);
+
+    // …and the same request minus that one scope is accepted, so the refusal is
+    // about the ungranted scope rather than about inference credentials.
+    const allowed = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
+      name: 'reader',
+      type: 'confidential',
+      environment: 'production',
+      scopes: ['inference:invoke', 'inference:providers:read'],
+    });
+    expect(allowed.status).toBe(201);
+  });
+
+  it('403s a credential create on an application in an account the caller cannot reach', async () => {
+    // Cross-account: the app genuinely holds the inference grant, and the
+    // caller is simply not a member of the account that owns it — so nothing
+    // about the scope makes the credential reachable.
+    const foreign = await seedApp({
+      ownerAccountId: ORG_ID,
+      scopes: ['inference:invoke', 'inference:providers:write'],
+    });
+    const res = await requestJson(server, 'POST', `/applications/${foreign.id}/credentials`, {
+      name: 'stolen',
+      type: 'confidential',
+      environment: 'production',
+      scopes: ['inference:providers:write'],
+    });
+    expect(res.status).toBe(403);
+
+    // Control: the identical request succeeds once the caller IS a member with
+    // credential-create permission, so the 403 is the account boundary.
+    grantAccess(OWNER_ID, ORG_ID, 'developer');
+    const allowed = await requestJson(server, 'POST', `/applications/${foreign.id}/credentials`, {
+      name: 'legitimate',
+      type: 'confidential',
+      environment: 'production',
+      scopes: ['inference:providers:write'],
+    });
+    expect(allowed.status).toBe(201);
   });
 
   it('rotate mints a new credential and deprecates the previous one', async () => {

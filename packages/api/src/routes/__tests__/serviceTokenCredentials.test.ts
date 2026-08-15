@@ -411,6 +411,57 @@ describe('POST /auth/service-token — the minted claims', () => {
     const claims = decodeServiceJwt((res.body.data as { token: string }).token);
     expect([...(claims.scopes ?? [])].sort()).toEqual(['files:read', 'user:read']);
   });
+
+  /**
+   * The inference escalation (#972 workstream 3), asserted at the MINT rather
+   * than only on `intersectScopes`: `inference:providers:write` is staff-gated
+   * because it manages provider/BYOK connections, so a credential naming it on
+   * an application that was never granted it must come back without it. The
+   * credential row itself is legal — the CHECK is a vocabulary, not an
+   * authorization — which is exactly why the intersection has to be the thing
+   * that refuses.
+   */
+  it('strips inference:providers:write from a credential whose app was never granted it', async () => {
+    const client = await serviceClient(
+      { scopes: ['inference:invoke', 'inference:providers:write'] },
+      { scopes: ['inference:invoke', 'inference:providers:read'] },
+    );
+
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+
+    const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+    expect(claims.scopes).toEqual(['inference:invoke']);
+  });
+
+  it('mints inference:providers:write when the application genuinely holds it', async () => {
+    // The control for the assertion above: the scope is mintable, so the
+    // stripping there is the intersection and not an inference scope being
+    // unreachable through this endpoint.
+    const client = await serviceClient(
+      { scopes: ['inference:providers:write'] },
+      { scopes: ['inference:invoke', 'inference:providers:write'] },
+    );
+
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+
+    const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+    expect(claims.scopes).toEqual(['inference:providers:write']);
+  });
+
+  it('mints nothing at all for a REVOKED credential holding inference scopes', async () => {
+    // Revocation outranks the grant: the credential and its application both
+    // hold the scope, and the mint still refuses, so no inference authority
+    // survives a revoke.
+    const client = await serviceClient(
+      { status: 'revoked', scopes: ['inference:invoke'] },
+      { scopes: ['inference:invoke'] },
+    );
+
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+
+    expect(res.status).toBe(401);
+    expect(res.body.data).toBeUndefined();
+  });
 });
 
 describe('POST /auth/service-token — bookkeeping', () => {

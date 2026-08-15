@@ -144,6 +144,101 @@ describe('payments:read / payments:write (F2.0)', () => {
   });
 });
 
+describe('the inference scope family (#972 workstream 3)', () => {
+  /*
+   * Written out rather than derived from `APPLICATION_SCOPES`, for the reason
+   * the follow-scope block below records: a loop over the constant checking
+   * facts ABOUT the constant iterates less and still passes when a member is
+   * deleted. These names are the contract, so they are spelled here.
+   */
+  const SELF_GRANTABLE = [
+    'inference:invoke',
+    'inference:models:read',
+    'inference:usage:read',
+    'inference:routing:read',
+    'inference:providers:read',
+  ] as const;
+
+  const STAFF_ONLY = ['inference:routing:write', 'inference:providers:write'] as const;
+
+  /** Removed outright by this change — no alias, no grace, no sunset date. */
+  const RETIRED = ['chat:completions', 'models:read'] as const;
+
+  it('recognises every one of the seven inference scopes', () => {
+    for (const scope of [...SELF_GRANTABLE, ...STAFF_ONLY]) {
+      expect(isValidApplicationScope(scope)).toBe(true);
+    }
+  });
+
+  it('no longer recognises `chat:completions` or `models:read`', () => {
+    for (const scope of RETIRED) {
+      expect(isValidApplicationScope(scope)).toBe(false);
+      expect(isPrivilegedScope(scope)).toBe(false);
+    }
+    // Positive control: the validator can still say yes. Without this, a
+    // validator that had broken into answering `false` for EVERYTHING would
+    // pass the two assertions above and read as a successful retirement.
+    expect(isValidApplicationScope('user:read')).toBe(true);
+    expect(isValidApplicationScope('inference:invoke')).toBe(true);
+  });
+
+  it('staff-gates the two WRITES and leaves the reads and the invoke self-grantable', () => {
+    // The asymmetry is the decision: describing where a request would go is not
+    // deciding it, and both writes reach catalogue objects the platform serves
+    // every tenant from — see the doc comment on PRIVILEGED_APPLICATION_SCOPES.
+    for (const scope of STAFF_ONLY) {
+      expect(isPrivilegedScope(scope)).toBe(true);
+    }
+    for (const scope of SELF_GRANTABLE) {
+      expect(isPrivilegedScope(scope)).toBe(false);
+    }
+  });
+
+  it('asks the user to consent to none of them', () => {
+    // A different axis: the billing principal on an inference request is the
+    // application's OWNER ACCOUNT, never a delegated end user, so no inference
+    // scope reaches the user's own data or the user's own money.
+    for (const scope of [...SELF_GRANTABLE, ...STAFF_ONLY]) {
+      expect(isUserConsentRequiredScope(scope)).toBe(false);
+    }
+    expect(userConsentRequiredScopes([...SELF_GRANTABLE, ...STAFF_ONLY])).toEqual([]);
+    // Positive control on the same call: the function is still capable of
+    // returning something.
+    expect(userConsentRequiredScopes(['inference:invoke', 'follows:read'])).toEqual([
+      'follows:read',
+    ]);
+  });
+
+  it('strips `inference:providers:write` from a credential whose application lacks it', () => {
+    // The escalation this exists to refuse: a credential names the staff-gated
+    // provider/BYOK write, its application was never granted it, so the mint
+    // hands back an authority the app does not hold — unless intersectScopes
+    // drops it, which is the single authority both the credential-create
+    // validation and the service-token mint go through.
+    expect(
+      intersectScopes(
+        ['inference:invoke', 'inference:providers:write'],
+        ['inference:invoke', 'inference:providers:read']
+      )
+    ).toEqual(['inference:invoke']);
+  });
+
+  it('keeps `inference:providers:write` when the application genuinely holds it', () => {
+    // The other direction, so the assertion above is about the INTERSECTION and
+    // not about this scope being unmintable.
+    expect(
+      intersectScopes(['inference:providers:write'], ['user:read', 'inference:providers:write'])
+    ).toEqual(['inference:providers:write']);
+  });
+
+  it('drops a retired name from BOTH reconcilers, even when both sides still name it', () => {
+    // A stored row that predates the migration cannot resurrect the scope: the
+    // vocabulary check runs on every path, not only on freshly-requested input.
+    expect(intersectScopes([...RETIRED], [...RETIRED])).toEqual([]);
+    expect(unionValidScopes([...RETIRED], ['user:read', ...RETIRED])).toEqual(['user:read']);
+  });
+});
+
 describe('follow scopes: the user grants them, the platform never assumes them', () => {
   /*
    * Written out rather than derived from the constant. Iterating

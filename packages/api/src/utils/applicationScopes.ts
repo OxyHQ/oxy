@@ -28,6 +28,22 @@
  *   deliveries) belonging to ITS OWN Application. Non-privileged — same
  *   pattern as `files:write`/`updates:publish`: authority is scoped to the
  *   app's own tenant, never cross-tenant.
+ * - The `inference:*` family authorises the Oxy inference edge. `inference:invoke`
+ *   spends the OWNING ACCOUNT's balance on a request; `inference:models:read`,
+ *   `inference:usage:read`, `inference:routing:read` and
+ *   `inference:providers:read` read the model catalogue, the app's own usage
+ *   receipts, and the routing/provider descriptors. Those five are
+ *   non-privileged: each is bounded to the app's own tenant, and a delegated
+ *   end-user identity is never the billing principal, so an application can only
+ *   ever spend the balance of the account that owns it. The two WRITES are
+ *   privileged — see {@link PRIVILEGED_APPLICATION_SCOPES}.
+ *
+ *   This family REPLACED `chat:completions` and `models:read` outright. Those two
+ *   authorised nothing: no middleware, route or service in this repository ever
+ *   read either one, so they were a vocabulary entry an application could hold
+ *   and never a permission anything checked. They were removed rather than kept
+ *   as aliases — an alias for a name that gated nothing is a second way to spell
+ *   a no-op.
  * - `reputation:moderation:apply` permits the participatory-moderation service to
  *   submit a published DECISION for consequence derivation. It is deliberately
  *   NARROWER than `reputation:write`, not additive to it — see
@@ -64,8 +80,13 @@ export const APPLICATION_SCOPES = [
   'files:delete',
   'user:read',
   'webhooks:receive',
-  'chat:completions',
-  'models:read',
+  'inference:invoke',
+  'inference:models:read',
+  'inference:usage:read',
+  'inference:routing:read',
+  'inference:routing:write',
+  'inference:providers:read',
+  'inference:providers:write',
   'updates:publish',
   'federation:write',
   'signals:write',
@@ -137,6 +158,23 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   principal is a particular Oxy user. The assertion must be backed by that
  *   user's own access token, but the scope is still privileged because a binding
  *   is what makes a later conduct penalty possible at all.
+ * - `inference:routing:write` and `inference:providers:write` mutate the objects
+ *   that decide WHERE an inference request is served from — routing profiles,
+ *   and provider/deployment connections. Both are catalogue objects the platform
+ *   serves every tenant from, not per-application settings, so a self-granting
+ *   owner could repoint traffic that is not its own; and `inference:providers:write`
+ *   is additionally where BYOK provider credentials are managed, which makes it
+ *   the one scope here whose misuse redirects other people's requests AND the
+ *   secrets used to serve them. Their READ counterparts are deliberately NOT
+ *   here: describing where a request would go is not deciding it, and an app
+ *   that cannot see the catalogue cannot debug its own latency.
+ *
+ *   Neither object exists in this repository yet — these scopes are defined
+ *   ahead of the inference data plane, so this classification is the DECISION
+ *   and not a description of enforcement already in place. Revisit it if routing
+ *   profiles and provider connections turn out to be per-account rows rather
+ *   than a shared catalogue; that, and only that, would make these two
+ *   own-tenant operations.
  *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) and remain
@@ -152,6 +190,8 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'notifications:write',
   'accounts:provision',
   'chains:write',
+  'inference:routing:write',
+  'inference:providers:write',
 ] as const satisfies readonly ApplicationScope[];
 
 /**
@@ -175,6 +215,19 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
  *
  * Adding a scope here makes it un-bypassable. Keep it to authority over data
  * that is the USER's rather than the application's.
+ *
+ * NO `inference:*` scope belongs here, and the reason is the attribution rule
+ * rather than a judgement about how sensitive inference is. The financially
+ * responsible principal on every inference request is the application's OWNER
+ * ACCOUNT; a delegated end-user id is attribution only and is never a substitute
+ * for the billing identity. So `inference:invoke` spends the app's money, not
+ * the user's, and `inference:usage:read` reads the app's receipts, not the
+ * user's history. Neither is the user's data, which is the question this set
+ * asks. Prompts and responses are not persisted by default, so there is no
+ * user-owned record for a read scope to reach either. REOPEN this the moment
+ * either premise stops holding — if an inference request can ever be billed to a
+ * delegated user's balance, or if prompt history becomes a stored, user-owned
+ * resource, then the scope that reaches it belongs in this set.
  */
 export const USER_CONSENT_REQUIRED_SCOPES = [
   'follows:read',
