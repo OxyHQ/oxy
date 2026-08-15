@@ -502,6 +502,31 @@ export interface CreateApplicationCredentialInput {
   type: ApplicationCredentialType;
   environment: ApplicationEnvironment;
   scopes?: string[];
+  /**
+   * Lifetime of a `machine` credential, in seconds — 60 to 730 days. Omit for a
+   * key that does not expire on its own.
+   *
+   * **`machine` only.** On every other credential type `expires_at` means the
+   * rotation grace deadline, so a caller setting it at creation would make a
+   * brand-new credential indistinguishable from a rotated one. The server
+   * REJECTS it for those types rather than ignoring it, so sending it with the
+   * wrong `type` is a 400, not a silently dropped field.
+   */
+  expiresInSeconds?: number;
+}
+
+/** Input accepted by `rotateAppCredential`. */
+export interface RotateApplicationCredentialInput {
+  /**
+   * How long the superseded `machine` token keeps working, in seconds — 1 to 30
+   * days. Omitting it revokes the previous token the instant the replacement is
+   * minted, which is the safe default for a leaked key.
+   *
+   * **`machine` only, and opt-in.** `confidential`/`service` credentials always
+   * retire on the platform's fixed seven-day grace and the server REJECTS this
+   * field for them, so their contract is unchanged.
+   */
+  graceSeconds?: number;
 }
 
 /**
@@ -1309,16 +1334,20 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
      * which the old credential is still honoured).
      * @param applicationId - The application's Mongo `_id`.
      * @param credentialId - The credential's Mongo `_id`.
+     * @param options - `graceSeconds` keeps a superseded `machine` token working
+     *   for that long. Omitted, the previous token dies the moment the
+     *   replacement is minted.
      */
     async rotateAppCredential(
       applicationId: string,
       credentialId: string,
+      options?: RotateApplicationCredentialInput,
     ): Promise<RotateApplicationCredentialResult> {
       try {
         const result = await this.makeRequest<RotateApplicationCredentialResult>(
           'POST',
           `/applications/${encodeURIComponent(applicationId)}/credentials/${encodeURIComponent(credentialId)}/rotate`,
-          undefined,
+          options,
           { cache: false },
         );
         // Rotation changes credential status/audit fields surfaced by the list.

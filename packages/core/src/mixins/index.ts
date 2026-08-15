@@ -33,6 +33,7 @@ import { OxyServicesChainsMixin } from './OxyServices.chains';
 import { OxyServicesNodesMixin } from './OxyServices.nodes';
 import { OxyServicesLinksMixin } from './OxyServices.links';
 import { OxyServicesFollowGraphMixin } from './OxyServices.followGraph';
+import { OxyServicesInferenceMixin } from './OxyServices.inference';
 import { OxyServicesDeviceBootMixin } from './OxyServices.deviceBoot';
 import { OxyServicesDeviceTransferMixin } from './OxyServices.deviceTransfer';
 
@@ -72,6 +73,7 @@ type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesNodesMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesLinksMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesFollowGraphMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesInferenceMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDeviceBootMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDeviceTransferMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesUtilityMixin<typeof OxyServicesBase>>>;
@@ -155,6 +157,12 @@ const MIXIN_PIPELINE: MixinFunction[] = [
     // The user-owned follow graph (#809). One relationship per user and target,
     // shared across applications, with per-application context on top.
     OxyServicesFollowGraphMixin,
+
+    // The inference model catalogue (#972). Reads only, and deliberately no
+    // request/stream/receipt methods — the public inference edge those would
+    // call is workstream 4 and does not exist yet. See
+    // `docs/inference/README.md` for what is and is not built.
+    OxyServicesInferenceMixin,
 
     // Device-first token mint: the client half of the zero-cookie transport
     // (`mintFromDeviceSecret` → `POST /session/device/token`).

@@ -1,7 +1,12 @@
 # Inference platform — responsibility matrix
 
 - Issue: #972 (workstream 0/A)
-- Date: 2026-08-15
+- Date: 2026-08-15. **Only §15 was re-verified and updated on 2026-08-16**, when
+  the SDK catalogue client and the `docs/inference/` doc set landed; one §5 row
+  was corrected at the same time because `models-stats.ts` no longer exists.
+  Every other row is still a claim about 2026-08-15, and §5's descriptor rows in
+  particular predate the catalogue merging (#982) — re-verify before citing
+  them.
 - Governing decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md),
   [ADR 0006](../adr/0006-oxy-relay-boundary.md),
   [ADR 0007](../adr/0007-canonical-request-attribution.md),
@@ -126,7 +131,7 @@ The package `@oxyhq/contracts` exists (`packages/contracts`, zod-only, epic's
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| Static `alia-lite` / `alia-v1` / `alia-v1-pro` / `alia-v1-pro-max` array (retired) | Oxy | OxyHQServices `packages/api/src/routes/models-stats.ts:7-52` | exists |
+| Static `alia-lite` / `alia-v1` / `alia-v1-pro` / `alia-v1-pro-max` array (retired) | Oxy | OxyHQServices `packages/api/src/routes/models-stats.ts` | **gone** — the file was deleted with the catalogue landing (#982). Every surviving occurrence of the four names is enumerated in `docs/inference/migration.md` |
 | Same fake ids in Console model docs | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/models.tsx:13-43` | exists |
 | Same fake ids in quickstart / chat-completions examples | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/quickstart.tsx:127`, `documentation/chat-completions.tsx:109` | exists |
 | Playground default model string | Oxy | OxyHQServices `packages/console/src/routes/_layout/playground.tsx:103` | exists |
@@ -365,23 +370,26 @@ none of workstreams 0–12 may block on it.
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
 | `@oxyhq/core` client SDK | Oxy | OxyHQServices `packages/core` | exists |
-| Typed inference methods on `@oxyhq/core` | Oxy | OxyHQServices `packages/core/src/mixins` | planned |
-| TypeScript SDK surface accepting both Oxy auth and OpenAI-style keys | Oxy | OxyHQServices `packages/core` | planned |
-| Python SDK or generated client | Oxy | new repo | planned |
+| Typed inference methods on `@oxyhq/core` | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.inference.ts` | exists — catalogue READS only (`listInferenceModels`, `getInferenceModel`, `listInferenceRoutingProfiles`), typed off `@oxyhq/contracts`. There is deliberately no request/stream/receipt method: the edge those would call is epic §4 and does not exist |
+| Machine-credential lifetime and rotation-grace options on the SDK | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.accounts.ts` | exists — `createAppCredential({expiresInSeconds})` and `rotateAppCredential(…, {graceSeconds})`; the API accepted both since epic §2.3, the SDK could not send either |
+| TypeScript SDK surface accepting both Oxy auth and OpenAI-style keys | Oxy | OxyHQServices `packages/core` | planned — `oxy_sk_*` exists as a credential (epic §2.3) but authenticates on no route, so there is no OpenAI-style lane for a client to speak yet |
+| Python SDK or generated client | Oxy | new repo | planned — blocked on the epic §4 HTTP contract stabilising |
 | `docs/SERVICE_TOKENS.md` (native service-token flow) | Oxy | OxyHQServices `docs/SERVICE_TOKENS.md` | exists |
 | Console authentication page (documents `oxy_dk_*` as the public client id, and names the two mechanisms that do authenticate) | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/authentication.tsx` | exists — corrected in epic §2.1; the bearer-secret framing it used to carry is gone |
 | Console quickstart / chat-completions / SDK pages | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/` | exists |
-| Static machine API-key flow documentation | Oxy | OxyHQServices `packages/console` | planned — the Console authentication page states its absence explicitly rather than leaving the gap unmarked (epic §2.1) |
+| Static machine API-key flow documentation | Oxy | OxyHQServices `docs/inference/credentials.md` | exists — creation, one-time token display, environments, opt-in rotation grace, revocation, audit and limits, and that **no endpoint accepts one yet** (epic §4 mounts it) |
 | A bare `oxy_dk_*` is refused on every lane requiring a secret or a bearer | Oxy | OxyHQServices `packages/api/src/routes/__tests__/publicIdentifierNotASecret.test.ts`, `packages/api/src/middleware/__tests__/publicIdentifierNotABearer.test.ts` | exists — 4 lanes, each rejection paired with a positive control |
-| Attribution documentation (account/application/credential) | Oxy | OxyHQServices `packages/console` | planned |
-| Streaming, cancellation, retry documentation | Oxy | OxyHQServices `packages/console` | planned |
-| Model vs deployment vs routing profile documentation | Oxy | OxyHQServices `packages/console` | planned |
-| Routing controls and fallback semantics documentation | Oxy | OxyHQServices `packages/console` | planned |
-| Exact billing / reservations / usage-dashboard documentation | Oxy | OxyHQServices `packages/console` | planned |
-| BYOK behaviour and limits documentation | Oxy | OxyHQServices `packages/console` | planned |
-| Data retention and regional policy documentation | Oxy | OxyHQServices `packages/console` | planned |
-| Migration guides for `chat:completions`, `models:read`, `alia_sk_*`, `oxy_dk_*` | Oxy | OxyHQServices `docs/` | planned |
-| Published deprecation and sunset dates | Oxy | OxyHQServices `docs/` | planned |
+| Native service-token flow, as one of the three credential lanes | Oxy | OxyHQServices `docs/inference/credentials.md` | exists — frames the lane and defers to `docs/SERVICE_TOKENS.md`, which stays authoritative for the claim set (epic §2.2) |
+| Attribution documentation (account/application/credential) | Oxy | OxyHQServices `docs/inference/attribution.md` | exists |
+| Streaming, cancellation, retry documentation | Oxy | OxyHQServices `docs/inference/README.md` | planned — deliberately NOT written. There is no edge to have that behaviour; the absence is recorded as an absence rather than described as an interface |
+| Model vs deployment vs routing profile documentation | Oxy | OxyHQServices `docs/inference/catalogue.md` | exists |
+| Routing controls and fallback semantics documentation | Oxy | OxyHQServices `docs/inference/catalogue.md` | planned — the same-model-failover vs cross-model-fallback DISTINCTION is documented; the controls themselves are epic §6 and do not exist |
+| Exact billing / reservations / usage-dashboard documentation | Oxy | OxyHQServices `docs/inference/billing.md` | exists — including why dashboard usage is eventually consistent while the billed amount comes from the ledger |
+| BYOK behaviour and limits documentation | Oxy | OxyHQServices `docs/inference/README.md` | planned — recorded as not built (contract shapes only, no storage/validation/rotation/routing) |
+| Data retention and regional policy documentation | Oxy | OxyHQServices `docs/inference/catalogue.md` | exists — the per-route retention/training/region/subprocessor fields a caller reads. Enforcement AGAINST them is epic §6 and does not exist |
+| Migration guides for `chat:completions`, `models:read`, `alia_sk_*`, `oxy_dk_*` | Oxy | OxyHQServices `docs/inference/migration.md` | exists — `alia_sk_*` established as an Alia-issued key with zero references in this repo, cited to the Alia repo |
+| Status board naming what is NOT built and what tracks it | Oxy | OxyHQServices `docs/inference/README.md` | exists |
+| Published deprecation and sunset dates | Oxy | OxyHQServices `docs/inference/README.md` | planned — and NOT invented. The two retired scope names authorised nothing so had no users to notice, and a sunset date is meaningless before the public edge has a launch date; the reasoning is written down rather than the gap left blank |
 
 ## 16. Testing, observability, rollout (epic §16)
 
