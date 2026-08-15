@@ -367,8 +367,18 @@ export type ApplicationType = 'first_party' | 'third_party' | 'internal' | 'syst
 /** Lifecycle status of an application. */
 export type ApplicationStatus = 'active' | 'suspended' | 'deleted' | 'pending_review';
 
-/** OAuth credential kind. `service` credentials mint service tokens. */
-export type ApplicationCredentialType = 'public' | 'confidential' | 'service';
+/**
+ * Credential kind.
+ *
+ * The first three are OAuth clients: the `oxy_dk_…` `publicKey` is the
+ * `client_id`, and any secret is presented BESIDE it. `service` credentials
+ * additionally mint service tokens.
+ *
+ * `machine` is the OpenAI-SDK-compatible API key (issue #972 §2.3): its
+ * credential material is ONE `oxy_sk_…` bearer string returned in `token`
+ * exactly once on create/rotate, never in `secret`.
+ */
+export type ApplicationCredentialType = 'public' | 'confidential' | 'service' | 'machine';
 
 /** Deployment environment an application credential is scoped to. */
 export type ApplicationEnvironment = 'development' | 'staging' | 'production';
@@ -428,6 +438,12 @@ export interface ApplicationCredential {
   applicationId: string;
   name: string;
   publicKey: string;
+  /**
+   * `oxy_sk_<id>` — the PUBLIC lookup half of a `machine` credential's bearer
+   * token, present only on that type. Safe to render: the secret half is 256
+   * bits that were shown exactly once and are never returned again.
+   */
+  tokenPrefix?: string;
   type: ApplicationCredentialType;
   environment: ApplicationEnvironment;
   scopes: string[];
@@ -488,23 +504,43 @@ export interface CreateApplicationCredentialInput {
   scopes?: string[];
 }
 
-/** Result of creating an application credential — `secret` is returned ONCE. */
+/**
+ * Result of creating an application credential — credential material is returned
+ * ONCE and can never be read back.
+ *
+ * Exactly one of the two fields carries it, decided by
+ * {@link ApplicationCredentialType}: `secret` for a `confidential`/`service`
+ * client, `token` for a `machine` API key, and NEITHER for a `public` client
+ * (`secret` is `null`). They are separate fields rather than one, so a surface
+ * that renders "the secret" cannot silently render an API key's bearer token
+ * under the wrong label, or a `null` where a token should be.
+ */
 export interface ApplicationCredentialWithSecret {
   credential: ApplicationCredential;
-  secret: string;
+  /** The OAuth client secret. `null` for `public` and `machine` credentials. */
+  secret: string | null;
+  /** The full `oxy_sk_…` bearer token. Present ONLY for a `machine` credential. */
+  token?: string;
 }
 
 /**
  * Result of rotating an application credential. Extends the create result with
- * audit fields: the new plaintext `secret` is returned ONCE, plus `rotatedFrom`
- * (the previous credential's `credentialId`) and `graceExpiresAt` (ISO string
- * marking when the old credential stops being honoured during the grace window).
+ * audit fields: the new credential material is returned ONCE, plus `rotatedFrom`
+ * (the previous credential's `credentialId`) and `graceExpiresAt`.
  */
 export interface RotateApplicationCredentialResult extends ApplicationCredentialWithSecret {
   /** The previous credential's `credentialId` that this rotation supersedes. */
   rotatedFrom: string;
-  /** ISO timestamp at which the rotated-from credential's grace window ends. */
-  graceExpiresAt: string;
+  /**
+   * ISO timestamp at which the rotated-from credential stops being honoured, or
+   * `null` when no grace window was configured and it was revoked outright.
+   *
+   * Nullable because a `machine` credential's grace is OPT-IN (issue #972 §2.3):
+   * rotating an API key without asking for a window kills the old token
+   * immediately, and there is then no deadline to report. The OAuth/service
+   * types always carry their fixed seven-day deadline.
+   */
+  graceExpiresAt: string | null;
 }
 
 /** Time window for application usage statistics. */

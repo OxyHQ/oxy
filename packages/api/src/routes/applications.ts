@@ -38,7 +38,10 @@ import {
   listApplicationsQuerySchema,
   updateApplicationSchema,
   createCredentialSchema,
+  rotateCredentialSchema,
 } from '../schemas/application.schemas';
+import { generateMachineCredentialToken } from '../utils/machineCredentialToken';
+import { recordCredentialLifecycleEvent } from '../services/applicationCredentialAudit.service';
 import {
   storeListingBody,
   storeScreenshotBody,
@@ -63,10 +66,13 @@ import {
 type ApplicationRow = typeof applications.$inferSelect;
 
 /**
- * A credential row as read by this module — every column EXCEPT `secretHash`.
- * See {@link CREDENTIAL_COLUMNS}.
+ * A credential row as read by this module — every column EXCEPT the two hash
+ * columns. See {@link CREDENTIAL_COLUMNS}.
  */
-type CredentialRow = Omit<typeof applicationCredentials.$inferSelect, 'secretHash'>;
+type CredentialRow = Omit<
+  typeof applicationCredentials.$inferSelect,
+  'secretHash' | 'tokenHash'
+>;
 
 /**
  * Resolved application access for the caller.
@@ -112,19 +118,26 @@ const USAGE_TOP_ENDPOINTS = 10;
 
 /**
  * The credential columns a client may ever see — every column except
- * `secretHash`.
+ * `secretHash` and `tokenHash`.
  *
  * Mongoose expressed this as `.select('-secretHash')`; drizzle enumerates
  * columns explicitly and has no exclusion form, so the selection is named once
  * here and reused by the list read AND by every `returning()`. A credential
- * object in this module therefore never carries the hash in the first place,
- * which is a stronger guarantee than remembering to drop it in the serializer.
+ * object in this module therefore never carries either hash in the first place,
+ * which is a stronger guarantee than remembering to drop it in the serializer:
+ * `CredentialRow` has no such property, so a serializer that tried to read one
+ * would fail `tsc`.
+ *
+ * `tokenPrefix` IS here. It is the machine credential's public identifier — the
+ * half a Console row can render to say which key it is — and it authorises
+ * nothing without the 256 secret bits that were shown exactly once.
  */
 const CREDENTIAL_COLUMNS = {
   id: applicationCredentials.id,
   applicationId: applicationCredentials.applicationId,
   name: applicationCredentials.name,
   publicKey: applicationCredentials.publicKey,
+  tokenPrefix: applicationCredentials.tokenPrefix,
   type: applicationCredentials.type,
   environment: applicationCredentials.environment,
   scopes: applicationCredentials.scopes,
@@ -356,6 +369,8 @@ interface SerializedCredential {
   applicationId: string;
   name: string;
   publicKey: string;
+  /** `oxy_sk_<id>` on a `machine` credential; absent on every other type. */
+  tokenPrefix?: string;
   type: CredentialRow['type'];
   environment: CredentialRow['environment'];
   scopes: string[];
@@ -405,6 +420,7 @@ function serializeCredential(credential: CredentialRow): SerializedCredential {
     applicationId: credential.applicationId,
     name: credential.name,
     publicKey: credential.publicKey,
+    tokenPrefix: credential.tokenPrefix ?? undefined,
     type: credential.type,
     environment: credential.environment,
     scopes: credential.scopes,
@@ -917,9 +933,17 @@ router.get(
 /**
  * Create a credential.
  *
- * The plaintext `secret` is returned in the response body EXACTLY ONCE and can
- * never be retrieved again — only its SHA-256 hash is persisted. `public`
- * credentials carry no secret (the `secret` field is `null`).
+ * Secret material is returned in the response body EXACTLY ONCE and can never be
+ * retrieved again — only a SHA-256 hash is persisted.
+ *
+ *  - `public` credentials carry no secret at all (`secret: null`).
+ *  - `confidential` / `service` credentials return `secret`, presented BESIDE
+ *    the `oxy_dk_…` client id.
+ *  - `machine` credentials return `token`: the single `oxy_sk_…` bearer string a
+ *    stock OpenAI SDK sends as `Authorization: Bearer …` (issue #972 §2.3).
+ *    `secret` stays `null` on those, so the wire shape every existing client
+ *    reads is unchanged and the two lanes are visibly distinct in the response
+ *    as well as in the table.
  */
 router.post(
   '/:appId/credentials',
@@ -936,6 +960,7 @@ router.post(
       type: CredentialRow['type'];
       environment: CredentialRow['environment'];
       scopes?: ApplicationScope[];
+      expiresInSeconds?: number;
     };
 
     // A credential may never exceed its owning application's authority.
@@ -966,6 +991,27 @@ router.post(
       throw new ForbiddenError('Service credentials are only available to trusted applications');
     }
 
+    const isMachineCredential = body.type === 'machine';
+
+    // A machine credential must NAME its authority. The service-token mint has a
+    // documented "no scopes means the application's full grant" fallback for
+    // credentials provisioned before scopes existed; there is no such legacy
+    // shape here, and defaulting an external, long-lived bearer key to
+    // everything its application can do is the wrong default to inherit. The
+    // machine lane therefore performs no fallback, and this is what stops a
+    // scopeless key resolving to no authority at all — which would fail later,
+    // opaquely, at the first scope check.
+    if (isMachineCredential && requestedScopes.length === 0) {
+      throw new BadRequestError('A machine credential must request at least one scope');
+    }
+
+    // `expiresInSeconds` sets `expires_at` on an ACTIVE row. On every other type
+    // that column means the rotation grace deadline, so accepting it there would
+    // make a brand-new credential indistinguishable from a rotated one.
+    if (body.expiresInSeconds !== undefined && !isMachineCredential) {
+      throw new BadRequestError('expiresInSeconds is only supported on machine credentials');
+    }
+
     const grantableScopes = new Set(application.scopes);
     const ungrantable = requestedScopes.filter((scope) => !grantableScopes.has(scope));
     if (ungrantable.length > 0) {
@@ -975,49 +1021,94 @@ router.post(
     }
 
     const { publicKey, secret, secretHash } = generateCredentialMaterial();
+    const machineToken = isMachineCredential ? generateMachineCredentialToken() : null;
     const isPublicClient = body.type === 'public';
+    const expiresAt =
+      body.expiresInSeconds !== undefined
+        ? new Date(Date.now() + body.expiresInSeconds * 1000)
+        : null;
+    const actorUserId = requireUserId(req);
 
-    const [credential] = await getDb()
-      .insert(applicationCredentials)
-      .values({
+    // The credential and its audit row land together or neither does — a minted
+    // key with no `created` event is a key nobody can account for.
+    const credential = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .insert(applicationCredentials)
+        .values({
+          applicationId: application.id,
+          name: body.name,
+          // A machine credential holds NO `secret_hash`: that column is what the
+          // OAuth token endpoint and the service-token mint compare against, and
+          // the table's own CHECK refuses one here anyway.
+          secretHash: isPublicClient || isMachineCredential ? null : secretHash,
+          publicKey,
+          tokenPrefix: machineToken?.tokenPrefix ?? null,
+          tokenHash: machineToken?.tokenHash ?? null,
+          type: body.type,
+          environment: body.environment,
+          scopes: requestedScopes,
+          status: 'active',
+          expiresAt,
+          createdByUserId: actorUserId,
+        })
+        .returning(CREDENTIAL_COLUMNS);
+
+      await recordCredentialLifecycleEvent(tx, {
         applicationId: application.id,
-        name: body.name,
-        secretHash: isPublicClient ? null : secretHash,
-        publicKey,
-        type: body.type,
-        environment: body.environment,
-        scopes: requestedScopes,
-        status: 'active',
-        createdByUserId: requireUserId(req),
-      })
-      .returning(CREDENTIAL_COLUMNS);
+        credentialId: row.id,
+        eventType: 'created',
+        actorUserId,
+        environment: row.environment,
+        metadata: { type: row.type, scopes: row.scopes },
+        effectiveUntil: expiresAt,
+      });
+
+      return row;
+    });
 
     logger.info('Application credential created', {
       applicationId: application.id,
       credentialId: credential.id,
       type: credential.type,
-      by: requireUserId(req),
+      by: actorUserId,
     });
 
     res.status(201).json({
       credential: serializeCredential(credential),
-      secret: isPublicClient ? null : secret,
+      secret: isPublicClient || isMachineCredential ? null : secret,
+      // Present ONLY on this response and only for a machine credential. There
+      // is no read path that can produce it again.
+      ...(machineToken ? { token: machineToken.token } : {}),
     });
   })
 );
 
 /**
- * Rotate a credential — zero-downtime. Mints a replacement (fresh keys) then
- * deprecates the previous one with a 7-day grace `expiresAt`. The new plaintext
- * `secret` is returned EXACTLY ONCE.
+ * Rotate a credential. Mints a replacement (fresh keys) then retires the
+ * previous one. The new secret material is returned EXACTLY ONCE.
+ *
+ * ## Two grace policies, and the difference is the point
+ *
+ * An OAuth/service credential is ALWAYS retired with the fixed seven-day grace
+ * (`deprecated`, `expires_at = now + CREDENTIAL_ROTATION_GRACE_MS`) — unchanged,
+ * because that is the contract every existing caller was written against.
+ *
+ * A `machine` credential's grace is OPT-IN (`graceSeconds`). Omitting it
+ * `revoked`s the previous token the instant the replacement is minted; naming it
+ * keeps the old token working for exactly that long and no longer. "Preserve the
+ * grace window WHERE EXPLICITLY CONFIGURED" (§2.3) is a real distinction and not
+ * a default: an always-on window means a leaked API key that someone rotated in
+ * a hurry stays live for a week, which is the opposite of what rotating it was
+ * for. `graceSeconds` is refused on the other types rather than silently
+ * ignored, so nobody can believe they narrowed a window they did not.
  *
  * Both writes run in ONE transaction: a mint that landed without its matching
- * deprecation would leave two live credentials for the same client, which is
- * exactly the state the grace window exists to avoid.
+ * retirement would leave two live credentials for the same client, which is
+ * exactly the state this is trying to control.
  */
 router.post(
   '/:appId/credentials/:credId/rotate',
-  validate({ params: appCredentialParams }),
+  validate({ params: appCredentialParams, body: rotateCredentialSchema }),
   requireAppPermission('credentials:rotate'),
   asyncHandler(async (req: AppContextRequest, res) => {
     const application = req.application;
@@ -1025,64 +1116,123 @@ router.post(
       throw new NotFoundError('Application not found');
     }
 
+    const { graceSeconds } = req.body as { graceSeconds?: number };
     const { publicKey, secret, secretHash } = generateCredentialMaterial();
-    const graceExpiresAt = new Date(Date.now() + CREDENTIAL_ROTATION_GRACE_MS);
+    const actorUserId = requireUserId(req);
 
-    const { previousId, rotated } = await getDb().transaction(async (tx) => {
-      const [previous] = await tx
-        .select(CREDENTIAL_COLUMNS)
-        .from(applicationCredentials)
-        .where(
-          and(
-            eq(applicationCredentials.id, req.params.credId),
-            eq(applicationCredentials.applicationId, application.id),
-            ne(applicationCredentials.status, 'revoked')
+    const { previousId, rotated, machineToken, graceExpiresAt } = await getDb().transaction(
+      async (tx) => {
+        const [previous] = await tx
+          .select(CREDENTIAL_COLUMNS)
+          .from(applicationCredentials)
+          .where(
+            and(
+              eq(applicationCredentials.id, req.params.credId),
+              eq(applicationCredentials.applicationId, application.id),
+              ne(applicationCredentials.status, 'revoked')
+            )
           )
-        )
-        .limit(1);
-      if (!previous) {
-        throw new NotFoundError('Credential not found');
-      }
-      if (previous.type === 'public') {
-        throw new BadRequestError('Public credentials do not have a rotatable secret');
-      }
+          .limit(1);
+        if (!previous) {
+          throw new NotFoundError('Credential not found');
+        }
+        if (previous.type === 'public') {
+          throw new BadRequestError('Public credentials do not have a rotatable secret');
+        }
 
-      const [minted] = await tx
-        .insert(applicationCredentials)
-        .values({
+        const isMachineCredential = previous.type === 'machine';
+        if (graceSeconds !== undefined && !isMachineCredential) {
+          throw new BadRequestError(
+            'graceSeconds is only supported when rotating a machine credential'
+          );
+        }
+
+        // The one place the two policies are decided. `null` means "no window":
+        // the previous credential is revoked outright.
+        const grace = isMachineCredential
+          ? graceSeconds === undefined
+            ? null
+            : new Date(Date.now() + graceSeconds * 1000)
+          : new Date(Date.now() + CREDENTIAL_ROTATION_GRACE_MS);
+
+        const token = isMachineCredential ? generateMachineCredentialToken() : null;
+
+        const [minted] = await tx
+          .insert(applicationCredentials)
+          .values({
+            applicationId: application.id,
+            name: previous.name,
+            publicKey,
+            secretHash: isMachineCredential ? null : secretHash,
+            tokenPrefix: token?.tokenPrefix ?? null,
+            tokenHash: token?.tokenHash ?? null,
+            type: previous.type,
+            environment: previous.environment,
+            scopes: previous.scopes,
+            status: 'active',
+            rotatedFromCredentialId: previous.id,
+            createdByUserId: actorUserId,
+          })
+          .returning(CREDENTIAL_COLUMNS);
+
+        await tx
+          .update(applicationCredentials)
+          .set(
+            grace
+              ? { status: 'deprecated', expiresAt: grace }
+              : // No window configured: the old token stops working now. The row
+                // survives — it is the audit hop `rotated_from_credential_id`
+                // points back at — but `isCredentialUsable` refuses `revoked`
+                // unconditionally.
+                { status: 'revoked' }
+          )
+          .where(eq(applicationCredentials.id, previous.id));
+
+        // Recorded against the credential the event is ABOUT — the one whose
+        // token stops working. The replacement's own `created` row and its
+        // `rotated_from_credential_id` carry the other half of the link.
+        await recordCredentialLifecycleEvent(tx, {
           applicationId: application.id,
-          name: previous.name,
-          publicKey,
-          secretHash,
-          type: previous.type,
+          credentialId: previous.id,
+          eventType: 'rotated',
+          actorUserId,
           environment: previous.environment,
-          scopes: previous.scopes,
-          status: 'active',
-          rotatedFromCredentialId: previous.id,
-          createdByUserId: requireUserId(req),
-        })
-        .returning(CREDENTIAL_COLUMNS);
+          metadata: { rotatedToCredentialId: minted.id, graceConfigured: grace !== null },
+          effectiveUntil: grace,
+        });
+        await recordCredentialLifecycleEvent(tx, {
+          applicationId: application.id,
+          credentialId: minted.id,
+          eventType: 'created',
+          actorUserId,
+          environment: minted.environment,
+          metadata: { type: minted.type, scopes: minted.scopes, rotatedFromCredentialId: previous.id },
+        });
 
-      await tx
-        .update(applicationCredentials)
-        .set({ status: 'deprecated', expiresAt: graceExpiresAt })
-        .where(eq(applicationCredentials.id, previous.id));
-
-      return { previousId: previous.id, rotated: minted };
-    });
+        return {
+          previousId: previous.id,
+          rotated: minted,
+          machineToken: token,
+          graceExpiresAt: grace,
+        };
+      }
+    );
 
     logger.info('Application credential rotated', {
       applicationId: application.id,
       previousCredentialId: previousId,
       newCredentialId: rotated.id,
-      graceExpiresAt: graceExpiresAt.toISOString(),
-      by: requireUserId(req),
+      graceExpiresAt: graceExpiresAt?.toISOString() ?? null,
+      by: actorUserId,
     });
 
     res.json({
       credential: serializeCredential(rotated),
-      secret,
+      secret: machineToken ? null : secret,
+      ...(machineToken ? { token: machineToken.token } : {}),
       rotatedFrom: previousId,
+      // `null` when no grace was configured — the previous credential is already
+      // revoked and there is no deadline to report.
       graceExpiresAt,
     });
   })
@@ -1101,26 +1251,47 @@ router.delete(
       throw new NotFoundError('Application not found');
     }
 
+    const actorUserId = requireUserId(req);
+
     // One statement, and its RESULT decides the outcome: a credential that does
-    // not belong to this application updates no row and is a 404.
-    const [credential] = await getDb()
-      .update(applicationCredentials)
-      .set({ status: 'revoked' })
-      .where(
-        and(
-          eq(applicationCredentials.id, req.params.credId),
-          eq(applicationCredentials.applicationId, application.id)
+    // not belong to this application updates no row and is a 404. The audit row
+    // rides the same transaction — a revocation nobody can date is the one this
+    // trail exists to answer.
+    const credential = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .update(applicationCredentials)
+        .set({ status: 'revoked' })
+        .where(
+          and(
+            eq(applicationCredentials.id, req.params.credId),
+            eq(applicationCredentials.applicationId, application.id)
+          )
         )
-      )
-      .returning({ id: applicationCredentials.id });
-    if (!credential) {
-      throw new NotFoundError('Credential not found');
-    }
+        .returning({
+          id: applicationCredentials.id,
+          environment: applicationCredentials.environment,
+          type: applicationCredentials.type,
+        });
+      if (!row) {
+        throw new NotFoundError('Credential not found');
+      }
+
+      await recordCredentialLifecycleEvent(tx, {
+        applicationId: application.id,
+        credentialId: row.id,
+        eventType: 'revoked',
+        actorUserId,
+        environment: row.environment,
+        metadata: { type: row.type },
+      });
+
+      return row;
+    });
 
     logger.info('Application credential revoked', {
       applicationId: application.id,
       credentialId: credential.id,
-      by: requireUserId(req),
+      by: actorUserId,
     });
 
     res.json({ success: true });
