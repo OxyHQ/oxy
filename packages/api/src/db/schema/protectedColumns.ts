@@ -65,6 +65,7 @@
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { authSessions } from './authSessions';
 import { federationKeyPairs } from './federationKeyPairs';
+import { inferenceDeployments } from './inferenceDeployments';
 import { messages } from './messages';
 import { sessions } from './sessions';
 import { users } from './users';
@@ -151,6 +152,33 @@ export const MESSAGES_PROTECTED_COLUMNS = [
 ] as const;
 
 /**
+ * `inference_deployments` columns that must never reach a customer.
+ *
+ * The serving boundary (ADR 0008, epic workstream 5) says Oxy exposes the
+ * customer-safe catalogue and pricing view, and never upstream provider
+ * secrets, internal route ids or internal wholesale costs. These are the second
+ * category and the third.
+ *
+ * This registry is the BACKSTOP here, not the primary mechanism. The customer
+ * projection is built from an explicit allow-list
+ * (`CUSTOMER_SAFE_DEPLOYMENT_COLUMNS` in
+ * `services/inferenceCatalogue.service.ts`), which is default-DENY: a column
+ * added to that table tomorrow is invisible to customers until somebody names
+ * it. A protected-column registry is default-ALLOW by construction, so on its
+ * own it would let a future unsafe column through. What it adds is the
+ * implicit-whole-row-read scan over `src/`, which the allow-list cannot give,
+ * and a second, independent statement of which columns are dangerous.
+ */
+export const INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS = [
+  'internalRouteId',
+  'legalReviewEvidenceRef',
+  'upstreamWholesaleCostAmount',
+  'upstreamWholesaleCostCurrency',
+  'upstreamWholesaleCostUnit',
+  'upstreamWholesaleCostPer',
+] as const;
+
+/**
  * The registry, keyed by SQL table name. Declared `as const` and passed
  * straight through to `@oxyhq/db/assert`'s `publicColumns` at every call
  * site — that is what keeps the type-level guarantee (see that function's
@@ -162,6 +190,7 @@ export const PROTECTED_COLUMNS_BY_TABLE = {
   auth_sessions: AUTH_SESSIONS_PROTECTED_COLUMNS,
   federation_key_pairs: FEDERATION_KEY_PAIRS_PROTECTED_COLUMNS,
   messages: MESSAGES_PROTECTED_COLUMNS,
+  inference_deployments: INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS,
 } as const;
 
 /** A protected column, with the reason it is one. */
@@ -294,5 +323,48 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
     reason:
       'Generated FROM `text`. A tsvector carries every lexeme with its ' +
       'position, so returning it largely reconstructs the body the entry above withholds.',
+  },
+  {
+    table: inferenceDeployments,
+    column: inferenceDeployments.internalRouteId,
+    reason:
+      "The data plane's own identifier for this route. Naming the serving " +
+      'PROVIDER is the attribution the serving boundary permits; naming the ' +
+      'internal route is a map of the infrastructure behind it.',
+  },
+  {
+    table: inferenceDeployments,
+    column: inferenceDeployments.legalReviewEvidenceRef,
+    reason:
+      'A pointer into the contract register. The catalogue deliberately holds ' +
+      'no confidential contract, and publishing the pointer would disclose ' +
+      'which commercial agreements exist and roughly when they were signed.',
+  },
+  {
+    table: inferenceDeployments,
+    column: inferenceDeployments.upstreamWholesaleCostAmount,
+    reason:
+      'What Oxy pays upstream. The serving boundary names internal wholesale ' +
+      'cost as one of three things a customer must never see; it is also the ' +
+      "provider's commercial terms, which are not Oxy's to publish.",
+  },
+  {
+    table: inferenceDeployments,
+    column: inferenceDeployments.upstreamWholesaleCostCurrency,
+    reason: 'Half of the wholesale cost above; useless alone and disclosing beside it.',
+  },
+  {
+    table: inferenceDeployments,
+    column: inferenceDeployments.upstreamWholesaleCostUnit,
+    reason:
+      'The unit the wholesale cost is quoted per. With the amount it is the ' +
+      'rate; without it, it still discloses how a contract is metered.',
+  },
+  {
+    table: inferenceDeployments,
+    column: inferenceDeployments.upstreamWholesaleCostPer,
+    reason:
+      'The denominator of the wholesale rate. Protected with the rest of the ' +
+      'group so no subset of it can be reassembled from a default read.',
   },
 ];

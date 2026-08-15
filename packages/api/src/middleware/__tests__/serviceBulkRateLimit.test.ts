@@ -44,6 +44,11 @@ function serviceToken(overrides: Record<string, unknown> = {}): string {
       appId: 'app-1',
       appName: 'Mention',
       credentialId: 'cred-1',
+      // The full attribution tuple the real mint emits (ADR 0007). A fixture
+      // short of it is not a service token as far as `verifyServiceToken` is
+      // concerned, so leaving these out would silently test the reject path.
+      ownerAccountId: 'owner-account-1',
+      environment: 'production',
       scopes: ['federation:write'],
       ...overrides,
     },

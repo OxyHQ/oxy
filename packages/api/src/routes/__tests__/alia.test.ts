@@ -141,7 +141,12 @@ async function serviceCaller(
     .returning({ id: applicationCredentials.id });
 
   return {
-    token: mintServiceToken({ appId: app.id, appName, credentialId: credential.id }),
+    token: mintServiceToken({
+      appId: app.id,
+      appName,
+      credentialId: credential.id,
+      ownerAccountId: owner.id,
+    }),
     applicationId: app.id,
     credentialId: credential.id,
     appName,
@@ -149,13 +154,24 @@ async function serviceCaller(
 }
 
 /** A service JWT with exactly the claims `POST /auth/service-token` mints. */
-function mintServiceToken(claims: { appId: string; appName: string; credentialId: string }): string {
+function mintServiceToken(claims: {
+  appId: string;
+  appName: string;
+  credentialId: string;
+  /**
+   * The owning account (ADR 0007). REQUIRED by `verifyServiceToken`, so a
+   * fixture without it is not a service token at all — the positive controls
+   * below would quietly become second negatives.
+   */
+  ownerAccountId: string;
+}): string {
   return jwt.sign(
     {
       type: 'service',
       appId: claims.appId,
       appName: claims.appName,
       credentialId: claims.credentialId,
+      ownerAccountId: claims.ownerAccountId,
       scopes: ['user:read'],
       environment: 'production',
     },
@@ -276,6 +292,7 @@ describe('POST /v1/chat/completions — first-party inference gate (#981)', () =
       appId: randomUUID(),
       appName: 'Ghost',
       credentialId: randomUUID(),
+      ownerAccountId: randomUUID(),
     });
 
     const response = await request('/v1/chat/completions', CHAT_BODY, bearer(token));

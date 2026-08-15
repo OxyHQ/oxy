@@ -152,6 +152,119 @@ describe('webfinger router', () => {
   });
 });
 
+/**
+ * The instance (server) actor MUST be WebFinger-resolvable, not merely servable
+ * as an actor.
+ *
+ * Mastodon's `FetchRemoteKeyService#find_actor` calls `FetchRemoteActorService`
+ * WITHOUT `only_key:`, and that service runs `check_webfinger!` unconditionally
+ * — so a 404 here raises `Webfinger::Error`, yields a nil account, and every
+ * secure-mode instance 401s EVERY signed GET we make (outbox sync, remote actor
+ * fetch, quoted/boosted note import). Inbound delivery and outbound POST use the
+ * USER key, whose WebFinger does loop back, which is why the outage is silent.
+ */
+describe('webfinger router — the instance (server) actor', () => {
+  it('resolves acct:instance@mention.earth (200) — it is not an Oxy user', async () => {
+    const res = await request(makeWebfingerApp())
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:instance@mention.earth' });
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/jrd+json');
+    expect(res.body.subject).toBe('acct:instance@mention.earth');
+    expect(res.body.links).toContainEqual({
+      rel: 'self',
+      type: 'application/activity+json',
+      href: urls.actor('instance'),
+    });
+  });
+
+  it("self href EQUALS the actor route's advertised id — the thing Mastodon compares", async () => {
+    // Both sides are read off REAL responses from the two routers, never rebuilt
+    // here: two separately-constructed strings that happen to match today is
+    // exactly the regression this asserts against.
+    const webfinger = await request(makeWebfingerApp())
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:instance@mention.earth' });
+    const actor = await request(makeActorApp())
+      .get('/ap/users/instance')
+      .set('Accept', 'application/activity+json');
+
+    expect(webfinger.status).toBe(200);
+    expect(actor.status).toBe(200);
+
+    const selfLink = webfinger.body.links.find(
+      (link: { rel: string }) => link.rel === 'self',
+    );
+    expect(selfLink).toBeDefined();
+    // Positive control: neither side may be vacuously undefined.
+    expect(typeof actor.body.id).toBe('string');
+    expect(actor.body.id.length).toBeGreaterThan(0);
+    expect(selfLink.href).toBe(actor.body.id);
+    // ...and the actor really is the server actor, not a Person that happened to match.
+    expect(actor.body.type).toBe('Application');
+  });
+
+  it('bypasses resolveUser and the sharing-consent gate entirely', async () => {
+    const resolveUser = jest.fn(async () => null);
+    const getSharingStateByUsername = jest.fn(async () => 'unknown-user' as const);
+    const app = makeWebfingerApp({
+      resolveUser,
+      consent: { isSharingEnabledFromUser: () => false, getSharingStateByUsername },
+    });
+
+    const res = await request(app)
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:instance@mention.earth' });
+
+    // Under the pre-fix code this is the live 404: resolveUser asks Oxy for a
+    // user named `instance`, gets null, and the route 404s.
+    expect(res.status).toBe(200);
+    expect(resolveUser).not.toHaveBeenCalled();
+    expect(getSharingStateByUsername).not.toHaveBeenCalled();
+  });
+
+  it('does not read or write the app JRD cache for the static instance document', async () => {
+    const get = jest.fn(async () => null);
+    const set = jest.fn(() => {});
+    const res = await request(makeWebfingerApp({ cache: { get, set } }))
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:instance@mention.earth' });
+
+    expect(res.status).toBe(200);
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['acct:instance@mention.earth', 'bare'],
+    ['acct:Instance@mention.earth', 'mixed-case local-part'],
+    ['acct:INSTANCE@mention.earth', 'upper-case local-part'],
+    ['acct:  instance  @mention.earth', 'padded local-part'],
+    ['acct:instance@www.mention.earth', 'www. host prefix'],
+    ['acct:instance@MENTION.EARTH', 'upper-case host'],
+  ])('accepts %s (%s) — every spelling the router already handles for users', async (resource) => {
+    const res = await request(makeWebfingerApp()).get('/.well-known/webfinger').query({ resource });
+    expect(res.status).toBe(200);
+    expect(res.body.subject).toBe('acct:instance@mention.earth');
+    expect(res.body.links[0].href).toBe(urls.actor('instance'));
+  });
+
+  it('still 404s the instance acct on a foreign domain', async () => {
+    const res = await request(makeWebfingerApp())
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:instance@other.example' });
+    expect(res.status).toBe(404);
+  });
+
+  it('404s the instance acct when federation is disabled', async () => {
+    const res = await request(makeWebfingerApp({ federationEnabled: false }))
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:instance@mention.earth' });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('actor router — GET /ap/users/:username', () => {
   it('serves the actor as 200 (NOT a redirect) for an AP Accept', async () => {
     const res = await request(makeActorApp())

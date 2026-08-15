@@ -243,8 +243,22 @@
     {
       "idx": 35,
       "version": "7",
+      "when": 1786831813559,
+      "tag": "0035_inference_catalogue",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786831814559,
+      "tag": "0036_inference_revision_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
       "when": 1786900000000,
-      "tag": "0035_inbox_delivery_and_search",
+      "tag": "0037_inbox_delivery_and_search",
       "breakpoints": true
     }
   ]

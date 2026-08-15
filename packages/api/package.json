@@ -11,6 +11,7 @@
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",
     "seed:oxy-applications": "bun run scripts/seed-oxy-applications.ts",
+    "seed:inference-catalogue": "bun run scripts/seed-inference-catalogue.ts",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

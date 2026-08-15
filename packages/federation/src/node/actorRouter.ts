@@ -25,7 +25,7 @@ import type { User } from '@oxyhq/core';
 import { AP_CONTEXT } from '../apContext';
 import { verifyHttpSignature } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
-import { normalizeActorUsername } from '../urls';
+import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
 import type { LocalActorBuilder } from '../actorObject';
 
 /** Page size for the paginated followers/following collections (mirrors the outbox). */
@@ -325,25 +325,28 @@ export function createActorRouter(config: ActorRouterConfig): Router {
 
     try {
       // Instance actor: a special server-level actor used for signed fetches. It
-      // has no Oxy user — serve it directly from the key material.
-      if (username === 'instance') {
-        const publicKey = await config.getPublicKey('instance');
+      // has no Oxy user — serve it directly from the key material. The WebFinger
+      // router answers for the SAME username, and its `self` href is built from
+      // the same `urls.actor(INSTANCE_ACTOR_USERNAME)` call as the `id` below,
+      // because Mastodon rejects a signed fetch when the two disagree.
+      if (username === INSTANCE_ACTOR_USERNAME) {
+        const publicKey = await config.getPublicKey(INSTANCE_ACTOR_USERNAME);
         const actorObject = {
           '@context': AP_CONTEXT,
-          id: urls.actor('instance'),
+          id: urls.actor(INSTANCE_ACTOR_USERNAME),
           type: 'Application',
-          preferredUsername: 'instance',
+          preferredUsername: INSTANCE_ACTOR_USERNAME,
           name: domain,
           summary: '',
           url: `https://${domain}`,
-          inbox: urls.inbox('instance'),
-          outbox: urls.outbox('instance'),
+          inbox: urls.inbox(INSTANCE_ACTOR_USERNAME),
+          outbox: urls.outbox(INSTANCE_ACTOR_USERNAME),
           endpoints: { sharedInbox: urls.sharedInbox() },
           manuallyApprovesFollowers: false,
           discoverable: false,
           publicKey: {
             id: publicKey.keyId,
-            owner: urls.actor('instance'),
+            owner: urls.actor(INSTANCE_ACTOR_USERNAME),
             publicKeyPem: publicKey.publicKeyPem,
           },
         };

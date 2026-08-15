@@ -43,7 +43,7 @@ export {
  * Domain-parameterized ActivityPub URL builders — each app instantiates them once
  * with its own `FEDERATION_DOMAIN` so every actor stays `@user@its-own-domain`.
  */
-export { createUrlBuilders, normalizeActorUsername, type UrlBuilders } from './urls';
+export { createUrlBuilders, normalizeActorUsername, INSTANCE_ACTOR_USERNAME, type UrlBuilders } from './urls';
 
 /**
  * Network identity: the MECHANISM for re-labelling an account republished by a

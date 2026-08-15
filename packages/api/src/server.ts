@@ -52,7 +52,8 @@ import emailInboundRoutes, {
 import aliaRoutes from './routes/alia';
 import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
-import modelsStatsRoutes from './routes/models-stats';
+import inferenceCatalogueRoutes from './routes/inferenceCatalogue';
+import inferenceAdminRoutes from './routes/inferenceAdmin';
 import platformStatsRoutes from './routes/platform-stats';
 import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
@@ -647,7 +648,14 @@ app.use('/alia', userRateLimiter, aliaRoutes);
 app.use('/v1', userRateLimiter, aliaRoutes);
 app.use('/credits', userRateLimiter, csrfProtection, creditsRoutes);
 app.use('/billing', billingRoutes);
-app.use('/models', modelsStatsRoutes);
+// The canonical model catalogue (issue #972, ADR 0008). The mount path is
+// unchanged because Console still calls `GET /models/stats`; what it serves is
+// now real catalogue data instead of four hardcoded product tiers.
+app.use('/models', inferenceCatalogueRoutes);
+// The staff-only commercial-permission workflow. A separate mount rather than a
+// path under `/models`, because approving a route is not a catalogue read and
+// must never be reachable by widening a read route's matcher.
+app.use('/inference/admin', inferenceAdminRoutes);
 app.use('/platform-stats', platformStatsRoutes);
 app.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new
