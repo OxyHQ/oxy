@@ -48,6 +48,7 @@ import { deviceSessions } from './deviceSessions';
 import { federationKeyPairs } from './federationKeyPairs';
 import { fileLinks } from './fileLinks';
 import { identityBindings } from './identityBindings';
+import { inferenceUsageEvents } from './inferenceUsageEvents';
 import { messageAttachments } from './messageAttachments';
 import { messages } from './messages';
 import { moderationEffects } from './moderationEffects';
@@ -59,6 +60,9 @@ import { sessions } from './sessions';
 import { signedRecords } from './signedRecords';
 import { transactions } from './transactions';
 import { transparencyCheckpointSnapshotEntries } from './transparencyCheckpoints';
+import { usageReceipts } from './usageReceipts';
+import { usageRefunds } from './usageRefunds';
+import { usageReservations } from './usageReservations';
 import { userAuthMethods } from './userAuthMethods';
 import { userCredits } from './userCredits';
 import { userLocations } from './userLocations';
@@ -491,5 +495,82 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       "The consuming application's own key for the object the endorsement came " +
       'from (a list id, a pack id). Opaque to Oxy, part of the idempotency key ' +
       'only, and never dereferenced.',
+  },
+
+  // --- the inference ledger and its telemetry (#972 workstreams 7 and 8) ----
+  //
+  // Three shapes, and the reasons differ per shape rather than per column, so
+  // each is spelled out once below and cross-referenced.
+
+  {
+    table: usageReservations,
+    column: usageReservations.delegatedUserId,
+    reason:
+      '(d) The end user a first-party service acted FOR (ADR 0007). Attribution ' +
+      'only — it is never the payer. Deliberately unconstrained in BOTH ' +
+      'directions: `RESTRICT` would let an unrelated application’s spend ' +
+      'block that person’s own account erasure, and `SET NULL` is worse, ' +
+      'because NULL here already MEANS "no delegated user", so an erasure would ' +
+      'silently reclassify a delegated request as a direct one on a financial ' +
+      'record. A dangling id names who it was at the time, which is what an ' +
+      'audit trail is for; scrubbing it is an explicit erasure decision, never ' +
+      'a cascade.',
+  },
+  {
+    table: usageReceipts,
+    column: usageReceipts.delegatedUserId,
+    reason: '(d) Same as `usage_reservations.delegated_user_id`.',
+  },
+  {
+    table: inferenceUsageEvents,
+    column: inferenceUsageEvents.delegatedUserId,
+    reason: '(d) Same as `usage_reservations.delegated_user_id`.',
+  },
+
+  {
+    table: usageReservations,
+    column: usageReservations.requestId,
+    reason:
+      '(e) The edge’s correlation key for one inference request (ADR 0007), ' +
+      'generated before authentication completes so a REJECTED request is still ' +
+      'traceable. It identifies a request across the edge, the data plane, this ' +
+      'ledger and the customer receipt — there is no request table here for ' +
+      'it to point at, and there must not be one.',
+  },
+  {
+    table: usageReceipts,
+    column: usageReceipts.requestId,
+    reason: '(e) Same as `usage_reservations.request_id`.',
+  },
+  {
+    table: usageRefunds,
+    column: usageRefunds.requestId,
+    reason: '(e) Same as `usage_reservations.request_id`.',
+  },
+  {
+    table: inferenceUsageEvents,
+    column: inferenceUsageEvents.requestId,
+    reason: '(e) Same as `usage_reservations.request_id`.',
+  },
+
+  {
+    table: usageReceipts,
+    column: usageReceipts.generationId,
+    reason:
+      '(f) One generated output within a request, allocated by the DATA PLANE ' +
+      '— Oxy stores it opaquely and serves it back through ' +
+      '`GET /v1/generations/:id`. It names a row in no database of ours.',
+  },
+  {
+    table: inferenceUsageEvents,
+    column: inferenceUsageEvents.generationId,
+    reason: '(f) Same as `usage_receipts.generation_id`.',
+  },
+  {
+    table: inferenceUsageEvents,
+    column: inferenceUsageEvents.deploymentId,
+    reason:
+      '(f) The data plane’s endpoint identity. Operational detail belonging ' +
+      'to Relay, stored opaquely for attribution and never dereferenced here.',
   },
 ];

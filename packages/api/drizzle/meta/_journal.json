@@ -225,6 +225,20 @@
       "when": 1786821860516,
       "tag": "0032_machine_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786829541848,
+      "tag": "0033_inference_ledger_and_usage_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786829542848,
+      "tag": "0034_inference_ledger_immutability",
+      "breakpoints": true
     }
   ]
 }
