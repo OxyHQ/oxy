@@ -95,7 +95,7 @@ function DocumentationIndexPage() {
               to="/apps"
               className="text-sm text-primary hover:underline"
             >
-              Create an API Key
+              Create an application
             </Link>
             <span className="text-muted-foreground">•</span>
             <Link

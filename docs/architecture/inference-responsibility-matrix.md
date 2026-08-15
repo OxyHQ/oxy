@@ -369,9 +369,10 @@ none of workstreams 0–12 may block on it.
 | TypeScript SDK surface accepting both Oxy auth and OpenAI-style keys | Oxy | OxyHQServices `packages/core` | planned |
 | Python SDK or generated client | Oxy | new repo | planned |
 | `docs/SERVICE_TOKENS.md` (native service-token flow) | Oxy | OxyHQServices `docs/SERVICE_TOKENS.md` | exists |
-| Console authentication page (currently documents `oxy_dk_*` as a bearer secret) | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/authentication.tsx:81` | exists |
+| Console authentication page (documents `oxy_dk_*` as the public client id, and names the two mechanisms that do authenticate) | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/authentication.tsx` | exists — corrected in epic §2.1; the bearer-secret framing it used to carry is gone |
 | Console quickstart / chat-completions / SDK pages | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/` | exists |
-| Static machine API-key flow documentation | Oxy | OxyHQServices `packages/console` | planned |
+| Static machine API-key flow documentation | Oxy | OxyHQServices `packages/console` | planned — the Console authentication page states its absence explicitly rather than leaving the gap unmarked (epic §2.1) |
+| A bare `oxy_dk_*` is refused on every lane requiring a secret or a bearer | Oxy | OxyHQServices `packages/api/src/routes/__tests__/publicIdentifierNotASecret.test.ts`, `packages/api/src/middleware/__tests__/publicIdentifierNotABearer.test.ts` | exists — 4 lanes, each rejection paired with a positive control |
 | Attribution documentation (account/application/credential) | Oxy | OxyHQServices `packages/console` | planned |
 | Streaming, cancellation, retry documentation | Oxy | OxyHQServices `packages/console` | planned |
 | Model vs deployment vs routing profile documentation | Oxy | OxyHQServices `packages/console` | planned |

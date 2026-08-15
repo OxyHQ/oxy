@@ -1,12 +1,12 @@
 ---
 title: Console
-description: Developer console — apps, API keys, webhooks, usage.
+description: Developer console — applications, credentials, webhooks, usage.
 order: 0
 ---
 
 # Console (Oxy Cloud)
 
-The Oxy developer console. Register developer apps, manage API keys and secrets, view request logs, configure webhooks, and rotate credentials. Available at `console.oxy.so`.
+The Oxy developer console. Register applications, manage their credentials, view request logs, configure webhooks, and rotate secrets. Available at `console.oxy.so`.
 
 <Badge variant="success">App</Badge> <Badge>Web</Badge>
 
@@ -18,16 +18,16 @@ A web app — not a library. Anyone with an Oxy account can sign in and create d
 
 1. Sign in to [`console.oxy.so`](https://console.oxy.so) with an Oxy account.
 2. Click **New app** → fill in name, description, redirect URIs, requested scopes.
-3. Console returns `apiKey` (public, prefixed `oxy_dk_`) and `apiSecret` (shown once — store it now).
-4. Use the credentials in your backend. For public clients (mobile, SPA), only the `apiKey` is needed; for confidential clients (server-side), use both via the OAuth2 client-credentials flow.
+3. Console returns a credential pair: a **client id** (public, prefixed `oxy_dk_`) and a **client secret** (shown once — store it now).
+4. Use them in your backend. The client id is a **public identifier**, not a key: it is the OAuth `client_id`, it is meant to ship inside mobile and browser bundles, and sending it as a bearer token authenticates nothing. Public clients (mobile, SPA) name it and prove possession with a PKCE verifier; confidential clients exchange it *together with the secret* for a token.
 
 ```ts
 import { OxyServices } from '@oxyhq/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-oxy.configureServiceAuth(process.env.OXY_API_KEY!, process.env.OXY_API_SECRET!);
+oxy.configureServiceAuth(process.env.OXY_CLIENT_ID!, process.env.OXY_CLIENT_SECRET!);
 
-// Auto-cached, auto-refreshed service token.
+// Exchanges the pair for a short-lived service token; auto-cached, auto-refreshed.
 const token = await oxy.getServiceToken();
 ```
 
@@ -43,11 +43,13 @@ Internal apps are reserved for first-party services and require manual DB seedin
 
 ## Rotating secrets
 
-Webhook secrets and API secrets can be rotated from the app detail page. Rotation:
+Webhook secrets and client secrets can be rotated from the app detail page. Rotation:
 
 - Returns a fresh value, shown once
-- Marks the previous value as deprecated for 24 hours (still valid, so deploys don't go down)
-- After 24 hours, the old value is hard-revoked
+- Marks the previous credential as `deprecated` for a 7-day grace window (still valid, so deploys don't go down)
+- After the grace window, the old value stops being accepted
+
+Revocation is different from rotation: a revoked credential is refused immediately, with no grace window.
 
 Rotate proactively — never reuse a secret across environments.
 
@@ -72,4 +74,4 @@ Each app gets per-route metrics — request counts, p50/p95 latency, 4xx/5xx rat
 
 ## API surface
 
-There is no JS API for the console itself — it's a deployed product. Everything you can do in the console is also exposed via the REST API under `/developer/*`. See the [API reference](/developers/docs/api).
+There is no JS API for the console itself — it's a deployed product. Everything you can do in the console is also exposed via the REST API under `/applications/*`. See the [API reference](/developers/docs/api).

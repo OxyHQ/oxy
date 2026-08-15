@@ -30,7 +30,7 @@ const examples = {
   javascript: `const response = await fetch('https://api.oxy.so/v1/chat/completions', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer oxy_dk_YOUR_API_KEY',
+    'Authorization': 'Bearer ' + process.env.OXY_ACCESS_TOKEN,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
@@ -45,9 +45,10 @@ const data = await response.json();
 console.log(data.choices[0].message.content);`,
 
   python: `import openai
+import os
 
 client = openai.OpenAI(
-    api_key="oxy_dk_YOUR_API_KEY",
+    api_key=os.environ.get("OXY_ACCESS_TOKEN"),
     base_url="https://api.oxy.so/v1"
 )
 
@@ -63,7 +64,7 @@ print(response.choices[0].message.content)`,
   nodejs: `import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: 'oxy_dk_YOUR_API_KEY',
+  apiKey: process.env.OXY_ACCESS_TOKEN,
   baseURL: 'https://api.oxy.so/v1',
 });
 
@@ -77,7 +78,7 @@ const completion = await openai.chat.completions.create({
 console.log(completion.choices[0].message.content);`,
 
   curl: `curl https://api.oxy.so/v1/chat/completions \\
-  -H "Authorization: Bearer oxy_dk_YOUR_API_KEY" \\
+  -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "alia-v1",
@@ -89,7 +90,7 @@ console.log(completion.choices[0].message.content);`,
   streaming: `const response = await fetch('https://api.oxy.so/v1/chat/completions', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer oxy_dk_YOUR_API_KEY',
+    'Authorization': 'Bearer ' + process.env.OXY_ACCESS_TOKEN,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
@@ -120,7 +121,7 @@ while (true) {
   functionCalling: `import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: 'oxy_dk_YOUR_API_KEY',
+  apiKey: process.env.OXY_ACCESS_TOKEN,
   baseURL: 'https://api.oxy.so/v1',
 });
 
