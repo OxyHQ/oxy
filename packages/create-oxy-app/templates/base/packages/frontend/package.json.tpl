@@ -38,6 +38,7 @@
     "expo-haptics": "{{v.expoHaptics}}",
     "expo-image-picker": "{{v.expoImagePicker}}",
     "expo-image-manipulator": "{{v.expoImageManipulator}}",
+    "expo-document-picker": "{{v.expoDocumentPicker}}",
     "nativewind": "{{v.nativewind}}",
     "react": "{{v.react}}",
     "react-dom": "{{v.reactDom}}",
