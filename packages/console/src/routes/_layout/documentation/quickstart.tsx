@@ -17,6 +17,7 @@ import {
   CodeBlockHeader,
   CodeBlockTitle,
 } from '@/components/ui/code-block';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 
 export const Route = createFileRoute('/_layout/documentation/quickstart')({
   component: QuickStartPage,
@@ -146,6 +147,7 @@ function QuickStartPage() {
         <p className="text-sm text-muted-foreground mt-4 mb-4">
           Then call the API with it:
         </p>
+        <InferenceAvailabilityNotice className="mb-4" />
         <CodeBlock
           language="bash"
           code={`curl https://api.oxy.so/v1/chat/completions \\

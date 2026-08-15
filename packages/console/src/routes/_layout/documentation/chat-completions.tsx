@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { toast } from '@oxyhq/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 
 export const Route = createFileRoute('/_layout/documentation/chat-completions')({
   component: ChatCompletionsPage,
@@ -99,6 +100,11 @@ function ChatCompletionsPage() {
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">Endpoint</h2>
         <CodeBlock code="POST https://api.oxy.so/v1/chat/completions" />
+        <InferenceAvailabilityNotice className="mt-4" />
+        <p className="text-sm text-muted-foreground mt-4">
+          The request and response shapes below are the contract this endpoint keeps; the examples
+          are written the way a call will look, not the way one succeeds today.
+        </p>
       </div>
 
       {/* Request Body */}

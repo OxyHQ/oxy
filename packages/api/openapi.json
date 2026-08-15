@@ -1534,7 +1534,7 @@
           "AI"
         ],
         "summary": "Proxies chat completion requests to the Alia API.",
-        "description": "Supports both streaming (SSE) and non-streaming responses.",
+        "description": "Supports both streaming (SSE) and non-streaming responses.\n\nRequires a service token whose credential resolves to an active,\nplatform-trusted application (issue #981); a user session bearer is refused.",
         "parameters": [],
         "responses": {
           "200": {
@@ -1542,6 +1542,16 @@
           },
           "401": {
             "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
             "content": {
               "application/json": {
                 "schema": {
@@ -1563,7 +1573,7 @@
         },
         "security": [
           {
-            "bearerAuth": []
+            "serviceTokenAuth": []
           }
         ]
       }

@@ -21,6 +21,7 @@ import {
   AgentTools,
 } from '@/components/ui/agent';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 
 export const Route = createFileRoute('/_layout/examples')({
   component: ExamplesPage,
@@ -218,6 +219,7 @@ function ExamplesPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Example code for integrating with the Oxy API
           </p>
+          <InferenceAvailabilityNotice className="mt-4" />
         </div>
 
         {/* Basic Chat Completion */}

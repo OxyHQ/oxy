@@ -6,6 +6,7 @@ import { toast } from '@oxyhq/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
 
 export const Route = createFileRoute('/_layout/documentation/sdks')({
   component: SDKsPage,
@@ -85,6 +86,7 @@ function SDKsPage() {
             This means you can migrate existing OpenAI integrations to Oxy with minimal code changes!
           </p>
         </div>
+        <InferenceAvailabilityNotice className="mt-4" />
       </div>
 
       {/* Installation */}

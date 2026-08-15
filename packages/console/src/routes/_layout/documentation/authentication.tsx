@@ -147,9 +147,10 @@ curl https://api.oxy.so/some/endpoint \\
           <p className="text-xs text-muted-foreground mt-1">
             A one-value bearer credential that standard OpenAI-compatible SDKs accept without
             implementing a token exchange is being added to the credential model, and this page will
-            document it when it ships. Until then, the two mechanisms above are the whole list. The
-            inference endpoints under <code>/v1</code> currently accept a signed-in user's access
-            token only.
+            document it when it ships. Until then, the two mechanisms above are the whole list.
+            Neither of them reaches <code>POST /v1/chat/completions</code> from a self-service
+            application: that endpoint is restricted to Oxy's own first-party applications and is
+            not publicly available yet.
           </p>
         </div>
       </div>
