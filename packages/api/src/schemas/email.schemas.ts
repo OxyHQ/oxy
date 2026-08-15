@@ -126,8 +126,6 @@ export const sendMessageSchema = z.object({
 });
 
 // POST /email/drafts
-// Drafts do not carry attachments in this migration. Composers attach via
-// the file-manager flow and send (or save the body only, then re-open later).
 export const saveDraftSchema = z.object({
   to: z.array(recipientSchema).max(100).optional(),
   cc: z.array(recipientSchema).max(100).optional(),
@@ -137,6 +135,7 @@ export const saveDraftSchema = z.object({
   html: z.string().optional(),
   inReplyTo: z.string().trim().optional(),
   references: z.array(z.string().trim()).optional(),
+  attachments: z.array(attachmentInputSchema).max(20).optional(),
   existingDraftId: z.string().trim().optional(),
 });
 

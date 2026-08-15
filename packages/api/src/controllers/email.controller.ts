@@ -202,6 +202,7 @@ export async function listMessages(req: AuthRequest, res: Response): Promise<voi
   const label = req.query.label as string | undefined;
   const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
   const offset = Number.parseInt(req.query.offset as string) || 0;
+  const cursor = getOptionalQueryString(req.query.cursor, 'cursor');
   const unseenOnly = req.query.unseen === 'true';
 
   // Must have at least one filter: mailbox, starred, or label
@@ -216,16 +217,18 @@ export async function listMessages(req: AuthRequest, res: Response): Promise<voi
   }
 
   const result = await emailService.listMessages(userId, mailboxId || null, {
-    limit, offset, unseenOnly, starred, label,
+    limit, offset, cursor, unseenOnly, starred, label,
   });
+  const pagination = {
+    total: result.total,
+    limit: result.limit,
+    offset: result.offset,
+    hasMore: cursor !== undefined ? result.nextCursor !== null : result.offset + result.limit < result.total,
+    ...(cursor !== undefined ? { nextCursor: result.nextCursor ?? null } : {}),
+  };
   res.json({
     data: result.data,
-    pagination: {
-      total: result.total,
-      limit: result.limit,
-      offset: result.offset,
-      hasMore: result.offset + result.limit < result.total,
-    },
+    pagination,
   });
 }
 
@@ -426,6 +429,7 @@ export async function deleteLabel(req: AuthRequest, res: Response): Promise<void
 
 export async function sendMessage(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
+  const idempotencyKey = getOptionalQueryString(req.header('Idempotency-Key'), 'Idempotency-Key');
   const {
     to,
     cc,
@@ -497,6 +501,7 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
       inReplyTo,
       references,
       attachments: resolvedAttachments,
+      idempotencyKey,
       scheduledAt: scheduledDate,
     });
 
@@ -538,6 +543,7 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
     references,
     attachments: resolvedAttachments,
     requestReadReceipt,
+    idempotencyKey,
   });
 
   if (attachedFiles.length > 0) {
@@ -566,7 +572,10 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
 
 export async function saveDraft(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
-  const { to, cc, bcc, subject, text, html, inReplyTo, references, existingDraftId } = req.body;
+  const { to, cc, bcc, subject, text, html, inReplyTo, references, attachments, existingDraftId } = req.body;
+  const { resolved: resolvedAttachments, files: attachedFiles } = attachments?.length
+    ? await resolveAttachmentInputs(attachments, userId)
+    : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
 
   const draft = await emailService.saveDraft(userId, {
     to,
@@ -577,8 +586,13 @@ export async function saveDraft(req: AuthRequest, res: Response): Promise<void> 
     html,
     inReplyTo,
     references,
+    attachments: resolvedAttachments,
     existingDraftId,
   });
+
+  if (attachedFiles.length > 0) {
+    await linkAttachmentsToMessage(attachedFiles, draft._id, userId);
+  }
 
   res.status(201).json({ data: draft });
 }
@@ -600,6 +614,7 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
   const label = getOptionalQueryString(req.query.label, 'label');
   const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
   const offset = Number.parseInt(req.query.offset as string) || 0;
+  const cursor = getOptionalQueryString(req.query.cursor, 'cursor');
 
   // At least one search criterion required
   if (
@@ -625,15 +640,18 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
     starred: starred || undefined,
     label,
     seen,
+    cursor,
   });
+  const pagination = {
+    total: result.total,
+    limit: result.limit,
+    offset: result.offset,
+    hasMore: cursor !== undefined ? result.nextCursor !== null : result.offset + result.limit < result.total,
+    ...(cursor !== undefined ? { nextCursor: result.nextCursor ?? null } : {}),
+  };
   res.json({
     data: result.data,
-    pagination: {
-      total: result.total,
-      limit: result.limit,
-      offset: result.offset,
-      hasMore: result.offset + result.limit < result.total,
-    },
+    pagination,
   });
 }
 

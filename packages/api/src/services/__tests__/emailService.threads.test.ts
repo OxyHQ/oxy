@@ -149,11 +149,13 @@ describe('listMessages — the thread walk is transitive', () => {
 
     const { data } = await emailService.listMessages(userId, mailboxId, { limit: 50 });
     const counts = new Map(data.map((m) => [m.id, m.threadCount]));
+    const threadIds = new Set(data.filter((m) => m.threadCount === 3).map((m) => m.threadId));
 
     expect(counts.get(child)).toBe(3);
     expect(counts.get(grandchild)).toBe(3);
     // `parent` carries a `References` header, so it is a seed too.
     expect(counts.get(parent)).toBe(3);
+    expect(threadIds.size).toBe(1);
   });
 
   it('keeps two unrelated threads on one page apart', async () => {
@@ -273,6 +275,39 @@ describe('getThread — the same walk, so the two can never disagree', () => {
 
     expect(thread.map((m) => m.id)).toEqual([a, b, c]);
     expect(thread).toHaveLength(counted ?? 0);
+    expect(new Set(thread.map((m) => m.threadId)).size).toBe(1);
+  });
+
+  it('keeps cursor pages stable and non-overlapping', async () => {
+    const userId = await owner();
+    const mailboxId = await inbox(userId);
+    const base = Date.now();
+    await store(userId, mailboxId, {
+      messageId: `<cursor-a-${unique()}@example.com>`,
+      date: new Date(base),
+    });
+    await store(userId, mailboxId, {
+      messageId: `<cursor-b-${unique()}@example.com>`,
+      date: new Date(base + 1000),
+    });
+    await store(userId, mailboxId, {
+      messageId: `<cursor-c-${unique()}@example.com>`,
+      date: new Date(base + 2000),
+    });
+
+    const first = await emailService.listMessages(userId, mailboxId, { limit: 2, cursor: '' });
+    expect(first.nextCursor).toBeTruthy();
+    const second = await emailService.listMessages(userId, mailboxId, {
+      limit: 2,
+      cursor: first.nextCursor ?? undefined,
+    });
+
+    expect(second.data.map((message) => message.id)).not.toEqual(
+      expect.arrayContaining(first.data.map((message) => message.id)),
+    );
+    expect(new Set([...first.data, ...second.data].map((message) => message.id)).size).toBe(
+      first.data.length + second.data.length,
+    );
   });
 
   it('returns a message with no thread relations as a thread of one', async () => {

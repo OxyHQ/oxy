@@ -15,6 +15,7 @@ import {
   gte,
   inArray,
   isNotNull,
+  lt,
   lte,
   ne,
   not,
@@ -65,6 +66,7 @@ import { smtpOutbound } from './smtp.outbound';
 import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { assetService } from './assetServiceSingleton';
 import { simpleParser } from 'mailparser';
+import { idempotentMessageId } from './emailIdempotency';
 
 const MAX_STRUCTURED_SEARCH_FILTER_LENGTH = 128;
 /**
@@ -78,6 +80,42 @@ const EMAIL_SEARCH_MAX_TIME_MS = 5_000;
 
 /** Rows loaded per page when sweeping every message of a user or mailbox. */
 const ATTACHMENT_SWEEP_PAGE_SIZE = 500;
+
+type EmailPageCursor =
+  | { version: 1; kind: 'messages'; pinned: boolean; date: string; id: string }
+  | { version: 1; kind: 'search'; rank: number; date: string; id: string };
+
+function encodeEmailPageCursor(cursor: EmailPageCursor): string {
+  return Buffer.from(JSON.stringify(cursor), 'utf8').toString('base64url');
+}
+
+function decodeEmailPageCursor(value: string, kind: EmailPageCursor['kind']): EmailPageCursor {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+  } catch {
+    throw new BadRequestError('Invalid email pagination cursor');
+  }
+
+  if (!parsed || typeof parsed !== 'object' || (parsed as { version?: unknown }).version !== 1 ||
+      (parsed as { kind?: unknown }).kind !== kind) {
+    throw new BadRequestError('Invalid email pagination cursor');
+  }
+
+  const candidate = parsed as Record<string, unknown>;
+  if (typeof candidate.date !== 'string' || Number.isNaN(Date.parse(candidate.date)) ||
+      typeof candidate.id !== 'string' || candidate.id.length === 0) {
+    throw new BadRequestError('Invalid email pagination cursor');
+  }
+  if (kind === 'messages') {
+    if (typeof candidate.pinned !== 'boolean') throw new BadRequestError('Invalid email pagination cursor');
+    return parsed as EmailPageCursor;
+  }
+  if (typeof candidate.rank !== 'number' || !Number.isFinite(candidate.rank)) {
+    throw new BadRequestError('Invalid email pagination cursor');
+  }
+  return parsed as EmailPageCursor;
+}
 
 /**
  * Reject an overlong structured search filter (from/to/subject).
@@ -237,6 +275,8 @@ export interface MessageDto {
   headers?: Record<string, string>;
   /** Attached by {@link EmailService.enrichWithAvatars}. */
   senderAvatarPath?: string | null;
+  /** Stable server-derived conversation identity. */
+  threadId: string;
   /** Attached by the thread walk in {@link EmailService.listMessages}. */
   threadCount?: number;
   threadParticipants?: string[];
@@ -531,6 +571,7 @@ function toMessageDto(
   const dto: MessageDto = {
     _id: row.id,
     id: row.id,
+    threadId: row.id,
     userId: row.userId,
     mailboxId: row.mailboxId,
     messageId: row.messageId,
@@ -1434,35 +1475,75 @@ class EmailService {
   async listMessages(
     userId: string,
     mailboxId: string | null,
-    options: { limit?: number; offset?: number; unseenOnly?: boolean; starred?: boolean; label?: string } = {}
-  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number }> {
-    const { limit = 50, offset = 0, unseenOnly = false, starred = false, label } = options;
+    options: { limit?: number; offset?: number; cursor?: string; unseenOnly?: boolean; starred?: boolean; label?: string } = {}
+  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number; nextCursor?: string | null }> {
+    const { limit = 50, offset = 0, cursor: cursorToken, unseenOnly = false, starred = false, label } = options;
     const db = getDb();
+    const cursorMode = cursorToken !== undefined;
+    const cursor = cursorToken
+      ? decodeEmailPageCursor(cursorToken, 'messages') as Extract<EmailPageCursor, { kind: 'messages' }>
+      : null;
 
-    const where = and(
+    const baseWhere = and(
       eq(messages.userId, userId),
       ...(mailboxId ? [eq(messages.mailboxId, mailboxId)] : []),
       ...(starred ? [eq(messages.starred, true)] : []),
       ...(unseenOnly ? [eq(messages.seen, false)] : []),
       ...(label ? [sql`${messages.labels} @> array[${label}]::text[]`] : []),
     );
+    const where = and(
+      baseWhere,
+      ...(cursor
+        ? [or(
+            lt(messages.pinned, cursor.pinned),
+            and(
+              eq(messages.pinned, cursor.pinned),
+              or(
+                lt(messages.date, new Date(cursor.date)),
+                and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+              ),
+            ),
+          )]
+        : []),
+    );
 
-    const [rows, [countRow]] = await Promise.all([
+    const [fetchedRows, [countRow]] = await Promise.all([
       db
         .select(PUBLIC_MESSAGE_COLUMNS)
         .from(messages)
         .where(where)
-        .orderBy(desc(messages.pinned), desc(messages.date))
-        .limit(limit)
-        .offset(offset),
-      db.select({ total: sql<number>`count(*)::int` }).from(messages).where(where),
+        .orderBy(desc(messages.pinned), desc(messages.date), desc(messages.id))
+        .limit(cursorMode ? limit + 1 : limit)
+        .offset(cursorMode ? 0 : offset),
+      db.select({ total: sql<number>`count(*)::int` }).from(messages).where(baseWhere),
     ]);
 
+    const hasMore = cursorMode ? fetchedRows.length > limit : offset + limit < (countRow?.total ?? 0);
+    const rows = cursorMode ? fetchedRows.slice(0, limit) : fetchedRows;
     const data = await toMessageDtos(db, rows);
     await this.attachThreadMetadata(userId, data);
     await EmailService.enrichWithAvatars(data);
 
-    return { data, total: countRow?.total ?? 0, limit, offset };
+    const last = rows.at(-1);
+    return {
+      data,
+      total: countRow?.total ?? 0,
+      limit,
+      offset: cursorMode ? 0 : offset,
+      ...(cursorMode
+        ? {
+            nextCursor: hasMore && last
+              ? encodeEmailPageCursor({
+                  version: 1,
+                  kind: 'messages',
+                  pinned: last.pinned,
+                  date: last.date.toISOString(),
+                  id: last.id,
+                })
+              : null,
+          }
+        : {}),
+    };
   }
 
   /**
@@ -1494,6 +1575,7 @@ class EmailService {
     const seedIds = seeds.map((m) => m.id);
     const rows = await getDb().execute<{
       rootId: string;
+      threadId: string;
       threadCount: number;
       participants: string[];
     }>(sql`
@@ -1509,6 +1591,7 @@ class EmailService {
            and ${threadAdjacency('linked', sql.raw('walk.ks'))}
       )
       select walk.root_id as "rootId",
+             min(walk.id) as "threadId",
              count(distinct walk.id)::int as "threadCount",
              array_agg(distinct member.from_address) as participants
       from walk
@@ -1521,7 +1604,9 @@ class EmailService {
       const thread = byRoot.get(message.id);
       // A message is always in its own component, so a count of one means it
       // has headers but no counterpart stored here — same rule Mongo applied.
-      if (!thread || thread.threadCount <= 1) continue;
+      if (!thread) continue;
+      message.threadId = thread.threadId;
+      if (thread.threadCount <= 1) continue;
       message.threadCount = thread.threadCount;
       message.threadParticipants = thread.participants;
     }
@@ -1537,8 +1622,19 @@ class EmailService {
     if (!row) return undefined;
 
     const [dto] = await toMessageDtos(db, [row]);
+    await this.attachThreadMetadata(userId, [dto]);
     await EmailService.enrichWithAvatars([dto]);
     return dto;
+  }
+
+  /** Read an idempotent outbound message by its RFC Message-ID. */
+  async findMessageByRfcMessageId(userId: string, rfcMessageId: string): Promise<MessageDto | null> {
+    const [row] = await getDb()
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.userId, userId), eq(messages.messageId, rfcMessageId)))
+      .limit(1);
+    return row ? readMessageDto(getDb(), row.id) : null;
   }
 
   /**
@@ -1925,6 +2021,7 @@ class EmailService {
       html?: string;
       inReplyTo?: string;
       references?: string[];
+      attachments?: MessageAttachment[];
       existingDraftId?: string;
     }
   ): Promise<MessageDto> {
@@ -1937,10 +2034,7 @@ class EmailService {
     if (!user?.username) throw new BadRequestError('User must have a username to send email');
 
     const fromAddress = resolveEmailAddress(user.username);
-    const size = Buffer.byteLength(
-      (draft.text || '') + (draft.html || ''),
-      'utf8'
-    );
+    const size = this.calculateMessageStorageSize(draft);
 
     if (draft.existingDraftId) {
       // Update an existing draft, recipients included. The three headers are a
@@ -1984,6 +2078,21 @@ class EmailService {
         if (recipientRows.length > 0) {
           await tx.insert(messageRecipients).values(recipientRows);
         }
+        await tx.delete(messageAttachments).where(eq(messageAttachments.messageId, updated.id));
+        if (draft.attachments && draft.attachments.length > 0) {
+          await tx.insert(messageAttachments).values(
+            draft.attachments.map((attachment, ord) => ({
+              messageId: updated.id,
+              ord,
+              fileId: attachment.fileId,
+              name: attachment.name,
+              contentType: attachment.contentType,
+              size: attachment.size,
+              contentId: attachment.contentId ?? null,
+              isInline: attachment.isInline,
+            })),
+          );
+        }
         return updated.id;
       });
 
@@ -2012,7 +2121,7 @@ class EmailService {
         receivedAt: now,
       },
       { to: draft.to, cc: draft.cc, bcc: draft.bcc },
-      [],
+      draft.attachments ?? [],
     );
 
     return readMessageDto(db, created);
@@ -2187,6 +2296,7 @@ class EmailService {
       inReplyTo?: string;
       references?: string[];
       attachments?: MessageAttachment[];
+      idempotencyKey?: string;
       scheduledAt: Date;
     }
   ): Promise<MessageDto> {
@@ -2194,6 +2304,14 @@ class EmailService {
     const db = getDb();
     const sentMailbox = await this.getMailboxBySpecialUse(userId, '\\Sent');
     if (!sentMailbox) throw new NotFoundError('Sent mailbox not found');
+
+    const messageId = params.idempotencyKey
+      ? idempotentMessageId(userId, params.idempotencyKey)
+      : `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    if (params.idempotencyKey) {
+      const existing = await this.findMessageByRfcMessageId(userId, messageId);
+      if (existing) return existing;
+    }
 
     // Count body + attachment bytes toward the storage quota.
     const size = this.calculateMessageStorageSize(params);
@@ -2205,7 +2323,7 @@ class EmailService {
       {
         userId,
         mailboxId: sentMailbox.id,
-        messageId: `<${uuidv4()}@${EMAIL_DOMAIN}>`,
+        messageId,
         fromName: params.from.name?.trim() ? params.from.name.trim() : null,
         fromAddress: params.from.address.trim().toLowerCase(),
         subject: params.subject,
@@ -2340,6 +2458,12 @@ class EmailService {
       .orderBy(asc(messages.date), asc(messages.id));
 
     const thread = await toMessageDtos(db, rows);
+    const stableThreadId = memberRows
+      .map((row) => row.id)
+      .sort()[0];
+    if (stableThreadId) {
+      for (const message of thread) message.threadId = stableThreadId;
+    }
     await EmailService.enrichWithAvatars(thread);
 
     return thread;
@@ -3216,9 +3340,12 @@ class EmailService {
       starred?: boolean;
       label?: string;
       seen?: boolean;
+      cursor?: string;
     } = {}
-  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number }> {
-    const { limit = 50, offset = 0, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label, seen } = options;
+  ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number; nextCursor?: string | null }> {
+    const { limit = 50, offset = 0, cursor: cursorToken, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label, seen } = options;
+    const cursorMode = cursorToken !== undefined;
+    const cursor = cursorToken ? decodeEmailPageCursor(cursorToken, 'search') as Extract<EmailPageCursor, { kind: 'search' }> : null;
 
     const fromFilter = normalizeStructuredSearchFilter(from);
     const toFilter = normalizeStructuredSearchFilter(to);
@@ -3232,7 +3359,11 @@ class EmailService {
     // silently reorder every result.
     const tsQuery = query ? sql`websearch_to_tsquery('english', ${query})` : undefined;
 
-    const where = and(
+    const rankExpression = tsQuery
+      ? sql`ts_rank('{0.1, 0.2, 0.4, 1.0}'::float4[], ${messages.searchVector}, ${tsQuery})`
+      : null;
+
+    const baseWhere = and(
       eq(messages.userId, userId),
       ...(tsQuery ? [sql`${messages.searchVector} @@ ${tsQuery}`] : []),
       ...(mailboxId ? [eq(messages.mailboxId, mailboxId)] : []),
@@ -3265,6 +3396,26 @@ class EmailService {
       ...(dateAfter ? [gte(messages.date, new Date(dateAfter))] : []),
       ...(dateBefore ? [lte(messages.date, new Date(dateBefore))] : []),
     );
+    const where = and(
+      baseWhere,
+      ...(cursor
+        ? [tsQuery && rankExpression
+            ? or(
+                sql`${rankExpression} < ${cursor.rank}`,
+                and(
+                  sql`${rankExpression} = ${cursor.rank}`,
+                  or(
+                    lt(messages.date, new Date(cursor.date)),
+                    and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+                  ),
+                ),
+              )
+            : or(
+                lt(messages.date, new Date(cursor.date)),
+                and(eq(messages.date, new Date(cursor.date)), lt(messages.id, cursor.id)),
+              )]
+        : []),
+    );
 
     // `statement_timeout` is Mongo's `maxTimeMS`, and `SET LOCAL` needs a
     // transaction — so the page and the count share one.
@@ -3273,15 +3424,17 @@ class EmailService {
         sql`set local statement_timeout = ${sql.raw(String(EMAIL_SEARCH_MAX_TIME_MS))}`,
       );
 
-      const page = await tx
-        .select(PUBLIC_MESSAGE_COLUMNS)
+      const pageQuery = rankExpression
+        ? tx.select({ ...PUBLIC_MESSAGE_COLUMNS, searchRank: rankExpression.as('search_rank') })
+        : tx.select(PUBLIC_MESSAGE_COLUMNS);
+      const page = await pageQuery
         .from(messages)
         .where(where)
         .orderBy(
-          ...(tsQuery
+          ...(rankExpression
             ? [
                 desc(
-                  sql`ts_rank('{0.1, 0.2, 0.4, 1.0}'::float4[], ${messages.searchVector}, ${tsQuery})`,
+                  rankExpression,
                 ),
                 // A total order: equal ranks must not shuffle between pages.
                 desc(messages.date),
@@ -3289,19 +3442,40 @@ class EmailService {
               ]
             : [desc(messages.date), desc(messages.id)]),
         )
-        .limit(limit)
-        .offset(offset);
+        .limit(cursorMode ? limit + 1 : limit)
+        .offset(cursorMode ? 0 : offset);
 
       const [countRow] = await tx
         .select({ total: sql<number>`count(*)::int` })
         .from(messages)
-        .where(where);
+        .where(baseWhere);
 
       return { rows: page, total: countRow?.total ?? 0 };
     });
 
-    const data = await toMessageDtos(getDb(), rows);
-    return { data, total, limit, offset };
+    const hasMore = cursorMode ? rows.length > limit : offset + limit < total;
+    const pageRows = cursorMode ? rows.slice(0, limit) : rows;
+    const data = await toMessageDtos(getDb(), pageRows);
+    const last = pageRows.at(-1) as (typeof pageRows)[number] & { searchRank?: number } | undefined;
+    return {
+      data,
+      total,
+      limit,
+      offset: cursorMode ? 0 : offset,
+      ...(cursorMode
+        ? {
+            nextCursor: hasMore && last
+              ? encodeEmailPageCursor({
+                  version: 1,
+                  kind: 'search',
+                  rank: Number(last.searchRank ?? 0),
+                  date: last.date.toISOString(),
+                  id: last.id,
+                })
+              : null,
+          }
+        : {}),
+    };
   }
 
   // ─── Quota ────────────────────────────────────────────────────────

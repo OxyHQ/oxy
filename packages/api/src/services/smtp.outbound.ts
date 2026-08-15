@@ -12,6 +12,7 @@ import type { EmailAddress } from '../db/schema/messages';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { getRedisClient } from '../config/redis';
+import { idempotencyCacheKey as buildIdempotencyCacheKey, idempotentMessageId } from './emailIdempotency';
 
 interface OutboundMessage {
   userId: string;
@@ -27,6 +28,8 @@ interface OutboundMessage {
   attachments?: MessageAttachment[];
   /** When true, add Disposition-Notification-To header requesting a read receipt */
   requestReadReceipt?: boolean;
+  /** Stable client key used to make retries return the original outcome. */
+  idempotencyKey?: string;
 }
 
 interface QueuedMessage extends OutboundMessage {
@@ -47,6 +50,7 @@ class SmtpOutboundService {
   private _transporter: Transporter | null = null;
   private localQueue: Map<string, QueuedMessage> = new Map();
   private retryTimer: ReturnType<typeof setInterval> | null = null;
+  private idempotencyInFlight = new Map<string, Promise<{ messageId: string; queued: boolean }>>();
 
   private get transporter(): Transporter {
     if (!this._transporter) {
@@ -90,7 +94,45 @@ class SmtpOutboundService {
   }
 
   async send(message: OutboundMessage): Promise<{ messageId: string; queued: boolean }> {
-    const messageId = `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    const messageId = message.idempotencyKey
+      ? idempotentMessageId(message.userId, message.idempotencyKey)
+      : `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    const idempotencyCacheKey = message.idempotencyKey
+      ? buildIdempotencyCacheKey(message.userId, message.idempotencyKey)
+      : null;
+    const redis = idempotencyCacheKey ? getRedisClient() : null;
+    if (redis && redis.status === 'ready' && idempotencyCacheKey) {
+      const cached = await redis.get(idempotencyCacheKey);
+      if (cached) return JSON.parse(cached) as { messageId: string; queued: boolean };
+    }
+    if (message.idempotencyKey) {
+      const inFlightKey = `${message.userId}:${message.idempotencyKey}`;
+      const inFlight = this.idempotencyInFlight.get(inFlightKey);
+      if (inFlight) return inFlight;
+
+      const operation = this.sendOnce(message, messageId, redis, idempotencyCacheKey);
+      this.idempotencyInFlight.set(inFlightKey, operation);
+      try {
+        return await operation;
+      } finally {
+        if (this.idempotencyInFlight.get(inFlightKey) === operation) {
+          this.idempotencyInFlight.delete(inFlightKey);
+        }
+      }
+    }
+    return this.sendOnce(message, messageId, redis, idempotencyCacheKey);
+  }
+
+  private async sendOnce(
+    message: OutboundMessage,
+    messageId: string,
+    redis: ReturnType<typeof getRedisClient>,
+    idempotencyCacheKey: string | null,
+  ): Promise<{ messageId: string; queued: boolean }> {
+    if (message.idempotencyKey) {
+      const existing = await emailService.findMessageByRfcMessageId(message.userId, messageId);
+      if (existing) return { messageId, queued: false };
+    }
     const nmAttachments = await this.resolveAttachments(message.attachments || []);
 
     const mailOptions = {
@@ -135,11 +177,19 @@ class SmtpOutboundService {
         to: message.to.map((a) => a.address).join(', '),
       });
 
-      return { messageId, queued: false };
+      const result = { messageId, queued: false };
+      if (redis && idempotencyCacheKey && redis.status === 'ready') {
+        await redis.set(idempotencyCacheKey, JSON.stringify(result), 'EX', 24 * 60 * 60);
+      }
+      return result;
     } catch (error) {
       logger.error('Email send failed, queuing for retry', error instanceof Error ? error : new Error(String(error)));
       await this.enqueue({ ...message, messageId });
-      return { messageId, queued: true };
+      const result = { messageId, queued: true };
+      if (redis && idempotencyCacheKey && redis.status === 'ready') {
+        await redis.set(idempotencyCacheKey, JSON.stringify(result), 'EX', 24 * 60 * 60);
+      }
+      return result;
     }
   }
 
