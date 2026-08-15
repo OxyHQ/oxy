@@ -672,3 +672,285 @@ export type {
     TransparencyInclusionProof,
     TransparencyCheckpointList,
 } from './transparency';
+
+/* -------------------------------------------------------------------------- */
+/*  Inference (Oxy↔data-plane) — issue #972                                        */
+/* -------------------------------------------------------------------------- */
+
+export {
+    // The version of the contract SET; per-shape versions live in the data.
+    INFERENCE_CONTRACT_VERSION,
+} from './inference/version';
+
+export {
+    // Principal identifiers. `oxyAccountIdSchema` and `delegatedUserIdSchema`
+    // are branded apart so a delegated end user can never become the payer.
+    oxyAccountIdSchema,
+    delegatedUserIdSchema,
+    oxyApplicationIdSchema,
+    oxyCredentialIdSchema,
+    requestIdSchema,
+    generationIdSchema,
+    idempotencyKeySchema,
+    inferenceEnvironmentSchema,
+    // Wire primitives
+    inferenceTimestampSchema,
+    inferenceDateSchema,
+    inferenceHttpsUrlSchema,
+    // Catalogue references
+    publisherSlugSchema,
+    modelSlugSchema,
+    modelIdSchema,
+    modelRevisionLabelSchema,
+    modelReferenceSchema,
+    routingProfileSlugSchema,
+    inferenceProviderSlugSchema,
+    deploymentIdSchema,
+    inferenceRegionSchema,
+    RESERVED_ALIA_PUBLISHER,
+} from './inference/identifiers';
+
+export type {
+    OxyAccountId,
+    DelegatedUserId,
+    InferenceEnvironment,
+    ModelReference,
+    ModelId,
+} from './inference/identifiers';
+
+export {
+    // Exact money and metered units — never floats, units never money.
+    currencyCodeSchema,
+    INFERENCE_MONEY_SCALE,
+    exactDecimalSchema,
+    moneySchema,
+    USAGE_UNITS,
+    usageUnitSchema,
+    USAGE_SOURCES,
+    usageSourceSchema,
+    usageQuantitySchema,
+    unitPriceSchema,
+} from './inference/money';
+
+export type {
+    CurrencyCode,
+    ExactDecimal,
+    Money,
+    UsageUnit,
+    UsageSource,
+    UsageQuantity,
+    UnitPrice,
+} from './inference/money';
+
+export {
+    // Canonical attribution: who pays, which app, which credential, which user.
+    INFERENCE_SCOPES,
+    inferenceScopeSchema,
+    billingPrincipalSchema,
+    authenticatedPrincipalSchema,
+    inferenceAttributionSchema,
+} from './inference/attribution';
+
+export type {
+    InferenceScope,
+    BillingPrincipal,
+    AuthenticatedPrincipal,
+    InferenceAttribution,
+} from './inference/attribution';
+
+export {
+    // Closed error vocabulary + retryability + a leak-proof provider passthrough.
+    INFERENCE_ERROR_CODES,
+    NON_RETRYABLE_INFERENCE_ERROR_CODES,
+    inferenceErrorCodeSchema,
+    upstreamErrorCategorySchema,
+    safeErrorTextSchema,
+    providerErrorPassthroughSchema,
+    inferenceErrorSchema,
+} from './inference/errors';
+
+export type {
+    InferenceErrorCode,
+    UpstreamErrorCategory,
+    ProviderErrorPassthrough,
+    InferenceError,
+} from './inference/errors';
+
+export {
+    // Price versions and the snapshot a settled receipt keeps.
+    priceVersionStatusSchema,
+    priceVersionSchema,
+    priceSnapshotSchema,
+} from './inference/priceVersion';
+
+export type {
+    PriceVersionStatus,
+    PriceVersion,
+    PriceSnapshot,
+} from './inference/priceVersion';
+
+export {
+    // The six distinct catalogue objects + the customer-safe projection.
+    inferenceModalitySchema,
+    modelCapabilitiesSchema,
+    modelLicenseSchema,
+    modelProvenanceSchema,
+    inferenceDataPolicySchema,
+    availabilityScopeSchema,
+    commercialPermissionSchema,
+    modelDeprecationSchema,
+    modelEvaluationResultSchema,
+    modelSafetyMetadataSchema,
+    modelPublisherSchema,
+    catalogueModelSchema,
+    modelRevisionSchema,
+    inferenceProviderSchema,
+    modelDeploymentSchema,
+    routingProfileCandidateSchema,
+    routingProfileSchema,
+    cataloguePublisherSummarySchema,
+    catalogueServingProviderSummarySchema,
+    modelCatalogueEntrySchema,
+} from './inference/catalogue';
+
+export type {
+    InferenceModality,
+    ModelCapabilities,
+    ModelLicense,
+    ModelProvenance,
+    InferenceDataPolicy,
+    AvailabilityScope,
+    CommercialPermission,
+    ModelDeprecation,
+    ModelEvaluationResult,
+    ModelSafetyMetadata,
+    ModelPublisher,
+    CatalogueModel,
+    ModelRevision,
+    InferenceProvider,
+    ModelDeployment,
+    RoutingProfileCandidate,
+    RoutingProfile,
+    CataloguePublisherSummary,
+    CatalogueServingProviderSummary,
+    ModelCatalogueEntry,
+} from './inference/catalogue';
+
+export {
+    // Routing policy: every control, plus the refinement that rejects a policy
+    // no route could ever satisfy.
+    routingTargetSchema,
+    routingPolicyScopeSchema,
+    routingFallbackPolicySchema,
+    routingPolicySchema,
+    routingPolicyReferenceSchema,
+} from './inference/routingPolicy';
+
+export type {
+    RoutingTarget,
+    RoutingPolicyScope,
+    RoutingFallbackPolicy,
+    RoutingPolicy,
+    RoutingPolicyReference,
+} from './inference/routingPolicy';
+
+export {
+    // The normalized Oxy→data-plane request envelope.
+    inferenceContentSourceSchema,
+    inferenceContentPartSchema,
+    inferenceToolCallSchema,
+    inferenceMessageRoleSchema,
+    inferenceMessageSchema,
+    inferenceInputSchema,
+    samplingParametersSchema,
+    toolDefinitionSchema,
+    toolChoiceSchema,
+    responseFormatSchema,
+    clientRequestMetadataSchema,
+    inferenceRequestSchema,
+} from './inference/request';
+
+export type {
+    InferenceContentSource,
+    InferenceContentPart,
+    InferenceToolCall,
+    InferenceMessageRole,
+    InferenceMessage,
+    InferenceInput,
+    SamplingParameters,
+    ToolDefinition,
+    ToolChoice,
+    ResponseFormat,
+    ClientRequestMetadata,
+    InferenceRequest,
+} from './inference/request';
+
+export {
+    // Normalized SSE events.
+    inferenceStreamStartEventSchema,
+    inferenceStreamDeltaEventSchema,
+    inferenceStreamToolCallEventSchema,
+    inferenceStreamUsageEventSchema,
+    inferenceRouteSwitchDetailSchema,
+    inferenceRouteSwitchReasonSchema,
+    inferenceStreamRouteSwitchEventSchema,
+    inferenceStreamErrorEventSchema,
+    inferenceFinishReasonSchema,
+    inferenceStreamDoneEventSchema,
+    inferenceStreamEventSchema,
+} from './inference/streamEvents';
+
+export type {
+    InferenceStreamStartEvent,
+    InferenceStreamDeltaEvent,
+    InferenceStreamToolCallEvent,
+    InferenceStreamUsageEvent,
+    InferenceRouteSwitchDetail,
+    InferenceRouteSwitchReason,
+    InferenceStreamRouteSwitchEvent,
+    InferenceStreamErrorEvent,
+    InferenceFinishReason,
+    InferenceStreamDoneEvent,
+    InferenceStreamEvent,
+} from './inference/streamEvents';
+
+export {
+    // Reserve → settle → refund.
+    usageReservationRequestSchema,
+    usageReservationStatusSchema,
+    usageReservationSchema,
+    inferenceRequestOutcomeSchema,
+    normalizedUsageReportSchema,
+    usageReceiptSchema,
+    usageRefundSubjectSchema,
+    usageRefundReasonSchema,
+    usageRefundSchema,
+} from './inference/usage';
+
+export type {
+    UsageReservationRequest,
+    UsageReservationStatus,
+    UsageReservation,
+    InferenceRequestOutcome,
+    NormalizedUsageReport,
+    UsageReceipt,
+    UsageRefundSubject,
+    UsageRefundReason,
+    UsageRefund,
+} from './inference/usage';
+
+export {
+    // BYOK connection metadata that structurally cannot carry a secret.
+    providerConnectionScopeSchema,
+    providerSecretReferenceSchema,
+    providerConnectionValidationSchema,
+    providerConnectionStatusSchema,
+    providerConnectionSchema,
+} from './inference/providerConnection';
+
+export type {
+    ProviderConnectionScope,
+    ProviderConnectionValidation,
+    ProviderConnectionStatus,
+    ProviderConnection,
+} from './inference/providerConnection';
