@@ -1,53 +1,63 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
+import { MODEL_ID_PLACEHOLDER, MODEL_REVISION_PLACEHOLDER } from '@/lib/model-reference';
 
 export const Route = createFileRoute('/_layout/documentation/models')({
   component: ModelsDocPage,
 });
 
-const models = [
+/**
+ * How the catalogue is structured — not a list of models.
+ *
+ * This page used to hold a hardcoded array of four objects: `alia-lite`,
+ * `alia-v1`, `alia-v1-pro` and `alia-v1-pro-max`, each with a tier, a context
+ * window and a feature list. None of it was true. Those names were product tiers
+ * a proxy forwarded upstream, where something else decided what actually ran, so
+ * a reader could not learn who published the weights, which revision served
+ * their request, what licence applied or whether their data was retained.
+ *
+ * ADR 0008 retires them as model identities rather than renaming them. What a
+ * documentation page can honestly say before the catalogue is seeded is what the
+ * identifiers MEAN, so that is what this page says; the live list lives on the
+ * Models page and is empty until workstream 5 publishes into it.
+ */
+const CONCEPTS = [
   {
-    id: 'alia-lite',
-    name: 'Alia Lite',
-    description: 'Fast and efficient for simple tasks',
-    tier: 'Free',
-    contextWindow: '8K',
-    maxOutput: '2K',
-    features: ['Fast response time', 'Low cost', 'Basic reasoning'],
-    useCases: ['Simple Q&A', 'Text formatting', 'Quick lookups'],
+    name: 'Publisher',
+    summary: 'Who released the weights, and under what licence.',
+    detail:
+      'A publisher is not a provider: an organisation can publish a model it serves nowhere, and a provider can serve models it published none of.',
   },
   {
-    id: 'alia-v1',
-    name: 'Alia V1',
-    description: 'Balanced performance and quality for everyday use',
-    tier: 'Free',
-    contextWindow: '32K',
-    maxOutput: '8K',
-    features: ['Balanced performance', 'Good reasoning', 'Multilingual support'],
-    useCases: ['General conversation', 'Content creation', 'Code assistance'],
+    name: 'Model',
+    summary: 'A named model line from a publisher — the stable thing you write in your code.',
+    detail: `Written ${MODEL_ID_PLACEHOLDER}. Naming a model asks for that model, resolved to some revision by policy.`,
   },
   {
-    id: 'alia-v1-pro',
-    name: 'Alia V1 Pro',
-    description: 'Advanced reasoning capabilities for complex tasks',
-    tier: 'Pro',
-    contextWindow: '128K',
-    maxOutput: '16K',
-    features: ['Advanced reasoning', 'Extended context', 'Better accuracy'],
-    useCases: ['Complex analysis', 'Long documents', 'Research tasks'],
+    name: 'Revision',
+    summary: 'An immutable released version of a model.',
+    detail: `Written ${MODEL_REVISION_PLACEHOLDER}. Once published, the reference never points at different weights — a behaviour change gets a new revision, it never mutates an existing one.`,
   },
   {
-    id: 'alia-v1-pro-max',
-    name: 'Alia V1 Pro Max',
-    description: 'Maximum performance and context for demanding applications',
-    tier: 'Pro',
-    contextWindow: '200K',
-    maxOutput: '32K',
-    features: ['Maximum performance', 'Largest context', 'Best accuracy'],
-    useCases: ['Enterprise applications', 'Large codebases', 'Complex reasoning'],
+    name: 'Provider',
+    summary: 'The organisation that actually runs the inference.',
+    detail:
+      'The same revision served by two providers is two deployments of one revision, not two models.',
+  },
+  {
+    name: 'Deployment',
+    summary: 'A concrete servable endpoint: provider, revision, region and capacity.',
+    detail:
+      'Deployments carry the operational facts — region, retention policy, zero-data-retention availability. Their health and availability belong to the data plane; Console shows the customer-safe projection.',
+  },
+  {
+    name: 'Routing profile',
+    summary: 'A policy object that chooses among deployments under constraints.',
+    detail:
+      'A profile has no publisher, no revision, no licence and no weights, and its slug can never be written as a model id. Naming a profile asks Oxy to choose; naming a model does not.',
   },
 ];
 
@@ -65,126 +75,96 @@ function ModelsDocPage() {
         </Link>
         <h1 className="text-2xl font-semibold text-foreground">Models</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Available models and their capabilities
+          How Oxy names models, revisions and routing profiles
         </p>
       </div>
 
-      {/* Overview */}
+      {/* What is published today */}
       <div className="px-6 py-6 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Overview</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">What is published today</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Oxy offers a range of models optimized for different use cases. All models are
-          accessible through the same API endpoint - just change the model parameter.
+          Oxy publishes no models yet. The{' '}
+          <Link to="/models" className="text-primary hover:underline">
+            Models page
+          </Link>{' '}
+          reads the live catalogue, and it is the only place this Console will ever name a model.
+          A model appears there once it has a current revision and a route you are allowed to
+          use, carrying that route's publisher, licence, regions and data policy with it — never
+          on a name alone.
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-3 rounded-lg bg-muted/50 text-center">
-            <p className="text-2xl font-semibold text-foreground">{models.length}</p>
-            <p className="text-xs text-muted-foreground">Models</p>
+        <InferenceAvailabilityNotice />
+      </div>
+
+      {/* Identifiers */}
+      <div className="px-6 py-6 border-b border-border">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Identifiers</h2>
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg border">
+            <code className="text-sm font-mono text-foreground">{MODEL_ID_PLACEHOLDER}</code>
+            <p className="text-sm text-muted-foreground mt-2">
+              A model line. Resolved to a revision by policy, and reported back on every response
+              as the concrete revision that ran.
+            </p>
           </div>
-          <div className="p-3 rounded-lg bg-muted/50 text-center">
-            <p className="text-2xl font-semibold text-foreground">200K</p>
-            <p className="text-xs text-muted-foreground">Max Context</p>
+          <div className="p-4 rounded-lg border">
+            <code className="text-sm font-mono text-foreground">{MODEL_REVISION_PLACEHOLDER}</code>
+            <p className="text-sm text-muted-foreground mt-2">
+              An exact pin. Served exactly or refused — a request naming a concrete revision is
+              never answered with a different model, whatever a routing policy says.
+            </p>
           </div>
-          <div className="p-3 rounded-lg bg-muted/50 text-center">
-            <p className="text-2xl font-semibold text-foreground">2</p>
-            <p className="text-xs text-muted-foreground">Free Models</p>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/50 text-center">
-            <p className="text-2xl font-semibold text-foreground">2</p>
-            <p className="text-xs text-muted-foreground">Pro Models</p>
+          <div className="p-4 rounded-lg border">
+            <code className="text-sm font-mono text-foreground">{'<profile>'}</code>
+            <p className="text-sm text-muted-foreground mt-2">
+              A routing profile slug. A profile slug never contains a slash, which is what keeps
+              "did I ask for a concrete model, or ask Oxy to choose one" decidable from the request
+              alone.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Model List */}
+      {/* Concepts */}
       <div className="px-6 py-6 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Available Models</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-2">Six things, not one</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          A single name cannot answer who published a model, which weights ran, where they ran and
+          what happened to your prompt. The catalogue keeps them apart so each question has an
+          answer.
+        </p>
         <div className="space-y-4">
-          {models.map((model) => (
-            <Card key={model.id}>
+          {CONCEPTS.map((concept) => (
+            <Card key={concept.name}>
               <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      {model.name}
-                      <Badge
-                        variant={model.tier === 'Pro' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {model.tier}
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription className="mt-1">{model.description}</CardDescription>
-                  </div>
-                  <code className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                    {model.id}
-                  </code>
-                </div>
+                <CardTitle className="text-base">{concept.name}</CardTitle>
+                <CardDescription className="mt-1">{concept.summary}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Context Window</p>
-                    <p className="text-sm font-medium">{model.contextWindow}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Max Output</p>
-                    <p className="text-sm font-medium">{model.maxOutput}</p>
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <p className="text-xs text-muted-foreground mb-2">Features</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {model.features.map((feature) => (
-                      <Badge key={feature} variant="outline" className="text-xs">
-                        {feature}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Best for</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {model.useCases.map((useCase) => (
-                      <span
-                        key={useCase}
-                        className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded"
-                      >
-                        {useCase}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                <p className="text-sm text-muted-foreground">{concept.detail}</p>
               </CardContent>
             </Card>
           ))}
         </div>
       </div>
 
-      {/* Model Selection */}
+      {/* Failover vs fallback */}
       <div className="px-6 py-6 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Choosing a Model</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">
+          Deployment failover is not model fallback
+        </h2>
         <div className="space-y-4">
           <div className="p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-foreground mb-2">For quick tasks</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Use <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-lite</code> for
-              simple, fast responses where speed is more important than depth.
+            <h3 className="text-sm font-medium text-foreground mb-2">Same-model failover</h3>
+            <p className="text-sm text-muted-foreground">
+              A different deployment of the same revision — a different provider or region running
+              the identical weights. Permitted by default: you got what you asked for.
             </p>
           </div>
           <div className="p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-foreground mb-2">For general use</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Use <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-v1</code> for
-              most applications - it offers a great balance of quality and cost.
-            </p>
-          </div>
-          <div className="p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-foreground mb-2">For complex tasks</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Use <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-v1-pro</code> or{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-v1-pro-max</code> for
-              tasks requiring advanced reasoning or large context windows.
+            <h3 className="text-sm font-medium text-foreground mb-2">Cross-model fallback</h3>
+            <p className="text-sm text-muted-foreground">
+              A different model or revision. Never silent and never the default — it requires an
+              explicit routing-policy opt-in, and a permitted switch emits an event you can see.
             </p>
           </div>
         </div>
@@ -195,17 +175,17 @@ function ModelsDocPage() {
         <h2 className="text-sm font-semibold text-foreground mb-4">Next Steps</h2>
         <div className="space-y-1">
           <Link
+            to="/models"
+            className="flex items-center justify-between py-3 hover:bg-muted/50 -mx-3 px-3 rounded-lg transition-colors"
+          >
+            <span className="text-sm text-foreground">Browse the catalogue</span>
+            <HugeiconsIcon icon={ArrowRight01Icon} size={16} className="text-muted-foreground" />
+          </Link>
+          <Link
             to="/documentation/chat-completions"
             className="flex items-center justify-between py-3 hover:bg-muted/50 -mx-3 px-3 rounded-lg transition-colors"
           >
             <span className="text-sm text-foreground">Chat Completions API</span>
-            <HugeiconsIcon icon={ArrowRight01Icon} size={16} className="text-muted-foreground" />
-          </Link>
-          <Link
-            to="/models"
-            className="flex items-center justify-between py-3 hover:bg-muted/50 -mx-3 px-3 rounded-lg transition-colors"
-          >
-            <span className="text-sm text-foreground">View model statistics</span>
             <HugeiconsIcon icon={ArrowRight01Icon} size={16} className="text-muted-foreground" />
           </Link>
         </div>

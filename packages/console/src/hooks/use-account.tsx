@@ -84,6 +84,7 @@ interface AccountContextValue {
   canManageMembers: (account: AccountNode) => boolean;
   canTransferOwnership: (account: AccountNode) => boolean;
   canArchiveAccount: (account: AccountNode) => boolean;
+  canCreateApplications: (account: AccountNode) => boolean;
   getUserRole: (account: AccountNode) => AccountRole | null;
 }
 
@@ -266,6 +267,17 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  /**
+   * Creating an application is an ACCOUNT permission, held by owner, admin and
+   * editor and by nobody else — a developer, a billing member and a viewer are
+   * all refused server-side. Offering the affordance regardless turns a
+   * guaranteed 403 into an error toast after the user has filled in a form.
+   */
+  const canCreateApplications = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['apps:create']),
+    []
+  );
+
   const value = React.useMemo<AccountContextValue>(
     () => ({
       accounts,
@@ -279,6 +291,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       canManageMembers,
       canTransferOwnership,
       canArchiveAccount,
+      canCreateApplications,
       getUserRole,
     }),
     [
@@ -293,6 +306,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       canManageMembers,
       canTransferOwnership,
       canArchiveAccount,
+      canCreateApplications,
       getUserRole,
     ]
   );
