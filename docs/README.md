@@ -88,6 +88,19 @@ topics and remain authoritative for their areas:
 - [INFRASTRUCTURE.md](INFRASTRUCTURE.md) — AWS resources (ECS, ALB, ECR, ElastiCache, RDS PostgreSQL)
 - [DEPLOYMENT.md](DEPLOYMENT.md) — GitHub OIDC, ECS Fargate, env vars, Cloudflare Pages
 - [REDIS.md](REDIS.md) — ElastiCache Valkey: rate limiting, Socket.IO adapter, caching
+
+---
+
+## Audits (dated snapshots — provenance, not mechanism)
+
+An audit records what was true at ONE commit, with `path:line` evidence. It is
+never the mechanism doc: when it and the code disagree, the code is right and the
+audit has aged. Each file names its commit in its own header.
+
+- [audits/2026-08-15-account-and-application-ownership.md](audits/2026-08-15-account-and-application-ownership.md)
+  — inference/billing attribution, `Application.ownerAccountId`, account-graph
+  permissions and Console account switching, at `215b12fe` (OxyHQ/oxy#972
+  workstream 1)
 - [EMAIL.md](EMAIL.md) — native email (`username@oxy.so`), DKIM/SPF/DMARC, inbound webhook
 
 For the authoritative rules and version matrix, see the repo
