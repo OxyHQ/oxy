@@ -9,11 +9,15 @@
  */
 export const VERSIONS = {
   // --- Oxy SDK ---
-  oxyServices: '^28.0.0', // @oxyhq/services
-  oxyCore: '^20.0.0', // @oxyhq/core
-  oxyBloom: '^0.67.0', // @oxyhq/bloom
-  oxyContracts: '^0.25.0', // @oxyhq/contracts
-  oxyAppPreset: '^0.2.0', // @oxyhq/app-preset
+  // Every range here must resolve on the PUBLIC registry — a generated app
+  // installs from npm, not from this workspace. So a pin tracks the PUBLISHED
+  // version, never `packages/<pkg>/package.json`: a workspace version that has
+  // been bumped but not yet published names a range nothing can resolve.
+  oxyServices: '^29.0.0', // @oxyhq/services
+  oxyCore: '^21.0.0', // @oxyhq/core
+  oxyBloom: '^0.67.0', // @oxyhq/bloom — tracks the workspace catalog, not npm latest
+  oxyContracts: '^0.26.0', // @oxyhq/contracts
+  oxyAppPreset: '^0.3.0', // @oxyhq/app-preset
 
   // --- Expo SDK 57 core ---
   expo: '^57.0.6',
@@ -87,7 +91,9 @@ export const VERSIONS = {
   // peer dependencies @oxyhq/db declares, and drizzle's minor releases have
   // changed generated DDL. One resolved version per ecosystem backend is what
   // keeps a scaffolded app's migrations comparable with everyone else's.
-  oxyDb: '^0.1.2', // @oxyhq/db — column builders, casing authority, migration ledger
+  // @oxyhq/db — column builders, casing authority, migration ledger. Published
+  // version, not the workspace one (see the Oxy SDK note at the top).
+  oxyDb: '^0.1.2',
   drizzleOrm: '0.45.2', // drizzle-orm
   postgres: '3.4.9', // postgres (postgres.js driver)
   drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations only
