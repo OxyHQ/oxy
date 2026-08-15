@@ -341,7 +341,16 @@ POST /api/email/drafts
 GET /api/email/search?q=invoice&mailbox=ID&limit=50&offset=0
 ```
 
-Full-text search across subject and body. The `mailbox` parameter is optional — omit it to search all mailboxes.
+Full-text search across subject and body, backed by PostgreSQL full-text search. The `mailbox` parameter is optional — omit it to search all mailboxes.
+
+The `q` parameter accepts the following read-state operators:
+
+- `is:read` filters to messages where `messages.seen = true`.
+- `is:unread` filters to messages where `messages.seen = false`.
+
+An operator may be combined with normal search text, for example
+`q=invoice%20is:unread`. Combining `is:read` and `is:unread` is rejected with
+`400 Bad Request`, as is sending `q` more than once.
 
 ### Attachments
 

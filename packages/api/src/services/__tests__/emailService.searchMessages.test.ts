@@ -178,6 +178,22 @@ describe('searchMessages — the weighted text index', () => {
 });
 
 describe('searchMessages — structured filters', () => {
+  it('filters by the PostgreSQL messages.seen column', async () => {
+    const userId = await owner();
+    const mailboxId = await folder(userId);
+    const unread = await store(userId, mailboxId, { subject: 'status', seen: false });
+    const read = await store(userId, mailboxId, { subject: 'status', seen: true });
+
+    await expect(emailService.searchMessages(userId, 'status', { seen: false })).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: unread })],
+      total: 1,
+    });
+    await expect(emailService.searchMessages(userId, 'status', { seen: true })).resolves.toMatchObject({
+      data: [expect.objectContaining({ id: read })],
+      total: 1,
+    });
+  });
+
   it('matches from, to and subject as case-insensitive substrings', async () => {
     const userId = await owner();
     const mailboxId = await folder(userId);

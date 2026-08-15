@@ -37,6 +37,23 @@ function getOptionalQueryString(value: unknown, name: string): string | undefine
   throw new BadRequestError(`${name} must be a single string value`);
 }
 
+function parseSeenSearchOperator(query: string): { query: string; seen?: boolean } {
+  let seen: boolean | undefined;
+  const text = query
+    .replace(/\bis:(read|unread)\b/gi, (_operator, value: string) => {
+      const nextSeen = value.toLowerCase() === 'read';
+      if (seen !== undefined && seen !== nextSeen) {
+        throw new BadRequestError('Search cannot combine is:read and is:unread');
+      }
+      seen = nextSeen;
+      return '';
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return { query: text, seen };
+}
+
 /**
  * Resolve user-supplied { fileId, contentId?, isInline? } references into the
  * canonical MessageAttachment shape persisted on Message. Each fileId MUST:
@@ -570,7 +587,8 @@ export async function saveDraft(req: AuthRequest, res: Response): Promise<void> 
 
 export async function searchMessages(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
-  const q = getOptionalQueryString(req.query.q, 'q');
+  const rawQuery = getOptionalQueryString(req.query.q, 'q');
+  const { query: q, seen } = parseSeenSearchOperator(rawQuery || '');
   const mailboxId = getOptionalQueryString(req.query.mailbox, 'mailbox');
   const from = getOptionalQueryString(req.query.from, 'from');
   const to = getOptionalQueryString(req.query.to, 'to');
@@ -586,6 +604,7 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
   // At least one search criterion required
   if (
     !q &&
+    seen === undefined &&
     !mailboxId &&
     !from &&
     !to &&
@@ -599,12 +618,13 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
     throw new BadRequestError('At least one search parameter is required');
   }
 
-  const result = await emailService.searchMessages(userId, q || '', {
+  const result = await emailService.searchMessages(userId, q, {
     limit, offset, mailboxId, from, to, subject,
     hasAttachment: hasAttachment || undefined,
     dateAfter, dateBefore,
     starred: starred || undefined,
     label,
+    seen,
   });
   res.json({
     data: result.data,

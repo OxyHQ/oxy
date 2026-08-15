@@ -62,6 +62,9 @@ describe('email.controller searchMessages', () => {
       hasAttachment: undefined,
       dateAfter: undefined,
       dateBefore: undefined,
+      starred: undefined,
+      label: undefined,
+      seen: undefined,
     });
     expect(res.json).toHaveBeenCalledWith({
       data: [],
@@ -83,6 +86,55 @@ describe('email.controller searchMessages', () => {
     await expect(
       searchMessages(req as never, res as Response),
     ).rejects.toThrow(BadRequestError);
+    expect(mockSearchMessages).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['is:read', true],
+    ['is:unread', false],
+  ])('maps %s to the messages.seen filter', async (q, seen) => {
+    const req = {
+      user: { id: userId },
+      query: { q },
+    };
+
+    await searchMessages(req as never, res as Response);
+
+    expect(mockSearchMessages).toHaveBeenCalledWith(userId, '', expect.objectContaining({ seen }));
+  });
+
+  it('keeps normal search text when an is operator is present', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: 'invoice is:unread' },
+    };
+
+    await searchMessages(req as never, res as Response);
+
+    expect(mockSearchMessages).toHaveBeenCalledWith(
+      userId,
+      'invoice',
+      expect.objectContaining({ seen: false }),
+    );
+  });
+
+  it('rejects conflicting read operators', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: 'is:read is:unread' },
+    };
+
+    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(BadRequestError);
+    expect(mockSearchMessages).not.toHaveBeenCalled();
+  });
+
+  it('rejects a repeated q query parameter', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: ['is:unread', 'is:read'] },
+    };
+
+    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(BadRequestError);
     expect(mockSearchMessages).not.toHaveBeenCalled();
   });
 });

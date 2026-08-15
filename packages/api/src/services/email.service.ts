@@ -3215,9 +3215,10 @@ class EmailService {
       dateBefore?: string;
       starred?: boolean;
       label?: string;
+      seen?: boolean;
     } = {}
   ): Promise<{ data: MessageDto[]; total: number; limit: number; offset: number }> {
-    const { limit = 50, offset = 0, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label } = options;
+    const { limit = 50, offset = 0, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label, seen } = options;
 
     const fromFilter = normalizeStructuredSearchFilter(from);
     const toFilter = normalizeStructuredSearchFilter(to);
@@ -3259,6 +3260,7 @@ class EmailService {
           ]
         : []),
       ...(starred ? [eq(messages.starred, true)] : []),
+      ...(seen !== undefined ? [eq(messages.seen, seen)] : []),
       ...(label ? [sql`${messages.labels} @> array[${label}]::text[]`] : []),
       ...(dateAfter ? [gte(messages.date, new Date(dateAfter))] : []),
       ...(dateBefore ? [lte(messages.date, new Date(dateBefore))] : []),
