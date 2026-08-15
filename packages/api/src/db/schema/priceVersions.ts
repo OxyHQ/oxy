@@ -45,13 +45,20 @@
  * it here would be a duplicate that can disagree with its parent. The
  * serializer fills it from `price_versions.currency`.
  *
- * ## Who writes these
+ * ## Who writes these — NOBODY, YET
  *
- * The ledger READS price versions to settle a receipt; it does not author them.
- * Publishing and superseding a price belongs with the model catalogue
- * (workstreams 5 and 11 of #972), where the revision and provider it is scoped
- * to already live. Whatever surface authors them, the append-only rule above is
- * not negotiable.
+ * As of this commit there is **no writer for these tables anywhere in the
+ * repository**. The ledger only READS them, to price a receipt; the rows a
+ * settlement needs have to be inserted by hand or by a test fixture until an
+ * authoring surface exists. That is a stated gap, not an omission somebody
+ * should assume was filled elsewhere.
+ *
+ * The INTENDED home is the catalogue admin surface (#972 workstreams 5 and 11),
+ * where the model revision and provider a price is scoped to already live —
+ * intended, not existing: at the time of writing that surface manages
+ * deployments and does not publish prices. Whichever surface eventually does,
+ * the append-only rule above is not negotiable: a price change inserts a new
+ * row and supersedes the old one, and an existing row is never edited.
  */
 
 import { sql } from 'drizzle-orm';
