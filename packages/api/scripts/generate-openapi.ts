@@ -662,7 +662,11 @@ function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefi
     // Token-extract any middleware identifiers appearing before the handler
     // (used to infer required security: auth, csrf, ownership, etc.).
     const middlewares: string[] = [];
-    const mwRe = /\b(authMiddleware|serviceAuthMiddleware|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|rateLimit|userRateLimiter|authRateLimiter|challengeLimiter|verifyLimiter|checkLimiter|serviceTokenLimiter|discoverLimiter|webhookLimiter|mediaHeadersMiddleware)\b/g;
+    // This list is HAND-MAINTAINED, so a gate whose name is missing from it is
+    // a gate this generator cannot see — and the spec then publishes the route
+    // as needing no credential at all, which is the most dangerous direction to
+    // be wrong in. Add every new auth/authorization middleware here.
+    const mwRe = /\b(authMiddleware|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|rateLimit|userRateLimiter|authRateLimiter|challengeLimiter|verifyLimiter|checkLimiter|serviceTokenLimiter|discoverLimiter|webhookLimiter|mediaHeadersMiddleware)\b/g;
     let mwMatch: RegExpExecArray | null;
     while ((mwMatch = mwRe.exec(args)) !== null) {
       const token = mwMatch[1];
@@ -854,7 +858,12 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
 
   // Security inference.
   const security: Array<Record<string, string[]>> = [];
-  const isServiceOnly = middlewares.includes('serviceAuthMiddleware');
+  // Both of these mean "no user bearer reaches this route": the general service
+  // gate, and the inference route's own (`routes/alia.ts`, issue #981), which
+  // additionally requires the credential's application to be platform-trusted.
+  const isServiceOnly = middlewares.some(
+    (m) => m === 'serviceAuthMiddleware' || m === 'requireFirstPartyInferenceCaller'
+  );
   const isAuth = middlewares.includes('authMiddleware');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');
   if (isServiceOnly) {
