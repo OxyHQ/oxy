@@ -1,0 +1,9 @@
+-- oxy:deploy-phase=pre
+-- Snapshot handoff for the hand-written 0037_inbox_delivery_and_search migration.
+--
+-- 0037 already applied every Inbox table, column, constraint, and index in
+-- production. Drizzle had no snapshot for that hand-written migration, so the
+-- first generate after it would otherwise emit the same DDL a second time.
+-- The accompanying 0038 snapshot records the schema that 0037 already
+-- applied; this migration intentionally has no DDL and is safe to run on every
+-- database, including databases that already ran 0037.
