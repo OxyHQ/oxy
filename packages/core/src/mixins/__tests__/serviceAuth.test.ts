@@ -50,6 +50,7 @@ const signServiceToken = (claims: ServiceTokenClaims, secret: string): string =>
     aud: 'oxy-api',
     iss: 'oxy-auth',
     credentialId: 'cred-1',
+    ownerAccountId: 'owner-account-1',
     environment: 'production',
     ...claims,
   };
@@ -184,6 +185,7 @@ describe('C3: service-token acting-as enforcement', () => {
       appId: 'app-1',
       appName: 'trusted-service',
       credentialId: 'cred-1',
+      ownerAccountId: 'owner-account-1',
       scopes: ['user:read'],
       environment: 'production',
     });

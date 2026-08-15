@@ -124,6 +124,11 @@ const APPLICATION_COLUMNS = {
   scopes: applications.scopes,
   redirectUris: applications.redirectUris,
   createdByUserId: applications.createdByUserId,
+  // The account that OWNS the application and is financially responsible for
+  // it (ADR 0007). `NOT NULL`, so every application resolved here has one.
+  // Read by the service-token mint, which puts it in the signed claim set so a
+  // verifier can name the responsible account with no database of its own.
+  ownerAccountId: applications.ownerAccountId,
 } as const;
 
 /** An `applications` row as every read in this module projects it. */
@@ -3497,7 +3502,10 @@ const serviceTokenLimiter = rateLimit({
  *       rotation grace window (a credential rotated within the last 7 days keeps
  *       minting tokens until its grace `expiresAt`). `revoked` and grace-expired
  *       credentials are rejected. The minted JWT carries `appId` (Application
- *       `_id`) and `credentialId` (the minting ApplicationCredential `_id`).
+ *       `_id`), `credentialId` (the minting ApplicationCredential `_id`),
+ *       `ownerAccountId` (the account financially responsible for the
+ *       application), `environment` and the effective scopes (credential ∩
+ *       application).
  *     requestBody:
  *       required: true
  *       content:
@@ -3643,13 +3651,24 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // `appId` claim is the Application `_id` (UNCHANGED claim name — see contract
   // §5). `credentialId` is the specific ApplicationCredential `_id` that minted
   // this token, so downstream can attribute calls to a credential (e.g. for
-  // post-rotation revocation). `environment` (F2.0) mirrors the minting
-  // credential's own `ApplicationCredential.environment` so downstream services
-  // (e.g. the Oxy Pay Gateway) can enforce test/live isolation without a second
-  // DB lookup. `issuer`/`audience` MUST match what `@oxyhq/core`'s `oxy.auth()`
-  // / `oxy.serviceAuth()` verifies against (`OXY_JWT_ISSUER`/`OXY_JWT_AUDIENCE`
-  // in `OxyServices.utility.ts`) — omitting them left every real service token
-  // unverifiable by any external consumer of the SDK.
+  // post-rotation revocation). `ownerAccountId` is the Oxy account that owns
+  // the application and carries financial responsibility for it (ADR 0007) —
+  // it completes the attribution tuple so a verifier holding only the token can
+  // name the responsible account, and it is resolved SERVER-side from the
+  // presented credential, never accepted from the request. `environment` (F2.0)
+  // mirrors the minting credential's own `ApplicationCredential.environment` so
+  // downstream services (e.g. the Oxy Pay Gateway) can enforce test/live
+  // isolation without a second DB lookup. `issuer`/`audience` MUST match what
+  // `@oxyhq/core`'s `oxy.auth()` / `oxy.serviceAuth()` verifies against
+  // (`OXY_JWT_ISSUER`/`OXY_JWT_AUDIENCE` in `OxyServices.utility.ts`) —
+  // omitting them left every real service token unverifiable by any external
+  // consumer of the SDK.
+  //
+  // There is deliberately NO end-user claim here. A delegated user travels in
+  // the `X-Oxy-User-Id` request header, is verified per request against an
+  // explicit acting-as grant, and is attribution only — never the billing
+  // principal (ADR 0007). Putting it in the token would make the two
+  // indistinguishable to every verifier.
   //
   // SCOPE AUTHORITY: the effective scopes are the credential's requested scopes
   // INTERSECTED with the application's granted scopes — a credential can never
@@ -3666,6 +3685,7 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
       appId: app.id,
       appName: app.name,
       credentialId: credential.id,
+      ownerAccountId: app.ownerAccountId,
       scopes,
       environment: credential.environment,
     },
