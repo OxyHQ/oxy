@@ -257,6 +257,38 @@ describe('webfinger router — the instance (server) actor', () => {
     expect(res.status).toBe(404);
   });
 
+  /**
+   * The floor under every assertion above: an ORDINARY username this instance
+   * cannot resolve still 404s, on the right domain, past every early return.
+   *
+   * Deliberately NOT redundant with the foreign-domain and sharing-disabled
+   * cases, and measured rather than assumed. Those two exit BEFORE the resolve —
+   * the first on the host compare, the second on a user that resolves and is
+   * then gated — so neither one ever reaches `if (!user)`. Until this test
+   * existed nothing in the suite did: replacing that 404 with a JRD naming
+   * `urls.actor(username)` left all 210 tests green while the router advertised
+   * an actor for every name anyone cared to ask about, which is a worse bug than
+   * the one the instance branch was added to fix.
+   *
+   * It must stay INSENSITIVE to the instance branch (deleting the branch leaves
+   * this green and turns ten neighbours red) — that asymmetry is what makes it a
+   * control rather than another copy of them.
+   */
+  it('404s an ordinary unresolvable username — the instance branch is not blanket', async () => {
+    const resolveUser = jest.fn(async () => null);
+    const res = await request(makeWebfingerApp({ resolveUser }))
+      .get('/.well-known/webfinger')
+      .query({ resource: 'acct:ghost@mention.earth' });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'User not found' });
+    // Positive control: the request really did travel past the domain check and
+    // the instance branch to the resolve. Without this, a router that 404'd for
+    // some earlier reason would satisfy the assertions above and this test would
+    // be measuring nothing.
+    expect(resolveUser).toHaveBeenCalledWith('ghost');
+  });
+
   it('404s the instance acct when federation is disabled', async () => {
     const res = await request(makeWebfingerApp({ federationEnabled: false }))
       .get('/.well-known/webfinger')
