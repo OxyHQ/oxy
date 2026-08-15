@@ -64,6 +64,15 @@ export const applicationCredentials = pgTable(
     /**
      * Public identifier (`oxy_dk_…`), doubling as the OAuth `client_id`.
      *
+     * PUBLIC, and it must never become a credential (issue #972, workstream
+     * 2.1). It ships inside mobile and browser bundles and `GET
+     * /auth/oauth/client/:clientId` serves it unauthenticated, so anyone who
+     * has used the application has a copy — a lane that accepted it as proof
+     * would be authenticating the whole world. Identification only; the
+     * `secretHash` below, or a token minted from it, is what proves anything.
+     * Held by `routes/__tests__/publicIdentifierNotASecret.test.ts` and
+     * `middleware/__tests__/publicIdentifierNotABearer.test.ts`.
+     *
      * Unique CASE-SENSITIVELY, unlike the identifier indexes on `users`: the
      * suffix is base64url, where case is significant, so `lower()` here would
      * reject two legitimately distinct client ids as duplicates.

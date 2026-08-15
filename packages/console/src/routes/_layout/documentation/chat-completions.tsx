@@ -154,7 +154,7 @@ function ChatCompletionsPage() {
         <CodeBlock
           title="cURL"
           code={`curl https://api.oxy.so/v1/chat/completions \\
-  -H "Authorization: Bearer $OXY_API_KEY" \\
+  -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "alia-v1",
@@ -213,7 +213,7 @@ function ChatCompletionsPage() {
         <CodeBlock
           title="Streaming Request"
           code={`curl https://api.oxy.so/v1/chat/completions \\
-  -H "Authorization: Bearer $OXY_API_KEY" \\
+  -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "alia-v1",

@@ -76,14 +76,14 @@ const es: LocaleDict = {
       submit: 'Crear app',
     },
     keys: {
-      title: 'Claves de API',
+      title: 'Credenciales',
       subtitle: 'Gestiona las credenciales de esta app.',
-      create: 'Crear clave',
+      create: 'Crear credencial',
       reveal: 'Mostrar una vez',
-      copyValue: 'Copiar clave de API',
+      copyValue: 'Copiar client ID',
       copySecret: 'Copiar secreto',
       revealHint:
-        'Las claves secretas se muestran solo una vez al crearlas. Cópialas ahora — Oxy no volverá a mostrarlas.',
+        'Los secretos se muestran solo una vez al crearlos. Copia el tuyo ahora — Oxy no volverá a mostrarlo. El client ID es público y puedes copiarlo cuando quieras.',
     },
     usage: {
       title: 'Uso',

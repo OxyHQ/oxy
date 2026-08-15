@@ -61,7 +61,7 @@ export function CommandMenu() {
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
               <HugeiconsIcon icon={Key01Icon} />
-              <span>Manage API Keys</span>
+              <span>Manage applications</span>
             </CommandItem>
           </CommandGroup>
 
@@ -75,7 +75,7 @@ export function CommandMenu() {
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
               <HugeiconsIcon icon={Key01Icon} />
-              <span>API Keys</span>
+              <span>Applications</span>
               <CommandShortcut>⌘1</CommandShortcut>
             </CommandItem>
             <CommandItem onSelect={() => runCommand(() => navigate({ to: '/usage' }))}>
@@ -151,7 +151,7 @@ function CommandMenuContent({ onClose }: { onClose: () => void }) {
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
             <HugeiconsIcon icon={Key01Icon} />
-            <span>Manage API Keys</span>
+            <span>Manage applications</span>
           </CommandItem>
         </CommandGroup>
 
@@ -165,7 +165,7 @@ function CommandMenuContent({ onClose }: { onClose: () => void }) {
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: '/apps' }))}>
             <HugeiconsIcon icon={Key01Icon} />
-            <span>API Keys</span>
+            <span>Applications</span>
             <CommandShortcut>⌘1</CommandShortcut>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => navigate({ to: '/usage' }))}>

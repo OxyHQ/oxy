@@ -38,7 +38,7 @@ const mainNavItems = [
     icon: CommandIcon,
   },
   {
-    title: 'API Keys',
+    title: 'Applications',
     url: '/apps',
     icon: Key01Icon,
   },

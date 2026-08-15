@@ -29,12 +29,6 @@
         "bearerFormat": "JWT",
         "description": "Service-to-service JWT obtained from /auth/service-token by exchanging a `service`-type ApplicationCredential (publicKey + secret). For delegated calls also include `X-Oxy-User-Id: <userId>`."
       },
-      "apiKeyAuth": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "X-API-Key",
-        "description": "Long-lived application API key (for third-party integrations that do not require a delegated user session)."
-      },
       "csrfToken": {
         "type": "apiKey",
         "in": "header",

@@ -39,13 +39,15 @@ secret manager; it is never recoverable from the database.
 
 ## Exchanging credentials for a token
 
-The endpoint is `POST /auth/service-token`. Body: `{ apiKey, apiSecret }`. Response: `{ token, expiresAt }` where `token` is a 1-hour JWT with `type: 'service'`, `appId`, and the granted scopes.
+The endpoint is `POST /auth/service-token`. Body: `{ apiKey, apiSecret }` — `apiKey` is the credential's `publicKey` (`oxy_dk_…`, the OAuth `client_id`) and `apiSecret` is the cleartext secret shown once at creation. Response: `{ token, expiresAt }` where `token` is a 1-hour JWT with `type: 'service'`, `appId`, and the granted scopes.
+
+The `publicKey` half is a **public identifier**, not a key: it is designed to be shipped in clients and is served unauthenticated by `GET /auth/oauth/client/:clientId`. It never authenticates on its own — only the pair, exchanged here, produces a bearer.
 
 ```ts
 import { OxyServices } from '@oxyhq/core';
 
 const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
-oxy.configureServiceAuth(process.env.OXY_API_KEY!, process.env.OXY_API_SECRET!);
+oxy.configureServiceAuth(process.env.OXY_CLIENT_ID!, process.env.OXY_CLIENT_SECRET!);
 
 // Auto-cached, auto-refreshed.
 const token = await oxy.getServiceToken();
