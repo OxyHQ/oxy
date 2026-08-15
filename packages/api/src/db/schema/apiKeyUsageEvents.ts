@@ -31,6 +31,21 @@
  * `db/expiry.ts` against `created_at`, with the supporting btree the sweep
  * requires. That retention is also why the two `SET NULL`-shaped foreign keys
  * below are `CASCADE` instead — see `api_key_id`.
+ *
+ * ## This is NOT the inference telemetry stream — read this before merging them
+ *
+ * `inference_usage_events` (#972 workstream 8) is a separate table, and the two
+ * are not duplicates: this one is GENERAL API telemetry (`method`, `endpoint`,
+ * `auth_type` of `api_key | session | internal`) and that one is one inference
+ * request, with unit totals, a model reference, a serving provider and the
+ * account/application/credential attribution ADR 0007 requires. The reasoning
+ * for keeping them apart — including why this table was not reshaped in place —
+ * is in `inferenceUsageEvents.ts`'s header.
+ *
+ * This table still has **no writer anywhere in `packages/api/src` outside
+ * tests**, and its `api_key_id` still references `developer_api_keys`. Retiring
+ * both is #972 workstream 2.3's checkbox, not workstream 8's; nothing in the
+ * inference ledger reads or writes this table.
  */
 
 import { sql } from 'drizzle-orm';

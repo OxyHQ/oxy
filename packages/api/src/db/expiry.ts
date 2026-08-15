@@ -81,6 +81,10 @@ import {
   API_KEY_USAGE_RETENTION_SECONDS,
   apiKeyUsageEvents,
 } from './schema/apiKeyUsageEvents';
+import {
+  INFERENCE_USAGE_RETENTION_SECONDS,
+  inferenceUsageEvents,
+} from './schema/inferenceUsageEvents';
 
 /**
  * Every table that had a Mongo TTL index. A table with an expiry column but no
@@ -206,5 +210,19 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'two readers already bound their own window (`timestamp: { $gte: since }`, ' +
       '`routes/credits.ts:59` and `routes/applications.ts:961`), so the sweep ' +
       'is housekeeping and no reported figure depends on it running.',
+  },
+  {
+    table: inferenceUsageEvents,
+    column: inferenceUsageEvents.createdAt,
+    retentionSeconds: INFERENCE_USAGE_RETENTION_SECONDS,
+    reason:
+      'Ninety days of inference telemetry, the same window `api_key_usage_events` ' +
+      'has. Detail only: `inference_usage_daily_rollups` is NOT swept, so usage ' +
+      'history outlives the per-request rows it was built from. The financial ' +
+      'tables — `usage_receipts`, `usage_refunds`, `usage_reservations`, ' +
+      '`billing_ledger_entries`, `billing_ledger_postings` — must NEVER appear ' +
+      'in this registry: a receipt swept on a telemetry schedule is a destroyed ' +
+      'financial record, and it would be silent. ' +
+      '`db/__tests__/inferenceLedgerRetention.test.ts` fails if one is added.',
   },
 ];
