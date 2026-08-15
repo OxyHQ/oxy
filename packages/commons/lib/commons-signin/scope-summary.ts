@@ -28,8 +28,13 @@ const SCOPE_LABEL_KEYS: Readonly<Record<string, string>> = {
   'files:write': 'consent.scopes.filesWrite',
   'files:delete': 'consent.scopes.filesDelete',
   'webhooks:receive': 'consent.scopes.webhooksReceive',
-  'chat:completions': 'consent.scopes.chatCompletions',
-  'models:read': 'consent.scopes.modelsRead',
+  'inference:invoke': 'consent.scopes.inferenceInvoke',
+  'inference:models:read': 'consent.scopes.inferenceModelsRead',
+  'inference:usage:read': 'consent.scopes.inferenceUsageRead',
+  'inference:routing:read': 'consent.scopes.inferenceRoutingRead',
+  'inference:routing:write': 'consent.scopes.inferenceRoutingWrite',
+  'inference:providers:read': 'consent.scopes.inferenceProvidersRead',
+  'inference:providers:write': 'consent.scopes.inferenceProvidersWrite',
   'federation:write': 'consent.scopes.federationWrite',
 };
 

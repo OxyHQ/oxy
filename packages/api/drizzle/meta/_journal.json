@@ -211,6 +211,13 @@
       "when": 1786448414910,
       "tag": "0030_browser_hub_handle",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786817114753,
+      "tag": "0031_inference_scope_family",
+      "breakpoints": true
     }
   ]
 }

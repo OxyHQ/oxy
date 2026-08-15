@@ -37,8 +37,8 @@ import { users } from './users';
  * the two equal.
  */
 export const DEVELOPER_API_KEY_SCOPES = [
-  'chat:completions',
-  'models:read',
+  'inference:invoke',
+  'inference:models:read',
   'files:read',
   'files:write',
   'files:delete',
@@ -47,7 +47,10 @@ export const DEVELOPER_API_KEY_SCOPES = [
 ] as const satisfies readonly ApplicationScope[];
 
 /** Scopes a key gets when the caller names none. */
-export const DEFAULT_DEVELOPER_API_KEY_SCOPES = ['chat:completions', 'models:read'] as const;
+export const DEFAULT_DEVELOPER_API_KEY_SCOPES = [
+  'inference:invoke',
+  'inference:models:read',
+] as const;
 
 /** Requests per day a key gets by default. `NULL` in any limit column means "unlimited". */
 const DEFAULT_REQUESTS_PER_DAY = 1000;

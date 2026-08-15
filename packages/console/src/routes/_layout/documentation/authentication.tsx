@@ -100,16 +100,36 @@ function AuthenticationPage() {
         </p>
         <div className="space-y-3">
           <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">chat:read</Badge>
-            <p className="text-sm text-muted-foreground">Read conversation history</p>
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:invoke</Badge>
+            <p className="text-sm text-muted-foreground">Run inference requests, billed to the owning account</p>
           </div>
           <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">chat:write</Badge>
-            <p className="text-sm text-muted-foreground">Create chat completions</p>
-          </div>
-          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-            <Badge variant="outline" className="font-mono text-xs mt-0.5">models:read</Badge>
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:models:read</Badge>
             <p className="text-sm text-muted-foreground">List available models</p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:usage:read</Badge>
+            <p className="text-sm text-muted-foreground">Read this application's inference usage and costs</p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:routing:read</Badge>
+            <p className="text-sm text-muted-foreground">Read routing profiles and provider descriptors</p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:providers:read</Badge>
+            <p className="text-sm text-muted-foreground">Read connected inference providers, never their secrets</p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:routing:write</Badge>
+            <p className="text-sm text-muted-foreground">
+              Change routing profiles. Staff approval required — it decides where other tenants' requests are served from.
+            </p>
+          </div>
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+            <Badge variant="outline" className="font-mono text-xs mt-0.5">inference:providers:write</Badge>
+            <p className="text-sm text-muted-foreground">
+              Manage provider and BYOK connections. Staff approval required.
+            </p>
           </div>
         </div>
       </div>

@@ -177,6 +177,69 @@ describe('applications — closed value sets and the three arrays', () => {
     ).resolves.toBeDefined();
   });
 
+  /**
+   * The retirement of `chat:completions` / `models:read` (#972 workstream 3) is
+   * only a clean cut if the DATABASE refuses them, not merely the Zod enum: a
+   * backfill, a psql session or a stale image writes past the enum and lands on
+   * the CHECK. `0031_inference_scope_family` rewrote every stored occurrence and
+   * rebuilt the three application-scope CHECKs around the new vocabulary, so
+   * after it no row can hold a retired name at all.
+   *
+   * Each rejection is paired with the SUCCESSOR name being accepted through the
+   * identical statement. Without that control a constraint that had broken into
+   * rejecting everything — or a column renamed out from under the test — would
+   * read exactly like a successful retirement.
+   */
+  it('refuses a retired inference scope name and accepts its successor', async () => {
+    const ownerAccountId = await account();
+
+    for (const [retired, successor] of [
+      ['chat:completions', 'inference:invoke'],
+      ['models:read', 'inference:models:read'],
+    ] as const) {
+      // Raw SQL: the typed column no longer admits the retired string at all,
+      // so only a hand-written statement can reach the CHECK.
+      const error = await rejection(
+        getDb().execute(sql`
+          insert into applications (id, name, owner_account_id, scopes)
+          values (${randomUUID()}, 'Retired scope', ${ownerAccountId},
+                  array[${retired}]::text[])
+        `)
+      );
+      expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+
+      await expect(
+        getDb()
+          .insert(applications)
+          .values({ name: 'Successor scope', ownerAccountId, scopes: [successor] })
+      ).resolves.toBeDefined();
+    }
+  });
+
+  it('accepts every scope of the inference family, staff-gated ones included', async () => {
+    // The CHECK is a vocabulary, not an authorization: staff-gating
+    // `inference:routing:write` / `inference:providers:write` is decided in
+    // `applicationScopes.ts` and enforced on the write PATH, so the constraint
+    // must still admit them once staff has granted one.
+    await expect(
+      getDb()
+        .insert(applications)
+        .values({
+          name: 'Inference app',
+          ownerAccountId: await account(),
+          scopes: [
+            'inference:invoke',
+            'inference:models:read',
+            'inference:usage:read',
+            'inference:routing:read',
+            'inference:routing:write',
+            'inference:providers:read',
+            'inference:providers:write',
+          ],
+        })
+    ).resolves.toBeDefined();
+  });
+
   it('answers the push-delivery query by array containment', async () => {
     const ownerAccountId = await account();
     const marker = `cap-${randomUUID()}`;
@@ -300,6 +363,68 @@ describe('applications — what each ON DELETE means', () => {
         .values({ name: 'Orphan', ownerAccountId: `missing-${randomUUID()}` })
     );
     expect(pgErrorCode(error)).toBe(FOREIGN_KEY_VIOLATION);
+  });
+});
+
+describe('credentials — the application-scope vocabulary', () => {
+  /**
+   * Both credential tables carry the SAME `<@ APPLICATION_SCOPES` CHECK as
+   * `applications`, and `0031_inference_scope_family` rebuilt all three
+   * together. A test on `applications` alone would leave either credential
+   * table free to hold a retired name, which is the row that actually reaches a
+   * service-token mint.
+   */
+  it('refuses a retired scope on an application credential, and accepts its successor', async () => {
+    const applicationId = await application();
+
+    const error = await rejection(
+      getDb().execute(sql`
+        insert into application_credentials
+          (id, application_id, name, public_key, type, environment, scopes)
+        values (${randomUUID()}, ${applicationId}, 'Retired', ${`oxy_dk_${randomUUID()}`},
+                'confidential', 'production', array['chat:completions']::text[])
+      `)
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+
+    await expect(
+      getDb()
+        .insert(applicationCredentials)
+        .values({
+          applicationId,
+          name: 'Successor',
+          publicKey: `oxy_dk_${randomUUID()}`,
+          type: 'confidential',
+          environment: 'production',
+          scopes: ['inference:invoke', 'inference:providers:write'],
+        })
+    ).resolves.toBeDefined();
+  });
+
+  it('refuses a retired scope on an account credential, and accepts its successor', async () => {
+    const accountId = await account();
+
+    const error = await rejection(
+      getDb().execute(sql`
+        insert into account_credentials
+          (id, account_id, name, public_key, environment, scopes)
+        values (${randomUUID()}, ${accountId}, 'Retired', ${`oxy_dk_${randomUUID()}`},
+                'production', array['models:read']::text[])
+      `)
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+
+    await expect(
+      getDb()
+        .insert(accountCredentials)
+        .values({
+          accountId,
+          name: 'Successor',
+          publicKey: `oxy_dk_${randomUUID()}`,
+          environment: 'production',
+          scopes: ['inference:models:read'],
+        })
+    ).resolves.toBeDefined();
   });
 });
 
@@ -666,7 +791,7 @@ describe('developer_api_keys', () => {
       })
       .returning();
 
-    expect(row.scopes).toEqual(['chat:completions', 'models:read']);
+    expect(row.scopes).toEqual(['inference:invoke', 'inference:models:read']);
     expect(row.rateLimitRequestsPerDay).toBe(1000);
     // NULL is "unlimited" — the meaning Mongoose's `default: null` carried.
     expect(row.rateLimitRequestsPerMinute).toBeNull();
@@ -685,6 +810,33 @@ describe('developer_api_keys', () => {
       `)
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+  });
+
+  it('rejects a retired inference scope name and accepts its successor', async () => {
+    // This table's vocabulary is a NARROWER subset of APPLICATION_SCOPES, so it
+    // has its own CHECK and its own rebuild in 0031 — retiring the names from
+    // the wide list would not have reached it.
+    const error = await rejection(
+      getDb().execute(sql`
+        insert into developer_api_keys (id, user_id, application_id, name, key_hash, key_prefix, scopes)
+        values (${randomUUID()}, ${await account()}, ${await application()}, 'Retired',
+                ${randomUUID()}, 'oxy_dk_', array['chat:completions']::text[])
+      `)
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+
+    await expect(
+      getDb()
+        .insert(developerApiKeys)
+        .values({
+          userId: await account(),
+          applicationId: await application(),
+          name: 'Successor',
+          keyHash: randomUUID(),
+          keyPrefix: 'oxy_dk_',
+          scopes: ['inference:invoke', 'inference:models:read'],
+        })
+    ).resolves.toBeDefined();
   });
 
   it('rejects a non-positive rate limit', async () => {
