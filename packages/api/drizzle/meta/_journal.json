@@ -253,6 +253,13 @@
       "when": 1786831814559,
       "tag": "0036_inference_revision_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786900000000,
+      "tag": "0037_inbox_delivery_and_search",
+      "breakpoints": true
     }
   ]
 }
