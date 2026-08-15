@@ -33,10 +33,17 @@ export const VERSIONS = {
   expoBuildProperties: '~57.0.5',
   expoVectorIcons: '^15.1.1', // @expo/vector-icons
 
-  // --- Oxy SDK UI optional peers (toast / haptics / avatar crop / QR sign-in) ---
+  // --- Oxy SDK UI optional peers (toast / haptics / avatar crop / file picking / QR sign-in) ---
+  // These are declared OPTIONAL by @oxyhq/services, but the screens that name
+  // them are reachable from its root barrel — and `tsc` resolves the specifier
+  // of an `import()` even when the call is lazy — so a consumer of the barrel
+  // must install them or fail to typecheck with TS2307. Adding a screen to the
+  // barrel upstream therefore adds a peer here; the list is not optional in
+  // practice. See packages/services/__tests__/notifications/barrelIsolation.test.ts.
   expoHaptics: '~57.0.1',
   expoImagePicker: '~57.0.4',
   expoImageManipulator: '~57.0.4',
+  expoDocumentPicker: '~57.0.1',
   reactNativeQrcodeSvg: '^6.3.0',
 
   // --- React / React Native (Expo SDK 57 pins) ---
