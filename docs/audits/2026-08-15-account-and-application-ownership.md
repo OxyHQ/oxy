@@ -12,6 +12,15 @@ This document records what is TRUE at that commit. Where the epic's premise and
 the code disagree, the code is reported and the disagreement is called out.
 Anything not verified is marked **UNVERIFIED** and says why.
 
+**Relationship to ADR 0007** (`adr/0007-canonical-request-attribution.md`, landed
+in `b522ee2f` while this audit was being taken). The ADR decides what attribution
+*must* become; this audit measures what it *is*. They were derived independently
+and agree on the two facts both cover — the service token carries no owning
+account, and `api_key_usage_events` has a `NOT NULL user_id` beside a nullable
+`application_id`. This audit adds three findings the ADR does not record: the live
+inference path resolves no principal at all (§1.1), the usage table has no writer
+(§1.3), and `billing:read`/`billing:manage` are consulted by nothing (§0 F5).
+
 ---
 
 ## 0. Summary of findings that contradict the epic's premise

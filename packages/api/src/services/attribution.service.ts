@@ -10,6 +10,14 @@
  *     and its application-scoped composition {@link resolveCallerApplicationAccess})
  *  4. **owner account → billing profile** ({@link resolveAccountBillingProfile})
  *
+ * Resolution 2 is the chain ADR 0007 fixes as the ONE direction attribution may
+ * travel (`docs/adr/0007-canonical-request-attribution.md`): presented credential
+ * → `application_credentials` row → `application_id` → `owner_account_id`. The
+ * ADR's rule that a request which cannot complete that chain is refused rather
+ * than falling back to "the signed-in user's personal account" is why nothing
+ * here returns a nullable value a caller could quietly treat as "nobody to
+ * charge".
+ *
  * ## Why this exists rather than four call sites doing it inline
  *
  * Hops 1 and 3 are already performed, by hand, at FOUR separate places — the
