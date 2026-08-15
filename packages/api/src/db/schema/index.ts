@@ -31,6 +31,7 @@ export * from './appReviews';
 export * from './appUpdateAssets';
 export * from './appUpdates';
 export * from './appUserSignals';
+export * from './applicationCredentialAuditEvents';
 export * from './applicationCredentials';
 export * from './applicationModerationTrust';
 export * from './applications';

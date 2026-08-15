@@ -59,6 +59,10 @@
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
 import { AFFINITY_EVENT_SEEN_TTL_SECONDS } from '../utils/recommendationWeights';
 import { appAffinitySeenEvents } from './schema/appAffinitySeenEvents';
+import {
+  CREDENTIAL_AUDIT_RETENTION_SECONDS,
+  applicationCredentialAuditEvents,
+} from './schema/applicationCredentialAuditEvents';
 import { authChallenges } from './schema/authChallenges';
 import { authCodes } from './schema/authCodes';
 import { authSessions } from './schema/authSessions';
@@ -181,6 +185,17 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'read-side filter Mongo never had — `senderAvatarIsFresh()`. Without ' +
       'that filter this entry would be the sole thing keeping a stale avatar ' +
       'off the screen, which is the class-(B) read this module warns about.',
+  },
+  {
+    table: applicationCredentialAuditEvents,
+    column: applicationCredentialAuditEvents.createdAt,
+    retentionSeconds: CREDENTIAL_AUDIT_RETENTION_SECONDS,
+    reason:
+      'Two-year credential lifecycle retention, the same window ' +
+      '`security_activities` keeps for the account trail. Nothing reads this ' +
+      'table with an expiry predicate and nothing needs to — an old audit ' +
+      'entry is stale, never unsafe — so the sweep is purely what bounds ' +
+      'growth.',
   },
   {
     table: apiKeyUsageEvents,
