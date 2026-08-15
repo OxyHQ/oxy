@@ -26,7 +26,10 @@ import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { accountService } from '../services/account.service';
 import {
-  appPermissionsForAccountRole,
+  appPermissionsForAccountAccess,
+  effectivePermissionsForMember,
+  permissionsForAccountRole,
+  type AccountPermission,
   type AccountRole,
   type ApplicationPermission,
 } from '../utils/accountRoles';
@@ -77,17 +80,22 @@ type CredentialRow = Omit<
 /**
  * Resolved application access for the caller.
  *
- * Access to an application is DERIVED from the caller's effective `AccountMember`
- * role over the application's owning account (`app.ownerAccountId`), honouring
- * tree inheritance. The account role is mapped to a concrete set of application
- * permissions via `appPermissionsForAccountRole`. There is no per-app member
- * table.
+ * Access to an application is DERIVED from the caller's EFFECTIVE
+ * `AccountMember` access over the application's owning account
+ * (`app.ownerAccountId`), honouring tree inheritance — the role's baseline with
+ * the membership row's own `permission_grants` / `permission_revokes` applied,
+ * mapped into the application vocabulary by `appPermissionsForAccountAccess`.
+ * There is no per-app member table.
+ *
+ * The role is carried alongside because `callerMembership` reports it, NOT
+ * because anything here may gate on it: a role name cannot see a per-member
+ * delta, and gating on one is exactly the bypass issue #978 records.
  */
 interface AppAccess {
   application: ApplicationRow;
   /** The caller's effective account role over `ownerAccountId`. */
   role: AccountRole;
-  /** Effective application permissions derived from that role. */
+  /** Effective application permissions — role baseline adjusted by the member's deltas. */
   permissions: Set<ApplicationPermission>;
 }
 
@@ -541,10 +549,10 @@ function callerMembershipFromAccess(access: AppAccess | undefined): SerializedCa
 
 /**
  * Resolve the application (non-deleted) and the caller's effective access for
- * `:appId`. Access is the caller's effective `AccountMember` role over
- * `app.ownerAccountId` (with inheritance), mapped to application permissions.
- * Returns 404 when the app is missing/deleted and 403 when the caller has no
- * account access to its owner.
+ * `:appId`. Access is the caller's EFFECTIVE `AccountMember` access over
+ * `app.ownerAccountId` (with inheritance, grants and revokes), mapped to
+ * application permissions. Returns 404 when the app is missing/deleted and 403
+ * when the caller has no account access to its owner.
  */
 async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess> {
   const userId = requireUserId(req);
@@ -568,7 +576,7 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
   }
 
   const permissions = new Set<ApplicationPermission>(
-    appPermissionsForAccountRole(accountAccess.role)
+    appPermissionsForAccountAccess(accountAccess)
   );
 
   const access: AppAccess = { application, role: accountAccess.role, permissions };
@@ -610,27 +618,40 @@ router.get(
     const userId = requireUserId(req);
     const ownerAccountIdFilter = req.query.ownerAccountId as string | undefined;
 
-    // The caller's effective account role per accessible account id.
-    const roleByAccountId = new Map<string, AccountRole>();
+    // The caller's EFFECTIVE account access per accessible account id — role
+    // AND permissions, because the permissions are what `callerMembership` is
+    // derived from and a role alone cannot see the member's own deltas.
+    const accessByAccountId = new Map<
+      string,
+      { role: AccountRole; permissions: AccountPermission[] }
+    >();
 
     if (ownerAccountIdFilter !== undefined) {
       const access = await accountService.resolveEffectiveAccess(userId, ownerAccountIdFilter);
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
-      roleByAccountId.set(ownerAccountIdFilter, access.role);
+      accessByAccountId.set(ownerAccountIdFilter, access);
     } else {
       const nodes = await accountService.listAccessibleAccounts(userId);
       for (const node of nodes) {
-        const role: AccountRole | undefined =
-          node.relationship === 'self' ? 'owner' : node.callerMembership?.role;
-        if (role) {
-          roleByAccountId.set(node.accountId, role);
+        // `self` carries no membership row: a user is the implicit owner of
+        // their own account, exactly as `resolveEffectiveAccess` treats it.
+        if (node.relationship === 'self') {
+          accessByAccountId.set(node.accountId, {
+            role: 'owner',
+            permissions: permissionsForAccountRole('owner'),
+          });
+        } else if (node.callerMembership) {
+          accessByAccountId.set(node.accountId, {
+            role: node.callerMembership.role,
+            permissions: effectivePermissionsForMember(node.callerMembership),
+          });
         }
       }
     }
 
-    const accountIds = [...roleByAccountId.keys()];
+    const accountIds = [...accessByAccountId.keys()];
     if (accountIds.length === 0) {
       res.json({ applications: [] });
       return;
@@ -649,11 +670,11 @@ router.get(
 
     res.json({
       applications: rows.map((app) => {
-        const role = roleByAccountId.get(app.ownerAccountId);
-        const callerMembership = role
+        const access = accessByAccountId.get(app.ownerAccountId);
+        const callerMembership = access
           ? {
-              role,
-              permissions: appPermissionsForAccountRole(role),
+              role: access.role,
+              permissions: appPermissionsForAccountAccess(access),
               source: 'account' as const,
               ownerAccountId: app.ownerAccountId,
             }
@@ -732,7 +753,7 @@ router.post(
 
     const callerMembership: SerializedCallerMembership = {
       role: access.role,
-      permissions: appPermissionsForAccountRole(access.role),
+      permissions: appPermissionsForAccountAccess(access),
       source: 'account',
       ownerAccountId: ownerAccountId,
     };

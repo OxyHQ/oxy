@@ -58,6 +58,11 @@ import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
 import adminRouter from '../updatesAdmin';
 import { errorHandler } from '../../middleware/errorHandler';
+import {
+  resolveEffectivePermissions,
+  type AccountPermission,
+  type AccountRole,
+} from '../../utils/accountRoles';
 
 function makeServer(): http.Server {
   const app = express();
@@ -184,9 +189,28 @@ describe('user-bearer authorization', () => {
     });
   }
 
+  /**
+   * What the REAL `resolveEffectiveAccess` returns: a role AND the effective
+   * permission list, which is the role's baseline with the membership row's own
+   * deltas applied. A fake returning only `{ role }` would let this suite pass
+   * over a gate that had stopped reading the deltas — which is the bug the
+   * `revokes` argument below exists to catch (issue #978).
+   */
+  function accessAs(
+    role: AccountRole,
+    deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {}
+  ) {
+    return {
+      role,
+      permissions: resolveEffectivePermissions(role, deltas.grants ?? [], deltas.revokes ?? []),
+      source: 'direct' as const,
+      membership: null,
+    };
+  }
+
   test('developer role (has updates:manage) → publishes', async () => {
     authAs('user1');
-    mockResolveAccess.mockResolvedValue({ role: 'developer' });
+    mockResolveAccess.mockResolvedValue(accessAs('developer'));
     const { status } = await post(server, '/updates/v1/updates', createBody(appId));
     expect(status).toBe(200);
     expect(mockCreateUpdate).toHaveBeenCalledTimes(1);
@@ -197,17 +221,34 @@ describe('user-bearer authorization', () => {
 
   test('owner role → publishes', async () => {
     authAs('user1');
-    mockResolveAccess.mockResolvedValue({ role: 'owner' });
+    mockResolveAccess.mockResolvedValue(accessAs('owner'));
     const { status } = await post(server, '/updates/v1/updates', createBody(appId));
     expect(status).toBe(200);
   });
 
   test('viewer role (no updates:manage) → 403', async () => {
     authAs('user1');
-    mockResolveAccess.mockResolvedValue({ role: 'viewer' });
+    mockResolveAccess.mockResolvedValue(accessAs('viewer'));
     const { status } = await post(server, '/updates/v1/updates', createBody(appId));
     expect(status).toBe(403);
     expect(mockCreateUpdate).not.toHaveBeenCalled();
+  });
+
+  test('an admin whose apps:update was REVOKED cannot publish (issue #978)', async () => {
+    // `updates:manage` answers to `apps:update`: publishing replaces the code
+    // the app ships, so withdrawing the right to update the account's apps
+    // withdraws this too. The pair is what makes it a gate — the control differs
+    // only by the revoke.
+    authAs('user1');
+    mockResolveAccess.mockResolvedValue(accessAs('admin', { revokes: ['apps:update'] }));
+    const revoked = await post(server, '/updates/v1/updates', createBody(appId));
+    expect(revoked.status).toBe(403);
+    expect(mockCreateUpdate).not.toHaveBeenCalled();
+
+    mockResolveAccess.mockResolvedValue(accessAs('admin'));
+    const permitted = await post(server, '/updates/v1/updates', createBody(appId));
+    expect(permitted.status).toBe(200);
+    expect(mockCreateUpdate).toHaveBeenCalledTimes(1);
   });
 
   test('no account access to the app → 403', async () => {
@@ -219,7 +260,7 @@ describe('user-bearer authorization', () => {
 
   test('an applicationId that names no row → 404, whatever its shape', async () => {
     authAs('user1');
-    mockResolveAccess.mockResolvedValue({ role: 'owner' });
+    mockResolveAccess.mockResolvedValue(accessAs('owner'));
     // There is no id-shape guard any more: the only question is whether the row
     // exists, which is a 404 for a uuid and for a string that never could be one.
     for (const missing of [randomUUID(), 'not-an-id-at-all']) {
@@ -231,7 +272,7 @@ describe('user-bearer authorization', () => {
 
   test('a soft-deleted application → 404', async () => {
     authAs('user1');
-    mockResolveAccess.mockResolvedValue({ role: 'owner' });
+    mockResolveAccess.mockResolvedValue(accessAs('owner'));
     const deleted = await application('deleted');
     const { status } = await post(server, '/updates/v1/updates', createBody(deleted.applicationId));
     expect(status).toBe(404);

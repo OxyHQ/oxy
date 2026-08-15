@@ -294,8 +294,9 @@ export function useApplicationUsage(appId: string, period: string = '7d', enable
  * interchangeable and are not: an account grants `apps:read` / `apps:update` /
  * `apps:delete` over the apps it owns, while an APPLICATION grants `app:read` /
  * `app:update` / `app:delete` over itself. The API derives the second from the
- * first (`appPermissionsForAccountRole`) and serialises only the second here,
- * on every path that returns an application.
+ * first (`appPermissionsForAccountAccess`, over the caller's EFFECTIVE account
+ * permissions — per-member grants and revokes included) and serialises only the
+ * second here, on every path that returns an application.
  *
  * Typing this as `AccountPermission` let `access.can('apps:update')` compile and
  * silently answer false forever, which disabled the whole Settings form for its

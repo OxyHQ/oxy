@@ -11,11 +11,28 @@
 
 import {
   ACCOUNT_PERMISSIONS,
+  APPLICATION_PERMISSIONS,
   ROLE_PERMISSIONS,
+  appPermissionsForAccountAccess,
   isAccountPermission,
   permissionsForAccountRole,
   resolveEffectivePermissions,
+  type AccountPermission,
+  type AccountRole,
 } from '../accountRoles';
+
+const ACCOUNT_ROLE_NAMES = Object.keys(ROLE_PERMISSIONS) as AccountRole[];
+
+/** The access shape a route hands the derivation, built from a role + deltas. */
+function accessWith(
+  role: AccountRole,
+  deltas: { grants?: AccountPermission[]; revokes?: AccountPermission[] } = {}
+) {
+  return {
+    role,
+    permissions: resolveEffectivePermissions(role, deltas.grants ?? [], deltas.revokes ?? []),
+  };
+}
 
 describe('resolveEffectivePermissions', () => {
   test('with no deltas it is exactly the role baseline', () => {
@@ -90,6 +107,151 @@ describe('resolveEffectivePermissions', () => {
     expect(
       resolveEffectivePermissions('viewer', ['account:act_as', 'account:act_as'], [])
     ).toEqual(resolveEffectivePermissions('viewer', ['account:act_as'], []));
+  });
+});
+
+/**
+ * `appPermissionsForAccountAccess` — the ONE bridge between the account and
+ * application vocabularies (issue #978).
+ *
+ * The cases distinguish it from the implementation it replaced (a role-only
+ * lookup that could not see a delta at all) and from the two ways a correction
+ * could overshoot: narrowing members who carry NO delta, and letting a broader
+ * counterpart confer more than it contains.
+ */
+describe('appPermissionsForAccountAccess', () => {
+  test('a member with no deltas is unchanged from the role baseline, for every role', () => {
+    // The load-bearing property. The two role maps disagree in places (an
+    // account `editor` holds `billing:read`, an application `editor` does not),
+    // and this function must not quietly reconcile them: a member who was never
+    // adjusted has to get exactly what they got before this existed.
+    const baselineByRole: Record<AccountRole, string[]> = {
+      owner: [...APPLICATION_PERMISSIONS],
+      admin: [
+        'app:read',
+        'app:update',
+        'app:delete',
+        'members:read',
+        'members:invite',
+        'members:update',
+        'members:remove',
+        'credentials:read',
+        'credentials:create',
+        'credentials:rotate',
+        'credentials:revoke',
+        'webhooks:read',
+        'webhooks:update',
+        'usage:read',
+        'billing:read',
+        'updates:manage',
+      ],
+      editor: [
+        'app:read',
+        'app:update',
+        'members:read',
+        'credentials:read',
+        'webhooks:read',
+        'webhooks:update',
+        'usage:read',
+      ],
+      developer: [
+        'app:read',
+        'credentials:read',
+        'credentials:create',
+        'credentials:rotate',
+        'credentials:revoke',
+        'webhooks:read',
+        'webhooks:update',
+        'usage:read',
+        'updates:manage',
+      ],
+      billing: ['app:read', 'usage:read', 'billing:read', 'billing:manage'],
+      viewer: ['app:read', 'members:read', 'usage:read'],
+    };
+
+    for (const role of ACCOUNT_ROLE_NAMES) {
+      expect(appPermissionsForAccountAccess(accessWith(role)).sort()).toEqual(
+        baselineByRole[role].sort()
+      );
+    }
+  });
+
+  test('a REVOKE removes the application permission its counterpart answers for', () => {
+    // Non-vacuity: the role has to carry both sides, or the assertion below is
+    // about a permission nobody had.
+    expect(permissionsForAccountRole('admin')).toContain('credentials:rotate');
+    expect(appPermissionsForAccountAccess(accessWith('admin'))).toContain('credentials:rotate');
+
+    const revoked = appPermissionsForAccountAccess(
+      accessWith('admin', { revokes: ['credentials:rotate'] })
+    );
+    expect(revoked).not.toContain('credentials:rotate');
+    // Surgical: only the revoked power goes.
+    expect(revoked).toContain('credentials:create');
+    expect(revoked).toContain('credentials:revoke');
+  });
+
+  test('the two vocabularies spell the same power differently, and the revoke still lands', () => {
+    // `app:update` is `apps:update` on the account side. A derivation matching
+    // on the STRING rather than through the counterpart map would miss this one,
+    // which is the whole reason the map exists.
+    expect(ACCOUNT_PERMISSIONS).not.toContain('app:update');
+    expect(APPLICATION_PERMISSIONS).not.toContain('apps:update');
+
+    expect(
+      appPermissionsForAccountAccess(accessWith('admin', { revokes: ['apps:update'] }))
+    ).not.toContain('app:update');
+  });
+
+  test('revoking a BROADER counterpart withdraws everything it contains', () => {
+    // `apps:update` contains `app:update`, `webhooks:update` and
+    // `updates:manage` — publishing an OTA update replaces the app's code.
+    const revoked = appPermissionsForAccountAccess(
+      accessWith('admin', { revokes: ['apps:update'] })
+    );
+    expect(revoked).not.toContain('app:update');
+    expect(revoked).not.toContain('webhooks:update');
+    expect(revoked).not.toContain('updates:manage');
+    // And nothing that answers to a DIFFERENT counterpart moves.
+    expect(revoked).toContain('app:read');
+    expect(revoked).toContain('app:delete');
+    expect(revoked).toContain('credentials:rotate');
+  });
+
+  test('a GRANT adds the application permissions its counterpart answers for', () => {
+    expect(permissionsForAccountRole('viewer')).not.toContain('credentials:read');
+    expect(appPermissionsForAccountAccess(accessWith('viewer'))).not.toContain('credentials:read');
+
+    expect(
+      appPermissionsForAccountAccess(accessWith('viewer', { grants: ['credentials:read'] }))
+    ).toContain('credentials:read');
+  });
+
+  test('a revoke of something the role never had changes nothing', () => {
+    expect(permissionsForAccountRole('viewer')).not.toContain('billing:manage');
+    expect(
+      appPermissionsForAccountAccess(accessWith('viewer', { revokes: ['billing:manage'] }))
+    ).toEqual(appPermissionsForAccountAccess(accessWith('viewer')));
+  });
+
+  test('a revoke beats a grant here too, because the account lane resolved it first', () => {
+    // This function never sees the raw columns — it reads what
+    // `resolveEffectivePermissions` already decided, so the two lanes cannot
+    // disagree about a contradictory row.
+    expect(
+      appPermissionsForAccountAccess(
+        accessWith('admin', { grants: ['credentials:rotate'], revokes: ['credentials:rotate'] })
+      )
+    ).not.toContain('credentials:rotate');
+  });
+
+  test('the result is in vocabulary declaration order, whatever the deltas', () => {
+    const permissions = appPermissionsForAccountAccess(
+      accessWith('viewer', { grants: ['ownership:transfer', 'apps:update'] })
+    );
+    const indices = permissions.map((permission) => APPLICATION_PERMISSIONS.indexOf(permission));
+    expect(indices).toEqual([...indices].sort((a, b) => a - b));
+    expect(indices).not.toContain(-1);
   });
 });
 

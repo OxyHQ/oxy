@@ -70,10 +70,19 @@ async function publishedApp(): Promise<{ slug: string; applicationId: string; ow
 }
 
 /** Give `memberId` a role on `accountId`, the way the account graph grants one. */
-async function grantRole(accountId: string, memberId: string, role: 'editor' | 'viewer') {
-  await getDb()
-    .insert(accountMembers)
-    .values({ accountId, memberUserId: memberId, role, status: 'active' });
+async function grantRole(
+  accountId: string,
+  memberId: string,
+  role: 'editor' | 'viewer',
+  deltas: { permissionRevokes?: string[] } = {}
+) {
+  await getDb().insert(accountMembers).values({
+    accountId,
+    memberUserId: memberId,
+    role,
+    status: 'active',
+    permissionRevokes: deltas.permissionRevokes ?? [],
+  });
 }
 
 describe('writing a review', () => {
@@ -200,6 +209,25 @@ describe('the publisher’s reply is the account graph’s decision', () => {
     await expect(upsertReply({ reviewId, authorUserId: editor, body: 'Noted' })).resolves.toMatchObject({
       body: 'Noted',
     });
+  });
+
+  it('refuses an editor whose apps:update was REVOKED per member (issue #978)', async () => {
+    // The same role, the same seeded app, one delta apart. The gate reads the
+    // member's EFFECTIVE account permissions, so a revoke written on the
+    // membership row reaches the store as it reaches `/accounts/*`.
+    const { slug, ownerId } = await publishedApp();
+    const revoked = await insertUser();
+    const control = await insertUser();
+    await grantRole(ownerId, revoked, 'editor', { permissionRevokes: ['apps:update'] });
+    await grantRole(ownerId, control, 'editor');
+    const reviewId = (await upsertReview({ slug, userId: await insertUser(), rating: 3 })).id;
+
+    await expect(
+      upsertReply({ reviewId, authorUserId: revoked, body: 'Not mine to answer' })
+    ).rejects.toThrow(ForbiddenError);
+    await expect(
+      upsertReply({ reviewId, authorUserId: control, body: 'Answered' })
+    ).resolves.toMatchObject({ body: 'Answered' });
   });
 
   it('refuses a member whose role does not — the same person, one role apart', async () => {

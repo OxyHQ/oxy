@@ -32,7 +32,7 @@ import { files } from '../db/schema/files';
 import { users } from '../db/schema/users';
 import { isUniqueViolation } from '@oxyhq/db';
 import { accountService } from './account.service';
-import { appPermissionsForAccountRole } from '../utils/accountRoles';
+import { appPermissionsForAccountAccess } from '../utils/accountRoles';
 import {
   BadRequestError,
   ConflictError,
@@ -501,7 +501,7 @@ async function requirePublisherAccess(reviewId: string, userId: string): Promise
   if (!review) throw new NotFoundError('Review not found');
 
   const access = await accountService.resolveEffectiveAccess(userId, review.ownerAccountId);
-  if (!access || !appPermissionsForAccountRole(access.role).includes('app:update')) {
+  if (!access || !appPermissionsForAccountAccess(access).includes('app:update')) {
     throw new ForbiddenError('You cannot reply on behalf of this app');
   }
 }
