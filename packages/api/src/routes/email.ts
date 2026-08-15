@@ -39,6 +39,9 @@ import {
   createTemplateSchema,
   templateIdParams,
   updateTemplateSchema,
+  createSavedSearchSchema,
+  savedSearchIdParams,
+  outboxIdParams,
   createContactSchema,
   contactIdParams,
   updateContactSchema,
@@ -93,6 +96,12 @@ import {
   deleteTemplate,
   exportMessage,
   importMessages,
+  listOutboundMessages,
+  retryOutboundMessage,
+  cancelOutboundMessage,
+  listSavedSearches,
+  createSavedSearch,
+  deleteSavedSearch,
 } from '../controllers/email.controller';
 
 const router = Router();
@@ -183,10 +192,16 @@ router.delete('/contacts/:contactId', validate({ params: contactIdParams }), asy
 
 router.post('/messages', validate({ body: sendMessageSchema }), asyncHandler(sendMessage));
 router.post('/drafts', validate({ body: saveDraftSchema }), asyncHandler(saveDraft));
+router.get('/outbox', asyncHandler(listOutboundMessages));
+router.post('/outbox/:outboxId/retry', validate({ params: outboxIdParams }), asyncHandler(retryOutboundMessage));
+router.post('/outbox/:outboxId/cancel', validate({ params: outboxIdParams }), asyncHandler(cancelOutboundMessage));
 
 // ─── Search ───────────────────────────────────────────────────────
 
 router.get('/search', asyncHandler(searchMessages));
+router.get('/saved-searches', asyncHandler(listSavedSearches));
+router.post('/saved-searches', validate({ body: createSavedSearchSchema }), asyncHandler(createSavedSearch));
+router.delete('/saved-searches/:savedSearchId', validate({ params: savedSearchIdParams }), asyncHandler(deleteSavedSearch));
 
 // ─── Quota ────────────────────────────────────────────────────────
 

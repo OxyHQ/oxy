@@ -56,7 +56,7 @@ import {
   type SubscriptionTier,
 } from '../config/email.config';
 import { logger } from '../utils/logger';
-import { NotFoundError, BadRequestError } from '../utils/error';
+import { ConflictError, NotFoundError, BadRequestError } from '../utils/error';
 import userCache from '../utils/userCache';
 import { resolveEmailFromName } from '../utils/displayName';
 import { v4 as uuidv4 } from 'uuid';
@@ -67,6 +67,7 @@ import { sendInboxEmailPush } from './emailPushDelivery.service';
 import { assetService } from './assetServiceSingleton';
 import { simpleParser } from 'mailparser';
 import { idempotentMessageId } from './emailIdempotency';
+import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
 
 const MAX_STRUCTURED_SEARCH_FILTER_LENGTH = 128;
 /**
@@ -269,6 +270,7 @@ export interface MessageDto {
   receivedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+  draftRevision: number;
   /** Present only on the reads that explicitly asked for the protected bodies. */
   text?: string | null;
   html?: string | null;
@@ -601,6 +603,7 @@ function toMessageDto(
     snoozedUntil: row.snoozedUntil,
     snoozedFromMailbox: row.snoozedFromMailbox,
     scheduledAt: row.scheduledAt,
+    draftRevision: row.draftRevision,
     readReceiptRequested: row.readReceiptRequested,
     readReceiptSent: row.readReceiptSent,
     date: row.date,
@@ -2023,6 +2026,7 @@ class EmailService {
       references?: string[];
       attachments?: MessageAttachment[];
       existingDraftId?: string;
+      expectedRevision?: number;
     }
   ): Promise<MessageDto> {
     await this.ensureMailboxes(userId);
@@ -2054,12 +2058,14 @@ class EmailService {
             references: draft.references ?? [],
             size,
             date: new Date(),
+            draftRevision: sql`${messages.draftRevision} + 1`,
           })
           .where(
             and(
               eq(messages.id, existingDraftId),
               eq(messages.userId, userId),
               eq(messages.draft, true),
+              ...(draft.expectedRevision === undefined ? [] : [eq(messages.draftRevision, draft.expectedRevision)]),
             ),
           )
           .returning({ id: messages.id });
@@ -2097,6 +2103,19 @@ class EmailService {
       });
 
       if (replaced) return readMessageDto(db, replaced);
+      if (draft.expectedRevision !== undefined) {
+        const [current] = await db
+          .select({ draftRevision: messages.draftRevision })
+          .from(messages)
+          .where(and(eq(messages.id, existingDraftId), eq(messages.userId, userId), eq(messages.draft, true)))
+          .limit(1);
+        if (current) {
+          throw new ConflictError('Draft changed on another device', {
+            draftId: existingDraftId,
+            currentRevision: current.draftRevision,
+          });
+        }
+      }
     }
 
     // Create new draft
@@ -2364,6 +2383,7 @@ class EmailService {
     const due = await db
       .select({
         id: messages.id,
+        messageId: messages.messageId,
         userId: messages.userId,
         fromName: messages.fromName,
         fromAddress: messages.fromAddress,
@@ -2385,6 +2405,7 @@ class EmailService {
 
         await smtpOutbound.sendRaw({
           userId: msg.userId,
+          messageId: msg.messageId,
           from: { name: msg.fromName ?? '', address: msg.fromAddress },
           to: group.to,
           cc: group.cc.length ? group.cc : undefined,
@@ -3476,6 +3497,59 @@ class EmailService {
           }
         : {}),
     };
+  }
+
+  // ─── Saved searches ─────────────────────────────────────────────
+
+  async listSavedSearches(userId: string) {
+    return getDb()
+      .select({
+        id: emailSavedSearches.id,
+        name: emailSavedSearches.name,
+        query: emailSavedSearches.query,
+        filters: emailSavedSearches.filters,
+        order: emailSavedSearches.order,
+        createdAt: emailSavedSearches.createdAt,
+        updatedAt: emailSavedSearches.updatedAt,
+      })
+      .from(emailSavedSearches)
+      .where(eq(emailSavedSearches.userId, userId))
+      .orderBy(asc(emailSavedSearches.order), asc(emailSavedSearches.createdAt));
+  }
+
+  async createSavedSearch(userId: string, input: {
+    name: string;
+    query: string;
+    filters: SavedEmailSearchFilters;
+    order?: number;
+  }) {
+    const [created] = await getDb()
+      .insert(emailSavedSearches)
+      .values({
+        userId,
+        name: input.name.trim(),
+        query: input.query.trim(),
+        filters: input.filters,
+        order: input.order ?? 0,
+      })
+      .returning({
+        id: emailSavedSearches.id,
+        name: emailSavedSearches.name,
+        query: emailSavedSearches.query,
+        filters: emailSavedSearches.filters,
+        order: emailSavedSearches.order,
+        createdAt: emailSavedSearches.createdAt,
+        updatedAt: emailSavedSearches.updatedAt,
+      });
+    return created;
+  }
+
+  async deleteSavedSearch(userId: string, id: string): Promise<void> {
+    const deleted = await getDb()
+      .delete(emailSavedSearches)
+      .where(and(eq(emailSavedSearches.id, id), eq(emailSavedSearches.userId, userId)))
+      .returning({ id: emailSavedSearches.id });
+    if (deleted.length === 0) throw new NotFoundError('Saved search not found');
   }
 
   // ─── Quota ────────────────────────────────────────────────────────

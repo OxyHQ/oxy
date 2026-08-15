@@ -50,6 +50,7 @@ import {
   check,
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -227,6 +228,8 @@ export const messages = pgTable(
     snoozedFromMailbox: text().references(() => mailboxes.id, { onDelete: 'set null' }),
     /** When set, the message is a draft queued to send at this instant. */
     scheduledAt: timestamptz(),
+    /** Optimistic-concurrency revision for drafts; starts at one for every message. */
+    draftRevision: integer().notNull().default(1),
 
     readReceiptRequested: boolean().notNull().default(false),
     readReceiptSent: boolean().notNull().default(false),
@@ -317,6 +320,7 @@ export const messages = pgTable(
     ),
     // Mongo's `min: 0`.
     check('messages_size_check', sql`${t.size} >= 0`),
+    check('messages_draft_revision_check', sql`${t.draftRevision} >= 1`),
     // `replyTo` was a whole sub-document: it had an address or it did not exist.
     check(
       'messages_reply_to_complete_check',

@@ -137,6 +137,36 @@ export const saveDraftSchema = z.object({
   references: z.array(z.string().trim()).optional(),
   attachments: z.array(attachmentInputSchema).max(20).optional(),
   existingDraftId: z.string().trim().optional(),
+  expectedRevision: z.number().int().min(1).optional(),
+});
+
+const savedSearchFiltersSchema = z.object({
+  q: z.string().max(500).optional(),
+  from: z.string().max(128).optional(),
+  to: z.string().max(128).optional(),
+  subject: z.string().max(128).optional(),
+  hasAttachment: z.boolean().optional(),
+  dateAfter: z.string().max(40).optional(),
+  dateBefore: z.string().max(40).optional(),
+  mailbox: z.string().max(255).optional(),
+  starred: z.boolean().optional(),
+  unread: z.boolean().optional(),
+  label: z.string().max(255).optional(),
+}).strict();
+
+export const createSavedSearchSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  query: z.string().trim().max(500),
+  filters: savedSearchFiltersSchema,
+  order: z.number().int().min(0).max(10000).optional(),
+});
+
+export const savedSearchIdParams = z.object({
+  savedSearchId: z.string().trim().min(1),
+});
+
+export const outboxIdParams = z.object({
+  outboxId: z.string().trim().min(1),
 });
 
 // POST /email/subscriptions/unsubscribe

@@ -24,7 +24,9 @@ import {
 } from '../utils/error';
 import { logger } from '../utils/logger';
 import { resolveEmailFromName } from '../utils/displayName';
+import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
 import type { RecipientInput, AttachmentInput } from '../schemas/email.schemas';
+import { cancelEmailOutbox, listEmailOutbox, retryEmailOutbox } from '../services/emailOutbox.service';
 
 /**
  * Read an optional query-string param that MUST be a single string.
@@ -97,6 +99,7 @@ async function resolveAttachmentInputs(
     if (file.ownerUserId !== userId) {
       throw new ForbiddenError(`Not authorized to attach file ${file.id}`);
     }
+    assertSafeOutboundAttachment(file.originalName || file.id, file.mime);
     resolved.push({
       fileId: file.id,
       name: file.originalName || file.id,
@@ -572,7 +575,7 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
 
 export async function saveDraft(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
-  const { to, cc, bcc, subject, text, html, inReplyTo, references, attachments, existingDraftId } = req.body;
+  const { to, cc, bcc, subject, text, html, inReplyTo, references, attachments, existingDraftId, expectedRevision } = req.body;
   const { resolved: resolvedAttachments, files: attachedFiles } = attachments?.length
     ? await resolveAttachmentInputs(attachments, userId)
     : { resolved: [] as MessageAttachment[], files: [] as FileRecord[] };
@@ -588,6 +591,7 @@ export async function saveDraft(req: AuthRequest, res: Response): Promise<void> 
     references,
     attachments: resolvedAttachments,
     existingDraftId,
+    expectedRevision,
   });
 
   if (attachedFiles.length > 0) {
@@ -595,6 +599,33 @@ export async function saveDraft(req: AuthRequest, res: Response): Promise<void> 
   }
 
   res.status(201).json({ data: draft });
+}
+
+export async function listOutboundMessages(req: AuthRequest, res: Response): Promise<void> {
+  const userId = req.user!.id;
+  const limit = Number.parseInt(getOptionalQueryString(req.query.limit, 'limit') ?? '50', 10);
+  res.json({ data: await listEmailOutbox(userId, Number.isFinite(limit) ? limit : 50) });
+}
+
+export async function retryOutboundMessage(req: AuthRequest, res: Response): Promise<void> {
+  res.json({ data: await retryEmailOutbox(req.user!.id, req.params.outboxId) });
+}
+
+export async function cancelOutboundMessage(req: AuthRequest, res: Response): Promise<void> {
+  res.json({ data: await cancelEmailOutbox(req.user!.id, req.params.outboxId) });
+}
+
+export async function listSavedSearches(req: AuthRequest, res: Response): Promise<void> {
+  res.json({ data: await emailService.listSavedSearches(req.user!.id) });
+}
+
+export async function createSavedSearch(req: AuthRequest, res: Response): Promise<void> {
+  res.status(201).json({ data: await emailService.createSavedSearch(req.user!.id, req.body) });
+}
+
+export async function deleteSavedSearch(req: AuthRequest, res: Response): Promise<void> {
+  await emailService.deleteSavedSearch(req.user!.id, req.params.savedSearchId);
+  res.json({ data: { message: 'Saved search deleted' } });
 }
 
 // ─── Search ─────────────────────────────────────────────────────

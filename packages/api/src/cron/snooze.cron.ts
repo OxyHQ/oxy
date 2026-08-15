@@ -16,6 +16,7 @@
 import { emailService } from '../services/email.service';
 import { logger } from '../utils/logger';
 import { EMAIL_MAINTENANCE_INTERVAL_MS } from '../queue/constants';
+import { processEmailOutbox } from '../services/emailOutbox.worker';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -41,6 +42,11 @@ export async function runEmailMaintenance(): Promise<void> {
     await emailService.processScheduledMessages();
   } catch (err) {
     logger.error('Scheduled send cron failed', err instanceof Error ? err : new Error(String(err)));
+  }
+  try {
+    await processEmailOutbox();
+  } catch (err) {
+    logger.error('Durable outbound email worker failed', err instanceof Error ? err : new Error(String(err)));
   }
 }
 
