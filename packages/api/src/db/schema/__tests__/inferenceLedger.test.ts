@@ -22,6 +22,7 @@ import {
   billingLedgerEntries,
   billingLedgerPostings,
   LEDGER_ACCOUNTS,
+  LEDGER_ACTOR_KINDS,
   RESERVATION_DRAW_ORDER,
 } from '../billingLedgerEntries';
 import { billingProfiles } from '../billingProfiles';
@@ -61,6 +62,22 @@ function pgErrorCode(error: unknown): string | undefined {
   for (let current = error; current instanceof Error; current = current.cause) {
     const code: unknown = Reflect.get(current, 'code');
     if (typeof code === 'string') return code;
+  }
+  return undefined;
+}
+
+/**
+ * The DRIVER's own message, taken from the same link in the cause chain that
+ * carries the SQLSTATE — never drizzle's wrapper, whose text is the query.
+ *
+ * `23514` alone cannot tell the immutability TRIGGER from an ordinary CHECK: the
+ * trigger raises that code deliberately, so `isCheckViolation` recognises it.
+ * Any test claiming "the trigger refused this" has to read what refused it.
+ */
+function pgErrorMessage(error: unknown): string | undefined {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    const code: unknown = Reflect.get(current, 'code');
+    if (typeof code === 'string') return current.message;
   }
   return undefined;
 }
@@ -441,6 +458,182 @@ describe('a posting is a real transfer', () => {
       })
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+  });
+});
+
+describe('an entry says who authored it, or says it predates the question', () => {
+  /** Insert one `top_up` entry with an explicit actor pair. */
+  async function entryWithActor(
+    accountId: string,
+    actor: Pick<typeof billingLedgerEntries.$inferInsert, 'actorKind' | 'actorUserId'>
+  ): Promise<string> {
+    const [row] = await getDb()
+      .insert(billingLedgerEntries)
+      .values({ idempotencyKey: `a-${randomUUID()}`, accountId, kind: 'top_up', ...actor })
+      .returning({ id: billingLedgerEntries.id });
+    return row.id;
+  }
+
+  async function readActor(
+    entryId: string
+  ): Promise<{ actorKind: string | null; actorUserId: string | null }> {
+    const [row] = await getDb()
+      .select({
+        actorKind: billingLedgerEntries.actorKind,
+        actorUserId: billingLedgerEntries.actorUserId,
+      })
+      .from(billingLedgerEntries)
+      .where(eq(billingLedgerEntries.id, entryId));
+    return row;
+  }
+
+  it('is exactly two kinds, and nothing here reads a fourth state into the pair', () => {
+    // The CHECK enumerates its branches by literal, so a kind added to this
+    // tuple and nowhere else is refused by the database rather than stored.
+    expect([...LEDGER_ACTOR_KINDS]).toEqual(['staff', 'machine']);
+    expect(LEDGER_ACTOR_KINDS).toHaveLength(2);
+  });
+
+  it('accepts a staff author who is named, and a machine author who is not', async () => {
+    const f = await fixture();
+    const staffUserId = await insertAccount();
+
+    const staffEntry = await entryWithActor(f.accountId, {
+      actorKind: 'staff',
+      actorUserId: staffUserId,
+    });
+    const machineEntry = await entryWithActor(f.accountId, {
+      actorKind: 'machine',
+      actorUserId: null,
+    });
+
+    expect(await readActor(staffEntry)).toEqual({ actorKind: 'staff', actorUserId: staffUserId });
+    expect(await readActor(machineEntry)).toEqual({ actorKind: 'machine', actorUserId: null });
+  });
+
+  it('admits the grandfathered pair, and it reads as neither of the two kinds', async () => {
+    // What every row written before 0046 carries. It is legal, it is the ONLY
+    // legal way to say nothing, and it is a third value — not the machine one.
+    const f = await fixture();
+    const historical = await entryWithActor(f.accountId, {
+      actorKind: null,
+      actorUserId: null,
+    });
+    const machineEntry = await entryWithActor(f.accountId, {
+      actorKind: 'machine',
+      actorUserId: null,
+    });
+
+    const before = await readActor(historical);
+    const after = await readActor(machineEntry);
+    expect(before.actorKind).toBeNull();
+    expect(after.actorKind).toBe('machine');
+    expect(before.actorKind).not.toBe(after.actorKind);
+  });
+
+  it('refuses a staff author who names nobody', async () => {
+    const f = await fixture();
+    const error = await rejection(
+      entryWithActor(f.accountId, { actorKind: 'staff', actorUserId: null })
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+  });
+
+  it('refuses a machine author that names somebody', async () => {
+    const f = await fixture();
+    const error = await rejection(
+      entryWithActor(f.accountId, { actorKind: 'machine', actorUserId: await insertAccount() })
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+  });
+
+  it('refuses a named person with no kind beside them', async () => {
+    const f = await fixture();
+    const error = await rejection(
+      entryWithActor(f.accountId, { actorKind: null, actorUserId: await insertAccount() })
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+  });
+
+  it('refuses a kind outside the vocabulary', async () => {
+    // Raw SQL on purpose: the column's TypeScript enum makes this unwritable
+    // through the query builder, which is the point — this asserts the DATABASE
+    // refuses it too, for anything arriving by another route.
+    const f = await fixture();
+    const error = await rejection(
+      getDb().execute(sql`
+        insert into ${billingLedgerEntries} (id, idempotency_key, account_id, currency, kind, actor_kind)
+        values (${randomUUID()}, ${`a-${randomUUID()}`}, ${f.accountId}, 'USD', 'top_up', 'robot')
+      `)
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+  });
+
+  it('has a real FOREIGN KEY from actor_user_id to users', async () => {
+    const rows = await getDb().execute(sql`
+      select c.conname
+      from pg_constraint c
+      join pg_class t on t.oid = c.conrelid
+      join pg_attribute a on a.attrelid = t.oid and a.attnum = any(c.conkey)
+      where c.contype = 'f'
+        and t.relname = 'billing_ledger_entries'
+        and a.attname = 'actor_user_id'
+    `);
+    expect(rows.length).toBe(1);
+  });
+
+  it('refuses an author who is not an account at all', async () => {
+    const f = await fixture();
+    const error = await rejection(
+      entryWithActor(f.accountId, { actorKind: 'staff', actorUserId: `absent-${randomUUID()}` })
+    );
+    // `23503` foreign_key_violation — "who did this" is a join, not a string.
+    expect(pgErrorCode(error)).toBe('23503');
+  });
+
+  it('indexes the actor, because no functional test could detect its absence', async () => {
+    const rows = await getDb().execute(sql`
+      select indexname from pg_indexes
+      where tablename = 'billing_ledger_entries'
+        and indexname = 'billing_ledger_entries_actor_user_id_idx'
+    `);
+    expect(rows.length).toBe(1);
+  });
+
+  it('refuses an UPDATE to the actor in the trigger’s own words, while the same pair INSERTs cleanly', async () => {
+    const f = await fixture();
+    const staffUserId = await insertAccount();
+    const entryId = await entryWithActor(f.accountId, {
+      actorKind: 'machine',
+      actorUserId: null,
+    });
+
+    const error = await rejection(
+      getDb()
+        .update(billingLedgerEntries)
+        .set({ actorKind: 'staff', actorUserId: staffUserId })
+        .where(eq(billingLedgerEntries.id, entryId))
+    );
+
+    // The trigger, named by its own message. `23514` alone would ALSO be what
+    // the actor CHECK raises, so the code on its own cannot say which refused
+    // this — and a refusal from the CHECK would mean the append-only rule was
+    // never tested here at all.
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+    expect(pgErrorMessage(error)).toContain('billing_ledger_entries is append-only');
+    expect(pgErrorMessage(error)).toContain('update');
+
+    // The pairing that makes the assertion above mean something: the very values
+    // the UPDATE was refused for violate NO constraint, so the refusal can only
+    // have come from the trigger.
+    const fresh = await entryWithActor(f.accountId, {
+      actorKind: 'staff',
+      actorUserId: staffUserId,
+    });
+    expect(await readActor(fresh)).toEqual({ actorKind: 'staff', actorUserId: staffUserId });
+
+    // And the original is unchanged — the wrong answer is not produced either.
+    expect(await readActor(entryId)).toEqual({ actorKind: 'machine', actorUserId: null });
   });
 });
 

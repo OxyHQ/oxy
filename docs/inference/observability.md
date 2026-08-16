@@ -188,20 +188,21 @@ and no membership is refused create, rotate and revoke, no row names them, and
 the same revoke from the account member succeeds and writes one. The control is
 what stops the three refusals reading the same as routes that refuse everybody.
 
-### Two places the actor is genuinely thinner than the trail suggests
+### Where the actor is thinner than the trail suggests
 
-Both need a column, so both are recorded here rather than changed:
-
-1. **`billing_ledger_entries` carries no actor at all.** A promotional grant is
-   issued by staff (`POST /billing/accounts/:accountId/grants`, `requireStaff`)
-   and lands as `kind = 'promotional_grant'` with no record of which staff member
-   issued it. The KIND of action is distinguishable — only staff can grant, and
-   only the payment processor can `top_up` — but the person is not. Recording one
-   is an `actor_user_id` column on an append-only, trigger-protected financial
-   table, which is a migration and a decision about what a NULL there means for
-   the entries no person authors (`reservation_hold`, `settlement`,
-   `reservation_expiry`).
-2. **The BYOK trail cannot tell a person from a service token.**
+1. **`billing_ledger_entries` — CLOSED** (issue #1023 part 2, migration `0046`).
+   A promotional grant is issued by staff (`POST /billing/accounts/:accountId/grants`,
+   `requireStaff`) and used to land as `kind = 'promotional_grant'` with no record
+   of which staff member issued it: the KIND of action was distinguishable, the
+   person was not. The table now carries `actor_kind` + `actor_user_id`, with
+   three states that cannot be read into one another — `('staff', <users.id>)`,
+   `('machine', null)` for the entries no person authors (`reservation_hold`,
+   `settlement`, `reservation_expiry`, a processor top-up), and `(null, null)`
+   for rows written before the column existed, which were NOT back-filled. The
+   full argument, including why "no person authored it" has to be a value rather
+   than a blank, is in [billing.md](./billing.md#who-authored-an-entry).
+2. **The BYOK trail cannot tell a person from a service token.** Still open; it
+   needs a column, so it is recorded here rather than changed.
    `inference_provider_connection_audit_events.actor_user_id` is written from
    `authorOf(principal)`, which returns the calling user's id for a session
    principal and the **owning account's** id for a service-token principal. Both

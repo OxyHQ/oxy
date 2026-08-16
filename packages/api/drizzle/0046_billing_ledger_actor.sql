@@ -1,0 +1,79 @@
+-- oxy:deploy-phase=pre
+--
+-- Who authored a ledger entry (issue #1023, part 2; epic #972).
+--
+-- A staff-issued promotional grant landed as `kind = 'promotional_grant'` with
+-- no record of WHICH staff member issued it. That is the one entry type that
+-- creates customer balance out of nothing, and the moment anybody goes looking
+-- is the moment the answer has to already be there.
+--
+-- Two nullable columns, one index, one CHECK. Nothing is altered, nothing is
+-- dropped, and NOTHING IS BACK-FILLED — see below.
+--
+-- WHY `pre`, AND NOT `post`
+--
+-- The test is whether a RUNNING IMAGE writes a value this migration forbids.
+-- The image serving while this applies inserts entries naming no actor at all,
+-- which is `(actor_kind, actor_user_id) = (null, null)` — the first branch of
+-- the CHECK, and legal. So this breaks no write the previous image performs,
+-- which puts it in `pre`.
+--
+-- `pre` is also the safer side of the two here, for the usual reason: a
+-- zero-capacity deploy exits before the post-deploy migration step entirely, and
+-- a skipped `post` never lands later — every subsequent `pre` queues behind it
+-- until somebody unblocks it by hand.
+--
+-- The stronger constraint — "every entry names an actor" — is deliberately NOT
+-- here, in either phase. It would have to be `post`, because the old image
+-- violates it on every insert during the rollout window, and stranding the
+-- journal is not worth buying what is already bought: authorship is required by
+-- the TYPE SYSTEM at the only insert site in the codebase (`EntryInput.actor`, a
+-- required discriminated union in `src/services/inferenceLedger.service.ts`,
+-- checked by `packages/api`'s own `tsc` in CI). This CHECK closes the half a
+-- type cannot reach — a row arriving by any other route with a half-filled pair.
+--
+-- WHY NO BACK-FILL, EVER
+--
+-- `billing_ledger_entries` is append-only by trigger
+-- (`0034_inference_ledger_immutability.sql`), so back-filling would mean
+-- disabling that trigger on a financial table. It would also be a claim nobody
+-- can support: those rows were written before anything recorded authorship, so
+-- stamping them `'machine'` would assert "no person authored this" about entries
+-- whose author was simply never captured — precisely the distinction these two
+-- columns exist to make. A null `actor_kind` means the row PREDATES this
+-- migration and means nothing else; `created_at` corroborates it, and no code
+-- path can produce that state on a new row.
+--
+-- THE THREE LEGAL STATES, which the CHECK enumerates rather than implies
+--
+--   ('staff',   <users.id>)  a named person authored it
+--   ('machine',  null)       no person authored it, BY DESIGN — a webhook, the
+--                            expiry sweep, the inference edge. A positive value,
+--                            never an absence.
+--   (null,       null)       written before this migration
+--
+-- A half-filled pair is refused in both directions: `staff` with no id says a
+-- person did it and declines to name them; `machine` with an id says nobody did
+-- it and then names them.
+--
+-- `is not distinct from`, NOT `=`, and that is load-bearing. A CHECK rejects only
+-- FALSE, and `null = 'staff'` is NULL — so with `=` the row `(null, <a user id>)`
+-- evaluates to `false or null or false` = NULL and is ACCEPTED, leaving a real
+-- account id in a column with nothing saying what it means. Measured: the first
+-- draft of this migration was written with `=` and
+-- `src/db/schema/__tests__/inferenceLedger.test.ts` caught it on that exact row.
+--
+-- The authoritative copy of this reasoning lives in
+-- `src/db/schema/billingLedgerEntries.ts`, and the schema test fails naming the
+-- missing constraint if it is ever dropped.
+--
+-- The foreign key is `ON DELETE RESTRICT`, like every other reference out of this
+-- table: the journal must outlive an attempt to remove the account that answers
+-- "who did this".
+ALTER TABLE "billing_ledger_entries" ADD COLUMN "actor_kind" text;--> statement-breakpoint
+ALTER TABLE "billing_ledger_entries" ADD COLUMN "actor_user_id" text;--> statement-breakpoint
+ALTER TABLE "billing_ledger_entries" ADD CONSTRAINT "billing_ledger_entries_actor_user_id_users_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."users"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "billing_ledger_entries_actor_user_id_idx" ON "billing_ledger_entries" USING btree ("actor_user_id");--> statement-breakpoint
+ALTER TABLE "billing_ledger_entries" ADD CONSTRAINT "billing_ledger_entries_actor_check" CHECK (("billing_ledger_entries"."actor_kind" is null and "billing_ledger_entries"."actor_user_id" is null)
+        or ("billing_ledger_entries"."actor_kind" is not distinct from 'staff' and "billing_ledger_entries"."actor_user_id" is not null)
+        or ("billing_ledger_entries"."actor_kind" is not distinct from 'machine' and "billing_ledger_entries"."actor_user_id" is null));

@@ -96,6 +96,7 @@ import {
   resolveBillingAccount,
   type BillingAccount,
 } from '../services/inferenceLedger.service';
+import type { StaffLedgerActor } from '../db/schema/billingLedgerEntries';
 import { getDb } from '../config/postgres';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
@@ -184,6 +185,24 @@ function principalOf(req: BillingRequest): BillingPrincipal {
     throw new UnauthorizedError('Authentication is required for this operation');
   }
   return { kind: 'user', userId };
+}
+
+/**
+ * The staff member behind a staff-gated write, in the form the journal records
+ * (issue #1023).
+ *
+ * `requireStaff` reads `req.user.isStaff` and so has already refused a service
+ * credential, which never populates `req.user` at all. The refusal below is what
+ * makes that reachable to the type system rather than remembered: a ledger entry
+ * whose author is "some deployment's key" would name nobody, and naming nobody
+ * is exactly what the `machine` kind is for.
+ */
+function staffActorOf(req: BillingRequest): StaffLedgerActor {
+  const principal = principalOf(req);
+  if (principal.kind !== 'user') {
+    throw new ForbiddenError('A service credential may not author a ledger entry');
+  }
+  return { kind: 'staff', userId: principal.userId };
 }
 
 /**
@@ -589,6 +608,9 @@ router.post(
       // Namespaced so an operator's ticket id cannot collide with a processor
       // reference in the journal's single idempotency key space.
       idempotencyKey: `grant:${body.idempotencyKey}`,
+      // WHO issued it. Read from the authenticated caller, never from the body:
+      // a client-supplied actor is a signature anyone can forge.
+      actor: staffActorOf(req),
     });
     if (result.status === 'no-billing-profile') {
       throw new NotFoundError('This account has no billing profile to credit');
@@ -655,6 +677,8 @@ router.post(
       currency: body.currency ?? DEFAULT_LEDGER_CURRENCY,
       periodStart,
       periodEnd,
+      // The staff member closing the period authors the rounding entry it books.
+      actor: staffActorOf(req),
     });
     switch (result.status) {
       case 'issued':
