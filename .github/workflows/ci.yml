@@ -286,8 +286,9 @@ jobs:
       - run: bun scripts/test-check-deploy-secrets-sync.mjs
       - run: bun scripts/check-deploy-secrets-sync.mjs
 
-  # Every migration must declare which side of a deploy it belongs on, and the
-  # deploy must still apply them (see scripts/check-migration-phases.mjs).
+  # Two questions about the same journal, both answerable with no database:
+  # whether each migration says which side of a deploy it belongs on, and whether
+  # the order it is listed in can apply at all.
   #
   # 0013_users_account_categories reached production ahead of the column it adds,
   # because deploy-aws.yml had no migration step and the ordering lived in a
@@ -296,22 +297,33 @@ jobs:
   # one `RUN_MIGRATIONS: 'true'` line reproduces the outage exactly, with a green
   # deploy and no other symptom.
   #
+  # `check-migration-journal-order.mjs` covers the other half. A migration is
+  # applied only when its journal `when` is strictly newer than the newest already
+  # recorded, and `drizzle-kit generate` stamps that from the local wall clock, so
+  # a regenerate-after-rebase can land below a sibling that already merged. Twice
+  # in one day (`ce0eccc8`, then PR #997) that produced a migration nothing would
+  # ever run. `@oxyhq/db`'s `planLedgerRun` does refuse it — but only in the
+  # production one-shot, after the pull request has merged, where the cost is a
+  # blocked release. Both gates here were mutation-tested against the real journal
+  # and this one goes RED on a swap that leaves `check-migration-phases.mjs` green.
+  #
   # Runs on the pull request, before anything is pushed to main, and needs no
-  # install: the gate and the marker reader it imports touch only node builtins,
-  # which `test-check-migration-phases.mjs` asserts with a fixture that has no
-  # node_modules at any level.
+  # install: both gates and the marker reader touch only node builtins, which each
+  # gate's fixture test asserts with a tree that has no node_modules at any level.
   migration-phases:
-    name: Migration Deploy Phases
+    name: Migration Journal and Deploy Phases
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      # The gate's own fixture tests — mutated copies of the real journal,
+      # Each gate's own fixture tests — mutated copies of the real journal,
       # migrations, deploy workflow and deploy script.
       - run: bun scripts/test-check-migration-phases.mjs
       - run: bun scripts/check-migration-phases.mjs
+      - run: bun scripts/test-check-migration-journal-order.mjs
+      - run: bun scripts/check-migration-journal-order.mjs
 
   # DB package tests (Jest — Postgres service for the live suites that are
   # always-skipped without one: liveDatabase.test.ts, schemaInvariants.live.test.ts,

@@ -57,8 +57,32 @@
  * where the model revision and provider a price is scoped to already live —
  * intended, not existing: at the time of writing that surface manages
  * deployments and does not publish prices. Whichever surface eventually does,
- * the append-only rule above is not negotiable: a price change inserts a new
- * row and supersedes the old one, and an existing row is never edited.
+ * the rule above is not negotiable: a PRICE change inserts a new row and
+ * supersedes the old one, never an edit to what a published version costs.
+ *
+ * ## What is ENFORCED here, and what is only a rule — issue #996
+ *
+ * "An existing row is never edited" was the earlier wording and it is not what
+ * this table can promise: superseding a version IS an update, of `status` and
+ * `effective_until`, which is why `updated_at` exists here at all. So the whole
+ * row cannot carry an immutability trigger the way `usage_receipts` and
+ * `application_credential_audit_events` do — one would make the documented
+ * `draft → active → superseded` retirement impossible.
+ *
+ * The narrower guard that WOULD fit is a column-scoped trigger freezing a
+ * version's identity and its child prices once it leaves `draft`, in the shape
+ * `inference_model_revision_identity_immutable` already uses. It is deliberately
+ * not written yet, because nothing writes these tables (see above): it would
+ * have to guess whether a draft's prices may be corrected before activation,
+ * which is a decision belonging to the authoring surface that does not exist.
+ * Write it WITH that surface, in the same change.
+ *
+ * Settled history does not wait on any of it. A receipt stores a COPY of the
+ * unit prices it was settled against, in `usage_receipt_unit_prices`, and that
+ * table is guarded by `0034_inference_ledger_immutability`. Editing a price
+ * version cannot retroactively change what anyone was charged; it can only
+ * change what the NEXT request costs, silently and with no new version to point
+ * at. That is the exposure, and it is smaller than the audit trail's.
  */
 
 import { sql } from 'drizzle-orm';

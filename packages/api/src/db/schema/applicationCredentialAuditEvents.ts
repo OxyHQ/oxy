@@ -28,6 +28,12 @@
  * No `updated_at`, and nothing updates a row. An audit entry that can be edited
  * is not one.
  *
+ * That was originally a rule with nothing behind it — no route issued an
+ * `UPDATE`, which is not the same as an `UPDATE` being refused (issue #996).
+ * `0043_application_credential_audit_immutability` now refuses one at the
+ * database, `BEFORE UPDATE` only so the two-year sweep below still works; the
+ * DDL and the reasoning live in `applicationCredentialAuditImmutability.ts`.
+ *
  * ## What makes a `validation_failed` row, and why it cannot be spammed
  *
  * A row is written ONLY once the presented token has been resolved to a real
