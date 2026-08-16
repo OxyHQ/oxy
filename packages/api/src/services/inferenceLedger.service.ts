@@ -62,6 +62,7 @@ import {
   type LedgerAccount,
   type LedgerEntryKind,
 } from '../db/schema/billingLedgerEntries';
+import { billingExternalPayments } from '../db/schema/billingExternalPayments';
 import { billingProfiles, type BillingMode } from '../db/schema/billingProfiles';
 import { usageUnitColumnValues } from '../db/schema/ledgerColumns';
 import { priceVersions, priceVersionUnitPrices } from '../db/schema/priceVersions';
@@ -72,7 +73,11 @@ import {
   evaluateSpendingLimits,
   type SpendingLimitVerdict,
 } from './spendingLimit.service';
-import type { InferenceEnvironment } from '@oxyhq/contracts';
+import type {
+  ExternalPaymentKind,
+  ExternalPaymentProvider,
+  InferenceEnvironment,
+} from '@oxyhq/contracts';
 import type { InferenceRequestOutcome, UsageSource } from '@oxyhq/contracts';
 import type { UsageRefundReason } from '@oxyhq/contracts';
 
@@ -288,12 +293,34 @@ export async function getAccountBalance(
 // Funding
 // ===========================================================================
 
+/**
+ * The processor charge behind a top-up, recorded in the SAME transaction as the
+ * money it funded.
+ *
+ * Optional, because not every credit comes from a processor — a promotional
+ * grant has no charge behind it, and a manual correction is booked by hand. When
+ * it IS present the row is written inside this transaction rather than after it,
+ * so "the balance moved" and "here is the charge that moved it" can never
+ * disagree. That pairing is what a reconciliation pass compares, and a
+ * reconciliation built on two writes that might not both have landed would
+ * report drift it caused itself.
+ */
+export interface ExternalPaymentRecord {
+  readonly provider: ExternalPaymentProvider;
+  readonly externalKind: ExternalPaymentKind;
+  /** The processor's own id — a payment intent or an invoice. */
+  readonly externalRef: string;
+  /** When the processor says the money moved, not when Oxy heard about it. */
+  readonly occurredAt: Date;
+}
+
 export interface FundingInput {
   readonly idempotencyKey: string;
   readonly accountId: string;
   readonly currency: string;
   /** Exact decimal string, strictly positive. */
   readonly amount: string;
+  readonly externalPayment?: ExternalPaymentRecord;
 }
 
 export type FundingResult =
@@ -337,6 +364,11 @@ async function recordFunding(
 
     const existing = await findEntryByKey(tx, input.idempotencyKey);
     if (existing) {
+      // Self-healing rather than a bare early return: a process that crashed
+      // between the journal entry and the external-payment row would otherwise
+      // leave a permanent, self-inflicted reconciliation discrepancy that no
+      // redelivery could repair, because the entry key is already claimed.
+      await recordExternalPayment(tx, input, existing);
       return { status: 'already-recorded', entryId: existing };
     }
 
@@ -347,6 +379,8 @@ async function recordFunding(
       kind,
       postings: [{ source, destination, amount: input.amount }],
     });
+
+    await recordExternalPayment(tx, input, entryId);
 
     const column =
       destination === 'purchased_funds'
@@ -363,6 +397,59 @@ async function recordFunding(
 
     return { status: 'recorded', entryId };
   });
+}
+
+/**
+ * Link a processor charge to the journal entry it produced.
+ *
+ * `ON CONFLICT DO NOTHING` on `(provider, external_ref)`, never a caught
+ * duplicate-key error: a duplicate key and a dropped connection are
+ * indistinguishable inside a `catch`, so an exception handler would answer
+ * "already linked" to an infrastructure failure.
+ */
+async function recordExternalPayment(
+  tx: DatabaseOrTransaction,
+  input: FundingInput,
+  ledgerEntryId: string
+): Promise<void> {
+  const payment = input.externalPayment;
+  if (payment === undefined) return;
+
+  await tx
+    .insert(billingExternalPayments)
+    .values({
+      accountId: input.accountId,
+      currency: input.currency,
+      provider: payment.provider,
+      externalKind: payment.externalKind,
+      externalRef: payment.externalRef,
+      amount: input.amount,
+      ledgerEntryId,
+      occurredAt: payment.occurredAt,
+    })
+    .onConflictDoNothing();
+}
+
+// ===========================================================================
+// Spendable room
+// ===========================================================================
+
+/**
+ * How much more this account can reserve right now.
+ *
+ * Deliberately expressed as {@link computeDraw} against a zero amount rather
+ * than as its own SQL: the credit-room arithmetic an `invoiced` account depends
+ * on is subtle (`greatest(0, credit_limit - invoiced_outstanding)`), and a
+ * second copy of it would be free to disagree with the one that actually decides
+ * whether a request is refused. This is the same expression, evaluated for its
+ * `available` term.
+ */
+export async function getAvailableToSpend(
+  db: DatabaseOrTransaction,
+  billing: BillingAccount
+): Promise<string> {
+  const draw = await computeDraw(db, billing, '0');
+  return draw.available;
 }
 
 // ===========================================================================
@@ -1109,7 +1196,7 @@ export async function reverseReceipt(
  * which (because `provisionBillingProfile` writes both together) means it has no
  * billing profile either.
  */
-async function lockBalance(
+export async function lockBalance(
   tx: DatabaseOrTransaction,
   accountId: string,
   currency: string
@@ -1184,13 +1271,13 @@ async function findEntryByKey(
 }
 
 /** One movement of value, as {@link writeEntry} takes it. */
-interface PostingInput {
+export interface PostingInput {
   readonly source: LedgerAccount;
   readonly destination: LedgerAccount;
   readonly amount: string;
 }
 
-interface EntryInput {
+export interface EntryInput {
   readonly idempotencyKey: string;
   readonly accountId: string;
   readonly currency: string;
@@ -1208,8 +1295,18 @@ interface EntryInput {
  * Zero-amount postings are DROPPED rather than written: a posting of nothing
  * moves nothing while inflating both sides of every sum computed over the
  * table, which is why the column also carries a `> 0` CHECK.
+ *
+ * EXPORTED, and it is the only journal writer in this package. The invoicing
+ * path (`accountInvoicing.service.ts`) needs to book `invoice_rounding` and
+ * `invoice_payment` entries, and the alternative to exporting this was a second
+ * function that inserts into `billing_ledger_entries` — two writers for one
+ * journal, free to diverge on the idempotency read-back and on the zero-amount
+ * rule. A wider export surface is the cheaper of the two risks.
  */
-async function writeEntry(tx: DatabaseOrTransaction, input: EntryInput): Promise<string> {
+export async function writeEntry(
+  tx: DatabaseOrTransaction,
+  input: EntryInput
+): Promise<string> {
   const [entry] = await tx
     .insert(billingLedgerEntries)
     .values({

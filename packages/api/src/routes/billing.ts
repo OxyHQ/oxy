@@ -14,6 +14,12 @@ import {
 import { userCredits } from '../db/schema/userCredits';
 import { getOrCreateUserCredits } from './credits';
 import {
+  getOrCreateAccountStripeCustomer,
+  handleBalanceTopUpCompleted,
+  handleBalanceTopUpPaymentIntent,
+  BALANCE_TOP_UP_METADATA_TYPE,
+} from '../services/stripeAccountBilling.service';
+import {
   type BillingSubscriptionResponse,
   type BillingTransactionResponse,
   toBillingSubscriptionResponse,
@@ -60,33 +66,17 @@ function getWebhookSecret(): string {
   return secret;
 }
 
-// Helper to get or create Stripe customer
-async function getOrCreateStripeCustomer(userId: string, email?: string): Promise<string> {
-  const db = getDb();
-  const credits = await getOrCreateUserCredits(db, userId);
-
-  if (credits.stripeCustomerId) {
-    try {
-      await getStripe().customers.retrieve(credits.stripeCustomerId);
-      return credits.stripeCustomerId;
-    } catch {
-      // Stripe no longer knows this customer; fall through and mint a new one.
-    }
-  }
-
-  const customer = await getStripe().customers.create({
-    email,
-    metadata: { userId },
-  });
-
-  await db
-    .update(userCredits)
-    .set({ stripeCustomerId: customer.id })
-    .where(eq(userCredits.userId, userId));
-  logger.info(`Created Stripe customer ${customer.id} for user ${userId}`);
-
-  return customer.id;
-}
+/*
+ * The Stripe-customer resolver that used to live here is now
+ * `getOrCreateAccountStripeCustomer` in `services/stripeAccountBilling.service.ts`
+ * (issue #972 section 7.4), and the three call sites below import it directly.
+ *
+ * `users` IS the account table, so "the Stripe customer for this user" and "the
+ * Stripe customer for this account" were always one question. Two resolvers
+ * would eventually differ on the "Stripe forgot this customer" branch, and the
+ * account that lost its customer id is the account whose payments stop
+ * reconciling.
+ */
 
 const CREDIT_PACKAGES = [
   { id: 'credits_1000', name: '1,000 Credits', credits: 1000, price: 500, currency: 'usd' },
@@ -139,7 +129,7 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
     if (!pkg) return res.status(400).json({ error: 'Invalid package ID' });
 
     const email = req.user?.email;
-    const customerId = await getOrCreateStripeCustomer(userId, email);
+    const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
@@ -188,7 +178,7 @@ router.post('/checkout/subscription', authMiddleware, validate({ body: checkoutS
     if (!plan || !plan.stripePriceId) return res.status(400).json({ error: 'Invalid plan ID' });
 
     const email = req.user?.email;
-    const customerId = await getOrCreateStripeCustomer(userId, email);
+    const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
@@ -340,7 +330,7 @@ router.post('/portal', authMiddleware, validate({ body: portalSchema }), async (
     }
 
     const email = req.user?.email;
-    const customerId = await getOrCreateStripeCustomer(userId, email);
+    const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
     const session = await getStripe().billingPortal.sessions.create({
       customer: customerId,
@@ -392,6 +382,22 @@ router.post('/webhook', async (req: Request, res: Response) => {
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
+      case 'payment_intent.succeeded': {
+        // The off-session auto-recharge path creates a PaymentIntent directly,
+        // so no checkout session ever completes for it. A hosted checkout emits
+        // BOTH events; both handlers compose the same idempotency key from the
+        // same intent id, so the second one writes nothing.
+        const result = await handleBalanceTopUpPaymentIntent(
+          event.data.object as Stripe.PaymentIntent
+        );
+        if (result.status === 'ignored' && result.reason !== 'not-a-balance-top-up') {
+          logger.warn('Balance top-up intent ignored', {
+            paymentIntentId: (event.data.object as Stripe.PaymentIntent).id,
+            reason: result.reason,
+          });
+        }
+        break;
+      }
     }
     res.json({ received: true });
   } catch (error) {
@@ -428,6 +434,25 @@ router.post('/webhook', async (req: Request, res: Response) => {
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const metadata = session.metadata;
+
+  // TWO products complete through this one webhook, and they must never be
+  // reachable from one another. `credit_purchase` buys API CREDITS — whole,
+  // indivisible counts of a prepaid entitlement. `balance_top_up` funds the
+  // account's pay-as-you-go INFERENCE balance, an exact decimal amount in a
+  // currency. ADR 0009 and ADR 0014 both turn on keeping the two apart; a
+  // top-up that granted credits, or a credit purchase that funded the balance,
+  // would merge them in the one place a customer's money actually moves.
+  if (metadata?.type === BALANCE_TOP_UP_METADATA_TYPE) {
+    const result = await handleBalanceTopUpCompleted(session);
+    if (result.status === 'ignored') {
+      logger.warn('Balance top-up webhook ignored', {
+        sessionId: session.id,
+        reason: result.reason,
+      });
+    }
+    return;
+  }
+
   if (!metadata?.userId || metadata.type !== 'credit_purchase') return;
 
   // Re-validate credits against known packages to prevent metadata manipulation

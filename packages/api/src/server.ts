@@ -52,6 +52,8 @@ import emailInboundRoutes, {
 import aliaRoutes from './routes/alia';
 import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
+import accountBillingRoutes from './routes/accountBilling';
+import costCenterRoutes from './routes/costCenters';
 import inferenceCatalogueRoutes from './routes/inferenceCatalogue';
 import inferenceEdgeRoutes from './routes/inferenceEdge';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
@@ -75,6 +77,8 @@ import { sweepValidations } from './services/civic/validator.service';
 import { sweepPersonhoodAudits } from './services/civic/personhoodAudit.service';
 import { sweepNodeLiveness } from './services/nodeRegistry.service';
 import { expireDueFollows } from './services/followCommand.service';
+import { runAutoRechargeSweep } from './services/stripeAccountBilling.service';
+import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
 import { VALIDATION_SWEEP_INTERVAL_MS, PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS } from './utils/civic.constants';
 import { FOLLOW_EXPIRY_SWEEP_INTERVAL_MS } from './utils/follow.constants';
 import { NODE_LIVENESS_SWEEP_INTERVAL_MS } from './utils/nodes.constants';
@@ -665,6 +669,14 @@ app.use('/v1/models', inferenceCatalogueRoutes);
 // keeps every platform-trusted caller working, one base URL apart.
 app.use('/v1', userRateLimiter, aliaRoutes);
 app.use('/credits', userRateLimiter, csrfProtection, creditsRoutes);
+// Account-scoped billing (issue #972, sections 7.1/7.4/7.5). Mounted BEFORE
+// `/billing`, or Express hands `accounts` and `cost-centers` to the
+// personal-billing router as ordinary paths and every route below 404s. The
+// pre-existing `/billing` routes stay exactly as they are: they key on the
+// bearer's own subject, which is correct for a person managing their own
+// API-credit product, and these are the account-scoped INFERENCE money surface.
+app.use('/billing/accounts', accountBillingRoutes);
+app.use('/billing/cost-centers', costCenterRoutes);
 app.use('/billing', billingRoutes);
 // The canonical model catalogue (issue #972, ADR 0008). The mount path is
 // unchanged because Console still calls `GET /models/stats`; what it serves is
@@ -1059,6 +1071,23 @@ export async function bootstrap(
     );
   }, FOLLOW_EXPIRY_SWEEP_INTERVAL_MS);
   followExpirySweep.unref();
+
+  // Top up accounts that have fallen below their configured auto-recharge
+  // threshold (issue #972 section 7.1). THIS registration is what stops
+  // `autoRecharge.enabled` being a setting that reads as on and never fires —
+  // the claim/charge/settle machinery is complete, and without a caller the
+  // customer's balance would simply run out.
+  //
+  // It self-disables where it cannot work: with no `STRIPE_SECRET_KEY` the sweep
+  // returns `processor-unconfigured` without touching an account, so a
+  // development deployment logs one line per interval rather than an error per
+  // candidate. Unref'd + failures logged, like the sweeps above.
+  const autoRechargeSweep = setInterval(() => {
+    runAutoRechargeSweep().catch((err) =>
+      logger.error('Auto-recharge sweep failed', err instanceof Error ? err : new Error(String(err))),
+    );
+  }, AUTO_RECHARGE_SWEEP_INTERVAL_MS);
+  autoRechargeSweep.unref();
 
   // Start SMTP inbound server if enabled
   if (getEnvBoolean('SMTP_ENABLED', false)) {

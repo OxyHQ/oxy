@@ -25,6 +25,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0011](0011-inference-data-plane-name.md) | #972 | The inference data plane's production name is deferred pending naming/trademark review; `Relay` is a working name and ships in no published artifact. |
 | [0012](0012-service-token-signing-key-model.md) | #972, #987 | Service tokens move to asymmetric (Ed25519) signing verified against a published JWKS; the shared HMAC secret is retired, because a symmetric verification key is also a mint key and after ADR 0007 that forges spend attribution. |
 | [0013](0013-byok-secret-custody.md) | #972 | Oxy stores a partitioned `secret_ref` into managed secret storage and never a customer's provider credential; with no secret backend wired, BYOK writes refuse with a typed 503 before the credential is read, rather than falling back to PostgreSQL. |
+| [0014](0014-account-billing-and-entitlements.md) | #972 | A child account shares its nearest ancestor's balance and is bounded by budgets rather than allocated funds; Stripe is attached by one reference row that is also the second webhook idempotency guard; a plan allowance is an integer count and money is an exact decimal, and nothing sums them. |
 
 ## Related
 

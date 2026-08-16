@@ -40,6 +40,10 @@ import { resolveUserIdToObjectId, isAccountIdFormat } from '../utils/validation'
 import userCache from '../utils/userCache';
 import SignatureService from '../services/signature.service';
 import { emailService } from '../services/email.service';
+import {
+  archiveAccountForRetention,
+  describeAccountFinancialHolds,
+} from '../services/accountFinancialHolds.service';
 import { validate } from '../middleware/validate';
 import {
   optionalUserOrServiceAuth,
@@ -1489,6 +1493,40 @@ router.delete(
       throw new BadRequestError('Confirmation text does not match username');
     }
 
+    /*
+     * FINANCIAL HOLDS ARE CHECKED BEFORE ANYTHING IS DESTROYED (issue #972,
+     * section 7.4).
+     *
+     * Every financial table references `users` with `ON DELETE RESTRICT`, so for
+     * any account that had ever transacted, this route used to destroy the
+     * mailboxes, the identity backup, the sessions and the whole social graph and
+     * THEN fail on a foreign key violation — a 500, after the irreversible part.
+     * Moving the check above the first destructive step is the fix; the rest of
+     * this block decides what to do with the answer.
+     */
+    const holds = await describeAccountFinancialHolds(userId);
+
+    if (holds.hasLiveSubscription) {
+      // Refused outright rather than worked around. Cancelling somebody's
+      // payment agreement as a side effect of a delete is not this route's
+      // decision to make, and if Stripe were unreachable the alternative would
+      // delete the account and leave Stripe billing a customer who no longer
+      // exists.
+      throw new ConflictError(
+        'This account has a live subscription. Cancel it first, then delete the account.',
+        { subscriptions: holds.liveSubscriptionIds }
+      );
+    }
+
+    if (holds.heldReservations > 0) {
+      // Money neither spent nor returned. The holds expire on their own, so this
+      // is a wait rather than a dead end.
+      throw new ConflictError(
+        'This account has inference reservations still in flight. Try again once they settle.',
+        { heldReservations: holds.heldReservations }
+      );
+    }
+
     // Delete all email data (mailboxes, messages, S3 attachments)
     await emailService.deleteAllUserData(userId);
 
@@ -1504,6 +1542,47 @@ router.delete(
     // before deleting the user document (mirrors federation actor-delete).
     await userService.purgeUserSocialGraph(userId);
 
+    if (holds.blocksHardDelete) {
+      /*
+       * RETAIN AND ARCHIVE. Receipts, ledger entries, invoices and processor
+       * payments are kept by law and by reconciliation need, and the `users` row
+       * they reference has to survive with them — so the account is archived
+       * instead of removed. Everything optional above this line has already been
+       * erased, which is #972 section 12's "deletion that preserves legally
+       * required financial records while deleting optional payload data".
+       *
+       * `account_status = 'archived'` is an EXISTING state with existing
+       * meaning: `accountService.resolveEffectiveAccess` resolves an archived
+       * account to nothing, so no membership, no application access and no
+       * billing authority survives. Combined with the session revocation above,
+       * the account can no longer act.
+       *
+       * What this does NOT do is anonymise the profile. Releasing a username and
+       * clearing an email is a separate decision with its own consequences — a
+       * released handle is immediately claimable by somebody else — and belongs
+       * to section 12's deletion/export work rather than to the financial-holds
+       * question. The boundary is stated rather than inferred.
+       */
+      await archiveAccountForRetention(userId);
+
+      userCache.invalidate(userId);
+      await graphCache.invalidate(userId);
+
+      logger.info('Account archived with retained financial records', {
+        userId,
+        username: user.username,
+        retainedRecords: holds.retainedRecords,
+      });
+
+      sendSuccess(res, {
+        message:
+          'Account closed. Financial records are retained as required by law; all optional data has been deleted.',
+        retained: true,
+        retainedRecords: holds.retainedRecords,
+      });
+      return;
+    }
+
     // Delete the account row. Every remaining edge that references it is
     // removed by its own foreign key; the graph purge above ran first because it
     // is what invalidates each counterparty's cached graph by name — a cascade
@@ -1517,6 +1596,7 @@ router.delete(
 
     sendSuccess(res, {
       message: 'Account deleted successfully',
+      retained: false,
     });
   })
 );
