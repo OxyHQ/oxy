@@ -905,6 +905,105 @@ describe('a served request', () => {
     );
   });
 
+  it('re-nests the partitioned units for the OpenAI dialect, and still prices them once', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    // The fixture prices only input and output, and a metered unit with no price
+    // is refused rather than dropped — so the two child lines have to be priced
+    // before they can be reported at all. A tenth of the input price for a cache
+    // hit and the output price for a reasoning token is what providers charge,
+    // and it is also what the hold this route takes can cover: the ceiling is
+    // sized as `input × prompt estimate + output × max_tokens`, so a child unit
+    // priced ABOVE its parent would settle past its own hold.
+    await getDb()
+      .insert(priceVersionUnitPrices)
+      .values([
+        {
+          priceVersionId: fixture.priceVersionId,
+          unit: 'cached_input_tokens',
+          amount: '0.300000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: fixture.priceVersionId,
+          unit: 'reasoning_tokens',
+          amount: '15.000000000000',
+          per: 1_000_000,
+        },
+      ]);
+
+    await withServer(
+      fakeRelay((envelope) => {
+        const completion = completionFor(envelope, {
+          input: 1000,
+          output: 200,
+          provider: fixture.provider,
+        });
+        return {
+          ...completion,
+          // A 10 000-token prompt, 9 000 of it served from cache; a 1 000-token
+          // completion, 800 of it reasoning — stated as the PARTITION the
+          // contract asks for.
+          usage: {
+            ...completion.usage,
+            units: [
+              { unit: 'input_tokens' as const, quantity: 1_000 },
+              { unit: 'cached_input_tokens' as const, quantity: 9_000 },
+              { unit: 'output_tokens' as const, quantity: 200 },
+              { unit: 'reasoning_tokens' as const, quantity: 800 },
+            ],
+          },
+        };
+      }),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/chat/completions',
+          // A prompt long enough that the edge's own character-count ceiling
+          // covers the 10 000 tokens reported against it, and an output ceiling
+          // covering the 1 000 generated: the hold has to be able to cover the
+          // whole partition, or this would be testing the reservation instead.
+          chatBody(fixture, {
+            messages: [{ role: 'user', content: 'word '.repeat(2_000) }],
+            max_tokens: 1_000,
+          }),
+          bearer(fixture.token)
+        );
+
+        expect(response.status).toBe(200);
+        // The dialect nests, so a stock client reads the prompt and completion
+        // sizes its provider would have quoted — not the uncached remainders.
+        expect(json(response)).toMatchObject({
+          usage: {
+            prompt_tokens: 10_000,
+            completion_tokens: 1_000,
+            total_tokens: 11_000,
+            prompt_tokens_details: { cached_tokens: 9_000 },
+            completion_tokens_details: { reasoning_tokens: 800 },
+          },
+        });
+        // Oxy's own headers keep the partition, so either view can be
+        // reconstructed from the other.
+        expect(response.headers['x-oxy-usage-input-tokens']).toBe('1000');
+        expect(response.headers['x-oxy-usage-cached-input-tokens']).toBe('9000');
+        expect(response.headers['x-oxy-usage-output-tokens']).toBe('200');
+        expect(response.headers['x-oxy-usage-reasoning-tokens']).toBe('800');
+      }
+    );
+
+    // 1000·3/1e6 + 9000·0.3/1e6 + 200·15/1e6 + 800·15/1e6 = 0.0207 — the
+    // partition priced once. The nested numbers this body renders, priced the
+    // same way, would have come to 0.0597 for the same request.
+    const [receipt] = await getDb()
+      .select()
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(Number(receipt.billedAmount)).toBeCloseTo(0.0207, 9);
+    expect(receipt.inputTokens).toBe(1_000);
+    expect(receipt.cachedInputTokens).toBe(9_000);
+    expect(receipt.outputTokens).toBe(200);
+    expect(receipt.reasoningTokens).toBe(800);
+  });
+
   it('refuses to charge past the hold when the data plane reports more than was reserved', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
     const before = await balanceOf(fixture.accountId);

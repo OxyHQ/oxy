@@ -75,6 +75,9 @@ const RETRYABILITY: Readonly<Record<InferenceErrorCode, boolean>> = {
   provider_error: true,
   provider_timeout: true,
   provider_overloaded: true,
+  // An upstream refusing the PLATFORM's own credential is the platform's to
+  // fix, and no retry reaches the operator who has to rotate the key.
+  provider_credential_invalid: false,
   // A data plane that is not configured is the platform's to fix, not the
   // client's to wait out — see `services/relayClient.ts`. `false` here is why
   // the no-data-plane refusal does not teach every SDK to retry forever.
@@ -117,6 +120,10 @@ const HTTP_STATUS: Readonly<Record<InferenceErrorCode, number>> = {
   provider_error: 502,
   provider_timeout: 504,
   provider_overloaded: 503,
+  // 502 like `provider_error`: the failure is at the gateway to the upstream.
+  // What separates them is `retryable`, which ADR 0010 makes the producer's
+  // assertion precisely so a status code does not have to carry it.
+  provider_credential_invalid: 502,
   service_unavailable: 503,
   internal_error: 500,
 };
@@ -147,6 +154,7 @@ const OPENAI_ERROR_TYPE: Readonly<Record<InferenceErrorCode, string>> = {
   provider_error: 'api_error',
   provider_timeout: 'api_error',
   provider_overloaded: 'api_error',
+  provider_credential_invalid: 'api_error',
   service_unavailable: 'api_error',
   internal_error: 'api_error',
 };

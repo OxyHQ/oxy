@@ -2,6 +2,11 @@
 
 - Status: accepted
 - Date: 2026-08-15
+- Amended: 2026-08-16 (#1018) — the envelope section described a policy
+  SNAPSHOT, a `reservation` and a `deadline` that `inferenceRequestSchema` has
+  never carried. The envelope description below is now the shape in
+  `packages/contracts/src/inference/request.ts`, and the enforcement split it
+  implies is stated rather than left to be inferred from two ADRs at once.
 - Issue: #972
 
 ## Context
@@ -101,7 +106,8 @@ rejected where a secret is required.
 2. authenticate the credential
 3. resolve attribution                          credential → application → owner account   (ADR 0007)
 4. authorize scopes                             credential scopes ∩ application scopes
-5. resolve routing policy and pin its version
+5. resolve the routing policy, pin its version, and SELECT the route
+                                               refuse `policy_violation` if no candidate qualifies
 6. reserve spend                                (ADR 0009) — reject here, before the data plane
 7. forward the internal envelope to Relay
 8. stream through without buffering; propagate client cancellation upstream
@@ -118,19 +124,63 @@ the customer used. Both public endpoints normalize into it, which is what keeps
 the compatibility surface from becoming a second data path.
 
 ```text
-InferenceEnvelope v1
-  envelopeVersion   integer, monotonically increasing
-  attribution       { accountId, applicationId, credentialId, userId? }   (ADR 0007)
-  requestId         string, allocated at edge admission
-  request           normalized inference request — modality, messages/input, tools,
-                    generation parameters, streaming flag, requested model or routing profile
-  routing           { policyVersion, policySnapshot }  — the exact policy this request was admitted under
-  reservation       { reservationId, ceiling, priceVersion }               (ADR 0009)
-  deadline          absolute instant after which execution must stop
+InferenceEnvelope v1  (packages/contracts/src/inference/request.ts)
+  schemaVersion     integer literal, per-shape (see version.ts)
+  attribution       { principal { billing, applicationId, credentialId, environment,
+                      inferenceScopes }, userId?, requestId, generationId? }   (ADR 0007)
+  target            { kind: 'model', modelReference } | { kind: 'routing_profile', … };
+                    the edge emits the model form, revision-pinned, even when the
+                    customer named only the model line
+  modality, input, stream, maxOutputTokens, sampling, tools, toolChoice?, responseFormat?
+  client            { apiFormat, endpoint, clientRequestId?, receivedAt, labels? }
+  idempotencyKey?   the customer's key, when the operation is safe to deduplicate
+  routingPolicy     { routingPolicyId, policyVersion } — a REFERENCE, see below
 ```
 
-**Versioning of the envelope is explicit and integer.** `envelopeVersion` is
-required, never inferred from the presence of a field. Relay refuses an envelope
+`requestId` rides inside `attribution` rather than beside it, because every
+record that carries attribution carries the id too and splitting them would let
+one arrive without the other.
+
+**The envelope carries a routing-policy REFERENCE, not a snapshot, and route
+selection is already complete when it is built.** The control plane resolves the
+effective policy, filters the candidate routes against every control it can
+express as a predicate over one candidate — provider allow/denylist, region
+allow/denylist, zero-data-retention, prohibit-training, licence list, commercial
+use rights, Oxy-hosted-only, BYOK preference, dedicated capacity — and refuses
+with `policy_violation` when no candidate qualifies, before anything is reserved
+or forwarded. The reference exists so the receipt can be explained against the
+exact revision of the customer's own configuration that produced it; it is
+provenance, and nothing downstream is expected to act on it.
+
+What the data plane is left to decide is RANKING among routes that already
+qualify — `optimiseFor` (price / latency / throughput / balanced), plus failover
+within the destinations the policy authorized. That is routing execution and it
+is the data plane's by ADR 0006. It can never admit a route the control plane
+excluded, which is what makes "the control plane enforces, the data plane
+executes" a division rather than a duplication.
+
+The classification is held in code rather than in prose: every control of
+`routingPolicySchema` is either enforced by
+`inferenceCatalogue.service.ts`'s `violatedConstraints` or named, with its
+reason, in `UNFILTERED_ROUTING_CONTROLS` beside it, and a control in neither
+list fails `tsc`.
+
+**No `reservation` and no `deadline` travel.** The reservation is the control
+plane's own record and the data plane has no use for its id: what bounds a
+request's cost upstream is `maxOutputTokens`, which the envelope carries. What
+bounds its duration is the transport — the edge propagates client cancellation
+into `RelayClient.execute` — and the hold's own TTL, after which the expiry
+sweeper releases it. An explicit `deadline` would be a defensible addition, and
+under the versioning rule below it is additive within v1; it is left out until a
+producer sets it and a consumer honours it, because a field the envelope
+declares and nobody writes is exactly the gap this ADR was corrected for.
+
+**Versioning of the envelope is explicit and integer.** `schemaVersion` is
+required, never inferred from the presence of a field, and it versions THIS
+shape rather than the contract set as a whole — pinning a request to the set's
+version would make an unrelated additive change to, say, the catalogue reject
+every in-flight inference request (`packages/contracts/src/inference/version.ts`).
+Relay refuses an envelope
 version it does not implement rather than interpreting it optimistically — an
 unrecognized version is a hard error, because a partially-understood envelope is
 how a routing constraint gets silently dropped. Adding an optional field is a
@@ -143,6 +193,27 @@ than merely that both sides parse.
 The same rule applies to every externally consumed event and response shape
 (normalized stream events, usage receipts, refunds, catalogue descriptors, price
 versions), not only to this envelope.
+
+**Which shapes reject an unknown field follows from that rule, and the split is
+deliberate.** The shapes exchanged with the data plane — this envelope, the
+usage records, the stream events, the error body, the catalogue descriptors, the
+price version — are NOT `.strict()` at their top level, because `.strict()` and
+"adding an optional field is a minor change within a version" cannot both hold:
+a producer one minor version ahead would have its whole message refused rather
+than its new field ignored. For a usage report that means a request already
+served upstream can never be settled and Oxy absorbs its cost — a worse failure
+than the one strictness would catch, and one that arrives on the day a
+counterpart ships an addition this ADR calls compatible.
+
+Their leaves are strict, and that is where the protection sits, because a
+stripped field is the more dangerous outcome exactly where it would be a leak or
+a second source of truth: `clientRequestMetadataSchema` (where somebody would
+eventually attach an IP), `moneySchema` (a convenience float beside the exact
+decimal), `providerErrorPassthroughSchema` (an upstream request or header beside
+the message), `usageQuantitySchema`, `unitPriceSchema`. Shapes Oxy does not
+exchange with the data plane are strict at the top as well —
+`providerConnectionSchema`, where an unknown field is how a BYOK credential
+escapes, and the billing and entitlement records.
 
 ### Errors and retryability
 
@@ -165,6 +236,14 @@ the boundary:
 - Upstream provider errors are translated into Oxy's own codes. Provider error
   text is not passed through verbatim where it could carry upstream account or
   credential detail.
+- **The platform group is not uniformly retryable.** An upstream that refuses the
+  PLATFORM's own credential is `provider_credential_invalid`, and it is
+  non-retryable: no identical retry can succeed until an operator rotates a key,
+  and classifying it as `provider_error` sends every client into a retry loop
+  against a request that cannot pass. It is the counterpart of
+  `byok_credential_invalid`, which names the same failure on the customer's own
+  credential — two codes because only one of them names an action the customer
+  can take.
 - Rate-limit and usage headers are normalized to one vocabulary across both
   public endpoints, so a client does not need to know which provider served it.
 

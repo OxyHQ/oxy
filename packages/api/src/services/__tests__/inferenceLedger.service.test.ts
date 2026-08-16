@@ -592,6 +592,155 @@ describe('settle charges the exact usage and releases the rest atomically', () =
   });
 });
 
+/**
+ * The unit set PARTITIONS a request — `cached_input_tokens` is a sibling of
+ * `input_tokens`, not a detail inside it, and the same for `reasoning_tokens`
+ * and `output_tokens` (`@oxyhq/contracts`' `USAGE_UNITS`). `computeCharge`
+ * prices every reported unit and sums, so that sum is the request's cost only
+ * under the partition reading.
+ *
+ * Every OpenAI-compatible provider reports the OTHER way round: `prompt_tokens`
+ * includes its cached tokens and `completion_tokens` includes its reasoning
+ * tokens. A normalizer forwarding those numbers unchanged would be charged for
+ * the cached and reasoning tokens twice — once inside their parent and once on
+ * their own line — with no symptom, because the receipt stays internally
+ * consistent and every total still looks plausible.
+ *
+ * So: ONE physical request, reported both ways. A 10 000-token prompt of which
+ * 9 000 were served from cache, and a 1 000-token completion of which 800 were
+ * reasoning.
+ *
+ * The four prices are four DIFFERENT numbers so no two readings can agree by
+ * arithmetic accident, and so a cache discount and a reasoning price are each
+ * exercised as their own line rather than inheriting a parent's.
+ */
+describe('cached and reasoning tokens are priced as siblings, never as details of a total', () => {
+  /** What the data plane owes Oxy: the partition, with nothing counted twice. */
+  const PARTITIONED = {
+    input_tokens: 1_000,
+    cached_input_tokens: 9_000,
+    output_tokens: 200,
+    reasoning_tokens: 800,
+  };
+  /** The same request as a provider states it, children left inside parents. */
+  const NESTED = {
+    input_tokens: 10_000,
+    cached_input_tokens: 9_000,
+    output_tokens: 1_000,
+    reasoning_tokens: 800,
+  };
+
+  // 1000·3/1e6 + 9000·0.3/1e6 + 200·15/1e6 + 800·30/1e6
+  const PARTITIONED_CHARGE = '0.032700000000';
+  // 10000·3/1e6 + 9000·0.3/1e6 + 1000·15/1e6 + 800·30/1e6
+  const NESTED_CHARGE = '0.071700000000';
+  // 9000 cached at the INPUT price + 800 reasoning at the OUTPUT price: exactly
+  // the two lines the nested reading pays for a second time.
+  const OVERCHARGE = '0.039000000000';
+
+  /** $3 / $0.30 / $15 / $30 per million, for the four token units. */
+  async function insertTokenPriceVersion(): Promise<string> {
+    const [version] = await getDb()
+      .insert(priceVersions)
+      .values({
+        modelReference: `oxy/reasoner-${randomUUID().slice(0, 8)}`,
+        provider: 'oxy-hosted',
+        status: 'active',
+        effectiveFrom: new Date(Date.now() - 60_000),
+      })
+      .returning({ id: priceVersions.id });
+
+    await getDb()
+      .insert(priceVersionUnitPrices)
+      .values([
+        { priceVersionId: version.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
+        {
+          priceVersionId: version.id,
+          unit: 'cached_input_tokens',
+          amount: '0.300000000000',
+          per: 1_000_000,
+        },
+        { priceVersionId: version.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+        {
+          priceVersionId: version.id,
+          unit: 'reasoning_tokens',
+          amount: '30.000000000000',
+          per: 1_000_000,
+        },
+      ]);
+    return version.id;
+  }
+
+  async function settleReport(
+    units: Record<string, number>
+  ): Promise<{ billedAmount: string; receiptId: string }> {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const priceVersionId = await insertTokenPriceVersion();
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: priceVersionId,
+      maxAmount: '1.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error(`reserve failed: ${reserved.status}`);
+
+    const settled = await settle({
+      idempotencyKey: `s-${randomUUID()}`,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units,
+      resolvedModelReference: 'oxy/reasoner',
+      servingProvider: 'oxy-hosted',
+      priceVersionId,
+    });
+    if (settled.status !== 'settled') throw new Error(`settle failed: ${settled.status}`);
+    return { billedAmount: settled.receipt.billedAmount, receiptId: settled.receipt.receiptId };
+  }
+
+  it('charges a partitioned report once per unit, at that unit own price', async () => {
+    const { billedAmount, receiptId } = await settleReport(PARTITIONED);
+    await expectAmount(billedAmount, PARTITIONED_CHARGE);
+
+    // The four quantities are kept apart on the receipt, so the partition it was
+    // charged under is reconstructible from the record itself.
+    const [row] = await getDb()
+      .select({
+        inputTokens: usageReceipts.inputTokens,
+        cachedInputTokens: usageReceipts.cachedInputTokens,
+        outputTokens: usageReceipts.outputTokens,
+        reasoningTokens: usageReceipts.reasoningTokens,
+      })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.id, receiptId));
+    expect(row).toEqual({
+      inputTokens: 1_000,
+      cachedInputTokens: 9_000,
+      outputTokens: 200,
+      reasoningTokens: 800,
+    });
+  });
+
+  it('bills the same request more than twice over when children stay inside parents', async () => {
+    const { billedAmount: partitioned } = await settleReport(PARTITIONED);
+    const { billedAmount: nested } = await settleReport(NESTED);
+
+    await expectAmount(partitioned, PARTITIONED_CHARGE);
+    await expectAmount(nested, NESTED_CHARGE);
+
+    // Stated as the difference as well as the two totals: the failure this test
+    // exists for is not "the number moved", it is "the cached and reasoning
+    // tokens were charged a second time, at their parents' prices".
+    const [difference] = await getDb().execute(
+      sql`select (${nested}::numeric - ${partitioned}::numeric)::text as overcharge`
+    );
+    await expectAmount(String(difference.overcharge), OVERCHARGE);
+  });
+});
+
 describe('expiry is a refund with a reason, never a silent release', () => {
   it('releases a past-deadline hold and records why', async () => {
     const f = await makeFixture({ fund: '10.000000000000' });

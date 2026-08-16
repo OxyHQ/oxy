@@ -540,6 +540,17 @@ export async function executeInferenceRequest(
 
   // 6b. Size the hold at the CEILING: everything the request could consume, at
   //     the price of the route it was admitted against.
+  //
+  //     Two units, not four, and that rests on an assumption worth stating now
+  //     that the contract's units are declared a PARTITION: a cache hit is
+  //     charged as `cached_input_tokens` out of the SAME prompt budget this
+  //     estimate bounds, and a reasoning token as `reasoning_tokens` out of the
+  //     same `maxOutputTokens` budget. So this ceiling covers the whole
+  //     partition exactly while each child unit is priced no higher than its
+  //     parent, which is how every provider prices them. A price version that
+  //     charged MORE for a cached or reasoning token than for its parent would
+  //     produce a settlement above its own hold — refused, loudly, as
+  //     `settlement-exceeds-reservation`, after the request has already run.
   const ceilingUnits: Partial<Record<UsageUnit, number>> = {
     input_tokens: estimatedInputTokens,
     output_tokens: maxOutputTokens,

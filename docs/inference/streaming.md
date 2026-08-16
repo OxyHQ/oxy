@@ -137,7 +137,7 @@ Five codes are retryable:
 | `provider_timeout` | a slow upstream |
 | `provider_overloaded` | upstream capacity |
 
-Everything else is not, and two of those are worth naming because the status
+Everything else is not, and three of those are worth naming because the status
 alone would suggest otherwise:
 
 - **`service_unavailable` (503) is NOT retryable.** It is what you get today: an
@@ -147,6 +147,11 @@ alone would suggest otherwise:
   rate limit clears within the window the response names; a quota is an
   account-level ceiling only a human raises. Branching on the status would get
   this exactly backwards.
+- **`provider_credential_invalid` (502) is NOT retryable, while `provider_error`
+  (502) is.** The upstream refused OXY's own credential, and no number of
+  retries reaches the operator who has to rotate a key. When it is your own
+  provider credential that was refused the code is `byok_credential_invalid`,
+  which is also not retryable — but that one names something you can fix.
 
 `internal_error` is not retryable either — an unclassified failure is not one
 anybody has established a retry could resolve.

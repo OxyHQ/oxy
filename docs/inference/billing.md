@@ -65,6 +65,30 @@ it can never strand money the way a sub-balance can.
   counts live in their own integer columns, separately from the amount they
   priced into, so a unit total and a charge are independently auditable.
 
+## Every unit is counted once
+
+**The units on your receipt partition your request: nothing is counted twice.**
+`cached_input_tokens` is not part of `input_tokens`, and `reasoning_tokens` is
+not part of `output_tokens` — they are separate lines, each with its own price.
+A 10 000-token prompt of which 9 000 came from cache is billed as 1 000 input
+tokens plus 9 000 cached input tokens, at the cache's own (lower) price, and the
+charge is the sum of the lines. That is what lets a cache discount be a discount
+rather than a footnote.
+
+Every OpenAI-compatible provider states the same request the other way round:
+their `prompt_tokens` INCLUDES the cached tokens and their `completion_tokens`
+INCLUDES the reasoning tokens, with the children repeated underneath as details.
+Both readings are defensible; only one of them can be priced by summing.
+
+So `POST /v1/chat/completions` returns the nested numbers a stock OpenAI client
+expects — `prompt_tokens` covers the whole prompt, `prompt_tokens_details.cached_tokens`
+and `completion_tokens_details.reasoning_tokens` break it down — while
+`X-Oxy-Usage-Input-Tokens`, `X-Oxy-Usage-Cached-Input-Tokens`,
+`X-Oxy-Usage-Output-Tokens` and `X-Oxy-Usage-Reasoning-Tokens` carry the four
+disjoint numbers your receipt was priced from. Either view reconstructs the
+other; adding the OpenAI numbers to the Oxy ones does not, and is the one
+arithmetic that will disagree with your bill.
+
 ## Price versions and snapshots
 
 Every priced route carries a price version, and every settled receipt stores a
