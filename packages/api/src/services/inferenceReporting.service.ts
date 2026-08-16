@@ -686,6 +686,10 @@ export async function readAccountBalance(accountId: string): Promise<AccountBala
    * decided who pays for you". Those are different facts with different fixes,
    * and the entitlement interface hands the second one to Alia as "this account
    * cannot be charged at all" (#972 section 7.5).
+   *
+   * The canonical note is on `resolveBillingAccount` itself: this collapse
+   * appeared independently here and in `resolveAccountBillingState`, so it is a
+   * property of the walk rather than a slip in either reader.
    */
   const [own] = await db
     .select()

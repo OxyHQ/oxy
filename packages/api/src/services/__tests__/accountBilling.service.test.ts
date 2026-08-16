@@ -258,10 +258,25 @@ describe('the sweep and the reader agree about what is available', () => {
     /*
      * The sweep skips it — a suspended profile's money cannot be spent, and
      * charging a card to top up a balance nobody may draw on is worse than doing
-     * nothing. But the READER must still answer: "you are suspended" and "nobody
-     * has decided who pays for you" are different facts with different fixes,
-     * and the entitlement interface hands the second one to Alia as "this
-     * account cannot be charged at all".
+     * nothing. But the READER must still answer.
+     *
+     * ## Why this case exists, for whoever writes the THIRD reader
+     *
+     * `resolveBillingAccount` filters `status = 'active'`. That is right for
+     * SPENDING and wrong for READING, and any reader that reaches for it
+     * inherits the filter — so a suspended account comes back
+     * `not-provisioned`, and the entitlement interface hands Alia "this account
+     * cannot be charged at all" for a customer who can be and is merely
+     * suspended. A wrong answer that looks exactly like a correct one, across a
+     * repository boundary.
+     *
+     * It is a property of the WALK, not a typo: it appeared independently in
+     * `resolveAccountBillingState` and in `readAccountBalance`, written by
+     * different people, because both did the obvious thing and called it. The
+     * fix in both is the same — load the account's OWN profile directly at any
+     * status, and fall back to the walk only for the INHERITED case. The
+     * warning lives at `resolveBillingAccount` itself so a third reader meets it
+     * at the function it is about to call rather than in this file.
      */
     const accountId = await seedAccount();
     await provisionBillingProfile({ accountId });

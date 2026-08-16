@@ -165,6 +165,11 @@ export type AccountBillingResolution =
  * profile is displayed with `canSpend` false and refuses reservations, and a
  * suspended ancestor is neither displayed nor spent from.
  *
+ * This is not a quirk of this function. The canonical note is on
+ * `resolveBillingAccount` itself, because the same collapse appeared
+ * independently in `readAccountBalance` — a reader that calls the walk inherits
+ * a filter written for spending.
+ *
  * The two absent arms are distinguished by a second query rather than inferred
  * from the first, because they are not the same fact and the safe handling
  * differs: an unknown account is a stale id in the caller, while an

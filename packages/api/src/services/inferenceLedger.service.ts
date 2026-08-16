@@ -146,6 +146,28 @@ export type BillingAccountResolution =
  * means "nobody has decided who pays for this account yet". That distinction is
  * the audit's §6 finding, and collapsing it is how an organization's traffic
  * gets billed to nobody.
+ *
+ * ## READ THIS BEFORE BUILDING A READER ON TOP OF IT
+ *
+ * **This walk filters `status = 'active'`, and that is correct for SPENDING and
+ * wrong for READING.** A suspended profile may not be drawn from, and an account
+ * must not silently start drawing on a suspended ancestor — so the filter
+ * belongs here.
+ *
+ * But a READER that reaches for this function inherits the filter, and a
+ * suspended account then comes back `not-provisioned`. Those are different facts
+ * with different fixes: "you are suspended" is a state the customer can have
+ * lifted, "nobody has decided who pays for you" is an account nobody has
+ * provisioned. The entitlement interface turns the second into "this account
+ * cannot be charged at all" and hands it to Alia across a repository boundary —
+ * a wrong answer that looks exactly like a correct one.
+ *
+ * This is a property of the WALK, not a slip: it appeared independently in two
+ * readers written by different people (`resolveAccountBillingState` and
+ * `readAccountBalance`), because both did the obvious thing and called this.
+ * Both now load an account's OWN profile directly, at any status, and fall back
+ * to this walk only for the INHERITED case. A third reader must do the same, and
+ * `accountBilling.service.test.ts` gates both existing ones.
  */
 export async function resolveBillingAccount(
   db: DatabaseOrTransaction,
