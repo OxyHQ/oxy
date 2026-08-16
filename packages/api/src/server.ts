@@ -115,7 +115,8 @@ import {
 import { getEnvBoolean, validateRequiredEnvVars, getSanitizedConfig, getEnvNumber } from './config/env';
 import { logger } from './utils/logger';
 import type { Response } from 'express';
-import { authMiddleware } from './middleware/auth';
+import { authMiddleware, type AuthRequest } from './middleware/auth';
+import { requireStaff } from './middleware/requireStaff';
 import cookieParser from 'cookie-parser';
 import { csrfProtection, getCsrfToken } from './middleware/csrf';
 import { createCorsMiddleware, SOCKET_IO_CORS_CONFIG } from './config/cors';
@@ -540,8 +541,34 @@ app.get("/health", async (req, res) => {
   }
 });
 
-// Performance monitoring endpoint (protected, for admin/internal use)
-app.get("/metrics", authMiddleware, (req: any, res: Response) => {
+// Performance monitoring endpoint — Oxy platform STAFF only.
+//
+// `authMiddleware` was the entire gate here, under a comment that read
+// "protected, for admin/internal use". Those two claims are not the same one:
+// `authMiddleware` proves the caller holds a valid session and says nothing
+// about who they are, so "admin/internal" described an audience the code never
+// restricted to. Any authenticated Oxy user could read this payload, and the
+// gap had to be read to be seen — the comment asserted the protection it was
+// standing in for.
+//
+// What that exposed, field by field:
+//   - `memory`     — this process's RSS and heap figures.
+//   - `database`   — the DATABASE HOSTNAME and database name from
+//                    `DATABASE_URL` (`getDatabaseStats`), i.e. the RDS endpoint.
+//   - `performance.slowOperations` — keyed by `` `${req.method} ${req.path}` ``
+//                    with the path UNPARAMETERIZED, so the list enumerates the
+//                    API's internal surface and carries the concrete ids and
+//                    usernames of whichever requests happened to be slow.
+//
+// `requireStaff` is this repo's existing gate for that audience — the same one
+// `/platform-stats`, `/inference/admin`, `/cost-centers` and the staff-only
+// `/store` writes stand behind — and it MUST run after `authMiddleware`, which
+// is what populates the `req.user` it reads. Composed in that order, an
+// anonymous caller gets 401 from `authMiddleware` and an authenticated
+// non-staff caller gets 403 from `requireStaff`.
+//
+// Gate coverage: `src/__tests__/metricsStaffGate.test.ts`.
+app.get("/metrics", authMiddleware, requireStaff, (_req: AuthRequest, res: Response) => {
   try {
     const memoryStats = getMemoryStats();
     const connectionStats = getDatabaseStats();
