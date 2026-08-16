@@ -45,6 +45,7 @@ import { devicePrincipalBackfillConflicts } from './devicePrincipalBackfillConfl
 import { devicePrincipals } from './devicePrincipals';
 import { deviceSessionAccounts } from './deviceSessionAccounts';
 import { deviceSessions } from './deviceSessions';
+import { emailOutbox } from './emailOutbox';
 import { federationKeyPairs } from './federationKeyPairs';
 import { fileLinks } from './fileLinks';
 import { identityBindings } from './identityBindings';
@@ -425,6 +426,14 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'The RFC 5322 `Message-ID` header, minted by whichever server sent the ' +
       'mail. It identifies a MESSAGE in the global email namespace, not a row ' +
       'here — most values name mail this database has never held.',
+  },
+  {
+    table: emailOutbox,
+    column: emailOutbox.messageId,
+    reason:
+      'The RFC 5322 `Message-ID` header used to deduplicate an outbound delivery. ' +
+      'It is an external email identifier, not the primary key of a local message ' +
+      'row, and it must remain available when the corresponding Sent row is absent.',
   },
   {
     table: messageAttachments,
