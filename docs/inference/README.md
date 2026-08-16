@@ -47,7 +47,7 @@ reserves the money, finds nothing to forward to, releases the hold and answers
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
 | Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. **The catalogue is EMPTY** |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out |
-| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt. **Not consulted when a route is chosen** |
+| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (11 of 13 controls; the two price ceilings are not) |
 | BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Yes for metadata; create and rotate refuse `503` |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
@@ -98,22 +98,22 @@ publicly exposed, and default-deny is the starting state. So `GET /models`
 answers `[]`, `getModel(...)` throws for every id, and the edge refuses any
 model you name with `model_not_found`.
 
-### Enforcement of routing policy — workstream 6, [#1011](https://github.com/OxyHQ/oxy/issues/1011)
+### The two routing price ceilings — workstream 6
 
-The control plane is real: policies are stored, validated (contradictions are
-refused at write time), versioned, inherited and pinned onto every receipt. But
-route selection filters candidates on availability scope, commercial permission,
-status, revision and price, and **reads no routing-policy field at all.**
-Provider allow/denylists, region constraints, zero-retention and no-training
-requirements, price ceilings, licence constraints, `oxyHostedOnly`, BYOK
-preference and every fallback switch are stored and not consulted.
-[routing.md](./routing.md#what-is-enforced-today) says exactly which are and are
-not, and why a stored-but-unenforced compliance constraint is worse than a
-missing feature.
+`maxPricePerUnit` and `maxPricePerRequest` are stored, validated, versioned and
+pinned onto the receipt, and **nothing filters on them**. A candidate's price
+lives on the ledger's price versions and a request's cost is only known after a
+route is priced, so both need a different mechanism and are reported rather than
+half-enforced. Do not use either as a spend control; a spending limit and the
+account balance are the controls that bound spend.
 
-Measured 2026-08-16: #1011 open, and PR
-[#1012](https://github.com/OxyHQ/oxy/pull/1012) open and unmerged. Re-derive from
-`resolveEdgeRoute` before quoting this.
+Every other routing control IS enforced against the candidate routes as of
+[#1012](https://github.com/OxyHQ/oxy/pull/1012), which closed
+[#1011](https://github.com/OxyHQ/oxy/issues/1011) — a request no route satisfies
+is refused with `policy_violation` rather than downgraded.
+[routing.md](./routing.md#what-is-enforced-today) has the classification, which
+is also held in code by a `tsc` gate that fails naming any control in neither
+list.
 
 ### A secret backend for BYOK — workstream 10, [ADR 0013](../adr/0013-byok-secret-custody.md)
 

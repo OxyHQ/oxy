@@ -74,13 +74,13 @@ Two features, two switches, and conflating them is what the platform's
 A request that named a concrete revision is never subject to cross-model
 fallback, whatever the policy says.
 
-**Neither is executed.** Routing execution belongs to the data plane, which does
-not exist. The policy CONTROL plane does now exist — a customer can configure
-both switches, and the configuration is stored, validated and versioned — but
-route selection reads no policy field, so neither switch changes anything today.
-[routing.md](./routing.md#what-is-enforced-today) is the detail. What exists
-above all is the distinction, in the contracts and in these documents, so the
-first implementation cannot quietly collapse it.
+**Neither is executed.** A switch between routes happens mid-request, and that
+is routing EXECUTION, which belongs to the data plane — and there is no data
+plane. What does exist is the authorisation: a cross-model substitution is
+refused unless the destination is named in the policy version's own
+authorisation rows, so the first implementation cannot quietly collapse the
+distinction. [routing.md](./routing.md#fallback-two-features-two-switches) is the
+detail.
 
 ---
 

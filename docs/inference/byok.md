@@ -160,9 +160,10 @@ actor user id — nobody was present.
 - **BYOK does not override provider terms**, and registering a connection is not
   a licence to share credentials. Where a provider requires a per-customer
   acknowledgement, the connection records that you gave one.
-- **A routing policy may prefer or require BYOK** (`byokPreference`), and — like
-  every other routing control — that preference is stored and versioned and is
-  **not consulted when a route is chosen**. See
+- **A routing policy may prefer or require BYOK** (`byokPreference`), and that
+  preference IS applied to the candidate routes: a policy requiring BYOK will not
+  be served by a route that is not one, and a request no route satisfies is
+  refused with `policy_violation` rather than served on Oxy's own account. See
   [routing.md](./routing.md#what-is-enforced-today).
 - **`oxyHostedOnly` and `byokPreference: 'require'` cannot both be set.** A BYOK
   route runs on your upstream account, which is by definition not Oxy's hosting;

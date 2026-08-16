@@ -139,30 +139,41 @@ A deployment declares its `regions`, and a catalogue entry reports them to you.
 That is the serving side, and it is the data plane's — Oxy publishes the fact,
 the data plane owns the placement.
 
-### The residency control is stored and not enforced
+### The residency and retention controls are enforced
 
-A routing policy accepts `allowedRegions` and `deniedRegions`, validates them
-(a region in both lists is refused at write time), versions them, and records the
-version on the receipt. **Route selection does not read them.** Neither does it
-read `requireZeroDataRetention` or `prohibitTrainingOnCustomerData`.
+A routing policy's `allowedRegions`, `deniedRegions`, `requireZeroDataRetention`
+and `prohibitTrainingOnCustomerData` are validated at write time, versioned,
+recorded on the receipt, **and applied to the candidate routes before one is
+chosen**. A request that no route satisfies is refused with `policy_violation`
+(403), naming the controls that excluded every candidate — never downgraded to a
+route the policy forbade.
 
-This is the single most important sentence on this page for anyone with a
-contractual residency or retention requirement:
+Two readings decided in the implementation, both the stricter one:
 
-> Setting a residency or retention constraint on a routing policy today produces
-> every visible signal of enforcement — an accepted write, a version number, a
-> receipt naming that version — and changes nothing about which route is chosen.
+- **`allowedRegions` is a subset test, not an overlap.** A deployment declares
+  every region it MAY serve from, and which it picks is the data plane's — so a
+  route that may run outside your allowed set does not qualify.
+- **`requireZeroDataRetention` needs the route to actually not retain.**
+  `zeroDataRetentionAvailable` is a capability; a route that has it and still
+  retains by default is excluded.
 
-It is unreachable while the catalogue is empty, and it is being fixed before the
-catalogue is seeded rather than after, for exactly that reason. See
-[routing.md](./routing.md#what-is-enforced-today) and
-[OxyHQ/oxy#1011](https://github.com/OxyHQ/oxy/issues/1011) — measured
-2026-08-16: the issue was open and its fix, PR
-[#1012](https://github.com/OxyHQ/oxy/pull/1012), was unmerged.
+The constraints read the DEPLOYMENT's own data policy rather than the provider
+organisation's default, so a zero-retention endpoint from a provider that
+otherwise retains is usable.
 
-Until it is enforced, the way to honour such a requirement is to select a
-concrete route whose own `dataPolicy` and `regions` satisfy it, and to read them
-back from the catalogue rather than delegating the choice.
+This landed in [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
+[#1011](https://github.com/OxyHQ/oxy/issues/1011), which recorded the earlier
+state: the constraints were stored, versioned and read by nothing, so every
+visible signal said they were in force. Measured on `main` at `da404475`,
+2026-08-16.
+
+**You cannot observe it yet.** The catalogue is empty, so no candidate is ever
+filtered in practice — every model you name answers `model_not_found` first. Once
+there is a catalogue, verify by reading the chosen route's own `dataPolicy` and
+`regions` back rather than trusting the policy alone.
+
+The two price ceilings are the exception and are NOT enforced — see
+[routing.md](./routing.md#stored-versioned-pinned-onto-the-receipt--and-not-enforced).
 
 ---
 

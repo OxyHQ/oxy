@@ -5,10 +5,11 @@ requests may take. Oxy stores, validates and versions it; a data plane executes
 it (ADR 0006).
 
 **Read [What is enforced today](#what-is-enforced-today) before relying on any
-control on this page.** The control plane is real and complete: policies are
-stored, validated, versioned, inherited, and the exact version a request ran
-under is recorded on its receipt. Almost none of them changes which route is
-chosen yet, because route selection does not consult the policy.
+control on this page.** Policies are stored, validated, versioned, inherited, and
+the exact version a request ran under is recorded on its receipt. Eleven of the
+controls are now also applied to the candidate routes before one is chosen, and
+a request no route satisfies is REFUSED rather than downgraded. Two are not
+enforced and are named as such.
 
 Status of the whole platform: [README.md](./README.md).
 
@@ -121,8 +122,11 @@ Three rules hold above the configuration:
 3. **An unauthorized cross-model switch has no representation.** The
    `route_switch` shape requires `authorizedByPolicy: true` as a literal for a
    model-scope switch, and the server LOOKS THE AUTHORISATION UP against the
-   policy version rather than accepting the producer's claim — a claim a caller
-   makes about its own permission is not a permission check.
+   policy version's own authorisation rows rather than accepting the producer's
+   claim — a claim a caller makes about its own permission is not a permission
+   check. That is where `fallback` is enforced: it governs a SWITCH between
+   routes rather than the qualification of one, so it is not a predicate over a
+   single candidate and does not appear in the filter below.
 
 ---
 
@@ -141,52 +145,82 @@ This is the part to read twice.
   current at settlement.
 - **No silent model substitution.** If a data plane returned a completion whose
   resolved model differs from the one the edge admitted, the request is refused
-  with `policy_violation` and the hold is released. No policy today authorises
-  any substitution, so a differing model is a substitution nobody permitted.
+  with `policy_violation` and the hold is released. A substitution is legitimate
+  only when the destination is named in the policy version's own authorisation
+  rows; anything else is one nobody permitted.
+- **An application with no policy passes `UNCONSTRAINED_ROUTING` by name**, not
+  by omission. There is no default parameter on the route resolver, so "this one
+  is unconstrained" is a sentence somebody wrote rather than an argument nobody
+  supplied — which is exactly how the data-handling controls came to be stored,
+  versioned and never read.
 - **Write-time validation**, as listed above.
 - **A routing-profile target is refused** at the edge, with `no_route_available`
   and `param: routingProfile`. Choosing among a profile's candidates is routing
   EXECUTION, which belongs to the data plane; the control plane picking one
   would be inventing a routing decision it has no way to test.
 
-### Stored, versioned, pinned onto the receipt — and NOT consulted
+### Enforced against the candidate routes
 
-Everything else. Route selection (`resolveEdgeRoute`) filters candidate
-deployments on availability scope, commercial permission state, deployment
-status, revision and the presence of a price — and **reads no field of the
-resolved routing policy at all**. So today:
+Eleven controls are applied to the whole candidate set **before** one is picked,
+so a conforming route ranked second is served rather than a non-conforming route
+ranked first:
 
-`providerAllowlist`, `providerDenylist`, `allowedRegions`, `deniedRegions`,
-`requireZeroDataRetention`, `prohibitTrainingOnCustomerData`, `maxPricePerUnit`,
-`maxPricePerRequest`, `optimiseFor`, `oxyHostedOnly`, `allowedLicenseIds`,
-`requireCommercialUseRights`, `fallback.*`, `byokPreference` and
-`dedicatedCapacity` change nothing about which route is chosen.
+`requireZeroDataRetention`, `prohibitTrainingOnCustomerData`,
+`requireCommercialUseRights`, `allowedLicenseIds`, `providerAllowlist`,
+`providerDenylist`, `allowedRegions`, `deniedRegions`, `oxyHostedOnly`,
+`byokPreference`, `dedicatedCapacity`.
 
-**Why this matters more than an ordinary missing feature.** A customer can set
-"zero retention required", the API accepts it, the version is recorded, and the
-receipt says the request ran under that policy version. Every visible signal says
-the constraint is in force. It is not. Add a deployment without zero data
-retention to the catalogue and requests from that customer would be routed to
-it, with a receipt still naming the policy version that forbade it — a
-compliance claim the system cannot honour, recorded as though it had been.
+**When no candidate satisfies your policy the request is REFUSED**, with
+`policy_violation` (403, never retryable), and the message names the controls
+that excluded every route — so the answer points at a setting you can change
+rather than at a support ticket. It is never downgraded to a route the policy
+forbade, and never served as though the policy were absent.
 
-It is unreachable in the way that matters right now, because the catalogue is
-empty and no route is selected at all. That is precisely why it is being fixed
-before the catalogue is seeded rather than after: the failure only becomes
-visible once there is more than one candidate deployment, and by then the
-receipts asserting the false claim already exist.
+That refusal is reachable only when a candidate survived the selectability
+predicate. A model that does not exist, or that your credential may not see,
+still answers `model_not_found`, so a policy refusal can never be produced by a
+model that was never there.
 
-Tracked as [OxyHQ/oxy#1011](https://github.com/OxyHQ/oxy/issues/1011) for the
-three data-handling constraints specifically; the wider list above is the same
-gap with a wider blast radius.
+Two readings worth stating outright, because the alternatives look reasonable:
 
-**Measured 2026-08-16: #1011 was open, and PR
-[#1012](https://github.com/OxyHQ/oxy/pull/1012) — "enforce the routing policy
-against candidate routes, and refuse when none qualifies" — was open and
-unmerged.** This section describes `main` as it stood at that moment. If #1012
-has landed by the time you read this, re-derive the enforced list from
-`resolveEdgeRoute` in `packages/api/src/services/inferenceCatalogue.service.ts`
-rather than trusting the table above, and correct it here.
+- **`allowedRegions` is a subset test, not an overlap.** A deployment declares
+  every region it may serve from, and which one it picks is the data plane's — so
+  a route that MAY run outside your allowed set cannot honour a residency
+  requirement and does not qualify.
+- **`requireZeroDataRetention` needs the route to actually not retain**, not
+  merely to be capable of it. `zeroDataRetentionAvailable` is a capability; a
+  route carrying it while still retaining payloads by default is excluded.
+
+Three of the controls read the DEPLOYMENT's own data policy rather than the
+provider organisation's default, because a zero-retention endpoint from a
+provider that otherwise retains is a real and important case.
+
+### Stored, versioned, pinned onto the receipt — and NOT enforced
+
+Two, and only two. Both are named in code beside the filter, in
+`UNFILTERED_ROUTING_CONTROLS`, with the reason; a control that ends up in neither
+list fails `tsc` by name.
+
+- **`maxPricePerUnit`** — a candidate's price lives on the ledger's price
+  versions, and comparing exact decimals is arithmetic this repository does
+  exclusively in SQL. A ceiling also has to decide what an unpriced route and a
+  foreign-currency ceiling mean. Reported rather than half-enforced.
+- **`maxPricePerRequest`** — cannot be a candidate filter at all: what a REQUEST
+  costs is only known once its unit ceiling has been estimated, which happens
+  after a route is chosen and priced.
+
+**Do not rely on either as a spend control.** The controls that do bound spend
+are the reservation, the account balance and the spending limits — see
+[billing.md](./billing.md#spending-limits).
+
+`optimiseFor` is not in either list in the same sense: it is a RANKING among
+routes that already qualify, which is routing execution and therefore the data
+plane's (ADR 0006). It can never exclude a candidate.
+
+Enforcement landed in [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
+[#1011](https://github.com/OxyHQ/oxy/issues/1011), which is where the reasoning
+about why a stored-but-unenforced compliance constraint is worse than a missing
+feature is recorded. Measured on `main` at `da404475`, 2026-08-16.
 
 ### Route-switch records exist and nothing writes one
 
@@ -200,12 +234,21 @@ evidence that no switch happened.
 
 ## How to use this today
 
-Configure the policy you actually want. It will be recorded correctly, versioned
-correctly and pinned onto every request, and none of it is wasted work — the
-enforcement gap is in the route resolver, not in the stored policy.
+Configure the policy you actually want. Eleven of its controls decide which
+routes qualify, and a request none of them satisfies fails loudly rather than
+being served by something you forbade.
 
-But do not treat a stored constraint as a compliance control until this page says
-it is enforced. If a residency or retention requirement is contractual, the
-answer today is the catalogue's own `dataPolicy` and `regions` fields on the
-route you select explicitly — see [data-policy.md](./data-policy.md) — not a
-routing policy that would filter for you.
+Two caveats that matter more than they look:
+
+- **The price ceilings are not spend controls.** Use a spending limit and the
+  account balance — see [billing.md](./billing.md#spending-limits).
+- **You cannot observe any of it yet.** The catalogue is empty, so no candidate
+  is ever filtered in practice; every model you name answers `model_not_found`
+  first. The enforcement is real and tested against fixtures that supply their
+  own candidates, which is the only way it could be tested over an empty
+  catalogue.
+
+If a residency or retention requirement is contractual, a routing policy now
+expresses it AND is enforced. Reading the chosen route's own `dataPolicy` and
+`regions` back from the catalogue — see [data-policy.md](./data-policy.md) — is
+still the way to verify it once there is a catalogue to read.
