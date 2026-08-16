@@ -113,6 +113,16 @@ jobs:
       - name: Guard against the flat account list returning
         run: bun run validate:no-flat-account-list
 
+      # AGENTS.md is prepended to EVERY agent session, so its bytes are paid on
+      # every task forever. It reached 152 KB here by accretion — a mechanism
+      # write-up appended by the branch that shipped it, none wrong on its own
+      # and none visible except in the sum. Same family as the two guards above:
+      # nothing breaks, which is why it survives. Reads the tracked file listing
+      # and nothing else, and covers the create-oxy-app template too, so every
+      # scaffolded app is born bounded.
+      - name: Guard the AGENTS.md budget
+        run: bun run validate:agents-md
+
       # api tests resolve `@oxyhq/core` (e.g. `registrableApex` in federation
       # helpers) from its published `dist`, like any normal dependency.
       # This job does not build workspace deps, so core's `dist` is absent on a

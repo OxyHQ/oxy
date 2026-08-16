@@ -2,6 +2,10 @@
 
 Expo / React Native frontend{{#backend}} + Express + Socket.IO backend{{/backend}}, wired to the Oxy SDK. Generated with `create-oxy-app`.
 
+> **This file carries only RULES — things that break silently if you get them wrong.** Architecture notes, per-feature design and per-issue write-ups go in `docs/`, and this file gets one line pointing at them. Org-wide standards live in `~/AGENTS.md` and `~/Oxy/AGENTS.md`; do not repeat them here. Versions live in `package.json`.
+>
+> **Budget: under 12 KB**, enforced by `scripts/check-agents-md-size.mjs` (`bun run validate:agents-md`). It is prepended to EVERY agent session, so its bytes are paid on every task forever — and it grows by accretion, one reasonable paragraph at a time, invisibly per-commit. An addition that pushes it over budget is paid for in the SAME edit: compress something, or move it to `docs/`.
+
 ## Package manager
 
 Always use **bun** (never npm/yarn). After changing any `package.json`, run `bun install` and commit `bun.lock` in the same commit.
