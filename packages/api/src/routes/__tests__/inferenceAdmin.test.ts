@@ -1,0 +1,555 @@
+/**
+ * `/inference/admin` — the catalogue's staff surface (issue #972, §16, ws 11).
+ *
+ * `services/__tests__/inferenceCatalogueAdmin.test.ts` covers the transitions.
+ * What had no coverage is the ROUTER: the staff gate that stands in front of
+ * all of them, the closed action vocabulary, and the fact that this is the one
+ * surface allowed to return the columns every customer projection withholds.
+ *
+ * ## The shape of every claim here
+ *
+ * A staff gate is the easiest thing in the world to test for the wrong reason:
+ * a route that is broken, unmounted, or 500ing refuses a non-staff caller just
+ * as convincingly as one that is guarded. So every refusal below is paired with
+ * the SAME request made by a staff user, and asserted on the guard's own
+ * message — `requireStaff` answers `{error: 'Forbidden', message: 'This
+ * operation requires Oxy platform staff privileges'}`, which is a different
+ * body from anything the handlers or the error handler produce.
+ *
+ * Conversely, the "staff sees the sensitive columns" claim is paired with a
+ * scan that proves it can find a value which IS present — a scanner reading an
+ * empty payload reports the same clean result as one reading a correct
+ * projection.
+ */
+
+import express from 'express';
+import http from 'http';
+import { randomUUID } from 'node:crypto';
+import type { AddressInfo } from 'net';
+
+process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
+
+/**
+ * The caller, controlled per test. `isStaff` is the only thing `requireStaff`
+ * reads, and an EMPTY id leaves `req.user` unset so `staffUserId`'s own 401 is
+ * reachable — a mock that always authenticated would make that branch dead.
+ */
+jest.mock('../../middleware/auth', () => ({
+  authMiddleware: (
+    req: { user?: { _id: string; id: string; isStaff: boolean } },
+    _res: unknown,
+    next: () => void
+  ) => {
+    if (currentUserId.length > 0) {
+      req.user = { _id: currentUserId, id: currentUserId, isStaff: currentUserIsStaff };
+    }
+    next();
+  },
+}));
+
+jest.mock('../../middleware/rateLimiter', () => ({
+  rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+
+jest.mock('../../utils/logger', () => ({
+  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import {
+  inferenceDeployments,
+  inferenceModelRevisions,
+  inferenceModels,
+  inferenceProviders,
+  inferencePublishers,
+} from '../../db/schema';
+import { users } from '../../db/schema/users';
+import { errorHandler } from '../../middleware/errorHandler';
+import adminRouter from '../inferenceAdmin';
+import catalogueRouter from '../inferenceCatalogue';
+
+let server: http.Server;
+let currentUserId = '';
+let currentUserIsStaff = false;
+
+const ADMIN = '/inference/admin';
+const MODELS = '/models';
+
+interface JsonResponse {
+  status: number;
+  body: Record<string, unknown>;
+  raw: string;
+}
+
+function request(
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown
+): Promise<JsonResponse> {
+  const address = server.address() as AddressInfo;
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        method,
+        host: '127.0.0.1',
+        port: address.port,
+        path,
+        headers: {
+          authorization: 'Bearer staff-session-token',
+          ...(payload === undefined
+            ? {}
+            : {
+                'content-type': 'application/json',
+                'content-length': Buffer.byteLength(payload),
+              }),
+        },
+      },
+      (res) => {
+        let raw = '';
+        res.on('data', (chunk) => {
+          raw += chunk;
+        });
+        res.on('end', () => {
+          let parsed: Record<string, unknown> = {};
+          try {
+            parsed = raw.length > 0 ? JSON.parse(raw) : {};
+          } catch {
+            parsed = {};
+          }
+          resolve({ status: res.statusCode ?? 0, body: parsed, raw });
+        });
+      }
+    );
+    req.on('error', reject);
+    if (payload !== undefined) req.write(payload);
+    req.end();
+  });
+}
+
+function suffix(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 10);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Fixtures                                                                  */
+/* -------------------------------------------------------------------------- */
+
+interface DeploymentFixture {
+  readonly deploymentId: string;
+  readonly modelId: string;
+  readonly internalRouteId: string;
+  readonly wholesaleAmount: string;
+}
+
+/**
+ * A route in the DEFAULT state: `pending_review`, no legal review. That is what
+ * a newly proposed route looks like, and it is the state the approval workflow
+ * has to move.
+ */
+async function insertPendingDeployment(): Promise<DeploymentFixture> {
+  const db = getDb();
+  const publisherSlug = `apub${suffix()}`;
+  const providerSlug = `aprv${suffix()}`;
+  const internalRouteId = `relay-route-${suffix()}`;
+  const wholesaleAmount = '0.000000700000';
+
+  await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: 'Admin Pub' });
+
+  const [model] = await db
+    .insert(inferenceModels)
+    .values({
+      publisherSlug,
+      slug: `amdl${suffix()}`,
+      displayName: 'Admin Fixture Model',
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      supportsTools: false,
+      supportsParallelToolCalls: false,
+      supportsStructuredOutput: false,
+      supportsJsonMode: false,
+      supportsReasoning: false,
+      supportsStreaming: true,
+      supportsPromptCaching: false,
+      maxContextTokens: 128_000,
+      maxOutputTokens: 4096,
+      licenseId: 'apache-2.0',
+      licenseDisplayName: 'Apache 2.0',
+      commercialUseAllowed: true,
+      requiresAttribution: false,
+      releaseKind: 'open_weight',
+    })
+    .returning({ id: inferenceModels.id, modelId: inferenceModels.modelId });
+
+  const [revision] = await db
+    .insert(inferenceModelRevisions)
+    .values({ modelId: model.id, revision: `ar${suffix()}`, releasedAt: new Date(), isCurrent: true })
+    .returning({ id: inferenceModelRevisions.id });
+
+  await db.insert(inferenceProviders).values({
+    slug: providerSlug,
+    displayName: 'Admin Fixture Provider',
+    kind: 'third_party',
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+  });
+
+  const [deployment] = await db
+    .insert(inferenceDeployments)
+    .values({
+      modelRevisionId: revision.id,
+      providerSlug,
+      regions: ['us-west-2'],
+      retainsPayloads: false,
+      retentionDays: 0,
+      trainsOnCustomerData: false,
+      zeroDataRetentionAvailable: true,
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+      status: 'active',
+      internalRouteId,
+      upstreamWholesaleCostAmount: wholesaleAmount,
+      upstreamWholesaleCostCurrency: 'USD',
+      upstreamWholesaleCostUnit: 'input_tokens',
+      upstreamWholesaleCostPer: 1_000_000,
+    })
+    .returning({ id: inferenceDeployments.id });
+
+  if (model.modelId === null) throw new Error('the generated model id did not compose');
+  return {
+    deploymentId: deployment.id,
+    modelId: model.modelId,
+    internalRouteId,
+    wholesaleAmount,
+  };
+}
+
+async function seedStaffUser(): Promise<string> {
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username: `adm-${suffix()}` })
+    .returning({ id: users.id });
+  return row.id;
+}
+
+/** Read one deployment's admin row straight out of the table. */
+async function readDeployment(deploymentId: string) {
+  const [row] = await getDb()
+    .select({
+      permissionState: inferenceDeployments.permissionState,
+      permissionStateNote: inferenceDeployments.permissionStateNote,
+      permissionStateChangedByUserId: inferenceDeployments.permissionStateChangedByUserId,
+      legalReviewStatus: inferenceDeployments.legalReviewStatus,
+      legalReviewEvidenceRef: inferenceDeployments.legalReviewEvidenceRef,
+      legalReviewedByUserId: inferenceDeployments.legalReviewedByUserId,
+    })
+    .from(inferenceDeployments)
+    .where(eq(inferenceDeployments.id, deploymentId));
+  return row;
+}
+
+/** Every admin row this file can see, filtered to the one it owns. */
+function adminRowFor(body: Record<string, unknown>, deploymentId: string) {
+  const rows = body.data as { id: string }[];
+  return rows.find((row) => row.id === deploymentId);
+}
+
+const STAFF_REFUSAL = {
+  error: 'Forbidden',
+  message: 'This operation requires Oxy platform staff privileges',
+};
+
+beforeAll(async () => {
+  await connectPostgres();
+  const app = express();
+  app.use(express.json());
+  app.use(ADMIN, adminRouter);
+  // Mounted alongside so the "staff sees what customers do not" claim can be
+  // asserted against the REAL customer projection rather than against a belief
+  // about it.
+  app.use(MODELS, catalogueRouter);
+  app.use(errorHandler);
+  server = http.createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+});
+
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve()))
+  );
+  await closePostgres();
+});
+
+beforeEach(async () => {
+  currentUserId = await seedStaffUser();
+  currentUserIsStaff = true;
+});
+
+/* -------------------------------------------------------------------------- */
+/*  1. The staff gate stands in front of every route on the mount             */
+/* -------------------------------------------------------------------------- */
+
+describe('every route on this mount is staff-gated', () => {
+  it.each([
+    ['GET', `${ADMIN}/deployments`, undefined],
+    ['POST', `${ADMIN}/deployments/DEPLOYMENT/legal-review`, { status: 'approved', evidenceRef: 'x' }],
+    ['POST', `${ADMIN}/deployments/DEPLOYMENT/approve`, {}],
+  ] as const)('refuses %s %s to a non-staff user, and serves it to staff', async (method, template, body) => {
+    const fixture = await insertPendingDeployment();
+    const path = template.replace('DEPLOYMENT', fixture.deploymentId);
+
+    currentUserIsStaff = false;
+    const refused = await request(method, path, body);
+    expect(refused.status).toBe(403);
+    // The guard's OWN body. A 403 from anywhere else — or a 404 from an
+    // unmounted route — fails this, which is what stops the test passing for
+    // the wrong reason.
+    expect(refused.body).toEqual(STAFF_REFUSAL);
+
+    // CONTROL: the identical request from a staff user is answered. `approve`
+    // needs its legal review first, so it is prepared here rather than being
+    // allowed to 409 and read as "the gate let nothing through".
+    currentUserIsStaff = true;
+    if (path.endsWith('/approve')) {
+      const review = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`, {
+        status: 'approved',
+        evidenceRef: `contract-register/${suffix()}`,
+      });
+      expect(review.status).toBe(200);
+    }
+    const allowed = await request(method, path, body);
+    expect(allowed.status).toBe(200);
+  });
+
+  it('refuses a caller with no authenticated user at all', async () => {
+    const fixture = await insertPendingDeployment();
+
+    currentUserId = '';
+    const refused = await request('GET', `${ADMIN}/deployments`);
+    expect(refused.status).toBe(403);
+    expect(refused.body).toEqual(STAFF_REFUSAL);
+
+    // CONTROL: a staff user reads the same URL and finds the fixture.
+    currentUserId = await seedStaffUser();
+    currentUserIsStaff = true;
+    const allowed = await request('GET', `${ADMIN}/deployments`);
+    expect(allowed.status).toBe(200);
+    expect(adminRowFor(allowed.body, fixture.deploymentId)).toBeDefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  2. The staff view IS the withheld columns                                 */
+/* -------------------------------------------------------------------------- */
+
+describe('the staff listing returns what the customer projection withholds', () => {
+  it('shows the internal route id and the wholesale cost here and nowhere else', async () => {
+    const fixture = await insertPendingDeployment();
+    // Approved, so the same route is also visible on the customer surface —
+    // otherwise "the customer cannot see the cost" would be true merely because
+    // the customer cannot see the route.
+    await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`, {
+      status: 'approved',
+      evidenceRef: `contract-register/${suffix()}`,
+    });
+    await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/approve`, {});
+
+    const admin = await request('GET', `${ADMIN}/deployments`);
+    expect(admin.status).toBe(200);
+    const row = adminRowFor(admin.body, fixture.deploymentId) as unknown as Record<string, unknown>;
+    expect(row).toBeDefined();
+    expect(row.internalRouteId).toBe(fixture.internalRouteId);
+    expect(row.upstreamWholesaleCostAmount).toBe(fixture.wholesaleAmount);
+    expect(row.legalReviewEvidenceRef).toEqual(expect.stringContaining('contract-register/'));
+
+    // The same route on the customer surface, scanned for the same three
+    // strings — with a positive control proving the scan reads a real payload.
+    const customer = await request('GET', `${MODELS}/${fixture.modelId}`);
+    expect(customer.status).toBe(200);
+    expect(customer.raw.includes(fixture.modelId)).toBe(true);
+    expect(customer.raw.includes(fixture.internalRouteId)).toBe(false);
+    expect(customer.raw.includes(fixture.wholesaleAmount)).toBe(false);
+    expect(customer.raw.includes('contract-register/')).toBe(false);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  3. The action is a path segment from a closed set                         */
+/* -------------------------------------------------------------------------- */
+
+describe('the action is a path segment from a closed set, never a body field', () => {
+  it('refuses an action outside the vocabulary before any handler runs', async () => {
+    const fixture = await insertPendingDeployment();
+    const before = await readDeployment(fixture.deploymentId);
+
+    const refused = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/frobnicate`,
+      {}
+    );
+    // A closed `z.enum` on the PATH: the router matches the shape, and the
+    // validator refuses the verb. Whether that is 400 or 404 is not the claim —
+    // the claim is that it is not 2xx and that nothing moved.
+    expect(refused.status).toBeGreaterThanOrEqual(400);
+    expect(refused.status).toBeLessThan(500);
+    expect(await readDeployment(fixture.deploymentId)).toEqual(before);
+
+    // CONTROL: a verb that IS in the vocabulary moves the row, so the refusal
+    // above is the vocabulary and not a route that never works.
+    const accepted = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/suspend`,
+      {}
+    );
+    expect(accepted.status).toBe(200);
+    expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('suspended');
+  });
+
+  it('refuses a body that names an action, so the path cannot be overridden by data', async () => {
+    const fixture = await insertPendingDeployment();
+    const before = await readDeployment(fixture.deploymentId);
+
+    // `.strict()`: an unrecognised field is an error rather than something
+    // silently dropped. If it were dropped, this request would SUSPEND the row
+    // while the caller believed they had approved it.
+    const refused = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/suspend`, {
+      action: 'approve',
+    });
+    expect(refused.status).toBe(400);
+    expect(await readDeployment(fixture.deploymentId)).toEqual(before);
+
+    // CONTROL: the same request with only the permitted field is accepted.
+    const accepted = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/suspend`, {
+      note: 'provider incident',
+    });
+    expect(accepted.status).toBe(200);
+    const after = await readDeployment(fixture.deploymentId);
+    expect(after.permissionState).toBe('suspended');
+    expect(after.permissionStateNote).toBe('provider incident');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  4. Approval depends on a legal review, and both are attributed            */
+/* -------------------------------------------------------------------------- */
+
+describe('an approval cites a review, and both name the staff member who made them', () => {
+  it('refuses an approval before the review, and accepts it after — 409, not 500', async () => {
+    const fixture = await insertPendingDeployment();
+
+    const early = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/approve`, {});
+    expect(early.status).toBe(409);
+    expect(early.body).toMatchObject({
+      error: 'CONFLICT',
+      message:
+        'This route cannot be approved until its contract/legal review is approved and its evidence reference recorded.',
+    });
+    expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('pending_review');
+
+    const evidenceRef = `contract-register/${suffix()}`;
+    const review = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'approved', evidenceRef }
+    );
+    expect(review.status).toBe(200);
+
+    const approved = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/approve`,
+      { note: 'resale terms confirmed' }
+    );
+    expect(approved.status).toBe(200);
+
+    const row = await readDeployment(fixture.deploymentId);
+    expect(row.permissionState).toBe('approved');
+    expect(row.legalReviewEvidenceRef).toBe(evidenceRef);
+    // Attribution comes from the AUTHENTICATED principal, never from the body:
+    // no request above named a user id anywhere.
+    expect(row.permissionStateChangedByUserId).toBe(currentUserId);
+    expect(row.legalReviewedByUserId).toBe(currentUserId);
+  });
+
+  it('refuses a legal APPROVAL that cites no evidence, while a rejection needs none', async () => {
+    const fixture = await insertPendingDeployment();
+
+    const refused = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'approved' }
+    );
+    expect(refused.status).toBe(409);
+    expect(refused.body.message).toEqual(
+      expect.stringContaining('must cite its evidence reference')
+    );
+    expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('not_started');
+
+    // CONTROL: the same shape of request for a REJECTION is accepted with no
+    // evidence, so the 409 is the approval rule and not a rejected body.
+    const rejected = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'rejected' }
+    );
+    expect(rejected.status).toBe(200);
+    expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('rejected');
+  });
+
+  it('reports an unknown deployment as 404 rather than as a conflict', async () => {
+    const missing = `dep-${suffix()}`;
+    const response = await request('POST', `${ADMIN}/deployments/${missing}/suspend`, {});
+    expect(response.status).toBe(404);
+    expect(response.body).toMatchObject({
+      error: 'NOT_FOUND',
+      message: `No inference deployment with id ${missing}`,
+    });
+
+    // CONTROL: a real id on the identical verb is answered 200.
+    const fixture = await insertPendingDeployment();
+    const real = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/suspend`, {});
+    expect(real.status).toBe(200);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  5. Retirement is terminal                                                 */
+/* -------------------------------------------------------------------------- */
+
+describe('a retired route stays retired', () => {
+  it('refuses every further action on it, having accepted the first', async () => {
+    const fixture = await insertPendingDeployment();
+
+    const retired = await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/retire`, {});
+    expect(retired.status).toBe(200);
+    expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('retired');
+
+    for (const action of ['approve', 'restrict', 'suspend', 'retire']) {
+      const refused = await request(
+        'POST',
+        `${ADMIN}/deployments/${fixture.deploymentId}/${action}`,
+        {}
+      );
+      expect(refused.status).toBe(409);
+      expect(refused.body.message).toEqual(expect.stringContaining('A retired route stays retired'));
+    }
+    // Nothing moved across four attempts.
+    expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('retired');
+
+    // And a retired route is gone from the customer catalogue, while a fresh
+    // approved one is present — the control that makes the absence a decision.
+    const other = await insertPendingDeployment();
+    await request('POST', `${ADMIN}/deployments/${other.deploymentId}/legal-review`, {
+      status: 'approved',
+      evidenceRef: `contract-register/${suffix()}`,
+    });
+    await request('POST', `${ADMIN}/deployments/${other.deploymentId}/approve`, {});
+
+    const catalogue = await request('GET', MODELS);
+    const ids = (catalogue.body.data as { modelId: string }[]).map((entry) => entry.modelId);
+    expect(ids).toContain(other.modelId);
+    expect(ids).not.toContain(fixture.modelId);
+  });
+});
