@@ -98,7 +98,10 @@ import {
   createBalanceTopUpCheckout,
   stripePaymentProcessorLedger,
 } from '../services/stripeAccountBilling.service';
-import { resolveBillingAccount } from '../services/inferenceLedger.service';
+import {
+  resolveBillingAccount,
+  type BillingAccount,
+} from '../services/inferenceLedger.service';
 import { getDb } from '../config/postgres';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
@@ -234,20 +237,50 @@ function callerEmail(req: BillingRequest): string | undefined {
 }
 
 /**
- * The billing account that pays for `accountId`, or a 404.
+ * The billing account that pays for `accountId`, authorised AGAINST THE PAYER.
  *
- * Used by the routes that address a limit or an invoice by id: those records
- * belong to the PAYER, so addressing them through a project that merely inherits
- * has to resolve the payer first — otherwise a project's own id would never
- * match and every such route would 404 for exactly the accounts inheritance
- * exists to serve.
+ * The two halves are inseparable, which is why they are one function.
+ *
+ * Every record reached through here — a spending limit, an invoice, a
+ * processor charge, an auto-recharge attempt — belongs to the PAYER, not to the
+ * account in the path. Resolving the payer and then authorising the path account
+ * would be a privilege escalation with the inheritance rule as its vector: a
+ * member whose membership exists only on a child project holds `billing:manage`
+ * there and NONE on the organization, yet every one of those operations would
+ * execute against the organization's rows. They could raise, disable or delete
+ * the organization's budgets by id, and aim a `hard_stop` at a sibling project's
+ * application.
+ *
+ * So authority is asked for on the account whose records are about to be
+ * touched. A project that has a profile of its OWN is its own payer and is
+ * unaffected; a project that merely inherits gets 404 on these routes unless the
+ * caller also holds the right over the account actually paying.
+ *
+ * `GET /:accountId` and the two limit LISTINGS deliberately do NOT go through
+ * this: seeing the balance you spend from and the budgets that can refuse your
+ * traffic is the inheritance feature, and `inherited` + `billingAccountId` say
+ * whose money it is. Reading a ceiling is not the same right as moving one.
  */
-async function requireBillingAccountId(accountId: string): Promise<string> {
+async function authorizeBillingProfile(
+  principal: BillingPrincipal,
+  accountId: string,
+  permission: AccountPermission
+): Promise<BillingAccount> {
   const resolution = await resolveBillingAccount(getDb(), accountId);
   if (resolution.status === 'not-provisioned') {
     throw new NotFoundError('This account has no billing profile');
   }
-  return resolution.billingAccount.accountId;
+  await authorizeAccount(principal, resolution.billingAccount.accountId, permission);
+  return resolution.billingAccount;
+}
+
+/** The same, for the callers that need only the id. */
+async function authorizeBillingAccount(
+  principal: BillingPrincipal,
+  accountId: string,
+  permission: AccountPermission
+): Promise<string> {
+  return (await authorizeBillingProfile(principal, accountId, permission)).accountId;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -429,7 +462,9 @@ router.post(
   validate({ params: accountBillingParams, body: createSpendingLimitBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:manage');
+    // Authorised against the PAYER: the limit is created under the payer's
+    // account, and the scope target is checked against the payer's subtree.
+    await authorizeBillingAccount(principalOf(req), accountId, 'billing:manage');
 
     const body = createSpendingLimitBody.parse(req.body);
     const result = await createSpendingLimit(accountId, body);
@@ -457,9 +492,11 @@ router.patch(
   validate({ params: spendingLimitParams, body: updateSpendingLimitBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId, limitId } = spendingLimitParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:manage');
-
-    const billingAccountId = await requireBillingAccountId(accountId);
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:manage'
+    );
     const result = await updateSpendingLimit(
       billingAccountId,
       limitId,
@@ -479,9 +516,11 @@ router.delete(
   validate({ params: spendingLimitParams }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId, limitId } = spendingLimitParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:manage');
-
-    const billingAccountId = await requireBillingAccountId(accountId);
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:manage'
+    );
     const result = await deleteSpendingLimit(billingAccountId, limitId);
     if (result.status === 'unknown-limit') {
       throw new NotFoundError('No such spending limit');
@@ -517,9 +556,27 @@ router.get(
 /**
  * `POST /billing/accounts/:accountId/checkout`
  *
- * A hosted checkout that funds the account's prepaid balance. The balance is NOT
+ * A hosted checkout that funds the PAYER's prepaid balance. The balance is NOT
  * credited here — it moves when Stripe's webhook confirms the charge, so a
  * balance is only ever credited by the processor's own confirmation.
+ *
+ * ## The session is keyed on the PAYER and on the PROFILE's currency
+ *
+ * Both, because either one taken from the request produces the same outcome and
+ * it is the worst one available: the customer's card is charged and the money
+ * lands nowhere.
+ *
+ *  - A project that merely inherits has no `account_balances` row of its own, so
+ *    a session created under the project's id would settle into
+ *    `recordTopUp` → `lockBalance` → `no-billing-profile`. The charge stands and
+ *    a log line is all there is.
+ *  - An account provisioned in EUR has no USD balance row, so a USD checkout
+ *    reaches exactly the same dead end.
+ *
+ * So the payer is resolved first and the currency is READ from its profile. A
+ * body naming a different currency is refused rather than quietly ignored — a
+ * client that asked for EUR and silently got USD would report the wrong figure
+ * to the customer before they ever paid.
  */
 router.post(
   '/:accountId/checkout',
@@ -527,18 +584,28 @@ router.post(
   validate({ params: accountBillingParams, body: topUpCheckoutBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:manage');
+    const billing = await authorizeBillingProfile(
+      principalOf(req),
+      accountId,
+      'billing:manage'
+    );
 
     const body = topUpCheckoutBody.parse(req.body);
     if (!isAllowedRedirect(body.successUrl) || !isAllowedRedirect(body.cancelUrl)) {
       logger.warn('Rejected account top-up with a disallowed redirect URL', { accountId });
       throw new BadRequestError('successUrl/cancelUrl must be on an allowed domain');
     }
+    if (body.currency !== undefined && body.currency !== billing.currency) {
+      throw new BadRequestError(
+        `This account is billed in ${billing.currency}; a ${body.currency} top-up would be ` +
+          'charged and then have nowhere to land'
+      );
+    }
 
     const result = await createBalanceTopUpCheckout({
-      accountId,
+      accountId: billing.accountId,
       amount: body.amount,
-      currency: body.currency ?? DEFAULT_LEDGER_CURRENCY,
+      currency: billing.currency,
       successUrl: body.successUrl,
       cancelUrl: body.cancelUrl,
       email: callerEmail(req),
@@ -560,7 +627,13 @@ router.post(
   validate({ params: accountBillingParams, body: accountPortalBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:manage');
+    // The portal manages the PAYER's payment methods and invoices, so it opens
+    // on the payer's Stripe customer and takes the payer's right.
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:manage'
+    );
 
     const { returnUrl } = accountPortalBody.parse(req.body);
     if (!isAllowedRedirect(returnUrl)) {
@@ -568,7 +641,7 @@ router.post(
       throw new BadRequestError('returnUrl must be on an allowed domain');
     }
 
-    const url = await createAccountPortalSession(accountId, returnUrl, callerEmail(req));
+    const url = await createAccountPortalSession(billingAccountId, returnUrl, callerEmail(req));
     res.json({ data: { url } });
   })
 );
@@ -585,9 +658,13 @@ router.get(
   validate({ params: accountBillingParams }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
-
-    const billingAccountId = await requireBillingAccountId(accountId);
+    // The payer's charge history, so the payer's right. A project member has no
+    // business reading what was charged to the organization's card.
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:read'
+    );
     const attempts = await listAutoRechargeAttempts(billingAccountId);
     // Through the contract's own serializer, never hand-built here: a body
     // assembled at the route is a shape the compatibility gate cannot see.
@@ -637,9 +714,13 @@ router.get(
   validate({ params: accountBillingParams }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
-
-    const billingAccountId = await requireBillingAccountId(accountId);
+    // An invoice is the payer's whole period of spend across every project, so
+    // it takes the payer's right rather than the path account's.
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:read'
+    );
     const invoices = await listAccountInvoices(billingAccountId);
     res.json({ data: invoices, count: invoices.length });
   })

@@ -30,6 +30,7 @@ import { users } from '../../db/schema/users';
 import {
   reconcilePayments,
   type PaymentProcessorLedger,
+  type ProcessorLedgerQuery,
   type ProcessorPayment,
 } from '../billingReconciliation.service';
 import { provisionBillingProfile, recordTopUp } from '../inferenceLedger.service';
@@ -248,6 +249,76 @@ describe('totals and findings are both needed', () => {
       'missing_in_external',
       'missing_in_ledger',
     ]);
+  });
+});
+
+describe('an account-scoped pass never widens into a platform-wide one', () => {
+  it('does not call the processor at all when the account has no customer', async () => {
+    /*
+     * `customerRef: undefined` means EVERY customer to the adapter — the same
+     * encoding a deliberate platform-wide pass uses. An account-scoped pass that
+     * passed it through would compare one account's ledger rows against the whole
+     * platform's payments and fill the report with other customers' references,
+     * under a run row naming this account.
+     *
+     * The assertion is on the CALL, not on the findings: a pass that queried and
+     * happened to get nothing back looks identical in the report.
+     */
+    const suffix = randomUUID().slice(0, 8);
+    const [account] = await getDb()
+      .insert(users)
+      .values({ username: `nocust-${suffix}`, email: `nocust-${suffix}@example.test` })
+      .returning({ id: users.id });
+    await provisionBillingProfile({ accountId: account.id });
+
+    const calls: ProcessorLedgerQuery[] = [];
+    const spyLedger: PaymentProcessorLedger = {
+      provider: 'stripe',
+      listSettledPayments: async (query) => {
+        calls.push(query);
+        // What the real adapter would return for an unfiltered window: somebody
+        // else's payment. Reaching this at all is the defect.
+        return [processorPayment(`pi_${randomUUID().replace(/-/g, '')}`, 9900, 'cus_stranger')];
+      },
+    };
+
+    const report = await reconcilePayments({
+      ledger: spyLedger,
+      accountId: account.id,
+      currency: 'USD',
+      periodStart: PERIOD_START,
+      periodEnd: PERIOD_END,
+    });
+
+    expect(calls).toEqual([]);
+    expect(report.discrepancies).toEqual([]);
+    expect(Number(report.run.externalTotal)).toBe(0);
+  });
+
+  it('still queries the processor for a PLATFORM-wide pass, which has no account', async () => {
+    // The control for the case above: `undefined` keeps meaning "every customer"
+    // where that is what was asked for, so the skip cannot have been implemented
+    // by never querying.
+    const calls: ProcessorLedgerQuery[] = [];
+    const spyLedger: PaymentProcessorLedger = {
+      provider: 'stripe',
+      listSettledPayments: async (query) => {
+        calls.push(query);
+        return [];
+      },
+    };
+
+    await reconcilePayments({
+      ledger: spyLedger,
+      currency: 'USD',
+      // A window this file's fixtures never write into, so a platform-wide pass
+      // over the shared test database reads nothing a sibling seeded.
+      periodStart: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000),
+      periodEnd: new Date(Date.now() - 399 * 24 * 60 * 60 * 1000),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].customerRef).toBeUndefined();
   });
 });
 

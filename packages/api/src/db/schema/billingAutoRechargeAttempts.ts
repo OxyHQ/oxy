@@ -58,6 +58,18 @@ export type AutoRechargeStatusValue = (typeof AUTO_RECHARGE_STATUS_VALUES)[numbe
  */
 export const AUTO_RECHARGE_WINDOW_SECONDS = 3600;
 
+/**
+ * How often the sweep looks for accounts below their threshold.
+ *
+ * Five minutes: short enough that a busy account is topped up before it runs
+ * out, and far shorter than {@link AUTO_RECHARGE_WINDOW_SECONDS}, which is what
+ * actually bounds how often a card is charged. The two numbers are deliberately
+ * different — the interval decides how promptly a candidate is NOTICED, the
+ * window decides how often one may be CHARGED, and collapsing them into one
+ * value would make the safety bound a scheduling knob.
+ */
+export const AUTO_RECHARGE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
 export const billingAutoRechargeAttempts = pgTable(
   'billing_auto_recharge_attempts',
   {

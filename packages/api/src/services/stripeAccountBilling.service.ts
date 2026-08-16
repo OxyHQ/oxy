@@ -58,6 +58,12 @@ import {
   minorUnitExponentFor,
   minorUnitsToExactDecimal,
 } from '../utils/minorUnits';
+import {
+  claimAutoRecharge,
+  failAutoRecharge,
+  findAutoRechargeCandidates,
+  settleAutoRecharge,
+} from './accountBilling.service';
 import { recordTopUp, type FundingResult } from './inferenceLedger.service';
 import type {
   PaymentProcessorLedger,
@@ -438,6 +444,115 @@ export async function chargeAutoRecharge(input: {
     const code = stripeDeclineCode(error);
     return { status: 'declined', failureCode: code };
   }
+}
+
+/**
+ * How many accounts one sweep pass may top up.
+ *
+ * Each one is a card charge at a third party, so this is a CEILING on real-world
+ * side effects per pass rather than a throughput knob. Anything not reached this
+ * pass is reached by the next one, and the per-window claim means a slow pass
+ * cannot double-charge whoever it revisits.
+ */
+const AUTO_RECHARGE_SWEEP_LIMIT = 25;
+
+export interface AutoRechargeSweepOutcome {
+  readonly considered: number;
+  readonly charged: number;
+  readonly declined: number;
+  /** Already claimed in this window by another pass, or another instance. */
+  readonly skipped: number;
+}
+
+export type AutoRechargeSweepResult =
+  | { readonly status: 'ran'; readonly outcome: AutoRechargeSweepOutcome }
+  | { readonly status: 'processor-unconfigured' };
+
+/**
+ * Top up every account that has fallen below its configured threshold.
+ *
+ * ## Why this exists, rather than the pieces sitting unwired
+ *
+ * `PATCH /billing/accounts/:accountId` accepts `autoRecharge.enabled` and the
+ * profile refuses an enabled setting with no threshold or amount, on the stated
+ * grounds that it would be "a setting that reads as on and never fires". Without
+ * a caller, that is precisely what the whole feature would be: green, fully
+ * tested, and inert — the customer switches it on, the balance still runs out,
+ * and their requests start failing.
+ *
+ * ## Order, and why it cannot be rearranged
+ *
+ *   claim → charge → settle | fail
+ *
+ * The claim is a row written BEFORE the processor is called, unique on account,
+ * currency and window. A caller that does not win it must not charge, because
+ * this is the one operation in the package whose duplicate is a real charge on a
+ * customer's card that no compensating row undoes.
+ *
+ * A `declined` attempt keeps its claim. A declined card declines again, and
+ * releasing the window would retry every sweep — which reads to the customer's
+ * bank as card testing and to the customer as a wall of decline notifications.
+ *
+ * ## Nothing here credits a balance
+ *
+ * `chargeAutoRecharge` records that the processor accepted the charge. The money
+ * arrives through `payment_intent.succeeded` → `handleBalanceTopUpPaymentIntent`,
+ * the same path a hosted checkout takes, so a balance is only ever credited by
+ * the processor's own confirmation.
+ *
+ * ## It disables itself where it cannot work
+ *
+ * With no `STRIPE_SECRET_KEY` this deployment cannot charge anything and
+ * `getStripe()` would throw on the first candidate. `processor-unconfigured` is
+ * returned instead of a swept-under exception — a status the caller can log
+ * once, rather than an error per account per interval.
+ */
+export async function runAutoRechargeSweep(
+  limit = AUTO_RECHARGE_SWEEP_LIMIT
+): Promise<AutoRechargeSweepResult> {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return { status: 'processor-unconfigured' };
+  }
+
+  const candidates = await findAutoRechargeCandidates(limit);
+  let charged = 0;
+  let declined = 0;
+  let skipped = 0;
+
+  for (const candidate of candidates) {
+    const claim = await claimAutoRecharge(candidate);
+    if (claim.status === 'already-claimed') {
+      skipped += 1;
+      continue;
+    }
+
+    const result = await chargeAutoRecharge({
+      accountId: candidate.accountId,
+      amount: candidate.amount,
+      currency: candidate.currency,
+    });
+
+    if (result.status === 'charged') {
+      await settleAutoRecharge(claim.attempt.id, result.externalRef);
+      charged += 1;
+      continue;
+    }
+
+    declined += 1;
+    await failAutoRecharge(
+      claim.attempt.id,
+      result.status === 'no-payment-method' ? 'no_payment_method' : result.failureCode
+    );
+    logger.warn('Automatic top-up was not completed', {
+      accountId: candidate.accountId,
+      reason: result.status === 'no-payment-method' ? 'no_payment_method' : result.failureCode,
+    });
+  }
+
+  return {
+    status: 'ran',
+    outcome: { considered: candidates.length, charged, declined, skipped },
+  };
 }
 
 /**

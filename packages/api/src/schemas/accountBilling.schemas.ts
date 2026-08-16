@@ -214,6 +214,20 @@ export const costCenterSpendQuery = z
   })
   .strict();
 
+/**
+ * `includeRetired` as an explicit two-value enum, NOT `z.coerce.boolean()`.
+ *
+ * Query strings arrive as strings and `z.coerce.boolean()` is `Boolean(value)`,
+ * so the literal `'false'` coerces to TRUE. A client asking to hide retired cost
+ * centres would get them anyway, and only omitting the parameter entirely — via
+ * the default — would ever mean false. The transform below is what makes the
+ * flag say what it reads as.
+ */
 export const costCenterListQuery = z
-  .object({ includeRetired: z.coerce.boolean().default(false) })
+  .object({
+    includeRetired: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
+  })
   .strict();

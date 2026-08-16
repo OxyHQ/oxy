@@ -197,19 +197,32 @@ export async function reconcilePayments(input: ReconcileInput): Promise<Reconcil
     .returning();
 
   try {
+    /*
+     * `customerRef: undefined` means EVERY customer to the adapter — the same
+     * encoding a deliberate platform-wide pass uses. So an account-scoped pass
+     * whose account has no processor customer must not reach the adapter at all:
+     * it would compare one account's ledger rows against the whole platform's
+     * payments and fill the report with findings naming other customers, under a
+     * run row whose `account_id` is this account.
+     *
+     * Skipping is not a shortcut, it is the correct answer. Oxy only ever creates
+     * a payment against a customer it recorded, so an account with no customer id
+     * has no processor payments — and any ledger-side row in the window is then a
+     * genuine `missing_in_external`, which is exactly what it should be reported
+     * as.
+     */
     const customerRef =
       input.accountId === undefined ? undefined : await stripeCustomerOf(input.accountId);
+    const skipProcessor = input.accountId !== undefined && customerRef === undefined;
 
-    // An account-scoped pass for an account that has never touched the processor
-    // has an empty external side by construction, which is CORRECT rather than a
-    // reason to skip: any ledger-side rows in the window are then genuinely
-    // `missing_in_external`.
-    const external = await input.ledger.listSettledPayments({
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
-      currency: input.currency,
-      customerRef,
-    });
+    const external = skipProcessor
+      ? []
+      : await input.ledger.listSettledPayments({
+          periodStart: input.periodStart,
+          periodEnd: input.periodEnd,
+          currency: input.currency,
+          customerRef,
+        });
 
     const recorded = await db
       .select({
