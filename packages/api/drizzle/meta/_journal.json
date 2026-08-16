@@ -264,8 +264,8 @@
     {
       "idx": 38,
       "version": "7",
-      "when": 1786836140383,
-      "tag": "0038_inbox_snapshot_sync",
+      "when": 1786900000001,
+      "tag": "0038_inbox_snapshot_sync_v2",
       "breakpoints": true
     }
   ]
