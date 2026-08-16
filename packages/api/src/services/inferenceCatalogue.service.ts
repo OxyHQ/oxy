@@ -1183,6 +1183,25 @@ export type EdgeRouteResolution =
  * never reported as an Oxy pricing gap; and the policy is applied to the whole
  * candidate set rather than to `candidates[0]`, so a conforming route ranked
  * second is served rather than refused.
+ *
+ * ## `constraints` is required, and the shape that made it required
+ *
+ * Issue #1011 was not a wrong filter. It was that this function took two
+ * arguments, and the ONE caller — `inferenceEdge.service.ts`'s
+ * `executeInferenceRequest` — had already resolved the customer's policy five
+ * lines above the call and passed it to neither. **The value was AVAILABLE and
+ * NOT PASSED**, so nothing failed, nothing warned, and three compliance controls
+ * were stored, versioned and recorded on receipts while being enforced nowhere.
+ * That shape — a value in scope beside the thing it is supposed to constrain,
+ * joined by nobody — is the one to recognise; it is the same shape as the other
+ * findings this epic turned up, and it is invisible to every test that does not
+ * already know to look for it.
+ *
+ * Hence a REQUIRED parameter, and never a default. A caller with no policy
+ * passes {@link UNCONSTRAINED_ROUTING} by name, which is a sentence somebody
+ * wrote; a default parameter would make omission compile again and put the same
+ * bug straight back. Any resolver added to this file must take constraints the
+ * same way, for the same reason.
  */
 export async function resolveEdgeRoute(
   viewer: CatalogueViewer,

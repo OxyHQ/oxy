@@ -9,6 +9,18 @@
  * deployments of ONE model revision, differing only in the column the control
  * under test reads.
  *
+ * ## Which LEVEL a control lives at decides its test shape — check first
+ *
+ * A control read off `inference_deployments` (retention, training, provider,
+ * regions, scope, dedicated capacity) can differ between two candidates of one
+ * model, so it gets the two-deployments-differing-in-one-field shape below. A
+ * control read off `inference_models` (`allowedLicenseIds`,
+ * `requireCommercialUseRights`) CANNOT: every deployment of a model shares its
+ * licence, so both candidates stand or fall together and the only honest shape
+ * is the refusal plus a positive control on a second MODEL that satisfies it.
+ * Choosing the wrong shape for a model-level control produces a fixture that
+ * cannot express the case at all. Establish the level before writing the test.
+ *
  * ## The ordering is the mutation guard
  *
  * Candidates are ordered by provider slug and the resolver takes the first that
@@ -644,15 +656,43 @@ describe('a request that cannot be served under its own policy is refused', () =
 
 describe('a policy refusal is never confused with an absent route', () => {
   it('answers unknown-model for a model that does not exist, however strict the policy', async () => {
-    // An empty candidate set produces a refusal too. If it produced
-    // `policy-excluded`, every assertion above would pass against a catalogue
-    // containing nothing at all.
-    const resolution = await resolveEdgeRoute(
+    // An empty candidate set and a candidate set EMPTIED BY POLICY are the same
+    // emptiness at the point of return, and collapsing them would tell a
+    // customer their model does not exist when their own policy refused it.
+    const constraints = constrain({
+      requireZeroDataRetention: true,
+      prohibitTrainingOnCustomerData: true,
+    });
+
+    const absent = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       `nobody/nothing${suffix()}`,
-      constrain({ requireZeroDataRetention: true, prohibitTrainingOnCustomerData: true })
+      constraints
     );
-    expect(resolution.status).toBe('unknown-model');
+    expect(absent.status).toBe('unknown-model');
+
+    // POSITIVE CONTROL in the same currency: the SAME constraints against a
+    // model that DOES exist and violates them return the other arm. Without it,
+    // an implementation that had merged the two arms into `unknown-model` would
+    // satisfy the assertion above, and so would one that never reached the
+    // policy at all.
+    const present = await insertModel();
+    await insertDeployment(present, {
+      rank: 'a',
+      retainsPayloads: true,
+      retentionDays: 30,
+      zeroDataRetentionAvailable: false,
+    });
+    const excluded = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      present.modelId,
+      constraints
+    );
+    expect(excluded).toEqual({
+      status: 'policy-excluded',
+      modelReference: present.modelId,
+      constraints: ['requireZeroDataRetention'],
+    });
   });
 
   it('answers unknown-model when the viewer may not see the only route', async () => {
