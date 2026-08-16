@@ -67,6 +67,10 @@ import { authChallenges } from './schema/authChallenges';
 import { authCodes } from './schema/authCodes';
 import { authSessions } from './schema/authSessions';
 import { civicNonces } from './schema/civicNonces';
+import {
+  PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS,
+  inferenceProviderConnectionAuditEvents,
+} from './schema/inferenceProviderConnectionAuditEvents';
 import { devicePairingSessions } from './schema/devicePairingSessions';
 import { domainVerifications } from './schema/domainVerifications';
 import {
@@ -200,6 +204,20 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'table with an expiry predicate and nothing needs to — an old audit ' +
       'entry is stale, never unsafe — so the sweep is purely what bounds ' +
       'growth.',
+  },
+  {
+    table: inferenceProviderConnectionAuditEvents,
+    column: inferenceProviderConnectionAuditEvents.createdAt,
+    retentionSeconds: PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS,
+    reason:
+      'Two-year BYOK connection retention, the same window the credential ' +
+      'trail and `security_activities` keep. This sweep is NOT optional ' +
+      'housekeeping: `used` events accrue for the life of every connection, ' +
+      'bounded only by a per-instance cooldown, so without it the table grows ' +
+      'without end. It is also why the immutability trigger on this table ' +
+      'guards UPDATE and not DELETE — a DELETE guard would fail this sweep on ' +
+      'every run rather than make the trail safer. See ' +
+      '`schema/inferenceProviderConnectionImmutability.ts`.',
   },
   {
     table: apiKeyUsageEvents,

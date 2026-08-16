@@ -24,6 +24,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0010](0010-public-api-compatibility.md) | #972 | `api.oxy.so/v1` is the Oxy public inference edge, with `POST /v1/responses` preferred beside an OpenAI-compatible surface, one versioned internal envelope, and a producer-asserted retryability contract. |
 | [0011](0011-inference-data-plane-name.md) | #972 | The inference data plane's production name is deferred pending naming/trademark review; `Relay` is a working name and ships in no published artifact. |
 | [0012](0012-service-token-signing-key-model.md) | #972, #987 | Service tokens move to asymmetric (Ed25519) signing verified against a published JWKS; the shared HMAC secret is retired, because a symmetric verification key is also a mint key and after ADR 0007 that forges spend attribution. |
+| [0013](0013-byok-secret-custody.md) | #972 | Oxy stores a partitioned `secret_ref` into managed secret storage and never a customer's provider credential; with no secret backend wired, BYOK writes refuse with a typed 503 before the credential is read, rather than falling back to PostgreSQL. |
 
 ## Related
 
