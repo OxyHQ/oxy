@@ -6,12 +6,17 @@ reading of
 [ADR 0009](../adr/0009-usage-reservation-and-settlement.md), which is the
 decision record.
 
-**Nothing calls this from a request path yet.** The tables, the protocol and its
-tests landed as not-yet-called code
-(`packages/api/src/services/inferenceLedger.service.ts`); the public inference
-edge that will reserve before forwarding and settle on a usage report is
-workstream 4. Landing it this way makes that a single rewiring commit rather
-than one welded change, and means it alters no behaviour of the running system.
+**The edge calls this on every request.** It reserves before anything is
+forwarded and settles on every path out, including the path where there is
+nothing to forward to: a request that cannot be served releases its hold before
+the refusal returns, so a refused request costs nothing. What has never happened
+is a settlement against a REAL usage report, because no data plane has ever
+produced one — every settlement so far is the zero-unit kind that records a
+failure.
+
+Your own numbers are readable at `/inference/reporting` — balance, usage, spend,
+pending reservations, settled charges, an export, and budgets. See
+[what your account owes and holds](#what-your-account-owes-and-holds).
 
 ---
 
@@ -108,7 +113,7 @@ financial record cannot be distinguished from a correct one after the fact.
 | Provider fails before producing output | Settle zero, refund the whole reservation. |
 | Provider fails after partial output | Settle the produced units exactly, refund the rest. Partial output is billable output. |
 | Provider omits usage | Settle from Oxy's own measurement, mark the receipt **estimated**, reconcile later against the provider's reported figures. The estimate is labelled as one on the receipt and in your usage view. |
-| A reservation with no settlement by its deadline | Expired and refunded, with a reason, as an emitted event — never a silent release. |
+| A reservation with no settlement by its deadline | Expired after 15 minutes and released as a refund carrying a `reservation_expiry` journal entry — never a silent release. **The sweep that does this is implemented and tested, and nothing schedules it yet**; every path out of the edge settles its own hold, so no reservation reaches its deadline today. |
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
 | Redelivered webhook or data-plane event | Idempotent no-op on the provider event id. |
 | BYOK route | Your upstream provider bills you directly; Oxy settles only its own platform fee, and the receipt says so. |
@@ -147,7 +152,7 @@ This is intentional and you should design for it.
 | Tables | `inference_usage_events`, `inference_usage_daily_rollups` | `usage_receipts`, `usage_refunds`, `usage_reservations`, `billing_ledger_entries` |
 | Contains money? | **No cost, credit or amount column at all** | Yes, exact `NUMERIC` |
 | Consistency | Eventually consistent — written outside any ledger transaction, and can lag or, on a recorder failure, miss a request | Transactional |
-| Retention | 90 days, swept | Set by legal and reconciliation requirements, never swept |
+| Retention | 90 days declared; the sweep exists and nothing schedules it — see [data-policy.md](./data-policy.md#how-long-oxy-keeps-what-it-does-keep) | Set by legal and reconciliation requirements, **never** swept, and a test fails if a financial table is added to the sweep registry |
 
 The telemetry stream carries **no money column**, and that is the strongest
 available form of "telemetry must not become the financial ledger": a
@@ -156,6 +161,42 @@ enforced by the schema rather than remembered by a reviewer.
 
 So: a usage dashboard may lag, and may under-count on a recorder failure. **A
 bill may not.** Never reconcile against a telemetry sum; read the ledger.
+
+## What your account owes and holds
+
+`/inference/reporting` reads both of the tables above and says which one each
+answer came from, in the answer itself:
+
+| Endpoint | Reads |
+|---|---|
+| `GET /accounts/:accountId/balance` | the ledger |
+| `GET /accounts/:accountId/spend`, `/charges`, `/charges/export`, `/reservations` | the ledger |
+| `GET /accounts/:accountId/usage`, `GET /applications/:applicationId/usage` | the telemetry rollups |
+| `GET /accounts/:accountId/spending-limits`, `/spending-limits/alerts` | budgets |
+| `POST /accounts/:accountId/spending-limits`, `PATCH /spending-limits/:id` | the only writes here |
+
+Every ledger response is stamped
+`{ source: 'financial_ledger', consistency: 'authoritative' }` and every usage
+response `{ source: 'usage_telemetry_rollups', consistency: 'eventual' }`. Both
+stamps are required literals on the response schemas, so neither can be dropped
+and neither can be swapped — which is what makes "which kind of number is this"
+answerable from the payload rather than from a docs page.
+
+**Another account's numbers answer 404, never 403**, so this surface cannot be
+used to discover which account, application, credential or budget ids exist.
+
+Two lanes: the account lane (balance, account-wide usage and spend,
+reservations, charges, exports, budgets) is **user-only** and needs
+`billing:read`, or `billing:manage` for a budget write — an account-wide
+financial view is not scoped to one application, and #972 treats
+organization-wide billing controls as high-privilege. The application lane takes
+either a user bearer (`usage:read` for units, `billing:read` for money) or a
+service token carrying `inference:usage:read` whose own application is the one
+being asked about.
+
+The account's billing profile, payment method, invoices, portal, grants and
+auto-recharge live at `/billing/accounts/:accountId` — see
+[ADR 0014](../adr/0014-account-billing-and-entitlements.md).
 
 ## Payments are not the ledger
 

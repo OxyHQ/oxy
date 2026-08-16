@@ -58,9 +58,16 @@ answers *on whose behalf*, and it never answers *who pays*.
   account/application/credential scopes, never instead of them.
 - Its absence is normal. A machine credential calling on its own behalf has no
   delegated user, and nothing synthesizes one.
-- It must be a real Oxy user id, and the middleware resolves it against an
-  explicit acting-as grant. It is never trusted as an assertion, and it is not
-  free-form tenant text.
+- **How much it is checked depends on which surface you are on, and it is worth
+  knowing which.** On the service-authenticated Oxy routes, `@oxyhq/core/server`
+  resolves it against an explicit acting-as grant, so it is never trusted as an
+  assertion. On the inference edge it is shape-checked and bounded (a real Oxy
+  user id, at most 64 characters) and **not resolved against a grant** — it is
+  carried as attribution metadata onto the telemetry row, the envelope and the
+  receipt, and touches nothing else. It is not free-form tenant text either way.
+- On `/v1/chat/completions`, OpenAI's `user` field is read as the same thing.
+  `X-Oxy-User-Id` wins when both are present, because the header is the
+  ecosystem's own delegation channel.
 
 **The rule a reviewer applies:** if removing `X-Oxy-User-Id` from a request would
 change what any account is charged, the code is wrong.
@@ -91,6 +98,11 @@ is the authoritative page for all three.
 completes** — so a rejected request is still traceable — and travels unchanged
 into the envelope, the data plane, the ledger and the customer-visible receipt.
 It is the single correlation key across all four.
+
+That is implemented, not planned: the edge allocates it as its first act, and
+returns it in `X-Oxy-Request-Id` on **every** response including a `401`, and in
+the body of every structured error. Quote it when you report a failure; you never
+have to reproduce one.
 
 The data plane does not mint it. A data plane that minted the correlation key
 could not correlate a request it never received, and requests rejected at the

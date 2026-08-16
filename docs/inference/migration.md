@@ -118,24 +118,27 @@ model was meant; a clearly labelled routing profile where a preset was meant.
 give you, because the catalogue is empty — this documentation deliberately
 invents none rather than printing a plausible-looking model id you cannot call.
 
-### Where they still appear, at the time of writing
+### Where they still appear
 
-Reported rather than silently assumed fixed. Occurrence counts are per file.
+Reported rather than silently assumed fixed. Occurrence counts are per file, and
+each is the count of the four retired strings only.
 
 | Location | Count | Status |
 |---|---:|---|
-| `packages/console/src/routes/_layout/documentation/models.tsx` | 8 | **Still standing** — Console, workstream 9 |
-| `packages/console/src/routes/_layout/examples.tsx` | 7 | **Still standing** |
-| `packages/console/src/routes/_layout/documentation/sdks.tsx` | 7 | **Still standing** |
-| `packages/console/src/routes/_layout/documentation/chat-completions.tsx` | 4 | **Still standing** |
-| `packages/console/src/routes/_layout/documentation/quickstart.tsx` | 2 | **Still standing** |
+| `packages/console/src/routes/_layout/documentation/models.tsx` | 2 | Both inside a comment explaining what was retired. No standing entry |
+| `packages/console/src/routes/_layout/examples.tsx` | 0 | **Cleared** by workstream 9 |
+| `packages/console/src/routes/_layout/documentation/sdks.tsx` | 0 | **Cleared** |
+| `packages/console/src/routes/_layout/documentation/chat-completions.tsx` | 0 | **Cleared** |
+| `packages/console/src/routes/_layout/documentation/quickstart.tsx` | 0 | **Cleared** |
 | `packages/api/src/config/email.config.ts` | 1 | **Not a catalogue reference — leave it.** See below |
-| `packages/api/src/routes/__tests__/alia.test.ts` | 3 | Fixtures for the proxy, which still exists |
+| `packages/api/src/routes/__tests__/alia.test.ts` | 3 | Fixtures for the proxy, which still exists at `/alia/*` |
 | `packages/api/src/services/__tests__/aiLabeling.service.test.ts` | 1 | Fixture for the AI-labelling consumer below |
 | `packages/api/src/routes/models-stats.ts` | — | **Gone.** Deleted with its four static entries by [#982](https://github.com/OxyHQ/oxy/pull/982) |
-| ADRs, the responsibility matrix, `inferenceCatalogue.service.ts`, `seed-inference-catalogue.ts` | 12 | Correct — these quote the names in order to retire them |
+| `packages/console/src/lib/model-reference.ts`, `inferenceCatalogue.service.ts`, `seed-inference-catalogue.ts`, the ADRs and the responsibility matrix | — | Correct — these quote the names in order to retire them |
 
-The Console files are partly corrected already: [#986](https://github.com/OxyHQ/oxy/pull/986) rewrote parts of `quickstart.tsx`, `chat-completions.tsx`, `sdks.tsx` and `examples.tsx` to state that the endpoint is not publicly available. Whoever takes workstream 9 inherits that, not the original text.
+Console renders the real catalogue now ([#991](https://github.com/OxyHQ/oxy/pull/991)),
+so the four names are gone as model identities from every customer-facing screen.
+A count here is a fact about a commit, so re-measure before quoting it.
 
 ### `AI_LABELING_MODEL` is not one of these
 
@@ -161,13 +164,30 @@ defaults to `false`.)
 
 ## Deprecation and sunset dates
 
-There are none to publish, and none are invented here. The reasoning is in
-[README.md](./README.md#sunset-dates-cannot-be-published-yet): the two retired
-scope names authorised nothing and had no users to notice, and a sunset date is
-meaningless before the public edge has a launch date.
+There are none to publish, and none are invented here. The policy a date will be
+issued under, the list of things that will need one, and the reasoning are all in
+[deprecation.md](./deprecation.md).
 
-The one compatibility path that will need a dated notice is the
-`POST /v1/chat/completions` proxy, when workstream 4 replaces it. Its consumer
-set is knowable — since [#986](https://github.com/OxyHQ/oxy/pull/986) only
-platform-trusted first-party applications can reach it at all — so that notice
-can be addressed to named applications rather than published to the world.
+The short version: the two retired scope names authorised nothing and had no
+users to notice, `oxy_dk_…` as a bearer never worked, and the four `alia-*`
+strings never identified a model. A name nothing checked has no users to give
+notice to.
+
+### The Alia proxy has already moved, without a removal
+
+Workstream 4 took `POST /v1/chat/completions` for the Oxy inference edge. **The
+proxy itself is unchanged and still reachable at `POST /alia/chat/completions`**
+— same router, same first-party gate, same behaviour — so every platform-trusted
+caller it served kept a working path, one base URL apart.
+`POST /v1/voice/token` and `POST /v1/voice/transcribe` still fall through to it.
+
+The visible consequence is intended: a trusted caller posting to
+`/v1/chat/completions` now reaches an edge with no data plane behind it and gets
+a typed `service_unavailable`, instead of being silently proxied to Alia on one
+shared upstream key with no reservation and no attribution.
+
+**What you need to do:** if you were calling `/v1/chat/completions` as the Alia
+proxy, move to `/alia/chat/completions`. If you were calling it expecting the
+Oxy inference edge, you are already there — see [sdk.md](./sdk.md). Retiring the
+proxy is workstream 14's, and it needs a dated notice addressed to the named
+applications that can reach it.

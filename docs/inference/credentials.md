@@ -5,8 +5,8 @@ interchangeable, so the first thing to establish is which one you hold.
 
 | Lane | The string you send | Who may hold it | Accepted by |
 |---|---|---|---|
-| **Native service token** | a short-lived JWT you exchange for | platform-trusted first-party/internal applications | every service-authenticated Oxy route |
-| **Machine API key** | `oxy_sk_…`, sent verbatim as a bearer | any application, self-serve | **nothing yet** — see below |
+| **Native service token** | a short-lived JWT you exchange for | platform-trusted first-party/internal applications | every service-authenticated Oxy route, including the inference edge |
+| **Machine API key** | `oxy_sk_…`, sent verbatim as a bearer | any application, self-serve | the inference edge — see below |
 | **OAuth client id** | `oxy_dk_…` | any application | nothing. It is an identifier, never a secret |
 
 Status of the whole picture: [README.md](./README.md).
@@ -59,22 +59,32 @@ One bearer string a standard OpenAI-style SDK can send with no token exchange in
 front of it. It exists so that external developers will not have to implement a
 client-credentials handshake when the public edge ships.
 
-### No endpoint accepts one today
+### Where it is accepted
 
-**This is the most important fact on the page.** The middleware that resolves an
-`oxy_sk_…` token — `packages/api/src/middleware/machineCredential.ts` — is
-mounted on **no route**, and that is a decision rather than an oversight the
-next person should tidy up.
+The middleware that resolves an `oxy_sk_…` token —
+`packages/api/src/middleware/machineCredential.ts` — is mounted on **the public
+inference edge** and nowhere else: `POST /v1/responses`,
+`POST /v1/chat/completions` and `GET /v1/generations/:id`, together with its
+per-credential and per-application limiters.
 
-The nearest plausible endpoint is `POST /v1/chat/completions`, and mounting it
-there would have been wrong for a reason a rate limit cannot fix: that route
-forwards the caller's body to Alia on one shared upstream key, and `max_tokens`
-is the caller's to choose — so a cap of N requests per window bounds requests
-and never cost, on a single shared budget with no per-account attribution.
+That is where it was always going to be mounted, and the wait was not
+bureaucratic. Before the edge existed, the nearest plausible endpoint was the
+Alia proxy, and mounting it there would have been wrong for a reason a rate limit
+cannot fix: that route forwards the caller's body to Alia on one shared upstream
+key, and `max_tokens` is the caller's to choose — so a cap of N requests per
+window bounds requests and never cost, on a single shared budget with no
+per-account attribution. The edge reserves the maximum a request could cost
+before anything is forwarded ([billing.md](./billing.md)), which is what makes
+the credential safe to accept at all.
 
-**Workstream 4 mounts it**, on the metered public inference edge, behind the
-reservation of [billing.md](./billing.md). Until then an `oxy_sk_…` credential
-can be created, rotated, revoked and audited — and authenticates nowhere.
+**Every invoke still refuses**, with `service_unavailable`, because there is no
+data plane behind the edge. The credential authenticates, the attribution
+resolves, the scope is checked, the spend is reserved and released. See
+[sdk.md](./sdk.md#what-you-will-actually-observe).
+
+Catalogue reads (`GET /v1/models`) accept the credential too, and resolve to the
+PUBLIC audience — the same one an anonymous caller gets. A machine key is not a
+service token, so it does not widen what you can see.
 
 ### The format
 
@@ -164,10 +174,15 @@ refused.
 ### Limits
 
 60 requests/minute per credential and 300 requests/minute per application across
-all of its machine credentials. Both are deliberately modest, because until the
-usage ledger is on the request path they are the only thing bounding what a
-leaked or runaway key can cost. Raising them is a decision to make once spend is
-metered, not before.
+all of its machine credentials, plus one edge-wide budget of 600/minute keyed on
+the credential id. All three bound REQUESTS, never cost.
+
+Cost is bounded by something else now that the ledger is on the request path:
+every invoke reserves the maximum it could spend before anything is forwarded,
+and a spending limit or an insufficient balance refuses it at the edge. That is
+what a rate limit was standing in for; these numbers are no longer the only thing
+between a leaked key and a bill. Raising them is a decision to make against
+measured traffic.
 
 ---
 
@@ -200,20 +215,30 @@ Full detail on the two-lane credential model:
 
 The inference family (`packages/api/src/utils/applicationScopes.ts`):
 
-| Scope | Grants | Self-grantable? |
-|---|---|---|
-| `inference:invoke` | spend the OWNING ACCOUNT's balance on a request | yes |
-| `inference:models:read` | read the model catalogue | yes |
-| `inference:usage:read` | read the app's own usage and receipts | yes |
-| `inference:routing:read` | read routing/profile descriptors | yes |
-| `inference:providers:read` | read provider descriptors | yes |
-| `inference:routing:write` | change routing policy | **staff only** |
-| `inference:providers:write` | manage provider/BYOK connections | **staff only** |
+| Scope | Grants | Self-grantable? | Checked where |
+|---|---|---|---|
+| `inference:invoke` | spend the OWNING ACCOUNT's balance on a request | yes | the edge, before anything is resolved or reserved |
+| `inference:usage:read` | read the app's own usage and receipts | yes | `GET /v1/generations/:id`, and the reporting API's application lane |
+| `inference:routing:read` | read routing/profile descriptors | yes | `/inference/routing-policies` |
+| `inference:providers:read` | read provider descriptors | yes | `/inference/provider-connections` |
+| `inference:routing:write` | change routing policy | **staff only** | `/inference/routing-policies` |
+| `inference:providers:write` | manage provider/BYOK connections | **staff only** | `/inference/provider-connections` |
+| `inference:models:read` | read the model catalogue | yes | **nowhere** |
 
-The five reads/invoke are non-privileged because each is bounded to the app's own
-tenant, and a delegated end-user identity is never the billing principal — so an
-application can only ever spend the balance of the account that owns it. The two
-writes change what other people's requests do, and are staff-granted.
+**`inference:models:read` is checked by nothing.** The catalogue is
+audience-scoped by application type rather than by scope: an anonymous caller, a
+user bearer and an ordinary application's service token all resolve to the public
+audience, and only an internal/system application sees internal-only routes. So
+holding this scope grants nothing that is checked, and not holding it costs
+nothing — the same shape `chat:completions` had before it was removed for
+exactly that reason. Recorded here rather than quietly documented as if it
+gated something.
+
+The four reads plus `invoke` are non-privileged because each is bounded to the
+app's own tenant, and a delegated end-user identity is never the billing
+principal — so an application can only ever spend the balance of the account that
+owns it. The two writes change what other people's requests do, and are
+staff-granted.
 
 `chat:completions` and `models:read` no longer exist. See
 [migration.md](./migration.md).
