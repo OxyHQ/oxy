@@ -196,9 +196,8 @@ one. There is no "stuck reservation" state a client should try to clean up, and
 no compensating call to make.
 
 The backstop for a hold that outlives its request — `expireReservations`, which
-releases it as a refund with a reason rather than silently — exists and is
-tested, and **nothing schedules it yet**. That is an operational gap rather than
-a customer-facing one today, because every path out of the edge settles its own
-hold; it becomes load-bearing the moment a request can fail somewhere the edge
-does not see. [billing.md](./billing.md#the-cases-that-decide-the-behaviour-you-will-see)
+releases it as a refund with a reason rather than silently — runs every minute
+on the server. It is not load-bearing today, because every path out of the edge
+settles its own hold; it becomes so the moment a request can fail somewhere the
+edge does not see. [billing.md](./billing.md#the-cases-that-decide-the-behaviour-you-will-see)
 records it in the same terms.

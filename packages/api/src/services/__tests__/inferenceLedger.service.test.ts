@@ -6,22 +6,23 @@
  * Both are here, and both assert that the wrong answer is not produced rather
  * than only that the right one is.
  *
- * ## The concurrency test is the one worth reading
+ * ## The concurrency tests are the ones worth reading
  *
  * `Promise.all` does NOT force two transactions to interleave — each can finish
  * before the loop returns to the other — so the intuitive "two racing reserves"
- * test is vacuous: it passes whether or not the code takes a lock. The real test
- * below FORCES the interleaving with a second, reserved connection that holds
- * `SELECT … FOR UPDATE` on the balance row, drains it, and commits only after
- * the contender is observed BLOCKED.
+ * test is vacuous: it passes whether or not the code takes a lock. The two real
+ * tests below FORCE the interleaving with a second, reserved connection that
+ * holds `SELECT … FOR UPDATE` on the balance row and commits only after the
+ * contenders are observed BLOCKED — once for two reserves against one account,
+ * once for two expiry sweeps over one hold.
  *
- * And the wait asserts its own precondition. It polls `pg_locks`, scoped to the
- * holder's backend pid, and THROWS if the block never appears — because "the
+ * And the wait asserts its own precondition. `countBalanceRowWaiters` polls
+ * `pg_locks` and the wait THROWS if the block never appears, because "the
  * contender never blocked" and "the contender blocked and then behaved
- * correctly" are otherwise the same green. The probe predicates on the holder's
- * `transactionid`, not on `relation`: a row-lock wait queues on the holding
- * TRANSACTION, and a relation-scoped probe would report zero waiters forever.
- * `pg_stat_activity` is deliberately not used — it is blank across role splits.
+ * correctly" are otherwise the same green. That probe carries its own trap,
+ * documented at its definition: Postgres QUEUES waiters, so counting only
+ * `transactionid` waits reports one waiter however many are queued, and
+ * counting only `relation` reports none at all.
  *
  * Every fixture is scoped to ids this file owns, and every instant is written
  * RELATIVE to now, so a sibling test file seeding rows into the shared database
@@ -170,6 +171,76 @@ async function expectAmount(actual: string, expected: string): Promise<void> {
     sql`select (${actual}::numeric = ${expected}::numeric) as equal`
   );
   expect({ actual, expected, equal: rows[0].equal }).toEqual({ actual, expected, equal: true });
+}
+
+/**
+ * How many backends other than `holderPid` are queued for a row of
+ * `account_balances` in THIS database.
+ *
+ * Two lock shapes, because Postgres queues waiters rather than piling them all
+ * onto one lock — measured against a real server, not assumed:
+ *
+ *  - the FIRST waiter blocks on the holding TRANSACTION (`transactionid`), so a
+ *    `relation`-scoped probe reports zero waiters forever;
+ *  - every waiter BEHIND it blocks on the intermediary `tuple` lock the first
+ *    one holds, so a `transactionid`-scoped probe reports exactly one waiter
+ *    forever, however many are queued.
+ *
+ * A probe with only one of the two branches therefore reads as a comfortable
+ * answer in both directions. Scoped to the current database because `pg_locks`
+ * spans the whole cluster and this suite shares a server with every other jest
+ * worker; the `transactionid` branch needs no such scoping, being pinned to the
+ * holder's own pid — and carries none, since a `transactionid` lock has no
+ * database. `pg_stat_activity` is not used: it is blank across role splits.
+ */
+async function countBalanceRowWaiters(holderPid: number): Promise<number> {
+  const rows = await getDb().execute(sql`
+    select count(distinct w.pid)::int as waiters
+    from pg_locks w
+    where not w.granted
+      and w.pid <> ${holderPid}
+      and (
+        exists (
+          select 1 from pg_locks h
+          where h.pid = ${holderPid}
+            and h.granted
+            and h.locktype = 'transactionid'
+            and h.transactionid = w.transactionid
+        )
+        or (
+          w.locktype = 'tuple'
+          and w.relation = 'account_balances'::regclass
+          and w.database = (select oid from pg_database where datname = current_database())
+        )
+      )
+  `);
+  return Number(rows[0].waiters);
+}
+
+/**
+ * Block until `expected` backends are queued behind `holderPid`, and THROW if
+ * they never are.
+ *
+ * The throw is the point. "The contender never blocked" and "the contender
+ * blocked and then behaved correctly" produce the same green otherwise, and the
+ * first of those means the lock this whole design rests on is not being taken.
+ */
+async function waitForBlockedContenders(
+  holderPid: number,
+  expected = 1,
+  timeoutMs = 15_000
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let seen = 0;
+  while (Date.now() < deadline) {
+    seen = await countBalanceRowWaiters(holderPid);
+    if (seen >= expected) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(
+    `only ${seen} of ${expected} backends ever blocked on pid ${holderPid} — ` +
+    'the path under test did not take the balance row lock'
+  );
 }
 
 describe('billing profiles are provisioned deliberately, for accounts of any kind', () => {
@@ -1082,48 +1153,6 @@ describe('spending limits stop a request before it executes', () => {
 });
 
 describe('two reserves against one account are serialized by the balance row', () => {
-  /**
-   * Poll `pg_locks` for a backend waiting on `holderPid`'s transaction, and
-   * THROW if none appears.
-   *
-   * The throw is the point. "The contender never blocked" and "the contender
-   * blocked and then behaved correctly" produce the same green otherwise, and
-   * the first of those means the lock this whole design rests on is not being
-   * taken.
-   *
-   * Predicated on the holder's `transactionid`, not on `relation`: a row-lock
-   * wait queues on the holding TRANSACTION, so a relation-scoped probe reports
-   * zero waiters forever. `pg_stat_activity` is not used — it is blank across
-   * role splits.
-   */
-  async function waitForBlockedContender(holderPid: number, timeoutMs = 15_000): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      if ((await countWaitersOn(holderPid)) > 0) return;
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    throw new Error(
-      `no backend ever blocked on pid ${holderPid} — the reserve path did not take the balance row lock`
-    );
-  }
-
-  async function countWaitersOn(holderPid: number): Promise<number> {
-    const rows = await getDb().execute(sql`
-      select count(*)::int as waiters
-      from pg_locks w
-      where not w.granted
-        and w.pid <> ${holderPid}
-        and exists (
-          select 1 from pg_locks h
-          where h.pid = ${holderPid}
-            and h.granted
-            and h.locktype = 'transactionid'
-            and h.transactionid = w.transactionid
-        )
-    `);
-    return Number(rows[0].waiters);
-  }
-
   it('makes the loser re-read the committed balance instead of a stale one', async () => {
     const f = await makeFixture({ fund: '5.000000000000' });
 
@@ -1137,7 +1166,7 @@ describe('two reserves against one account are serialized by the balance row', (
       // The vacuity floor for the probe: with no contender there is nothing
       // waiting on this pid, so a non-zero count later means something really
       // blocked.
-      expect(await countWaitersOn(pid)).toBe(0);
+      expect(await countBalanceRowWaiters(pid)).toBe(0);
 
       await holder.unsafe(
         'select * from account_balances where account_id = $1 and currency = $2 for update',
@@ -1160,7 +1189,7 @@ describe('two reserves against one account are serialized by the balance row', (
         expiresInSeconds: 300,
       });
 
-      await waitForBlockedContender(pid);
+      await waitForBlockedContenders(pid);
       await holder.unsafe('commit');
 
       committed = true;
@@ -1241,6 +1270,165 @@ describe('two reserves against one account are serialized by the balance row', (
       where entry_id = ${entries[0].id}
     `);
     await expectAmount(String(total.total), '3.000000000000');
+  });
+});
+
+/**
+ * `server.ts` runs `expireReservations` on a fixed interval, so a run slower
+ * than the interval is overtaken by the next one and two passes can select the
+ * same due hold. Releasing it twice credits the customer twice, which is a money
+ * bug that leaves the projection and the journal agreeing with each other and
+ * both wrong. These two tests are why the schedule is safe.
+ *
+ * Both go red when the guards are defeated — measured, by removing the status
+ * re-read and keying the refund per call instead of per reservation. The red
+ * arrives as `account_balances_reserved_check`: a second release drives
+ * `reserved_balance` below zero and Postgres refuses the statement. That is a
+ * fourth layer under the three in `expireReservations`'s own doc comment, and it
+ * is worth knowing it is there, because it is what makes the worst case of a
+ * double release a failed transaction rather than a wrong balance.
+ */
+describe('two expiry sweeps over one hold release it exactly once', () => {
+  /** A funded account with a hold whose deadline has already passed. */
+  async function makeDueHold(): Promise<{ f: Fixture; reservationId: string }> {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: f.priceVersionId,
+      maxAmount: '4.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error('reserve failed');
+
+    // RELATIVE to now, never an absolute past date — a pinned instant collides
+    // with a sibling file's own expiry pass against the shared database.
+    await getDb()
+      .update(usageReservations)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(usageReservations.id, reserved.reservation.reservationId));
+
+    return { f, reservationId: reserved.reservation.reservationId };
+  }
+
+  async function countRefunds(reservationId: string): Promise<number> {
+    const rows = await getDb()
+      .select({ id: usageRefunds.id })
+      .from(usageRefunds)
+      .where(eq(usageRefunds.reservationId, reservationId));
+    return rows.length;
+  }
+
+  async function countExpiryEntries(reservationId: string): Promise<number> {
+    const rows = await getDb()
+      .select({ id: billingLedgerEntries.id })
+      .from(billingLedgerEntries)
+      .where(
+        and(
+          eq(billingLedgerEntries.reservationId, reservationId),
+          eq(billingLedgerEntries.kind, 'reservation_expiry')
+        )
+      );
+    return rows.length;
+  }
+
+  it('serializes on the balance row when both passes see the hold as held', async () => {
+    // The real overlap, FORCED rather than hoped for. `Promise.all` alone does
+    // not interleave two transactions — each can finish before the loop returns
+    // to the other — so a bare concurrent call would pass whether or not the
+    // release takes a lock at all. Here an outside connection holds the balance
+    // row, both sweeps are observed BLOCKED on it, and only then is it released:
+    // at that moment both have scanned, both selected this hold, and neither has
+    // seen the other's write. That is precisely the state a slow run overtaken
+    // by the next tick produces.
+    const { f, reservationId } = await makeDueHold();
+
+    const client = getDb().$client;
+    const holder = await client.reserve();
+    let committed = false;
+    try {
+      await holder.unsafe('begin');
+      const [{ pid }] = await holder.unsafe<{ pid: number }[]>('select pg_backend_pid() as pid');
+
+      // Vacuity floor for the probe: nothing is waiting on this pid yet, so a
+      // count of 2 later means two backends really blocked.
+      expect(await countBalanceRowWaiters(pid)).toBe(0);
+
+      await holder.unsafe(
+        'select * from account_balances where account_id = $1 and currency = $2 for update',
+        [f.accountId, 'USD']
+      );
+
+      const sweeps = Promise.all([expireReservations(500), expireReservations(500)]);
+
+      // Throws if two backends never block — which would mean the release path
+      // does not take the lock, and this test had been proving nothing.
+      await waitForBlockedContenders(pid, 2);
+      await holder.unsafe('commit');
+      committed = true;
+
+      const [first, second] = await sweeps;
+
+      // Exactly one pass released it. Asserted as an equality on the total, so
+      // the WRONG answer — both passes reporting a release — fails here rather
+      // than only downstream.
+      const releases = [...first, ...second].filter((r) => r.reservationId === reservationId);
+      expect(releases.length).toBe(1);
+      await expectAmount(releases[0].releasedAmount, '4.000000000000');
+    } finally {
+      if (!committed) await holder.unsafe('rollback');
+      holder.release();
+    }
+
+    // One refund, one journal entry, and the money back exactly once. The
+    // non-zero floors matter as much as the equalities: a sweep that released
+    // NOTHING would satisfy "not twice" too.
+    expect(await countRefunds(reservationId)).toBe(1);
+    expect(await countExpiryEntries(reservationId)).toBe(1);
+
+    const [row] = await getDb()
+      .select({ status: usageReservations.status })
+      .from(usageReservations)
+      .where(eq(usageReservations.id, reservationId));
+    expect(row.status).toBe('expired');
+
+    const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+    await expectAmount(balance?.reservedBalance ?? 'missing', '0');
+    // Restored to the full deposit — not $14, which is what a second release
+    // of the same $4 hold would leave.
+    await expectAmount(balance?.purchasedBalance ?? 'missing', '10.000000000000');
+  });
+
+  it('refuses a second release even with the status guard defeated', async () => {
+    // Layer 3, on its own. The lock above makes this state unreachable today:
+    // a second pass cannot observe `held` once the first has committed, so the
+    // status re-read is what actually returns null in production. This test
+    // re-arms the status by hand to reach past that guard and land on the one
+    // behind it — the `expire:<id>` idempotency key — because a defence in
+    // depth nobody exercises is a defence nobody knows is still there, and the
+    // ordering that makes it redundant is a property of `expireOne`'s current
+    // shape rather than of the schema.
+    const { f, reservationId } = await makeDueHold();
+
+    const first = await expireReservations(500);
+    expect(first.filter((r) => r.reservationId === reservationId).length).toBe(1);
+
+    // Put the hold back the way the first pass found it, refund row and all
+    // still in place — the state a status check alone would wave through.
+    await getDb()
+      .update(usageReservations)
+      .set({ status: 'held', expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(usageReservations.id, reservationId));
+
+    const second = await expireReservations(500);
+    expect(second.filter((r) => r.reservationId === reservationId).length).toBe(0);
+
+    expect(await countRefunds(reservationId)).toBe(1);
+    expect(await countExpiryEntries(reservationId)).toBe(1);
+
+    const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+    await expectAmount(balance?.purchasedBalance ?? 'missing', '10.000000000000');
   });
 });
 

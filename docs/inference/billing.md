@@ -137,7 +137,7 @@ financial record cannot be distinguished from a correct one after the fact.
 | Provider fails before producing output | Settle zero, refund the whole reservation. |
 | Provider fails after partial output | Settle the produced units exactly, refund the rest. Partial output is billable output. |
 | Provider omits usage | Settle from Oxy's own measurement, mark the receipt **estimated**, reconcile later against the provider's reported figures. The estimate is labelled as one on the receipt and in your usage view. |
-| A reservation with no settlement by its deadline | Expired after 15 minutes and released as a refund carrying a `reservation_expiry` journal entry — never a silent release. **The sweep that does this is implemented and tested, and nothing schedules it yet**; every path out of the edge settles its own hold, so no reservation reaches its deadline today. |
+| A reservation with no settlement by its deadline | Expired after 15 minutes and released as a refund carrying a `reservation_expiry` journal entry — never a silent release. The sweep that does this runs every minute, so a hold is released within about a minute of its deadline; every path out of the edge settles its own hold, so no reservation reaches its deadline today. |
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
 | Redelivered webhook or data-plane event | Idempotent no-op on the provider event id. |
 | BYOK route | Your upstream provider bills you directly; Oxy settles only its own platform fee, and the receipt says so. |
@@ -176,7 +176,7 @@ This is intentional and you should design for it.
 | Tables | `inference_usage_events`, `inference_usage_daily_rollups` | `usage_receipts`, `usage_refunds`, `usage_reservations`, `billing_ledger_entries` |
 | Contains money? | **No cost, credit or amount column at all** | Yes, exact `NUMERIC` |
 | Consistency | Eventually consistent — written outside any ledger transaction, and can lag or, on a recorder failure, miss a request | Transactional |
-| Retention | 90 days declared; the sweep exists and nothing schedules it — see [data-policy.md](./data-policy.md#how-long-oxy-keeps-what-it-does-keep) | Set by legal and reconciliation requirements, **never** swept, and a test fails if a financial table is added to the sweep registry |
+| Retention | 90 days, swept hourly — see [data-policy.md](./data-policy.md#how-long-oxy-keeps-what-it-does-keep) | Set by legal and reconciliation requirements, **never** swept, and a test fails if a financial table is added to the sweep registry |
 
 The telemetry stream carries **no money column**, and that is the strongest
 available form of "telemetry must not become the financial ledger": a

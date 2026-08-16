@@ -152,13 +152,21 @@ it needs a different screen rather than this one with the fetch re-enabled.
 
 ### Scheduled housekeeping — workstreams 7, 8
 
-Two sweeps exist, are tested, and **nothing schedules either**: the 90-day
-telemetry retention sweep, and `expireReservations`, which releases a hold that
-outlived its request as a refund with a reason. Neither is load-bearing today —
-every path out of the edge settles its own hold, and the telemetry readers bound
-their own windows — but both become so the moment a request can fail somewhere
-the edge does not see. [data-policy.md](./data-policy.md#how-long-oxy-keeps-what-it-does-keep)
-records it.
+Both sweeps are scheduled by `server.ts` in `bootstrap()`, unref'd and with
+their failures logged, like every other sweep there: the 90-day telemetry
+retention sweep hourly, and `expireReservations` — which releases a hold that
+outlived its request as a refund with a reason — every minute. Neither is
+load-bearing today, because every path out of the edge settles its own hold and
+the telemetry readers bound their own windows; both become so the moment a
+request can fail somewhere the edge does not see, which is what a live data
+plane introduces.
+
+They were implemented and tested long before anything called them, and that gap
+was invisible precisely because every test passed. The registration is therefore
+asserted against the real entrypoint (`packages/api/src/__tests__/scheduledSweeps.test.ts`),
+not inferred from the sweepers' own coverage.
+[data-policy.md](./data-policy.md#how-long-oxy-keeps-what-it-does-keep) records
+the retention side.
 
 ### Abuse, fraud and anomaly controls — workstreams 4, 8, 12
 

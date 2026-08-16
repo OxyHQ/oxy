@@ -31,13 +31,15 @@
  *     this module never issues an UPDATE against a receipt, a refund or a ledger
  *     entry.
  *
- * ## Nothing calls this yet, deliberately
+ * ## Who calls this
  *
- * The public API edge (#972 workstream 4) is what will reserve before forwarding
- * and settle on a usage report. Landing the protocol as not-yet-called code
- * makes that a single rewiring commit instead of one welded change — and means
- * this migration alters no behaviour of the running system. Do not read the
- * absence of callers as an oversight.
+ * `reserve` and `settle` are called by the public API edge (#972 workstream 4,
+ * `inferenceEdge.service.ts`), which reserves before forwarding and settles on
+ * the usage report. `expireReservations` is called by `server.ts` on
+ * `RESERVATION_EXPIRY_SWEEP_INTERVAL_MS` and by nothing else — it is the whole
+ * of the release path for a hold whose request never came back, so an
+ * unscheduled sweep is not untidy housekeeping but money withheld for good
+ * (issue #1015).
  *
  * ## Where this module deliberately REFUSES rather than guesses
  *
@@ -1033,6 +1035,33 @@ export interface ExpiredReservation {
  * the money with no record that it happened AND leave
  * `account_balances.reserved_balance` permanently overstated, because the
  * projection is only ever moved by a journal entry.
+ *
+ * ## Safe to overlap itself
+ *
+ * `server.ts` schedules this on a fixed interval, so a run slower than the
+ * interval is overtaken by the next one and two passes can select the same due
+ * hold. Releasing it twice would credit the customer twice, so the guarantee is
+ * structural rather than a matter of the runs not colliding — three layers, in
+ * the order `expireOne` reaches them:
+ *
+ *  1. `lockBalance` takes `SELECT … FOR UPDATE` on the account's balance row
+ *     BEFORE any decision is read, so the second pass blocks until the first
+ *     commits rather than deciding against a stale status.
+ *  2. The status is re-read under that lock and anything not still `held` stops
+ *     — which is what the second pass now sees, and is also what stops an
+ *     expiry racing a `settle` into refunding a charge.
+ *  3. The refund is keyed `expire:<reservationId>` on a UNIQUE column with
+ *     `ON CONFLICT DO NOTHING RETURNING`, and a conflict returns before the
+ *     journal entry and the balance move. Layer 1 makes this unreachable today;
+ *     it is what stops a future reordering from turning a lock into the only
+ *     thing between a customer and a double credit.
+ *
+ * All three are exercised in `inferenceLedger.service.test.ts`, and a fourth
+ * sits under them: `account_balances_reserved_check` (`>= 0`) means a second
+ * release of one hold drives `reserved_balance` negative and the statement is
+ * REFUSED. Measured, by defeating layers 2 and 3 together — so the worst case
+ * of this whole path is a failed transaction and a logged error, never a silent
+ * double credit.
  */
 export async function expireReservations(limit = 100): Promise<ExpiredReservation[]> {
   const due = await getDb()

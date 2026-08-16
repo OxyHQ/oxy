@@ -82,6 +82,23 @@ export const USAGE_RESERVATION_STATUSES = usageReservationStatusSchema.options;
 /** `development | staging | production` — the credential's environment. */
 export const INFERENCE_ENVIRONMENTS = inferenceEnvironmentSchema.options;
 
+/**
+ * How often `expireReservations` looks for past-deadline holds.
+ *
+ * One minute, matching `FOLLOW_EXPIRY_SWEEP_INTERVAL_MS` — this is the only
+ * number that decides how long a customer's money stays withheld after the
+ * request it was withheld for is provably dead. `expires_at` is the promise
+ * ("this hold lapses then"); the interval is how far past that promise the
+ * balance can stay depressed, so it belongs well below the shortest deadline an
+ * edge would ever set rather than merely below the longest.
+ *
+ * Nothing about correctness depends on it. A missed tick delays a release; it
+ * cannot cause a double one, because `expireReservations` serializes on the
+ * account's balance row, re-reads the status under that lock, and keys the
+ * refund on the reservation id — see that function's own doc comment.
+ */
+export const RESERVATION_EXPIRY_SWEEP_INTERVAL_MS = 60 * 1000;
+
 export const usageReservations = pgTable(
   'usage_reservations',
   {

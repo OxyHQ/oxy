@@ -78,7 +78,11 @@ import { sweepPersonhoodAudits } from './services/civic/personhoodAudit.service'
 import { sweepNodeLiveness } from './services/nodeRegistry.service';
 import { expireDueFollows } from './services/followCommand.service';
 import { runAutoRechargeSweep } from './services/stripeAccountBilling.service';
+import { expireReservations } from './services/inferenceLedger.service';
+import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
+import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
+import { RESERVATION_EXPIRY_SWEEP_INTERVAL_MS } from './db/schema/usageReservations';
 import { VALIDATION_SWEEP_INTERVAL_MS, PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS } from './utils/civic.constants';
 import { FOLLOW_EXPIRY_SWEEP_INTERVAL_MS } from './utils/follow.constants';
 import { NODE_LIVENESS_SWEEP_INTERVAL_MS } from './utils/nodes.constants';
@@ -1088,6 +1092,63 @@ export async function bootstrap(
     );
   }, AUTO_RECHARGE_SWEEP_INTERVAL_MS);
   autoRechargeSweep.unref();
+
+  // Release holds whose deadline has passed (issue #1015, #972 section 7.1).
+  // A reservation is customer money withheld from the available balance before
+  // a request runs, and `expireReservations` is the ONLY thing that gives it
+  // back when the request dies somewhere the edge never observes. Without THIS
+  // registration the hold is permanent: the balance stays depressed and the
+  // customer is eventually refused with money apparently in hand.
+  //
+  // Overlapping runs cannot double-release, which is what makes a fixed
+  // interval safe for a path that moves money: `expireReservations` serializes
+  // on the account's balance row, re-reads the status under that lock, keys the
+  // refund on the reservation id, and sits above a `reserved_balance >= 0`
+  // check that refuses a second release outright. Its own doc comment has the
+  // four layers in order, and the tests defeat them to prove each is real.
+  //
+  // One run releases at most `expireReservations`' default limit, so a large
+  // backlog drains over several ticks rather than in one long transaction.
+  // Unref'd + failures logged, like the sweeps above.
+  const reservationExpirySweep = setInterval(() => {
+    expireReservations()
+      .then((released) => {
+        if (released.length > 0) {
+          logger.info('Released expired inference reservations', { count: released.length });
+        }
+      })
+      .catch((err) =>
+        logger.error('Reservation expiry sweep failed', err instanceof Error ? err : new Error(String(err))),
+      );
+  }, RESERVATION_EXPIRY_SWEEP_INTERVAL_MS);
+  reservationExpirySweep.unref();
+
+  // Enforce the declared row retentions (issue #1015) — the Postgres stand-in
+  // for the Mongo TTL indexes the port removed. `db/expiry.ts` names every
+  // table and its window, including the ninety days `api_key_usage_events` and
+  // `inference_usage_events` are documented to keep; this interval is what
+  // makes those windows a fact rather than a claim, so the ninety days is a
+  // privacy statement the database can actually honour.
+  //
+  // A run that hits the per-table batch ceiling reports `truncated` and leaves
+  // the remainder for the next one. That is logged rather than swallowed: one
+  // truncated table is a large backlog draining, the same table truncating
+  // every hour is the sweep losing ground. Unref'd + failures logged.
+  const retentionSweep = setInterval(() => {
+    sweepAllExpiredRows(getDb(), EXPIRY_SWEEP_TARGETS)
+      .then((results) => {
+        const remaining = results.filter((result) => result.truncated);
+        if (remaining.length > 0) {
+          logger.warn('Retention sweep hit its batch ceiling; rows remain', {
+            tables: remaining.map((result) => result.table),
+          });
+        }
+      })
+      .catch((err) =>
+        logger.error('Retention sweep failed', err instanceof Error ? err : new Error(String(err))),
+      );
+  }, EXPIRY_SWEEP_INTERVAL_MS);
+  retentionSweep.unref();
 
   // Start SMTP inbound server if enabled
   if (getEnvBoolean('SMTP_ENABLED', false)) {
