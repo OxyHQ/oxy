@@ -1,6 +1,12 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { CloudIcon, Route01Icon, SparklesIcon } from '@hugeicons/core-free-icons';
+import {
+  ChartLineData02Icon,
+  CloudIcon,
+  Route01Icon,
+  SparklesIcon,
+  Target01Icon,
+} from '@hugeicons/core-free-icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Spinner } from '@/components/ui/spinner';
@@ -9,14 +15,23 @@ import { AppDetailHeader } from '@/components/apps/app-detail-header';
 import { InferenceOverviewSection } from '@/components/apps/inference-overview-section';
 import { RoutingPolicySection } from '@/components/apps/routing-policy-section';
 import { ProviderConnectionsSection } from '@/components/apps/provider-connections-section';
+import { ApplicationUsageSpendSection } from '@/components/apps/application-usage-spend-section';
+import { ApplicationBudgetsSection } from '@/components/apps/application-budgets-section';
 
 /**
- * The application's inference configuration: overview, routing policy, BYOK.
+ * The application's inference configuration and its reporting: overview, routing
+ * policy, BYOK, usage and spend, limits and budgets.
  *
- * A section of its own rather than three more tabs under Settings, because these
- * are configuration of how Oxy SERVES this application rather than of what the
- * application IS. Reaching it needs `app:read`, which is what the routes behind
- * every tab gate their reads on.
+ * A section of its own rather than more tabs under Settings, because these are
+ * about how Oxy SERVES this application rather than about what the application
+ * IS. Reaching it needs `app:read`, which is what the routes behind the
+ * configuration tabs gate their reads on.
+ *
+ * The two reporting tabs take their own permissions, which is the API's split
+ * rather than this page's: `usage:read` to see units, `billing:read` to see
+ * money. Offering a tab to somebody the API would refuse turns a guaranteed 403
+ * into an error after a click, so each is shown only to a caller holding the
+ * right the endpoint behind it enforces.
  */
 export const Route = createFileRoute('/_layout/apps/$appId/inference')({
   component: AppInferencePage,
@@ -46,6 +61,9 @@ function AppInferencePage() {
     );
   }
 
+  const showReporting = access.can('usage:read') || access.can('billing:read');
+  const showBudgets = access.can('billing:read');
+
   return (
     <ScrollArea className="flex-1 bg-background">
       <AppDetailHeader application={application} access={access} active="inference" />
@@ -65,6 +83,18 @@ function AppInferencePage() {
               <HugeiconsIcon icon={CloudIcon} size={16} />
               Provider connections
             </TabsTrigger>
+            {showReporting && (
+              <TabsTrigger value="reporting">
+                <HugeiconsIcon icon={ChartLineData02Icon} size={16} />
+                Usage and spend
+              </TabsTrigger>
+            )}
+            {showBudgets && (
+              <TabsTrigger value="budgets">
+                <HugeiconsIcon icon={Target01Icon} size={16} />
+                Limits and budgets
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview" className="max-w-3xl">
@@ -78,6 +108,18 @@ function AppInferencePage() {
           <TabsContent value="byok" className="max-w-3xl">
             <ProviderConnectionsSection application={application} access={access} />
           </TabsContent>
+
+          {showReporting && (
+            <TabsContent value="reporting" className="max-w-4xl">
+              <ApplicationUsageSpendSection application={application} access={access} />
+            </TabsContent>
+          )}
+
+          {showBudgets && (
+            <TabsContent value="budgets" className="max-w-3xl">
+              <ApplicationBudgetsSection application={application} access={access} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </ScrollArea>

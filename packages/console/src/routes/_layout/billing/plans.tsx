@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   useCreateCheckout,
-  useCreatePortalSession,
   useCreateSubscriptionCheckout,
   useCreditPackages,
   useCredits,
@@ -24,12 +23,27 @@ import {
   useTransactions,
 } from '@/hooks/use-billing';
 import { getErrorMessage } from '@/lib/api-error';
+import { BillingHeader } from '@/components/billing/billing-header';
+import { accountLabel, useAccount } from '@/hooks/use-account';
 
-export const Route = createFileRoute('/_layout/billing')({
-  component: BillingPage,
+/**
+ * Product plans and credits — the SIGNED-IN USER's subscription, not the
+ * account's pay-as-you-go inference balance.
+ *
+ * These are two different things and #972 is explicit that confusing them is the
+ * failure mode: a product plan buys monthly credits against Oxy products, while
+ * inference spend is exact money settled per request through the financial
+ * ledger. They share no unit, they are never added together, and they live on
+ * different pages for that reason. The other billing pages read
+ * `/billing/accounts/*` and `/inference/reporting/*`; this one reads the
+ * pre-existing `/billing` routes, which key on `req.user._id`.
+ */
+export const Route = createFileRoute('/_layout/billing/plans')({
+  component: BillingPlansPage,
 });
 
-function BillingPage() {
+function BillingPlansPage() {
+  const { currentAccount } = useAccount();
   const { data: credits, isLoading: isLoadingCredits } = useCredits();
   const { data: packages = [], isLoading: isLoadingPackages } = useCreditPackages();
   const { data: subscription } = useSubscription();
@@ -37,33 +51,15 @@ function BillingPage() {
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const createCheckout = useCreateCheckout();
   const createSubscriptionCheckout = useCreateSubscriptionCheckout();
-  const createPortalSession = useCreatePortalSession();
 
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-
-  /**
-   * Payment methods and invoices live in the payment provider's portal, which is
-   * where they are actually maintained — Oxy holds no card and issues no invoice
-   * of its own here, so a Console copy of either would be a second, always-stale
-   * rendering of somebody else's record.
-   */
-  const handleOpenPortal = async () => {
-    try {
-      const url = await createPortalSession.mutateAsync(`${window.location.origin}/billing`);
-      if (url) {
-        window.location.href = url;
-      }
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, 'Failed to open the billing portal'));
-    }
-  };
 
   const handlePurchase = async (packageId: string) => {
     try {
       const result = await createCheckout.mutateAsync({
         packageId,
-        successUrl: `${window.location.origin}/billing?success=true`,
-        cancelUrl: `${window.location.origin}/billing?canceled=true`,
+        successUrl: `${window.location.origin}/billing/plans?success=true`,
+        cancelUrl: `${window.location.origin}/billing/plans?canceled=true`,
       });
       if (result.url) {
         window.location.href = result.url;
@@ -77,8 +73,8 @@ function BillingPage() {
     try {
       const result = await createSubscriptionCheckout.mutateAsync({
         planId,
-        successUrl: `${window.location.origin}/billing?success=true`,
-        cancelUrl: `${window.location.origin}/billing?canceled=true`,
+        successUrl: `${window.location.origin}/billing/plans?success=true`,
+        cancelUrl: `${window.location.origin}/billing/plans?canceled=true`,
       });
       if (result.url) {
         window.location.href = result.url;
@@ -92,15 +88,26 @@ function BillingPage() {
 
   return (
     <ScrollArea className="flex-1 bg-background">
-      {/* Header */}
+      <BillingHeader
+        active="plans"
+        accountName={currentAccount === null ? undefined : accountLabel(currentAccount)}
+      />
+
       <div className="px-6 py-6 border-b border-border">
-        <h1 className="text-2xl font-semibold text-foreground">Billing</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your credits and subscription
-        </p>
+        <div className="rounded-lg border border-dashed border-border p-4">
+          <p className="text-sm font-medium text-foreground">
+            These are product credits, not inference spend
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            A plan buys monthly credits against Oxy products and belongs to the signed-in user.
+            Pay-as-you-go inference is billed to the account in exact money and is under Overview,
+            Spend and Holds and charges. The two are never added together, and a credit is not a
+            currency.
+          </p>
+        </div>
       </div>
 
-      {/* Credit Balance */}
+      {/* Credit balance */}
       <div className="px-6 py-6 border-b border-border">
         <p className="text-sm font-semibold text-foreground mb-4">Credit balance</p>
         {isLoadingCredits ? (
@@ -133,7 +140,7 @@ function BillingPage() {
         )}
       </div>
 
-      {/* Current Plan */}
+      {/* Current plan */}
       <div className="px-6 py-6 border-b border-border">
         <p className="text-sm font-semibold text-foreground mb-4">Current plan</p>
         <div className="flex items-center justify-between">
@@ -160,40 +167,7 @@ function BillingPage() {
         </div>
       </div>
 
-      {/* Payment methods and invoices */}
-      <div className="px-6 py-6 border-b border-border">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-foreground">Payment methods and invoices</p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Cards, past invoices and receipts are maintained in the payment provider's portal.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleOpenPortal}
-            disabled={createPortalSession.isPending}
-          >
-            {createPortalSession.isPending ? 'Opening...' : 'Open billing portal'}
-          </Button>
-        </div>
-        {/*
-          This page bills the signed-in USER, not the account you are working in.
-          Account-scoped balances — purchased vs promotional vs reserved, pending
-          reservations against settled charges, spend by application, model or
-          provider — are recorded by the inference ledger, and no endpoint serves
-          them yet. Saying so is better than rendering a total that quietly means
-          something else.
-        */}
-        <p className="text-xs text-muted-foreground mt-4">
-          Inference spend is not shown here yet. Balances on this page are the signed-in user's
-          credits, not the working account's, and the account-scoped ledger has no read endpoint
-          yet.
-        </p>
-      </div>
-
-      {/* Credit Packages */}
+      {/* Credit packages */}
       <div className="px-6 py-6 border-b border-border">
         <p className="text-sm font-semibold text-foreground mb-4">Purchase credits</p>
         {isLoadingPackages ? (
@@ -237,7 +211,7 @@ function BillingPage() {
         )}
       </div>
 
-      {/* Transaction History */}
+      {/* Transaction history */}
       <div className="px-6 py-6">
         <p className="text-sm font-semibold text-foreground mb-4">Transaction history</p>
         {isLoadingTransactions ? (
@@ -279,7 +253,6 @@ function BillingPage() {
         )}
       </div>
 
-      {/* Upgrade Plan Dialog */}
       <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
         <DialogContent>
           <DialogHeader>
