@@ -188,28 +188,30 @@ The package `@oxyhq/contracts` exists (`packages/contracts`, zod-only, epic's
 | `GET /credits`, `GET /credits/usage` | Oxy | OxyHQServices `packages/api/src/routes/credits.ts:56,85`, mounted `server.ts:648` | exists |
 | Billing checkout / subscription / portal / transactions routes | Oxy | OxyHQServices `packages/api/src/routes/billing.ts:107-362`, mounted `server.ts:649` | exists |
 | Stripe webhook endpoint | Oxy | OxyHQServices `packages/api/src/routes/billing.ts:362` | exists |
-| Account (not user) as the billable principal | Oxy | OxyHQServices `packages/api/src` | planned |
-| Billing profile for organization/project accounts | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Child-project shared balance vs allocated budget decision | Oxy | OxyHQServices `docs/` | planned |
-| `price_versions` | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| `usage_reservations` | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| `usage_receipts` (immutable) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| `billing_ledger_entries` (double-entry or equivalently auditable) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Account balance projections / read models | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Spending-limit / budget tables (account, project, application, credential) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Invoice aggregation references | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Prepaid balance, promotional grants, auto-recharge | Oxy | OxyHQServices `packages/api/src` | planned |
-| Invoiced enterprise accounts and credit limits | Oxy | OxyHQServices `packages/api/src` | planned |
-| Alert thresholds, hard-stop / soft-stop behaviour | Oxy | OxyHQServices `packages/api/src` | planned |
-| Reserve → settle → refund protocol | Oxy | OxyHQServices `packages/api/src` | planned |
-| Idempotency by stable request/event id | Oxy | OxyHQServices `packages/api/src` | planned |
+| Account (not user) as the billable principal | Oxy | OxyHQServices `packages/api/src/routes/accountBilling.ts`, mounted `server.ts` at `/billing/accounts` | exists |
+| Billing profile for organization/project accounts | Oxy | OxyHQServices `packages/api/src/db/schema/billingProfiles.ts` + `services/accountBilling.service.ts` | exists |
+| Child-project shared balance vs allocated budget decision | Oxy | OxyHQServices `docs/adr/0014-account-billing-and-entitlements.md` | exists |
+| `price_versions` | Oxy | OxyHQServices `packages/api/src/db/schema/priceVersions.ts` | exists |
+| `usage_reservations` | Oxy | OxyHQServices `packages/api/src/db/schema/usageReservations.ts` | exists |
+| `usage_receipts` (immutable) | Oxy | OxyHQServices `packages/api/src/db/schema/usageReceipts.ts` | exists |
+| `billing_ledger_entries` (double-entry or equivalently auditable) | Oxy | OxyHQServices `packages/api/src/db/schema/billingLedgerEntries.ts` | exists |
+| Account balance projections / read models | Oxy | OxyHQServices `packages/api/src/db/schema/accountBalances.ts` | exists |
+| Spending-limit / budget tables (account, project, application, credential) | Oxy | OxyHQServices `packages/api/src/db/schema/spendingLimits.ts` | exists |
+| Invoice aggregation references | Oxy | OxyHQServices `packages/api/src/db/schema/billingInvoices.ts` + `services/accountInvoicing.service.ts` | exists |
+| Prepaid balance, promotional grants, auto-recharge | Oxy | OxyHQServices `packages/api/src/services/accountBilling.service.ts`, `db/schema/billingAutoRechargeAttempts.ts` | exists |
+| Invoiced enterprise accounts and credit limits | Oxy | OxyHQServices `packages/api/src/services/accountInvoicing.service.ts` | exists |
+| Alert thresholds, hard-stop / soft-stop behaviour | Oxy | OxyHQServices `packages/api/src/services/spendingLimit.service.ts`, read surface `routes/accountBilling.ts` | exists |
+| Reserve → settle → refund protocol | Oxy | OxyHQServices `packages/api/src/services/inferenceLedger.service.ts` | exists |
+| Idempotency by stable request/event id | Oxy | OxyHQServices `packages/api/src/services/inferenceLedger.service.ts` | exists |
 | Estimation/reconciliation when a provider omits usage | Oxy (settlement), Relay (measurement) | OxyHQServices + OxyHQ/Relay | planned |
 | Stripe as payment/invoicing processor only | Stripe (external) | — | exists |
-| Ledger ↔ Stripe reconciliation | Oxy | OxyHQServices `packages/api/src` | planned |
-| Account-scoped checkout and portal migration | Oxy | OxyHQServices `packages/api/src/routes/billing.ts` | planned |
-| Webhook idempotency audit for account billing | Oxy | OxyHQServices `packages/api/src/routes/billing.ts` | planned |
-| Entitlement interface consumed by Alia product plans | Oxy | OxyHQServices `packages/api/src` | planned |
-| Internal cost-center attribution (Alia, Codea, research, voice, evaluations) | Oxy | OxyHQServices `packages/api/src` | planned |
+| `billing_external_payments` (the ONE ledger↔processor join) | Oxy | OxyHQServices `packages/api/src/db/schema/billingExternalPayments.ts` | exists |
+| Ledger ↔ Stripe reconciliation + discrepancy report | Oxy | OxyHQServices `packages/api/src/services/billingReconciliation.service.ts`, `db/schema/billingReconciliation.ts` | exists |
+| Account-scoped checkout and portal migration | Oxy | OxyHQServices `packages/api/src/services/stripeAccountBilling.service.ts` | exists (unverified against a live Stripe account) |
+| Webhook idempotency audit for account billing | Oxy | OxyHQServices `packages/api/src/routes/billing.ts` + `services/__tests__/stripeAccountBilling.service.test.ts` | exists |
+| Safe deletion of an account with live subscriptions or retained financial history | Oxy | OxyHQServices `packages/api/src/services/accountFinancialHolds.service.ts`, used by `routes/users.ts` | exists |
+| Entitlement interface consumed by Alia product plans | Oxy | OxyHQServices `packages/api/src/services/entitlement.service.ts`, `GET /billing/accounts/:accountId/entitlements` | exists |
+| Internal cost-center attribution (Alia, Codea, research, voice, evaluations) | Oxy | OxyHQServices `packages/api/src/db/schema/internalCostCenters.ts` + `routes/costCenters.ts` | exists (table empty; the five centres are workstream 14's to register) |
 | Upstream provider cost measurement and reconciliation | Relay | OxyHQ/Relay | planned |
 | Relay balance, quota counter or customer-visible credit | **forbidden** (ADR 0005 invariant 4) | — | must never exist |
 

@@ -52,6 +52,8 @@ import emailInboundRoutes, {
 import aliaRoutes from './routes/alia';
 import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
+import accountBillingRoutes from './routes/accountBilling';
+import costCenterRoutes from './routes/costCenters';
 import inferenceCatalogueRoutes from './routes/inferenceCatalogue';
 import inferenceEdgeRoutes from './routes/inferenceEdge';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
@@ -664,6 +666,14 @@ app.use('/v1/models', inferenceCatalogueRoutes);
 // keeps every platform-trusted caller working, one base URL apart.
 app.use('/v1', userRateLimiter, aliaRoutes);
 app.use('/credits', userRateLimiter, csrfProtection, creditsRoutes);
+// Account-scoped billing (issue #972, sections 7.1/7.4/7.5). Mounted BEFORE
+// `/billing`, or Express hands `accounts` and `cost-centers` to the
+// personal-billing router as ordinary paths and every route below 404s. The
+// pre-existing `/billing` routes stay exactly as they are: they key on the
+// bearer's own subject, which is correct for a person managing their own
+// API-credit product, and these are the account-scoped INFERENCE money surface.
+app.use('/billing/accounts', accountBillingRoutes);
+app.use('/billing/cost-centers', costCenterRoutes);
 app.use('/billing', billingRoutes);
 // The canonical model catalogue (issue #972, ADR 0008). The mount path is
 // unchanged because Console still calls `GET /models/stats`; what it serves is

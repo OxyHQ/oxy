@@ -27,8 +27,10 @@ import { join } from 'node:path';
 import { z } from 'zod';
 
 import * as barrel from '../index';
+import * as accountBilling from '../inference/accountBilling';
 import * as attribution from '../inference/attribution';
 import * as catalogue from '../inference/catalogue';
+import * as entitlement from '../inference/entitlement';
 import * as errors from '../inference/errors';
 import * as identifiers from '../inference/identifiers';
 import * as money from '../inference/money';
@@ -46,8 +48,10 @@ import * as version from '../inference/version';
  * verifies is how a whole file stays unscanned.
  */
 const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
+  accountBilling,
   attribution,
   catalogue,
+  entitlement,
   errors,
   identifiers,
   money,
@@ -148,6 +152,20 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   usageRefundSchema: 1,
   // BYOK
   providerConnectionSchema: 1,
+  // Account billing (ADR 0014)
+  billingProfileSchema: 1,
+  accountBillingStateSchema: 1,
+  spendingLimitSchema: 1,
+  spendingLimitAlertSchema: 1,
+  billingInvoiceSchema: 1,
+  autoRechargeAttemptSchema: 1,
+  reconciliationRunSchema: 1,
+  reconciliationDiscrepancySchema: 1,
+  reconciliationReportSchema: 1,
+  // Product entitlements (ADR 0014)
+  costCenterSchema: 1,
+  costCenterSpendSchema: 1,
+  productEntitlementSchema: 1,
   // Errors
   inferenceErrorSchema: 1,
 };
@@ -160,7 +178,9 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
+  'accountBalanceSchema',
   'authenticatedPrincipalSchema',
+  'autoRechargeSchema',
   'billingPrincipalSchema',
   'catalogueServingProviderSummarySchema',
   'cataloguePublisherSummarySchema',
@@ -175,8 +195,12 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   'modelLicenseSchema',
   'modelProvenanceSchema',
   'modelSafetyMetadataSchema',
+  'externalPaymentSchema',
   'moneySchema',
+  'payAsYouGoEntitlementSchema',
+  'planAllowanceSchema',
   'priceSnapshotSchema',
+  'productPlanSchema',
   'providerConnectionValidationSchema',
   'providerErrorPassthroughSchema',
   'routingFallbackPolicySchema',
@@ -631,6 +655,222 @@ const FIXTURES: Record<string, unknown> = {
     upstreamBillsCustomerDirectly: true,
     termsAcknowledgedAt: '2026-08-01T10:00:00.000Z',
     createdAt: '2026-08-01T10:00:00.000Z',
+  },
+
+  billingProfileSchema: {
+    schemaVersion: 1,
+    accountId: 'acc_01H8Z9QK7M',
+    currency: 'USD',
+    billingMode: 'prepaid',
+    status: 'active',
+    creditLimit: '0',
+    autoRecharge: { enabled: true, threshold: '10.000000000000', amount: '50.000000000000' },
+    createdAt: '2026-08-01T10:00:00.000Z',
+    updatedAt: '2026-08-15T09:41:03.100Z',
+  },
+
+  accountBillingStateSchema: {
+    schemaVersion: 1,
+    // The project asked about; the organization that actually pays.
+    accountId: 'acc_project_codea',
+    billingAccountId: 'acc_01H8Z9QK7M',
+    inherited: true,
+    profile: {
+      schemaVersion: 1,
+      accountId: 'acc_01H8Z9QK7M',
+      currency: 'USD',
+      billingMode: 'prepaid',
+      status: 'active',
+      creditLimit: '0',
+      autoRecharge: { enabled: false },
+      createdAt: '2026-08-01T10:00:00.000Z',
+      updatedAt: '2026-08-15T09:41:03.100Z',
+    },
+    balance: {
+      accountId: 'acc_01H8Z9QK7M',
+      currency: 'USD',
+      purchasedBalance: '412.180000000000',
+      promotionalBalance: '25.000000000000',
+      reservedBalance: '0.045000000000',
+      invoicedOutstanding: '0',
+      availableToSpend: '437.180000000000',
+    },
+  },
+
+  spendingLimitSchema: {
+    schemaVersion: 1,
+    id: 'slim_01H8Z9X3EE',
+    accountId: 'acc_01H8Z9QK7M',
+    scope: 'application',
+    scopeApplicationId: 'app_alia_prod',
+    period: 'monthly',
+    limitAmount: '500.000000000000',
+    currency: 'USD',
+    enforcement: 'hard_stop',
+    alertThresholdBps: [7500, 9000, 10000],
+    status: 'active',
+    createdAt: '2026-08-01T10:00:00.000Z',
+    updatedAt: '2026-08-01T10:00:00.000Z',
+  },
+
+  spendingLimitAlertSchema: {
+    schemaVersion: 1,
+    id: 'salr_01H8Z9X4FF',
+    spendingLimitId: 'slim_01H8Z9X3EE',
+    periodStart: '2026-08-01T00:00:00.000Z',
+    thresholdBps: 7500,
+    spendAmount: '381.402000000000',
+    createdAt: '2026-08-15T09:41:03.150Z',
+  },
+
+  billingInvoiceSchema: {
+    schemaVersion: 1,
+    id: 'binv_01H8Z9X5GG',
+    accountId: 'acc_01H8Z9QK7M',
+    currency: 'USD',
+    periodStart: '2026-07-01T00:00:00.000Z',
+    periodEnd: '2026-08-01T00:00:00.000Z',
+    status: 'open',
+    // Exact to full scale; the total is what was actually charged.
+    subtotalAmount: '3.703701000000',
+    totalAmount: '3.700000000000',
+    minorUnitExponent: 2,
+    externalInvoiceRef: 'in_1PqRsTuVwXyZ',
+    issuedAt: '2026-08-01T00:05:00.000Z',
+    receiptCount: 4821,
+  },
+
+  autoRechargeAttemptSchema: {
+    schemaVersion: 1,
+    id: 'arch_01H8Z9X6HH',
+    accountId: 'acc_01H8Z9QK7M',
+    currency: 'USD',
+    requestedAmount: '50.000000000000',
+    balanceAtTrigger: '8.220000000000',
+    status: 'succeeded',
+    externalRef: 'pi_1PqRsTuVwXyZ',
+    createdAt: '2026-08-15T09:41:03.100Z',
+    updatedAt: '2026-08-15T09:41:04.100Z',
+  },
+
+  reconciliationRunSchema: {
+    schemaVersion: 1,
+    id: 'brun_01H8Z9X7II',
+    provider: 'stripe',
+    accountId: 'acc_01H8Z9QK7M',
+    currency: 'USD',
+    periodStart: '2026-08-14T00:00:00.000Z',
+    periodEnd: '2026-08-15T00:00:00.000Z',
+    status: 'completed',
+    ledgerTotal: '412.180000000000',
+    externalTotal: '462.180000000000',
+    discrepancyCount: 1,
+    startedAt: '2026-08-15T01:00:00.000Z',
+    completedAt: '2026-08-15T01:00:07.000Z',
+  },
+
+  reconciliationDiscrepancySchema: {
+    schemaVersion: 1,
+    id: 'bdis_01H8Z9X8JJ',
+    runId: 'brun_01H8Z9X7II',
+    // The one that costs a CUSTOMER: they paid and have no balance.
+    kind: 'missing_in_ledger',
+    accountId: 'acc_01H8Z9QK7M',
+    externalRef: 'pi_1PqRsTuVwXyZ',
+    externalAmount: '50.000000000000',
+    currency: 'USD',
+    createdAt: '2026-08-15T01:00:06.000Z',
+  },
+
+  reconciliationReportSchema: {
+    schemaVersion: 1,
+    run: {
+      schemaVersion: 1,
+      id: 'brun_01H8Z9X7II',
+      provider: 'stripe',
+      accountId: 'acc_01H8Z9QK7M',
+      currency: 'USD',
+      periodStart: '2026-08-14T00:00:00.000Z',
+      periodEnd: '2026-08-15T00:00:00.000Z',
+      status: 'completed',
+      ledgerTotal: '412.180000000000',
+      externalTotal: '462.180000000000',
+      discrepancyCount: 1,
+      startedAt: '2026-08-15T01:00:00.000Z',
+      completedAt: '2026-08-15T01:00:07.000Z',
+    },
+    discrepancies: [
+      {
+        schemaVersion: 1,
+        id: 'bdis_01H8Z9X8JJ',
+        runId: 'brun_01H8Z9X7II',
+        kind: 'missing_in_ledger',
+        accountId: 'acc_01H8Z9QK7M',
+        externalRef: 'pi_1PqRsTuVwXyZ',
+        externalAmount: '50.000000000000',
+        currency: 'USD',
+        createdAt: '2026-08-15T01:00:06.000Z',
+      },
+    ],
+  },
+
+  costCenterSchema: {
+    schemaVersion: 1,
+    accountId: 'acc_project_codea',
+    slug: 'codea',
+    label: 'Codea',
+    status: 'active',
+    createdAt: '2026-08-01T10:00:00.000Z',
+    updatedAt: '2026-08-01T10:00:00.000Z',
+  },
+
+  costCenterSpendSchema: {
+    schemaVersion: 1,
+    costCenter: {
+      schemaVersion: 1,
+      accountId: 'acc_project_codea',
+      slug: 'codea',
+      label: 'Codea',
+      status: 'active',
+      createdAt: '2026-08-01T10:00:00.000Z',
+      updatedAt: '2026-08-01T10:00:00.000Z',
+    },
+    currency: 'USD',
+    periodStart: '2026-07-01T00:00:00.000Z',
+    periodEnd: '2026-08-01T00:00:00.000Z',
+    billedAmount: '412.180000000000',
+    requestCount: 4821,
+  },
+
+  productEntitlementSchema: {
+    schemaVersion: 1,
+    accountId: 'acc_01H8Z9QK7M',
+    plan: {
+      id: 'bsub_01H8Z9X9KK',
+      name: 'Pro',
+      status: 'active',
+      live: true,
+      currentPeriodStart: '2026-08-01T00:00:00.000Z',
+      currentPeriodEnd: '2026-09-01T00:00:00.000Z',
+      cancelAtPeriodEnd: false,
+      allowances: [{ key: 'api_credits_monthly', included: 10000 }],
+    },
+    // Integer counts. Never in the same field as the exact decimals below.
+    allowances: [
+      { key: 'api_credits_free', included: 1000, remaining: 640 },
+      { key: 'api_credits_monthly', included: 10000 },
+    ],
+    payAsYouGo: {
+      billingAccountId: 'acc_01H8Z9QK7M',
+      currency: 'USD',
+      billingMode: 'prepaid',
+      purchasedBalance: '412.180000000000',
+      promotionalBalance: '25.000000000000',
+      availableToSpend: '437.180000000000',
+      canSpend: true,
+    },
+    costCenter: null,
+    resolvedAt: '2026-08-15T09:41:03.100Z',
   },
 
   inferenceErrorSchema: {

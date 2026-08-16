@@ -50,6 +50,17 @@ const NEVER_SWEPT = [
   'billing_invoices',
   'billing_invoice_receipts',
   'inference_usage_daily_rollups',
+  // Account billing and the processor boundary (#972 sections 7.1 and 7.4).
+  // `billing_external_payments` is the only join between Oxy's ledger and the
+  // processor's records, so sweeping it would make reconciliation of anything
+  // older than the window impossible. `billing_auto_recharge_attempts` explains
+  // a charge on a customer's card statement, and a support conversation about
+  // one happens long after any telemetry window. The two reconciliation tables
+  // are the audit trail of whether the books ever agreed.
+  'billing_external_payments',
+  'billing_auto_recharge_attempts',
+  'billing_reconciliation_runs',
+  'billing_reconciliation_discrepancies',
 ] as const;
 
 const sweptTables = EXPIRY_SWEEP_TARGETS.map((target) => getTableName(target.table));
@@ -78,6 +89,6 @@ it('names every financial table the ledger actually declares', () => {
   // A list that silently stopped covering a table would make the check above
   // pass for the wrong reason. Exact count, not a floor: a NEW financial table
   // has to be classified here deliberately.
-  expect(NEVER_SWEPT.length).toBe(15);
+  expect(NEVER_SWEPT.length).toBe(19);
   expect(new Set(NEVER_SWEPT).size).toBe(NEVER_SWEPT.length);
 });
