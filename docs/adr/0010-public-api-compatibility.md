@@ -243,7 +243,18 @@ the boundary:
   against a request that cannot pass. It is the counterpart of
   `byok_credential_invalid`, which names the same failure on the customer's own
   credential — two codes because only one of them names an action the customer
-  can take.
+  can take. `provider_billing_refused` sits beside it for an upstream that
+  declines to BILL Oxy (several answer `402`): also non-retryable, also an
+  operator's, and deliberately not `quota_exceeded`, which would be right about
+  retryability and would point the customer at their own balance.
+- **Free error text is refused when it still looks like it carries a credential,
+  and that refusal is a last resort rather than the control.** A pattern over the
+  output can only see what a producer left in it; the reliable control is
+  redacting the secret VALUE where it is still known, which is available only to
+  whoever made the upstream call. The pattern must therefore match on value SHAPE
+  and not only on the marker — issue #1027 measured what happens otherwise: a
+  producer redacting the span the marker matched turned a refused string into an
+  accepted one carrying the same key.
 - Rate-limit and usage headers are normalized to one vocabulary across both
   public endpoints, so a client does not need to know which provider served it.
 

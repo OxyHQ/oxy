@@ -848,7 +848,7 @@ const FIXTURES: Record<string, unknown> = {
 
 describe('inference contract versioning', () => {
   it('exposes the contract-set version the two planes handshake on', () => {
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.0.0');
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.1.0');
   });
 
   it('matches the frozen schema version map exactly', () => {

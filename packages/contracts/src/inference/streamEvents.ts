@@ -192,12 +192,22 @@ export const inferenceStreamErrorEventSchema = z.object({
   error: inferenceErrorSchema,
 });
 
-/** Why generation stopped. */
+/**
+ * Why generation stopped.
+ *
+ * `refusal` and `content_filter` are separate members because they are separate
+ * events: the MODEL declining to answer is a property of the answer, while a
+ * filter is an upstream system removing one. The delta channels already carry
+ * that distinction (`channel: 'refusal'` beside the filter's own error code),
+ * so collapsing it here would have made the terminal event less specific than
+ * the stream that produced it.
+ */
 export const inferenceFinishReasonSchema = z.enum([
   'stop',
   'length',
   'tool_calls',
   'content_filter',
+  'refusal',
   'cancelled',
 ]);
 

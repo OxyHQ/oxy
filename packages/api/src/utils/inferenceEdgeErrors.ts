@@ -14,8 +14,15 @@
  *     actionable without a reproduction.
  *  3. **Provider error text is not passed through verbatim** where it could
  *     carry upstream account or credential detail. `safeErrorTextSchema` refuses
- *     credential-shaped material outright, and {@link buildInferenceError}
- *     replaces a refused message rather than dropping the error.
+ *     credential-shaped material, and {@link buildInferenceError} replaces a
+ *     refused message rather than dropping the error.
+ *
+ *     That refinement is a LAST-RESORT REFUSAL and not the control (issue
+ *     #1027): it reads the output, and only whoever holds the credential can
+ *     redact the value reliably. When this edge starts forwarding upstream text,
+ *     the adapter that made the upstream call redacts what it sent BEFORE the
+ *     text arrives here — and never by replacing the span the pattern matched,
+ *     which is the marker rather than the secret.
  *
  * The status map is a total `Record` over `INFERENCE_ERROR_CODES` for the same
  * reason: a `switch` with a `default` silently gives a new code whatever the
@@ -32,6 +39,7 @@ import {
   type InferenceError,
   type InferenceErrorCode,
 } from '@oxyhq/contracts';
+import { logger } from './logger';
 
 /** The header every response carries, success or failure. */
 export const REQUEST_ID_HEADER = 'X-Oxy-Request-Id';
@@ -78,6 +86,9 @@ const RETRYABILITY: Readonly<Record<InferenceErrorCode, boolean>> = {
   // An upstream refusing the PLATFORM's own credential is the platform's to
   // fix, and no retry reaches the operator who has to rotate the key.
   provider_credential_invalid: false,
+  // Same shape, different refusal: an upstream declining to BILL Oxy clears
+  // when finance does something, not when a client waits.
+  provider_billing_refused: false,
   // A data plane that is not configured is the platform's to fix, not the
   // client's to wait out — see `services/relayClient.ts`. `false` here is why
   // the no-data-plane refusal does not teach every SDK to retry forever.
@@ -124,6 +135,9 @@ const HTTP_STATUS: Readonly<Record<InferenceErrorCode, number>> = {
   // What separates them is `retryable`, which ADR 0010 makes the producer's
   // assertion precisely so a status code does not have to carry it.
   provider_credential_invalid: 502,
+  // 502, emphatically NOT the 402 the upstream sent us. 402 on this surface
+  // means "the CUSTOMER owes money", and the customer owes nothing here.
+  provider_billing_refused: 502,
   service_unavailable: 503,
   internal_error: 500,
 };
@@ -155,6 +169,9 @@ const OPENAI_ERROR_TYPE: Readonly<Record<InferenceErrorCode, string>> = {
   provider_timeout: 'api_error',
   provider_overloaded: 'api_error',
   provider_credential_invalid: 'api_error',
+  // `api_error` rather than `insufficient_quota`, which every SDK renders as
+  // "your account is out of credit" — the one thing this failure is not.
+  provider_billing_refused: 'api_error',
   service_unavailable: 'api_error',
   internal_error: 'api_error',
 };
@@ -181,12 +198,26 @@ export interface BuildInferenceErrorInput {
  * A message the contract refuses is REPLACED rather than allowed to fail the
  * parse. Losing an error's text is a degraded answer; throwing while building an
  * error body turns a handled refusal into a 500 with no `requestId` at all.
+ *
+ * The substitution is LOGGED, never silent. Every message reaching this function
+ * today is written on this side of the boundary, so a refusal means either an
+ * Oxy message drifted into a credential shape or the contract's refinement
+ * tightened under it — both of which downgrade a customer's error to generic
+ * text, and neither of which anybody would otherwise see. The log names the code
+ * and the request, never the refused text: writing the string that was refused
+ * FOR carrying a credential into the log is the leak moving house.
  */
 export function buildInferenceError(input: BuildInferenceErrorInput): InferenceError {
   const retryable = RETRYABILITY[input.code];
-  const message = safeErrorTextSchema.safeParse(input.message).success
-    ? input.message
-    : REDACTED_MESSAGE;
+  const accepted = safeErrorTextSchema.safeParse(input.message).success;
+  if (!accepted) {
+    logger.warn('inference.edge.message_withheld', {
+      requestId: input.requestId,
+      code: input.code,
+      messageLength: input.message.length,
+    });
+  }
+  const message = accepted ? input.message : REDACTED_MESSAGE;
 
   return inferenceErrorSchema.parse({
     schemaVersion: 1,

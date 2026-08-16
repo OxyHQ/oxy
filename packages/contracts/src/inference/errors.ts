@@ -40,6 +40,11 @@ import { inferenceProviderSlugSchema, requestIdSchema } from './identifiers';
  * PLATFORM's own credential fails every identical retry until an operator
  * rotates a key, so classifying it as `provider_error` would send every client
  * into a retry loop against a request that cannot succeed.
+ *
+ * `provider_billing_refused` is in that group for the same reason and was found
+ * the same way — an upstream declining to bill OXY (Anthropic answers 402) has
+ * to be distinguishable from the customer's own balance running out, or the
+ * error tells them to go and top up an account that is not the one at fault.
  */
 export const INFERENCE_ERROR_CODES = [
   'invalid_request',
@@ -67,6 +72,7 @@ export const INFERENCE_ERROR_CODES = [
   'provider_timeout',
   'provider_overloaded',
   'provider_credential_invalid',
+  'provider_billing_refused',
   'service_unavailable',
   'internal_error',
 ] as const;
@@ -88,6 +94,12 @@ export const inferenceErrorCodeSchema = z.enum(INFERENCE_ERROR_CODES);
  * one because only the first names an action the customer can take. Both are
  * non-retryable for the same reason: a credential an upstream has refused keeps
  * being refused until somebody replaces it.
+ *
+ * `quota_exceeded` and `provider_billing_refused` divide along the same line:
+ * both are money, but one is the CUSTOMER's ceiling and the other is Oxy's
+ * account with an upstream. Reporting the second as the first is retryability-
+ * correct and diagnostically wrong, which is the worst combination — it reads
+ * as actionable and the action does nothing.
  */
 export const NON_RETRYABLE_INFERENCE_ERROR_CODES = [
   'invalid_request',
@@ -110,32 +122,135 @@ export const NON_RETRYABLE_INFERENCE_ERROR_CODES = [
   'upstream_content_filtered',
   'cancelled',
   'provider_credential_invalid',
+  'provider_billing_refused',
 ] as const;
 
 const NON_RETRYABLE_CODE_SET: ReadonlySet<string> = new Set(NON_RETRYABLE_INFERENCE_ERROR_CODES);
 
-/**
- * Text that looks like it carries a credential.
- *
- * A deliberately narrow set of literal markers — the shapes upstream providers
- * actually echo — rather than an entropy heuristic, which would reject
- * legitimate error text (a request id, a base64 image fragment) and teach
- * producers to strip messages until they pass.
- */
-const CREDENTIAL_LIKE_TEXT =
-  /(?:bearer\s+[a-z0-9._~+/=-]{8,}|authorization\s*[:=]|api[_-]?key\s*[:=]|\bsk-[a-z0-9_-]{8,}|\bsk_(?:live|test)_[a-z0-9]{8,})/i;
+/* -------------------------------------------------------------------------- */
+/*  Credential-shaped text                                                     */
+/* -------------------------------------------------------------------------- */
 
 /**
- * Free text that is safe to hand a customer: bounded, and refused outright if a
- * credential marker appears in it. Applied to BOTH the Oxy message and the
+ * A run of characters long enough and opaque enough to BE a credential.
+ *
+ * The alphabet every bearer token, API key and base64/base64url secret is
+ * written in. The LENGTH floors below are what keep this from being an entropy
+ * heuristic: nothing here fires on a short word, so `authorization: none` and
+ * `api_key=***` read as what they are.
+ */
+const OPAQUE_ALPHABET = '[A-Za-z0-9][A-Za-z0-9._~+/=-]';
+
+/**
+ * Words a producer substitutes FOR a credential.
+ *
+ * Excluded at the value position so a message whose secret has already been
+ * replaced is accepted. That acceptance is deliberate and is half the fix for
+ * issue #1027: the previous pattern refused `Authorization: [redacted]` — a
+ * correctly redacted string — which is precisely what pushed a producer into
+ * redacting the MARKER instead, and a marker-redacted string carries the secret
+ * and passes.
+ */
+const PLACEHOLDER_WORDS =
+  'redacted|removed|hidden|masked|scrubbed|elided|omitted|filtered|sanitized|sanitised|none|null|undefined|empty';
+
+/** A value position whose contents are a placeholder rather than a secret. */
+const NOT_A_PLACEHOLDER = `(?!(?:${PLACEHOLDER_WORDS})\\b)`;
+
+/**
+ * Header and parameter names that carry a credential, as any provider spells
+ * them.
+ *
+ * The prefix group is the whole point of the rewrite: `authorization` and
+ * `api_key` were matched literally, so `x-api-key`, `anthropic-api-key`,
+ * `x-goog-api-key` and `proxy-authorization` — the spellings an upstream
+ * actually echoes — went unrecognised.
+ */
+const CREDENTIAL_NAME =
+  '(?:[a-z0-9]{1,20}[-_]){0,3}(?:api[-_]?(?:key|token|secret)|authorization|auth[-_]?(?:token|key)?|access[-_]?token|id[-_]?token|refresh[-_]?token|bearer[-_]?token|secret[-_]?key|private[-_]?key|client[-_]?secret|session[-_]?(?:id|key|token)|passwords?|passwd|cookie|credentials?|tokens?|secrets?)';
+
+/** An auth scheme sitting between the marker and the value. */
+const AUTH_SCHEME = '(?:(?:bearer|basic|token|apikey|digest)\\s+)?';
+
+/**
+ * The four ways a credential is recognisable in free text.
+ *
+ * Each is checked independently, so removing one signal does not clear the
+ * string — which is the failure #1027 reported. All four are load-bearing:
+ * `inference.errors.test.ts` has a case that only one of them catches, and
+ * deleting any one entry turns a test red.
+ */
+const CREDENTIAL_PATTERNS: readonly RegExp[] = [
+  // 1. A credential-bearing name ASSIGNED a value that is long enough to be a
+  //    credential. The value is anchored to the separator so a placeholder at
+  //    that position ends the match rather than being skipped over.
+  new RegExp(
+    `(?:^|[^a-z0-9])${CREDENTIAL_NAME}["']?\\s*[:=]\\s*["']?${AUTH_SCHEME}${NOT_A_PLACEHOLDER}${OPAQUE_ALPHABET}{7,}`,
+    'i',
+  ),
+
+  // 2. A bearer token with no marker in front of it, which is how an upstream
+  //    quotes the header value alone.
+  new RegExp(`\\bbearer\\s+${NOT_A_PLACEHOLDER}${OPAQUE_ALPHABET}{7,}`, 'i'),
+
+  // 3. Token grammars that ARE credentials wherever they appear, marker or not.
+  //    This is the layer that survives a producer stripping the marker, and it
+  //    is a closed list of issued shapes rather than an entropy score, so a
+  //    request id or a base64 image fragment is unaffected.
+  //
+  //    Case-SENSITIVE on purpose: `AKIA`, `AIza` and `gh[pousr]_` are issued in
+  //    exactly that case, and matching them case-insensitively would start
+  //    firing on ordinary words.
+  /\b(?:sk-[A-Za-z0-9_-]{8,}|[sprk]k_(?:live|test)_[A-Za-z0-9]{8,}|AKIA[0-9A-Z]{12,}|ASIA[0-9A-Z]{12,}|AIza[0-9A-Za-z_-]{20,}|gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{20,}|xox[abeprs]-[A-Za-z0-9-]{10,}|glpat-[A-Za-z0-9_-]{16,}|npm_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{4,})/,
+
+  // 4. A redaction placeholder standing NEXT TO a surviving opaque value — the
+  //    exact residue of the span redaction in #1027 (`{x-[redacted] <key>}`).
+  //    A correct redaction puts the placeholder WHERE the value was, so the two
+  //    never appear side by side; a marker-span redaction leaves them adjacent.
+  //    Both signals are required, which is what keeps an ordinary redacted
+  //    message from being refused.
+  new RegExp(
+    `(?:[[<({]\\s*(?:${PLACEHOLDER_WORDS})[^\\])}>]{0,16}[\\])}>]|\\*{3,})[^A-Za-z0-9]{0,4}${OPAQUE_ALPHABET}{11,}`,
+    'i',
+  ),
+];
+
+/**
+ * Free text that is safe to hand a customer: bounded, and refused if it still
+ * looks like it carries a credential. Applied to BOTH the Oxy message and the
  * upstream one — a leak is no less a leak for having been written by a provider.
+ *
+ * ## This is a last-resort REFUSAL, not protection
+ *
+ * A pattern over the OUTPUT cannot be the control that keeps a credential out of
+ * an error, and a producer that treats it as one has the hole #1027 reported.
+ * The only reliable control is redacting the KNOWN SECRET VALUE at the point
+ * where the producer still holds the bytes it sent — which is an adapter's job
+ * and is available to nobody else. This refinement exists to catch what that
+ * control missed, and nothing here is a licence to skip it.
+ *
+ * Two rules follow, and they are the whole reason this text is longer than the
+ * pattern it describes:
+ *
+ *  - **Never redact by replacing the span this pattern matched.** The span is
+ *    the MARKER; the secret is what follows it. OxyHQ/Relay#3 measured the
+ *    result: `{x-api-key: <key>}` is refused, `{x-[redacted] <key>}` was
+ *    accepted, and both carry the key. Redaction made the leak worse by
+ *    converting "this string is dangerous" into "this string is fine".
+ *  - **This package deliberately ships no redaction helper.** One keyed on these
+ *    patterns would rebuild the same defect one layer up, and one that took the
+ *    secret as an argument would only restate what the producer already has.
+ *
+ * What it still cannot see, stated so nobody relies on it: a credential with no
+ * marker, no issued-token prefix and no placeholder beside it is bytes that look
+ * like a request id, and refusing those means refusing request ids.
  */
 export const safeErrorTextSchema = z
   .string()
   .min(1)
   .max(2000)
   .refine(
-    (value) => !CREDENTIAL_LIKE_TEXT.test(value),
+    (value) => !CREDENTIAL_PATTERNS.some((pattern) => pattern.test(value)),
     'error text must not contain credential-shaped material',
   );
 

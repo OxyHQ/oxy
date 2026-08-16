@@ -340,14 +340,16 @@ function messageText(message: InferenceMessage): string {
 }
 
 /**
- * OpenAI's `finish_reason`, which has no `cancelled` member.
+ * OpenAI's `finish_reason`, which has neither a `cancelled` nor a `refusal`
+ * member.
  *
- * A cancelled generation is reported as `stop` in the body — the closest thing a
- * stock client understands — and truthfully in `X-Oxy-Finish-Reason`, so the
- * compatibility surface stays parseable without the fact being lost.
+ * Both are reported as `stop` in the body — the closest thing a stock client
+ * understands, and what OpenAI itself returns for a model refusal — and
+ * truthfully in `X-Oxy-Finish-Reason`, so the compatibility surface stays
+ * parseable without the fact being lost.
  */
 function openAiFinishReason(reason: InferenceFinishReason): string {
-  return reason === 'cancelled' ? 'stop' : reason;
+  return reason === 'cancelled' || reason === 'refusal' ? 'stop' : reason;
 }
 
 export interface InferenceEdgeRouterOptions {
