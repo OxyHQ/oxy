@@ -129,11 +129,33 @@ Reported rather than silently assumed fixed. Occurrence counts are per file.
 | `packages/console/src/routes/_layout/documentation/sdks.tsx` | 7 | **Still standing** |
 | `packages/console/src/routes/_layout/documentation/chat-completions.tsx` | 4 | **Still standing** |
 | `packages/console/src/routes/_layout/documentation/quickstart.tsx` | 2 | **Still standing** |
-| `packages/api/src/config/email.config.ts` | 1 | **Still standing** — the `AI_LABELING_MODEL` default, an internal first-party consumer. Needs a deployment-configuration change as well as a code change, so it cannot be fixed by editing this line alone |
+| `packages/api/src/config/email.config.ts` | 1 | **Not a catalogue reference — leave it.** See below |
 | `packages/api/src/routes/__tests__/alia.test.ts` | 3 | Fixtures for the proxy, which still exists |
-| `packages/api/src/services/__tests__/aiLabeling.service.test.ts` | 1 | Fixture for the consumer above |
+| `packages/api/src/services/__tests__/aiLabeling.service.test.ts` | 1 | Fixture for the AI-labelling consumer below |
 | `packages/api/src/routes/models-stats.ts` | — | **Gone.** Deleted with its four static entries by [#982](https://github.com/OxyHQ/oxy/pull/982) |
 | ADRs, the responsibility matrix, `inferenceCatalogue.service.ts`, `seed-inference-catalogue.ts` | 12 | Correct — these quote the names in order to retire them |
+
+The Console files are partly corrected already: [#986](https://github.com/OxyHQ/oxy/pull/986) rewrote parts of `quickstart.tsx`, `chat-completions.tsx`, `sdks.tsx` and `examples.tsx` to state that the endpoint is not publicly available. Whoever takes workstream 9 inherits that, not the original text.
+
+### `AI_LABELING_MODEL` is not one of these
+
+`packages/api/src/config/email.config.ts:100` defaults `AI_LABELING_MODEL` to
+`alia-lite`, and it is **correct as it stands.** It is not a fake catalogue
+entry and never was one.
+
+The value is sent as the `model` field of a request to **Alia's own API**
+(`packages/api/src/services/aiLabeling.service.ts:31` targets
+`https://api.alia.onl/v1`, and `:152` puts the configured string in the body).
+At that boundary `alia-lite` is a real identifier of an Alia product tier — the
+thing Alia's API accepts — so it is an Alia product alias consumed by a product
+feature, not an Oxy model id.
+
+What ADR 0008 retires is the use of those four strings **as Oxy model
+identities**, in the Oxy catalogue and in Oxy's public examples. An Oxy product
+feature naming an Alia tier when calling Alia is a different act, and rewriting
+it to a canonical `<publisher>/<model>` would name something Alia's API does not
+recognise. (The labelling path is also off by default: `AI_LABELING_ENABLED`
+defaults to `false`.)
 
 ---
 

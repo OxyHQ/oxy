@@ -103,6 +103,10 @@ const one: ModelCatalogueEntry = await oxy.getInferenceModel('openai/gpt-5');
 const profiles: RoutingProfile[] = await oxy.listInferenceRoutingProfiles();
 ```
 
+Run that today and `models` is `[]` and `getInferenceModel('openai/gpt-5')`
+throws a 404 — `openai/gpt-5` is written there to show the id GRAMMAR, not
+because Oxy serves it. Nothing is wrong with your credential.
+
 Types come from `@oxyhq/contracts` directly — `@oxyhq/services` does not
 re-export them, and neither does `@oxyhq/core`.
 
