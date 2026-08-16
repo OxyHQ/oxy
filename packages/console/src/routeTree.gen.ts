@@ -29,6 +29,7 @@ import { Route as LayoutAppsAppIdIndexRouteImport } from './routes/_layout/apps/
 import { Route as LayoutAppsAppIdUpdatesRouteImport } from './routes/_layout/apps/$appId/updates'
 import { Route as LayoutAppsAppIdStoreRouteImport } from './routes/_layout/apps/$appId/store'
 import { Route as LayoutAppsAppIdSettingsRouteImport } from './routes/_layout/apps/$appId/settings'
+import { Route as LayoutAppsAppIdInferenceRouteImport } from './routes/_layout/apps/$appId/inference'
 
 const LayoutRoute = LayoutRouteImport.update({
   id: '/_layout',
@@ -134,6 +135,12 @@ const LayoutAppsAppIdSettingsRoute = LayoutAppsAppIdSettingsRouteImport.update({
   path: '/apps/$appId/settings',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutAppsAppIdInferenceRoute =
+  LayoutAppsAppIdInferenceRouteImport.update({
+    id: '/apps/$appId/inference',
+    path: '/apps/$appId/inference',
+    getParentRoute: () => LayoutRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -151,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/settings/account': typeof LayoutSettingsAccountRoute
   '/apps/': typeof LayoutAppsIndexRoute
   '/documentation/': typeof LayoutDocumentationIndexRoute
+  '/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
   '/apps/$appId/store': typeof LayoutAppsAppIdStoreRoute
   '/apps/$appId/updates': typeof LayoutAppsAppIdUpdatesRoute
@@ -172,6 +180,7 @@ export interface FileRoutesByTo {
   '/settings/account': typeof LayoutSettingsAccountRoute
   '/apps': typeof LayoutAppsIndexRoute
   '/documentation': typeof LayoutDocumentationIndexRoute
+  '/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
   '/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
   '/apps/$appId/store': typeof LayoutAppsAppIdStoreRoute
   '/apps/$appId/updates': typeof LayoutAppsAppIdUpdatesRoute
@@ -195,6 +204,7 @@ export interface FileRoutesById {
   '/_layout/settings/account': typeof LayoutSettingsAccountRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
   '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
+  '/_layout/apps/$appId/inference': typeof LayoutAppsAppIdInferenceRoute
   '/_layout/apps/$appId/settings': typeof LayoutAppsAppIdSettingsRoute
   '/_layout/apps/$appId/store': typeof LayoutAppsAppIdStoreRoute
   '/_layout/apps/$appId/updates': typeof LayoutAppsAppIdUpdatesRoute
@@ -218,6 +228,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/apps/'
     | '/documentation/'
+    | '/apps/$appId/inference'
     | '/apps/$appId/settings'
     | '/apps/$appId/store'
     | '/apps/$appId/updates'
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/settings/account'
     | '/apps'
     | '/documentation'
+    | '/apps/$appId/inference'
     | '/apps/$appId/settings'
     | '/apps/$appId/store'
     | '/apps/$appId/updates'
@@ -261,6 +273,7 @@ export interface FileRouteTypes {
     | '/_layout/settings/account'
     | '/_layout/apps/'
     | '/_layout/documentation/'
+    | '/_layout/apps/$appId/inference'
     | '/_layout/apps/$appId/settings'
     | '/_layout/apps/$appId/store'
     | '/_layout/apps/$appId/updates'
@@ -414,6 +427,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAppsAppIdSettingsRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/apps/$appId/inference': {
+      id: '/_layout/apps/$appId/inference'
+      path: '/apps/$appId/inference'
+      fullPath: '/apps/$appId/inference'
+      preLoaderRoute: typeof LayoutAppsAppIdInferenceRouteImport
+      parentRoute: typeof LayoutRoute
+    }
   }
 }
 
@@ -432,6 +452,7 @@ interface LayoutRouteChildren {
   LayoutSettingsAccountRoute: typeof LayoutSettingsAccountRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
   LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
+  LayoutAppsAppIdInferenceRoute: typeof LayoutAppsAppIdInferenceRoute
   LayoutAppsAppIdSettingsRoute: typeof LayoutAppsAppIdSettingsRoute
   LayoutAppsAppIdStoreRoute: typeof LayoutAppsAppIdStoreRoute
   LayoutAppsAppIdUpdatesRoute: typeof LayoutAppsAppIdUpdatesRoute
@@ -455,6 +476,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutSettingsAccountRoute: LayoutSettingsAccountRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
   LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,
+  LayoutAppsAppIdInferenceRoute: LayoutAppsAppIdInferenceRoute,
   LayoutAppsAppIdSettingsRoute: LayoutAppsAppIdSettingsRoute,
   LayoutAppsAppIdStoreRoute: LayoutAppsAppIdStoreRoute,
   LayoutAppsAppIdUpdatesRoute: LayoutAppsAppIdUpdatesRoute,

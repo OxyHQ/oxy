@@ -5,6 +5,7 @@ import {
   RocketIcon,
   Settings01Icon,
   ShopSignIcon,
+  SparklesIcon,
 } from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,7 +14,7 @@ import { resolveStoredImageUrl } from '@/lib/image-upload';
 import type { Application, CallerAccess } from '@/hooks/use-applications';
 
 /** The top-level sections of an application. */
-export type AppSection = 'settings' | 'store' | 'updates';
+export type AppSection = 'settings' | 'inference' | 'store' | 'updates';
 
 interface AppDetailHeaderProps {
   application: Application;
@@ -27,11 +28,13 @@ interface AppDetailHeaderProps {
  *
  * Each section is offered only to callers holding the permission the API
  * enforces behind it, so nobody sees a tab that would only 403: `updates:manage`
- * for Updates, `app:read` for Store — reading a listing needs no more than
- * reading the app, and the form inside gates its own writes on `app:update`.
+ * for Updates, `app:read` for Store and for Inference — reading a routing policy
+ * or a provider connection needs no more than reading the app, and each section
+ * inside gates its own writes on `app:update`.
  */
 export function AppDetailHeader({ application, access, active }: AppDetailHeaderProps) {
   const { oxyServices } = useAuth();
+  const showInference = access.can('app:read');
   const showStore = access.can('app:read');
   const showUpdates = access.can('updates:manage');
 
@@ -73,6 +76,15 @@ export function AppDetailHeader({ application, access, active }: AppDetailHeader
           label="Settings"
           isActive={active === 'settings'}
         />
+        {showInference && (
+          <SectionTab
+            to="/apps/$appId/inference"
+            appId={application._id}
+            icon={SparklesIcon}
+            label="Inference"
+            isActive={active === 'inference'}
+          />
+        )}
         {showStore && (
           <SectionTab
             to="/apps/$appId/store"
@@ -97,7 +109,11 @@ export function AppDetailHeader({ application, access, active }: AppDetailHeader
 }
 
 interface SectionTabProps {
-  to: '/apps/$appId/settings' | '/apps/$appId/store' | '/apps/$appId/updates';
+  to:
+    | '/apps/$appId/settings'
+    | '/apps/$appId/inference'
+    | '/apps/$appId/store'
+    | '/apps/$appId/updates';
   appId: string;
   icon: typeof Settings01Icon;
   label: string;

@@ -26,6 +26,11 @@ function node(
               : ['account:act_as', 'account:read']),
           inherit: true,
           source: 'direct' as const,
+          // `AccountMember` carries both, so the fixture must too — without them
+          // this file is a type error, and `bunx tsc --noEmit` is the only gate
+          // that sees it (the Vite build does not typecheck).
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
         };
 
   return {
