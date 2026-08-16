@@ -117,6 +117,7 @@
     "start": "cd packages/api && node dist/server.js",
     "dev": "turbo run dev",
     "test": "turbo run test",
+    "validate:agents-md": "bun ./scripts/check-agents-md-size.mjs && bun ./scripts/test-check-agents-md-size.mjs",
     "clean": "turbo run clean",
     "protocol:build": "bun run --filter @oxyhq/protocol build",
     "federation:build": "bun run --filter @oxyhq/federation build",

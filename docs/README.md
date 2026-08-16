@@ -96,6 +96,21 @@ topics and remain authoritative for their areas:
 
 ---
 
+## Engineering notes (moved out of `AGENTS.md`)
+
+`AGENTS.md` carries only rules — the things that break silently if you get them
+wrong — and is bounded at 12 KB by `scripts/check-agents-md-size.mjs`. The
+mechanisms it used to restate live here:
+
+- [engineering/package-rules.md](engineering/package-rules.md) — the evidence behind every package boundary, build and runtime rule: the ambient-shim incident, the Hermes verification, the optional-peer resolver asymmetry
+- [engineering/build-and-deploy.md](engineering/build-and-deploy.md) — AWS, the inbound email path, containers and the Dockerfile gotcha, the workspace and dependency graph, contract-first schemas, key entry points, published version notes
+- [engineering/auth-and-identity.md](engineering/auth-and-identity.md) — the session contract, the application model, service tokens, the SSI layer, Sign in with Oxy, the Auth app
+- [engineering/platform-features.md](engineering/platform-features.md) — workspaces, Oxy Trust, rate limiting, federation, OTA updates, contact discovery, the accounts and commons apps, civic identity, the no-IP invariant
+- [engineering/sdk-patterns.md](engineering/sdk-patterns.md) — `HttpService`, the offline queue, persistence, `useSessionSocket`, the bottom-sheet and media patterns, `KeyManager` safety
+- [engineering/local-dev-cursor-cloud.md](engineering/local-dev-cursor-cloud.md) — local infra, building shared libs, the end-to-end auth smoke test
+
+---
+
 ## Audits (dated snapshots — provenance, not mechanism)
 
 An audit records what was true at ONE commit, with `path:line` evidence. It is
