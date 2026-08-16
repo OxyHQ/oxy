@@ -64,7 +64,7 @@ import {
 } from '../db/schema/billingLedgerEntries';
 import { billingProfiles, type BillingMode } from '../db/schema/billingProfiles';
 import { usageUnitColumnValues } from '../db/schema/ledgerColumns';
-import { priceVersionUnitPrices } from '../db/schema/priceVersions';
+import { priceVersions, priceVersionUnitPrices } from '../db/schema/priceVersions';
 import { usageReceipts, usageReceiptUnitPrices } from '../db/schema/usageReceipts';
 import { usageRefunds } from '../db/schema/usageRefunds';
 import { usageReservations } from '../db/schema/usageReservations';
@@ -363,6 +363,55 @@ async function recordFunding(
 
     return { status: 'recorded', entryId };
   });
+}
+
+// ===========================================================================
+// Quoting
+// ===========================================================================
+
+export type QuoteResult =
+  | { readonly status: 'quoted'; readonly amount: string; readonly currency: string }
+  | { readonly status: 'unknown-price-version'; readonly priceVersionId: string }
+  | {
+      readonly status: 'unpriced-units';
+      readonly priceVersionId: string;
+      readonly unpricedUnits: number;
+    };
+
+/**
+ * What a set of metered units costs under one price version.
+ *
+ * Exposed so the public edge can size a HOLD with the same arithmetic
+ * {@link settle} charges with — the ceiling and the eventual bill are then two
+ * evaluations of one expression rather than two implementations that agree until
+ * a price shape changes. It performs no write and takes no lock; it is a read,
+ * and a reservation still has to be taken through {@link reserve}.
+ *
+ * `unpriced-units` is returned rather than a silently-dropped term, exactly as
+ * in `settle`: a unit the request can consume but the version does not price is
+ * a hold that under-covers the charge, which is the one direction that lets a
+ * request execute unreserved.
+ */
+export async function quoteUnits(
+  priceVersionId: string,
+  units: Partial<Record<UsageUnit, number>>
+): Promise<QuoteResult> {
+  const db = getDb();
+
+  const [version] = await db
+    .select({ currency: priceVersions.currency })
+    .from(priceVersions)
+    .where(eq(priceVersions.id, priceVersionId))
+    .limit(1);
+  if (!version) {
+    return { status: 'unknown-price-version', priceVersionId };
+  }
+
+  const charge = await computeCharge(db, priceVersionId, units);
+  if (charge.unpricedUnits > 0) {
+    return { status: 'unpriced-units', priceVersionId, unpricedUnits: charge.unpricedUnits };
+  }
+  return { status: 'quoted', amount: charge.amount, currency: version.currency };
 }
 
 // ===========================================================================

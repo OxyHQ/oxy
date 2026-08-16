@@ -768,6 +768,122 @@ export async function selectRouteForViewer(
 }
 
 /* -------------------------------------------------------------------------- */
+/*  The internal resolution the public edge admits against                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A route as the EDGE needs it, which is not what a customer is shown.
+ *
+ * {@link SelectedRoute} answers "what may I tell the caller about where this
+ * went". This answers "may I admit this request, and against what". Three fields
+ * the customer never sees make that decision possible:
+ *
+ *  - `priceVersionId`, because a hold has to be sized in money and money comes
+ *    from a price version. A route with no published price cannot be charged, so
+ *    it cannot be admitted — see {@link EdgeRouteResolution}'s `unpriced-route`.
+ *  - `maxContextTokens` / `maxOutputTokens`, because a request that cannot fit is
+ *    refused AT THE EDGE rather than forwarded and paid for. Inheriting whatever
+ *    the upstream provider happens to enforce is how a customer is billed for a
+ *    request that was never going to succeed.
+ *
+ * It goes through {@link selectableDeploymentWhere} like every other read, so an
+ * admission can never reach a route the catalogue would not offer.
+ */
+export interface EdgeRoute {
+  /** `<publisher>/<model>@<revision>` — always revision-pinned. */
+  readonly modelReference: string;
+  readonly provider: string;
+  readonly availabilityScope: AvailabilityScope;
+  /** The price version a hold is sized against and a receipt is settled at. */
+  readonly priceVersionId: string;
+  readonly maxContextTokens: number;
+  readonly maxOutputTokens: number;
+}
+
+/**
+ * Outcome of {@link resolveEdgeRoute}.
+ *
+ * `unknown-model` and `unpriced-route` are separate arms because they are
+ * different platform facts and only one of them is the customer's to act on: a
+ * model that does not exist (or that this viewer may not see) is a request
+ * error, while a route Oxy has published without a price is an Oxy
+ * configuration gap. Collapsing them would tell a customer to fix a model id
+ * that was correct.
+ */
+export type EdgeRouteResolution =
+  | { readonly status: 'resolved'; readonly route: EdgeRoute }
+  | { readonly status: 'unknown-model'; readonly modelReference: string }
+  | { readonly status: 'unpriced-route'; readonly modelReference: string };
+
+/**
+ * Resolve a customer's model reference to the route the edge may admit against.
+ *
+ * Same rules as {@link selectRouteForViewer} — both reference forms, no
+ * substitution of a pinned revision, no fallback when nothing qualifies — and
+ * the same single selectability predicate. What differs is only that this one
+ * also reports the price version and the model's ceilings.
+ */
+export async function resolveEdgeRoute(
+  viewer: CatalogueViewer,
+  modelReference: string
+): Promise<EdgeRouteResolution> {
+  if (viewer.scopes.length === 0) {
+    return { status: 'unknown-model', modelReference };
+  }
+
+  const separator = modelReference.indexOf('@');
+  const modelId = separator === -1 ? modelReference : modelReference.slice(0, separator);
+  const pinnedRevision = separator === -1 ? undefined : modelReference.slice(separator + 1);
+
+  const rows = await getDb()
+    .select({
+      providerSlug: inferenceDeployments.providerSlug,
+      availabilityScope: inferenceDeployments.availabilityScope,
+      priceVersionId: inferenceDeployments.priceVersionId,
+      revision: inferenceModelRevisions.revision,
+      isCurrent: inferenceModelRevisions.isCurrent,
+      retiredAt: inferenceModelRevisions.retiredAt,
+      resolvedModelId: inferenceModels.modelId,
+      maxContextTokens: inferenceModels.maxContextTokens,
+      maxOutputTokens: inferenceModels.maxOutputTokens,
+    })
+    .from(inferenceDeployments)
+    .innerJoin(
+      inferenceModelRevisions,
+      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
+    )
+    .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
+    .where(and(selectableDeploymentWhere(viewer), eq(inferenceModels.modelId, modelId)))
+    .orderBy(asc(inferenceDeployments.providerSlug));
+
+  const candidates = rows.filter((row) => {
+    if (row.retiredAt !== null) return false;
+    return pinnedRevision === undefined ? row.isCurrent : row.revision === pinnedRevision;
+  });
+
+  const chosen = candidates[0];
+  if (chosen === undefined || chosen.resolvedModelId === null) {
+    return { status: 'unknown-model', modelReference };
+  }
+
+  if (chosen.priceVersionId === null) {
+    return { status: 'unpriced-route', modelReference };
+  }
+
+  return {
+    status: 'resolved',
+    route: {
+      modelReference: composeModelReference(chosen.resolvedModelId, chosen.revision),
+      provider: chosen.providerSlug,
+      availabilityScope: chosen.availabilityScope as AvailabilityScope,
+      priceVersionId: chosen.priceVersionId,
+      maxContextTokens: chosen.maxContextTokens,
+      maxOutputTokens: chosen.maxOutputTokens,
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Routing profiles — a separate collection, deliberately                    */
 /* -------------------------------------------------------------------------- */
 
