@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {  useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import type {UseQueryResult} from '@tanstack/react-query';
 import type {
   AccountKind,
@@ -85,6 +86,8 @@ interface AccountContextValue {
   canTransferOwnership: (account: AccountNode) => boolean;
   canArchiveAccount: (account: AccountNode) => boolean;
   canCreateApplications: (account: AccountNode) => boolean;
+  canReadBilling: (account: AccountNode) => boolean;
+  canManageBilling: (account: AccountNode) => boolean;
   getUserRole: (account: AccountNode) => AccountRole | null;
 }
 
@@ -124,6 +127,18 @@ function pickDefaultAccount(accounts: Array<AccountNode>): AccountNode | null {
     return null;
   }
   return accounts.find((a) => a.kind === 'personal') ?? accounts[0];
+}
+
+/**
+ * The account's display label: its `name.displayName`, else its handle.
+ *
+ * The `displayName ?? handle` pattern the identity contract mandates, and
+ * nothing longer — `displayName` is optional on the wire, and rebuilding a
+ * multi-field chain here is how a frontend comes to disagree with the
+ * serializer about what somebody is called.
+ */
+export function accountLabel(node: AccountNode): string {
+  return node.account.name?.displayName ?? getNormalizedUserHandle(node.account) ?? 'Account';
 }
 
 /** An account permission check that reads the embedded `callerMembership`. */
@@ -278,6 +293,26 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  /**
+   * The two billing rights, read off the membership the API serves rather than
+   * re-derived from the role name.
+   *
+   * They are genuinely different: `billing:read` sees the balance, the charges
+   * and the budgets; `billing:manage` moves money — a top-up, a portal session,
+   * a budget ceiling. Both are baseline for `owner`, `admin`, `editor` and the
+   * `billing` role, absent from `developer` and `viewer`, and removable by a
+   * per-member revoke, which is exactly why the client must not infer them.
+   */
+  const canReadBilling = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['billing:read']),
+    []
+  );
+
+  const canManageBilling = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['billing:manage']),
+    []
+  );
+
   const value = React.useMemo<AccountContextValue>(
     () => ({
       accounts,
@@ -292,6 +327,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       canTransferOwnership,
       canArchiveAccount,
       canCreateApplications,
+      canReadBilling,
+      canManageBilling,
       getUserRole,
     }),
     [
@@ -307,6 +344,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       canTransferOwnership,
       canArchiveAccount,
       canCreateApplications,
+      canReadBilling,
+      canManageBilling,
       getUserRole,
     ]
   );

@@ -9,9 +9,9 @@ import {
   Tick02Icon,
   UserMultiple02Icon,
 } from '@hugeicons/core-free-icons';
-import { getNormalizedUserHandle } from '@oxyhq/core';
 import { useAuth } from '@oxyhq/services';
 import { toast } from '@oxyhq/bloom/toast';
+import { buildWorkspaceTree } from './workspace-tree';
 import type { AccountKind, AccountNode, AccountRole } from '@/hooks/use-account';
 import {
   DropdownMenu,
@@ -40,8 +40,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useAccount } from '@/hooks/use-account';
-import { buildWorkspaceTree } from './workspace-tree';
+import { accountLabel, useAccount } from '@/hooks/use-account';
 
 const roleLabels: Record<AccountRole, string> = {
   owner: 'Owner',
@@ -59,15 +58,6 @@ const kindSubtitles: Record<AccountKind, string> = {
   bot: 'Bot workspace',
   channel: 'Channel',
 };
-
-/** Canonical display label: the account's `name.displayName`, else its handle. */
-function accountLabel(node: AccountNode): string {
-  return (
-    node.account.name?.displayName ??
-    getNormalizedUserHandle(node.account) ??
-    'Account'
-  );
-}
 
 /** First-letter initials for the avatar fallback. */
 function accountInitials(node: AccountNode): string {
