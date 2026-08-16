@@ -80,6 +80,7 @@ import {
 } from '@oxyhq/contracts';
 import { applicationCredentials } from './applicationCredentials';
 import { applications } from './applications';
+import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';
 import {
   currencyCode,
   currencyCodeCheck,
@@ -154,6 +155,33 @@ export const usageReceipts = pgTable(
     resolvedModelReference: text().notNull(),
     servingProvider: text().notNull(),
 
+    /**
+     * The exact routing policy revision this request executed under (#972
+     * workstream 6).
+     *
+     * A receipt names the amount; this names the CONFIGURATION that chose the
+     * route the amount was incurred on. `inference_routing_policy_versions` is
+     * append-only, so the reference resolves to the constraints that were in
+     * force at settlement rather than to whatever the customer most recently
+     * saved — which is the whole reason routing policies are versioned at all.
+     *
+     * `RESTRICT`: a policy version a charge names cannot be deleted, which is the
+     * other half of "immutable once referenced".
+     *
+     * NULLABLE, and deliberately so for now. The writer that will always have a
+     * policy version to supply is the public inference edge (workstream 4), which
+     * does not exist yet; every settle path that exists today is a ledger or
+     * shadow-metering path that has no request envelope to read one from. Making
+     * it NOT NULL now would force those callers to invent a value, and an
+     * invented policy reference on a financial record is worse than an absent
+     * one. Tightening it belongs with the edge landing — and it can be tightened
+     * safely because the column is being added to a table that holds no
+     * production rows.
+     */
+    routingPolicyVersionId: text().references(() => inferenceRoutingPolicyVersions.id, {
+      onDelete: 'restrict',
+    }),
+
     // ---- what it cost ------------------------------------------------------
     priceVersionId: text()
       .notNull()
@@ -191,6 +219,13 @@ export const usageReceipts = pgTable(
     // across the edge, the data plane, the ledger and the customer receipt.
     index('usage_receipts_request_id_idx').on(t.requestId),
     index('usage_receipts_generation_id_idx').on(t.generationId),
+    // "Which charges ran under this policy version" — the question a customer
+    // asks after changing a policy, and the one an audit of a routing decision
+    // starts from. Partial, because the column is nullable while the edge that
+    // populates it is still being built.
+    index('usage_receipts_routing_policy_version_id_idx')
+      .on(t.routingPolicyVersionId)
+      .where(sql`${t.routingPolicyVersionId} is not null`),
     // The reconciliation queue: estimated receipts awaiting a provider's real
     // figures. Partial, because they are a small minority of a large table.
     index('usage_receipts_estimated_idx')
