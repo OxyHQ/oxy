@@ -6,7 +6,7 @@
     "dev": "vite dev --port 8106",
     "build": "bun ../core/scripts/writePagesHeaders.ts public && vite build",
     "preview": "vite preview",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "lint": "eslint",
     "format": "prettier",
     "check": "prettier --write . && eslint --fix"

@@ -532,6 +532,55 @@ jobs:
       - run: bun run test
         working-directory: ./packages/accounts
 
+  # Console developer portal (Vitest — Vite + RN Web)
+  #
+  # Console had no CI job at all until #972, while `deploy-cloudflare.yml` ships
+  # it to production from `main` on every merge that touches `packages/console`.
+  # Nothing ran between a pull request and that deploy.
+  #
+  # `tsc --noEmit` is the specific hole. Console's `build` script is
+  # `writePagesHeaders && vite build`, and Vite ERASES types rather than checking
+  # them — so a type error builds cleanly, deploys cleanly, and is found by a
+  # user. It lives here rather than in the `build` script because `build` is what
+  # the production deploy runs: moving the check there would turn a type error
+  # into "Console cannot deploy at all" — a failure discovered AFTER merge, with
+  # no way to ship an unrelated urgent fix around it. The gap being closed is
+  # that nothing gates the pull request, so the check belongs on the pull
+  # request. `auth-test` above already places its typecheck this way.
+  #
+  # `--filter=oxy-console...` (with the ellipsis) builds the workspace
+  # dependencies too. Without them the build fails on an unresolvable
+  # `@oxyhq/services` and the error names the wrong package entirely.
+  #
+  # The test step's own vacuity floor is in `packages/console/package.json`:
+  # `test` dropped `--passWithNoTests`, which would have reported a green step
+  # over a broken glob matching zero files. Console has 4 test files, so the
+  # floor is satisfied today and a run finding none is a real failure.
+  #
+  # Lint is deliberately NOT a step here: `bun run lint` reports 45 pre-existing
+  # problems on `main` (42 errors), so adding it would make this gate red on
+  # arrival, which gates nothing. Most are `no-unnecessary-condition` — removing
+  # a defensive `?.` on the strength of a type claim is a semantic change, not a
+  # CI change, and does not belong in the same pull request as the gate. See the
+  # pull request body for what including it would take.
+  console-test:
+    name: Console Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install
+      - name: Build Console and its workspace dependencies
+        run: bunx turbo run build --filter=oxy-console...
+      - name: Typecheck
+        run: bunx tsc --noEmit
+        working-directory: ./packages/console
+      - name: Run tests
+        run: bun run test
+        working-directory: ./packages/console
+
   # Security audit
   security-audit:
     name: Security Audit
@@ -583,6 +632,7 @@ jobs:
       - auth-test
       - commons-test
       - accounts-test
+      - console-test
       - security-audit
     if: always()
     runs-on: ubuntu-latest
