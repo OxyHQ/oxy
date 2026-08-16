@@ -189,7 +189,7 @@
   },
   "peerDependencies": {
     "@expo/vector-icons": "^15.0.3",
-    "@oxyhq/bloom": ">=0.59.0",
+    "@oxyhq/bloom": "^1.0.0",
     "@oxyhq/core": "^21.0.0",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": ">=11.4.1",

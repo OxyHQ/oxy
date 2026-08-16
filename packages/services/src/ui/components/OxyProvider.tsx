@@ -5,7 +5,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { OxyProviderProps } from '../types/navigation';
 import { OxyRuntimeProvider, type OxyRuntimeProviderProps } from '../context/OxyContext';
 import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
-import { BloomDialogProvider } from '@oxyhq/bloom/dialog';
 import { SurfaceProvider } from '@oxyhq/bloom/surfaces';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { logger as loggerUtil } from '@oxyhq/core';
@@ -284,31 +283,29 @@ const OxyProvider: FC<OxyProviderProps> = ({
     // duplicate scope that silently shadows the consumer's configuration.
     const coreContent = (
         <QueryClientProvider client={queryClient}>
-            <BloomDialogProvider>
-                <OxyRuntimeProvider
-                    oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
-                    baseURL={baseURL}
-                    authWebUrl={authWebUrl}
-                    authRedirectUri={authRedirectUri}
-                    authorizeBaseUrl={authorizeBaseUrl}
-                    storageKeyPrefix={storageKeyPrefix}
-                    clientId={clientId}
-                    sessionMode={sessionMode}
-                    webAuthMode={webAuthMode}
-                    backgroundSession={backgroundSession}
-                    deviceCredentialStorage={deviceCredentialStorage}
-                    onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
-                >
-                    <SurfaceProvider>
-                        {requireAuth === 'off' ? (
-                            children
-                        ) : (
-                            <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-                        )}
-                    </SurfaceProvider>
-                    <ToastOutlet />
-                </OxyRuntimeProvider>
-            </BloomDialogProvider>
+            <OxyRuntimeProvider
+                oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
+                baseURL={baseURL}
+                authWebUrl={authWebUrl}
+                authRedirectUri={authRedirectUri}
+                authorizeBaseUrl={authorizeBaseUrl}
+                storageKeyPrefix={storageKeyPrefix}
+                clientId={clientId}
+                sessionMode={sessionMode}
+                webAuthMode={webAuthMode}
+                backgroundSession={backgroundSession}
+                deviceCredentialStorage={deviceCredentialStorage}
+                onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
+            >
+                <SurfaceProvider>
+                    {requireAuth === 'off' ? (
+                        children
+                    ) : (
+                        <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+                    )}
+                </SurfaceProvider>
+                <ToastOutlet />
+            </OxyRuntimeProvider>
         </QueryClientProvider>
     );
 

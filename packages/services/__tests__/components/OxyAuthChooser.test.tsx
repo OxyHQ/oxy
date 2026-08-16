@@ -624,7 +624,7 @@ describe('OxyAuthChooser', () => {
       expect(controller.signOutContext).not.toHaveBeenCalledWith('ctx-nate-org');
       expect(surfaces.confirm).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('Alice'),
+          description: expect.stringContaining('Alice'),
           destructive: true,
         }),
       );

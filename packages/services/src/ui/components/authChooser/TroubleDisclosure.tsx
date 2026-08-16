@@ -6,21 +6,24 @@
  * creating an account — lives here, hidden until the user asks for it or the
  * chosen primary route fails.
  *
- * Two renderings, deliberately not one controlled component:
+ * Two renderings:
  *  - `revealed` (the primary route failed, or there IS no primary route): the
  *    alternatives ARE the surface's content now, so they render plainly. There
  *    is nothing left to hide them behind.
- *  - otherwise: Bloom's own `Collapsible`, whose trigger is the small
+ *  - otherwise: a single-item Bloom `Accordion`, whose trigger is the small
  *    "Having trouble?" affordance.
  *
- * Splitting on `revealed` is what keeps the open state where it belongs — inside
- * Bloom's uncontrolled disclosure — instead of forcing a hand-rolled controlled
- * copy of it here.
+ * The disclosure is CONTROLLED because Bloom 1.0.0's `Accordion` — which
+ * replaced the deleted `Collapsible` — takes `value`/`onValueChange` and has no
+ * uncontrolled mode. Splitting on `revealed` still matters: it decides whether
+ * a disclosure exists at all, so the open state below only ever describes the
+ * collapsed rendering.
  */
 
 import type React from 'react';
+import { useState } from 'react';
 import { View } from 'react-native';
-import { Collapsible } from '@oxyhq/bloom/collapsible';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@oxyhq/bloom/accordion';
 import { SubtleLink } from './primitives';
 import { authChooserStyles as styles } from './styles';
 import type { OxySignInSurfaceAction, Theme, Translate } from './types';
@@ -38,7 +41,13 @@ interface TroubleDisclosureProps {
   t: Translate;
 }
 
+/** The accordion's single item. Its identity is never shown to the user. */
+const TROUBLE_ITEM = 'trouble';
+
 const TroubleDisclosure: React.FC<TroubleDisclosureProps> = ({ actions, revealed, theme, t }) => {
+  // Declared above the early return: hooks may not sit behind a conditional.
+  const [openItem, setOpenItem] = useState<string | string[] | undefined>(undefined);
+
   if (actions.length === 0) return null;
 
   const links = (
@@ -59,14 +68,20 @@ const TroubleDisclosure: React.FC<TroubleDisclosureProps> = ({ actions, revealed
   if (revealed) return links;
 
   return (
-    <Collapsible
-      title={t('accountSwitcher.havingTrouble')}
+    <Accordion
+      type="single"
+      value={openItem}
+      onValueChange={setOpenItem}
       style={styles.troubleTrigger}
-      titleStyle={[styles.linkText, { color: theme.colors.textSecondary }]}
       testID="trouble-disclosure"
     >
-      {links}
-    </Collapsible>
+      <AccordionItem value={TROUBLE_ITEM}>
+        <AccordionTrigger textStyle={[styles.linkText, { color: theme.colors.textSecondary }]}>
+          {t('accountSwitcher.havingTrouble')}
+        </AccordionTrigger>
+        <AccordionContent>{links}</AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 };
 

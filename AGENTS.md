@@ -78,6 +78,15 @@ an app, the end-to-end auth smoke test):
 - **The ESM builds of core and contracts must contain no `require()`** — Vite and
   other ESM-only bundlers crash. Use `await import()` for optional/platform
   modules; guard any unavoidable `require()` with `typeof require !== 'undefined'`.
+- **Every peer range on a package that ships breaking majors needs an UPPER
+  bound.** `"*"` and a bare `">=x"` let a consumer's install silently resolve a
+  major the package cannot work with, with no warning from bun at all — the only
+  thing that catches it is `tsc` reaching into `node_modules`, which it does only
+  because the `react-native` condition points at published `src/`, so an app whose
+  typecheck skips `node_modules` gets a green build and a white screen. Raise a
+  floor only to a version MEASURED to be the first that works (bisect the
+  published tarballs), and re-raise it in the same commit as the code that
+  requires it.
 
 ## Runtime traps
 

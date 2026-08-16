@@ -447,7 +447,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     const confirmFileDelete = useCallback(async (fileId: string, filename: string) => {
         const confirmed = await surfaces.confirm({
             title: t('fileManagement.deleteFile') || 'Delete File',
-            message: t('fileManagement.confirms.deleteFile', { filename }),
+            description: t('fileManagement.confirms.deleteFile', { filename }),
             confirmLabel: t('fileManagement.confirm') || 'Delete',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -484,7 +484,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
 
         const confirmed = await surfaces.confirm({
             title: t('fileManagement.deleteFiles') || 'Delete Files',
-            message: t('fileManagement.confirms.deleteFiles', { count: selectedIds.size }),
+            description: t('fileManagement.confirms.deleteFiles', { count: selectedIds.size }),
             confirmLabel: t('fileManagement.confirm') || 'Delete',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,

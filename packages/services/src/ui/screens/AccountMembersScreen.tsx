@@ -218,7 +218,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   const confirmRemove = useCallback(async (member: AccountMember) => {
     const confirmed = await surfaces.confirm({
       title: t('accounts.members.removeConfirm.title') || 'Remove member',
-      message:
+      description:
         t('accounts.members.removeConfirm.description')
         || 'Remove this member from the account? They will lose all access.',
       confirmLabel: t('accounts.members.actions.remove') || 'Remove',
@@ -231,7 +231,7 @@ const AccountMembersScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, acco
   const confirmTransfer = useCallback(async (member: AccountMember) => {
     const confirmed = await surfaces.confirm({
       title: t('accounts.members.transferConfirm.title') || 'Transfer ownership',
-      message:
+      description:
         t('accounts.members.transferConfirm.description')
         || 'Transfer ownership of this account to this member? You will be demoted to admin. This cannot be undone.',
       confirmLabel: t('accounts.members.actions.transfer') || 'Transfer ownership',

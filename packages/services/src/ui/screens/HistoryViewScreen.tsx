@@ -43,7 +43,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
     const handleDeleteLast15Minutes = useCallback(async () => {
         const confirmed = await surfaces.confirm({
             title: t('history.deleteLast15Minutes.title') || 'Delete Last 15 Minutes',
-            message: t('history.deleteLast15Minutes.confirm') || 'Delete last 15 minutes of history?',
+            description: t('history.deleteLast15Minutes.confirm') || 'Delete last 15 minutes of history?',
             confirmLabel: t('common.actions.delete') || 'Delete',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -64,7 +64,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
     const handleClearAll = useCallback(async () => {
         const confirmed = await surfaces.confirm({
             title: t('history.clearAll.title') || 'Clear All History',
-            message: t('history.clearAll.confirm') || 'Clear all history? This cannot be undone.',
+            description: t('history.clearAll.confirm') || 'Clear all history? This cannot be undone.',
             confirmLabel: t('history.clearAll.title') || 'Clear All',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,

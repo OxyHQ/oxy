@@ -286,7 +286,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       if (!group || !context) return;
       const confirmed = await surfaces.confirm({
         title: t('accountSwitcher.confirms.removeContextTitle'),
-        message: t('accountSwitcher.confirms.removeContext', {
+        description: t('accountSwitcher.confirms.removeContext', {
           person: group.displayName,
           account: context.displayName,
         }),
@@ -313,7 +313,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
       if (!group) return;
       const confirmed = await surfaces.confirm({
         title: t('accountSwitcher.confirms.removePrincipalTitle'),
-        message: t('accountSwitcher.confirms.removePrincipal', { name: group.displayName }),
+        description: t('accountSwitcher.confirms.removePrincipal', { name: group.displayName }),
         confirmLabel: t('common.actions.signOut'),
         cancelLabel: t('common.cancel'),
         destructive: true,

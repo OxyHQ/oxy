@@ -141,7 +141,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         }
         const confirmed = await surfaces.confirm({
             title: t('common.actions.signOut') || 'Sign out',
-            message: t('common.confirms.signOut') || 'Are you sure you want to sign out?',
+            description: t('common.confirms.signOut') || 'Are you sure you want to sign out?',
             confirmLabel: t('common.actions.signOut') || 'Sign out',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -168,7 +168,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         }
         const confirmed = await surfaces.confirm({
             title: t('manageAccount.confirms.removeDeviceTitle') || 'Remove device',
-            message:
+            description:
                 t('manageAccount.confirms.removeDevice', { name: device.deviceName })
                 || `Sign out from "${device.deviceName}"?`,
             confirmLabel: t('common.remove') || 'Remove',
@@ -203,7 +203,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         ).length;
         const confirmed = await surfaces.confirm({
             title: t('manageAccount.confirms.signOutAllDevicesTitle') || 'Sign out of all other devices',
-            message:
+            description:
                 t('manageAccount.confirms.signOutAllDevices', { count: otherDeviceCount })
                 || `End ${otherDeviceCount} other device session(s)? This won't sign you out here.`,
             confirmLabel: t('common.actions.signOut') || 'Sign out',

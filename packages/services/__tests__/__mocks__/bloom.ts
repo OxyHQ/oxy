@@ -6,7 +6,7 @@
  * can spy on the exported `toast` object directly.
  */
 
-import { createElement, Fragment, useState, type ReactNode } from 'react';
+import { createContext, createElement, Fragment, useContext, useState, type ReactNode } from 'react';
 
 type ToastFn = (message: string, options?: Record<string, unknown>) => void;
 
@@ -39,35 +39,106 @@ export const Button = ({
 export const Loading = () => createElement('span', null, 'loading');
 
 /**
- * `@oxyhq/bloom/collapsible` stub — Bloom's uncontrolled disclosure. Mirrors the
- * real behaviour the auth chooser's "Having trouble?" affordance depends on: the
- * trigger is always rendered, and the CHILDREN are mounted only while open (so a
- * test can assert an alternative is genuinely absent until disclosed). Starts
- * from `defaultOpen`, exactly like the real component.
+ * `@oxyhq/bloom/accordion` stubs — Bloom's CONTROLLED disclosure, which replaced
+ * the deleted `Collapsible` in 1.0.0. Mirrors the behaviour the auth chooser's
+ * "Having trouble?" affordance depends on: the trigger is always rendered, and
+ * the CONTENT is mounted only while its item is open (so a test can assert an
+ * alternative is genuinely absent until disclosed).
+ *
+ * Open state is read from the parent's `value` and written through
+ * `onValueChange`, exactly like the real component — a stub holding its own
+ * state would pass even if a caller forgot to wire the controlled pair.
  */
-export const Collapsible = ({
-  title,
+const AccordionCtx = createContext<{
+  value: string | string[] | undefined;
+  onValueChange: (next: string | string[] | undefined) => void;
+} | null>(null);
+const AccordionItemCtx = createContext<string | null>(null);
+
+const isItemOpen = (value: string | string[] | undefined, item: string): boolean =>
+  Array.isArray(value) ? value.includes(item) : value === item;
+
+export const Accordion = ({
+  value,
+  onValueChange,
   children,
-  defaultOpen = false,
   testID,
 }: {
-  title?: string;
+  value?: string | string[];
+  onValueChange?: (next: string | string[] | undefined) => void;
   children?: ReactNode;
-  defaultOpen?: boolean;
   testID?: string;
-} & Record<string, unknown>) => {
-  const [open, setOpen] = useState(defaultOpen);
+} & Record<string, unknown>) =>
+  createElement(
+    AccordionCtx.Provider,
+    { value: { value, onValueChange: onValueChange ?? (() => {}) } },
+    createElement('div', { 'data-testid': testID }, children),
+  );
+
+export const AccordionItem = ({
+  value,
+  children,
+}: { value: string; children?: ReactNode } & Record<string, unknown>) =>
+  createElement(AccordionItemCtx.Provider, { value }, createElement('div', null, children));
+
+export const AccordionTrigger = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const ctx = useContext(AccordionCtx);
+  const item = useContext(AccordionItemCtx);
   return createElement(
-    'div',
-    { 'data-testid': testID },
-    createElement(
-      'button',
-      { type: 'button', key: 'trigger', onClick: () => setOpen(!open) },
-      title,
-    ),
-    open ? createElement(Fragment, { key: 'content' }, children) : null,
+    'button',
+    {
+      type: 'button',
+      onClick: () => {
+        if (!ctx || item === null) return;
+        ctx.onValueChange(isItemOpen(ctx.value, item) ? undefined : item);
+      },
+    },
+    children,
   );
 };
+
+export const AccordionContent = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const ctx = useContext(AccordionCtx);
+  const item = useContext(AccordionItemCtx);
+  if (!ctx || item === null || !isItemOpen(ctx.value, item)) return null;
+  return createElement(Fragment, null, children);
+};
+
+/**
+ * `@oxyhq/bloom/dropdown-menu` stubs — the family that replaced the deleted
+ * `./menu`. `asChild` renders the single child AS the trigger, so a test still
+ * queries the caller's own Button; the content mounts only while open.
+ */
+const DropdownMenuCtx = createContext<{ open: boolean; setOpen: (next: boolean) => void } | null>(null);
+
+export const DropdownMenu = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const [open, setOpen] = useState(false);
+  return createElement(DropdownMenuCtx.Provider, { value: { open, setOpen } }, children);
+};
+
+export const DropdownMenuTrigger = ({
+  children,
+  disabled,
+}: { children?: ReactNode; disabled?: boolean } & Record<string, unknown>) => {
+  const ctx = useContext(DropdownMenuCtx);
+  return createElement(
+    'button',
+    { type: 'button', disabled, onClick: () => ctx?.setOpen(!ctx.open) },
+    children,
+  );
+};
+
+export const DropdownMenuContent = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const ctx = useContext(DropdownMenuCtx);
+  return ctx?.open ? createElement('div', null, children) : null;
+};
+
+export const DropdownMenuItem = ({
+  children,
+  onPress,
+  disabled,
+}: { children?: ReactNode; onPress?: () => void; disabled?: boolean } & Record<string, unknown>) =>
+  createElement('button', { type: 'button', disabled, onClick: () => onPress?.() }, children);
 
 /**
  * Minimal stubs for the Bloom primitives the account switchers render
@@ -231,9 +302,6 @@ const passthrough =
   (tag: string) =>
   ({ children, testID }: { children?: ReactNode; testID?: string } & Record<string, unknown>) =>
     createElement(tag, { 'data-testid': testID }, children);
-
-export const BloomDialogProvider = ({ children }: { children?: ReactNode }) =>
-  createElement(Fragment, null, children);
 
 /**
  * Renders an empty marker node rather than `null` so a test can COUNT the
@@ -412,10 +480,6 @@ export const SearchInput = passthrough('input');
 export const IconCircle = passthrough('span');
 export const BenefitList = passthrough('div');
 export const BenefitRow = passthrough('div');
-export const Accordion = passthrough('div');
-export const AccordionItem = passthrough('div');
-export const AccordionTrigger = passthrough('button');
-export const AccordionContent = passthrough('div');
 export const SegmentedControl = passthrough('div');
 export const SegmentedControlItem = passthrough('button');
 

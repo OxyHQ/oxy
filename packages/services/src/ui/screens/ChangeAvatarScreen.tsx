@@ -282,7 +282,7 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
     const removeCurrentPhoto = useCallback(async () => {
         const confirmed = await bloomSurfaces.confirm({
             title: t('changeAvatar.remove.confirmTitle'),
-            message: t('changeAvatar.remove.confirmMessage'),
+            description: t('changeAvatar.remove.confirmMessage'),
             confirmLabel: t('changeAvatar.remove.confirmLabel'),
             cancelLabel: t('common.cancel'),
             destructive: true,
