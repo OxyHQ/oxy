@@ -98,6 +98,8 @@ import { logger } from '../utils/logger';
 interface EdgeRequest extends MachineCredentialRequest {
   edge?: {
     readonly requestId: string;
+    /** Monotonic reading taken beside the request id — see {@link edgeGate}. */
+    readonly receivedAt: number;
     readonly principal: EdgePrincipal;
   };
 }
@@ -121,10 +123,17 @@ type ErrorRenderer = (res: Response, error: ReturnType<typeof buildInferenceErro
  * The request id is allocated FIRST, before authentication, so that a rejected
  * request is still traceable — ADR 0010's step 1, and the reason a customer can
  * report a 401 by id rather than by reproduction.
+ *
+ * The arrival instant is read on the same line, and on the MONOTONIC clock. It
+ * is what `inference_usage_events.latency_ms` is measured from, so taking it
+ * here rather than inside the service is what makes that figure cover
+ * authentication and admission — the parts of a slow request a customer feels
+ * and the service alone cannot see.
  */
 function edgeGate(render: ErrorRenderer) {
   return async (req: EdgeRequest, res: Response, next: NextFunction): Promise<void> => {
     const requestId = allocateRequestId();
+    const receivedAt = performance.now();
 
     const declaredLength = Number(req.headers['content-length'] ?? 0);
     if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BYTES) {
@@ -189,7 +198,7 @@ function edgeGate(render: ErrorRenderer) {
       if (authentication.machinePrincipal !== undefined) {
         req.machineCredential = authentication.machinePrincipal;
       }
-      req.edge = { requestId, principal: authentication.principal };
+      req.edge = { requestId, receivedAt, principal: authentication.principal };
       next();
     } catch (error) {
       logger.error(
@@ -404,6 +413,7 @@ export function createInferenceEdgeRouter(
       const normalized: NormalizedEdgeRequest = normalizeResponsesRequest(parsed.data);
       const execution = await executeInferenceRequest({
         requestId: edge.requestId,
+        receivedAt: edge.receivedAt,
         principal: edge.principal,
         request: normalized,
         ...(delegatedUserId(req) === undefined
@@ -495,6 +505,7 @@ export function createInferenceEdgeRouter(
       const delegated = delegatedUserId(req, normalized.delegatedUserId);
       const execution = await executeInferenceRequest({
         requestId: edge.requestId,
+        receivedAt: edge.receivedAt,
         principal: edge.principal,
         request: normalized,
         ...(delegated === undefined ? {} : { delegatedUserId: delegated }),

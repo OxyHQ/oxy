@@ -929,6 +929,114 @@ describe('credential audit events', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Staff actions vs customer actions — issue #972 workstream 12
+// ---------------------------------------------------------------------------
+
+/**
+ * "Staff actions and customer actions must be distinguishable" in the credential
+ * trail, and the shape of the answer here is worth stating rather than leaving
+ * to be re-derived.
+ *
+ * `application_credential_audit_events.actor_user_id` records WHO, not what
+ * authority they used, and there is no column that could. It does not need one,
+ * because the three routes that write an actor-bearing row are gated by
+ * `requireAppPermission`, which resolves access ONLY through
+ * `accountService.resolveEffectiveAccess` over `Application.ownerAccountId`.
+ * `isStaff` is not consulted there, so every actor on this table is an account
+ * member acting as a customer — including an Oxy employee, who is a customer of
+ * their own account like anybody else. Staff-authorised decisions live on
+ * staff-only surfaces and are recorded elsewhere (`inference_deployments`'
+ * `permission_state_changed_by_user_id` and `legal_reviewed_by_user_id`), so the
+ * two kinds are told apart by WHERE the record is, not by a flag on it.
+ *
+ * That is true by construction today and would stop being true silently the
+ * first time a staff support route is given a write here — which is what this
+ * case is for. It fails on the change that introduces one, and the fix is then a
+ * decision about how to record that actor, not a discovery weeks later that the
+ * trail has been calling staff actions customer actions.
+ */
+describe('the staff flag opens no door into a customer’s credential trail', () => {
+  /** Re-point the stubbed session lane at another caller. */
+  function asCaller(userId: string, isStaff: boolean): void {
+    mockAuthMiddleware.mockImplementation(
+      (
+        req: { headers: Record<string, string | undefined>; user?: unknown },
+        res: { status: (code: number) => { json: (body: unknown) => void } },
+        next: () => void
+      ) => {
+        if (req.headers.authorization?.slice('Bearer '.length) !== SESSION_BEARER) {
+          res.status(401).json({ error: 'Authentication required' });
+          return;
+        }
+        req.user = { _id: { toString: () => userId }, isStaff };
+        next();
+      }
+    );
+  }
+
+  it('refuses create, rotate and revoke to a staff caller with no membership, and writes no row naming them', async () => {
+    const { applicationId, credentialId } = await createMachineCredential();
+    // FLOOR: the trail already has the owner's `created` row, so "no new row"
+    // below is a statement about these three calls and not about an empty table.
+    expect((await auditEventsFor(credentialId)).map((event) => event.eventType)).toEqual([
+      'created',
+    ]);
+
+    // The caller is now platform staff and NOTHING else changed: no grant over
+    // the owning account is added to `accessGrants`.
+    const staffUserId = await account();
+    asCaller(staffUserId, true);
+
+    const created = await request('POST', `/applications/${applicationId}/credentials`, {
+      payload: {
+        name: 'Staff key',
+        type: 'machine',
+        environment: 'development',
+        scopes: ['inference:invoke'],
+      },
+    });
+    expect(created.status).toBe(403);
+
+    const rotated = await request(
+      'POST',
+      `/applications/${applicationId}/credentials/${credentialId}/rotate`,
+      { payload: { graceSeconds: 60 } }
+    );
+    expect(rotated.status).toBe(403);
+
+    const revoked = await request(
+      'DELETE',
+      `/applications/${applicationId}/credentials/${credentialId}`
+    );
+    expect(revoked.status).toBe(403);
+
+    expect((await auditEventsFor(credentialId)).map((event) => event.eventType)).toEqual([
+      'created',
+    ]);
+    // …and nowhere else in the table either, so this does not depend on the
+    // refusal happening to land on the credential the test was watching.
+    const byStaff = await getDb()
+      .select()
+      .from(applicationCredentialAuditEvents)
+      .where(eq(applicationCredentialAuditEvents.actorUserId, staffUserId));
+    expect(byStaff).toHaveLength(0);
+
+    // CONTROL, in the same currency: the SAME revoke, from the account member,
+    // is allowed and DOES write a row. Without it the three refusals above would
+    // read the same whether the routes refuse this caller or refuse everyone.
+    asCaller(OWNER_ID, false);
+    const byMember = await request(
+      'DELETE',
+      `/applications/${applicationId}/credentials/${credentialId}`
+    );
+    expect(byMember.status).toBe(200);
+    const events = await auditEventsFor(credentialId);
+    expect(events.map((event) => event.eventType)).toEqual(['created', 'revoked']);
+    expect(events[1].actorUserId).toBe(OWNER_ID);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Rate limits
 // ---------------------------------------------------------------------------
 

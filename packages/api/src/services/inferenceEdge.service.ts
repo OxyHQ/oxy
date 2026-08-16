@@ -329,6 +329,18 @@ export function viewerForPrincipal(principal: EdgePrincipal): CatalogueViewer {
 export interface EdgeExecutionContext {
   /** Allocated before authentication, so a rejected request is traceable. */
   readonly requestId: string;
+  /**
+   * When the edge received this request, on the MONOTONIC clock
+   * (`performance.now()`), taken beside the request id in `edgeGate`.
+   *
+   * It is the origin of `inference_usage_events.latency_ms` — see
+   * {@link recordEdgeTelemetry}. Monotonic rather than `Date.now()` because a
+   * wall-clock step (NTP) between the two readings would produce a negative
+   * latency, which the column's own CHECK refuses; the row would then be lost
+   * on a path that swallows its errors, so the failure would be a silently
+   * missing metric rather than a visible one.
+   */
+  readonly receivedAt: number;
   readonly principal: EdgePrincipal;
   readonly request: NormalizedEdgeRequest;
   /** `X-Oxy-User-Id`, or the OpenAI `user` field. Attribution only. */
@@ -774,6 +786,13 @@ export async function executeInferenceRequest(
     servingProvider: route.provider,
     outcome: completion.usage.outcome,
     usageSource: completion.usage.usageSource,
+    // The two figures only the data plane can know. `routeSwitches` is the
+    // fallback metric workstream 16 names; `timeToFirstTokenMs` is optional on
+    // the report and stays NULL when it is absent rather than being imputed.
+    routeSwitches: completion.usage.routeSwitches,
+    ...(completion.usage.timeToFirstTokenMs === undefined
+      ? {}
+      : { timeToFirstTokenMs: completion.usage.timeToFirstTokenMs }),
     ...(completion.generationId === undefined
       ? {}
       : { generationId: completion.generationId }),
@@ -1227,20 +1246,57 @@ interface EdgeTelemetryInput {
   readonly generationId?: string;
   readonly outcome?: NormalizedUsageReport['outcome'];
   readonly usageSource?: NormalizedUsageReport['usageSource'];
+  /**
+   * How many allowed route switches the data plane performed. Absent on every
+   * path that never reached one, where the recorder's own `0` is the truth.
+   */
+  readonly routeSwitches?: number;
+  /**
+   * The data plane's own time to first token. Forwarded, never measured here:
+   * the first token is produced upstream and this edge does not stream, so the
+   * only honest source is the usage report. Absent means unknown, which is what
+   * the NULL column says — see {@link recordEdgeTelemetry}.
+   */
+  readonly timeToFirstTokenMs?: number;
 }
 
 /**
- * Record the request in the usage stream (workstream 8).
+ * Record the request in the usage stream (workstream 8), including the timing
+ * the observability item of workstream 16 asks for.
  *
  * Best effort, and deliberately so: telemetry is eventually consistent by
  * contract, and a dashboard write must never fail a request that has already
  * been charged. The exact billed amount comes from `usage_receipts`, never from
  * here.
+ *
+ * ## Why the timings are written here and not exported to a metrics library
+ *
+ * `inference_usage_events` already carries `latency_ms`, `time_to_first_token_ms`
+ * and `route_switches`, and until now nothing wrote any of them — a metric
+ * surface that existed and was empty, which reads exactly like a metric surface
+ * that is correctly zero. Request rate, error rate and cancellation are already
+ * derivable from this table (`request_count`, `error_count` and `outcome` on the
+ * daily rollup); latency, time to first token and fallback were the three the
+ * epic names that were NOT, and all three are one assignment away. Adding a
+ * `prom-client` registry beside a durable table nothing scrapes would have added
+ * a second, weaker copy of the same numbers. `docs/inference/observability.md`
+ * argues it in full and names the infrastructure work the scrape side waits on.
+ *
+ * `latencyMs` is Oxy's own measurement — receipt of the request to this write —
+ * so it includes authentication, admission, routing, the reservation, the
+ * forward and the settlement. It is deliberately NOT the data plane's
+ * `completedAt - startedAt`: that would measure the upstream and call it the
+ * platform's, and the difference between the two is exactly the overhead a
+ * control plane is answerable for.
  */
 async function recordEdgeTelemetry(
   context: EdgeExecutionContext,
   input: EdgeTelemetryInput
 ): Promise<void> {
+  // Rounded to a whole millisecond: the column is an integer, and drizzle would
+  // otherwise hand Postgres a float for a `bigint` column.
+  const latencyMs = Math.round(performance.now() - context.receivedAt);
+
   try {
     await recordInferenceUsage({
       accountId: context.principal.ownerAccountId,
@@ -1264,6 +1320,11 @@ async function recordEdgeTelemetry(
         : { servingProvider: input.servingProvider }),
       usageSource: input.usageSource ?? 'oxy_measured',
       units: input.units,
+      latencyMs,
+      ...(input.timeToFirstTokenMs === undefined
+        ? {}
+        : { timeToFirstTokenMs: input.timeToFirstTokenMs }),
+      ...(input.routeSwitches === undefined ? {} : { routeSwitches: input.routeSwitches }),
     });
   } catch (error) {
     logger.error(
