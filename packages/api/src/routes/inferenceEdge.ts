@@ -227,14 +227,62 @@ function connectionSignal(res: Response): AbortSignal {
   return controller.signal;
 }
 
-/** Usage headers, in the one vocabulary both surfaces speak. */
+/**
+ * Usage headers, in the one vocabulary both surfaces speak.
+ *
+ * Four token headers rather than two, because the contract's units PARTITION a
+ * request: `X-Oxy-Usage-Input-Tokens` is the UNCACHED input and
+ * `X-Oxy-Usage-Output-Tokens` the visible output, so without the other two a
+ * customer cannot see the cache discount they were charged at, and cannot add
+ * the headers up to the prompt and completion sizes their provider would quote.
+ */
 function applyUsageHeaders(res: Response, completion: EdgeCompletion): void {
   res.setHeader('X-Oxy-Model', completion.resolvedModelReference);
   res.setHeader('X-Oxy-Provider', completion.servingProvider);
   res.setHeader('X-Oxy-Usage-Input-Tokens', String(completion.units.input_tokens ?? 0));
+  res.setHeader(
+    'X-Oxy-Usage-Cached-Input-Tokens',
+    String(completion.units.cached_input_tokens ?? 0)
+  );
   res.setHeader('X-Oxy-Usage-Output-Tokens', String(completion.units.output_tokens ?? 0));
+  res.setHeader('X-Oxy-Usage-Reasoning-Tokens', String(completion.units.reasoning_tokens ?? 0));
   res.setHeader('X-Oxy-Routing-Policy', completion.routingPolicy.routingPolicyId);
   res.setHeader('X-Oxy-Routing-Policy-Version', String(completion.routingPolicy.policyVersion));
+}
+
+/**
+ * Oxy's partitioned units as the OpenAI dialect states them: NESTED.
+ *
+ * `prompt_tokens` includes its cached tokens and `completion_tokens` includes
+ * its reasoning tokens in every OpenAI-compatible response, and a stock client
+ * adds the two into `total_tokens` and shows it to somebody. Oxy's own units are
+ * disjoint (`@oxyhq/contracts`' `USAGE_UNITS`), so the children are added back
+ * HERE, at the compatibility boundary, rather than the internal reading being
+ * bent to the dialect — bending it is what double-charges the ledger.
+ *
+ * The `_details` objects are OpenAI's own fields, not an Oxy extension: without
+ * them the compatibility surface cannot show a customer the cache hit their
+ * bill was discounted for.
+ */
+function openAiUsage(units: EdgeCompletion['units']): {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  prompt_tokens_details: { cached_tokens: number };
+  completion_tokens_details: { reasoning_tokens: number };
+} {
+  const cachedTokens = units.cached_input_tokens ?? 0;
+  const reasoningTokens = units.reasoning_tokens ?? 0;
+  const promptTokens = (units.input_tokens ?? 0) + cachedTokens;
+  const completionTokens = (units.output_tokens ?? 0) + reasoningTokens;
+
+  return {
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: promptTokens + completionTokens,
+    prompt_tokens_details: { cached_tokens: cachedTokens },
+    completion_tokens_details: { reasoning_tokens: reasoningTokens },
+  };
 }
 
 /** The text of an assistant message, as the OpenAI shape carries it. */
@@ -430,9 +478,6 @@ export function createInferenceEdgeRouter(
       applyUsageHeaders(res, completion);
       res.setHeader('X-Oxy-Finish-Reason', completion.finishReason);
 
-      const inputTokens = completion.units.input_tokens ?? 0;
-      const outputTokens = completion.units.output_tokens ?? 0;
-
       res.status(200).json({
         id: `chatcmpl-${completion.requestId}`,
         object: 'chat.completion',
@@ -455,11 +500,7 @@ export function createInferenceEdgeRouter(
           },
           finish_reason: openAiFinishReason(completion.finishReason),
         })),
-        usage: {
-          prompt_tokens: inputTokens,
-          completion_tokens: outputTokens,
-          total_tokens: inputTokens + outputTokens,
-        },
+        usage: openAiUsage(completion.units),
       });
     }
   );

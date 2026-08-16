@@ -34,6 +34,12 @@ import { inferenceProviderSlugSchema, requestIdSchema } from './identifiers';
  * `quota_exceeded`, `byok_credential_invalid`), routing/permission policy
  * (`policy_violation`, `commercial_permission_denied`, `no_route_available`),
  * and the platform or its upstreams (everything from `deployment_unavailable`).
+ *
+ * The platform group is NOT uniformly retryable, and that is the point of
+ * `provider_credential_invalid` sitting in it: an upstream that refuses the
+ * PLATFORM's own credential fails every identical retry until an operator
+ * rotates a key, so classifying it as `provider_error` would send every client
+ * into a retry loop against a request that cannot succeed.
  */
 export const INFERENCE_ERROR_CODES = [
   'invalid_request',
@@ -60,6 +66,7 @@ export const INFERENCE_ERROR_CODES = [
   'provider_error',
   'provider_timeout',
   'provider_overloaded',
+  'provider_credential_invalid',
   'service_unavailable',
   'internal_error',
 ] as const;
@@ -74,6 +81,13 @@ export const inferenceErrorCodeSchema = z.enum(INFERENCE_ERROR_CODES);
  * names, while a quota is an account-level ceiling that only a human raises.
  * `cancelled` is here because the caller already withdrew the request; a client
  * that retries it is contradicting its own cancellation.
+ *
+ * `byok_credential_invalid` and `provider_credential_invalid` are the same
+ * failure seen from the two sides of the BYOK boundary — the customer's own
+ * upstream credential and the platform's — and they are two codes rather than
+ * one because only the first names an action the customer can take. Both are
+ * non-retryable for the same reason: a credential an upstream has refused keeps
+ * being refused until somebody replaces it.
  */
 export const NON_RETRYABLE_INFERENCE_ERROR_CODES = [
   'invalid_request',
@@ -95,6 +109,7 @@ export const NON_RETRYABLE_INFERENCE_ERROR_CODES = [
   'no_route_available',
   'upstream_content_filtered',
   'cancelled',
+  'provider_credential_invalid',
 ] as const;
 
 const NON_RETRYABLE_CODE_SET: ReadonlySet<string> = new Set(NON_RETRYABLE_INFERENCE_ERROR_CODES);

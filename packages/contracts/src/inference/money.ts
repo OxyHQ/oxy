@@ -96,6 +96,49 @@ export const moneySchema = z
 /**
  * The closed set of units inference is metered in.
  *
+ * **The units PARTITION a request: every unit counts material no other unit
+ * counts.** `cached_input_tokens` is not part of `input_tokens`, and
+ * `reasoning_tokens` is not part of `output_tokens` — they are siblings, not
+ * subsets. A request whose 10 000-token prompt was served 9 000 tokens from
+ * cache is reported as `input_tokens: 1000` beside `cached_input_tokens: 9000`,
+ * never as `input_tokens: 10000` beside it.
+ *
+ * That belongs to the definition rather than to a convention somewhere else,
+ * because settlement applies a price to EVERY reported unit and sums them
+ * (`inferenceLedger.service.ts`'s `computeCharge`). Under the partition rule
+ * that sum IS the request's cost, and a cached token can carry its own — lower
+ * — price. Under the nested reading the same sum charges the cached and
+ * reasoning tokens twice: once inside their parent and once on their own line.
+ * It fails silently, because every total still looks plausible and the receipt
+ * is still internally consistent, and on a reasoning model the reasoning tokens
+ * can dominate the completion, so the error is not marginal.
+ *
+ * **Every OpenAI-compatible provider reports the other way round**:
+ * `prompt_tokens` INCLUDES `prompt_tokens_details.cached_tokens`, and
+ * `completion_tokens` INCLUDES `completion_tokens_details.reasoning_tokens`.
+ * Normalising is the data plane's job and it is subtraction:
+ *
+ * ```text
+ * input_tokens  = prompt_tokens     - prompt_tokens_details.cached_tokens
+ * output_tokens = completion_tokens - completion_tokens_details.reasoning_tokens
+ * ```
+ *
+ * No refinement in this package can enforce it, and saying so is part of the
+ * rule: a nested report and a disjoint one are the same four non-negative
+ * integers, so no predicate over a single report can tell them apart. The two
+ * structural guards that DO exist — refining `cached <= input` and
+ * `reasoning <= output`, or deriving the parents instead of reporting them —
+ * both encode the nested reading, which is the one this rule rejects. What IS
+ * enforceable is the arithmetic that depends on the rule, and that is where the
+ * enforcement lives — `inferenceLedger.service.test.ts` prices a report in
+ * which cached and reasoning tokens are both non-zero and asserts the exact
+ * total, which the nested reading cannot produce.
+ *
+ * Where the public surface has to speak a nested dialect, the sum is put back
+ * at the boundary rather than the internal reading being bent to it
+ * (`routes/inferenceEdge.ts` renders `prompt_tokens` as
+ * `input_tokens + cached_input_tokens`).
+ *
  * Time is carried in integer MILLISECONDS rather than seconds so that no unit
  * quantity is ever fractional: a 12.5-second transcription is `12500`, exactly,
  * and the "units are integers" rule holds for every modality instead of holding

@@ -62,6 +62,29 @@ describe('inferenceErrorSchema', () => {
     ).toBe(true);
   });
 
+  it('can classify a platform-side failure no retry will ever clear', () => {
+    // The closed set had no such code, and the gap was found from the other side
+    // of the interface (OxyHQ/Relay#1, issue #1017): an upstream refusing the
+    // PLATFORM's own credential could only be reported as `provider_error`,
+    // which is retryable, so every client retried a request that cannot succeed
+    // until an operator rotates a key.
+    expect(INFERENCE_ERROR_CODES).toContain('provider_credential_invalid');
+    expect(NON_RETRYABLE_INFERENCE_ERROR_CODES as readonly string[]).toContain(
+      'provider_credential_invalid',
+    );
+    expect(
+      inferenceErrorSchema.safeParse({
+        ...error,
+        code: 'provider_credential_invalid',
+        retryable: true,
+      }).success,
+    ).toBe(false);
+
+    // The customer-side half of the same failure stays its own code, so nobody
+    // is told to fix a credential that is not theirs.
+    expect(INFERENCE_ERROR_CODES).toContain('byok_credential_invalid');
+  });
+
   it('refuses a retry-after on an error that will never be retried', () => {
     expect(
       inferenceErrorSchema.safeParse({

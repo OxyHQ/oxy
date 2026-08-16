@@ -34,6 +34,34 @@
  * field is additive and does not bump it, because a consumer on the previous
  * version parses the message correctly and simply does not read the new field.
  *
+ * ## Which shapes reject an unknown field
+ *
+ * That last rule is why the shapes EXCHANGED WITH THE DATA PLANE are not
+ * `.strict()` at their top level — the request envelope, the four usage records,
+ * the stream events, the error body, the catalogue descriptors, the price
+ * version. The split is a decision rather than an omission: `.strict()` and
+ * "adding an optional field is additive" cannot both hold on one shape, because
+ * a producer one minor version ahead would have its whole message REFUSED
+ * rather than its new field ignored. For a usage report that means a request
+ * already served upstream can never be settled and Oxy absorbs its cost, which
+ * is a worse failure than the one strictness would have caught.
+ *
+ * Their LEAVES are strict, and that is where the protection lives: a stripped
+ * field is the worse outcome exactly where it would be a leak or a second
+ * source of truth, because it disappears at this parse and survives in the
+ * producer, which is where somebody eventually reads it. So
+ * `clientRequestMetadataSchema` (no IP, ever), `moneySchema` (no convenience
+ * float beside the exact decimal), `providerErrorPassthroughSchema` (no
+ * upstream request or headers beside the message), `usageQuantitySchema` and
+ * `unitPriceSchema` all refuse an unknown field, while the envelope carrying
+ * them tolerates an additive one.
+ *
+ * A shape Oxy does NOT exchange with the data plane is strict at its top level
+ * too, since nothing there can run ahead of this package:
+ * `providerConnectionSchema`, where an unknown field is how a BYOK credential
+ * escapes, and the billing and entitlement records, where one is a second
+ * number beside an exact amount.
+ *
  * Decided in: docs/adr/0006-oxy-relay-boundary.md, docs/adr/0010-public-api-compatibility.md.
  */
 

@@ -1507,7 +1507,18 @@ async function computeDraw(
   };
 }
 
-/** The exact charge, computed in SQL from the price version's unit prices. */
+/**
+ * The exact charge, computed in SQL from the price version's unit prices.
+ *
+ * One price applied to every reported unit, summed. That arithmetic is only the
+ * request's cost because the contract's units PARTITION it: `cached_input_tokens`
+ * is a sibling of `input_tokens` and not a detail inside it, and the same for
+ * `reasoning_tokens` and `output_tokens` (`@oxyhq/contracts`' `USAGE_UNITS`). A
+ * report normalized the other way — the way every OpenAI-compatible provider
+ * emits one — would be charged twice for its cached and reasoning tokens here,
+ * with no symptom: the receipt would still be internally consistent and every
+ * total would still look plausible.
+ */
 async function computeCharge(
   tx: DatabaseOrTransaction,
   priceVersionId: string,

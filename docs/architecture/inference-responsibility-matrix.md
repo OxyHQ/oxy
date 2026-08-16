@@ -1,12 +1,13 @@
 # Inference platform — responsibility matrix
 
 - Issue: #972 (workstream 0/A)
-- Date: 2026-08-15. **Only §15 was re-verified and updated on 2026-08-16**, when
-  the SDK catalogue client and the `docs/inference/` doc set landed; one §5 row
-  was corrected at the same time because `models-stats.ts` no longer exists.
-  Every other row is still a claim about 2026-08-15, and §5's descriptor rows in
-  particular predate the catalogue merging (#982) — re-verify before citing
-  them.
+- Date: 2026-08-15. **§15 was re-verified and updated on 2026-08-16**, when the
+  SDK catalogue client and the `docs/inference/` doc set landed; one §5 row was
+  corrected at the same time because `models-stats.ts` no longer exists. **§6
+  and one §7 row were re-verified on 2026-08-16** against #1012's route-selection
+  enforcement and the usage-unit contract (#1017, #1018). Every other row is
+  still a claim about 2026-08-15, and §5's descriptor rows in particular predate
+  the catalogue merging (#982) — re-verify before citing them.
 - Governing decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md),
   [ADR 0006](../adr/0006-oxy-relay-boundary.md),
   [ADR 0007](../adr/0007-canonical-request-attribution.md),
@@ -157,24 +158,40 @@ The package `@oxyhq/contracts` exists (`packages/contracts`, zod-only, epic's
 
 ## 6. Routing policy (epic §6)
 
+**Re-verified 2026-08-16 (#1018)**, by reading `inferenceCatalogue.service.ts`
+and `inferenceEdge.service.ts` rather than by inference from the schema. The
+correction this section needed: the request envelope carries a policy
+**reference** (`{routingPolicyId, policyVersion}`), never the resolved values, so
+a row reading "Oxy (policy), Relay (execution)" was a promise the data plane had
+no way to keep. Since #1012, ROUTE SELECTION IS COMPLETE BEFORE THE ENVELOPE IS
+BUILT: the control plane filters candidates against every control expressible as
+a predicate over one candidate and refuses with `policy_violation` when none
+qualifies. What is left to the data plane is ranking among routes that already
+qualify, and failover within destinations the policy authorized.
+
+Every control of `routingPolicySchema` is either enforced by
+`violatedConstraints` or named with its reason in `UNFILTERED_ROUTING_CONTROLS`;
+a control in neither list fails `tsc`, so this table cannot silently fall behind
+the contract.
+
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| Per-application default model or routing profile | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Provider allowlist / denylist | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Region / data-residency constraints | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Zero-retention requirement | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Prohibit-training-on-customer-data constraint | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Maximum customer price per unit/request | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Sort by price / latency / throughput / balanced | Oxy (policy), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
-| Oxy-hosted-only option | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Licence / usage-right constraints | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Fallback-disabled option | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Same-model deployment fallback option | Oxy (policy), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
-| Explicitly authorized cross-model fallback option | Oxy (policy), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
-| Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement), Relay (capacity) | OxyHQServices + OxyHQ/Relay | planned |
-| Routing-policy versioning; request records the exact policy used | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
+| Per-application default model or routing profile | Oxy (policy + resolution) | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts` | exists |
+| Provider allowlist / denylist | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
+| Region / data-residency constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
+| Zero-retention requirement | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
+| Prohibit-training-on-customer-data constraint | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
+| Maximum customer price per unit/request — stored, versioned, pinned on the receipt, enforced by NEITHER side (named inert in `UNFILTERED_ROUTING_CONTROLS`, issue #1011) | Oxy | OxyHQServices `packages/api/src/db/schema` | exists |
+| Sort by price / latency / throughput / balanced — the one routing decision the data plane makes | Oxy (policy), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
+| Oxy-hosted-only option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
+| Licence / usage-right constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
+| Fallback-disabled option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceRoutingPolicy.service.ts` | exists |
+| Same-model deployment fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
+| Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
+| Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement + candidate filter), Relay (capacity) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` + OxyHQ/Relay | planned |
+| Routing-policy versioning; the request envelope and the receipt record a REFERENCE to the exact policy revision used, as provenance rather than as instructions | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`routingPolicyReferenceSchema`) + `packages/api/src/db/schema` | exists |
 | Customer-visible route-switch event/receipt | Oxy (emission to customer), Relay (source) | OxyHQServices + OxyHQ/Relay | planned |
-| Contradictory-policy validation | Oxy | OxyHQServices `packages/api/src` | planned |
+| Contradictory-policy validation | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` | exists |
 | Circuit breakers, health scoring, provider failover execution | Relay | OxyHQ/Relay | planned |
 
 ## 7. Financial ledger and billing (epic §7, ADR 0009)
@@ -204,6 +221,7 @@ The package `@oxyhq/contracts` exists (`packages/contracts`, zod-only, epic's
 | Reserve → settle → refund protocol | Oxy | OxyHQServices `packages/api/src/services/inferenceLedger.service.ts` | exists |
 | Idempotency by stable request/event id | Oxy | OxyHQServices `packages/api/src/services/inferenceLedger.service.ts` | exists |
 | Estimation/reconciliation when a provider omits usage | Oxy (settlement), Relay (measurement) | OxyHQServices + OxyHQ/Relay | planned |
+| **What a metered unit MEANS** — the unit set partitions a request, so `cached_input_tokens` and `reasoning_tokens` are siblings of their parents and not details inside them. Oxy owns the definition because settlement prices every unit and sums; Relay owns the subtraction that turns a provider's nested counts into it. Re-verified 2026-08-16 (#1017) | Oxy (definition), Relay (normalisation) | OxyHQServices `packages/contracts/src/inference/money.ts` (`USAGE_UNITS`) + OxyHQ/Relay | exists |
 | Stripe as payment/invoicing processor only | Stripe (external) | — | exists |
 | `billing_external_payments` (the ONE ledger↔processor join) | Oxy | OxyHQServices `packages/api/src/db/schema/billingExternalPayments.ts` | exists |
 | Ledger ↔ Stripe reconciliation + discrepancy report | Oxy | OxyHQServices `packages/api/src/services/billingReconciliation.service.ts`, `db/schema/billingReconciliation.ts` | exists |

@@ -150,6 +150,12 @@ export const inferenceRequestOutcomeSchema = z.enum([
  * `usageSource` is load-bearing when a provider returns no usage at all: the
  * report still arrives, marked `estimated`, so settlement can apply the
  * estimation policy knowingly instead of treating a reconstruction as fact.
+ *
+ * `units` is a PARTITION of what the request consumed, not a set of totals with
+ * details hanging off them — see `USAGE_UNITS` in `money.ts`. Reporting a provider's
+ * nested `prompt_tokens`/`completion_tokens` verbatim charges the cached and
+ * reasoning tokens twice, so subtracting the children out is part of what
+ * "normalized" means in this shape's name.
  */
 export const normalizedUsageReportSchema = z
   .object({
