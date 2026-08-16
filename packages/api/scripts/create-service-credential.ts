@@ -11,10 +11,21 @@
  * into an AES-256-GCM cipher; ONLY the encrypted form is emitted (so it can be
  * exfiltrated safely via task logs and decrypted out-of-band with the key).
  *
- * Idempotency: if a usable (`isCredentialUsable`) service production credential
- * already exists for the app, it is REUSED — no new credential is minted. The
- * existing secret is NOT recoverable (only its hash is stored), so `secretEnc`
- * is `null` on reuse; rotate the credential if a fresh secret is required.
+ * Idempotency: if a usable (`isCredentialUsable`) service credential already
+ * exists for the app IN THE REQUESTED ENVIRONMENT, it is REUSED — no new
+ * credential is minted. The existing secret is NOT recoverable (only its hash is
+ * stored), so `secretEnc` is `null` on reuse; rotate the credential if a fresh
+ * secret is required.
+ *
+ * ## One environment per invocation, on purpose
+ *
+ * `application_credentials.environment` is a real isolation boundary — a service
+ * token carries it as a verified claim (`middleware/serviceToken.ts`) — so
+ * development, staging and production credentials of one application are three
+ * separate rows. This script mints ONE of them per run, named by `ENVIRONMENT`,
+ * rather than all three: each run emits exactly one secret, and a secret that
+ * has to reach one deployment environment should not be sitting in the same
+ * output as the two that must not.
  *
  * Safety:
  *   - Never creates an Application — it must already exist and be `active`.
@@ -29,7 +40,8 @@
  *   APP_NAME               required, e.g. "Mention"
  *   OWNER_USERNAME         owner username to resolve (default 'oxy')
  *   SCOPES                 required, comma-separated, e.g. "federation:write,user:read"
- *   CREDENTIAL_NAME        credential name (default 'Service')
+ *   ENVIRONMENT            development | staging | production (default 'production')
+ *   CREDENTIAL_NAME        credential name (default 'Service (<environment>)')
  *   OUTPUT_ENCRYPTION_KEY  required, 64 hex chars (32 bytes) — AES-256-GCM key
  *   DRY_RUN=true           plan only, no writes, no secret emitted
  */
@@ -37,7 +49,11 @@
 import crypto from 'crypto';
 import { and, eq, ne } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
-import { applicationCredentials } from '../src/db/schema/applicationCredentials';
+import {
+  APPLICATION_CREDENTIAL_ENVIRONMENTS,
+  applicationCredentials,
+  type ApplicationCredentialEnvironment,
+} from '../src/db/schema/applicationCredentials';
 import { applications } from '../src/db/schema/applications';
 import { users } from '../src/db/schema/users';
 import { APPLICATION_SCOPES } from '../src/utils/applicationScopes';
@@ -111,6 +127,28 @@ function parseAndValidateScopes(raw: string | undefined): string[] {
   return Array.from(new Set(scopes));
 }
 
+/**
+ * Narrow `ENVIRONMENT` against the column's own closed set.
+ *
+ * Refuses an unrecognised value rather than defaulting to production. The
+ * dangerous typo is the one that reads like a smaller blast radius — `dev`,
+ * `prod`, `staging-2` — and silently mints the credential a real deployment then
+ * authenticates with.
+ */
+function parseAndValidateEnvironment(raw: string | undefined): ApplicationCredentialEnvironment {
+  if (raw === undefined || raw.trim().length === 0) {
+    return 'production';
+  }
+  const value = raw.trim();
+  const allowed: readonly string[] = APPLICATION_CREDENTIAL_ENVIRONMENTS;
+  if (!allowed.includes(value)) {
+    throw new Error(
+      `Invalid ENVIRONMENT "${value}". Allowed: ${APPLICATION_CREDENTIAL_ENVIRONMENTS.join(', ')}.`
+    );
+  }
+  return value as ApplicationCredentialEnvironment;
+}
+
 interface ResultRow {
   app: string;
   applicationId: string;
@@ -119,7 +157,7 @@ interface ResultRow {
   credentialId: string | null;
   publicKey: string | null;
   type: 'service';
-  environment: 'production';
+  environment: ApplicationCredentialEnvironment;
   scopes: string[];
   reused: boolean;
   secretEnc: SecretEnvelope | null;
@@ -133,7 +171,11 @@ async function run(): Promise<void> {
   const dryRun = process.env.DRY_RUN === 'true';
   const ownerUsername = process.env.OWNER_USERNAME || 'oxy';
   const appName = process.env.APP_NAME;
-  const credentialName = process.env.CREDENTIAL_NAME || 'Service';
+  const environment = parseAndValidateEnvironment(process.env.ENVIRONMENT);
+  // Defaulted from the environment so three credentials of one application are
+  // distinguishable in Console, where the only other thing telling them apart is
+  // a column an operator has to go looking for.
+  const credentialName = process.env.CREDENTIAL_NAME || `Service (${environment})`;
   const encryptionKeyHex = process.env.OUTPUT_ENCRYPTION_KEY;
 
   if (dryRun) {
@@ -153,7 +195,7 @@ async function run(): Promise<void> {
   }
 
   const scopes = parseAndValidateScopes(process.env.SCOPES);
-  logger.info('Validated requested scopes', { scopes });
+  logger.info('Validated requested scopes', { scopes, environment });
 
   const db = getDb();
 
@@ -222,7 +264,7 @@ async function run(): Promise<void> {
       and(
         eq(applicationCredentials.applicationId, application.id),
         eq(applicationCredentials.type, 'service'),
-        eq(applicationCredentials.environment, 'production'),
+        eq(applicationCredentials.environment, environment),
         ne(applicationCredentials.status, 'revoked'),
       ),
     )
@@ -234,6 +276,7 @@ async function run(): Promise<void> {
       applicationId: application.id,
       credentialId: existing.id,
       publicKey: existing.publicKey,
+      environment,
     });
     logger.info(
       'NOTE: the secret of an existing credential is not recoverable (only its hash is stored). ' +
@@ -248,7 +291,7 @@ async function run(): Promise<void> {
       credentialId: existing.id,
       publicKey: existing.publicKey,
       type: 'service',
-      environment: 'production',
+      environment,
       scopes: existing.scopes,
       reused: true,
       secretEnc: null,
@@ -265,6 +308,7 @@ async function run(): Promise<void> {
       applicationId: application.id,
       credentialName,
       scopes,
+      environment,
     });
 
     const planResult: ResultRow = {
@@ -275,7 +319,7 @@ async function run(): Promise<void> {
       credentialId: null,
       publicKey: null,
       type: 'service',
-      environment: 'production',
+      environment,
       scopes,
       reused: false,
       secretEnc: null,
@@ -295,7 +339,7 @@ async function run(): Promise<void> {
       publicKey,
       secretHash,
       type: 'service',
-      environment: 'production',
+      environment,
       scopes,
       status: 'active',
       createdByUserId: owner.id,
@@ -315,6 +359,7 @@ async function run(): Promise<void> {
     credentialId: credential.id,
     publicKey: credential.publicKey,
     scopes,
+    environment,
   });
 
   // Encrypt the plaintext secret — it is NEVER logged in plaintext anywhere.
@@ -328,7 +373,7 @@ async function run(): Promise<void> {
     credentialId: credential.id,
     publicKey: credential.publicKey,
     type: 'service',
-    environment: 'production',
+    environment,
     scopes,
     reused: false,
     secretEnc,

@@ -1,7 +1,7 @@
 /**
- * THE INVARIANT of `ONLY_APPS`: a run is bounded to exactly the applications
- * named, or it refuses to run at all. It never silently reconciles nothing, and
- * it never silently reconciles everything.
+ * THE INVARIANT of a bounded seed run: it touches exactly the entries named, or
+ * it refuses to run at all. It never silently reconciles nothing, and it never
+ * silently reconciles everything.
  *
  * Why this suite exists: `scripts/seed-oxy-applications.ts` reconciles EVERY
  * official application on every run, and some of what it reconciles is an
@@ -12,13 +12,15 @@
  * would change — the same bug `registerCommonsClientsPlan.test.ts` pins for the
  * sibling script). `ONLY_APPS` removes the blast radius instead of improving the
  * warning about it, so the guard rails on it are the safety property.
+ * `scripts/seed-internal-cost-centers.ts` inherits both the mechanism and these
+ * guard rails, and its entries are ACCOUNTS a run may mint.
  *
  * The failure this pins hardest is the QUIET one: every rejection below could
  * instead have been "select nothing and report success", which is the exact
  * shape of a decorative safety net.
  */
 
-import { selectSeedApplications } from '../seedApplicationSelection';
+import { selectSeedEntries, type SeedEntryVocabulary } from '../seedEntrySelection';
 
 /** Stands in for the real SEED_APPS: only `name` is load-bearing here. */
 const ENTRIES = [
@@ -27,51 +29,57 @@ const ENTRIES = [
   { name: 'CrowdSource', type: 'first_party' },
 ] as const;
 
-describe('selectSeedApplications', () => {
+const APPS: SeedEntryVocabulary = {
+  envVar: 'ONLY_APPS',
+  singular: 'application',
+  plural: 'applications',
+};
+
+describe('selectSeedEntries', () => {
   describe('unset — the long-standing behaviour is unchanged', () => {
     it('returns the whole canonical list', () => {
-      expect(selectSeedApplications(ENTRIES, undefined)).toEqual([...ENTRIES]);
+      expect(selectSeedEntries(ENTRIES, undefined, APPS)).toEqual([...ENTRIES]);
     });
 
     it('returns a copy, so a caller cannot mutate the canonical list', () => {
-      const selected = selectSeedApplications(ENTRIES, undefined);
+      const selected = selectSeedEntries(ENTRIES, undefined, APPS);
       expect(selected).not.toBe(ENTRIES);
     });
   });
 
   describe('bounding a run', () => {
     it('selects exactly the one application named', () => {
-      expect(selectSeedApplications(ENTRIES, 'CrowdSource')).toEqual([
+      expect(selectSeedEntries(ENTRIES, 'CrowdSource', APPS)).toEqual([
         { name: 'CrowdSource', type: 'first_party' },
       ]);
     });
 
     it('does NOT select the applications it was not given — the whole point', () => {
-      const selected = selectSeedApplications(ENTRIES, 'CrowdSource').map((e) => e.name);
+      const selected = selectSeedEntries(ENTRIES, 'CrowdSource', APPS).map((e) => e.name);
       expect(selected).not.toContain('Commons by Oxy');
       expect(selected).not.toContain('Oxy Accounts');
     });
 
     it('selects several, and tolerates whitespace around the separators', () => {
       expect(
-        selectSeedApplications(ENTRIES, ' CrowdSource , Oxy Accounts ').map((e) => e.name)
+        selectSeedEntries(ENTRIES, ' CrowdSource , Oxy Accounts ', APPS).map((e) => e.name)
       ).toEqual(['Oxy Accounts', 'CrowdSource']);
     });
 
     it('returns canonical order, never the order the operator typed', () => {
       expect(
-        selectSeedApplications(ENTRIES, 'CrowdSource,Oxy Accounts').map((e) => e.name)
+        selectSeedEntries(ENTRIES, 'CrowdSource,Oxy Accounts', APPS).map((e) => e.name)
       ).toEqual(['Oxy Accounts', 'CrowdSource']);
     });
 
     it('de-duplicates a repeated name instead of seeding it twice', () => {
       expect(
-        selectSeedApplications(ENTRIES, 'CrowdSource,CrowdSource').map((e) => e.name)
+        selectSeedEntries(ENTRIES, 'CrowdSource,CrowdSource', APPS).map((e) => e.name)
       ).toEqual(['CrowdSource']);
     });
 
     it('preserves an internal space in a name (the separator is a comma)', () => {
-      expect(selectSeedApplications(ENTRIES, 'Commons by Oxy').map((e) => e.name)).toEqual([
+      expect(selectSeedEntries(ENTRIES, 'Commons by Oxy', APPS).map((e) => e.name)).toEqual([
         'Commons by Oxy',
       ]);
     });
@@ -79,31 +87,31 @@ describe('selectSeedApplications', () => {
 
   describe('fails closed — a rejection is never a silent no-op', () => {
     it('throws when set but empty, rather than seeding everything', () => {
-      expect(() => selectSeedApplications(ENTRIES, '')).toThrow(/names no application/);
+      expect(() => selectSeedEntries(ENTRIES, '', APPS)).toThrow(/names no application/);
     });
 
     it('throws on whitespace only', () => {
-      expect(() => selectSeedApplications(ENTRIES, '   ')).toThrow(/names no application/);
+      expect(() => selectSeedEntries(ENTRIES, '   ', APPS)).toThrow(/names no application/);
     });
 
     it('throws on separators only', () => {
-      expect(() => selectSeedApplications(ENTRIES, ' , , ')).toThrow(/names no application/);
+      expect(() => selectSeedEntries(ENTRIES, ' , , ', APPS)).toThrow(/names no application/);
     });
 
     it('throws on an unknown name instead of selecting nothing', () => {
-      expect(() => selectSeedApplications(ENTRIES, 'Crowdsource')).toThrow(
+      expect(() => selectSeedEntries(ENTRIES, 'Crowdsource', APPS)).toThrow(
         /unknown application\(s\): \[Crowdsource\]/
       );
     });
 
     it('names the valid options, so a typo is self-correcting', () => {
-      expect(() => selectSeedApplications(ENTRIES, 'Nope')).toThrow(/CrowdSource/);
+      expect(() => selectSeedEntries(ENTRIES, 'Nope', APPS)).toThrow(/CrowdSource/);
     });
 
     it('rejects the WHOLE run when one of several names is unknown', () => {
       // Partial success is the dangerous outcome: the operator reads "done" and
       // the application they cared about was never touched.
-      expect(() => selectSeedApplications(ENTRIES, 'CrowdSource,Nope')).toThrow(
+      expect(() => selectSeedEntries(ENTRIES, 'CrowdSource,Nope', APPS)).toThrow(
         /unknown application\(s\): \[Nope\]/
       );
     });
@@ -111,11 +119,40 @@ describe('selectSeedApplications', () => {
     it('is case-sensitive, because `name` is the idempotency key', () => {
       // A near-miss identifies a DIFFERENT application (or none): matching it
       // loosely would reconcile the wrong record under the right-looking name.
-      expect(() => selectSeedApplications(ENTRIES, 'crowdsource')).toThrow(/unknown/);
+      expect(() => selectSeedEntries(ENTRIES, 'crowdsource', APPS)).toThrow(/unknown/);
     });
 
     it('does not substring-match a longer name', () => {
-      expect(() => selectSeedApplications(ENTRIES, 'Crowd')).toThrow(/unknown/);
+      expect(() => selectSeedEntries(ENTRIES, 'Crowd', APPS)).toThrow(/unknown/);
+    });
+  });
+
+  describe('the refusal names the caller’s own vocabulary', () => {
+    // A message that says "application" while an operator is seeding cost
+    // centres sends them to the wrong script, and a message naming the wrong
+    // env var sends them to the wrong variable. Both are how a fail-closed
+    // guard becomes a fail-confused one.
+    const CENTERS: SeedEntryVocabulary = {
+      envVar: 'ONLY_COST_CENTERS',
+      singular: 'cost centre',
+      plural: 'cost centres',
+    };
+
+    it('names the caller’s env var and noun when nothing was selected', () => {
+      expect(() => selectSeedEntries(ENTRIES, '', CENTERS)).toThrow(
+        /ONLY_COST_CENTERS was set but names no cost centre/
+      );
+    });
+
+    it('names the caller’s env var and plural noun on an unknown entry', () => {
+      expect(() => selectSeedEntries(ENTRIES, 'Nope', CENTERS)).toThrow(
+        /ONLY_COST_CENTERS names unknown cost centre\(s\): \[Nope\]\. Known cost centres:/
+      );
+    });
+
+    it('does not leak the other caller’s vocabulary into this one', () => {
+      expect(() => selectSeedEntries(ENTRIES, 'Nope', CENTERS)).not.toThrow(/ONLY_APPS/);
+      expect(() => selectSeedEntries(ENTRIES, 'Nope', APPS)).not.toThrow(/ONLY_COST_CENTERS/);
     });
   });
 
@@ -124,7 +161,7 @@ describe('selectSeedApplications', () => {
       // If ENTRIES ever collapsed to one entry, every "does not select" test
       // above would pass for the wrong reason.
       expect(ENTRIES.length).toBeGreaterThan(1);
-      expect(selectSeedApplications(ENTRIES, 'CrowdSource').length).toBeLessThan(ENTRIES.length);
+      expect(selectSeedEntries(ENTRIES, 'CrowdSource', APPS).length).toBeLessThan(ENTRIES.length);
     });
   });
 });

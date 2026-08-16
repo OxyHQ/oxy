@@ -7,7 +7,11 @@
  *   - Application      keyed by (name + createdByUserId = oxyId), owned by the
  *                      root `oxy` account itself (ownerAccountId = oxyId) — app
  *                      access derives from it, with no per-app member row and no
- *                      intermediate organization account
+ *                      intermediate organization account. An app declaring
+ *                      `ownerAccountUsername` is owned by THAT account instead,
+ *                      which is how an application gets its own line in the
+ *                      cost-centre report; the account must already exist and
+ *                      the run REFUSES rather than falling back.
  *   - ApplicationCredential  type:'public', environment:'production',
  *                            publicKey minted EXACTLY like the real create route
  *                            (`oxy_dk_` + 24 random bytes hex). A `public`
@@ -33,7 +37,10 @@
  *   ONLY_APPS     comma-separated application names this run may touch. Unset
  *                 seeds the whole list. Set-but-empty, or naming an application
  *                 that is not in SEED_APPS, ABORTS before any write — see
- *                 `src/scripts/seedApplicationSelection.ts`.
+ *                 `src/scripts/seedEntrySelection.ts`.
+ *
+ * The canonical list itself is `src/scripts/seedOxyApplicationsSpecs.ts`, so the
+ * scope and type decisions in it can be held by a test.
  */
 
 import crypto from 'crypto';
@@ -42,17 +49,14 @@ import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
 import { applicationCredentials } from '../src/db/schema/applicationCredentials';
 import { applications } from '../src/db/schema/applications';
 import { users } from '../src/db/schema/users';
-import { selectSeedApplications } from '../src/scripts/seedApplicationSelection';
+import { selectSeedEntries } from '../src/scripts/seedEntrySelection';
 import {
   applySeedApplicationPlan,
   computeSeedApplicationPlan,
   readSeedApplicationState,
 } from '../src/scripts/seedOxyApplicationsPlan';
-import type { ApplicationCapability } from '../src/utils/applicationCapabilities';
-import { IDENTITY_APPROVAL_CAPABILITY } from '../src/utils/applicationCapabilities';
-import {
-  type ApplicationScope,
-} from '../src/utils/applicationScopes';
+import { SEED_APPS, type SeedAppSpec, type SeedAppType } from '../src/scripts/seedOxyApplicationsSpecs';
+import type { ApplicationScope } from '../src/utils/applicationScopes';
 import { logger } from '../src/utils/logger';
 
 // ── Mirror routes/applications.ts credential generation EXACTLY ──────────────
@@ -63,248 +67,13 @@ function generatePublicKey(): string {
   return CREDENTIAL_PUBLIC_KEY_PREFIX + crypto.randomBytes(PUBLIC_KEY_RANDOM_BYTES).toString('hex');
 }
 
-type AppType = 'first_party' | 'internal';
-
-interface SeedAppSpec {
-  name: string;
-  /**
-   * Previous official seed names that should be migrated in-place when present.
-   *
-   * The seed remains keyed by name for ordinary idempotency, but official app
-   * renames must not leave the old active app/credential trusted forever. If a
-   * legacy row exists and the new row does not, it is renamed/reconciled in
-   * place so the existing client id is preserved. If both rows already exist,
-   * the legacy row is suspended and its credentials are revoked.
-   */
-  legacyNames?: string[];
-  description: string;
-  websiteUrl?: string;
-  type: AppType;
-  redirectUris: string[];
-  /**
-   * App-level scopes. Defaults to `['user:read']`. A PRIVILEGED scope (e.g.
-   * `federation:write`) is staff-only and is never self-grantable via the API —
-   * granting it here (in this canonical seed, run by staff) is the supported way
-   * to elevate an official app. The service-token mint intersects a credential's
-   * scopes with the app's scopes, so a credential's `federation:write` only
-   * survives if the app ALSO carries it. Mention's federation feature therefore
-   * requires `federation:write` here.
-   */
-  scopes?: ApplicationScope[];
-  /**
-   * Staff-only platform capabilities. UNIONed into an existing record, never
-   * stripped. Commons carries `identity:approval` so push delivery of sign-in
-   * requests can target its installs without a separate register-commons run.
-   */
-  capabilities?: ApplicationCapability[];
-}
-
-/**
- * The official Oxy ecosystem apps that integrate Oxy auth.
- * `name` is the idempotency key (with createdByUserId=oxyId) — DO NOT rename
- * casually, a rename creates a new Application rather than updating one.
- *
- * `redirectUris` are OAuth redirect URIs. Trust derivation
- * (`dynamicOriginRegistry`, FedCM approved clients) keys on the ORIGIN of each
- * URI, so web apps register their apex origin as the redirect surface; native
- * apps register their deep-link schemes.
- */
-const SEED_APPS: SeedAppSpec[] = [
-  // ── OxyHQServices first-party web apps (CF Pages) ──
-  {
-    name: 'Oxy Accounts',
-    description: 'Official Oxy account management app (My Account).',
-    websiteUrl: 'https://accounts.oxy.so',
-    type: 'first_party',
-    redirectUris: ['https://accounts.oxy.so'],
-  },
-  {
-    name: 'Oxy Console',
-    description: 'Official Oxy developer console (Cloud).',
-    websiteUrl: 'https://console.oxy.so',
-    type: 'first_party',
-    redirectUris: ['https://console.oxy.so'],
-  },
-  {
-    name: 'Oxy Inbox',
-    description: 'Official Oxy email/inbox app.',
-    websiteUrl: 'https://inbox.oxy.so',
-    type: 'first_party',
-    redirectUris: ['https://inbox.oxy.so'],
-  },
-  {
-    name: 'Oxy Auth',
-    description: 'Official Oxy authentication app and third-party OAuth Identity Provider.',
-    websiteUrl: 'https://auth.oxy.so',
-    type: 'first_party',
-    // The auth app is the third-party OAuth IdP, but it now ALSO consumes
-    // Sign-in-with-Oxy as its own Relying Party, so it registers its own
-    // origin as the redirect surface.
-    redirectUris: ['https://auth.oxy.so'],
-  },
-  // ── Ecosystem first-party apps ──
-  {
-    name: 'Mention',
-    description: 'Official Oxy social media app with fediverse support.',
-    websiteUrl: 'https://mention.earth',
-    type: 'first_party',
-    redirectUris: ['https://mention.earth'],
-    // Mention federates: its service credential signs HTTP-Signatures and
-    // resolves federated users. The mint intersects credential scopes with these
-    // app scopes, so the app MUST carry federation:write for the credential's
-    // federation:write to survive. files:write is needed for federated-media S3
-    // caching (POST /assets/service/cache); files:read for reading cached assets
-    // back (GET /assets/service/*). signals:write lets Mention push cross-app
-    // recommendation signals (interest + interaction-affinity edges) — the
-    // credential already carries it, so the app MUST declare it or the mint's
-    // intersection drops it.
-    scopes: ['user:read', 'files:read', 'files:write', 'federation:write', 'signals:write'],
-  },
-  {
-    name: 'Homiio',
-    description: 'Official Oxy real estate platform.',
-    websiteUrl: 'https://homiio.com',
-    type: 'first_party',
-    redirectUris: ['https://homiio.com'],
-    // Homiio awards Oxy Trust on lease lifecycle events via its service credential.
-    // `reputation:write` is staff-gated — the seed script grants it to official apps.
-    scopes: ['user:read', 'reputation:write'],
-  },
-  {
-    name: 'Allo',
-    description: 'Official Oxy encrypted messaging app.',
-    websiteUrl: 'https://allo.you',
-    type: 'first_party',
-    redirectUris: ['https://allo.you', 'https://allo.oxy.so'],
-  },
-  {
-    name: 'Alia',
-    description: 'Official Oxy AI platform (chat app, console, canvas, gateway).',
-    websiteUrl: 'https://alia.onl',
-    type: 'first_party',
-    redirectUris: ['https://alia.onl'],
-  },
-  {
-    name: 'Syra',
-    description: 'Official Oxy app.',
-    websiteUrl: 'https://syra.fm',
-    type: 'first_party',
-    redirectUris: ['https://syra.fm'],
-  },
-  {
-    name: 'TNP',
-    description: 'Official Oxy alternative DNS/namespace system.',
-    websiteUrl: 'https://tnp.network',
-    type: 'first_party',
-    redirectUris: ['https://tnp.network'],
-  },
-  {
-    name: 'Oxy Website',
-    description: 'Official Oxy / FairCoin marketing website.',
-    websiteUrl: 'https://oxy.so',
-    type: 'first_party',
-    redirectUris: ['https://oxy.so', 'https://fairco.in'],
-  },
-  {
-    name: 'Oxy Pay',
-    description: 'Official Oxy payments app.',
-    websiteUrl: 'https://pay.oxy.so',
-    type: 'first_party',
-    redirectUris: ['https://pay.oxy.so'],
-    scopes: ['user:read', 'payments:read', 'payments:write'],
-  },
-  {
-    name: 'Noted',
-    description: 'Official Oxy notes app.',
-    websiteUrl: 'https://noted.oxy.so',
-    type: 'first_party',
-    redirectUris: ['https://noted.oxy.so'],
-  },
-  {
-    name: 'Commons by Oxy',
-    description:
-      'Official Oxy Commons app — self-sovereign identity wallet and Sign-in-with-Oxy approvals (native).',
-    type: 'first_party',
-    // Commons is native-only (no web). Its public client id (the credential
-    // publicKey) wires into OxyProvider; the redirect surface is the app's two
-    // deep-link schemes from packages/commons/app.json, so both are listed.
-    redirectUris: ['commons://', 'oxycommons://'],
-    capabilities: [IDENTITY_APPROVAL_CAPABILITY],
-  },
-  {
-    name: 'Mercaria',
-    legacyNames: ['Marketplace'],
-    description: 'Official Oxy marketplace app — buy and sell new and secondhand items.',
-    websiteUrl: 'https://mercaria.co',
-    type: 'first_party',
-    // Storefront (mercaria.co) + the two first-party admin surfaces that share
-    // this client: the store/merchant dashboard and the point-of-sale app.
-    // Trust derivation matches the RP by the origin of an approved redirect
-    // URI, so each subdomain's origin is listed here.
-    redirectUris: [
-      'https://mercaria.co',
-      'https://dashboard.mercaria.co',
-      'https://pos.mercaria.co',
-    ],
-  },
-  {
-    name: 'Moovo',
-    description: 'Official Oxy courier/transport app — send packages, food, and moves.',
-    websiteUrl: 'https://moovo.now',
-    type: 'first_party',
-    redirectUris: [
-      'https://moovo.now',
-      'https://go.moovo.now',
-      'https://hub.moovo.now',
-    ],
-  },
-  {
-    name: 'Atlas',
-    description:
-      'The Oxy App Store — the storefront people browse before they choose an app, and where they review one afterwards.',
-    websiteUrl: 'https://atlas.oxy.so',
-    type: 'first_party',
-    // The storefront is readable signed out, so this client exists for exactly
-    // one thing: signing somebody in to write a review. Only the app's own
-    // origin is listed; there is no second surface.
-    redirectUris: ['https://atlas.oxy.so'],
-  },
-  {
-    name: 'CrowdSource',
-    description:
-      'Official Oxy participatory moderation platform — reviewers are assigned cases by the server and review them blind.',
-    websiteUrl: 'https://crowdsource.oxy.so',
-    type: 'first_party',
-    // Two web surfaces share this client, so each origin is listed: the
-    // reviewer app, and the Trust & Safety / developer console. Trust
-    // derivation (`dynamicOriginRegistry`) keys on the ORIGIN of each redirect
-    // URI, and the console is a distinct origin — without its own entry it
-    // gets neither the credentialed CORS lane nor an exact-match redirect,
-    // however official the parent application is.
-    //
-    // The console origin is registered ahead of its first deploy on purpose:
-    // it is already built and merged, and a redirect surface that only exists
-    // after a second round trip blocks the deploy rather than the reverse.
-    //
-    // Both frontends ship to the web only today. The Expo `crowdsource://`
-    // deep-link scheme is registered here when a native build actually ships —
-    // an unused redirect surface is authority nobody asked for.
-    redirectUris: ['https://crowdsource.oxy.so', 'https://console.crowdsource.oxy.so'],
-    // Sign-in ONLY, so the default `['user:read']`. CrowdSource must never
-    // carry `reputation:write`: it never moves an Oxy Trust figure itself, it
-    // emits a decision and Oxy Trust's own consequence engine decides the
-    // effect. Granting it here would also widen every device sign-in grant,
-    // because a device sign-in's granted scopes ARE the application's scopes
-    // (`routes/auth.ts` — `scopes = appScopes` when there is no OAuth request).
-  },
-];
-
 type ApplicationRow = typeof applications.$inferSelect;
 
 interface MappingRow {
   app: string;
-  type: AppType;
+  type: SeedAppType;
   applicationId: string;
+  ownerAccountId: string;
   clientId: string;
   redirectUris: string[];
   websiteUrl?: string;
@@ -321,6 +90,71 @@ async function findUserByUsername(username: string): Promise<{ id: string } | nu
     .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
     .limit(1);
   return owner ?? null;
+}
+
+/**
+ * The account an application declaring `ownerAccountUsername` is owned by.
+ *
+ * REFUSES on anything it does not recognise, including in a dry run, and never
+ * falls back to the platform owner. The fallback is the dangerous branch: an
+ * application seeded onto the root account still works in every respect a smoke
+ * test can see — it authenticates, it signs users in, it can invoke inference —
+ * and the only symptom is that its spend rolls up with every other official
+ * app's, which nobody discovers until a month-end report shows one number where
+ * several were expected. A dry run refuses for the same reason: a plan the real
+ * run cannot execute is a plan an operator acts on.
+ *
+ * The three conditions are the three ways the wrong account could be adopted:
+ * a personal or organization account that happens to share the handle, a project
+ * account belonging to somebody else's subtree, and an archived account whose
+ * spend nobody is watching.
+ */
+async function resolveDedicatedOwnerAccount(
+  username: string,
+  appName: string,
+  platformOwnerId: string,
+): Promise<string> {
+  const [account] = await getDb()
+    .select({
+      id: users.id,
+      kind: users.kind,
+      parentAccountId: users.parentAccountId,
+      accountStatus: users.accountStatus,
+    })
+    .from(users)
+    .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
+    .limit(1);
+
+  if (!account) {
+    throw new Error(
+      `Application "${appName}" is owned by the account "${username}", which does not exist. ` +
+        'Run `scripts/seed-internal-cost-centers.ts` first — it mints the project accounts ' +
+        'the cost-centre report is built from. Refusing to seed onto the platform owner.',
+    );
+  }
+  if (account.kind !== 'project') {
+    throw new Error(
+      `Application "${appName}" is owned by the account "${username}", which is a ` +
+        `"${account.kind}" account, not a project. Refusing: a handle collision must never ` +
+        'silently re-point an official application at somebody else’s account.',
+    );
+  }
+  if (account.parentAccountId !== platformOwnerId) {
+    throw new Error(
+      `Application "${appName}" is owned by the project account "${username}", which is not a ` +
+        'child of the platform owner. Refusing: its spend would be reported under a subtree ' +
+        'this seed does not own.',
+    );
+  }
+  if (account.accountStatus !== 'active') {
+    throw new Error(
+      `Application "${appName}" is owned by the project account "${username}", which is ` +
+        `"${account.accountStatus}". Refusing: spend booked to an archived account is spend ` +
+        'nobody is watching.',
+    );
+  }
+
+  return account.id;
 }
 
 
@@ -431,6 +265,11 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       }
     }
 
+    const ownerAccountId =
+      spec.ownerAccountUsername === undefined
+        ? oxyOrgId
+        : await resolveDedicatedOwnerAccount(spec.ownerAccountUsername, spec.name, oxyId);
+
     const desiredScopes = spec.scopes ?? (['user:read'] as ApplicationScope[]);
     const desiredCapabilities = spec.capabilities ?? [];
     const plan = computeSeedApplicationPlan(
@@ -439,7 +278,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
         description: spec.description,
         websiteUrl: spec.websiteUrl,
         type: spec.type,
-        ownerAccountId: oxyOrgId,
+        ownerAccountId,
         redirectUris: spec.redirectUris,
         scopes: desiredScopes,
         capabilities: desiredCapabilities,
@@ -532,6 +371,11 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       app: spec.name,
       type: spec.type,
       applicationId,
+      // Reported per row, not just per run: an application owned by its own
+      // project account is the difference between one line in the cost-centre
+      // report and five, and the mapping is where an operator can see which it
+      // got without a second query.
+      ownerAccountId,
       clientId: credential?.publicKey ?? (dryRun ? '(dry-run-not-minted)' : 'ERROR'),
       redirectUris: spec.redirectUris,
       websiteUrl: spec.websiteUrl,
@@ -562,7 +406,11 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const seedApps = selectSeedApplications(SEED_APPS, process.env.ONLY_APPS);
+  const seedApps = selectSeedEntries(SEED_APPS, process.env.ONLY_APPS, {
+    envVar: 'ONLY_APPS',
+    singular: 'application',
+    plural: 'applications',
+  });
 
   await connectPostgres();
   logger.info('Connected to Postgres');
