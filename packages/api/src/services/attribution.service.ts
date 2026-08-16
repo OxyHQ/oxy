@@ -69,7 +69,7 @@
  * second membership model and no per-application membership.
  */
 
-import { eq } from 'drizzle-orm';
+import { eq, type SQL } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import type { ApplicationCredentialStatus } from '../db/schema/applicationCredentials';
@@ -223,7 +223,45 @@ export async function resolveCredentialAttribution(
   if (!clientId) {
     return { status: 'unknown-credential', clientId };
   }
+  return loadCredentialAttribution(eq(applicationCredentials.publicKey, clientId), clientId);
+}
 
+/**
+ * The same chain, addressed by the credential's own row id rather than its
+ * public identifier.
+ *
+ * A verified service token names `credentialId`, not `publicKey`, and ADR 0007's
+ * rule is that the credential ROW — never the token's own claims — is the
+ * authority for the application and owner hop. Without this, every consumer of a
+ * service token that needs to re-read the registry per request writes the join
+ * itself; `routes/alia.ts` already does, which is the fourth copy this module
+ * exists to stop becoming a fifth.
+ *
+ * `clientId` on the refusal arms is the credential's PUBLIC key when the row was
+ * found and the id that was asked for when it was not — the caller has no other
+ * handle to report, and a public identifier is never secret.
+ */
+export async function resolveCredentialAttributionById(
+  credentialId: string
+): Promise<CredentialAttributionResolution> {
+  if (!credentialId) {
+    return { status: 'unknown-credential', clientId: credentialId };
+  }
+  return loadCredentialAttribution(eq(applicationCredentials.id, credentialId), credentialId);
+}
+
+/**
+ * One query, one usability decision, two ways in.
+ *
+ * Extracted so `publicKey` and `id` lookups cannot select different columns or
+ * apply {@link isCredentialUsable} to different inputs — which is the exact
+ * divergence the module header describes for the four hand-written copies of
+ * the application hop.
+ */
+async function loadCredentialAttribution(
+  where: SQL | undefined,
+  reportedId: string
+): Promise<CredentialAttributionResolution> {
   const [row] = await getDb()
     .select({
       credentialId: applicationCredentials.id,
@@ -243,12 +281,14 @@ export async function resolveCredentialAttribution(
     .from(applicationCredentials)
     .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
     .innerJoin(users, eq(users.id, applications.ownerAccountId))
-    .where(eq(applicationCredentials.publicKey, clientId))
+    .where(where)
     .limit(1);
 
   if (!row) {
-    return { status: 'unknown-credential', clientId };
+    return { status: 'unknown-credential', clientId: reportedId };
   }
+
+  const clientId = row.credentialPublicKey;
 
   if (!isCredentialUsable({ status: row.credentialStatus, expiresAt: row.credentialExpiresAt })) {
     return {
