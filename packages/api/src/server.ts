@@ -57,6 +57,7 @@ import inferenceEdgeRoutes from './routes/inferenceEdge';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
+import inferenceReportingRoutes from './routes/inferenceReporting';
 import platformStatsRoutes from './routes/platform-stats';
 import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
@@ -683,6 +684,13 @@ app.use('/inference/routing-policies', inferenceRoutingPolicyRoutes);
 // credential is not a catalogue object, and Oxy holds only a REFERENCE to it —
 // never the credential, in any table, response or log.
 app.use('/inference/provider-connections', inferenceProviderConnectionRoutes);
+// The customer's own usage, spend, balance and budgets (issue #972, workstream
+// 8). Its own mount, and NOT under `/billing`: that surface is the Stripe and
+// credits lane, while this one reads the exact inference ledger and the usage
+// rollups. One mount serving both would be the first place "what Stripe
+// charged" and "what the ledger recorded" blur, which is the distinction the
+// whole workstream exists to keep.
+app.use('/inference/reporting', inferenceReportingRoutes);
 app.use('/platform-stats', platformStatsRoutes);
 app.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new

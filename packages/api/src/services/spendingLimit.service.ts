@@ -82,7 +82,21 @@ export type SpendingLimitEvaluation =
   /** A `hard_stop` limit would be exceeded — the reservation must be refused. */
   | { readonly status: 'exceeded'; readonly limit: SpendingLimitVerdict };
 
-interface LimitRow extends Record<string, unknown> {
+/**
+ * One limit with what has been spent against it in the current period.
+ *
+ * Exported because the customer-visible budget report
+ * (`services/inferenceReporting.service.ts`) reads the SAME rows the reservation
+ * path enforces against. A second implementation of "what counts toward a limit"
+ * would be a report that disagrees with the enforcement, which is worse than no
+ * report — so there is exactly one, {@link readSpendingLimitUtilization}, and
+ * both callers go through it.
+ *
+ * Snake_case because these are raw driver rows: `executeRows` bypasses drizzle's
+ * result mapper, so what comes back are the SQL identifiers, and every numeric
+ * is cast to `text` in the query for the reason stated at `period_start_ms`.
+ */
+export interface SpendingLimitUtilizationRow extends Record<string, unknown> {
   id: string;
   scope: SpendingLimitScope;
   scope_account_id: string | null;
@@ -155,8 +169,58 @@ export async function evaluateSpendingLimits(
     return { status: 'within', softStopsPassed: [] };
   }
 
-  const limitIds = applicable.map((row) => row.id);
-  const rows = await executeRows<LimitRow>(
+  const rows = await readSpendingLimitUtilization(
+    tx,
+    applicable.map((row) => row.id),
+    currency,
+    additionalAmount
+  );
+
+  const softStopsPassed: SpendingLimitVerdict[] = [];
+  for (const row of rows) {
+    const verdict: SpendingLimitVerdict = {
+      spendingLimitId: row.id,
+      scope: row.scope,
+      period: row.period,
+      enforcement: row.enforcement,
+      limitAmount: row.limit_amount,
+      currentSpend: row.current_spend,
+      projectedSpend: row.projected_spend,
+    };
+    if (!row.exceeded) continue;
+    if (row.enforcement === 'hard_stop') {
+      return { status: 'exceeded', limit: verdict };
+    }
+    softStopsPassed.push(verdict);
+  }
+
+  await recordThresholdCrossings(tx, rows);
+
+  return { status: 'within', softStopsPassed };
+}
+
+/**
+ * What each of `limitIds` has consumed of its budget in the current period, and
+ * whether `additionalAmount` on top would exceed it.
+ *
+ * The ONE place "what counts toward a limit" is expressed — see the module
+ * header for the rule (settled spend, less reversals, plus money currently
+ * held). {@link evaluateSpendingLimits} calls it inside the reservation
+ * transaction with the amount being reserved; the budget report calls it with
+ * `'0'` to read utilization without proposing a charge.
+ *
+ * Returns an empty array for an empty id list rather than issuing a query:
+ * `= any('{}')` matches nothing, so the round trip is the only thing skipped.
+ */
+export async function readSpendingLimitUtilization(
+  tx: DatabaseOrTransaction,
+  limitIds: readonly string[],
+  currency: string,
+  additionalAmount: string
+): Promise<SpendingLimitUtilizationRow[]> {
+  if (limitIds.length === 0) return [];
+
+  return executeRows<SpendingLimitUtilizationRow>(
     tx,
     sql`
       with applicable as (
@@ -174,7 +238,7 @@ export async function evaluateSpendingLimits(
         from ${spendingLimits} sl
         -- "= any(param)", never a bare array: an interpolated array renders as a
         -- ROW CONSTRUCTOR, which compares tuples rather than testing membership.
-        where sl.id = any(${sql.param(limitIds)}::text[])
+        where sl.id = any(${sql.param([...limitIds])}::text[])
       ),
       -- Every account a scope covers: the account itself plus its whole
       -- subtree, so an organization budget bounds what its projects spend.
@@ -271,28 +335,6 @@ export async function evaluateSpendingLimits(
       order by t.enforcement, t.id
     `
   );
-
-  const softStopsPassed: SpendingLimitVerdict[] = [];
-  for (const row of rows) {
-    const verdict: SpendingLimitVerdict = {
-      spendingLimitId: row.id,
-      scope: row.scope,
-      period: row.period,
-      enforcement: row.enforcement,
-      limitAmount: row.limit_amount,
-      currentSpend: row.current_spend,
-      projectedSpend: row.projected_spend,
-    };
-    if (!row.exceeded) continue;
-    if (row.enforcement === 'hard_stop') {
-      return { status: 'exceeded', limit: verdict };
-    }
-    softStopsPassed.push(verdict);
-  }
-
-  await recordThresholdCrossings(tx, rows);
-
-  return { status: 'within', softStopsPassed };
 }
 
 /**
@@ -311,7 +353,7 @@ export async function evaluateSpendingLimits(
  */
 async function recordThresholdCrossings(
   tx: DatabaseOrTransaction,
-  rows: readonly LimitRow[]
+  rows: readonly SpendingLimitUtilizationRow[]
 ): Promise<void> {
   const candidates = rows.filter((row) => row.alert_threshold_bps.length > 0);
   if (candidates.length === 0) return;
