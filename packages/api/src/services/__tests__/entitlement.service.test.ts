@@ -139,12 +139,14 @@ describe('a plan allowance and a balance are different things', () => {
       accountId,
       currency: 'USD',
       amount: '25.000000000000',
+      actor: { kind: 'machine' },
     });
     await recordPromotionalGrant({
       idempotencyKey: `grant-${randomUUID()}`,
       accountId,
       currency: 'USD',
       amount: '5.000000000000',
+      actor: { kind: 'staff', userId: await seedAccount() },
     });
     await getDb()
       .insert(userCredits)
@@ -195,6 +197,7 @@ describe('a plan allowance and a balance are different things', () => {
       accountId,
       currency: 'USD',
       amount: '10.000000000000',
+      actor: { kind: 'machine' },
     });
     await updateBillingProfile(accountId, { status: 'suspended' });
 
@@ -282,6 +285,7 @@ describe('cost-centre spend comes from settled receipts', () => {
       accountId: organizationId,
       currency: 'USD',
       amount: '50.000000000000',
+      actor: { kind: 'machine' },
     });
 
     const projectSlug = `spend-${randomUUID().slice(0, 8)}`;

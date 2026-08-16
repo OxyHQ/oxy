@@ -69,6 +69,44 @@
  * Both tables are immutable by trigger (`db/schema/ledgerImmutability.ts`).
  * Neither carries an `updated_at`. A correction is a NEW entry referencing what
  * it corrects.
+ *
+ * # Who authored an entry (issue #1023)
+ *
+ * `actor_kind` + `actor_user_id` answer "which person did this", for the one
+ * entry type where nothing else can: a `promotional_grant` creates customer
+ * balance out of nothing, and before this pair the kind of entry was
+ * distinguishable while the person was not.
+ *
+ * Three states, and the whole point of the design is that no two of them can be
+ * confused for one another:
+ *
+ *   ('staff',   <user id>)  a named person authored it. The id is a real foreign
+ *                           key to `users`, RESTRICT like every other reference
+ *                           out of this table, so "who issued this grant" is a
+ *                           join and the journal outlives an attempt to remove
+ *                           the account that answers it.
+ *   ('machine',  null)      NO PERSON authored it, by design — a Stripe webhook,
+ *                           the expiry sweep, the inference edge settling a
+ *                           request. This is a POSITIVE value, not an absence.
+ *   (null,       null)      the row PREDATES the column. Nothing else can
+ *                           produce this state: {@link LedgerActor} is a
+ *                           required field on `EntryInput`, the only insert
+ *                           into this table, and the CHECK below refuses a
+ *                           half-filled pair in either direction.
+ *
+ * Existing rows were NOT back-filled and never will be. Back-filling them
+ * `'machine'` would be a claim nobody can support — those entries were written
+ * before anything recorded authorship, so "no person authored it" and "we did
+ * not record who did" are exactly the two readings the pair exists to separate.
+ * A null `actor_kind` therefore means "written before 0046", which `created_at`
+ * corroborates, and it means nothing else.
+ *
+ * `machine` is deliberately ONE value rather than a taxonomy of automations. An
+ * automated writer's own attribution already lives on the document the entry is
+ * about — a settlement names its reservation, which carries the application, the
+ * credential and the request id; a top-up names its `billing_external_payments`
+ * row, which carries the processor's reference. A second, shallower copy of that
+ * on the entry would be a thing to keep in sync, not a thing to read.
  */
 
 import { sql } from 'drizzle-orm';
@@ -145,6 +183,38 @@ export const LEDGER_ENTRY_KINDS = [
 
 export type LedgerEntryKind = (typeof LEDGER_ENTRY_KINDS)[number];
 
+/**
+ * Who authored an entry. See "Who authored an entry" in the header for why
+ * `machine` is a value rather than an absence, and why there are only two.
+ */
+export const LEDGER_ACTOR_KINDS = ['staff', 'machine'] as const;
+
+export type LedgerActorKind = (typeof LEDGER_ACTOR_KINDS)[number];
+
+/** A named platform staff member, from a staff-gated request. */
+export interface StaffLedgerActor {
+  readonly kind: 'staff';
+  /** `users.id`. Required BY THE TYPE — a staff entry with no id is unwritable. */
+  readonly userId: string;
+}
+
+/** No person authored this entry: a webhook, a sweep, or the inference edge. */
+export interface MachineLedgerActor {
+  readonly kind: 'machine';
+}
+
+/**
+ * The author of one journal entry, as every writer must state it.
+ *
+ * A discriminated union rather than an optional id beside an optional kind: it
+ * makes `{ kind: 'staff' }` with no user id a COMPILE error and
+ * `{ kind: 'machine', userId }` an excess-property error, so the two column
+ * states the CHECK constraint refuses cannot be constructed in the first place.
+ * The constraint is the second line, for anything reaching the table by another
+ * route.
+ */
+export type LedgerActor = StaffLedgerActor | MachineLedgerActor;
+
 export const billingLedgerEntries = pgTable(
   'billing_ledger_entries',
   {
@@ -171,6 +241,14 @@ export const billingLedgerEntries = pgTable(
     refundId: text().references(() => usageRefunds.id, { onDelete: 'restrict' }),
     invoiceId: text().references(() => billingInvoices.id, { onDelete: 'restrict' }),
 
+    // ---- who AUTHORED this entry --------------------------------------------
+    // Both nullable, and null in both means one specific thing: the row predates
+    // 0046. See "Who authored an entry" in the header — this is the state that
+    // must never be confused with `machine`, and the CHECK below is what stops
+    // any other combination existing.
+    actorKind: text({ enum: LEDGER_ACTOR_KINDS }),
+    actorUserId: text().references(() => users.id, { onDelete: 'restrict' }),
+
     createdAt: createdAt(),
   },
   (t) => [
@@ -187,6 +265,11 @@ export const billingLedgerEntries = pgTable(
     index('billing_ledger_entries_reservation_id_idx').on(t.reservationId),
     index('billing_ledger_entries_receipt_id_idx').on(t.receiptId),
     index('billing_ledger_entries_invoice_id_idx').on(t.invoiceId),
+    // "Every entry this staff member authored" — the question the whole actor
+    // pair exists to answer, and the one nobody asks until something has gone
+    // wrong. Indexed deliberately: a missing index has no functional symptom at
+    // all, so no test here could ever detect its absence.
+    index('billing_ledger_entries_actor_user_id_idx').on(t.actorUserId),
 
     check(
       'billing_ledger_entries_kind_check',
@@ -203,6 +286,36 @@ export const billingLedgerEntries = pgTable(
              or ${t.reservationId} is not null)
         and (${t.kind} not in ('settlement', 'settlement_reversal') or ${t.receiptId} is not null)
         and (${t.kind} not in ('invoice_rounding', 'invoice_payment') or ${t.invoiceId} is not null)`
+    ),
+    // The actor pair, as a TOTAL disjunction over the three legal states rather
+    // than as separate presence and vocabulary checks. Written this way because
+    // the failure worth refusing is a HALF-FILLED pair in either direction: a
+    // `staff` row with no id says a person authored it and declines to say who,
+    // and a `machine` row carrying an id says nobody authored it and then names
+    // them. Neither is expressible here, and neither is expressible in
+    // {@link LedgerActor} either.
+    //
+    // The `(null, null)` branch is the grandfather clause and nothing else. It
+    // admits rows written before this column existed; it is NOT a licence for a
+    // new writer to omit an actor, which the required field on `EntryInput`
+    // forbids at the only insert site in the codebase.
+    //
+    // Vocabulary is enforced by the same expression — each branch names its kind
+    // as a literal, so a value outside `LEDGER_ACTOR_KINDS` satisfies no branch.
+    //
+    // `is not distinct from`, not `=`, and this is load-bearing rather than
+    // stylistic: a CHECK rejects only FALSE, and `null = 'staff'` is NULL. Written
+    // with `=`, the row `(actor_kind, actor_user_id) = (null, <a user id>)`
+    // evaluates to `false or null or false` = NULL and is ACCEPTED — a person
+    // named with no kind beside them, which is the one combination that would put
+    // a real id where nothing says what it means. Measured: the test below caught
+    // exactly that. `is not distinct from` returns a real boolean for a NULL
+    // operand, so no branch can go unknown and the disjunction is total.
+    check(
+      'billing_ledger_entries_actor_check',
+      sql`(${t.actorKind} is null and ${t.actorUserId} is null)
+        or (${t.actorKind} is not distinct from 'staff' and ${t.actorUserId} is not null)
+        or (${t.actorKind} is not distinct from 'machine' and ${t.actorUserId} is null)`
     ),
   ]
 );

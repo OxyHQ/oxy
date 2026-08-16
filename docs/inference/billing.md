@@ -128,6 +128,40 @@ correction is a compensating record — a refund row, or a supplementary receipt
 naming the receipt it corrects — never an update and never a delete. A mutated
 financial record cannot be distinguished from a correct one after the fact.
 
+## Who authored an entry
+
+Every journal entry carries `actor_kind` and `actor_user_id`, which take exactly
+three states:
+
+| `actor_kind` | `actor_user_id` | Meaning |
+|---|---|---|
+| `staff` | a `users.id` | A named platform staff member authored it. Today that is a promotional grant and closing an invoice period. |
+| `machine` | null | **No person authored it, by design** — a Stripe webhook, the reservation expiry sweep, the inference edge settling a request. |
+| null | null | The entry was written **before the column existed** (before migration `0046`). |
+
+The third state is not a fourth kind of author and it is not a machine: those
+rows predate the question, nothing was back-filled, and nothing ever will be —
+the table is append-only, and stamping a historical row `machine` would assert
+"no person authored this" about an entry whose author was simply never recorded.
+Those are precisely the two readings this pair exists to keep apart.
+
+`machine` is a value rather than an absence for the same reason. If "nobody
+authored it" were spelled as a blank, it would be indistinguishable from an
+author the system failed to capture, and that difference is the entire question
+the moment anybody reads the journal.
+
+There is one `machine` value rather than a taxonomy of automations. An automated
+writer's own attribution already lives on the document the entry names: a
+settlement names its reservation, which carries the application, the credential
+and the request id; a top-up names its processor payment, which carries Stripe's
+own reference.
+
+Authorship is not optional to a writer. `EntryInput.actor` is a required
+discriminated union on the only code path that inserts into
+`billing_ledger_entries`, so a new writer that does not state its author does not
+compile, and a `staff` author with nobody named is not constructible. The
+database CHECK is the second line, for anything reaching the table another way.
+
 ## The cases that decide the behaviour you will see
 
 | Situation | What happens |

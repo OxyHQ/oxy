@@ -285,6 +285,9 @@ export async function handleBalanceTopUpCompleted(
     accountId,
     currency,
     amount: minorUnitsToExactDecimal(amountMinorUnits, exponent),
+    // A webhook, not a person. The customer bought the credit, but nobody at Oxy
+    // authored the entry — and who paid is already the `accountId` beside it.
+    actor: { kind: 'machine' },
     externalPayment: {
       provider: 'stripe',
       externalKind: 'payment_intent',
@@ -352,6 +355,9 @@ export async function handleBalanceTopUpPaymentIntent(
     accountId,
     currency,
     amount: minorUnitsToExactDecimal(intent.amount_received, exponent),
+    // Off-session auto-recharge: a sweep and a webhook, with no person in the
+    // request at all.
+    actor: { kind: 'machine' },
     externalPayment: {
       provider: 'stripe',
       externalKind: 'payment_intent',

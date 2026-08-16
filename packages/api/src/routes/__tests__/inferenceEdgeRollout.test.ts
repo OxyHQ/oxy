@@ -304,6 +304,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       accountId: account.id,
       currency: 'USD',
       amount: options.fund,
+      actor: { kind: 'machine' },
     });
   }
 

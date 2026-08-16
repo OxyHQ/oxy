@@ -71,6 +71,8 @@ afterAll(async () => {
 
 interface Fixture {
   readonly accountId: string;
+  /** A platform staff member, distinct from the account, for authored entries. */
+  readonly staffUserId: string;
   readonly applicationId: string;
   readonly credentialId: string;
   readonly priceVersionId: string;
@@ -115,6 +117,15 @@ async function makeFixture(options: { fund?: string; promotional?: string } = {}
     .values({ username: `svc-${suffix}`, email: `svc-${suffix}@example.test` })
     .returning({ id: users.id });
 
+  const [staff] = await getDb()
+    .insert(users)
+    .values({
+      username: `svc-staff-${suffix}`,
+      email: `svc-staff-${suffix}@example.test`,
+      isStaff: true,
+    })
+    .returning({ id: users.id });
+
   const [application] = await getDb()
     .insert(applications)
     .values({ name: `Svc ${suffix}`, ownerAccountId: account.id })
@@ -139,6 +150,7 @@ async function makeFixture(options: { fund?: string; promotional?: string } = {}
       accountId: account.id,
       currency: 'USD',
       amount: options.fund,
+      actor: { kind: 'machine' },
     });
   }
   if (options.promotional !== undefined) {
@@ -147,11 +159,13 @@ async function makeFixture(options: { fund?: string; promotional?: string } = {}
       accountId: account.id,
       currency: 'USD',
       amount: options.promotional,
+      actor: { kind: 'staff', userId: staff.id },
     });
   }
 
   return {
     accountId: account.id,
+    staffUserId: staff.id,
     applicationId: application.id,
     credentialId: credential.id,
     priceVersionId: await insertPriceVersion(),
@@ -903,6 +917,7 @@ describe('a settled charge is reversed by appending, never by editing', () => {
       idempotencyKey: `rev-${randomUUID()}`,
       receiptId: settled.receipt.receiptId,
       reason: 'billing_correction',
+      actor: { kind: 'staff', userId: f.staffUserId },
     });
     expect(reversal.status).toBe('reversed');
 
@@ -945,6 +960,7 @@ describe('a settled charge is reversed by appending, never by editing', () => {
       receiptId: settled.receipt.receiptId,
       reason: 'duplicate_charge',
       amount: '5.000000000000',
+      actor: { kind: 'staff', userId: f.staffUserId },
     });
     expect(reversal.status).toBe('exceeds-settled-amount');
   });
@@ -978,11 +994,13 @@ describe('a settled charge is reversed by appending, never by editing', () => {
       idempotencyKey: key,
       receiptId: settled.receipt.receiptId,
       reason: 'billing_correction',
+      actor: { kind: 'staff', userId: f.staffUserId },
     });
     const second = await reverseReceipt({
       idempotencyKey: key,
       receiptId: settled.receipt.receiptId,
       reason: 'billing_correction',
+      actor: { kind: 'staff', userId: f.staffUserId },
     });
 
     expect(first.status).toBe('reversed');
@@ -1500,5 +1518,177 @@ describe('a delegated user never changes who is charged', () => {
 
     const endUserBalance = await getAccountBalance(getDb(), endUser.id, 'USD');
     expect(endUserBalance).toBeNull();
+  });
+});
+
+/**
+ * Issue #1023, part 2: a `promotional_grant` created customer balance out of
+ * nothing and recorded no author. The entry kind was distinguishable; the person
+ * was not.
+ *
+ * These assert the three states are three, not two. The hard one is the middle:
+ * "no person authored this" has to be a VALUE, because if it were the absence of
+ * one it would read identically to an author nobody recorded — and the moment
+ * anybody reads a ledger is the moment that distinction is the whole question.
+ */
+describe('the journal records who authored each entry', () => {
+  async function actorOf(
+    idempotencyKey: string
+  ): Promise<{ actorKind: string | null; actorUserId: string | null }> {
+    const [row] = await getDb()
+      .select({
+        actorKind: billingLedgerEntries.actorKind,
+        actorUserId: billingLedgerEntries.actorUserId,
+      })
+      .from(billingLedgerEntries)
+      .where(eq(billingLedgerEntries.idempotencyKey, idempotencyKey));
+    if (!row) throw new Error(`no ledger entry under ${idempotencyKey}`);
+    return row;
+  }
+
+  it('names the staff member who issued a promotional grant', async () => {
+    const f = await makeFixture();
+    const key = `grant-${randomUUID()}`;
+
+    const result = await recordPromotionalGrant({
+      idempotencyKey: key,
+      accountId: f.accountId,
+      currency: 'USD',
+      amount: '5.000000000000',
+      actor: { kind: 'staff', userId: f.staffUserId },
+    });
+    expect(result.status).toBe('recorded');
+
+    expect(await actorOf(key)).toEqual({ actorKind: 'staff', actorUserId: f.staffUserId });
+  });
+
+  it('records a machine author on a settlement and on an expiry release', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const settleKey = `s-${randomUUID()}`;
+
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: f.priceVersionId,
+      maxAmount: '2.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error('reserve failed');
+
+    const settled = await settle({
+      idempotencyKey: settleKey,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units: { input_tokens: 1000 },
+      resolvedModelReference: 'oxy/test',
+      servingProvider: 'oxy-hosted',
+      priceVersionId: f.priceVersionId,
+    });
+    if (settled.status !== 'settled') throw new Error('settle failed');
+
+    // The settlement and the release of the unused hold are separate entries and
+    // both are written by the same report, with no person in it.
+    expect(await actorOf(`settle:${settleKey}`)).toEqual({
+      actorKind: 'machine',
+      actorUserId: null,
+    });
+    expect(await actorOf(`release:${settleKey}`)).toEqual({
+      actorKind: 'machine',
+      actorUserId: null,
+    });
+
+    // The sweep, which is the path with no request behind it at all.
+    const expiring = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: f.priceVersionId,
+      maxAmount: '1.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (expiring.status !== 'reserved') throw new Error('reserve failed');
+    await getDb()
+      .update(usageReservations)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(usageReservations.id, expiring.reservation.reservationId));
+    await expireReservations(100);
+
+    expect(await actorOf(`expire:${expiring.reservation.reservationId}`)).toEqual({
+      actorKind: 'machine',
+      actorUserId: null,
+    });
+  });
+
+  it('writes a machine author that is a value, not an absence', async () => {
+    // The control this test exists for: a row carrying NO actor is legal — every
+    // entry written before the column existed is one — so "machine" has to be
+    // something a reader can tell APART from that, rather than the same silence.
+    const f = await makeFixture({ fund: '5.000000000000' });
+    const topUpKey = `fund-${randomUUID()}`;
+    await recordTopUp({
+      idempotencyKey: topUpKey,
+      accountId: f.accountId,
+      currency: 'USD',
+      amount: '1.000000000000',
+      actor: { kind: 'machine' },
+    });
+
+    // A pre-0046 row, in the only shape one can have.
+    const historicalKey = `historical-${randomUUID()}`;
+    await getDb()
+      .insert(billingLedgerEntries)
+      .values({ idempotencyKey: historicalKey, accountId: f.accountId, kind: 'top_up' });
+
+    const machine = await actorOf(topUpKey);
+    const historical = await actorOf(historicalKey);
+
+    expect(machine.actorKind).toBe('machine');
+    expect(historical.actorKind).toBeNull();
+    expect(machine.actorKind).not.toEqual(historical.actorKind);
+    // Both name no person, and that is exactly why the kind has to carry the
+    // difference: `actor_user_id` alone cannot tell these two apart.
+    expect(machine.actorUserId).toBeNull();
+    expect(historical.actorUserId).toBeNull();
+  });
+
+  it('does not write the same author on the staff path and the machine path', async () => {
+    // The positive control for the two tests above. A fixture where both came
+    // out identical would satisfy a weaker assertion on either one of them.
+    const f = await makeFixture();
+    const grantKey = `grant-${randomUUID()}`;
+    const topUpKey = `fund-${randomUUID()}`;
+
+    await recordPromotionalGrant({
+      idempotencyKey: grantKey,
+      accountId: f.accountId,
+      currency: 'USD',
+      amount: '3.000000000000',
+      actor: { kind: 'staff', userId: f.staffUserId },
+    });
+    await recordTopUp({
+      idempotencyKey: topUpKey,
+      accountId: f.accountId,
+      currency: 'USD',
+      amount: '3.000000000000',
+      actor: { kind: 'machine' },
+    });
+
+    const staffAuthored = await actorOf(grantKey);
+    const machineAuthored = await actorOf(topUpKey);
+
+    expect(staffAuthored).not.toEqual(machineAuthored);
+    expect(staffAuthored.actorKind).not.toEqual(machineAuthored.actorKind);
+    expect(staffAuthored.actorUserId).toBe(f.staffUserId);
+    expect(machineAuthored.actorUserId).toBeNull();
+    // The staff id is a real account, not a label: the FK is what makes "who
+    // issued this grant" a join rather than a string somebody typed.
+    const [staffRow] = await getDb()
+      .select({ id: users.id, isStaff: users.isStaff })
+      .from(users)
+      .where(eq(users.id, f.staffUserId));
+    expect(staffRow.isStaff).toBe(true);
   });
 });

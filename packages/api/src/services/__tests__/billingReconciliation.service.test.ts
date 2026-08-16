@@ -105,6 +105,7 @@ async function recordPayment(
       externalRef,
       occurredAt: new Date(),
     },
+    actor: { kind: 'machine' },
   });
   expect(result.status).toBe('recorded');
 }

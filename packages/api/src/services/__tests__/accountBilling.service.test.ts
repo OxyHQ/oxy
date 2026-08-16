@@ -131,6 +131,7 @@ describe('the billing state answers TERMS, and never restates the balance', () =
       accountId,
       currency: 'USD',
       amount: '40.000000000000',
+      actor: { kind: 'machine' },
     });
 
     const resolved = await resolveAccountBillingState(accountId);
@@ -166,6 +167,7 @@ describe('the sweep and the reader agree about what is available', () => {
       accountId,
       currency: 'USD',
       amount: '5.000000000000',
+      actor: { kind: 'machine' },
     });
     await updateBillingProfile(accountId, {
       autoRechargeEnabled: true,
@@ -206,6 +208,7 @@ describe('the sweep and the reader agree about what is available', () => {
       accountId,
       currency: 'USD',
       amount: '7.000000000000',
+      actor: { kind: 'machine' },
     });
 
     const reader = await getAvailableToSpend(getDb(), {
@@ -285,6 +288,7 @@ describe('the sweep and the reader agree about what is available', () => {
       accountId,
       currency: 'USD',
       amount: '12.000000000000',
+      actor: { kind: 'machine' },
     });
     await updateBillingProfile(accountId, { status: 'suspended' });
 

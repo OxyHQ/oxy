@@ -40,6 +40,8 @@ afterAll(async () => {
 
 interface Fixture {
   readonly accountId: string;
+  /** The staff member who closes a period, distinct from the billed account. */
+  readonly staffUserId: string;
   readonly applicationId: string;
   readonly credentialId: string;
   readonly priceVersionId: string;
@@ -58,6 +60,15 @@ async function seedFixture(billingMode: 'prepaid' | 'invoiced'): Promise<Fixture
     billingMode,
     creditLimit: billingMode === 'invoiced' ? '100.000000000000' : '0',
   });
+
+  const [staff] = await getDb()
+    .insert(users)
+    .values({
+      username: `inv-staff-${suffix}`,
+      email: `inv-staff-${suffix}@example.test`,
+      isStaff: true,
+    })
+    .returning({ id: users.id });
 
   const [application] = await getDb()
     .insert(applications)
@@ -92,6 +103,7 @@ async function seedFixture(billingMode: 'prepaid' | 'invoiced'): Promise<Fixture
 
   return {
     accountId: account.id,
+    staffUserId: staff.id,
     applicationId: application.id,
     credentialId: credential.id,
     priceVersionId: version.id,
@@ -144,6 +156,7 @@ describe('closing a period', () => {
       currency: 'USD',
       periodStart,
       periodEnd,
+      actor: { kind: 'staff', userId: fixture.staffUserId },
     });
     expect(result.status).toBe('issued');
     if (result.status !== 'issued') return;
@@ -183,6 +196,7 @@ describe('closing a period', () => {
       currency: 'USD',
       periodStart,
       periodEnd,
+      actor: { kind: 'staff', userId: fixture.staffUserId },
     });
     expect(first.status).toBe('issued');
     if (first.status !== 'issued') return;
@@ -202,6 +216,7 @@ describe('closing a period', () => {
       currency: 'USD',
       periodStart,
       periodEnd,
+      actor: { kind: 'staff', userId: fixture.staffUserId },
     });
     expect(second.status).toBe('already-issued');
   });
@@ -214,6 +229,7 @@ describe('closing a period', () => {
         currency: 'USD',
         periodStart: new Date(Date.now() - 60 * 60 * 1000),
         periodEnd: new Date(Date.now() + 60 * 60 * 1000),
+        actor: { kind: 'staff', userId: fixture.staffUserId },
       })
     ).resolves.toMatchObject({ status: 'not-invoiced' });
   });
@@ -226,6 +242,7 @@ describe('closing a period', () => {
         currency: 'USD',
         periodStart: new Date(Date.now() - 120 * 60 * 1000),
         periodEnd: new Date(Date.now() - 60 * 60 * 1000),
+        actor: { kind: 'staff', userId: fixture.staffUserId },
       })
     ).resolves.toMatchObject({ status: 'nothing-to-invoice' });
   });
@@ -241,6 +258,7 @@ describe('recording a payment', () => {
       currency: 'USD',
       periodStart: new Date(Date.now() - 60 * 60 * 1000),
       periodEnd: new Date(Date.now() + 60 * 60 * 1000),
+      actor: { kind: 'staff', userId: fixture.staffUserId },
     });
     if (closed.status !== 'issued') throw new Error('expected an issued invoice');
     expect(await outstandingOf(fixture.accountId)).toBeCloseTo(3, 6);
@@ -250,6 +268,7 @@ describe('recording a payment', () => {
       invoiceId: closed.invoice.id,
       amount: closed.invoice.totalAmount,
       externalRef,
+      actor: { kind: 'machine' },
     });
     expect(paid.status).toBe('recorded');
     expect(await outstandingOf(fixture.accountId)).toBe(0);
@@ -260,6 +279,7 @@ describe('recording a payment', () => {
       invoiceId: closed.invoice.id,
       amount: closed.invoice.totalAmount,
       externalRef,
+      actor: { kind: 'machine' },
     });
     expect(replay.status).toBe('already-recorded');
     expect(await outstandingOf(fixture.accountId)).toBe(0);
@@ -271,6 +291,7 @@ describe('recording a payment', () => {
         invoiceId: `missing-${randomUUID()}`,
         amount: '1.000000000000',
         externalRef: `in_${randomUUID()}`,
+        actor: { kind: 'machine' },
       })
     ).resolves.toMatchObject({ status: 'unknown-invoice' });
   });

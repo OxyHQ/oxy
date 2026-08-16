@@ -48,6 +48,7 @@ import { billingExternalPayments } from '../db/schema/billingExternalPayments';
 import { billingInvoiceReceipts, billingInvoices } from '../db/schema/billingInvoices';
 import { billingProfiles } from '../db/schema/billingProfiles';
 import { usageReceipts } from '../db/schema/usageReceipts';
+import type { LedgerActor } from '../db/schema/billingLedgerEntries';
 import { minorUnitExponentFor, roundExactDecimalToMinorUnits } from '../utils/minorUnits';
 import { lockBalance, writeEntry } from './inferenceLedger.service';
 
@@ -80,6 +81,15 @@ export interface CloseInvoicePeriodInput {
   readonly currency: string;
   readonly periodStart: Date;
   readonly periodEnd: Date;
+  /**
+   * Who closed the period, for the `invoice_rounding` entry this may book
+   * (issue #1023). The rounding remainder is mechanical, but the DECISION to
+   * close a period and bill it is not — so the entry names whoever made it,
+   * which today is the staff member behind `POST /billing/accounts/:id/invoices`.
+   * Left as the general {@link LedgerActor} because a scheduled monthly close is
+   * a legitimate machine author, and it must say so rather than borrow a name.
+   */
+  readonly actor: LedgerActor;
 }
 
 export type CloseInvoicePeriodResult =
@@ -213,6 +223,7 @@ export async function closeInvoicePeriod(
         currency: input.currency,
         kind: 'invoice_rounding',
         invoiceId: invoice.id,
+        actor: input.actor,
         postings:
           rounding.direction === 'rounded_down'
             ? [
@@ -255,6 +266,13 @@ export interface RecordInvoicePaymentInput {
   /** The processor's own invoice or payment reference. */
   readonly externalRef: string;
   readonly occurredAt?: Date;
+  /**
+   * Who recorded the payment. A processor webhook is machine-authored; a staff
+   * member marking an off-platform payment (a wire) is not, and the difference
+   * is the whole question when a payment is later disputed. Stated by the
+   * caller, because only the caller knows which of the two it is.
+   */
+  readonly actor: LedgerActor;
 }
 
 export type RecordInvoicePaymentResult =
@@ -318,6 +336,7 @@ export async function recordInvoicePayment(
       currency: current.currency,
       kind: 'invoice_payment',
       invoiceId: current.id,
+      actor: input.actor,
       postings: [
         {
           source: 'external_settlement',

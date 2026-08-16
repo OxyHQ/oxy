@@ -62,7 +62,9 @@ import {
   billingLedgerPostings,
   RESERVATION_DRAW_ORDER,
   type LedgerAccount,
+  type LedgerActor,
   type LedgerEntryKind,
+  type StaffLedgerActor,
 } from '../db/schema/billingLedgerEntries';
 import { billingExternalPayments } from '../db/schema/billingExternalPayments';
 import { billingProfiles, type BillingMode } from '../db/schema/billingProfiles';
@@ -345,6 +347,23 @@ export interface FundingInput {
   /** Exact decimal string, strictly positive. */
   readonly amount: string;
   readonly externalPayment?: ExternalPaymentRecord;
+  /** Who authored the entry. See {@link EntryInput.actor}. */
+  readonly actor: LedgerActor;
+}
+
+/**
+ * A grant, whose author is narrower than a funding entry's in general.
+ *
+ * `actor` is a {@link StaffLedgerActor} rather than a {@link LedgerActor}: the
+ * only route that issues promotional credit is staff-gated, and a grant is the
+ * one entry that creates customer balance out of nothing. A machine-authored one
+ * would be money appearing with nobody accountable for it, so it is refused by
+ * the type rather than by review. An automated grant — a signup bonus, say — is
+ * a real product decision, and widening this type is where it should have to be
+ * made.
+ */
+export interface PromotionalGrantFundingInput extends Omit<FundingInput, 'actor'> {
+  readonly actor: StaffLedgerActor;
 }
 
 export type FundingResult =
@@ -370,7 +389,9 @@ export function recordTopUp(input: FundingInput): Promise<FundingResult> {
  * expire and is never refundable, and it is spent FIRST — see
  * `RESERVATION_DRAW_ORDER`.
  */
-export function recordPromotionalGrant(input: FundingInput): Promise<FundingResult> {
+export function recordPromotionalGrant(
+  input: PromotionalGrantFundingInput
+): Promise<FundingResult> {
   return recordFunding(input, 'promotional_grant', 'promotional_issuance', 'promotional_funds');
 }
 
@@ -401,6 +422,10 @@ async function recordFunding(
       accountId: input.accountId,
       currency: input.currency,
       kind,
+      // Passed through from the caller, never chosen here: a top-up is authored
+      // by the processor's webhook and a grant by a named staff member, and this
+      // function serves both.
+      actor: input.actor,
       postings: [{ source, destination, amount: input.amount }],
     });
 
@@ -678,6 +703,10 @@ export async function reserve(input: ReserveInput): Promise<ReserveResult> {
       currency: billing.currency,
       kind: 'reservation_hold',
       reservationId: reservation.id,
+      // No person authors a hold: the inference edge places it while forwarding
+      // a request. Whose workload it was is on the reservation itself, which
+      // this entry names.
+      actor: { kind: 'machine' },
       postings: drawPostings(draw.split, 'hold'),
     });
 
@@ -919,6 +948,9 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
         kind: 'settlement',
         reservationId: reservation.id,
         receiptId: receipt.id,
+        // The usage report settles it, not a person. The receipt carries the
+        // application, credential and request the charge came from.
+        actor: { kind: 'machine' },
         postings:
           charge.amount === '0' || (await isZero(tx, charge.amount))
             ? []
@@ -955,6 +987,8 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
           kind: 'reservation_release',
           reservationId: reservation.id,
           refundId: refund.id,
+          // The unused half of a hold, returned by the same settlement.
+          actor: { kind: 'machine' },
           postings: releasePostings(split.released),
         });
       }
@@ -989,6 +1023,9 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
       currency: billing.currency,
       kind: 'settlement',
       receiptId: receipt.id,
+      // Same author as the held settlement above — shadow metering or a BYOK
+      // fee, reported by the edge rather than decided by anyone.
+      actor: { kind: 'machine' },
       postings: drawPostings(draw, 'revenue'),
     });
 
@@ -1126,6 +1163,10 @@ async function expireOne(reservationId: string): Promise<ExpiredReservation | nu
       kind: 'reservation_expiry',
       reservationId,
       refundId: refund.id,
+      // The expiry sweep, on a timer. Nobody decides that a deadline passed,
+      // which is exactly why this must not be an absent actor: an unauthored
+      // release and an unrecorded one would then read identically.
+      actor: { kind: 'machine' },
       postings: releasePostings(heldSplit),
     });
 
@@ -1154,6 +1195,13 @@ export interface ReverseReceiptInput {
   readonly reason: Extract<UsageRefundReason, 'billing_correction' | 'duplicate_charge'>;
   /** Absent means the whole charge. Exact decimal string when partial. */
   readonly amount?: string;
+  /**
+   * Who decided to reverse the charge. Carried up to the CALLER rather than
+   * fixed here: a `billing_correction` is a person's judgement, while an
+   * automated duplicate-charge detector would legitimately be machine-authored,
+   * and this function has no way to tell the two apart from the inside.
+   */
+  readonly actor: LedgerActor;
 }
 
 export type ReverseReceiptResult =
@@ -1232,6 +1280,7 @@ export async function reverseReceipt(
       kind: 'settlement_reversal',
       receiptId: receipt.id,
       refundId: refund.id,
+      actor: input.actor,
       postings: reversalPostings(returned),
     });
 
@@ -1349,6 +1398,14 @@ export interface EntryInput {
   readonly receiptId?: string;
   readonly refundId?: string;
   readonly invoiceId?: string;
+  /**
+   * Who authored this entry (issue #1023). REQUIRED, and required is the whole
+   * point: this is the only insert into `billing_ledger_entries` in the package,
+   * so a writer that forgets authorship does not compile. Optional-with-a-
+   * default would put the machine representation on a staff grant by silence,
+   * which is the exact failure the column pair exists to prevent.
+   */
+  readonly actor: LedgerActor;
   readonly postings: readonly PostingInput[];
 }
 
@@ -1381,6 +1438,10 @@ export async function writeEntry(
       receiptId: input.receiptId,
       refundId: input.refundId,
       invoiceId: input.invoiceId,
+      // The one place the union becomes two columns. `machine` carries no id by
+      // construction, which is the half of the CHECK a type cannot state.
+      actorKind: input.actor.kind,
+      actorUserId: input.actor.kind === 'staff' ? input.actor.userId : null,
     })
     .onConflictDoNothing()
     .returning();

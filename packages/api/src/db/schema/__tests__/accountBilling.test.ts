@@ -124,6 +124,7 @@ async function seedRecordedPayment(): Promise<{ paymentId: string; accountId: st
       externalRef,
       occurredAt: new Date(),
     },
+    actor: { kind: 'machine' },
   });
 
   const rows = await getDb().execute<{ id: string }>(sql`

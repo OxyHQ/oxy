@@ -65,6 +65,7 @@ import {
   billingAutoRechargeAttempts,
   type BillingAutoRechargeAttemptRow,
 } from '../db/schema/billingAutoRechargeAttempts';
+import type { StaffLedgerActor } from '../db/schema/billingLedgerEntries';
 import { billingProfiles } from '../db/schema/billingProfiles';
 import { users } from '../db/schema/users';
 import {
@@ -379,6 +380,13 @@ export interface PromotionalGrantInput {
   readonly currency: string;
   readonly amount: string;
   readonly idempotencyKey: string;
+  /**
+   * The staff member issuing the credit (issue #1023). A
+   * {@link StaffLedgerActor}, not a general actor: this is the entry that
+   * creates customer balance out of nothing, and a grant nobody is accountable
+   * for should not be constructible.
+   */
+  readonly actor: StaffLedgerActor;
 }
 
 /**
