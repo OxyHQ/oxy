@@ -835,6 +835,24 @@ export {
 } from './session/refresh';
 export type { RefreshDeps, TokenRefreshSchedulerHandle, DeviceSecretMintOutcome } from './session/refresh';
 
+// The inference API. `oxyServices.inference()` binds the session bearer into
+// the same client an external developer constructs with an `oxy_sk_…` machine
+// key — one surface, two credential lanes. See `docs/inference/sdk.md`.
+export {
+    OxyInferenceClient,
+    OxyInferenceError,
+    OXY_INFERENCE_BASE_URL,
+} from './inference/OxyInferenceClient';
+export type {
+    OxyInferenceClientOptions,
+    OxyInferenceCredential,
+    OxyInferenceFetch,
+    OxyInferenceRequestOptions,
+    OxyInferenceResponse,
+    OxyGenerationReceipt,
+    OxyResponsesRequest,
+} from './inference/OxyInferenceClient';
+
 export { runSessionColdBoot } from './boot/sessionColdBoot';
 export type {
     RunSessionColdBootOptions,

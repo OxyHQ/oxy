@@ -74,38 +74,49 @@ Two features, two switches, and conflating them is what the platform's
 A request that named a concrete revision is never subject to cross-model
 fallback, whatever the policy says.
 
-**Neither is implemented.** Routing execution belongs to the data plane, which
-does not exist; the policy control plane is workstream 6. What exists is the
-distinction, in the contracts and in this document, so the first implementation
-cannot quietly collapse it.
+**Neither is executed.** Routing execution belongs to the data plane, which does
+not exist. The policy CONTROL plane does now exist — a customer can configure
+both switches, and the configuration is stored, validated and versioned — but
+route selection reads no policy field, so neither switch changes anything today.
+[routing.md](./routing.md#what-is-enforced-today) is the detail. What exists
+above all is the distinction, in the contracts and in these documents, so the
+first implementation cannot quietly collapse it.
 
 ---
 
 ## Reading the catalogue
 
-The catalogue is mounted at `/models`, **not** `/v1/models` — `/v1/models` is
-listed under workstream 4 and does not exist.
+The catalogue is mounted **twice, from the same router**: at `/models`, and at
+`/v1/models` beside the inference edge. Same code, same audience rules, so it
+cannot answer one thing at one path and another at the other. Use the `/v1` form
+with an inference credential; either works.
 
 | Endpoint | Returns |
 |---|---|
-| `GET /models` | `{ data: ModelCatalogueEntry[], count }` |
-| `GET /models/:publisher/:model` | `{ data: ModelCatalogueEntry }` |
-| `GET /models/routing-profiles` | `{ data: RoutingProfile[], count }` |
+| `GET /v1/models`, `GET /models` | `{ data: ModelCatalogueEntry[], count }` |
+| `GET /v1/models/:publisher/:model` | `{ data: ModelCatalogueEntry }` |
+| `GET /v1/models/routing-profiles` | `{ data: RoutingProfile[], count }` |
 | `GET /models/stats` | the same entries in the legacy envelope Console still parses |
+
+The id is **two path segments**, not one: a canonical model id contains a slash,
+so a single `:id` segment would never match it.
 
 From the SDK (`@oxyhq/core`):
 
 ```typescript
 import type { ModelCatalogueEntry, RoutingProfile } from '@oxyhq/contracts';
 
-const models: ModelCatalogueEntry[] = await oxy.listInferenceModels();
-const one: ModelCatalogueEntry = await oxy.getInferenceModel('openai/gpt-5');
-const profiles: RoutingProfile[] = await oxy.listInferenceRoutingProfiles();
+const inference = oxy.inference();   // or new OxyInferenceClient({ credential: 'oxy_sk_…' })
+
+const models: ModelCatalogueEntry[] = await inference.listModels();
+const one: ModelCatalogueEntry = await inference.getModel('acme/some-model');
+const profiles: RoutingProfile[] = await inference.listRoutingProfiles();
 ```
 
-Run that today and `models` is `[]` and `getInferenceModel('openai/gpt-5')`
-throws a 404 — `openai/gpt-5` is written there to show the id GRAMMAR, not
-because Oxy serves it. Nothing is wrong with your credential.
+Run that today and `models` is `[]` and `getModel('acme/some-model')` throws a
+404 — `acme/some-model` is written there to show the id GRAMMAR, not because Oxy
+serves it. Nothing is wrong with your credential. The client is
+[sdk.md](./sdk.md).
 
 Types come from `@oxyhq/contracts` directly — `@oxyhq/services` does not
 re-export them, and neither does `@oxyhq/core`.
@@ -114,21 +125,27 @@ Three behaviours to code against:
 
 - **`[]` is a normal answer**, and is the only answer today. Render "no models
   available"; do not treat it as an error.
-- **`getInferenceModel` takes a model id, not a model reference.** A pinned
+- **`getModel` takes a model id, not a model reference.** A pinned
   `<publisher>/<model>@<revision>` is rejected client-side rather than sent,
   because the catalogue is keyed on models and a pinned reference would 404
-  indistinguishably from "no such model".
+  indistinguishably from "no such model". An INVOKE, by contrast, accepts both
+  forms — a pin there asks for exactly those weights.
 - **A model you may not see answers 404 identically to one that does not
   exist.** Deliberately: distinguishing them would make the endpoint an
   existence oracle for what Oxy runs internally.
 
 ### Reads are audience-scoped
 
-No principal, a plain user bearer, and an ordinary application's service token
-all resolve to the **public** audience. Only an internal/system application sees
-internal-only routes. The SDK sends no audience of its own — whatever bearer the
-session holds is the audience — and a read that cannot establish a principal
-resolves public, which is the default-deny direction.
+No principal, a plain user bearer, an `oxy_sk_…` machine credential and an
+ordinary application's service token all resolve to the **public** audience. Only
+an internal/system application's service token sees internal-only routes. The SDK
+sends no audience of its own — whatever bearer it holds is the audience — and a
+read that cannot establish a principal resolves public, which is the default-deny
+direction.
+
+No SCOPE is checked on a catalogue read. `inference:models:read` exists in the
+vocabulary and is consulted by nothing; see
+[credentials.md](./credentials.md#which-scopes-to-ask-for).
 
 ---
 
