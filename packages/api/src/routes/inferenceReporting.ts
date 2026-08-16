@@ -57,6 +57,8 @@ import {
   spendingLimitCreateBody,
   spendingLimitParams,
   spendingLimitUpdateBody,
+  spendingLimitAlertsQuery,
+  spendingLimitAlertsSchema,
   spendingLimitsSchema,
   spendReportQuery,
   spendReportSchema,
@@ -74,6 +76,7 @@ import {
   type SpendAggregateRowDto,
   type SpendDimension,
   type SpendingLimitViewDto,
+  type SpendingLimitAlertsDto,
   type SpendingLimitsDto,
   type SpendReportDto,
   type SpendTotalDto,
@@ -102,6 +105,7 @@ import {
   type SpendingLimitReport,
   type UsageAggregateResult,
 } from '../services/inferenceReporting.service';
+import { listSpendingLimitAlerts } from '../services/spendingLimit.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
 import type { AccountPermission, ApplicationPermission } from '../utils/accountRoles';
@@ -550,6 +554,46 @@ router.get(
       rows: rows.map(spendingLimitDto),
     };
     res.json({ data: spendingLimitsSchema.parse(dto) });
+  })
+);
+
+/**
+ * `GET /inference/reporting/accounts/:accountId/spending-limits/alerts`
+ *
+ * Threshold crossings on the account's budgets, newest first (#972 section 7.1).
+ * `billing:read`, matching the budget listing above: seeing that a budget passed
+ * 75% is the same right as seeing the budget.
+ *
+ * Registered BEFORE `POST /accounts/:accountId/spending-limits` only for
+ * readability — the two differ by method — but ahead of any future
+ * `/spending-limits/:id` under this prefix, which would otherwise capture
+ * `alerts` as an id.
+ */
+router.get(
+  '/accounts/:accountId/spending-limits/alerts',
+  reportingReadLimiter,
+  validate({ params: reportingAccountParams, query: spendingLimitAlertsQuery }),
+  asyncHandler(async (req: ReportingRequest, res: Response) => {
+    const { accountId } = reportingAccountParams.parse(req.params);
+    const { limit } = spendingLimitAlertsQuery.parse(req.query);
+    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+
+    const rows = await listSpendingLimitAlerts(accountId, limit);
+    const dto: SpendingLimitAlertsDto = {
+      schemaVersion: 1,
+      consistency: 'authoritative',
+      source: 'financial_ledger',
+      note: LEDGER_AUTHORITATIVE_NOTE,
+      rows: rows.map((row) => ({
+        alertId: row.alertId,
+        spendingLimitId: row.spendingLimitId,
+        periodStart: row.periodStart.toISOString(),
+        thresholdBps: row.thresholdBps,
+        spendAmount: row.spendAmount,
+        createdAt: row.createdAt.toISOString(),
+      })),
+    };
+    res.json({ data: spendingLimitAlertsSchema.parse(dto) });
   })
 );
 

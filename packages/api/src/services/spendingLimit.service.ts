@@ -41,7 +41,7 @@
 
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { executeRows } from '@oxyhq/db';
-import type { DatabaseOrTransaction } from '../config/postgres';
+import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import {
   spendingLimitNotifications,
   spendingLimits,
@@ -388,4 +388,67 @@ async function recordThresholdCrossings(
 
   if (crossings.length === 0) return;
   await tx.insert(spendingLimitNotifications).values(crossings).onConflictDoNothing();
+}
+
+/** One threshold crossing, as `/inference/reporting` serves it. */
+export interface SpendingLimitAlertRow {
+  readonly alertId: string;
+  readonly spendingLimitId: string;
+  /** Start of the window the crossing happened in. `total` uses the epoch. */
+  readonly periodStart: Date;
+  readonly thresholdBps: number;
+  /** Spend at the moment the threshold was crossed. */
+  readonly spendAmount: string;
+  readonly createdAt: Date;
+}
+
+/**
+ * The crossings recorded against one account's budgets, newest first.
+ *
+ * The READ side of `recordThresholdCrossings` above, and it lives in this module
+ * for that reason: one module writes `spending_limit_notifications` and one
+ * module reads it, so "what counts as a crossing" cannot come to two answers.
+ *
+ * Scoped by the limits the account OWNS — `spending_limits.account_id`, the
+ * payer — rather than by the limits that bound it. An alert is a fact about
+ * somebody's budget, and the account that owns the budget is the one whose
+ * threshold was crossed.
+ */
+export async function listSpendingLimitAlerts(
+  accountId: string,
+  limit = 50
+): Promise<SpendingLimitAlertRow[]> {
+  const rows = await executeRows<{
+    id: string;
+    spending_limit_id: string;
+    period_start: Date;
+    threshold_bps: number;
+    spend_amount: string;
+    created_at: Date;
+  }>(
+    getDb(),
+    sql`
+      select
+        n.id,
+        n.spending_limit_id,
+        n.period_start,
+        n.threshold_bps,
+        n.spend_amount::text as spend_amount,
+        n.created_at
+      from ${spendingLimitNotifications} n
+      join ${spendingLimits} sl on sl.id = n.spending_limit_id
+      where sl.account_id = ${accountId}
+      order by n.created_at desc
+      limit ${limit}
+    `
+  );
+
+  return rows.map((row) => ({
+    alertId: row.id,
+    spendingLimitId: row.spending_limit_id,
+    periodStart: new Date(row.period_start),
+    thresholdBps: Number(row.threshold_bps),
+    spendAmount: row.spend_amount,
+    createdAt: new Date(row.created_at),
+  }));
 }

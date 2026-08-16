@@ -435,14 +435,26 @@ async function recordExternalPayment(
 // ===========================================================================
 
 /**
- * How much more this account can reserve right now.
+ * How much more this account can reserve right now — the REFERENCE answer.
  *
- * Deliberately expressed as {@link computeDraw} against a zero amount rather
- * than as its own SQL: the credit-room arithmetic an `invoiced` account depends
- * on is subtle (`greatest(0, credit_limit - invoiced_outstanding)`), and a
- * second copy of it would be free to disagree with the one that actually decides
- * whether a request is refused. This is the same expression, evaluated for its
- * `available` term.
+ * Expressed as {@link computeDraw} against a zero amount rather than as its own
+ * SQL, so it IS the expression that decides whether a request is refused, read
+ * for its `available` term rather than reimplemented.
+ *
+ * ## Its only caller is a test, and that is the job
+ *
+ * Two production paths spell the same rule out in their own SQL because each
+ * needs a different shape of query: `findAutoRechargeCandidates` scans every
+ * enabled profile in one statement, and `readAccountBalance`
+ * (`inferenceReporting.service.ts`) returns a bucket per currency. Neither can
+ * call this without becoming N round trips or losing its per-currency rows.
+ *
+ * So this exists to be the thing they are CHECKED AGAINST —
+ * `accountBilling.service.test.ts` asserts all three agree, on a fixture that
+ * exercises the invoiced branch where the credit line is the whole difference.
+ * Deleting it as unused would delete the gate, and the drift it guards
+ * (a customer refused with money apparently in hand) is invisible until it
+ * happens.
  */
 export async function getAvailableToSpend(
   db: DatabaseOrTransaction,

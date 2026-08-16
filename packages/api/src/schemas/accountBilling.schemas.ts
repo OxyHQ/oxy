@@ -18,24 +18,18 @@
 
 import { z } from 'zod';
 import {
+  billingInvoiceSchema,
   billingModeSchema,
   billingProfileStatusSchema,
   currencyCodeSchema,
   exactDecimalSchema,
-  spendingAlertThresholdBpsSchema,
-  spendingLimitEnforcementSchema,
-  spendingLimitPeriodSchema,
-  spendingLimitScopeSchema,
 } from '@oxyhq/contracts';
+import { LEDGER_AUTHORITATIVE_NOTE } from './inferenceReporting.schemas';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */
 const idParam = z.string().min(1).max(128);
 
 export const accountBillingParams = z.object({ accountId: idParam }).strict();
-
-export const spendingLimitParams = z
-  .object({ accountId: idParam, limitId: idParam })
-  .strict();
 
 export const costCenterSlugParams = z
   .object({ slug: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/) })
@@ -92,55 +86,12 @@ export const updateBillingProfileBody = z
   })
   .strict();
 
-/**
- * Create a spending limit.
- *
- * The scope target is validated for CONSISTENCY here and for OWNERSHIP in the
- * service — two different questions. This refine only says a body naming
- * `scope: 'application'` must carry an application id; whether that application
- * belongs to the account paying is a database question and is answered against
- * the account graph, not against the request.
+/*
+ * The spending-limit REQUEST shapes live in `inferenceReporting.schemas.ts`,
+ * beside the router that owns the budget surface (#972 workstream 8). A second
+ * set here would be a second answer to what a budget is, on a table both would
+ * write.
  */
-export const createSpendingLimitBody = z
-  .object({
-    scope: spendingLimitScopeSchema,
-    scopeAccountId: idParam.optional(),
-    scopeApplicationId: idParam.optional(),
-    scopeApplicationCredentialId: idParam.optional(),
-    period: spendingLimitPeriodSchema,
-    limitAmount: exactDecimalSchema,
-    enforcement: spendingLimitEnforcementSchema.optional(),
-    alertThresholdBps: z.array(spendingAlertThresholdBpsSchema).max(5).optional(),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      (value.scope === 'account' && value.scopeAccountId !== undefined) ||
-      (value.scope === 'application' && value.scopeApplicationId !== undefined) ||
-      (value.scope === 'credential' && value.scopeApplicationCredentialId !== undefined),
-    { message: 'the scope target must match the scope' },
-  );
-
-/**
- * Update a spending limit.
- *
- * The SCOPE is absent on purpose. Re-pointing a limit at a different application
- * would silently re-interpret every alert already recorded against it — the
- * notification rows key on `(limit, period_start, threshold)` and carry no scope
- * of their own. Moving a budget is delete plus create.
- */
-export const updateSpendingLimitBody = z
-  .object({
-    limitAmount: exactDecimalSchema.optional(),
-    enforcement: spendingLimitEnforcementSchema.optional(),
-    alertThresholdBps: z.array(spendingAlertThresholdBpsSchema).max(5).optional(),
-    status: z.enum(['active', 'disabled']).optional(),
-  })
-  .strict();
-
-export const spendingLimitAlertsQuery = z
-  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
-  .strict();
 
 /**
  * Start a hosted checkout that funds the account balance.
@@ -196,6 +147,33 @@ export const reconciliationBody = z
     periodEnd: isoInstant,
   })
   .strict();
+
+/**
+ * The invoice list, stamped the way every money figure on `/inference/reporting`
+ * is stamped.
+ *
+ * `source` and `consistency` are required `z.literal`s rather than optional
+ * strings, so a producer cannot omit them and a reader is never left guessing
+ * whether a number is the authoritative ledger or an eventually-consistent
+ * telemetry rollup. The constants are imported from the router that established
+ * the convention rather than restated, because two spellings of
+ * "authoritative" is exactly the drift the convention exists to prevent.
+ *
+ * The ROWS stay `billingInvoiceSchema` from `@oxyhq/contracts`: the invoice is a
+ * shared shape, and the envelope is this API's way of describing what kind of
+ * number it just handed over.
+ */
+export const accountInvoicesSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    consistency: z.literal('authoritative'),
+    source: z.literal('financial_ledger'),
+    note: z.literal(LEDGER_AUTHORITATIVE_NOTE),
+    rows: z.array(billingInvoiceSchema),
+  })
+  .strict();
+
+export type AccountInvoicesDto = z.input<typeof accountInvoicesSchema>;
 
 /** Register an internal cost centre. Staff-only at the route. */
 export const registerCostCenterBody = z

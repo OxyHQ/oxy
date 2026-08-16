@@ -155,8 +155,6 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   // Account billing (ADR 0014)
   billingProfileSchema: 1,
   accountBillingStateSchema: 1,
-  spendingLimitSchema: 1,
-  spendingLimitAlertSchema: 1,
   billingInvoiceSchema: 1,
   autoRechargeAttemptSchema: 1,
   reconciliationRunSchema: 1,
@@ -178,7 +176,6 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
-  'accountBalanceSchema',
   'authenticatedPrincipalSchema',
   'autoRechargeSchema',
   'billingPrincipalSchema',
@@ -686,41 +683,6 @@ const FIXTURES: Record<string, unknown> = {
       createdAt: '2026-08-01T10:00:00.000Z',
       updatedAt: '2026-08-15T09:41:03.100Z',
     },
-    balance: {
-      accountId: 'acc_01H8Z9QK7M',
-      currency: 'USD',
-      purchasedBalance: '412.180000000000',
-      promotionalBalance: '25.000000000000',
-      reservedBalance: '0.045000000000',
-      invoicedOutstanding: '0',
-      availableToSpend: '437.180000000000',
-    },
-  },
-
-  spendingLimitSchema: {
-    schemaVersion: 1,
-    id: 'slim_01H8Z9X3EE',
-    accountId: 'acc_01H8Z9QK7M',
-    scope: 'application',
-    scopeApplicationId: 'app_alia_prod',
-    period: 'monthly',
-    limitAmount: '500.000000000000',
-    currency: 'USD',
-    enforcement: 'hard_stop',
-    alertThresholdBps: [7500, 9000, 10000],
-    status: 'active',
-    createdAt: '2026-08-01T10:00:00.000Z',
-    updatedAt: '2026-08-01T10:00:00.000Z',
-  },
-
-  spendingLimitAlertSchema: {
-    schemaVersion: 1,
-    id: 'salr_01H8Z9X4FF',
-    spendingLimitId: 'slim_01H8Z9X3EE',
-    periodStart: '2026-08-01T00:00:00.000Z',
-    thresholdBps: 7500,
-    spendAmount: '381.402000000000',
-    createdAt: '2026-08-15T09:41:03.150Z',
   },
 
   billingInvoiceSchema: {

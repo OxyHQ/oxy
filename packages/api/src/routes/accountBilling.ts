@@ -55,31 +55,25 @@ import { validate } from '../middleware/validate';
 import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   accountBillingParams,
+  accountInvoicesSchema,
   accountPortalBody,
   closeInvoicePeriodBody,
-  createSpendingLimitBody,
   promotionalGrantBody,
   provisionBillingBody,
   reconciliationBody,
   reconciliationRunParams,
-  spendingLimitAlertsQuery,
-  spendingLimitParams,
   topUpCheckoutBody,
   updateBillingProfileBody,
-  updateSpendingLimitBody,
+  type AccountInvoicesDto,
 } from '../schemas/accountBilling.schemas';
+import { LEDGER_AUTHORITATIVE_NOTE } from '../schemas/inferenceReporting.schemas';
 import {
-  createSpendingLimit,
-  deleteSpendingLimit,
   grantPromotionalCredit,
   listAutoRechargeAttempts,
-  listSpendingLimitAlerts,
-  listSpendingLimits,
   provisionAccountBilling,
   resolveAccountBillingState,
   toAutoRechargeAttempt,
   updateBillingProfile,
-  updateSpendingLimit,
   type BillingProfilePatch,
 } from '../services/accountBilling.service';
 import {
@@ -433,121 +427,21 @@ router.patch(
   })
 );
 
-/* -------------------------------------------------------------------------- */
-/*  Spending limits and alerts                                                */
-/* -------------------------------------------------------------------------- */
-
-/**
- * `GET /billing/accounts/:accountId/limits`
+/*
+ * SPENDING LIMITS AND THEIR ALERTS ARE NOT SERVED HERE.
  *
- * Every budget that bounds what this account spends — including the
- * organization's, which is what can actually refuse a project's requests.
- */
-router.get(
-  '/:accountId/limits',
-  billingReadLimiter,
-  validate({ params: accountBillingParams }),
-  asyncHandler(async (req: BillingRequest, res: Response) => {
-    const { accountId } = accountBillingParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
-    const limits = await listSpendingLimits(accountId);
-    res.json({ data: limits, count: limits.length });
-  })
-);
-
-/** `POST /billing/accounts/:accountId/limits` — create a budget. */
-router.post(
-  '/:accountId/limits',
-  billingWriteLimiter,
-  validate({ params: accountBillingParams, body: createSpendingLimitBody }),
-  asyncHandler(async (req: BillingRequest, res: Response) => {
-    const { accountId } = accountBillingParams.parse(req.params);
-    // Authorised against the PAYER: the limit is created under the payer's
-    // account, and the scope target is checked against the payer's subtree.
-    await authorizeBillingAccount(principalOf(req), accountId, 'billing:manage');
-
-    const body = createSpendingLimitBody.parse(req.body);
-    const result = await createSpendingLimit(accountId, body);
-    switch (result.status) {
-      case 'created':
-        res.status(201).json({ data: result.limit });
-        return;
-      case 'not-provisioned':
-        throw new NotFoundError('This account has no billing profile to protect');
-      case 'scope-taken':
-        throw new ConflictError('That scope already has a limit for this period');
-      case 'scope-not-owned':
-        // 404 rather than 403: the scope target may not even exist, and telling
-        // a caller which of the two it is turns this into an existence oracle
-        // for other accounts' applications and credentials.
-        throw new NotFoundError('No such scope target under this account');
-    }
-  })
-);
-
-/** `PATCH /billing/accounts/:accountId/limits/:limitId` — change a ceiling. */
-router.patch(
-  '/:accountId/limits/:limitId',
-  billingWriteLimiter,
-  validate({ params: spendingLimitParams, body: updateSpendingLimitBody }),
-  asyncHandler(async (req: BillingRequest, res: Response) => {
-    const { accountId, limitId } = spendingLimitParams.parse(req.params);
-    const billingAccountId = await authorizeBillingAccount(
-      principalOf(req),
-      accountId,
-      'billing:manage'
-    );
-    const result = await updateSpendingLimit(
-      billingAccountId,
-      limitId,
-      updateSpendingLimitBody.parse(req.body)
-    );
-    if (result.status === 'unknown-limit') {
-      throw new NotFoundError('No such spending limit');
-    }
-    res.json({ data: result.limit });
-  })
-);
-
-/** `DELETE /billing/accounts/:accountId/limits/:limitId` — remove a budget. */
-router.delete(
-  '/:accountId/limits/:limitId',
-  billingWriteLimiter,
-  validate({ params: spendingLimitParams }),
-  asyncHandler(async (req: BillingRequest, res: Response) => {
-    const { accountId, limitId } = spendingLimitParams.parse(req.params);
-    const billingAccountId = await authorizeBillingAccount(
-      principalOf(req),
-      accountId,
-      'billing:manage'
-    );
-    const result = await deleteSpendingLimit(billingAccountId, limitId);
-    if (result.status === 'unknown-limit') {
-      throw new NotFoundError('No such spending limit');
-    }
-    res.status(204).send();
-  })
-);
-
-/**
- * `GET /billing/accounts/:accountId/alerts`
+ * `/inference/reporting` owns the budget surface (#972 workstream 8):
+ * `GET/POST /accounts/:accountId/spending-limits`,
+ * `PATCH /spending-limits/:spendingLimitId`, and
+ * `GET /accounts/:accountId/spending-limits/alerts`. It reads each budget
+ * through the SAME query the reservation path enforces with, so a customer's
+ * "spent against this budget" and the number that actually refuses their request
+ * cannot disagree — which a second CRUD here could not promise.
  *
- * Threshold crossings, newest first. Each is an EVENT recorded once per
- * `(limit, period, threshold)` — a state would re-fire on every request for the
- * rest of the period.
+ * A second write path to `spending_limits` is the specific thing that would go
+ * wrong: two authorisation rules, two scope-ownership checks and two answers to
+ * what a budget is, on a table whose whole job is to refuse spending.
  */
-router.get(
-  '/:accountId/alerts',
-  billingReadLimiter,
-  validate({ params: accountBillingParams, query: spendingLimitAlertsQuery }),
-  asyncHandler(async (req: BillingRequest, res: Response) => {
-    const { accountId } = accountBillingParams.parse(req.params);
-    const { limit } = spendingLimitAlertsQuery.parse(req.query);
-    await authorizeAccount(principalOf(req), accountId, 'billing:read');
-    const alerts = await listSpendingLimitAlerts(accountId, limit);
-    res.json({ data: alerts, count: alerts.length });
-  })
-);
 
 /* -------------------------------------------------------------------------- */
 /*  Money in                                                                  */
@@ -722,7 +616,14 @@ router.get(
       'billing:read'
     );
     const invoices = await listAccountInvoices(billingAccountId);
-    res.json({ data: invoices, count: invoices.length });
+    const dto: AccountInvoicesDto = {
+      schemaVersion: 1,
+      consistency: 'authoritative',
+      source: 'financial_ledger',
+      note: LEDGER_AUTHORITATIVE_NOTE,
+      rows: invoices,
+    };
+    res.json({ data: accountInvoicesSchema.parse(dto) });
   })
 );
 

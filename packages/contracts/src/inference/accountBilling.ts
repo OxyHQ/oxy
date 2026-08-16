@@ -7,17 +7,19 @@
  * cannot represent `0.1 + 0.2`, and a balance is the last place a rounding error
  * should be allowed to accumulate silently.
  *
- * ## The one thing this file exists to make unrepresentable
+ * ## What is NOT here, and where it is instead
  *
- * **A grant and a purchase are never one number.** {@link accountBalanceSchema}
- * carries `purchasedBalance` and `promotionalBalance` as separate fields with no
- * "total" beside them, and that omission is deliberate: the moment a `total`
- * exists, every consumer renders it, and a customer who was granted $50 of trial
- * credit reads it as $50 they could withdraw. They are not the same money —
- * granted credit may expire, is never refundable, and is spent FIRST
- * (`RESERVATION_DRAW_ORDER`). `availableToSpend` is offered instead, which is
- * the only aggregate that answers a real question ("will my next request be
- * refused"), and it is derived rather than stored.
+ * The BALANCE and the BUDGETS both live at `/inference/reporting` (#972
+ * workstream 8), which owns the customer's view of what they hold and what
+ * bounds them, stamped `{source, consistency}` so a reader can always tell which
+ * kind of number they are looking at. This file declares who PAYS and on what
+ * TERMS, plus the records that sit behind those numbers — invoices, processor
+ * payments, auto-recharge attempts and reconciliation.
+ *
+ * The split is not cosmetic. A second balance shape here would be a second
+ * answer to one question, and the pair would disagree the day one of them stops
+ * accounting for an invoiced account's unused credit line — which is exactly the
+ * kind of drift a customer discovers before we do.
  *
  * ## Product entitlements are NOT here
  *
@@ -41,7 +43,7 @@
  */
 
 import { z } from 'zod';
-import { oxyAccountIdSchema, oxyApplicationIdSchema, oxyCredentialIdSchema } from './identifiers';
+import { oxyAccountIdSchema } from './identifiers';
 import { currencyCodeSchema, exactDecimalSchema } from './money';
 
 /* -------------------------------------------------------------------------- */
@@ -115,46 +117,25 @@ export const billingProfileSchema = z
   .strict();
 
 /* -------------------------------------------------------------------------- */
-/*  Balance                                                                   */
+/*  Billing state                                                             */
 /* -------------------------------------------------------------------------- */
 
 /**
- * An account's spendable position, with the four buckets kept apart.
+ * WHO pays for an account and on what TERMS. Deliberately not how much they
+ * have.
  *
- * There is deliberately no `totalBalance`. See the module header — summing a
- * grant and a purchase produces a number that is wrong for every question
- * anybody asks of it.
+ * The balance lives at `GET /inference/reporting/accounts/:accountId/balance`
+ * (#972 workstream 8), which reads `account_balances` and stamps every response
+ * with `{source: 'financial_ledger', consistency: 'authoritative'}`. Restating
+ * those amounts here would be a second answer to one question, and the failure
+ * mode of two balance endpoints is the pair disagreeing on the day one of them
+ * stops accounting for the credit line.
  *
- * `availableToSpend` is the one aggregate offered, and it answers exactly one
- * question: how much more can be reserved right now. For a `prepaid` account it
- * is `promotional + purchased`; for an `invoiced` one it additionally includes
- * the unused part of the credit limit. It is DERIVED at read time and never
- * stored, so it cannot drift from the buckets it summarises.
- */
-export const accountBalanceSchema = z
-  .object({
-    accountId: oxyAccountIdSchema,
-    currency: currencyCodeSchema,
-    /** Money the customer bought and has not yet spent. */
-    purchasedBalance: exactDecimalSchema,
-    /** Granted credit — trials, migration credits, goodwill. Spent first. */
-    promotionalBalance: exactDecimalSchema,
-    /** Held against in-flight requests. Not spent, and not available either. */
-    reservedBalance: exactDecimalSchema,
-    /** What an `invoiced` account has drawn and not yet paid. Non-negative. */
-    invoicedOutstanding: exactDecimalSchema,
-    availableToSpend: exactDecimalSchema,
-  })
-  .strict();
-
-/**
- * A billing profile together with the balance it governs.
- *
- * `billingAccountId` is the account that ACTUALLY pays, which is not necessarily
- * the account asked about: a project draws on the nearest ancestor that has a
- * profile (ADR 0014). Carrying both means a Console page can say "this project
- * spends the organization's balance" rather than silently showing somebody
- * else's money as though it were the project's own.
+ * What this shape adds, and what nothing else carries: `billingAccountId` and
+ * `inherited`. A project draws on the nearest ancestor that has a profile
+ * (ADR 0014), so a Console page has to be able to say "this project spends the
+ * organization's balance" — showing somebody else's money under a project's name
+ * with no indication whose it is would be worse than showing nothing.
  */
 export const accountBillingStateSchema = z
   .object({
@@ -164,132 +145,20 @@ export const accountBillingStateSchema = z
     billingAccountId: oxyAccountIdSchema,
     inherited: z.boolean(),
     profile: billingProfileSchema,
-    balance: accountBalanceSchema,
   })
   .strict();
 
-/* -------------------------------------------------------------------------- */
-/*  Spending limits and alerts                                                */
-/* -------------------------------------------------------------------------- */
-
-/**
- * What a limit applies to.
+/*
+ * SPENDING LIMITS AND THEIR ALERTS ARE NOT DECLARED HERE.
  *
- * Three, not four, though #972 names four levels: a PROJECT IS AN ACCOUNT, so
- * an account-scoped limit on a project account is the project-level limit.
- * Inventing a fourth scope would create two ways to express one thing.
+ * `/inference/reporting` owns the budget surface (#972 workstream 8) and
+ * declares its own shapes beside the router that serves them, stamped
+ * `{source, consistency}` so a reader can always tell which kind of number they
+ * are looking at. A second set here would be a second answer to what a budget
+ * is, on a table both would write — and the closed alert-threshold set already
+ * lives once more where it is ENFORCED, as a CHECK on
+ * `spending_limits.alert_threshold_bps`.
  */
-export const SPENDING_LIMIT_SCOPES = ['account', 'application', 'credential'] as const;
-
-export const spendingLimitScopeSchema = z.enum(SPENDING_LIMIT_SCOPES);
-
-/** The window a limit is measured over. `total` is a lifetime cap. */
-export const SPENDING_LIMIT_PERIODS = ['daily', 'weekly', 'monthly', 'total'] as const;
-
-export const spendingLimitPeriodSchema = z.enum(SPENDING_LIMIT_PERIODS);
-
-/**
- * What happens at the ceiling.
- *
- * `hard_stop` refuses the reservation — nothing is forwarded and nothing is
- * spent. `soft_stop` allows it and reports that the limit was passed, for a
- * customer who would rather be warned than interrupted. Both are evaluated
- * BEFORE execution, in the same transaction as the balance check.
- */
-export const SPENDING_LIMIT_ENFORCEMENTS = ['hard_stop', 'soft_stop'] as const;
-
-export const spendingLimitEnforcementSchema = z.enum(SPENDING_LIMIT_ENFORCEMENTS);
-
-export const SPENDING_LIMIT_STATUSES = ['active', 'disabled'] as const;
-
-export const spendingLimitStatusSchema = z.enum(SPENDING_LIMIT_STATUSES);
-
-/**
- * Basis points of the limit at which a customer is told. 10000 = 100%.
- *
- * A closed set rather than any integer in 1..10000, for the reason every other
- * closed value set in this schema is closed: a CHECK against enumerated literals
- * is reviewable in the generated SQL and symmetric for add and remove, where an
- * open range over an ARRAY column cannot be expressed as a CHECK at all without
- * a subquery Postgres will not accept.
- */
-export const SPENDING_ALERT_THRESHOLDS_BPS = [2500, 5000, 7500, 9000, 10000] as const;
-
-export const spendingAlertThresholdBpsSchema = z.union([
-  z.literal(2500),
-  z.literal(5000),
-  z.literal(7500),
-  z.literal(9000),
-  z.literal(10000),
-]);
-
-/**
- * One configured ceiling.
- *
- * A limit is a CEILING ON SPEND, never a store of value. That is the whole
- * reason child projects share their ancestor's balance rather than receiving
- * allocated funds: a budget can be raised, lowered or removed without a
- * financial transaction, and it can never strand money the way a sub-balance
- * can (ADR 0014).
- */
-export const spendingLimitSchema = z
-  .object({
-    /** See `version.ts`: this shape is served to Console and to Alia. */
-    schemaVersion: z.literal(1),
-    id: z.string().min(1).max(64),
-    /** The account whose money this protects — the payer, not the scope. */
-    accountId: oxyAccountIdSchema,
-    scope: spendingLimitScopeSchema,
-    scopeAccountId: oxyAccountIdSchema.optional(),
-    scopeApplicationId: oxyApplicationIdSchema.optional(),
-    scopeApplicationCredentialId: oxyCredentialIdSchema.optional(),
-    period: spendingLimitPeriodSchema,
-    limitAmount: exactDecimalSchema,
-    currency: currencyCodeSchema,
-    enforcement: spendingLimitEnforcementSchema,
-    alertThresholdBps: z.array(spendingAlertThresholdBpsSchema).max(5),
-    status: spendingLimitStatusSchema,
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
-  })
-  .strict()
-  .refine(
-    (value) =>
-      (value.scope === 'account' &&
-        value.scopeAccountId !== undefined &&
-        value.scopeApplicationId === undefined &&
-        value.scopeApplicationCredentialId === undefined) ||
-      (value.scope === 'application' &&
-        value.scopeApplicationId !== undefined &&
-        value.scopeAccountId === undefined &&
-        value.scopeApplicationCredentialId === undefined) ||
-      (value.scope === 'credential' &&
-        value.scopeApplicationCredentialId !== undefined &&
-        value.scopeAccountId === undefined &&
-        value.scopeApplicationId === undefined),
-    { message: 'a limit must name exactly the scope target its discriminant declares' },
-  );
-
-/**
- * A threshold that was crossed, once, in one period.
- *
- * An EVENT, not a state — without the record, "you have used 75% of your budget"
- * re-fires on every subsequent request for the rest of the period.
- */
-export const spendingLimitAlertSchema = z
-  .object({
-    /** See `version.ts`: this shape is served to Console and to Alia. */
-    schemaVersion: z.literal(1),
-    id: z.string().min(1).max(64),
-    spendingLimitId: z.string().min(1).max(64),
-    /** Start of the window the crossing happened in. `total` uses the epoch. */
-    periodStart: z.string().datetime(),
-    thresholdBps: spendingAlertThresholdBpsSchema,
-    /** Spend at the moment the threshold was crossed. */
-    spendAmount: exactDecimalSchema,
-    createdAt: z.string().datetime(),
-  })
-  .strict();
 
 /* -------------------------------------------------------------------------- */
 /*  Invoices                                                                  */
@@ -500,15 +369,7 @@ export type BillingMode = z.infer<typeof billingModeSchema>;
 export type BillingProfileStatus = z.infer<typeof billingProfileStatusSchema>;
 export type AutoRecharge = z.infer<typeof autoRechargeSchema>;
 export type BillingProfile = z.infer<typeof billingProfileSchema>;
-export type AccountBalance = z.infer<typeof accountBalanceSchema>;
 export type AccountBillingState = z.infer<typeof accountBillingStateSchema>;
-export type SpendingLimitScope = z.infer<typeof spendingLimitScopeSchema>;
-export type SpendingLimitPeriod = z.infer<typeof spendingLimitPeriodSchema>;
-export type SpendingLimitEnforcement = z.infer<typeof spendingLimitEnforcementSchema>;
-export type SpendingLimitStatus = z.infer<typeof spendingLimitStatusSchema>;
-export type SpendingAlertThresholdBps = z.infer<typeof spendingAlertThresholdBpsSchema>;
-export type SpendingLimit = z.infer<typeof spendingLimitSchema>;
-export type SpendingLimitAlert = z.infer<typeof spendingLimitAlertSchema>;
 export type BillingInvoiceStatus = z.infer<typeof billingInvoiceStatusSchema>;
 export type BillingInvoice = z.infer<typeof billingInvoiceSchema>;
 export type ExternalPaymentProvider = z.infer<typeof externalPaymentProviderSchema>;

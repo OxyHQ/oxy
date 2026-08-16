@@ -17,26 +17,15 @@
  */
 
 import {
-  accountBalanceSchema,
+  accountBillingStateSchema,
   autoRechargeSchema,
+  billingInvoiceSchema,
   billingProfileSchema,
   costCenterSchema,
   planAllowanceSchema,
   productEntitlementSchema,
   reconciliationDiscrepancySchema,
-  spendingLimitSchema,
-  SPENDING_ALERT_THRESHOLDS_BPS,
 } from '../index';
-
-const BALANCE = {
-  accountId: 'acc_1',
-  currency: 'USD',
-  purchasedBalance: '412.180000000000',
-  promotionalBalance: '25.000000000000',
-  reservedBalance: '0.045000000000',
-  invoicedOutstanding: '0',
-  availableToSpend: '437.180000000000',
-};
 
 const PROFILE = {
   schemaVersion: 1,
@@ -50,52 +39,48 @@ const PROFILE = {
   updatedAt: '2026-08-01T10:00:00.000Z',
 };
 
-describe('a grant and a purchase are never one number', () => {
-  it('parses the four buckets separately', () => {
-    const parsed = accountBalanceSchema.parse(BALANCE);
-    expect(parsed.purchasedBalance).toBe('412.180000000000');
-    expect(parsed.promotionalBalance).toBe('25.000000000000');
-  });
-
-  it('refuses a total somebody tried to add', () => {
-    // `.strict()`, not `.passthrough()`: a STRIPPED total is the more dangerous
-    // outcome, because it vanishes here and survives in the producer, where it
-    // is the number somebody eventually renders as withdrawable money.
-    expect(
-      accountBalanceSchema.safeParse({ ...BALANCE, totalBalance: '437.180000000000' }).success
-    ).toBe(false);
-  });
-
-  it('declares no field that could hold a combined figure', () => {
-    expect(Object.keys(accountBalanceSchema.shape).sort()).toEqual([
-      'accountId',
-      'availableToSpend',
-      'currency',
-      'invoicedOutstanding',
-      'promotionalBalance',
-      'purchasedBalance',
-      'reservedBalance',
-    ]);
-  });
-});
-
 describe('money is an exact decimal string', () => {
+  const INVOICE = {
+    schemaVersion: 1,
+    id: 'binv_1',
+    accountId: 'acc_1',
+    currency: 'USD',
+    periodStart: '2026-07-01T00:00:00.000Z',
+    periodEnd: '2026-08-01T00:00:00.000Z',
+    status: 'open',
+    subtotalAmount: '3.703701000000',
+    totalAmount: '3.700000000000',
+    minorUnitExponent: 2,
+    receiptCount: 4821,
+  };
+
   it('refuses a JSON number', () => {
-    expect(accountBalanceSchema.safeParse({ ...BALANCE, purchasedBalance: 412.18 }).success).toBe(
-      false
-    );
+    expect(billingInvoiceSchema.safeParse({ ...INVOICE, totalAmount: 3.7 }).success).toBe(false);
   });
 
   it('refuses an exponent form, which survives no cache key or log grep intact', () => {
-    expect(accountBalanceSchema.safeParse({ ...BALANCE, promotionalBalance: '2.5e1' }).success).toBe(
-      false
-    );
+    expect(
+      billingInvoiceSchema.safeParse({ ...INVOICE, subtotalAmount: '3.7e0' }).success
+    ).toBe(false);
   });
 
   it('refuses a negative amount, because direction is carried by the SHAPE', () => {
     expect(
-      accountBalanceSchema.safeParse({ ...BALANCE, invoicedOutstanding: '-1.000000000000' }).success
+      billingInvoiceSchema.safeParse({ ...INVOICE, totalAmount: '-3.700000000000' }).success
     ).toBe(false);
+  });
+
+  it('declares no balance at all — that shape lives at /inference/reporting', () => {
+    // The billing STATE answers who pays and on what terms. A second balance
+    // shape here would be a second answer to one question, and the pair would
+    // disagree the day one stopped accounting for an invoiced credit line.
+    expect(Object.keys(accountBillingStateSchema.shape).sort()).toEqual([
+      'accountId',
+      'billingAccountId',
+      'inherited',
+      'profile',
+      'schemaVersion',
+    ]);
   });
 });
 
@@ -123,62 +108,6 @@ describe('an enabled auto-recharge must be able to fire', () => {
       false
     );
     expect(autoRechargeSchema.safeParse({ enabled: true }).success).toBe(false);
-  });
-});
-
-describe('a spending limit names exactly the scope target its discriminant declares', () => {
-  const BASE = {
-    schemaVersion: 1,
-    id: 'slim_1',
-    accountId: 'acc_1',
-    period: 'monthly',
-    limitAmount: '500.000000000000',
-    currency: 'USD',
-    enforcement: 'hard_stop',
-    alertThresholdBps: [7500],
-    status: 'active',
-    createdAt: '2026-08-01T10:00:00.000Z',
-    updatedAt: '2026-08-01T10:00:00.000Z',
-  };
-
-  it('accepts an application-scoped limit', () => {
-    expect(
-      spendingLimitSchema.safeParse({
-        ...BASE,
-        scope: 'application',
-        scopeApplicationId: 'app_1',
-      }).success
-    ).toBe(true);
-  });
-
-  it('refuses a limit claiming one scope and pointing at another', () => {
-    expect(
-      spendingLimitSchema.safeParse({ ...BASE, scope: 'application', scopeAccountId: 'acc_2' })
-        .success
-    ).toBe(false);
-  });
-
-  it('refuses a limit naming two scope targets at once', () => {
-    expect(
-      spendingLimitSchema.safeParse({
-        ...BASE,
-        scope: 'application',
-        scopeApplicationId: 'app_1',
-        scopeAccountId: 'acc_2',
-      }).success
-    ).toBe(false);
-  });
-
-  it('refuses an alert threshold outside the closed set', () => {
-    expect(
-      spendingLimitSchema.safeParse({
-        ...BASE,
-        scope: 'application',
-        scopeApplicationId: 'app_1',
-        alertThresholdBps: [8123],
-      }).success
-    ).toBe(false);
-    expect(SPENDING_ALERT_THRESHOLDS_BPS).toEqual([2500, 5000, 7500, 9000, 10000]);
   });
 });
 

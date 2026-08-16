@@ -530,6 +530,49 @@ export const spendReportSchema = z
   })
   .strict();
 
+/**
+ * One threshold crossing on one budget — an EVENT, not a state.
+ *
+ * Without a record of which threshold was crossed in which period, "you have
+ * used 75% of your budget" re-fires on every subsequent request for the rest of
+ * the period; the unique key on `(limit, period_start, threshold)` is what makes
+ * a crossing something that happened once. This is the read side of that record
+ * (#972 section 7.1's alert thresholds), served here because the budgets it
+ * refers to are served here.
+ *
+ * `financial_ledger` / `authoritative`, like every other money figure on this
+ * router: `spend_amount` is the spend at the instant the threshold was crossed,
+ * taken from the same query the reservation path enforces with.
+ */
+/** How many crossings one page returns. */
+export const spendingLimitAlertsQuery = z
+  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+  .strict();
+
+export const spendingLimitAlertRowSchema = z
+  .object({
+    alertId: identifier,
+    spendingLimitId: identifier,
+    periodStart: z.string().datetime(),
+    thresholdBps: z.number().int().positive(),
+    spendAmount: exactDecimalSchema,
+    createdAt: z.string().datetime(),
+  })
+  .strict();
+
+export const spendingLimitAlertsSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    consistency: z.literal('authoritative'),
+    source: z.literal('financial_ledger'),
+    note: z.literal(LEDGER_AUTHORITATIVE_NOTE),
+    rows: z.array(spendingLimitAlertRowSchema),
+  })
+  .strict();
+
+export type SpendingLimitAlerts = z.infer<typeof spendingLimitAlertsSchema>;
+export type SpendingLimitAlertsDto = z.input<typeof spendingLimitAlertsSchema>;
+
 export type SpendReport = z.infer<typeof spendReportSchema>;
 export type SpendReportDto = z.input<typeof spendReportSchema>;
 

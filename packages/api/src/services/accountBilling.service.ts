@@ -46,27 +46,17 @@
  * holding a `claimed` result may talk to the processor.
  */
 
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { executeRows, isUniqueViolation } from '@oxyhq/db';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { executeRows } from '@oxyhq/db';
 import {
-  accountBalanceSchema,
   accountBillingStateSchema,
   autoRechargeAttemptSchema,
   billingProfileSchema,
-  spendingLimitAlertSchema,
-  spendingLimitSchema,
-  type AccountBalance,
   type AccountBillingState,
   type AutoRechargeAttempt,
   type BillingMode,
   type BillingProfile,
   type BillingProfileStatus,
-  type SpendingLimit,
-  type SpendingLimitAlert,
-  type SpendingLimitEnforcement,
-  type SpendingLimitPeriod,
-  type SpendingLimitScope,
-  type SpendingAlertThresholdBps,
 } from '@oxyhq/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { accountBalances } from '../db/schema/accountBalances';
@@ -76,16 +66,8 @@ import {
   type BillingAutoRechargeAttemptRow,
 } from '../db/schema/billingAutoRechargeAttempts';
 import { billingProfiles } from '../db/schema/billingProfiles';
-import { applicationCredentials } from '../db/schema/applicationCredentials';
-import { applications } from '../db/schema/applications';
-import {
-  spendingLimitNotifications,
-  spendingLimits,
-} from '../db/schema/spendingLimits';
-import { userAncestors } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
 import {
-  getAvailableToSpend,
   provisionBillingProfile,
   recordPromotionalGrant,
   resolveBillingAccount,
@@ -94,12 +76,6 @@ import {
 } from './inferenceLedger.service';
 
 type BillingProfileRow = typeof billingProfiles.$inferSelect;
-
-type AccountBalanceRow = typeof accountBalances.$inferSelect;
-
-type SpendingLimitRow = typeof spendingLimits.$inferSelect;
-
-type SpendingLimitNotificationRow = typeof spendingLimitNotifications.$inferSelect;
 
 // ===========================================================================
 // Serializers
@@ -129,41 +105,6 @@ export function toBillingProfile(row: BillingProfileRow): BillingProfile {
   });
 }
 
-export function toAccountBalance(
-  row: AccountBalanceRow,
-  availableToSpend: string
-): AccountBalance {
-  return accountBalanceSchema.parse({
-    accountId: row.accountId,
-    currency: row.currency,
-    purchasedBalance: row.purchasedBalance,
-    promotionalBalance: row.promotionalBalance,
-    reservedBalance: row.reservedBalance,
-    invoicedOutstanding: row.invoicedOutstanding,
-    availableToSpend,
-  });
-}
-
-export function toSpendingLimit(row: SpendingLimitRow): SpendingLimit {
-  return spendingLimitSchema.parse({
-    schemaVersion: 1,
-    id: row.id,
-    accountId: row.accountId,
-    scope: row.scope,
-    scopeAccountId: row.scopeAccountId ?? undefined,
-    scopeApplicationId: row.scopeApplicationId ?? undefined,
-    scopeApplicationCredentialId: row.scopeApplicationCredentialId ?? undefined,
-    period: row.period,
-    limitAmount: row.limitAmount,
-    currency: row.currency,
-    enforcement: row.enforcement,
-    alertThresholdBps: row.alertThresholdBps,
-    status: row.status,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  });
-}
-
 export function toAutoRechargeAttempt(
   row: BillingAutoRechargeAttemptRow
 ): AutoRechargeAttempt {
@@ -182,18 +123,6 @@ export function toAutoRechargeAttempt(
   });
 }
 
-export function toSpendingLimitAlert(row: SpendingLimitNotificationRow): SpendingLimitAlert {
-  return spendingLimitAlertSchema.parse({
-    schemaVersion: 1,
-    id: row.id,
-    spendingLimitId: row.spendingLimitId,
-    periodStart: row.periodStart.toISOString(),
-    thresholdBps: row.thresholdBps,
-    spendAmount: row.spendAmount,
-    createdAt: row.createdAt.toISOString(),
-  });
-}
-
 // ===========================================================================
 // Billing state
 // ===========================================================================
@@ -204,7 +133,20 @@ export type AccountBillingResolution =
   | { readonly status: 'unknown-account'; readonly accountId: string };
 
 /**
- * Who pays for this account, what they hold, and whether it is their own money.
+ * Who pays for this account, on what terms, and whether it is their own money.
+ *
+ * ## The BALANCE is deliberately not here
+ *
+ * `readAccountBalance` (`inferenceReporting.service.ts`, #972 workstream 8) is
+ * the one reader of `account_balances`, and `GET
+ * /inference/reporting/accounts/:accountId/balance` is the one endpoint that
+ * publishes it. A second one would be a second answer to one question, and the
+ * pair would disagree the day one of them stopped accounting for an invoiced
+ * account's unused credit line.
+ *
+ * What this adds instead is what nothing else carries: the TERMS (mode, credit
+ * limit, auto-recharge, status) and the inheritance facts (`billingAccountId`,
+ * `inherited`).
  *
  * ## An account's OWN profile is shown whatever its status
  *
@@ -282,27 +224,12 @@ async function loadBillingState(
     .limit(1);
   if (!profile) return undefined;
 
-  const [balance] = await db
-    .select()
-    .from(accountBalances)
-    .where(
-      and(
-        eq(accountBalances.accountId, billing.accountId),
-        eq(accountBalances.currency, billing.currency)
-      )
-    )
-    .limit(1);
-  if (!balance) return undefined;
-
-  const availableToSpend = await getAvailableToSpend(db, billing);
-
   return accountBillingStateSchema.parse({
     schemaVersion: 1,
     accountId: requestedAccountId,
     billingAccountId: billing.accountId,
     inherited: billing.accountId !== requestedAccountId,
     profile: toBillingProfile(profile),
-    balance: toAccountBalance(balance, availableToSpend),
   });
 }
 
@@ -460,264 +387,6 @@ export interface PromotionalGrantInput {
  */
 export function grantPromotionalCredit(input: PromotionalGrantInput): Promise<FundingResult> {
   return recordPromotionalGrant(input);
-}
-
-// ===========================================================================
-// Spending limits
-// ===========================================================================
-
-export interface SpendingLimitInput {
-  readonly scope: SpendingLimitScope;
-  readonly scopeAccountId?: string;
-  readonly scopeApplicationId?: string;
-  readonly scopeApplicationCredentialId?: string;
-  readonly period: SpendingLimitPeriod;
-  readonly limitAmount: string;
-  readonly enforcement?: SpendingLimitEnforcement;
-  readonly alertThresholdBps?: readonly SpendingAlertThresholdBps[];
-}
-
-export type CreateSpendingLimitResult =
-  | { readonly status: 'created'; readonly limit: SpendingLimit }
-  | { readonly status: 'not-provisioned'; readonly accountId: string }
-  | { readonly status: 'scope-taken' }
-  | { readonly status: 'scope-not-owned' };
-
-/**
- * Create a budget under an account's billing profile.
- *
- * Two guards, and the second is the one that matters:
- *
- *  1. the account must have a billing profile to protect — a limit on money
- *     nobody has decided the payer of is meaningless;
- *  2. **the scope target must belong to the billing account's subtree.** Without
- *     it, a caller with `billing:manage` over their own account could create a
- *     `hard_stop` limit scoped to somebody else's application and switch off
- *     their traffic. The check is a subtree membership test over the same
- *     `user_ancestors` path everything else here walks.
- */
-export async function createSpendingLimit(
-  accountId: string,
-  input: SpendingLimitInput
-): Promise<CreateSpendingLimitResult> {
-  const db = getDb();
-  const resolution = await resolveBillingAccount(db, accountId);
-  if (resolution.status === 'not-provisioned') {
-    return { status: 'not-provisioned', accountId };
-  }
-  const billing = resolution.billingAccount;
-
-  if (!(await scopeBelongsToAccount(db, billing.accountId, input))) {
-    return { status: 'scope-not-owned' };
-  }
-
-  try {
-    const [row] = await db
-      .insert(spendingLimits)
-      .values({
-        accountId: billing.accountId,
-        scope: input.scope,
-        scopeAccountId: input.scopeAccountId,
-        scopeApplicationId: input.scopeApplicationId,
-        scopeApplicationCredentialId: input.scopeApplicationCredentialId,
-        period: input.period,
-        limitAmount: input.limitAmount,
-        currency: billing.currency,
-        enforcement: input.enforcement ?? 'hard_stop',
-        alertThresholdBps: [...(input.alertThresholdBps ?? [])],
-      })
-      .returning();
-    return { status: 'created', limit: toSpendingLimit(row) };
-  } catch (error) {
-    // A drizzle error's SQLSTATE lives on `cause`, never on `error.code`, so the
-    // predicate is `@oxyhq/db`'s rather than a hand-written comparison. Only the
-    // one-limit-per-scope-and-period uniques can fire here.
-    if (isUniqueViolation(error)) {
-      return { status: 'scope-taken' };
-    }
-    throw error;
-  }
-}
-
-/**
- * Is this scope target inside the billing account's subtree?
- *
- * Applications and credentials are resolved to their OWNER ACCOUNT and that
- * account is tested, rather than the application being tested directly: an
- * application's financial responsibility is its owner account's (ADR 0007), so
- * asking about the owner is asking the question that matters.
- */
-async function scopeBelongsToAccount(
-  db: DatabaseOrTransaction,
-  billingAccountId: string,
-  input: SpendingLimitInput
-): Promise<boolean> {
-  if (input.scope === 'account') {
-    return (
-      input.scopeAccountId !== undefined &&
-      (await accountIsInSubtree(db, billingAccountId, input.scopeAccountId))
-    );
-  }
-
-  if (input.scope === 'application') {
-    if (input.scopeApplicationId === undefined) return false;
-    const [row] = await db
-      .select({ ownerAccountId: applications.ownerAccountId })
-      .from(applications)
-      .where(eq(applications.id, input.scopeApplicationId))
-      .limit(1);
-    return row !== undefined && (await accountIsInSubtree(db, billingAccountId, row.ownerAccountId));
-  }
-
-  if (input.scopeApplicationCredentialId === undefined) return false;
-  const [row] = await db
-    .select({ ownerAccountId: applications.ownerAccountId })
-    .from(applicationCredentials)
-    .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
-    .where(eq(applicationCredentials.id, input.scopeApplicationCredentialId))
-    .limit(1);
-  return row !== undefined && (await accountIsInSubtree(db, billingAccountId, row.ownerAccountId));
-}
-
-/** `candidate` is `root` itself, or a descendant of it. */
-async function accountIsInSubtree(
-  db: DatabaseOrTransaction,
-  root: string,
-  candidate: string
-): Promise<boolean> {
-  if (root === candidate) return true;
-  const [row] = await db
-    .select({ userId: userAncestors.userId })
-    .from(userAncestors)
-    .where(and(eq(userAncestors.userId, candidate), eq(userAncestors.ancestorId, root)))
-    .limit(1);
-  return row !== undefined;
-}
-
-/**
- * Every limit that bounds what this account spends.
- *
- * Keyed on the BILLING account, not on the account asked about, so a project
- * sees the organization budget that can refuse its requests. A list keyed on the
- * project alone would show an empty page to a customer whose traffic is being
- * hard-stopped, which is the least useful possible answer.
- */
-export async function listSpendingLimits(accountId: string): Promise<SpendingLimit[]> {
-  const db = getDb();
-  const resolution = await resolveBillingAccount(db, accountId);
-  if (resolution.status === 'not-provisioned') return [];
-
-  const rows = await db
-    .select()
-    .from(spendingLimits)
-    .where(eq(spendingLimits.accountId, resolution.billingAccount.accountId))
-    .orderBy(asc(spendingLimits.createdAt));
-  return rows.map(toSpendingLimit);
-}
-
-export interface SpendingLimitPatch {
-  readonly limitAmount?: string;
-  readonly enforcement?: SpendingLimitEnforcement;
-  readonly alertThresholdBps?: readonly SpendingAlertThresholdBps[];
-  readonly status?: 'active' | 'disabled';
-}
-
-export type UpdateSpendingLimitResult =
-  | { readonly status: 'updated'; readonly limit: SpendingLimit }
-  | { readonly status: 'unknown-limit' };
-
-/**
- * Change a budget's ceiling, enforcement or alert set.
- *
- * The SCOPE is deliberately not patchable. Re-pointing a limit at a different
- * application would silently re-interpret every alert already recorded against
- * it — the notification rows key on `(limit, period_start, threshold)` and carry
- * no scope of their own. Moving a budget is delete plus create.
- *
- * `accountId` is part of the WHERE rather than checked afterwards, so a caller
- * authorised over one account cannot address another account's limit by id.
- */
-export async function updateSpendingLimit(
-  billingAccountId: string,
-  limitId: string,
-  patch: SpendingLimitPatch
-): Promise<UpdateSpendingLimitResult> {
-  const [row] = await getDb()
-    .update(spendingLimits)
-    .set({
-      ...(patch.limitAmount === undefined ? {} : { limitAmount: patch.limitAmount }),
-      ...(patch.enforcement === undefined ? {} : { enforcement: patch.enforcement }),
-      ...(patch.alertThresholdBps === undefined
-        ? {}
-        : { alertThresholdBps: [...patch.alertThresholdBps] }),
-      ...(patch.status === undefined ? {} : { status: patch.status }),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(spendingLimits.id, limitId), eq(spendingLimits.accountId, billingAccountId)))
-    .returning();
-
-  return row === undefined
-    ? { status: 'unknown-limit' }
-    : { status: 'updated', limit: toSpendingLimit(row) };
-}
-
-export type DeleteSpendingLimitResult =
-  | { readonly status: 'deleted' }
-  | { readonly status: 'unknown-limit' };
-
-/**
- * Remove a budget.
- *
- * A real DELETE, unlike everything financial in this package. A limit is a
- * CONFIGURATION value, not a record of money: nothing reconciles against it, its
- * alert rows cascade with it, and a soft-deleted budget would have to be
- * filtered out of the enforcement query forever. `status: 'disabled'` is there
- * for a customer who wants to keep it around.
- */
-export async function deleteSpendingLimit(
-  billingAccountId: string,
-  limitId: string
-): Promise<DeleteSpendingLimitResult> {
-  const rows = await getDb()
-    .delete(spendingLimits)
-    .where(and(eq(spendingLimits.id, limitId), eq(spendingLimits.accountId, billingAccountId)))
-    .returning({ id: spendingLimits.id });
-  return rows.length > 0 ? { status: 'deleted' } : { status: 'unknown-limit' };
-}
-
-/**
- * Threshold crossings recorded against this account's budgets, newest first.
- *
- * The rows are written by `spendingLimit.service.ts` inside the reservation
- * transaction, once per `(limit, period_start, threshold)`. This is the read
- * side: a delivery pass or a Console panel asking "what has fired".
- */
-export async function listSpendingLimitAlerts(
-  accountId: string,
-  limit = 50
-): Promise<SpendingLimitAlert[]> {
-  const db = getDb();
-  const resolution = await resolveBillingAccount(db, accountId);
-  if (resolution.status === 'not-provisioned') return [];
-
-  const limitIds = await db
-    .select({ id: spendingLimits.id })
-    .from(spendingLimits)
-    .where(eq(spendingLimits.accountId, resolution.billingAccount.accountId));
-  if (limitIds.length === 0) return [];
-
-  const rows = await db
-    .select()
-    .from(spendingLimitNotifications)
-    .where(
-      inArray(
-        spendingLimitNotifications.spendingLimitId,
-        limitIds.map((row) => row.id)
-      )
-    )
-    .orderBy(desc(spendingLimitNotifications.createdAt))
-    .limit(limit);
-  return rows.map(toSpendingLimitAlert);
 }
 
 // ===========================================================================

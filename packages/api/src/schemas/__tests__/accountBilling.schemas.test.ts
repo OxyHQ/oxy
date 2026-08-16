@@ -15,7 +15,6 @@
 
 import {
   costCenterListQuery,
-  createSpendingLimitBody,
   promotionalGrantBody,
   topUpCheckoutBody,
   updateBillingProfileBody,
@@ -89,18 +88,4 @@ describe('the money-moving bodies are strict', () => {
     ).toBe(true);
   });
 
-  it('refuses a spending limit whose scope target does not match its scope', () => {
-    const base = { period: 'monthly' as const, limitAmount: '10.000000000000' };
-    expect(
-      createSpendingLimitBody.safeParse({ ...base, scope: 'application', scopeAccountId: 'acc_1' })
-        .success
-    ).toBe(false);
-    expect(
-      createSpendingLimitBody.safeParse({
-        ...base,
-        scope: 'application',
-        scopeApplicationId: 'app_1',
-      }).success
-    ).toBe(true);
-  });
 });
