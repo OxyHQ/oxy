@@ -265,7 +265,20 @@ function entryFor(body: Record<string, unknown>, key: 'data' | 'models', modelId
   return entries.find((entry) => entry.modelId === modelId);
 }
 
+/**
+ * This file is about the AUDIENCE, so it runs with the catalogue published.
+ *
+ * `INFERENCE_CATALOGUE_AUDIENCE` is `internal` unless a deployment says
+ * otherwise (issue #972 workstream 16), and an unpublished catalogue serves a
+ * public viewer nothing — which would make every "the public viewer sees the
+ * public route" assertion below pass for the wrong reason. The unset default and
+ * both of its positions are covered by `rolloutFlags.test.ts` and by
+ * `inferenceCataloguePublication.test.ts`, which drive this same router.
+ */
+const ORIGINAL_CATALOGUE_AUDIENCE = process.env.INFERENCE_CATALOGUE_AUDIENCE;
+
 beforeAll(async () => {
+  process.env.INFERENCE_CATALOGUE_AUDIENCE = 'public';
   await connectPostgres();
   const app = express();
   app.use(express.json());
@@ -276,6 +289,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (ORIGINAL_CATALOGUE_AUDIENCE === undefined) {
+    delete process.env.INFERENCE_CATALOGUE_AUDIENCE;
+  } else {
+    process.env.INFERENCE_CATALOGUE_AUDIENCE = ORIGINAL_CATALOGUE_AUDIENCE;
+  }
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve()))
   );

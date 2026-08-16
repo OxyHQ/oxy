@@ -37,6 +37,16 @@
  * not through Alia as infrastructure; keeping the old behaviour on the new path
  * would be the fallback that makes the invariant untrue.
  *
+ * ## Which deployments serve it at all
+ *
+ * `INFERENCE_EDGE_AUDIENCE` (`config/rolloutFlags.ts`) is unset by default and a
+ * deployment that has not set it serves NOBODY here — an authenticated caller
+ * gets `permission_denied` with their request id. The audience is what makes the
+ * epic's rollout states (internal Alia canary, Oxy first-party canary, closed
+ * external beta, prepaid public launch) expressible and enforceable rather than
+ * announced, and the check sits in {@link edgeGate} so every endpoint below is
+ * covered by one decision.
+ *
  * ## Rate limits
  *
  * Three, all with unique prefixes (`rate-limit-redis` throws
@@ -51,6 +61,7 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { InferenceFinishReason, InferenceMessage } from '@oxyhq/contracts';
+import { admitToInferenceEdge } from '../config/rolloutFlags';
 import {
   machineApplicationLimiter,
   machineCredentialLimiter,
@@ -141,6 +152,32 @@ function edgeGate(render: ErrorRenderer) {
           buildInferenceError({
             code: 'authentication_failed',
             message: 'The provided API key is invalid, expired, or revoked.',
+            requestId,
+          })
+        );
+        return;
+      }
+
+      // Is this deployment's edge open to this application at all (issue #972
+      // workstream 16, `config/rolloutFlags.ts`)? Applied HERE, in the one gate
+      // all three endpoints share, so both dialects and the receipt read are
+      // covered by one decision and a fourth endpoint cannot be added without
+      // it. Distinct from authentication, and answered distinctly: the caller
+      // proved who they are, and this deployment does not serve them yet.
+      const admission = admitToInferenceEdge(authentication.principal);
+      if (admission.status === 'refused') {
+        logger.warn('inference.edge.outside_audience', {
+          requestId,
+          reason: admission.reason,
+          tier: admission.tier,
+          applicationId: authentication.principal.applicationId,
+          path: req.path,
+        });
+        render(
+          res,
+          buildInferenceError({
+            code: 'permission_denied',
+            message: 'The Oxy inference API is not open to this application yet.',
             requestId,
           })
         );

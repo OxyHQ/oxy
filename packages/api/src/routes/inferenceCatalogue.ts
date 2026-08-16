@@ -31,17 +31,35 @@
  * `internal_alia` routes. An internal-only route and a model that does not
  * exist are deliberately the same answer, so the catalogue is never an oracle
  * for what Oxy runs internally.
+ *
+ * ## Publication is a separate, flagged decision
+ *
+ * `INFERENCE_CATALOGUE_AUDIENCE` (`config/rolloutFlags.ts`) is `internal` unless
+ * a deployment says otherwise, and while it is, the PUBLIC viewer is served an
+ * empty catalogue — 200 with nothing in it, because the endpoint exists and
+ * answers; there is simply nothing published to them yet. Internal viewers read
+ * the catalogue in both positions, which is what lets a canary populate and
+ * check it before anybody outside can see it.
+ *
+ * The gate is here rather than in the service because publication is what an
+ * HTTP surface does; `services/inferenceCatalogue.service.ts` stays the one
+ * selectability predicate, and the inference edge's own route resolution is
+ * deliberately unaffected — whether a model is SELLABLE and whether it is
+ * LISTED are two decisions, and conflating them would let opening a listing
+ * change what a request may be served.
  */
 
 import { Router, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
+import { isCataloguePublished } from '../config/rolloutFlags';
 import { applications } from '../db/schema';
 import { rateLimit } from '../middleware/rateLimiter';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import {
   type CatalogueViewer,
   getCatalogueEntryForViewer,
+  isPublicCatalogueViewer,
   listCatalogueForViewer,
   listRoutingProfiles,
   PUBLIC_CATALOGUE_VIEWER,
@@ -66,7 +84,19 @@ const catalogueReadLimiter = rateLimit({
 });
 
 /**
- * Resolve the audience for this request.
+ * Whether this request is served the catalogue, and as whom.
+ *
+ * `served: false` is the unpublished state seen by a public viewer — not an
+ * error and not a 403, because the honest description is "nothing is published
+ * to you", which is what an empty collection says.
+ */
+type CatalogueAccess =
+  | { readonly served: true; readonly viewer: CatalogueViewer }
+  | { readonly served: false };
+
+/**
+ * Resolve the audience for this request, and whether this deployment publishes
+ * to it.
  *
  * Reuses `verifyServiceToken` — the SAME verification the shared service-auth
  * middleware performs — rather than parsing the header itself, so there is no
@@ -76,7 +106,19 @@ const catalogueReadLimiter = rateLimit({
  *
  * A failure to LOAD the application also resolves public. A read that cannot
  * establish a principal must not fall through to the wider audience.
+ *
+ * The publication check is applied to the RESOLVED viewer rather than to the
+ * request, so an internal application still reads the catalogue while it is
+ * unpublished, and a caller cannot become internal by presenting nothing.
  */
+async function catalogueAccess(req: Request): Promise<CatalogueAccess> {
+  const viewer = await viewerForRequest(req);
+  if (isPublicCatalogueViewer(viewer) && !isCataloguePublished()) {
+    return { served: false };
+  }
+  return { served: true, viewer };
+}
+
 async function viewerForRequest(req: Request): Promise<CatalogueViewer> {
   const header = req.headers.authorization;
   if (header === undefined || !header.startsWith('Bearer ')) return PUBLIC_CATALOGUE_VIEWER;
@@ -103,8 +145,9 @@ async function viewerForRequest(req: Request): Promise<CatalogueViewer> {
 router.get(
   '/routing-profiles',
   catalogueReadLimiter,
-  asyncHandler(async (_req: Request, res: Response) => {
-    const profiles = await listRoutingProfiles();
+  asyncHandler(async (req: Request, res: Response) => {
+    const access = await catalogueAccess(req);
+    const profiles = access.served ? await listRoutingProfiles() : [];
     res.json({ data: profiles, count: profiles.length });
   })
 );
@@ -120,8 +163,8 @@ router.get(
   '/stats',
   catalogueReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const viewer = await viewerForRequest(req);
-    const models = await listCatalogueForViewer(viewer);
+    const access = await catalogueAccess(req);
+    const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
     res.json({ models, count: models.length, timestamp: new Date().toISOString() });
   })
 );
@@ -133,8 +176,8 @@ router.get(
   '/',
   catalogueReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const viewer = await viewerForRequest(req);
-    const models = await listCatalogueForViewer(viewer);
+    const access = await catalogueAccess(req);
+    const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
     res.json({ data: models, count: models.length });
   })
 );
@@ -147,18 +190,21 @@ router.get(
  *
  * A model the viewer may not see answers 404, identically to one that does not
  * exist. Distinguishing them would make this endpoint an existence oracle for
- * the internal catalogue.
+ * the internal catalogue — and an unpublished catalogue answers the same 404 for
+ * the same reason.
  */
 router.get(
   '/:publisher/:model',
   catalogueReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const viewer = await viewerForRequest(req);
+    const access = await catalogueAccess(req);
     const modelId = `${req.params.publisher}/${req.params.model}`;
-    const entry = await getCatalogueEntryForViewer(viewer, modelId);
+    const entry = access.served
+      ? await getCatalogueEntryForViewer(access.viewer, modelId)
+      : undefined;
 
     if (entry === undefined) {
-      logger.debug(`Catalogue entry ${modelId} not available to ${viewer.label} viewer`);
+      logger.debug(`Catalogue entry ${modelId} is not available to this viewer`);
       throw new NotFoundError(`No model ${modelId} is available to you`);
     }
 

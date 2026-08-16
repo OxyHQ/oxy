@@ -426,11 +426,46 @@ function completionFor(
   };
 }
 
+/**
+ * The rollout flags this file runs with, and why it sets them (issue #972
+ * workstream 16).
+ *
+ * All three default to the state that serves and charges nobody, so every
+ * assertion here about routing, reservation and settlement would otherwise pass
+ * for the wrong reason — a refusal at the gate looks exactly like a refusal
+ * downstream once you are only reading the status code. `public` is the audience
+ * because the fixtures mint ordinary third-party applications, and it requires
+ * an armed charging authorization to resolve at all.
+ *
+ * The DEFAULTS are asserted in `config/__tests__/rolloutFlags.test.ts`, and
+ * their effect on this very edge in `inferenceEdgeRollout.test.ts`. Nothing in
+ * this file is evidence about them.
+ *
+ * The authorization date is comfortably in the past rather than "today": the
+ * flag refuses a FUTURE date, and midnight UTC on a runner an hour behind local
+ * time is a future date. A past date never expires — that is argued in
+ * `config/rolloutFlags.ts` — so this fixture does not rot.
+ */
+const ROLLOUT_ENVIRONMENT = {
+  INFERENCE_EDGE_AUDIENCE: 'public',
+  INFERENCE_MACHINE_CREDENTIAL_AUTH: 'enabled',
+  INFERENCE_CHARGING_AUTHORIZED: 'edge-suite-fixture:2026-08-01',
+} as const;
+
+const ORIGINAL_ROLLOUT_ENVIRONMENT = Object.fromEntries(
+  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+);
+
 beforeAll(async () => {
+  Object.assign(process.env, ROLLOUT_ENVIRONMENT);
   await connectPostgres();
 });
 
 afterAll(async () => {
+  for (const [key, value] of Object.entries(ORIGINAL_ROLLOUT_ENVIRONMENT)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
   await closePostgres();
 });
 

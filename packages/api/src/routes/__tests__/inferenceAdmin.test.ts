@@ -262,7 +262,20 @@ const STAFF_REFUSAL = {
   message: 'This operation requires Oxy platform staff privileges',
 };
 
+/**
+ * The customer catalogue is mounted here as a control, so it runs PUBLISHED.
+ *
+ * `INFERENCE_CATALOGUE_AUDIENCE` is `internal` unless a deployment says
+ * otherwise (issue #972 workstream 16), and this file's catalogue reads are
+ * anonymous — i.e. the public viewer. Its own default and both positions belong
+ * to `inferenceCataloguePublication.test.ts`; here it must be open, or the
+ * "an approved route reaches the customer catalogue" control would report
+ * nothing for a reason that has nothing to do with approval.
+ */
+const ORIGINAL_CATALOGUE_AUDIENCE = process.env.INFERENCE_CATALOGUE_AUDIENCE;
+
 beforeAll(async () => {
+  process.env.INFERENCE_CATALOGUE_AUDIENCE = 'public';
   await connectPostgres();
   const app = express();
   app.use(express.json());
@@ -277,6 +290,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (ORIGINAL_CATALOGUE_AUDIENCE === undefined) {
+    delete process.env.INFERENCE_CATALOGUE_AUDIENCE;
+  } else {
+    process.env.INFERENCE_CATALOGUE_AUDIENCE = ORIGINAL_CATALOGUE_AUDIENCE;
+  }
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve()))
   );
@@ -295,6 +313,7 @@ beforeEach(async () => {
 describe('every route on this mount is staff-gated', () => {
   it.each([
     ['GET', `${ADMIN}/deployments`, undefined],
+    ['GET', `${ADMIN}/rollout`, undefined],
     ['POST', `${ADMIN}/deployments/DEPLOYMENT/legal-review`, { status: 'approved', evidenceRef: 'x' }],
     ['POST', `${ADMIN}/deployments/DEPLOYMENT/approve`, {}],
   ] as const)('refuses %s %s to a non-staff user, and serves it to staff', async (method, template, body) => {
@@ -551,5 +570,26 @@ describe('a retired route stays retired', () => {
     const ids = (catalogue.body.data as { modelId: string }[]).map((entry) => entry.modelId);
     expect(ids).toContain(other.modelId);
     expect(ids).not.toContain(fixture.modelId);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  6. What is switched on in this deployment                                 */
+/* -------------------------------------------------------------------------- */
+
+describe('GET /inference/admin/rollout answers "what is on here"', () => {
+  it('reports every rollout flag, its state and the reason for it', async () => {
+    const response = await request('GET', `${ADMIN}/rollout`);
+
+    expect(response.status).toBe(200);
+    const report = response.body.data as Record<string, Record<string, unknown>>;
+
+    // The catalogue is published by this file (see the lifecycle hooks above),
+    // and nothing else is — so the readout distinguishes a flag somebody set
+    // from three nobody did, which is the whole point of it carrying reasons.
+    expect(report.catalogue).toMatchObject({ audience: 'public', reason: 'configured' });
+    expect(report.edge).toMatchObject({ open: false, closedReason: 'not_configured' });
+    expect(report.machineCredentialAuth).toMatchObject({ enabled: false });
+    expect(report.charging).toMatchObject({ authorized: false, shadowMetering: true });
   });
 });

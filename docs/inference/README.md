@@ -6,8 +6,11 @@ gaps live, so a reader who finds a topic missing elsewhere finds the reason here
 rather than assuming it was overlooked.
 
 Read this first. **The public Oxy inference endpoint exists and refuses every
-invoke**, because there is no data plane behind it. Nothing you send it will
-produce a completion, and nothing you send it will cost you money.
+invoke**, for two independent reasons: no deployment has opened it to any
+audience, and there is no data plane behind it. Nothing you send it will produce
+a completion, and nothing you send it will cost you money — charging is off by
+default too. [rollout.md](./rollout.md) has the four flags, what each one gates,
+and the rollback plan.
 
 Tracking issue: [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
 Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
@@ -40,13 +43,13 @@ reserves the money, finds nothing to forward to, releases the hold and answers
 
 | Capability | Where | Reachable by a caller? |
 |---|---|---|
-| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | **Yes** — `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id`. Every invoke refuses (below) |
+| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id`. **Closed to every audience by default** (`INFERENCE_EDGE_AUDIENCE`), and every invoke refuses even when opened (below) |
 | `oxy_sk_*` machine credentials — create, rotate, revoke, audit | `packages/api/src/routes/applications.ts`, `.../utils/machineCredentialToken.ts` | Yes |
-| The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | **Yes — mounted on the edge**, with its per-credential and per-application limiters |
+| The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
 | Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
-| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. **The catalogue is EMPTY** |
-| Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out |
+| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. **The catalogue is EMPTY**, and is withheld from public viewers until published (`INFERENCE_CATALOGUE_AUDIENCE`) |
+| Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
 | Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (eleven controls; the two price ceilings and `optimiseFor` are not) |
 | BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Yes for metadata; create and rotate refuse `503` |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
@@ -55,6 +58,7 @@ reserves the money, finds nothing to forward to, releases the hold and answers
 | Oxy↔data-plane contracts (Zod) | `packages/contracts/src/inference/` | Published as `@oxyhq/contracts` |
 | The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Yes — [sdk.md](./sdk.md) |
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
+| Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
 **The catalogue itself is EMPTY.** The tables and the read API exist; the
 contents do not. `packages/api/scripts/seed-inference-catalogue.ts` seeds five
@@ -85,11 +89,14 @@ streaming, no health scoring, no usage receipts from a real provider. Every
 `Oxy → data plane` statement in the contracts package is a contract waiting for a
 counterparty.
 
-**This is the single fact that makes every invoke refuse.** The edge is
-complete: it authenticates, attributes, authorizes, resolves the policy, resolves
-the route, reserves the spend, and then answers a typed `service_unavailable`
-with a `requestId` — having released the hold, so nothing is charged. It never
-falls back to the Alia proxy and never fabricates a completion.
+**This is one of the two facts that make every invoke refuse**; the other is
+that no deployment has opened `INFERENCE_EDGE_AUDIENCE`, so a caller is refused
+`permission_denied` before any of this runs. Past that gate the edge is complete:
+it authenticates, attributes, authorizes, resolves the policy, resolves the
+route, reserves the spend if charging is authorized, and then answers a typed
+`service_unavailable` with a `requestId` — having released any hold, so nothing
+is charged. It never falls back to the Alia proxy and never fabricates a
+completion.
 
 ### The catalogue's contents — workstream 5
 
@@ -168,6 +175,21 @@ not inferred from the sweepers' own coverage.
 [data-policy.md](./data-policy.md#how-long-oxy-keeps-what-it-does-keep) records
 the retention side.
 
+### Every rollout stage — workstream 16
+
+The flags exist and are tested; **no deployment has entered any stage**. The
+internal Alia canary, the Oxy first-party canary, the closed external beta and
+the prepaid public launch are all ahead of us, and each is additionally gated on
+things a flag cannot switch — a data plane, a catalogue with contents, and the
+anomaly controls below. [rollout.md](./rollout.md) has the configuration each
+stage means and the rollback plan.
+
+Dual-read/dual-write is **not** being built, and that is a decision rather than
+an omission: every table this platform reads and writes is new and holds no
+production rows, so there is no old store to cut over from.
+[rollout.md](./rollout.md#dual-read-and-dual-write-there-is-nothing-to-build)
+argues it.
+
 ### Abuse, fraud and anomaly controls — workstreams 4, 8, 12
 
 Rate limits exist, per credential and per application, and they bound REQUESTS
@@ -217,6 +239,7 @@ gives the two reasons.
 | [deprecation.md](./deprecation.md) | The deprecation policy, why no date is published, and what will need one |
 | [migration.md](./migration.md) | The scope migration, `oxy_dk_*`, `alia_sk_*`, and the retired `alia-*` model names |
 | [alia.md](./alia.md) | Alia as a consumer: its registration, its scopes and the ones withheld, the internal cost centres, and the runbook for the operational steps |
+| [rollout.md](./rollout.md) | The four rollout flags, shadow metering, the stage table, and the rollback plan an append-only ledger forces |
 
 Ownership of every table, event and API across Oxy, the data plane and Alia is
 in [architecture/inference-responsibility-matrix.md](../architecture/inference-responsibility-matrix.md).
