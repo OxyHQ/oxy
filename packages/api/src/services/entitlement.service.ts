@@ -61,6 +61,7 @@ import { userCredits } from '../db/schema/userCredits';
 import { users } from '../db/schema/users';
 import { resolveAccountBillingState } from './accountBilling.service';
 import { resolveApplicationOwnerAccount } from './attribution.service';
+import { readAccountBalance } from './inferenceReporting.service';
 import { resolveBillingAccount } from './inferenceLedger.service';
 
 type InternalCostCenterRow = typeof internalCostCenters.$inferSelect;
@@ -482,10 +483,11 @@ export async function resolveProductEntitlement(
       ? billingResolution.billingAccount.accountId
       : undefined;
 
-  const [planRow, credits, billingState, costCenter] = await Promise.all([
+  const [planRow, credits, billingState, balance, costCenter] = await Promise.all([
     resolveLivePlan(db, accountId, payerAccountId),
     loadAccountCredits(db, accountId),
     resolveAccountBillingState(accountId),
+    readAccountBalance(accountId),
     resolveCostCenterForAccount(accountId),
   ]);
 
@@ -516,18 +518,37 @@ export async function resolveProductEntitlement(
     allowances.push(...plan.allowances);
   }
 
+  /*
+   * The money comes from `readAccountBalance` — the ONE reader of
+   * `account_balances` (#972 workstream 8) — not from a second query here. The
+   * terms come from the profile. Composing the two is what this interface adds;
+   * restating either would be a second answer that could drift, and the drift a
+   * balance reader develops is invisible until a customer is refused with money
+   * apparently in hand.
+   *
+   * The bucket for the profile's OWN currency, not the first one: an account
+   * that has held two currencies has two rows, and the one that decides whether
+   * its next request is refused is the one its profile is denominated in.
+   */
+  const profileCurrency =
+    billingState.status === 'resolved' ? billingState.state.profile.currency : undefined;
+  const bucket =
+    balance.status === 'resolved' && profileCurrency !== undefined
+      ? balance.buckets.find((candidate) => candidate.currency === profileCurrency)
+      : undefined;
+
   const payAsYouGo =
-    billingState.status === 'resolved'
+    billingState.status === 'resolved' && balance.status === 'resolved' && bucket !== undefined
       ? payAsYouGoEntitlementSchema.parse({
           billingAccountId: billingState.state.billingAccountId,
-          currency: billingState.state.balance.currency,
+          currency: bucket.currency,
           billingMode: billingState.state.profile.billingMode,
-          purchasedBalance: billingState.state.balance.purchasedBalance,
-          promotionalBalance: billingState.state.balance.promotionalBalance,
-          availableToSpend: billingState.state.balance.availableToSpend,
+          purchasedBalance: bucket.purchased,
+          promotionalBalance: bucket.promotional,
+          availableToSpend: bucket.availableToSpend,
           canSpend:
             billingState.state.profile.status === 'active' &&
-            Number(billingState.state.balance.availableToSpend) > 0,
+            Number(bucket.availableToSpend) > 0,
         })
       : null;
 

@@ -673,11 +673,42 @@ export type AccountBalanceResult =
  */
 export async function readAccountBalance(accountId: string): Promise<AccountBalanceResult> {
   const db = getDb();
-  const resolution = await resolveBillingAccount(db, accountId);
-  if (resolution.status === 'not-provisioned') {
+
+  /*
+   * An account's OWN profile is read at ANY status; only the INHERITED case goes
+   * through the active-filtered walk.
+   *
+   * `resolveBillingAccount` filters on `status = 'active'`, correctly for
+   * SPENDING: a suspended profile may not be drawn from, and an account must not
+   * silently start drawing on a suspended ancestor either. But this is a READ,
+   * and applying that filter to it reports a suspended account as
+   * `not-provisioned` — which collapses "you are suspended" into "nobody has
+   * decided who pays for you". Those are different facts with different fixes,
+   * and the entitlement interface hands the second one to Alia as "this account
+   * cannot be charged at all" (#972 section 7.5).
+   */
+  const [own] = await db
+    .select()
+    .from(billingProfiles)
+    .where(eq(billingProfiles.accountId, accountId))
+    .limit(1);
+
+  const billing =
+    own === undefined
+      ? await (async () => {
+          const resolution = await resolveBillingAccount(db, accountId);
+          return resolution.status === 'not-provisioned' ? undefined : resolution.billingAccount;
+        })()
+      : {
+          accountId: own.accountId,
+          currency: own.currency,
+          billingMode: own.billingMode,
+          creditLimit: own.creditLimit,
+        };
+
+  if (billing === undefined) {
     return { status: 'not-provisioned' };
   }
-  const billing = resolution.billingAccount;
 
   const rows = await executeRows<Record<string, unknown>>(
     db,

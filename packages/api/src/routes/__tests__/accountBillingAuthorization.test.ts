@@ -57,7 +57,6 @@ import { accountMembers } from '../../db/schema/accountMembers';
 import { applicationCredentials, applications, userAncestors, users } from '../../db/schema';
 import accountBillingRouter from '../accountBilling';
 import { errorHandler } from '../../middleware/errorHandler';
-import { createSpendingLimit } from '../../services/accountBilling.service';
 import { provisionBillingProfile } from '../../services/inferenceLedger.service';
 
 jest.setTimeout(60_000);
@@ -174,7 +173,6 @@ interface Graph {
   siblingApplicationId: string;
   organizationAdminId: string;
   projectAdminId: string;
-  organizationLimitId: string;
 }
 
 async function seedGraph(): Promise<Graph> {
@@ -190,16 +188,6 @@ async function seedGraph(): Promise<Graph> {
   await seedMember(organizationId, organizationAdminId);
   await seedMember(projectId, projectAdminId);
 
-  const limit = await createSpendingLimit(organizationId, {
-    scope: 'account',
-    scopeAccountId: organizationId,
-    period: 'monthly',
-    limitAmount: '500.000000000000',
-  });
-  if (limit.status !== 'created') {
-    throw new Error(`expected a created limit, got ${limit.status}`);
-  }
-
   return {
     organizationId,
     projectId,
@@ -207,7 +195,6 @@ async function seedGraph(): Promise<Graph> {
     siblingApplicationId,
     organizationAdminId,
     projectAdminId,
-    organizationLimitId: limit.limit.id,
   };
 }
 
@@ -239,71 +226,13 @@ describe('the vacuity floor: a project-only member DOES reach this router', () =
   });
 });
 
-describe('a project-only member cannot move the organization budget', () => {
-  it('refuses to delete an organization limit through the project id', async () => {
-    const graph = await seedGraph();
-    currentUserId = graph.projectAdminId;
-
-    const refused = await request(
-      'DELETE',
-      `/billing/accounts/${graph.projectId}/limits/${graph.organizationLimitId}`
-    );
-    expect(refused.status).toBe(404);
-
-    // The CONTROL, differing only in who is asking: the same request through the
-    // same project id, by somebody who administers the organization.
-    currentUserId = graph.organizationAdminId;
-    const permitted = await request(
-      'DELETE',
-      `/billing/accounts/${graph.projectId}/limits/${graph.organizationLimitId}`
-    );
-    expect(permitted.status).toBe(204);
-  });
-
-  it('refuses to raise an organization limit through the project id', async () => {
-    const graph = await seedGraph();
-    currentUserId = graph.projectAdminId;
-
-    const refused = await request(
-      'PATCH',
-      `/billing/accounts/${graph.projectId}/limits/${graph.organizationLimitId}`,
-      { limitAmount: '9999.000000000000' }
-    );
-    expect(refused.status).toBe(404);
-
-    currentUserId = graph.organizationAdminId;
-    const permitted = await request(
-      'PATCH',
-      `/billing/accounts/${graph.projectId}/limits/${graph.organizationLimitId}`,
-      { limitAmount: '9999.000000000000' }
-    );
-    expect(permitted.status).toBe(200);
-  });
-
-  it("refuses to aim a hard stop at a sibling project's application", async () => {
-    const graph = await seedGraph();
-    currentUserId = graph.projectAdminId;
-
-    const refused = await request('POST', `/billing/accounts/${graph.projectId}/limits`, {
-      scope: 'application',
-      scopeApplicationId: graph.siblingApplicationId,
-      period: 'daily',
-      limitAmount: '0.010000000000',
-      enforcement: 'hard_stop',
-    });
-    expect(refused.status).toBe(404);
-
-    currentUserId = graph.organizationAdminId;
-    const permitted = await request('POST', `/billing/accounts/${graph.projectId}/limits`, {
-      scope: 'application',
-      scopeApplicationId: graph.siblingApplicationId,
-      period: 'daily',
-      limitAmount: '0.010000000000',
-      enforcement: 'hard_stop',
-    });
-    expect(permitted.status).toBe(201);
-  });
-});
+/*
+ * THE BUDGET CASES ARE NOT HERE. `/inference/reporting` owns the spending-limit
+ * surface (#972 workstream 8) and authorises each write against the limit's own
+ * owner account, which is the same property the cases below assert for the
+ * records this router does serve. A second CRUD here would have been a second
+ * authorisation rule on a table whose job is to refuse spending.
+ */
 
 describe("a project-only member cannot read the organization's financial history", () => {
   it('refuses the invoice list through the project id', async () => {

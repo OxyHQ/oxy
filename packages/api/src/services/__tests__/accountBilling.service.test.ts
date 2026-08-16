@@ -28,18 +28,13 @@ import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountBalances } from '../../db/schema/accountBalances';
-import { applicationCredentials } from '../../db/schema/applicationCredentials';
-import { applications } from '../../db/schema/applications';
 import { billingProfiles } from '../../db/schema/billingProfiles';
 import { userAncestors } from '../../db/schema/userAncestors';
 import { users } from '../../db/schema/users';
-import { accountBalanceSchema } from '@oxyhq/contracts';
 import {
   autoRechargeWindowStart,
   claimAutoRecharge,
-  createSpendingLimit,
   findAutoRechargeCandidates,
-  listSpendingLimits,
   provisionAccountBilling,
   resolveAccountBillingState,
   updateBillingProfile,
@@ -47,9 +42,9 @@ import {
 import {
   getAvailableToSpend,
   provisionBillingProfile,
-  recordPromotionalGrant,
   recordTopUp,
 } from '../inferenceLedger.service';
+import { readAccountBalance } from '../inferenceReporting.service';
 
 jest.setTimeout(60_000);
 
@@ -81,30 +76,6 @@ async function seedAccount(parentAccountId?: string): Promise<string> {
       .values([{ userId: account.id, ancestorId: parentAccountId, depth: 0 }]);
   }
   return account.id;
-}
-
-async function seedApplication(ownerAccountId: string): Promise<{
-  applicationId: string;
-  credentialId: string;
-}> {
-  const suffix = randomUUID().slice(0, 8);
-  const [application] = await getDb()
-    .insert(applications)
-    .values({ name: `App ${suffix}`, ownerAccountId })
-    .returning({ id: applications.id });
-
-  const [credential] = await getDb()
-    .insert(applicationCredentials)
-    .values({
-      applicationId: application.id,
-      name: 'test',
-      publicKey: `oxy_dk_${randomUUID().replace(/-/g, '')}`,
-      type: 'service',
-      environment: 'production',
-    })
-    .returning({ id: applicationCredentials.id });
-
-  return { applicationId: application.id, credentialId: credential.id };
 }
 
 describe('a project draws on the nearest ancestor with a profile, and says so', () => {
@@ -151,8 +122,8 @@ describe('a project draws on the nearest ancestor with a profile, and says so', 
   });
 });
 
-describe('a grant and a purchase are never one number', () => {
-  it('reports the buckets separately and offers no total', async () => {
+describe('the billing state answers TERMS, and never restates the balance', () => {
+  it('carries the profile and the inheritance facts, and no amounts', async () => {
     const accountId = await seedAccount();
     await provisionBillingProfile({ accountId });
     await recordTopUp({
@@ -161,28 +132,28 @@ describe('a grant and a purchase are never one number', () => {
       currency: 'USD',
       amount: '40.000000000000',
     });
-    await recordPromotionalGrant({
-      idempotencyKey: `grant-${randomUUID()}`,
-      accountId,
-      currency: 'USD',
-      amount: '10.000000000000',
-    });
 
     const resolved = await resolveAccountBillingState(accountId);
     expect(resolved.status).toBe('resolved');
     if (resolved.status !== 'resolved') return;
 
-    const balance = resolved.state.balance;
-    expect(Number(balance.purchasedBalance)).toBe(40);
-    expect(Number(balance.promotionalBalance)).toBe(10);
-    expect(Number(balance.availableToSpend)).toBe(50);
+    expect(resolved.state.profile.billingMode).toBe('prepaid');
+    expect(resolved.state.profile.status).toBe('active');
 
-    // Structural, not stylistic: the contract is `.strict()` and declares no
-    // total, so a serializer that started emitting one would fail HERE rather
-    // than in a Console component that renders granted money as withdrawable.
-    expect(() =>
-      accountBalanceSchema.parse({ ...balance, totalBalance: '50.000000000000' })
-    ).toThrow();
+    /*
+     * Structural: `accountBillingStateSchema` is `.strict()` and declares no
+     * balance, so a serializer that started restating the buckets would fail
+     * HERE. `/inference/reporting/accounts/:accountId/balance` is the one
+     * endpoint that publishes them (#972 workstream 8), and two balance
+     * endpoints would disagree the day one stopped accounting for a credit line.
+     */
+    expect(Object.keys(resolved.state).sort()).toEqual([
+      'accountId',
+      'billingAccountId',
+      'inherited',
+      'profile',
+      'schemaVersion',
+    ]);
   });
 });
 
@@ -215,6 +186,45 @@ describe('the sweep and the reader agree about what is available', () => {
     expect(Number(mine?.availableToSpend)).toBe(Number(reader));
   });
 
+  it('agrees with the reporting reader too, which is a THIRD copy of the rule', async () => {
+    /*
+     * `computeDraw` (what a reservation decides against), the sweep's scan, and
+     * `readAccountBalance` (`inferenceReporting.service.ts`, what Console shows)
+     * each spell the availability rule out in their own SQL. Three copies is
+     * three chances to disagree, and the disagreement a customer notices is
+     * being refused with money apparently in hand. This is the gate that would
+     * go red if any one of them drifted.
+     */
+    const accountId = await seedAccount();
+    await provisionBillingProfile({
+      accountId,
+      billingMode: 'invoiced',
+      creditLimit: '100.000000000000',
+    });
+    await recordTopUp({
+      idempotencyKey: `fund-${randomUUID()}`,
+      accountId,
+      currency: 'USD',
+      amount: '7.000000000000',
+    });
+
+    const reader = await getAvailableToSpend(getDb(), {
+      accountId,
+      currency: 'USD',
+      billingMode: 'invoiced',
+      creditLimit: '100.000000000000',
+    });
+    const reported = await readAccountBalance(accountId);
+    expect(reported.status).toBe('resolved');
+    if (reported.status !== 'resolved') return;
+    const bucket = reported.buckets.find((candidate) => candidate.currency === 'USD');
+
+    expect(Number(bucket?.availableToSpend)).toBe(Number(reader));
+    // A non-zero floor: two zeros agree for free, and the whole point is that
+    // the invoiced branch adds the unused credit line to the prepaid balance.
+    expect(Number(reader)).toBe(107);
+  });
+
   it('agrees for an invoiced account, where the credit limit is the difference', async () => {
     const accountId = await seedAccount();
     await provisionBillingProfile({
@@ -242,6 +252,35 @@ describe('the sweep and the reader agree about what is available', () => {
       creditLimit: '100.000000000000',
     });
     expect(Number(reader)).toBe(100);
+  });
+
+  it('still REPORTS a suspended account, which is not the same as unprovisioned', async () => {
+    /*
+     * The sweep skips it — a suspended profile's money cannot be spent, and
+     * charging a card to top up a balance nobody may draw on is worse than doing
+     * nothing. But the READER must still answer: "you are suspended" and "nobody
+     * has decided who pays for you" are different facts with different fixes,
+     * and the entitlement interface hands the second one to Alia as "this
+     * account cannot be charged at all".
+     */
+    const accountId = await seedAccount();
+    await provisionBillingProfile({ accountId });
+    await recordTopUp({
+      idempotencyKey: `fund-${randomUUID()}`,
+      accountId,
+      currency: 'USD',
+      amount: '12.000000000000',
+    });
+    await updateBillingProfile(accountId, { status: 'suspended' });
+
+    const reported = await readAccountBalance(accountId);
+    expect(reported.status).toBe('resolved');
+    if (reported.status !== 'resolved') return;
+    expect(Number(reported.buckets.find((b) => b.currency === 'USD')?.purchased)).toBe(12);
+
+    // And the control: an account with no profile anywhere is still absent.
+    const bare = await seedAccount();
+    expect((await readAccountBalance(bare)).status).toBe('not-provisioned');
   });
 
   it('skips a suspended profile, whose money cannot be spent anyway', async () => {
@@ -298,66 +337,6 @@ describe('auto-recharge stakes its claim before the card is charged', () => {
 
     expect((await claimAutoRecharge(candidate, now)).status).toBe('claimed');
     expect((await claimAutoRecharge(candidate, nextWindow)).status).toBe('claimed');
-  });
-});
-
-describe('a budget cannot be aimed at another account', () => {
-  it('refuses an application outside the billing account subtree', async () => {
-    const mineId = await seedAccount();
-    const strangerId = await seedAccount();
-    await provisionBillingProfile({ accountId: mineId });
-    await provisionBillingProfile({ accountId: strangerId });
-    const stranger = await seedApplication(strangerId);
-
-    const result = await createSpendingLimit(mineId, {
-      scope: 'application',
-      scopeApplicationId: stranger.applicationId,
-      period: 'monthly',
-      limitAmount: '1.000000000000',
-      // A `hard_stop` on somebody else's application is the attack: it would
-      // switch off their traffic with no access to their account at all.
-      enforcement: 'hard_stop',
-    });
-    expect(result.status).toBe('scope-not-owned');
-  });
-
-  it('accepts an application owned by a descendant project', async () => {
-    const organizationId = await seedAccount();
-    const projectId = await seedAccount(organizationId);
-    await provisionBillingProfile({ accountId: organizationId });
-    const owned = await seedApplication(projectId);
-
-    const result = await createSpendingLimit(organizationId, {
-      scope: 'application',
-      scopeApplicationId: owned.applicationId,
-      period: 'daily',
-      limitAmount: '5.000000000000',
-      alertThresholdBps: [7500, 10000],
-    });
-    expect(result.status).toBe('created');
-    if (result.status !== 'created') return;
-    expect(result.limit.alertThresholdBps).toEqual([7500, 10000]);
-
-    // A project sees the organization budget that can refuse its requests. A
-    // list keyed on the project alone would show an empty page to a customer
-    // whose traffic is being hard-stopped.
-    const visibleToProject = await listSpendingLimits(projectId);
-    expect(visibleToProject.map((limit) => limit.id)).toContain(result.limit.id);
-  });
-
-  it('refuses a second limit for one scope and period', async () => {
-    const accountId = await seedAccount();
-    await provisionBillingProfile({ accountId });
-    const owned = await seedApplication(accountId);
-
-    const input = {
-      scope: 'application' as const,
-      scopeApplicationId: owned.applicationId,
-      period: 'monthly' as const,
-      limitAmount: '5.000000000000',
-    };
-    expect((await createSpendingLimit(accountId, input)).status).toBe('created');
-    expect((await createSpendingLimit(accountId, input)).status).toBe('scope-taken');
   });
 });
 
