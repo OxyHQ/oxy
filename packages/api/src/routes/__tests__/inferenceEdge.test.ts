@@ -50,6 +50,7 @@ import {
   inferenceProviders,
   inferencePublishers,
 } from '../../db/schema';
+import { inferenceUsageEvents } from '../../db/schema/inferenceUsageEvents';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { usageReceipts } from '../../db/schema/usageReceipts';
 import { usageReservations } from '../../db/schema/usageReservations';
@@ -1120,6 +1121,206 @@ describe('a served request', () => {
       .from(usageReceipts)
       .where(eq(usageReceipts.accountId, fixture.accountId));
     expect(Number(receipt.billed)).toBe(0);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Correlation and timings — issue #972 workstream 16, observability         */
+/* -------------------------------------------------------------------------- */
+
+describe('requestId correlation', () => {
+  /**
+   * The epic asks for one id across the edge, the data plane, the ledger and the
+   * customer's receipt. Four of those five legs are assertable here; the fifth —
+   * the id as the DATA PLANE's own logs record it — cannot be, because there is
+   * no data plane. What CAN be asserted about that leg is the enforcement: the
+   * edge sends the id and refuses a report that answers a different one, which
+   * is the case below this.
+   */
+  it('carries one id from the response to the envelope, the reservation, the telemetry event and the receipt', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const seen: InferenceRequest[] = [];
+    let requestId = '';
+
+    await withServer(
+      fakeRelay(
+        (envelope) =>
+          completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+
+        expect(response.status).toBe(200);
+        const header = response.headers['x-oxy-request-id'];
+        // The header is the id a customer quotes in a support request, so it is
+        // the one every other leg is compared against. Typed first: an absent
+        // header would otherwise make every comparison below compare `undefined`
+        // to `undefined` and pass.
+        expect(typeof header).toBe('string');
+        requestId = header as string;
+        expect(requestId.length).toBeGreaterThan(0);
+        expect(json(response).requestId).toBe(requestId);
+      }
+    );
+
+    // Leg 1 — what the data plane was told.
+    expect(seen).toHaveLength(1);
+    expect(seen[0].attribution.requestId).toBe(requestId);
+
+    // Leg 2 — the ledger's hold. Every row read is scoped to this fixture's own
+    // account and asserted to EXIST: "no row matched" and "the row matched and
+    // agreed" are otherwise the same green.
+    const reservations = await getDb()
+      .select({ requestId: usageReservations.requestId })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(1);
+    expect(reservations[0].requestId).toBe(requestId);
+
+    // Leg 3 — the usage stream the dashboards read.
+    const events = await getDb()
+      .select({ requestId: inferenceUsageEvents.requestId })
+      .from(inferenceUsageEvents)
+      .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
+    expect(events).toHaveLength(1);
+    expect(events[0].requestId).toBe(requestId);
+
+    // Leg 4 — the customer's receipt, which `GET /v1/generations/:id` resolves
+    // by exactly this id.
+    const receipts = await getDb()
+      .select({ requestId: usageReceipts.requestId })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].requestId).toBe(requestId);
+  });
+
+  it('refuses a usage report that answers a different request id, and keeps the money whole', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const before = await balanceOf(fixture.accountId);
+
+    await withServer(
+      fakeRelay((envelope) => {
+        const completion = completionFor(envelope, {
+          input: 5,
+          output: 5,
+          provider: fixture.provider,
+        });
+        return {
+          ...completion,
+          // A well-formed report about somebody else's request. Accepting it
+          // would settle this customer's hold against another request's usage,
+          // and the correlation the case above asserts would be a coincidence
+          // rather than a guarantee.
+          usage: { ...completion.usage, requestId: randomUUID() },
+        };
+      }),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(500);
+        expect(json(response)).toMatchObject({ code: 'internal_error' });
+      }
+    );
+
+    const after = await balanceOf(fixture.accountId);
+    expect(Number(after.purchased)).toBe(Number(before.purchased));
+    expect(Number(after.reserved)).toBe(0);
+  });
+});
+
+describe('edge timings', () => {
+  it('records its own latency, and forwards the data plane’s route switches and time to first token', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+
+    await withServer(
+      fakeRelay((envelope) => {
+        const completion = completionFor(envelope, {
+          input: 12,
+          output: 20,
+          provider: fixture.provider,
+        });
+        // Both differ from what the recorder writes when nothing is passed (0
+        // and NULL), which is what makes this falsifiable: an edge that dropped
+        // the report's figures would still produce a row.
+        return {
+          ...completion,
+          usage: { ...completion.usage, routeSwitches: 2, timeToFirstTokenMs: 137 },
+        };
+      }),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    const [event] = await getDb()
+      .select({
+        latencyMs: inferenceUsageEvents.latencyMs,
+        timeToFirstTokenMs: inferenceUsageEvents.timeToFirstTokenMs,
+        routeSwitches: inferenceUsageEvents.routeSwitches,
+      })
+      .from(inferenceUsageEvents)
+      .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
+
+    // Greater than zero, not merely non-null: a hardcoded `0` and a column
+    // nobody writes are both what a missing metric looks like, and this request
+    // made several round trips to a real database before the row was written.
+    expect(event.latencyMs).toBeGreaterThan(0);
+    expect(event.routeSwitches).toBe(2);
+    expect(event.timeToFirstTokenMs).toBe(137);
+  });
+
+  it('leaves time to first token NULL when the data plane reported none', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+
+    await withServer(
+      fakeRelay((envelope) =>
+        completionFor(envelope, { input: 12, output: 20, provider: fixture.provider })
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    const [event] = await getDb()
+      .select({
+        latencyMs: inferenceUsageEvents.latencyMs,
+        timeToFirstTokenMs: inferenceUsageEvents.timeToFirstTokenMs,
+        routeSwitches: inferenceUsageEvents.routeSwitches,
+      })
+      .from(inferenceUsageEvents)
+      .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
+
+    // Unknown stays unknown. Imputing a number here would put a fabricated
+    // latency into every dashboard the moment a provider stops reporting one.
+    expect(event.timeToFirstTokenMs).toBeNull();
+    expect(event.routeSwitches).toBe(0);
+    // …while Oxy's own measurement, which does not depend on the report, is
+    // still there. Without this the case above would also pass for an edge that
+    // stopped writing latency altogether.
+    expect(event.latencyMs).toBeGreaterThan(0);
   });
 });
 

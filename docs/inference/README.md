@@ -197,6 +197,19 @@ rather than cost. Spend is bounded by the reservation and by spending limits.
 Anomaly detection for sudden spend or token spikes does not exist, and #972 gates
 public launch on it.
 
+### Metrics dashboards, alerts and status-page signals — workstream 16
+
+**There is no metrics library in this repository, deliberately.** Every metric
+#972 names is a property of a row this platform already writes durably —
+`inference_usage_events` and its daily rollups, the reservations and the
+receipts — and the edge now fills the three columns that existed and that nothing
+wrote (`latency_ms`, `time_to_first_token_ms`, `route_switches`). What is missing
+is a scrape or query target, alert routing and a Console audit surface, and the
+first two belong to `~/Oxy/oxy-infra` rather than here.
+[observability.md](./observability.md) has the derivation for each metric, the
+two places the audit trail's actor is thinner than it looks, and why `isStaff` is
+still one undifferentiated tier.
+
 ### Alia integration — workstream 14
 
 The registration Alia needs in order to be an ordinary consumer is now DECLARED
@@ -240,6 +253,7 @@ gives the two reasons.
 | [migration.md](./migration.md) | The scope migration, `oxy_dk_*`, `alia_sk_*`, and the retired `alia-*` model names |
 | [alia.md](./alia.md) | Alia as a consumer: its registration, its scopes and the ones withheld, the internal cost centres, and the runbook for the operational steps |
 | [rollout.md](./rollout.md) | The four rollout flags, shadow metering, the stage table, and the rollback plan an append-only ledger forces |
+| [observability.md](./observability.md) | The `requestId` correlation column, why there is no metrics library, what each named metric is derivable from, and how staff actions are told apart from customer ones |
 
 Ownership of every table, event and API across Oxy, the data plane and Alia is
 in [architecture/inference-responsibility-matrix.md](../architecture/inference-responsibility-matrix.md).
