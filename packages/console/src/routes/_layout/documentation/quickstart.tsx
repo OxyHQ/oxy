@@ -18,6 +18,8 @@ import {
   CodeBlockTitle,
 } from '@/components/ui/code-block';
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
+import { ModelPlaceholderNotice } from '@/components/model-placeholder-notice';
+import { MODEL_ID_PLACEHOLDER } from '@/lib/model-reference';
 
 export const Route = createFileRoute('/_layout/documentation/quickstart')({
   component: QuickStartPage,
@@ -148,13 +150,14 @@ function QuickStartPage() {
           Then call the API with it:
         </p>
         <InferenceAvailabilityNotice className="mb-4" />
+        <ModelPlaceholderNotice className="mb-4" />
         <CodeBlock
           language="bash"
           code={`curl https://api.oxy.so/v1/chat/completions \\
   -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "alia-v1",
+    "model": "${MODEL_ID_PLACEHOLDER}",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -189,7 +192,7 @@ function QuickStartPage() {
   "id": "chatcmpl-abc123",
   "object": "chat.completion",
   "created": 1234567890,
-  "model": "alia-v1",
+  "model": "${MODEL_ID_PLACEHOLDER}",
   "choices": [{
     "index": 0,
     "message": {

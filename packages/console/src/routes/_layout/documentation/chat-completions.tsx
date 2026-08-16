@@ -6,6 +6,8 @@ import { toast } from '@oxyhq/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
+import { ModelPlaceholderNotice } from '@/components/model-placeholder-notice';
+import { MODEL_ID_PLACEHOLDER, MODEL_REVISION_PLACEHOLDER } from '@/lib/model-reference';
 
 export const Route = createFileRoute('/_layout/documentation/chat-completions')({
   component: ChatCompletionsPage,
@@ -101,6 +103,7 @@ function ChatCompletionsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4">Endpoint</h2>
         <CodeBlock code="POST https://api.oxy.so/v1/chat/completions" />
         <InferenceAvailabilityNotice className="mt-4" />
+        <ModelPlaceholderNotice className="mt-4" />
         <p className="text-sm text-muted-foreground mt-4">
           The request and response shapes below are the contract this endpoint keeps; the examples
           are written the way a call will look, not the way one succeeds today.
@@ -112,7 +115,10 @@ function ChatCompletionsPage() {
         <h2 className="text-lg font-semibold text-foreground mb-4">Request Body</h2>
         <div>
           <ParamRow name="model" type="string" required>
-            ID of the model to use (e.g., "alia-v1", "alia-v1-pro")
+            A model as <code className="text-xs">{MODEL_ID_PLACEHOLDER}</code>, an exact revision
+            as <code className="text-xs">{MODEL_REVISION_PLACEHOLDER}</code>, or a routing profile
+            slug. A request naming a concrete revision is served exactly or refused — never
+            substituted for a different model.
           </ParamRow>
           <ParamRow name="messages" type="array" required>
             A list of messages comprising the conversation so far
@@ -163,7 +169,7 @@ function ChatCompletionsPage() {
   -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "alia-v1",
+    "model": "${MODEL_ID_PLACEHOLDER}",
     "messages": [
       {
         "role": "system",
@@ -189,7 +195,7 @@ function ChatCompletionsPage() {
   "id": "chatcmpl-abc123def456",
   "object": "chat.completion",
   "created": 1234567890,
-  "model": "alia-v1",
+  "model": "${MODEL_ID_PLACEHOLDER}",
   "choices": [
     {
       "index": 0,
@@ -222,7 +228,7 @@ function ChatCompletionsPage() {
   -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "alia-v1",
+    "model": "${MODEL_ID_PLACEHOLDER}",
     "messages": [{"role": "user", "content": "Tell me a story"}],
     "stream": true
   }'`}
