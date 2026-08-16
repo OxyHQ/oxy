@@ -281,6 +281,20 @@
       "when": 1786900000003,
       "tag": "0040_inference_routing_immutability",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786900000004,
+      "tag": "0041_inference_provider_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786900000005,
+      "tag": "0042_inference_provider_connection_immutability",
+      "breakpoints": true
     }
   ]
 }

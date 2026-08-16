@@ -80,6 +80,8 @@ export * from './inferenceDeployments';
 export * from './inferenceModelEvaluations';
 export * from './inferenceModelRevisions';
 export * from './inferenceModels';
+export * from './inferenceProviderConnectionAuditEvents';
+export * from './inferenceProviderConnections';
 export * from './inferenceProviders';
 export * from './inferencePublishers';
 export * from './inferenceRouteSwitchEvents';

@@ -68,6 +68,18 @@ export interface RequiredEnvVars {
   // deletions. Defaults to disabled; read per request in `routes/federation.ts`.
   FEDERATION_DOMAIN_PURGE_ENABLED?: string;
 
+  // Which managed secret store BYOK provider credentials are written to
+  // (`vault` | `kms` | `ssm` | `secretsmanager`). Issue #972 workstream 10.
+  //
+  // NOT a secret — it names a STORE, not a credential — so it belongs in the
+  // ECS task definition's plain environment, never in SSM, and it is absent from
+  // the `required` list below on purpose: unset simply means this deployment
+  // accepts no provider credentials, and `POST /inference/provider-connections/**`
+  // refuses with `503 provider_secret_store_unavailable`. Read per request by
+  // `services/providerSecretStore.ts`, which also documents what setting it
+  // would still NOT be enough to wire (no store client ships in this build).
+  INFERENCE_PROVIDER_SECRET_STORE?: string;
+
   // Follow-graph outbox worker (`follow_events`). OFF by default — acknowledging
   // an event asserts its delivery happened; read by `followOutbox.worker.ts`.
   FOLLOW_OUTBOX_WORKER_ENABLED?: string;

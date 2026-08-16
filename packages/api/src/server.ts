@@ -56,6 +56,7 @@ import inferenceCatalogueRoutes from './routes/inferenceCatalogue';
 import inferenceEdgeRoutes from './routes/inferenceEdge';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
 import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
+import inferenceProviderConnectionRoutes from './routes/inferenceProviderConnections';
 import platformStatsRoutes from './routes/platform-stats';
 import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
@@ -677,6 +678,11 @@ app.use('/inference/admin', inferenceAdminRoutes);
 // catalogue's routing PROFILES are shared objects Oxy publishes — ADR 0008 keeps
 // the two apart, and one mount serving both would be the first place they blur.
 app.use('/inference/routing-policies', inferenceRoutingPolicyRoutes);
+// BYOK provider connections (issue #972, workstream 10). Its own mount for the
+// same reason the routing policies have one: a customer's own upstream
+// credential is not a catalogue object, and Oxy holds only a REFERENCE to it —
+// never the credential, in any table, response or log.
+app.use('/inference/provider-connections', inferenceProviderConnectionRoutes);
 app.use('/platform-stats', platformStatsRoutes);
 app.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new

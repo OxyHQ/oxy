@@ -24,7 +24,7 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, integer, pgTable, text } from 'drizzle-orm/pg-core';
+import { boolean, check, integer, pgTable, text, unique } from 'drizzle-orm/pg-core';
 import { createdAt, inList, updatedAt } from '@oxyhq/db';
 import { SLUG_CHECK_PATTERN } from './inferenceSlug';
 
@@ -71,10 +71,54 @@ export const inferenceProviders = pgTable(
     subprocessors: text().array(),
     policyUrl: text(),
 
+    /* ---- BYOK terms (issue #972 workstream 10) ----------------------------- */
+
+    /**
+     * Whether this provider's own terms require a PER-CUSTOMER acknowledgement
+     * before that customer's credential may be used through Oxy.
+     *
+     * BYOK does not override a provider's terms and is not a licence to share
+     * credentials: the customer's relationship with the provider is unchanged,
+     * the provider bills that customer's own account directly, and Oxy is not a
+     * party to it. Where the provider's terms say a customer must accept
+     * something before a third party may present their key, this flag is how the
+     * platform knows to ask — and `inference_provider_connections` cannot store
+     * an un-acknowledged connection for a provider that sets it, enforced by the
+     * composite foreign key the `unique()` below exists to be the target of.
+     *
+     * Turning this ON while un-acknowledged connections exist is REFUSED by that
+     * foreign key, deliberately. Flipping it silently would make every existing
+     * connection retroactively non-compliant with no signal at all; a refusal
+     * says so, and the operator revokes or re-acknowledges them first.
+     */
+    byokTermsAcknowledgementRequired: boolean().notNull().default(false),
+
+    /**
+     * The terms a customer is acknowledging. Required whenever the flag above is
+     * set — "you must accept our terms" with no way to read them is not an
+     * acknowledgement anyone can give.
+     */
+    byokTermsUrl: text(),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
+    /**
+     * The composite foreign key TARGET for `inference_provider_connections`.
+     *
+     * A `unique()` CONSTRAINT, never a `uniqueIndex()`: drizzle-kit emits every
+     * foreign key before every `CREATE UNIQUE INDEX`, so an index target does not
+     * exist yet when the referencing constraint is added and the migration fails
+     * at apply time with `42830`.
+     */
+    unique('inference_providers_byok_terms_key').on(t.slug, t.byokTermsAcknowledgementRequired),
+
+    check(
+      'inference_providers_byok_terms_url',
+      sql`not ${t.byokTermsAcknowledgementRequired} or ${t.byokTermsUrl} is not null`
+    ),
+
     check('inference_providers_slug_format', sql`${t.slug} ~ ${sql.raw(SLUG_CHECK_PATTERN)}`),
     check(
       'inference_providers_kind_check',
