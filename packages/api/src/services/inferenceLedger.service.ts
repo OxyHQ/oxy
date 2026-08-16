@@ -551,6 +551,17 @@ export interface SettleInput {
   readonly servingProvider: string;
   /** The version the charge is computed from AND snapshotted onto the receipt. */
   readonly priceVersionId: string;
+  /**
+   * The routing policy revision this request executed under (#972 workstream 6).
+   *
+   * OPTIONAL, because the caller that always has one is the public inference
+   * edge, which does not exist yet; today's callers are ledger and
+   * shadow-metering paths with no request envelope to read it from. It is
+   * threaded here rather than added later because `usage_receipts` is
+   * append-only — a receipt written without it can never be corrected to carry
+   * one, so the parameter has to exist before the first real receipt does.
+   */
+  readonly routingPolicyVersionId?: string;
   readonly platformFeeOnly?: boolean;
   readonly settledAt?: Date;
   /** A supplementary receipt correcting an earlier one upward. */
@@ -698,6 +709,7 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
         ...usageUnitColumnValues(input.units),
         resolvedModelReference: input.resolvedModelReference,
         servingProvider: input.servingProvider,
+        routingPolicyVersionId: input.routingPolicyVersionId,
         priceVersionId: input.priceVersionId,
         billedAmount: charge.amount,
         currency: billing.currency,

@@ -54,6 +54,7 @@ import creditsRoutes from './routes/credits';
 import billingRoutes from './routes/billing';
 import inferenceCatalogueRoutes from './routes/inferenceCatalogue';
 import inferenceAdminRoutes from './routes/inferenceAdmin';
+import inferenceRoutingPolicyRoutes from './routes/inferenceRoutingPolicies';
 import platformStatsRoutes from './routes/platform-stats';
 import topicsRoutes from './routes/topics.routes';
 import followsV2Routes, { meFollowsRouter } from './routes/follows.v2.routes';
@@ -656,6 +657,11 @@ app.use('/models', inferenceCatalogueRoutes);
 // path under `/models`, because approving a route is not a catalogue read and
 // must never be reachable by widening a read route's matcher.
 app.use('/inference/admin', inferenceAdminRoutes);
+// The customer's own routing configuration (issue #972, workstream 6). NOT under
+// `/models`: a routing POLICY is a per-account constraint set, while the
+// catalogue's routing PROFILES are shared objects Oxy publishes — ADR 0008 keeps
+// the two apart, and one mount serving both would be the first place they blur.
+app.use('/inference/routing-policies', inferenceRoutingPolicyRoutes);
 app.use('/platform-stats', platformStatsRoutes);
 app.use('/topics', topicsRoutes);
 // The follow graph. `/v2` because these are new operations rather than a new

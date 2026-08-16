@@ -51,3 +51,17 @@ export const REVISION_CHECK_PATTERN = String.raw`'^[a-zA-Z0-9](?:[a-zA-Z0-9._-]*
  * hold yet.
  */
 export const MODEL_REFERENCE_CHECK_PATTERN = String.raw`'^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?)?$'`;
+
+/**
+ * A canonical model id, `<publisher>/<model>` and NOTHING else. Mirrors
+ * `modelIdSchema` — the same grammar as above with the `@<revision>` alternative
+ * REMOVED, which is the whole point of it existing separately.
+ *
+ * This is the pattern that makes "a request naming an exact revision is served
+ * or refused, never substituted" structural: the one column that records what a
+ * cross-model switch was asked for
+ * (`inference_route_switch_events.requested_model_id`) is constrained to this
+ * grammar, so a pinned `<publisher>/<model>@<revision>` has no representation
+ * there and a substitution of one cannot be recorded at all.
+ */
+export const MODEL_ID_CHECK_PATTERN = String.raw`'^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$'`;

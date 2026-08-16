@@ -51,6 +51,7 @@ import { fileLinks } from './fileLinks';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
 import { inferenceModels } from './inferenceModels';
+import { inferenceRouteSwitchEvents } from './inferenceRouteSwitchEvents';
 import { inferenceUsageEvents } from './inferenceUsageEvents';
 import { messageAttachments } from './messageAttachments';
 import { messages } from './messages';
@@ -608,5 +609,35 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       '(f) The data plane’s endpoint identity. Operational detail belonging ' +
       'to Relay, stored opaquely for attribution and never dereferenced here.',
+  },
+
+  // --- the routing policy control plane (#972 workstream 6) ----------------
+  //
+  // Both shapes are already established above; these reuse the same reasons.
+
+  {
+    table: inferenceRouteSwitchEvents,
+    column: inferenceRouteSwitchEvents.requestId,
+    reason: '(e) Same as `usage_reservations.request_id`.',
+  },
+  {
+    table: inferenceRouteSwitchEvents,
+    column: inferenceRouteSwitchEvents.toDeploymentId,
+    reason: '(f) Same as `inference_usage_events.deployment_id`.',
+  },
+  {
+    table: inferenceRouteSwitchEvents,
+    column: inferenceRouteSwitchEvents.requestedModelId,
+    reason:
+      'The canonical model REFERENCE the caller asked for — `<publisher>/<model>` ' +
+      'as a string, the same kind of value as `usage_receipts.' +
+      'resolved_model_reference`, which is exempt only because its name does not ' +
+      'end in `_id`. It is not a row id and cannot become one: ' +
+      '`inference_models.model_id` is a GENERATED column carrying only a plain ' +
+      'index, so there is no unique constraint for a foreign key to target. Its ' +
+      'grammar is enforced by `MODEL_ID_CHECK_PATTERN`, which is what makes a ' +
+      'pinned revision unrepresentable here, and the value must stay readable ' +
+      'after the catalogue entry is gone — a notice already shown to a customer ' +
+      'must not become unexplainable because a model was retired.',
   },
 ];
