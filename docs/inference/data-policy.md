@@ -35,12 +35,25 @@ built, so there is no way — for you or for Oxy — to turn payload retention o
 
 An upstream provider's error message routinely echoes the request that caused
 it, which makes it the most likely place for a credential to escape. Free error
-text is bounded and **refused outright if it contains credential-shaped
-material** — a bearer token, an `authorization:` or `api_key=` fragment, an
-`sk-…` or `sk_live_…` string. Applied to Oxy's own messages as well as an
-upstream's: a leak is no less a leak for having been written by a provider. A
-refused message is REPLACED, so the error still reaches you with its code,
-`requestId` and retryability intact.
+text is bounded and **refused if it still looks like it carries a credential** —
+a credential-bearing header or parameter assigned a value long enough to be one
+(`authorization:`, `x-api-key:`, `anthropic-api-key:` and the rest of that
+family), a bearer token, an issued token shape (`sk-…`, `sk_live_…`, a JWT,
+`AKIA…`, `ghp_…`), or a redaction placeholder standing next to a value that
+survived it. Applied to Oxy's own messages as well as an upstream's: a leak is
+no less a leak for having been written by a provider. A refused message is
+REPLACED, so the error still reaches you with its code, `requestId` and
+retryability intact.
+
+**That refusal is a last resort, not the control.** A pattern reading the output
+cannot be what keeps a credential out of an error; the reliable control is
+redacting the secret VALUE where its bytes are still known, which only the
+component that made the upstream call can do. Issue #1027 is what that
+distinction cost: the previous pattern matched the header NAME, so a producer
+redacting the span it matched produced `{x-[redacted] <the key>}` — no longer
+matching, therefore accepted, with the key intact. **Never redact by replacing
+the span this pattern matches**, and never treat a string's acceptance here as
+evidence that it is clean.
 
 The upstream passthrough is a strict object of four fields — provider, status,
 the upstream's own code, its message — with no room for headers or a request

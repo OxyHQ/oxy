@@ -72,12 +72,19 @@
  *
  * MAJOR is bumped when any individual shape's `schemaVersion` increments (at
  * least one message is now read differently by the two sides); MINOR when a
- * shape or an optional field is added; PATCH for documentation-only changes
- * that leave every parsed byte identical.
+ * shape or an optional field is added, when a CLOSED ENUM gains a member, or
+ * when a refinement changes which bytes parse; PATCH for documentation-only
+ * changes that leave every parsed byte identical.
+ *
+ * The last two are MINOR rather than PATCH because both produce the same
+ * failure: a producer on the newer set emits something the older set refuses,
+ * with no `schemaVersion` difference to explain it. A new enum member and a
+ * loosened refinement are exactly what the handshake exists to surface — a
+ * skew the per-message version cannot express.
  *
  * This constant is deliberately NOT embedded in the request envelope. Pinning a
  * request to the version of the whole set would make an unrelated additive
  * change to, say, the catalogue reject every in-flight inference request; the
  * per-shape `schemaVersion` is what a message is validated against.
  */
-export const INFERENCE_CONTRACT_VERSION = '1.0.0';
+export const INFERENCE_CONTRACT_VERSION = '1.1.0';

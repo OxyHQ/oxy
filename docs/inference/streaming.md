@@ -116,6 +116,14 @@ On the OpenAI compatibility surface a cancelled generation reports
 `cancelled` member, and the truth in `X-Oxy-Finish-Reason`. That keeps a stock
 client parsing without losing the fact.
 
+`refusal` is handled the same way, and for the same reason. It is a separate
+`finishReason` from `content_filter` because they are separate events — the
+MODEL declining to answer, versus an upstream system removing an answer — and
+the delta channels already distinguish them (`channel: 'refusal'`). OpenAI has
+no `refusal` member either, so the compatibility body says `"stop"`, which is
+what OpenAI itself returns for a model refusal, and `X-Oxy-Finish-Reason` says
+`refusal`.
+
 ---
 
 ## Retries
@@ -152,6 +160,11 @@ alone would suggest otherwise:
   retries reaches the operator who has to rotate a key. When it is your own
   provider credential that was refused the code is `byok_credential_invalid`,
   which is also not retryable — but that one names something you can fix.
+- **`provider_billing_refused` (502) is NOT retryable, and is not about your
+  balance.** An upstream declined to bill OXY — several answer `402` for it — so
+  the money at issue is Oxy's account with that provider, not yours. It is
+  deliberately not `quota_exceeded`, which would be right about retryability and
+  would send you to top up an account that is not the one blocking the request.
 
 `internal_error` is not retryable either — an unclassified failure is not one
 anybody has established a retry could resolve.

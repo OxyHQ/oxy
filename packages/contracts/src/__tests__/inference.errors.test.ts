@@ -85,6 +85,25 @@ describe('inferenceErrorSchema', () => {
     expect(INFERENCE_ERROR_CODES).toContain('byok_credential_invalid');
   });
 
+  it('separates an upstream refusing to bill OXY from a customer quota', () => {
+    // The second gap the same port found (OxyHQ/Relay#3, issue #1027): an
+    // upstream answering 402 to the PLATFORM could only be reported as
+    // `quota_exceeded`, which is right about retryability and points the
+    // customer at their own balance — an account that is not the one at fault
+    // and that they cannot fix by funding.
+    expect(INFERENCE_ERROR_CODES).toContain('provider_billing_refused');
+    expect(NON_RETRYABLE_INFERENCE_ERROR_CODES as readonly string[]).toContain(
+      'provider_billing_refused',
+    );
+    expect(
+      inferenceErrorSchema.safeParse({
+        ...error,
+        code: 'provider_billing_refused',
+        retryable: true,
+      }).success,
+    ).toBe(false);
+  });
+
   it('refuses a retry-after on an error that will never be retried', () => {
     expect(
       inferenceErrorSchema.safeParse({
@@ -145,11 +164,80 @@ describe('provider error passthrough', () => {
     }
   });
 
+  it('refuses text a span redaction has stripped the marker from (#1027)', () => {
+    // The mechanism OxyHQ/Relay#3 measured. An upstream echoes a request header
+    // back in its error body; a producer redacts the span its OWN copy of this
+    // pattern matched, which is the MARKER, and the value survives. The
+    // unredacted string was refused, so the redacted one being accepted means
+    // redaction turned a refused string into an accepted one carrying the same
+    // secret.
+    const value = 'EXAMPLEKEYNOTREAL0000';
+    const echoedHeader = `{x-api-key: ${value}}`;
+    const spanRedacted = `{x-[redacted] ${value}}`;
+
+    expect(safeErrorTextSchema.safeParse(echoedHeader).success).toBe(false);
+    expect(safeErrorTextSchema.safeParse(spanRedacted).success).toBe(false);
+  });
+
+  it('recognises the credential header names an upstream actually echoes', () => {
+    // The pattern this replaced matched `authorization` and `api_key` as
+    // literals. Every spelling below is one a real provider puts in an error
+    // body, and each has to be refused on its own — the fix is not "one more
+    // marker", it is that the marker is now a FAMILY.
+    for (const header of [
+      'x-api-key',
+      'anthropic-api-key',
+      'x-goog-api-key',
+      'proxy-authorization',
+      'x-auth-token',
+      'client_secret',
+    ]) {
+      const leaking = `unexpected header {"${header}": "EXAMPLEKEYNOTREAL0000"}`;
+      expect(safeErrorTextSchema.safeParse(leaking).success).toBe(false);
+    }
+  });
+
+  it('refuses an issued token shape with no marker in front of it', () => {
+    // The layer that survives a producer stripping the marker. A closed list of
+    // shapes providers ISSUE, not an entropy score — so it fires here and not
+    // on the request ids in the benign case below.
+    for (const leaking of [
+      'upstream rejected sk-EXAMPLE-NOT-A-REAL-KEY-0000',
+      'the credential eyJhbGciOiJub25lIn0.eyJzdWIiOiJleGFtcGxlIn0.EXAMPLE0 was refused',
+      'AKIAEXAMPLENOTREAL00 is not authorized to invoke this model',
+      // The header VALUE quoted without its name — an upstream reporting what
+      // it could not parse, with nothing a name-based rule could key on.
+      'could not parse Bearer EXAMPLETOKENNOTREAL0 as a header value',
+    ]) {
+      expect(safeErrorTextSchema.safeParse(leaking).success).toBe(false);
+    }
+  });
+
+  it('accepts a message whose credential VALUE was replaced', () => {
+    // Deliberate, and the other half of the #1027 fix: the previous pattern
+    // refused every one of these, so the only redaction that satisfied it was
+    // the one that removes the marker and keeps the secret. Accepting a correct
+    // redaction is what removes the incentive to perform the dangerous one.
+    for (const redacted of [
+      'Authorization: [redacted]',
+      'unexpected header {"x-api-key": "[REDACTED]"}',
+      'api_key=*** is not valid',
+      'authorization header <removed> did not authenticate',
+    ]) {
+      expect(safeErrorTextSchema.safeParse(redacted).success).toBe(true);
+    }
+  });
+
   it('keeps ordinary provider text, including ids and model names', () => {
     for (const benign of [
       'Rate limit reached for gpt-5 in organization org-x.',
       'Request req_01H8Z9T6NB exceeded the context window of 200000 tokens.',
       'The model anthropic/claude-opus-5@2026-05-01 is not available in eu-central-1.',
+      // The words the credential markers are built from, in the places ordinary
+      // error text puts them: none is followed by a value, so none fires.
+      'This request needs 12.500000 USD and 3.250000 USD is available.',
+      'No model anthropic/claude-opus-5 is available to you.',
+      'The account that owns this application has no inference billing profile.',
     ]) {
       expect(safeErrorTextSchema.safeParse(benign).success).toBe(true);
     }
