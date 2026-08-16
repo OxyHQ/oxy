@@ -117,8 +117,18 @@ screens are not wired to any of it.
 
 ### Alia integration — workstream 14
 
-Alia is not yet registered as an Oxy Application consuming inference through
-Oxy. It remains the upstream of the proxy above, not a consumer of a platform.
+The registration Alia needs in order to be an ordinary consumer is now DECLARED
+in this repository — the `internal` application, its scope grant, its own owner
+account, the five internal cost centres, and a per-environment service
+credential. **None of it has been run against production by the change that
+introduced it**: every piece is a seed script plus an ECS one-shot workflow a
+person triggers, so what the live database holds is whatever the last run left —
+read it back rather than inferring it from this repository.
+[alia.md](./alia.md) is the runbook, the argument for each scope granted and
+withheld, and the list of what remains blocked.
+
+Alia also remains the upstream of the proxy above. That does not change here:
+removing it is conditioned on Relay being live, and Relay does not exist.
 
 ---
 
@@ -153,6 +163,7 @@ can be addressed to named applications rather than published to the world.
 | [catalogue.md](./catalogue.md) | Model vs. revision vs. provider vs. deployment vs. routing profile, the canonical id forms, and the SDK's read methods |
 | [billing.md](./billing.md) | Reserve → settle → refund, exact amounts, price snapshots, and why dashboard usage is eventually consistent while a bill is not |
 | [migration.md](./migration.md) | The scope migration, `oxy_dk_*`, `alia_sk_*`, and the retired `alia-*` model names |
+| [alia.md](./alia.md) | Alia as a consumer: its registration, its scopes and the ones withheld, the internal cost centres, and the runbook for the operational steps |
 
 Ownership of every table, event and API across Oxy, the data plane and Alia is
 in [architecture/inference-responsibility-matrix.md](../architecture/inference-responsibility-matrix.md).
