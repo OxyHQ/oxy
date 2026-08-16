@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   useCreateCheckout,
+  useCreatePortalSession,
   useCreateSubscriptionCheckout,
   useCreditPackages,
   useCredits,
@@ -36,8 +37,26 @@ function BillingPage() {
   const { data: transactionsData, isLoading: isLoadingTransactions } = useTransactions();
   const createCheckout = useCreateCheckout();
   const createSubscriptionCheckout = useCreateSubscriptionCheckout();
+  const createPortalSession = useCreatePortalSession();
 
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+
+  /**
+   * Payment methods and invoices live in the payment provider's portal, which is
+   * where they are actually maintained — Oxy holds no card and issues no invoice
+   * of its own here, so a Console copy of either would be a second, always-stale
+   * rendering of somebody else's record.
+   */
+  const handleOpenPortal = async () => {
+    try {
+      const url = await createPortalSession.mutateAsync(`${window.location.origin}/billing`);
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to open the billing portal'));
+    }
+  };
 
   const handlePurchase = async (packageId: string) => {
     try {
@@ -139,6 +158,39 @@ function BillingPage() {
             </Badge>
           )}
         </div>
+      </div>
+
+      {/* Payment methods and invoices */}
+      <div className="px-6 py-6 border-b border-border">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Payment methods and invoices</p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Cards, past invoices and receipts are maintained in the payment provider's portal.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenPortal}
+            disabled={createPortalSession.isPending}
+          >
+            {createPortalSession.isPending ? 'Opening...' : 'Open billing portal'}
+          </Button>
+        </div>
+        {/*
+          This page bills the signed-in USER, not the account you are working in.
+          Account-scoped balances — purchased vs promotional vs reserved, pending
+          reservations against settled charges, spend by application, model or
+          provider — are recorded by the inference ledger, and no endpoint serves
+          them yet. Saying so is better than rendering a total that quietly means
+          something else.
+        */}
+        <p className="text-xs text-muted-foreground mt-4">
+          Inference spend is not shown here yet. Balances on this page are the signed-in user's
+          credits, not the working account's, and the account-scoped ledger has no read endpoint
+          yet.
+        </p>
       </div>
 
       {/* Credit Packages */}
