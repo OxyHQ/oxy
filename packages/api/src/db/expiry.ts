@@ -49,11 +49,14 @@
  *
  * ## Scheduling
  *
- * `sweepExpiredRows` (`@oxyhq/db/expiry`) is the mechanism; wiring it to a
- * schedule belongs with the call-site port, alongside the BullMQ repeatable
- * jobs already in `src/queue/` (env-gated on `REDIS_URL`, inline fallback when
- * absent). Until then it is callable and tested, and nothing reads a swept
- * table yet.
+ * `sweepExpiredRows` / `sweepAllExpiredRows` (`@oxyhq/db/expiry`) are the
+ * mechanism; `server.ts` is what runs them, on
+ * {@link EXPIRY_SWEEP_INTERVAL_MS}, alongside the other unref'd sweeps in
+ * `bootstrap()`. A registry with no caller is the failure this module is most
+ * exposed to — every entry below reads as a retention that is enforced, and an
+ * unscheduled sweep makes every one of them false at once, silently and with no
+ * symptom until disk. `__tests__/scheduledSweeps.test.ts` asserts the
+ * registration against the real entrypoint for exactly that reason.
  */
 
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
@@ -89,6 +92,29 @@ import {
   INFERENCE_USAGE_RETENTION_SECONDS,
   inferenceUsageEvents,
 } from './schema/inferenceUsageEvents';
+
+/**
+ * How often `server.ts` sweeps every target below.
+ *
+ * One hour. The interval is chosen against the SHORTEST-lived thing the sweep
+ * can affect, not the longest: the retentions here run from ninety days down to
+ * zero seconds, and no reader's correctness depends on a row already being gone
+ * (that is the class-(A) rule above), so the ninety-day entries are indifferent
+ * to anything under a day.
+ *
+ * What is not indifferent is `device_pairing_sessions`, whose registry entry is
+ * storage reclamation ONLY: the verdict a user sees comes from the lazy read
+ * path, which marks a past-deadline pending row `expired` before the sweep
+ * reaches it. That race is decided by this number — an hour leaves an hour for
+ * the poll that turns an expired transfer into an *expired* transfer rather
+ * than an unknown one. Shortening this interval is therefore not a free
+ * "sweep more promptly"; it spends that grace.
+ *
+ * The batch ceiling (`@oxyhq/db/expiry`) bounds one run, not the backlog: a
+ * table with more expired rows than the ceiling reports `truncated` and is
+ * picked up next hour, which the caller logs rather than swallows.
+ */
+export const EXPIRY_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * Every table that had a Mongo TTL index. A table with an expiry column but no

@@ -58,13 +58,18 @@ body. Widening it is a contract change with a version bump.
 | Application credential audit events | 730 days | no |
 | Provider connection audit events | 730 days | no |
 
-**The 90-day window is declared and not yet operating.** The sweep mechanism
-exists, `inference_usage_events` is registered with the right column and
-retention, and the registry is covered by tests — but nothing schedules a run,
-so no row has been deleted by it. Correctness does not depend on it: the readers
-bound their own windows, so the sweep is housekeeping. Treat 90 days as the
-retention this platform has committed to and not as a description of what is on
-disk.
+**The 90-day window is operating.** `inference_usage_events` is registered with
+the right column and retention, and `server.ts` sweeps the whole registry hourly
+(`EXPIRY_SWEEP_INTERVAL_MS`) — so 90 days describes what is on disk, not only
+what has been committed to. It was declared for some time before it was
+enforced: a registry that nothing runs reads exactly like one that runs, which
+is why the registration is asserted against the entrypoint itself rather than
+left to the sweep's own tests.
+
+Correctness does not depend on the schedule. Every reader bounds its own window,
+so a missed run costs disk rather than a wrong answer, and a run that hits its
+per-table batch ceiling leaves the remainder for the next hour and says so in the
+log.
 
 **The financial tables must never appear in that registry**, and a test fails if
 one is added. A receipt swept on a telemetry schedule is a destroyed financial
