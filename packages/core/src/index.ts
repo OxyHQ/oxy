@@ -185,6 +185,7 @@ export type {
     CreateApplicationInput,
     UpdateApplicationInput,
     CreateApplicationCredentialInput,
+    RotateApplicationCredentialInput,
     ApplicationCredentialWithSecret,
     RotateApplicationCredentialResult,
     ApplicationUsagePeriod,

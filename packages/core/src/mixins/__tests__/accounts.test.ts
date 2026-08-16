@@ -678,6 +678,39 @@ describe('OxyServices.accounts', () => {
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/applications/app1/credentials');
     });
+
+    it("forwards a machine credential's expiresInSeconds and its one-time token", async () => {
+      // A `machine` credential's material arrives in `token`, never `secret` —
+      // a surface rendering "the secret" must not silently print an API key.
+      const created: ApplicationCredentialWithSecret = {
+        credential: { ...appCredentialFixture, type: 'machine', tokenPrefix: 'oxy_sk_0123456789abcdef' },
+        secret: null,
+        token: 'oxy_sk_0123456789abcdef_' + 'a'.repeat(64),
+      };
+      makeRequestSpy.mockResolvedValue(created);
+
+      const result = await oxy.createAppCredential('app1', {
+        name: 'ci-runner',
+        type: 'machine',
+        environment: 'production',
+        scopes: ['inference:invoke'],
+        expiresInSeconds: 86_400,
+      });
+
+      expect(result.token).toBe(created.token);
+      expect(makeRequestSpy).toHaveBeenCalledWith(
+        'POST',
+        '/applications/app1/credentials',
+        {
+          name: 'ci-runner',
+          type: 'machine',
+          environment: 'production',
+          scopes: ['inference:invoke'],
+          expiresInSeconds: 86_400,
+        },
+        expect.objectContaining({ cache: false }),
+      );
+    });
   });
 
   describe('rotateAppCredential', () => {
@@ -700,6 +733,30 @@ describe('OxyServices.accounts', () => {
         expect.objectContaining({ cache: false }),
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/applications/app1/credentials');
+    });
+
+    it('forwards an opt-in rotation grace window', async () => {
+      // Omitting it (the case above) sends `undefined`, and the server then
+      // revokes the superseded machine token immediately. Sending it must reach
+      // the body, or a caller asking for zero-downtime rotation would silently
+      // get the instant-revoke behaviour instead.
+      const rotated: RotateApplicationCredentialResult = {
+        credential: { ...appCredentialFixture, _id: 'appcred2', type: 'machine' },
+        secret: null,
+        token: 'oxy_sk_fedcba9876543210_' + 'b'.repeat(64),
+        rotatedFrom: 'appcred1',
+        graceExpiresAt: '2026-08-17T00:00:00.000Z',
+      };
+      makeRequestSpy.mockResolvedValue(rotated);
+
+      await oxy.rotateAppCredential('app1', 'appcred1', { graceSeconds: 3600 });
+
+      expect(makeRequestSpy).toHaveBeenCalledWith(
+        'POST',
+        '/applications/app1/credentials/appcred1/rotate',
+        { graceSeconds: 3600 },
+        expect.objectContaining({ cache: false }),
+      );
     });
   });
 

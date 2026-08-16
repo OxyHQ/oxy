@@ -55,6 +55,7 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
 | [identity/README.md](identity/README.md) | `did:web` documents (custodial ↔ self-sovereign), signed records (envelope v2, hash chain, `verifyEnvelope`), signed export, domain verification, "Sign in with Oxy" |
 | [reputation/README.md](reputation/README.md) | Oxy Trust ledger (tiers/influence), crypto-owned reputation, F2 real-life attestation + validator jury, F3 proof-of-personhood, F4 verifiable credentials |
 | [nodes/README.md](nodes/README.md) | The data-node model, `@oxyhq/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |
+| [inference/README.md](inference/README.md) | The inference platform: credentials, attribution, the model catalogue, exact billing, migrations — **and, in one place, what is not built yet and what tracks it** |
 | [architecture/oxy-auth-platform.md](architecture/oxy-auth-platform.md) | The auth platform master plan (phases, decisions, target architecture) |
 | [CHANGELOG.md](CHANGELOG.md) | Chronological "what changed and why" for the whole F0→F5 + Oxy ID rename + Commons/Reputation UI initiative, with commit SHAs |
 
@@ -68,6 +69,10 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
 - **Integrating "Sign in with Oxy" into a third-party app?**
   [auth/integration-guide.md](auth/integration-guide.md) is the copy-paste
   OAuth + PKCE walkthrough.
+- **Building against Oxy inference?** Start at
+  [inference/README.md](inference/README.md) — it is the status board, and it
+  says plainly that there is no public inference endpoint today. Do not skip it
+  and read the topic pages first.
 - **Working on Oxy ID / Commons / civic features?** Read
   [identity/README.md](identity/README.md) → [reputation/README.md](reputation/README.md)
   → [nodes/README.md](nodes/README.md), in that order — each builds on the prior.
