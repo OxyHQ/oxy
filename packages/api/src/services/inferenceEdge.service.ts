@@ -16,7 +16,7 @@
  * 2. authenticate the credential   machine key or verified service token
  * 3. resolve attribution           credential -> application -> owner account   (ADR 0007)
  * 4. authorize scopes              credential scopes ∩ application scopes
- * 5. resolve the routing policy, pin its version, then resolve the route
+ * 5. resolve the routing policy, pin its version, then resolve the route UNDER it
  * 6. reserve spend                 (ADR 0009) — reject HERE, before the data plane
  * 7. forward the internal envelope
  * 8. settle and refund against the returned usage
@@ -79,6 +79,8 @@ import { resolveCredentialAttributionById } from './attribution.service';
 import {
   resolveCatalogueViewer,
   resolveEdgeRoute,
+  routingConstraintsOf,
+  UNCONSTRAINED_ROUTING,
   type CatalogueViewer,
   type EdgeRoute,
 } from './inferenceCatalogue.service';
@@ -422,6 +424,16 @@ export async function executeInferenceRequest(
   const routingPolicyVersionId =
     policy.status === 'resolved' ? policy.stored.versionId : undefined;
 
+  // The same version's data-handling, provider, residency, licence and hosting
+  // controls, in the shape the route resolver filters candidates on. Passed
+  // explicitly on BOTH arms: an application with no policy is served under the
+  // platform default, which imposes no constraints, and saying so by name is
+  // what stops "unconstrained" from being the answer nobody chose (issue #1011).
+  const routingConstraints =
+    policy.status === 'resolved'
+      ? routingConstraintsOf(policy.stored.policy)
+      : UNCONSTRAINED_ROUTING;
+
   // The caller's target, or the policy's own default when they named none —
   // "per-application default model or routing profile", read from the version
   // that was just pinned rather than from whatever is current at settlement.
@@ -452,8 +464,12 @@ export async function executeInferenceRequest(
 
   const requestedModelReference = target.modelReference;
 
-  // 5. Resolve the route.
-  const resolution = await resolveEdgeRoute(viewerForPrincipal(principal), requestedModelReference);
+  // 5. Resolve the route, under this request's own policy.
+  const resolution = await resolveEdgeRoute(
+    viewerForPrincipal(principal),
+    requestedModelReference,
+    routingConstraints
+  );
   if (resolution.status === 'unknown-model') {
     // A model that does not exist and one this credential may not see are
     // deliberately the same answer — the catalogue is not an oracle for what Oxy
@@ -467,6 +483,25 @@ export async function executeInferenceRequest(
       'model_not_found',
       `No model ${requestedModelReference} is available to you.`,
       { param: 'model' }
+    );
+  }
+  if (resolution.status === 'policy-excluded') {
+    // The request is refused, not downgraded. Nothing has been reserved and
+    // nothing is forwarded: a request that cannot be served under its own policy
+    // must fail rather than fall back to a route that policy forbade, which is
+    // the whole of issue #1011. `policy_violation` rather than
+    // `no_route_available` because the constraint is the customer's own and the
+    // fix is theirs — and it is non-retryable, so an SDK does not spend a retry
+    // budget on a configuration decision.
+    await recordEdgeTelemetry(context, {
+      requestedModelReference,
+      statusCode: inferenceErrorStatus('policy_violation'),
+      units: {},
+    });
+    return refuse(
+      'policy_violation',
+      `Every route for ${requestedModelReference} is excluded by this application’s routing policy: ${resolution.constraints.join(', ')}.`,
+      { reason: `policy_excluded:${resolution.constraints.join(',')}` }
     );
   }
   if (resolution.status === 'unpriced-route') {

@@ -32,6 +32,7 @@ import {
   listCatalogueForViewer,
   PUBLIC_CATALOGUE_VIEWER,
   selectRouteForViewer,
+  UNCONSTRAINED_ROUTING,
 } from '../inferenceCatalogue.service';
 
 const CHECK_VIOLATION = '23514';
@@ -136,7 +137,7 @@ describe('review comes before approval', () => {
 
     // And it is still invisible, which is the consequence that matters.
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)
     ).resolves.toBeUndefined();
   });
 
@@ -147,7 +148,7 @@ describe('review comes before approval', () => {
     // Before: withheld. This is the "and not before" half, measured rather than
     // assumed, so the case cannot pass on a route that was already visible.
     await expect(
-      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId)
+      selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)
     ).resolves.toBeUndefined();
 
     await recordLegalReview({
@@ -159,7 +160,7 @@ describe('review comes before approval', () => {
     const result = await applyPermissionAction({ deploymentId, action: 'approve', staffUserId });
 
     expect(result.permissionState).toBe('approved');
-    await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId)).resolves.toBeDefined();
+    await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
   });
 
   it('refuses a legal approval that cites no evidence', async () => {
@@ -224,13 +225,13 @@ describe('the other three transitions', () => {
 
       // Control: it really was being served, so the assertion below measures
       // the transition rather than a route that was never visible.
-      await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId)).resolves.toBeDefined();
+      await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
 
       const result = await applyPermissionAction({ deploymentId, action, staffUserId });
       expect(result.permissionState).toBe(ACTION_TARGET_STATE[action]);
 
       await expect(
-        selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId)
+        selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)
       ).resolves.toBeUndefined();
       expect(
         (await listCatalogueForViewer(PUBLIC_CATALOGUE_VIEWER)).map((entry) => entry.modelId)
