@@ -65,6 +65,17 @@ with no scrape target configured anywhere — read by nobody. **An unexported
 counter is not observability, and a dependency nothing scrapes is worse than a
 documented absence.**
 
+That is not a hypothetical shape. The API already has one:
+`middleware/performance.ts` is mounted globally in `server.ts` and records every
+request's duration into `utils/performanceMonitor.ts` — an in-memory ring buffer
+capped at 1000 samples, keyed by `METHOD /path`, exposed as JSON at
+`GET /metrics` behind `authMiddleware`. It gives `p50/p95/p99` for
+`POST /v1/responses` as a whole, and nothing else: no breakdown by account,
+application, model or provider, per-instance only, discarded on every deploy, and
+polled by nobody because reading it needs a user session bearer. A second
+registry would have had exactly those properties. The durable table is the one
+worth filling.
+
 What was missing was smaller and more specific: three columns that existed and
 that nothing ever wrote. `inference_usage_events.latency_ms`,
 `.time_to_first_token_ms` and `.route_switches` were declared, constrained and
@@ -105,11 +116,12 @@ metric surface that is correctly zero. The edge now fills them:
 Turning those queries into dashboards and alerts is `~/Oxy/oxy-infra`'s, not this
 repository's. Specifically:
 
-1. **A scrape or export target.** The API runs on ECS Fargate behind one ALB with
-   no metrics endpoint, no Prometheus, no OTLP collector and no managed APM. A
-   `/metrics` route here would be an endpoint nothing polls — and one that would
-   need its own authorization decision, since request counts per application are
-   customer data.
+1. **A scrape or export target.** The API runs on ECS Fargate behind one ALB, and
+   there is no Prometheus, no OTLP collector and no managed APM pointed at it.
+   The one endpoint that exists, `GET /metrics`, is the bearer-gated JSON
+   described above rather than an exposition format, and turning it into one is
+   also an authorization decision: request counts per application are customer
+   data, and the current gate is any authenticated user.
 2. **A query surface over Postgres.** Everything in the table above is SQL. The
    cheapest first step is a scheduled query, not an instrumentation library.
 3. **Alert routing.** Named below as explicitly out of scope.
