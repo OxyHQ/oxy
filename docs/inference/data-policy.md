@@ -172,8 +172,8 @@ filtered in practice — every model you name answers `model_not_found` first. O
 there is a catalogue, verify by reading the chosen route's own `dataPolicy` and
 `regions` back rather than trusting the policy alone.
 
-The two price ceilings are the exception and are NOT enforced — see
-[routing.md](./routing.md#stored-versioned-pinned-onto-the-receipt--and-not-enforced).
+The two price ceilings and `optimiseFor` are the exceptions and are NOT
+enforced — see [routing.md](./routing.md#not-enforced).
 
 ---
 

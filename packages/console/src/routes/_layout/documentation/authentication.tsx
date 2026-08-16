@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { toast } from '@oxyhq/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
+import { MODEL_ID_PLACEHOLDER } from '@/lib/model-reference';
 
 export const Route = createFileRoute('/_layout/documentation/authentication')({
   component: AuthenticationPage,
@@ -140,19 +142,33 @@ curl https://api.oxy.so/some/endpoint \\
           keep. Confidential clients send the secret from their backend.
         </p>
 
-        <div className="p-4 rounded-lg bg-muted/50 border border-border">
-          <p className="text-sm font-medium text-foreground">
-            Not available yet: a single-string machine key
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            A one-value bearer credential that standard OpenAI-compatible SDKs accept without
-            implementing a token exchange is being added to the credential model, and this page will
-            document it when it ships. Until then, the two mechanisms above are the whole list.
-            Neither of them reaches <code>POST /v1/chat/completions</code> from a self-service
-            application: that endpoint is restricted to Oxy's own first-party applications and is
-            not publicly available yet.
-          </p>
-        </div>
+        <h3 className="text-base font-semibold text-foreground mt-6 mb-2">
+          From a machine — a single-string API key
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Create a <code className="text-xs bg-muted px-1 py-0.5 rounded">machine</code> credential
+          on your application and you get one bearer string,{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">oxy_sk_…</code>, that a standard
+          OpenAI-compatible SDK sends with no token exchange in front of it. It is shown{' '}
+          <span className="font-medium">exactly once</span>, on create and on rotate; Oxy stores
+          only a public prefix and a hash of the whole token, so neither this Console nor the API
+          can show it to you again.
+        </p>
+        <CodeBlock
+          code={`curl https://api.oxy.so/v1/responses \\
+  -H "Authorization: Bearer $OXY_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model": "${MODEL_ID_PLACEHOLDER}", "input": "hello"}'`}
+        />
+        <p className="text-sm text-muted-foreground mt-4">
+          A machine credential must name its scopes — there is no fallback to the application's
+          full set — and the effective set is still intersected with the application's own.
+          It is the only credential type that accepts an expiry, and its rotation grace window is
+          opt-in rather than the platform's fixed seven days, because the usual reason to rotate an
+          API key is that it leaked.
+        </p>
+
+        <InferenceAvailabilityNotice className="mt-4" />
       </div>
 
       {/* Scopes */}

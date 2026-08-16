@@ -11,18 +11,24 @@ export const Route = createFileRoute('/_layout/playground')({
  * The playground sends nothing.
  *
  * It used to POST the signed-in user's own access token to
- * `${config.oxyUrl}/v1/chat/completions`, which is exactly the caller that
- * endpoint now refuses (issue #981) — so a chat surface here would compose a
- * request, fire it, and render a 403 as an opaque failure. Stating the
- * restriction is the honest version of the same information, and it is why the
- * composer, the model settings and the streaming reader are gone rather than
- * disabled: none of them can run, and a disabled input still implies that
- * something here might work.
+ * `${config.oxyUrl}/v1/chat/completions`. Two things are wrong with that now,
+ * and only the second is temporary.
  *
- * What replaces this is #972 workstream 4, the metered public inference edge.
- * That lane authenticates a credential and an environment rather than an
- * ambient session (ADR 0010), so the playground it needs is a different screen,
- * not this one with the fetch re-enabled.
+ * The lasting one: that path is the public inference edge (#972 workstream 4),
+ * which authenticates a CREDENTIAL and an environment rather than an ambient
+ * session (ADR 0010). A user access token is not a credential of that lane at
+ * all, so the playground this page needs is a different screen — one that picks
+ * an application, an environment and a credential — not this one with the fetch
+ * re-enabled.
+ *
+ * The temporary one: the edge serves nothing yet. It would authenticate a real
+ * `oxy_sk_…`, reserve the spend, find no data plane, release the hold and answer
+ * `service_unavailable`. That is what `InferenceAvailabilityNotice` states, in
+ * the one wording every page shares.
+ *
+ * Either way the composer, the model settings and the streaming reader are gone
+ * rather than disabled: none of them can run, and a disabled input still implies
+ * that something here might work.
  */
 function PlaygroundPage() {
   return (

@@ -47,7 +47,7 @@ reserves the money, finds nothing to forward to, releases the hold and answers
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
 | Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. **The catalogue is EMPTY** |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out |
-| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (11 of 13 controls; the two price ceilings are not) |
+| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (eleven controls; the two price ceilings and `optimiseFor` are not) |
 | BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Yes for metadata; create and rotate refuse `503` |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
@@ -98,7 +98,7 @@ publicly exposed, and default-deny is the starting state. So `GET /models`
 answers `[]`, `getModel(...)` throws for every id, and the edge refuses any
 model you name with `model_not_found`.
 
-### The two routing price ceilings — workstream 6
+### Three routing controls — workstream 6
 
 `maxPricePerUnit` and `maxPricePerRequest` are stored, validated, versioned and
 pinned onto the receipt, and **nothing filters on them**. A candidate's price
@@ -106,6 +106,10 @@ lives on the ledger's price versions and a request's cost is only known after a
 route is priced, so both need a different mechanism and are reported rather than
 half-enforced. Do not use either as a spend control; a spending limit and the
 account balance are the controls that bound spend.
+
+`optimiseFor` is not enforced either, for a different reason: it ranks the routes
+that already qualify, which is routing execution and therefore the data plane's
+(ADR 0006) — and there is no data plane.
 
 Every other routing control IS enforced against the candidate routes as of
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), which closed

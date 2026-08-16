@@ -195,11 +195,13 @@ Three of the controls read the DEPLOYMENT's own data policy rather than the
 provider organisation's default, because a zero-retention endpoint from a
 provider that otherwise retains is a real and important case.
 
-### Stored, versioned, pinned onto the receipt — and NOT enforced
+### Not enforced
 
-Two, and only two. Both are named in code beside the filter, in
-`UNFILTERED_ROUTING_CONTROLS`, with the reason; a control that ends up in neither
-list fails `tsc` by name.
+Three, and each is named in code beside the filter, in
+`UNFILTERED_ROUTING_CONTROLS`, with its reason. A control that ends up in neither
+list fails `tsc` by name, so this list cannot silently grow.
+
+Two need a different mechanism:
 
 - **`maxPricePerUnit`** — a candidate's price lives on the ledger's price
   versions, and comparing exact decimals is arithmetic this repository does
@@ -207,20 +209,25 @@ list fails `tsc` by name.
   foreign-currency ceiling mean. Reported rather than half-enforced.
 - **`maxPricePerRequest`** — cannot be a candidate filter at all: what a REQUEST
   costs is only known once its unit ceiling has been estimated, which happens
-  after a route is chosen and priced.
+  after a route is chosen and priced. Its home is the edge, beside the quote.
 
-**Do not rely on either as a spend control.** The controls that do bound spend
-are the reservation, the account balance and the spending limits — see
+**Do not rely on either as a spend control.** What bounds spend is the
+reservation, the account balance and the spending limits — see
 [billing.md](./billing.md#spending-limits).
 
-`optimiseFor` is not in either list in the same sense: it is a RANKING among
-routes that already qualify, which is routing execution and therefore the data
-plane's (ADR 0006). It can never exclude a candidate.
+One belongs somewhere else entirely:
 
-Enforcement landed in [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
+- **`optimiseFor`** — a RANKING among the routes that already qualify, which is
+  routing execution and therefore the data plane's (ADR 0006). It can never
+  exclude a candidate, and enforcing it in the control plane would mean inventing
+  a routing decision with no way to test the choice. Nothing ranks today, because
+  there is no data plane.
+
+Enforcement of the other eleven landed in
+[#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
 [#1011](https://github.com/OxyHQ/oxy/issues/1011), which is where the reasoning
 about why a stored-but-unenforced compliance constraint is worse than a missing
-feature is recorded. Measured on `main` at `da404475`, 2026-08-16.
+feature is recorded. Measured on `main` at `da404475`.
 
 ### Route-switch records exist and nothing writes one
 
