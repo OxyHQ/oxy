@@ -61,6 +61,10 @@ import {
   inferenceRoutingProfiles,
   SELECTABLE_PERMISSION_STATE,
 } from '../db/schema';
+import {
+  classifyApplicationTier,
+  type ApplicationClassification,
+} from '../utils/applicationTier';
 
 /* -------------------------------------------------------------------------- */
 /*  1. The audience                                                           */
@@ -117,21 +121,22 @@ export const PUBLIC_CATALOGUE_VIEWER: CatalogueViewer = {
 };
 
 /**
- * The Application types that see the internal catalogue.
+ * Whether a viewer sees no more than the public audience does.
  *
- * `first_party` is deliberately ABSENT. Console and Accounts are first-party and
- * customer-facing: handing them the internal audience would put internal-only
- * routes into the model list a customer reads, which is precisely the
- * separation between "available to Alia internally" and "available to external
- * Oxy customers" that workstream 11 exists to draw.
+ * Read by the rollout's publication gate (`routes/inferenceCatalogue.ts`), which
+ * withholds the catalogue from public viewers before launch. Structural rather
+ * than a reference comparison against {@link PUBLIC_CATALOGUE_VIEWER} or a
+ * `label` test: both of those answer "internal" — the permissive direction — the
+ * moment a viewer is built as a structurally equal copy, and `label` is
+ * explicitly not an authorization input. Widening the internal viewer's scopes
+ * keeps this correct; it can only ever make a privileged viewer non-public.
  */
-const INTERNAL_APPLICATION_TYPES = ['internal', 'system'] as const;
+export function isPublicCatalogueViewer(viewer: CatalogueViewer): boolean {
+  return viewer.scopes.every((scope) => PUBLIC_CATALOGUE_SCOPES.includes(scope));
+}
 
 /** The subset of an `Application` row this decision reads. */
-export interface CatalogueApplicationPrincipal {
-  readonly type: string | null;
-  readonly isInternal: boolean | null;
-}
+export type CatalogueApplicationPrincipal = ApplicationClassification;
 
 /**
  * Turn an authenticated principal into a viewer.
@@ -140,18 +145,18 @@ export interface CatalogueApplicationPrincipal {
  * plain user bearer — resolves to the PUBLIC viewer, not to a privileged one.
  * That is the default-deny direction: the way to see more is to present an
  * internal application credential, never to present nothing.
+ *
+ * The `internal` TIER is the one `classifyApplicationTier` computes, shared with
+ * the inference edge's rollout audience so the two cannot come to different
+ * answers about the same row. `first_party` is deliberately not internal here:
+ * Console and Accounts are first-party and customer-facing, and handing them the
+ * internal audience would put internal-only routes into the model list a
+ * customer reads.
  */
 export function resolveCatalogueViewer(
   application: CatalogueApplicationPrincipal | undefined
 ): CatalogueViewer {
-  if (application === undefined) return PUBLIC_CATALOGUE_VIEWER;
-
-  const isInternal =
-    application.isInternal === true ||
-    (application.type !== null &&
-      (INTERNAL_APPLICATION_TYPES as readonly string[]).includes(application.type));
-
-  if (!isInternal) return PUBLIC_CATALOGUE_VIEWER;
+  if (classifyApplicationTier(application) !== 'internal') return PUBLIC_CATALOGUE_VIEWER;
 
   return {
     scopes: [...PUBLIC_CATALOGUE_SCOPES, 'internal_alia'],

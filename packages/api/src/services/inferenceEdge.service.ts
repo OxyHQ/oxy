@@ -65,6 +65,7 @@ import {
   type UsageUnit,
 } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
+import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema/applications';
 import { USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
 import { usageReceipts, usageReceiptUnitPrices } from '../db/schema/usageReceipts';
@@ -106,6 +107,7 @@ import {
   type GenerationReceipt,
   type NormalizedEdgeRequest,
 } from '../schemas/inferenceEdge.schemas';
+import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 
 /* -------------------------------------------------------------------------- */
 /*  Limits                                                                    */
@@ -220,12 +222,23 @@ export type EdgeAuthentication =
  * is ever written to — while the service lane requires a signed JWT. That is not
  * a check that could be forgotten; it is a column it is not in.
  *
+ * **The machine lane is closed unless this deployment opens it**
+ * (`INFERENCE_MACHINE_CREDENTIAL_AUTH`, `config/rolloutFlags.ts`). The check sits
+ * before the lookup rather than after it, so a machine token costs no query while
+ * the lane is shut — and it is a lane refusal rather than a fall-through to the
+ * service lane, so the log says which lane was closed instead of reporting a
+ * malformed JWT.
+ *
  * Every refusal is the same answer to the caller. `reason` is for the log.
  */
 export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthentication> {
   const token = extractTokenFromRequest(req);
   if (!token) {
     return { ok: false, reason: 'no_bearer' };
+  }
+
+  if (machineCredentialTokenPrefix(token) !== null && !isMachineCredentialLaneEnabled()) {
+    return { ok: false, reason: 'machine_lane_disabled' };
   }
 
   const machine = await resolveMachineCredential(token);
@@ -351,11 +364,34 @@ export type EdgeExecution =
  * Returns a refusal rather than throwing for every outcome a caller can be told
  * about, so the two route handlers have exactly one branch each and cannot
  * disagree about which failures are 4xx.
+ *
+ * ## Charging is a flag, and until it is armed this SHADOW METERS
+ *
+ * `INFERENCE_CHARGING_AUTHORIZED` (`config/rolloutFlags.ts`) is unset by default,
+ * and while it is, steps 6c and 8 are replaced by one priced log line: the
+ * request is admitted, routed, forwarded and metered exactly as it would be, the
+ * exact amount it WOULD have been billed is computed from the same price version
+ * with the same `quoteUnits` arithmetic `settle` bills with, and no reservation,
+ * receipt, refund, ledger entry or balance movement is written. So a shadow
+ * period leaves nothing to reconcile away when charging is armed, which is the
+ * property that makes it worth running at all.
+ *
+ * What is NOT enforced while shadow metering, stated rather than discovered: an
+ * account with no billing profile is served, an empty balance is served, and a
+ * spending limit stops nothing — all three of those refusals live in `reserve`,
+ * which is the call being skipped. `GET /v1/generations/:id` has no receipt to
+ * return for such a request either, and a repeated `Idempotency-Key` binds to no
+ * reservation and so is not refused.
+ *
+ * The flag is read ONCE per request, not per step. Read twice, a flip between
+ * steps 6c and 8 would either settle against a hold that was never taken or take
+ * a hold nothing ever settles.
  */
 export async function executeInferenceRequest(
   context: EdgeExecutionContext
 ): Promise<EdgeExecution> {
   const { requestId, principal, request } = context;
+  const charging = isChargingAuthorized();
 
   const refuse = (
     code: InferenceErrorCode,
@@ -595,35 +631,42 @@ export async function executeInferenceRequest(
     environment: principal.environment,
   };
 
-  // 6c. Reserve. NOTHING is forwarded before this returns `reserved`.
-  const reservation = await reserve({
-    idempotencyKey: ledgerKey,
-    attribution: ledgerAttribution,
-    knownUnits: { input_tokens: estimatedInputTokens },
-    maxOutputTokens,
-    ceilingPriceVersionId: route.priceVersionId,
-    maxAmount: quote.amount,
-    currency: quote.currency,
-    expiresInSeconds: RESERVATION_TTL_SECONDS,
-  });
+  // 6c. Reserve. NOTHING is forwarded before this returns `reserved` — unless
+  //     this deployment is shadow metering, in which case nothing is held
+  //     because nothing will be charged. `hold` being `undefined` is what every
+  //     later step branches on, so the two modes cannot half-happen.
+  let hold: ReservationView | undefined;
+  if (charging) {
+    const reservation = await reserve({
+      idempotencyKey: ledgerKey,
+      attribution: ledgerAttribution,
+      knownUnits: { input_tokens: estimatedInputTokens },
+      maxOutputTokens,
+      ceilingPriceVersionId: route.priceVersionId,
+      maxAmount: quote.amount,
+      currency: quote.currency,
+      expiresInSeconds: RESERVATION_TTL_SECONDS,
+    });
 
-  const held = reservationOrRefusal(reservation, requestId, quote.currency);
-  if ('error' in held) {
-    await recordEdgeTelemetry(context, {
-      requestedModelReference,
-      statusCode: inferenceErrorStatus(held.error.code),
-      units: {},
-      resolvedModelReference: route.modelReference,
-      servingProvider: route.provider,
-    });
-    logger.warn('inference.edge.reservation_refused', {
-      requestId,
-      code: held.error.code,
-      accountId: principal.ownerAccountId,
-      applicationId: principal.applicationId,
-      reservationStatus: reservation.status,
-    });
-    return { status: 'refused', error: held.error };
+    const held = reservationOrRefusal(reservation, requestId, quote.currency);
+    if ('error' in held) {
+      await recordEdgeTelemetry(context, {
+        requestedModelReference,
+        statusCode: inferenceErrorStatus(held.error.code),
+        units: {},
+        resolvedModelReference: route.modelReference,
+        servingProvider: route.provider,
+      });
+      logger.warn('inference.edge.reservation_refused', {
+        requestId,
+        code: held.error.code,
+        accountId: principal.ownerAccountId,
+        applicationId: principal.applicationId,
+        reservationStatus: reservation.status,
+      });
+      return { status: 'refused', error: held.error };
+    }
+    hold = held.reservation;
   }
 
   // 7. Build and forward the versioned internal envelope.
@@ -637,14 +680,16 @@ export async function executeInferenceRequest(
     completion = await context.relayClient.execute(envelope, { signal: context.signal });
   } catch (error) {
     const failure = classifyForwardFailure(error, context.signal);
-    await settleFailure(
-      context,
-      route,
-      held.reservation,
-      ledgerKey,
-      failure.outcome,
-      routingPolicyVersionId
-    );
+    if (hold !== undefined) {
+      await settleFailure(
+        context,
+        route,
+        hold,
+        ledgerKey,
+        failure.outcome,
+        routingPolicyVersionId
+      );
+    }
     await recordEdgeTelemetry(context, {
       requestedModelReference,
       statusCode: inferenceErrorStatus(failure.code),
@@ -662,14 +707,9 @@ export async function executeInferenceRequest(
   // a substitution nobody permitted.
   const mismatch = validateCompletion(completion, requestId, route);
   if (mismatch !== undefined) {
-    await settleFailure(
-      context,
-      route,
-      held.reservation,
-      ledgerKey,
-      'failed',
-      routingPolicyVersionId
-    );
+    if (hold !== undefined) {
+      await settleFailure(context, route, hold, ledgerKey, 'failed', routingPolicyVersionId);
+    }
     await recordEdgeTelemetry(context, {
       requestedModelReference,
       statusCode: inferenceErrorStatus(mismatch.code),
@@ -682,42 +722,48 @@ export async function executeInferenceRequest(
   }
 
   // 8. Settle against the exact usage, releasing the rest of the hold in the
-  //    same transaction.
+  //    same transaction — or, while shadow metering, price the same usage and
+  //    record what it would have cost without writing a financial record.
   const units = unitsFromReport(completion.usage);
-  const settlement = await settle({
-    idempotencyKey: ledgerKey,
-    reservationId: held.reservation.reservationId,
-    attribution: ledgerAttribution,
-    ...(completion.generationId === undefined
-      ? {}
-      : { generationId: completion.generationId }),
-    outcome: completion.usage.outcome,
-    usageSource: completion.usage.usageSource,
-    units,
-    resolvedModelReference: route.modelReference,
-    servingProvider: route.provider,
-    priceVersionId: route.priceVersionId,
-    ...(routingPolicyVersionId === undefined ? {} : { routingPolicyVersionId }),
-  });
 
-  if (settlement.status !== 'settled' && settlement.status !== 'already-settled') {
-    // The generation happened and could not be charged for. That is an Oxy
-    // failure, and it is loud: the hold stands until the sweeper releases it, so
-    // the customer's money comes back on its own while the discrepancy is
-    // visible.
-    logger.error(
-      'inference.edge.settlement_failed',
-      new Error(`settlement returned ${settlement.status}`),
-      {
-        requestId,
-        reservationId: held.reservation.reservationId,
-        accountId: principal.ownerAccountId,
-        settlementStatus: settlement.status,
-      }
-    );
-    return refuse('internal_error', 'The request completed but could not be settled.', {
-      reason: settlement.status,
+  if (hold === undefined) {
+    await recordShadowMetering(context, route, units, completion, routingPolicyVersionId);
+  } else {
+    const settlement = await settle({
+      idempotencyKey: ledgerKey,
+      reservationId: hold.reservationId,
+      attribution: ledgerAttribution,
+      ...(completion.generationId === undefined
+        ? {}
+        : { generationId: completion.generationId }),
+      outcome: completion.usage.outcome,
+      usageSource: completion.usage.usageSource,
+      units,
+      resolvedModelReference: route.modelReference,
+      servingProvider: route.provider,
+      priceVersionId: route.priceVersionId,
+      ...(routingPolicyVersionId === undefined ? {} : { routingPolicyVersionId }),
     });
+
+    if (settlement.status !== 'settled' && settlement.status !== 'already-settled') {
+      // The generation happened and could not be charged for. That is an Oxy
+      // failure, and it is loud: the hold stands until the sweeper releases it,
+      // so the customer's money comes back on its own while the discrepancy is
+      // visible.
+      logger.error(
+        'inference.edge.settlement_failed',
+        new Error(`settlement returned ${settlement.status}`),
+        {
+          requestId,
+          reservationId: hold.reservationId,
+          accountId: principal.ownerAccountId,
+          settlementStatus: settlement.status,
+        }
+      );
+      return refuse('internal_error', 'The request completed but could not be settled.', {
+        reason: settlement.status,
+      });
+    }
   }
 
   await recordEdgeTelemetry(context, {
@@ -830,6 +876,81 @@ function reservationOrRefusal(
         }),
       };
   }
+}
+
+/**
+ * The log event a shadow-metered request produces. Named as a constant because
+ * it is an operational contract — a dashboard, an alert and a reconciliation
+ * query all key on it — and a renamed string that still compiles would take all
+ * three down silently.
+ */
+export const SHADOW_METERING_EVENT = 'inference.edge.shadow_metered';
+
+/**
+ * Price a completed request exactly as it would be charged, and record the
+ * amount without charging it.
+ *
+ * The charge comes from {@link quoteUnits} against the route's own price
+ * version — the SAME function and the same price rows `settle` computes a bill
+ * from — so the shadow figure and the eventual bill are two evaluations of one
+ * expression rather than two implementations that agree until a price shape
+ * changes.
+ *
+ * Nothing here writes to the database. The units are already recorded by
+ * `recordInferenceUsage` (telemetry carries units and never money, by schema),
+ * so this line is the money half and the two correlate on `requestId` — which is
+ * the same correlation workstream 16's observability item asks for across the
+ * edge, the data plane, the ledger and the receipt.
+ *
+ * A failure to price is `error`, not silence: an unpriceable completed request
+ * is exactly the gap a shadow period exists to find before a customer's bill
+ * depends on it. It does not fail the request — the customer has their
+ * completion, and refusing it after the fact would turn a metering gap into an
+ * outage.
+ */
+async function recordShadowMetering(
+  context: EdgeExecutionContext,
+  route: EdgeRoute,
+  units: Partial<Record<UsageUnit, number>>,
+  completion: RelayCompletion,
+  routingPolicyVersionId: string | undefined
+): Promise<void> {
+  const quote = await quoteUnits(route.priceVersionId, units);
+
+  const attribution = {
+    requestId: context.requestId,
+    ...(completion.generationId === undefined
+      ? {}
+      : { generationId: completion.generationId }),
+    accountId: context.principal.ownerAccountId,
+    applicationId: context.principal.applicationId,
+    credentialId: context.principal.credentialId,
+    environment: context.principal.environment,
+    resolvedModelReference: route.modelReference,
+    servingProvider: route.provider,
+    priceVersionId: route.priceVersionId,
+    ...(routingPolicyVersionId === undefined ? {} : { routingPolicyVersionId }),
+  };
+
+  if (quote.status !== 'quoted') {
+    logger.error(
+      'inference.edge.shadow_metering_unpriced',
+      new Error(`shadow metering could not price the request: ${quote.status}`),
+      attribution
+    );
+    return;
+  }
+
+  logger.info(SHADOW_METERING_EVENT, {
+    ...attribution,
+    outcome: completion.usage.outcome,
+    usageSource: completion.usage.usageSource,
+    units,
+    // Named for what it is. `billedAmount` would read as a charge in every
+    // dashboard that picked it up, which is the one thing this number is not.
+    wouldHaveBilledAmount: quote.amount,
+    currency: quote.currency,
+  });
 }
 
 /**

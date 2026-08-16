@@ -80,6 +80,30 @@ export interface RequiredEnvVars {
   // would still NOT be enough to wire (no store client ships in this build).
   INFERENCE_PROVIDER_SECRET_STORE?: string;
 
+  // The inference platform's four rollout flags (issue #972 workstream 16).
+  // Declared, parsed and reported in ONE place — `config/rolloutFlags.ts` — and
+  // readable at `GET /inference/admin/rollout`. None is a secret: each names a
+  // deployment STATE, so all four belong in the ECS task definition's plain
+  // environment and never in SSM, and all four are absent from the `required`
+  // list below on purpose. Unset means the surface is closed, which is why an
+  // absent variable can never open one.
+  //
+  //  - who may reach the public inference edge at all:
+  //    `closed` | `internal` | `first_party` | `allowlist:<appId>,…` | `public`
+  //    (unset = closed; `public` additionally requires charging to be armed)
+  INFERENCE_EDGE_AUDIENCE?: string;
+  //  - whether an `oxy_sk_…` machine credential authenticates: `enabled` |
+  //    `disabled` (unset = disabled)
+  INFERENCE_MACHINE_CREDENTIAL_AUTH?: string;
+  //  - whether this deployment may charge customers, as `<reason>:<YYYY-MM-DD>`.
+  //    A bare `true` is REFUSED. Unset means SHADOW METERING: every request is
+  //    priced and the amount recorded, and no reservation, receipt or balance
+  //    movement is written.
+  INFERENCE_CHARGING_AUTHORIZED?: string;
+  //  - who is served the published model catalogue: `internal` | `public`
+  //    (unset = internal)
+  INFERENCE_CATALOGUE_AUDIENCE?: string;
+
   // Follow-graph outbox worker (`follow_events`). OFF by default — acknowledging
   // an event asserts its delivery happened; read by `followOutbox.worker.ts`.
   FOLLOW_OUTBOX_WORKER_ENABLED?: string;

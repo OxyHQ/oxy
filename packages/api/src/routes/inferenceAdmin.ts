@@ -20,12 +20,18 @@
  * INTENDED, not built: publishing a price version. `price_versions` is the
  * ledger's table (workstream 7) and is not in this schema barrel yet — see
  * `services/inferenceCatalogueAdmin.service.ts`.
+ *
+ * Also here, and not a catalogue operation at all: `GET /rollout`, the one place
+ * this deployment's rollout flags are readable. It lives on this router because
+ * it needs the same staff gate and nothing weaker, and giving it a mount of its
+ * own would be a second staff surface to keep gated correctly.
  */
 
 import { Router, type Response } from 'express';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb } from '../config/postgres';
+import { describeRolloutFlags } from '../config/rolloutFlags';
 import {
   DEPLOYMENT_LEGAL_REVIEW_STATUSES,
   inferenceDeployments,
@@ -120,6 +126,26 @@ function staffUserId(req: AuthRequest): string {
   }
   return id;
 }
+
+/**
+ * `GET /inference/admin/rollout`
+ *
+ * What is switched on in THIS deployment (issue #972 workstream 16). The whole
+ * point of `config/rolloutFlags.ts` having one readout is that "is charging on
+ * in production" is a question with an answer, rather than an ssh session and a
+ * grep through a task definition.
+ *
+ * Staff-only, like everything else on this router: which stage of a commercial
+ * rollout a deployment is in is not a customer's business, and the audience
+ * report names the applications in a closed beta. It reports the RESOLVED state
+ * and the reason for it, never the raw environment value.
+ */
+router.get(
+  '/rollout',
+  asyncHandler(async (_req: AuthRequest, res: Response) => {
+    res.json({ data: describeRolloutFlags() });
+  })
+);
 
 /**
  * `GET /inference/admin/deployments`

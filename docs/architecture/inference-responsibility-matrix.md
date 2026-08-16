@@ -433,11 +433,12 @@ none of workstreams 0–12 may block on it.
 | Alerts: ledger imbalance, duplicate event ids, provider error/cost spikes | Oxy | OxyHQServices + oxy-infra | planned |
 | Audit dashboards for credential and billing changes | Oxy | OxyHQServices `packages/console` | planned |
 | Status-page signals from customer-safe model/deployment availability | Oxy (surface), Relay (source) | OxyHQServices + OxyHQ/Relay | planned |
-| Feature flags for new auth, API edge, ledger, catalogue | Oxy | OxyHQServices | planned |
-| Shadow technical metering before charging | Oxy | OxyHQServices `packages/api` | planned |
-| Bounded dual-read/dual-write migration window | Oxy | OxyHQServices | planned |
-| Canaries: internal Alia, Oxy first-party, closed external beta | Oxy | OxyHQServices | planned |
-| Rollback plan preserving financial-event integrity | Oxy | OxyHQServices `docs/` | planned |
+| Feature flags for new auth, API edge, ledger, catalogue | Oxy | OxyHQServices `packages/api/src/config/rolloutFlags.ts` | exists |
+| Rollout-flag readout (`GET /inference/admin/rollout`) | Oxy | OxyHQServices `packages/api/src/routes/inferenceAdmin.ts` | exists |
+| Shadow technical metering before charging | Oxy | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts` | exists |
+| Bounded dual-read/dual-write migration window | Oxy | OxyHQServices `docs/inference/rollout.md` | not applicable — every table is new and holds no production rows, so there is no store to cut over from |
+| Canaries: internal Alia, Oxy first-party, closed external beta | Oxy | OxyHQServices `packages/api/src/config/rolloutFlags.ts` | mechanism exists, no stage entered |
+| Rollback plan preserving financial-event integrity | Oxy | OxyHQServices `docs/inference/rollout.md` | exists |
 
 ---
 
