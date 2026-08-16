@@ -180,6 +180,12 @@ interface FixtureOptions {
   readonly maxOutputTokens?: number;
   /** Publish the route with no price version, so nothing can be quoted. */
   readonly unpriced?: boolean;
+  /**
+   * Publish the ROUTE as one that retains payloads and trains on them, so a
+   * policy carrying the data-handling controls has something to exclude. The
+   * default is the zero-retention posture every other case relies on.
+   */
+  readonly retainsAndTrains?: boolean;
 }
 
 async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
@@ -287,10 +293,10 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     modelRevisionId: revisionRow.id,
     providerSlug,
     regions: ['us-west-2'],
-    retainsPayloads: false,
-    retentionDays: 0,
-    trainsOnCustomerData: false,
-    zeroDataRetentionAvailable: true,
+    retainsPayloads: options.retainsAndTrains === true,
+    retentionDays: options.retainsAndTrains === true ? 30 : 0,
+    trainsOnCustomerData: options.retainsAndTrains === true,
+    zeroDataRetentionAvailable: options.retainsAndTrains !== true,
     availabilityScope: 'public_payg',
     commercialPermission: 'public_resale_approved',
     status: 'active',
@@ -1125,6 +1131,145 @@ describe('routing policy', () => {
       expect(response.status).toBe(400);
       expect(json(response)).toMatchObject({ code: 'invalid_request', param: 'model' });
     });
+  });
+
+  /* ------------------------------------------------------------------------ */
+  /*  The policy is ENFORCED, not merely recorded (issue #1011)               */
+  /* ------------------------------------------------------------------------ */
+
+  it('refuses the request when the only route violates the policy, and keeps the money whole', async () => {
+    // The route retains payloads and trains on them; the policy forbids both.
+    // Before #1011 this request was SERVED and the receipt still named the
+    // policy version that forbade it.
+    const fixture = await makeFixture({ fund: '10.000000000000', retainsAndTrains: true });
+    const created = await createRoutingPolicy({
+      target: {
+        kind: 'application',
+        accountId: fixture.accountId,
+        applicationId: fixture.applicationId,
+      },
+      controls: policyControls({
+        requireZeroDataRetention: true,
+        prohibitTrainingOnCustomerData: true,
+      }),
+      createdByUserId: fixture.accountId,
+    });
+    expect(created.status).toBe('written');
+
+    const before = await balanceOf(fixture.accountId);
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeRelay(
+        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
+          bearer(fixture.token)
+        );
+
+        // 403, non-retryable, and the message names the controls — a refusal a
+        // customer can act on without opening a ticket.
+        expect(response.status).toBe(403);
+        expect(json(response)).toMatchObject({ code: 'policy_violation', retryable: false });
+        expect(json(response).message).toContain('requireZeroDataRetention');
+        expect(json(response).message).toContain('prohibitTrainingOnCustomerData');
+        // And ONLY the controls that actually excluded something — a message
+        // that listed every control would satisfy the two lines above while
+        // telling the customer nothing.
+        expect(json(response).message).not.toContain('oxyHostedOnly');
+
+        // A refusal, not a downgrade: a working data plane was available and it
+        // was never asked. Without this the test would pass against an edge that
+        // served the request and then reported an error.
+        expect(seen).toHaveLength(0);
+      }
+    );
+
+    // Nothing was reserved and nothing was charged, because the refusal happens
+    // before the hold.
+    const after = await balanceOf(fixture.accountId);
+    expect(after).toEqual(before);
+    const receipts = await getDb()
+      .select({ id: usageReceipts.id })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipts).toHaveLength(0);
+    const reservations = await getDb()
+      .select({ id: usageReservations.id })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(0);
+  });
+
+  it('serves the same request when the route conforms — the control for the refusal above', async () => {
+    // Same policy, a route that satisfies it. Without this case the refusal
+    // could be any of the edge's other 403s, or a fixture that never resolved.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const created = await createRoutingPolicy({
+      target: {
+        kind: 'application',
+        accountId: fixture.accountId,
+        applicationId: fixture.applicationId,
+      },
+      controls: policyControls({
+        requireZeroDataRetention: true,
+        prohibitTrainingOnCustomerData: true,
+      }),
+      createdByUserId: fixture.accountId,
+    });
+    expect(created.status).toBe('written');
+
+    await withServer(
+      fakeRelay((envelope) =>
+        completionFor(envelope, { input: 5, output: 5, provider: fixture.provider })
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+  });
+
+  it('serves a retaining route to an application whose policy does not forbid it', async () => {
+    // The other direction, and the guard against over-enforcement: the same
+    // retaining route is perfectly servable when nothing in the policy excludes
+    // it. A filter that rejected on the wrong column would fail here.
+    const fixture = await makeFixture({ fund: '10.000000000000', retainsAndTrains: true });
+    const created = await createRoutingPolicy({
+      target: {
+        kind: 'application',
+        accountId: fixture.accountId,
+        applicationId: fixture.applicationId,
+      },
+      controls: policyControls(),
+      createdByUserId: fixture.accountId,
+    });
+    expect(created.status).toBe('written');
+
+    await withServer(
+      fakeRelay((envelope) =>
+        completionFor(envelope, { input: 5, output: 5, provider: fixture.provider })
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
   });
 });
 

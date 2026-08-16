@@ -148,8 +148,9 @@ wholesale cost can reach you by being nested one level deeper than anyone looked
   or `third_party_hosted`, plus the base model where there is one.
 - **Data policy** — whether payloads are retained and for how long, whether the
   route trains on customer data, whether zero data retention is available, and
-  the named subprocessors. Structured rather than prose, because a routing policy
-  is meant to enforce against these fields.
+  the named subprocessors. Structured rather than prose, because your routing
+  policy is enforced against these fields — see "A route that your policy forbids
+  is a refusal" below.
 - **Regions** and the customer-safe **serving providers**.
 - **Pricing** — a price snapshot, absent for routes you cannot buy per-unit
   (BYOK-only, internal).
@@ -176,6 +177,48 @@ contract refuses the combination otherwise. This is why the public catalogue is
 empty rather than merely unpopulated: default-deny is the starting state, and a
 route becomes public when somebody reviews the right to resell it, not when it
 starts answering.
+
+## A route that your policy forbids is a refusal
+
+Your routing policy is resolved on every request and its version is recorded on
+the envelope and on the settled receipt. It is also **applied to the candidate
+routes before one is chosen** — which is the difference between a compliance
+setting and a compliance claim (issue #1011).
+
+Filtered against the route: `requireZeroDataRetention`,
+`prohibitTrainingOnCustomerData`, `requireCommercialUseRights`,
+`allowedLicenseIds`, `providerAllowlist`, `providerDenylist`, `allowedRegions`,
+`deniedRegions`, `oxyHostedOnly`, `byokPreference` and `dedicatedCapacity`.
+Three of them read the DEPLOYMENT's own data policy rather than the provider
+organisation's default, because a zero-retention endpoint from a provider that
+otherwise retains is a real and important case.
+
+Two readings are worth stating outright, because the alternatives look
+reasonable:
+
+- **`allowedRegions` is a subset test, not an overlap.** A deployment declares
+  every region it may serve from, and which one it picks is the data plane's
+  decision — so a route that may run outside your allowed set cannot honour a
+  residency requirement and does not qualify.
+- **`requireZeroDataRetention` needs the route to actually not retain**, not
+  merely to be capable of zero retention. `zeroDataRetentionAvailable` is a
+  capability; a route carrying it while still retaining payloads by default is
+  excluded.
+
+When NO candidate satisfies your policy, the request is **refused** with
+`policy_violation` (HTTP 403, never retryable) and the message names the controls
+that excluded every route. It is never downgraded to a route the policy forbade,
+and never served as though the policy were absent. A model that does not exist,
+or that your credential may not see, still answers `model_not_found` — the two
+are kept distinct because only one of them is yours to fix.
+
+Two ceilings are **not** enforced yet and should not be relied on:
+`maxPricePerUnit` and `maxPricePerRequest`. They are stored, validated and
+versioned, but nothing filters on them — a price lives on the ledger's price
+versions and a request's cost is only known after a route is priced.
+`optimiseFor` is a ranking among routes that already qualify and belongs to the
+data plane (ADR 0006). The classification is kept in code, beside the filter, in
+`UNFILTERED_ROUTING_CONTROLS`, and a control in neither list fails the build.
 
 ## What Oxy never exposes
 
