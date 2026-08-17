@@ -47,6 +47,40 @@ Why this is especially dangerous for `@oxyhq/core`: core builds with `tsc` (no B
 
 `@oxyhq/services` SOURCE is React-Compiler-compiled when bundled inside the `commons` and `accounts` Expo apps, even though `@oxyhq/services` itself declares no compiler flag. Those apps set `experiments.reactCompiler: true`, and because `services` is a workspace symlink whose `package.json` exposes `"react-native": "src/index.ts"`, Metro resolves it to the realpath TS source (no `node_modules` path segment) — so Expo's `isNodeModule` compiler gate treats services source as APP source and compiles it. Consequence: `packages/services/src/` must be held to React-Compiler-safe standards (no render-phase side effects/mutations inside `useMemo` or other compiler-memoizable positions; no reading external mutable state out-of-band in render — see the global React Compiler rule in `~/AGENTS.md`). In Allo, `services` resolves as a real `node_modules` directory, so it is excluded from compilation there — but the monorepo's own apps (commons, accounts) are the binding case.
 
+## Publishing: which paths run `prepublishOnly`, and which run nothing
+
+`prepublishOnly` is where `@oxyhq/services` keeps its pre-flight (`assert-bun-publish` → `typescript` → `test` → `build`). It exists, and for `@oxyhq/services@30.0.0` it did not run. Measured 2026-08-17 on npm 10.9.8 / bun 1.3.14 with a probe package whose every lifecycle script appends its own name to a log file:
+
+| command | lifecycle scripts that ran |
+| --- | --- |
+| `npm pack` | `prepack`, `prepare`, `postpack` |
+| `npm pack --ignore-scripts` | `prepare` — npm runs it whatever the flag says |
+| `bun pm pack` | `prepack`, `prepare`, `postpack` |
+| `bun pm pack --dry-run` | `prepack`, `prepare`, `postpack` — a dry run is not `--ignore-scripts` |
+| `bun pm pack --ignore-scripts` | none |
+| `npm publish` (from the directory) | `prepublishOnly`, `prepack`, `prepare`, `postpack` |
+| `bun publish` (from the directory) | `prepublishOnly`, `prepack`, `prepare`, `postpack` |
+| **`npm publish <tgz>`** | **none** |
+| **`bun publish <tgz>`** | **none** |
+| `npm publish --dry-run` / `bun publish --dry-run` | all of the directory-path scripts, PLUS `publish` and `postpublish` |
+
+Two consequences, both counter-intuitive:
+
+- **Publishing a tarball runs no checks at all — that is the property the tarball path is chosen for.** What you inspect is exactly what ships, with nothing regenerating it underneath you. It also means `prepublishOnly` never fires, so nothing on that path typechecks, tests, builds, or even asserts that bun did the packing. `@oxyhq/services@30.0.0` went out that way from a tree whose `lib/` had never been built: 276 entries against 30.0.1's 2017, `lib/` at zero while `files` still listed it, and 26 of 33 `exports` targets resolving to nothing. Only the `react-native` conditions worked, because those point at `src/` — so Metro was fine and every check anyone ran was green, true, and about a different artefact.
+- **`--dry-run` is not a rehearsal.** It runs `publish` and `postpublish` as well, so any side effect in those (a git tag, a notification, a deploy trigger) happens for real.
+
+**Never publish a services tarball you did not build in the same command.** The pack has to be cut from a tree the build just produced, because `postbuild` is the only thing that runs `packages/services/scripts/verify-package.mjs`:
+
+```bash
+cd packages/services
+bun run build && bun pm pack --destination /tmp/rel   # postbuild verifies the tree the pack is cut from
+bun publish /tmp/rel/oxyhq-services-<version>.tgz     # runs NO scripts, by design
+```
+
+`bun run release` (`rm -rf lib && bun run build && release-it`) already satisfies this — it builds, so the verifier runs, and release-it publishes from the directory, so `prepublishOnly` runs too.
+
+On the tarball path `assert-bun-publish.mjs` is inert, so nothing checks the packer at publish time. What makes it safe is that **bun** cut the tarball, and `verify-package.mjs` re-asserts that from the artefact itself: a surviving `workspace:` or `catalog:` literal in the packed manifest means it was not `bun pm pack`.
+
 ## Import Conventions
 
 ```typescript

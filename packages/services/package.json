@@ -112,6 +112,8 @@
     "typescript": "tsc --skipLibCheck --noEmit",
     "lint": "biome lint --error-on-warnings ./src",
     "build": "bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view",
+    "postbuild": "node scripts/verify-package.mjs",
+    "verify:package": "node scripts/verify-package.mjs",
     "build:js": "bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun run copy-assets",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
