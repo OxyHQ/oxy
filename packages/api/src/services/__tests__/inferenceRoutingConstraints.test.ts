@@ -51,7 +51,13 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { routingPolicySchema, type RoutingPolicy } from '@oxyhq/contracts';
+import {
+  moneySchema,
+  routingPolicySchema,
+  unitPriceSchema,
+  type RoutingPolicy,
+  type UsageUnit,
+} from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,
@@ -193,7 +199,29 @@ interface DeploymentOptions {
   readonly dedicatedCapacity?: boolean;
   /** Publish the route with no price version, so nothing can be quoted. */
   readonly unpriced?: boolean;
+  /**
+   * The currency this route's price version is denominated in.
+   *
+   * A ceiling in another currency must EXCLUDE the route rather than be converted
+   * to it, so the tests need a route whose numbers look cheap in a currency the
+   * policy does not speak.
+   */
+  readonly priceCurrency?: string;
+  /**
+   * What the version publishes a price for, and at what rate.
+   *
+   * An EMPTY array is a meaningful fixture and not an omission: a version that
+   * prices nothing is a route that charges for nothing, which a per-unit ceiling
+   * must read differently from a route with no version at all.
+   */
+  readonly unitPrices?: readonly { unit: UsageUnit; amount: string; per: number }[];
 }
+
+/** What a route costs when a case does not care — the usual token pricing. */
+const DEFAULT_UNIT_PRICES: readonly { unit: UsageUnit; amount: string; per: number }[] = [
+  { unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
+  { unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+];
 
 /**
  * The commercial permission each audience requires.
@@ -236,24 +264,17 @@ async function insertDeployment(
       modelReference: model.modelReference,
       provider: providerSlug,
       status: 'active',
+      currency: options.priceCurrency ?? 'USD',
       effectiveFrom: new Date(Date.now() - 60_000),
     })
     .returning({ id: priceVersions.id });
 
-  await db.insert(priceVersionUnitPrices).values([
-    {
-      priceVersionId: priceVersion.id,
-      unit: 'input_tokens',
-      amount: '3.000000000000',
-      per: 1_000_000,
-    },
-    {
-      priceVersionId: priceVersion.id,
-      unit: 'output_tokens',
-      amount: '15.000000000000',
-      per: 1_000_000,
-    },
-  ]);
+  const unitPrices = options.unitPrices ?? DEFAULT_UNIT_PRICES;
+  if (unitPrices.length > 0) {
+    await db.insert(priceVersionUnitPrices).values(
+      unitPrices.map((unitPrice) => ({ priceVersionId: priceVersion.id, ...unitPrice }))
+    );
+  }
 
   await db.insert(inferenceDeployments).values({
     modelRevisionId: model.revisionId,
@@ -280,6 +301,20 @@ async function insertDeployment(
 /** The constraints a policy with exactly these controls set would impose. */
 function constrain(overrides: Partial<RoutingConstraints>): RoutingConstraints {
   return { ...UNCONSTRAINED_ROUTING, ...overrides };
+}
+
+/**
+ * A per-unit ceiling, built through the money contract so its amount is the
+ * BRANDED exact decimal a policy really carries — never a bare string that
+ * happens to look like one.
+ */
+function unitCeiling(unit: UsageUnit, amount: string, per: number, currency = 'USD') {
+  return unitPriceSchema.parse({ unit, amount, per, currency });
+}
+
+/** A ceiling on the whole request, built the same way. */
+function requestCeiling(amount: string, currency = 'USD') {
+  return moneySchema.parse({ amount, currency });
 }
 
 /** The provider a request resolves to, or the refusal it produced instead. */
@@ -572,6 +607,363 @@ describe('byokPreference', () => {
     await expect(
       servingProvider(model.modelId, constrain({ byokPreference: 'disabled' }))
     ).resolves.toBe(shared.providerSlug);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  1b. The price ceilings                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The two ceilings differ from every control above in WHERE the value they
+ * compare against lives: not on the deployment row but on the price version that
+ * row names, in the ledger's tables. So each case plants a real price and asserts
+ * against a real comparison.
+ *
+ * Every case here carries its own positive control, and the controls are chosen
+ * to fail a SPECIFIC wrong implementation rather than merely to be green:
+ *
+ *  - a looser ceiling over the SAME pair, which a deleted comparison passes and
+ *    a deleted comparison also passes the strict case — so the pair together is
+ *    the mutation guard, exactly as the data-handling cases above;
+ *  - the same route under a same-currency ceiling, which a dropped currency check
+ *    would let through;
+ *  - a ceiling quoted per ONE token against a price quoted per a million, which a
+ *    comparison that forgot to normalise `per` gets wrong in both directions.
+ */
+describe('maxPricePerUnit', () => {
+  it('withholds the route priced above the ceiling and serves the one below it', async () => {
+    const model = await insertModel();
+    // The expensive route sorts FIRST, so a filter that does not compare prices
+    // serves it and the first assertion goes red.
+    const expensive = await insertDeployment(model, {
+      rank: 'a',
+      unitPrices: [{ unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 }],
+    });
+    const cheap = await insertDeployment(model, {
+      rank: 'z',
+      unitPrices: [{ unit: 'output_tokens', amount: '5.000000000000', per: 1_000_000 }],
+    });
+
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({ maxPricePerUnit: [unitCeiling('output_tokens', '10.000000000000', 1_000_000)] })
+      )
+    ).resolves.toBe(cheap.providerSlug);
+
+    // POSITIVE CONTROL, and the mutation guard: the same pair under a ceiling
+    // both routes satisfy resolves to the EXPENSIVE one, because it sorts first.
+    // Delete the comparison and the assertion above returns this provider too.
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({ maxPricePerUnit: [unitCeiling('output_tokens', '20.000000000000', 1_000_000)] })
+      )
+    ).resolves.toBe(expensive.providerSlug);
+  });
+
+  it('admits a price exactly AT the ceiling', async () => {
+    // "At most X" that refused X would be a ceiling nobody could set on the price
+    // they are quoted. The boundary is the whole content of this case, so it is
+    // asserted rather than left to whichever comparison operator was typed.
+    const model = await insertModel();
+    const route = await insertDeployment(model, {
+      rank: 'a',
+      unitPrices: [{ unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 }],
+    });
+
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({ maxPricePerUnit: [unitCeiling('input_tokens', '3.000000000000', 1_000_000)] })
+      )
+    ).resolves.toBe(route.providerSlug);
+  });
+
+  it('compares RATES, so a ceiling quoted per one token bounds a price quoted per a million', async () => {
+    const model = await insertModel();
+    await insertDeployment(model, {
+      rank: 'a',
+      // $3.00 per 1M input tokens is $0.000003 per token.
+      unitPrices: [{ unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 }],
+    });
+
+    // Below the route's rate: refused. A comparison that ignored `per` would see
+    // 3.000000000000 against 0.000002 and refuse this one too — which is why the
+    // control below is the case that matters.
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({ maxPricePerUnit: [unitCeiling('input_tokens', '0.000002000000', 1)] }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({
+      status: 'policy-excluded',
+      modelReference: model.modelId,
+      constraints: ['maxPricePerUnit'],
+    });
+
+    // CONTROL: one unit of the ceiling ABOVE the route's rate, still a number
+    // millions of times smaller than the price's own `amount`. Only a comparison
+    // that normalises both sides by `per` admits this.
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({ maxPricePerUnit: [unitCeiling('input_tokens', '0.000004000000', 1)] }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toMatchObject({ status: 'resolved' });
+  });
+
+  it('refuses a ceiling in another currency rather than converting it', async () => {
+    // The route is priced at 1.00 EUR per 1M output tokens — numerically far
+    // BELOW a 10.00 USD ceiling, so an implementation that compared the amounts
+    // and ignored the currency would serve it. There is no exchange-rate
+    // authority in this system, so the honest answer is a refusal.
+    const model = await insertModel();
+    const route = await insertDeployment(model, {
+      rank: 'a',
+      priceCurrency: 'EUR',
+      unitPrices: [{ unit: 'output_tokens', amount: '1.000000000000', per: 1_000_000 }],
+    });
+
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({
+          maxPricePerUnit: [unitCeiling('output_tokens', '10.000000000000', 1_000_000, 'USD')],
+        }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({
+      status: 'policy-excluded',
+      modelReference: model.modelId,
+      constraints: ['maxPricePerUnit'],
+    });
+
+    // CONTROL: the SAME route under the SAME number in the route's OWN currency
+    // is served. So the refusal above is the currency and not the amount, and not
+    // a fixture that never landed.
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({
+          maxPricePerUnit: [unitCeiling('output_tokens', '10.000000000000', 1_000_000, 'EUR')],
+        })
+      )
+    ).resolves.toBe(route.providerSlug);
+  });
+
+  it('does not exclude a route for a unit its published price does not charge for', async () => {
+    // A published version is a complete statement of what a route charges for, so
+    // a ceiling on a unit it does not price is trivially kept. The alternative
+    // reading — "unknown, therefore refuse" — would exclude every text model for
+    // a customer who defensively capped video.
+    const model = await insertModel();
+    const route = await insertDeployment(model, {
+      rank: 'a',
+      unitPrices: [{ unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 }],
+    });
+
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({
+          maxPricePerUnit: [unitCeiling('video_milliseconds', '0.000000000001', 1)],
+        })
+      )
+    ).resolves.toBe(route.providerSlug);
+
+    // CONTROL on the same route: a ceiling on the unit it DOES price, below its
+    // rate, refuses. Without this the assertion above would also be satisfied by
+    // an implementation that never compares anything.
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({
+          maxPricePerUnit: [unitCeiling('input_tokens', '1.000000000000', 1_000_000)],
+        }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({
+      status: 'policy-excluded',
+      modelReference: model.modelId,
+      constraints: ['maxPricePerUnit'],
+    });
+  });
+
+  it('excludes a route that publishes NO price, and names the ceiling that did it', async () => {
+    // The default-deny direction, and the one that decides whether a ceiling is
+    // real: a promise about what a request will cost cannot be kept by a route
+    // whose price nobody has published. Admitting it would switch every ceiling
+    // off for exactly the routes Oxy has described least.
+    const model = await insertModel();
+    await insertDeployment(model, { rank: 'a', unpriced: true });
+
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({
+          maxPricePerUnit: [unitCeiling('output_tokens', '999.000000000000', 1_000_000)],
+        }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({
+      status: 'policy-excluded',
+      modelReference: model.modelId,
+      constraints: ['maxPricePerUnit'],
+    });
+
+    // CONTROL: the SAME route with no ceiling in force is the other answer
+    // entirely — an Oxy pricing gap, which is not the customer's to fix. The two
+    // must stay distinguishable, and a ceiling that admitted the route would
+    // report this one in both cases.
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        UNCONSTRAINED_ROUTING,
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({ status: 'unpriced-route', modelReference: model.modelId });
+  });
+});
+
+describe('maxPricePerRequest', () => {
+  it('withholds a route whose flat per-request fee alone exceeds the ceiling', async () => {
+    const model = await insertModel();
+    // `requests` is charged once per request whatever the token counts turn out
+    // to be, so this fee is a floor on what one request costs on this route.
+    const expensive = await insertDeployment(model, {
+      rank: 'a',
+      unitPrices: [{ unit: 'requests', amount: '0.050000000000', per: 1 }],
+    });
+    const cheap = await insertDeployment(model, {
+      rank: 'z',
+      unitPrices: [{ unit: 'requests', amount: '0.001000000000', per: 1 }],
+    });
+
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('0.010000000000') })
+      )
+    ).resolves.toBe(cheap.providerSlug);
+
+    // POSITIVE CONTROL and mutation guard, same shape as every case above: under
+    // a ceiling both routes satisfy, the one that sorts first is served.
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('0.100000000000') })
+      )
+    ).resolves.toBe(expensive.providerSlug);
+  });
+
+  it('refuses when every candidate’s fee exceeds it, naming the ceiling', async () => {
+    const model = await insertModel();
+    await insertDeployment(model, {
+      rank: 'a',
+      unitPrices: [{ unit: 'requests', amount: '0.050000000000', per: 1 }],
+    });
+
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('0.010000000000') }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({
+      status: 'policy-excluded',
+      modelReference: model.modelId,
+      constraints: ['maxPricePerRequest'],
+    });
+
+    // CONTROL: the same route under a ceiling it satisfies is served, so the
+    // refusal is the ceiling and not the fixture.
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('1.000000000000') }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toMatchObject({ status: 'resolved' });
+  });
+
+  it('refuses a fee quoted in another currency rather than converting it', async () => {
+    const model = await insertModel();
+    const route = await insertDeployment(model, {
+      rank: 'a',
+      priceCurrency: 'EUR',
+      unitPrices: [{ unit: 'requests', amount: '0.001000000000', per: 1 }],
+    });
+
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('1.000000000000', 'USD') }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({
+      status: 'policy-excluded',
+      modelReference: model.modelId,
+      constraints: ['maxPricePerRequest'],
+    });
+
+    await expect(
+      servingProvider(
+        model.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('1.000000000000', 'EUR') })
+      )
+    ).resolves.toBe(route.providerSlug);
+  });
+
+  it('excludes a route that publishes NO price, and admits one that charges no per-request fee', async () => {
+    // Two absences that must NOT get the same answer, which is the whole of the
+    // decision this control rests on.
+    const unpricedModel = await insertModel();
+    await insertDeployment(unpricedModel, { rank: 'a', unpriced: true });
+
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        unpricedModel.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('1.000000000000') }),
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({
+      status: 'policy-excluded',
+      modelReference: unpricedModel.modelId,
+      constraints: ['maxPricePerRequest'],
+    });
+
+    // A route that publishes a price and charges NO flat fee has nothing
+    // unavoidable to compare, so it is admitted. This is also the limit of what
+    // this filter enforces, stated as a test rather than left to be discovered:
+    // the ESTIMATED cost of a particular request against the same ceiling is the
+    // edge's check, beside the quote, and it does not exist yet. A per-request
+    // ceiling is therefore not a complete spend control.
+    const pricedModel = await insertModel();
+    const route = await insertDeployment(pricedModel, {
+      rank: 'a',
+      unitPrices: [{ unit: 'output_tokens', amount: '900.000000000000', per: 1_000_000 }],
+    });
+
+    await expect(
+      servingProvider(
+        pricedModel.modelId,
+        constrain({ maxPricePerRequest: requestCeiling('0.000001000000') })
+      )
+    ).resolves.toBe(route.providerSlug);
   });
 });
 
@@ -898,6 +1290,18 @@ describe('the classification covers the contract exactly', () => {
     }
     for (const field of enforced) {
       expect(unfiltered).not.toContain(field);
+    }
+  });
+
+  it('classifies both price ceilings as ENFORCED, and no longer as inert', () => {
+    // Named one by one rather than left to the set arithmetic above. That test
+    // holds for any partition of the controls, including the one where both
+    // ceilings sit in `UNFILTERED_ROUTING_CONTROLS` — which is exactly the state
+    // this change moved them out of, and exactly the state a later edit could put
+    // them back into while every other assertion here stayed green.
+    for (const ceiling of ['maxPricePerUnit', 'maxPricePerRequest'] as const) {
+      expect(Object.keys(UNCONSTRAINED_ROUTING)).toContain(ceiling);
+      expect(Object.keys(UNFILTERED_ROUTING_CONTROLS)).not.toContain(ceiling);
     }
   });
 

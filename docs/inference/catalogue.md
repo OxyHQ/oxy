@@ -229,12 +229,18 @@ and never served as though the policy were absent. A model that does not exist,
 or that your credential may not see, still answers `model_not_found` — the two
 are kept distinct because only one of them is yours to fix.
 
-Two ceilings are **not** enforced yet and should not be relied on:
-`maxPricePerUnit` and `maxPricePerRequest`. They are stored, validated and
-versioned, but nothing filters on them — a price lives on the ledger's price
-versions and a request's cost is only known after a route is priced.
-`optimiseFor` is a ranking among routes that already qualify and belongs to the
-data plane (ADR 0006). The classification is kept in code, beside the filter, in
+`maxPricePerUnit` and `maxPricePerRequest` are enforced against the price version
+the route is actually charged at: a rate above your ceiling, a price in a
+currency your ceiling is not quoted in, and a route with no published price at
+all are all excluded. A unit the route's price does not charge for is not.
+`maxPricePerRequest` bounds the route's flat per-request fee here; the estimated
+cost of one particular request is the edge's check and is not implemented, so it
+is not yet a complete spend control. Full rules:
+[routing.md](./routing.md#the-price-ceilings).
+
+`optimiseFor` is the one control that is not enforced: it ranks the routes that
+already qualify, and ranking belongs to the data plane (ADR 0006). The
+classification is kept in code, beside the filter, in
 `UNFILTERED_ROUTING_CONTROLS`, and a control in neither list fails the build.
 
 ## What Oxy never exposes

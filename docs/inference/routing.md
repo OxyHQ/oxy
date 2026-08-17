@@ -6,10 +6,10 @@ it (ADR 0006).
 
 **Read [What is enforced today](#what-is-enforced-today) before relying on any
 control on this page.** Policies are stored, validated, versioned, inherited, and
-the exact version a request ran under is recorded on its receipt. Eleven of the
-controls are now also applied to the candidate routes before one is chosen, and
-a request no route satisfies is REFUSED rather than downgraded. Two are not
-enforced and are named as such.
+the exact version a request ran under is recorded on its receipt. Thirteen of
+the controls are now also applied to the candidate routes before one is chosen,
+and a request no route satisfies is REFUSED rather than downgraded. One is not
+enforced and is named as such.
 
 Status of the whole platform: [README.md](./README.md).
 
@@ -173,14 +173,18 @@ This is the part to read twice.
 
 ### Enforced against the candidate routes
 
-Eleven controls are applied to the whole candidate set **before** one is picked,
-so a conforming route ranked second is served rather than a non-conforming route
-ranked first:
+Thirteen controls are applied to the whole candidate set **before** one is
+picked, so a conforming route ranked second is served rather than a
+non-conforming route ranked first:
 
 `requireZeroDataRetention`, `prohibitTrainingOnCustomerData`,
 `requireCommercialUseRights`, `allowedLicenseIds`, `providerAllowlist`,
 `providerDenylist`, `allowedRegions`, `deniedRegions`, `oxyHostedOnly`,
-`byokPreference`, `dedicatedCapacity`.
+`byokPreference`, `dedicatedCapacity`, `maxPricePerUnit`, `maxPricePerRequest`.
+
+The last two read the candidate's published price rather than a column on the
+route, and their edges are their own section: [the price
+ceilings](#the-price-ceilings).
 
 **When no candidate satisfies your policy the request is REFUSED**, with
 `policy_violation` (403, never retryable), and the message names the controls
@@ -207,27 +211,46 @@ Three of the controls read the DEPLOYMENT's own data policy rather than the
 provider organisation's default, because a zero-retention endpoint from a
 provider that otherwise retains is a real and important case.
 
+### The price ceilings
+
+Both are compared against the price version the candidate route is **actually
+charged at** — the one a hold is sized against and the receipt is settled at, not
+whichever version happens to be `active` for that model and provider now.
+
+- **`maxPricePerUnit`** — for each unit you cap, the route's published rate for
+  that same unit. Rates are compared as rates, so a ceiling of `$0.000004` per
+  one token bounds a price of `$3.00` per a million; a price exactly AT the
+  ceiling is admitted.
+- **`maxPricePerRequest`** — the route's flat `requests` fee, which is charged
+  once per request whatever the token counts turn out to be, so a route whose fee
+  alone exceeds your ceiling can never serve a request within it.
+
+Three edges, decided rather than left to whichever branch was written first:
+
+- **A ceiling in a different currency from the route's price EXCLUDES the route.**
+  It is never converted — there is no exchange-rate authority in this system, and
+  a comparison across currencies is not a comparison. All the ceilings in one
+  policy share a currency by construction.
+- **A route that publishes NO price at all is EXCLUDED by any ceiling.** A promise
+  about what a request will cost cannot be kept by a route whose price nobody has
+  published. With no ceiling set, the same route answers `no_route_available` with
+  an unpriced-route reason instead, which is an Oxy gap rather than yours.
+- **A unit the route's published price does not charge for does NOT exclude it.**
+  A published version states what a route charges for completely, so a ceiling on
+  something it never bills is trivially kept — capping `video_milliseconds` does
+  not withhold every text model.
+
+**`maxPricePerRequest` is not yet a complete spend control.** What is enforced is
+the candidate-level floor above; comparing the ESTIMATED cost of one particular
+request against the same limit belongs at the edge, beside the quote, and is not
+implemented. What bounds spend is the reservation, the account balance and the
+spending limits — see [billing.md](./billing.md#spending-limits).
+
 ### Not enforced
 
-Three, and each is named in code beside the filter, in
-`UNFILTERED_ROUTING_CONTROLS`, with its reason. A control that ends up in neither
-list fails `tsc` by name, so this list cannot silently grow.
-
-Two need a different mechanism:
-
-- **`maxPricePerUnit`** — a candidate's price lives on the ledger's price
-  versions, and comparing exact decimals is arithmetic this repository does
-  exclusively in SQL. A ceiling also has to decide what an unpriced route and a
-  foreign-currency ceiling mean. Reported rather than half-enforced.
-- **`maxPricePerRequest`** — cannot be a candidate filter at all: what a REQUEST
-  costs is only known once its unit ceiling has been estimated, which happens
-  after a route is chosen and priced. Its home is the edge, beside the quote.
-
-**Do not rely on either as a spend control.** What bounds spend is the
-reservation, the account balance and the spending limits — see
-[billing.md](./billing.md#spending-limits).
-
-One belongs somewhere else entirely:
+One, named in code beside the filter, in `UNFILTERED_ROUTING_CONTROLS`, with its
+reason. A control that ends up in neither list fails `tsc` by name, so this list
+cannot silently grow.
 
 - **`optimiseFor`** — a RANKING among the routes that already qualify, which is
   routing execution and therefore the data plane's (ADR 0006). It can never
@@ -235,11 +258,14 @@ One belongs somewhere else entirely:
   a routing decision with no way to test the choice. Nothing ranks today, because
   there is no data plane.
 
-Enforcement of the other eleven landed in
+Enforcement of eleven controls landed in
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
 [#1011](https://github.com/OxyHQ/oxy/issues/1011), which is where the reasoning
 about why a stored-but-unenforced compliance constraint is worse than a missing
-feature is recorded. Measured on `main` at `da404475`.
+feature is recorded. The two price ceilings were the last of the inert ones and
+were enforced under [#972](https://github.com/OxyHQ/oxy/issues/972); they left
+`UNFILTERED_ROUTING_CONTROLS` in the same change, because a control listed as
+inert while it filters is the next reader's bug.
 
 ### Route-switch records exist and nothing writes one
 
@@ -253,14 +279,16 @@ evidence that no switch happened.
 
 ## How to use this today
 
-Configure the policy you actually want. Eleven of its controls decide which
+Configure the policy you actually want. Thirteen of its controls decide which
 routes qualify, and a request none of them satisfies fails loudly rather than
 being served by something you forbade.
 
 Two caveats that matter more than they look:
 
-- **The price ceilings are not spend controls.** Use a spending limit and the
-  account balance — see [billing.md](./billing.md#spending-limits).
+- **A price ceiling is not a complete spend control.** It bounds the RATE a route
+  may charge you at, and for a whole request only the flat per-request fee — not
+  what a particular request adds up to. Use a spending limit and the account
+  balance for that — see [billing.md](./billing.md#spending-limits).
 - **You cannot observe any of it yet.** The catalogue is empty, so no candidate
   is ever filtered in practice; every model you name answers `model_not_found`
   first. The enforcement is real and tested against fixtures that supply their
