@@ -99,12 +99,18 @@ export interface RelayCompletion {
    * `stream` flag, so carrying them here costs nothing and is what lets one
    * writer serve both dialects.
    *
-   * Empty for the ordinary request that was served by the route it was admitted
-   * on, which is why it is not optional: "no switches" is a fact, and an absent
-   * array would make it indistinguishable from a client that does not report
-   * them.
+   * **OPTIONAL, and absent means the same as empty.** It was briefly required, on
+   * the argument that "no switches" is a fact a producer should state — which
+   * bought nothing and cost an outage. `packages/api/tsconfig.json` excludes
+   * `src/**\/__tests__/**`, so a fake omitting a required field is not a type
+   * error anywhere; the requirement was enforced only by each author remembering
+   * it, and the consumer's `for…of` then threw AFTER the hold was settled, which
+   * turns a served request into a 500 with the money already taken. A field whose
+   * absence is a crash must not depend on memory. `httpRelayClient` still always
+   * sets it, so a real completion still distinguishes "reported none" from
+   * "did not report" — by construction rather than by type.
    */
-  readonly routeSwitchEvents: readonly InferenceStreamRouteSwitchEvent[];
+  readonly routeSwitchEvents?: readonly InferenceStreamRouteSwitchEvent[];
 }
 
 /**

@@ -61,6 +61,7 @@ import {
 } from '../../db/schema';
 import { inferenceRouteSwitchEvents } from '../../db/schema/inferenceRouteSwitchEvents';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
+import { usageReceipts } from '../../db/schema/usageReceipts';
 import { users } from '../../db/schema/users';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
 import {
@@ -973,5 +974,91 @@ describe('a switch reported for another request', () => {
         (call) => call[0] === 'inference.edge.route_switch_request_mismatch'
       )
     ).toHaveLength(1);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  A client that reports no switches at all                                  */
+/* -------------------------------------------------------------------------- */
+
+describe('a completion carrying no routeSwitchEvents field', () => {
+  it('is served and settled normally, recording no notices', async () => {
+    // THE regression this case exists for. `routeSwitchEvents` was briefly a
+    // REQUIRED field, and the edge iterated it unguarded — so a completion built
+    // without it threw `is not iterable` at a line that runs AFTER the hold is
+    // settled, turning a charged request into a 500 with the money already taken.
+    //
+    // It reached `main` because nothing could catch it: `packages/api/tsconfig.json`
+    // excludes `src/**\/__tests__/**`, so a hand-built completion omitting a
+    // required field is not a type error, and the only two suites that constructed
+    // one were both updated by the same commit that added the field. A third
+    // arrived from a PR written in parallel and `main` went red.
+    //
+    // So the object below deliberately does NOT set the field, and is typed
+    // `RelayCompletion` so this stays a statement about the published shape rather
+    // than about an untyped literal.
+    const fixture = await makeFixture();
+    await givePolicy(fixture);
+
+    const withoutTheField: RelayClient = {
+      execute: async (envelope): Promise<RelayCompletion> => {
+        const now = new Date().toISOString();
+        const modelReference =
+          envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
+        return {
+          generationId: `gen-${randomUUID()}`,
+          output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
+          finishReason: 'stop',
+          usage: {
+            schemaVersion: 1,
+            requestId: envelope.attribution.requestId,
+            attribution: envelope.attribution,
+            outcome: 'completed',
+            units: [
+              { unit: 'input_tokens', quantity: 12 },
+              { unit: 'output_tokens', quantity: 20 },
+            ],
+            usageSource: 'provider_reported',
+            resolvedModelReference: modelReference,
+            servingProvider: fixture.provider,
+            routeSwitches: 0,
+            startedAt: now,
+            completedAt: now,
+          },
+        };
+      },
+      stream: () => {
+        throw new Error('this fake serves only non-streaming requests');
+      },
+    };
+
+    await withServer(withoutTheField, async (request) => {
+      const response = await request(
+        '/v1/responses',
+        responsesBody(fixture),
+        bearer(fixture.token)
+      );
+      // 200, not 500. Before the guard this was a 500 with the hold already
+      // settled — the failure mode that makes this worth a case of its own.
+      expect(response.status).toBe(200);
+      expect(json(response).servingProvider).toBe(fixture.provider);
+    });
+
+    // Absent means the same as empty: no notices, and no error logged about it.
+    await expect(switchesOf(fixture.applicationId)).resolves.toEqual([]);
+    expect(
+      mockedLogger.error.mock.calls.filter((call) =>
+        String(call[0]).startsWith('inference.edge.route_switch')
+      )
+    ).toEqual([]);
+
+    // And the request was CHARGED, which is what makes the 200 above meaningful:
+    // a response that never reached settlement would also be a non-500.
+    const receipts = await getDb()
+      .select({ id: usageReceipts.id, outcome: usageReceipts.outcome })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].outcome).toBe('completed');
   });
 });

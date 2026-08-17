@@ -1027,7 +1027,14 @@ export async function executeInferenceRequest(
   // receipt exists by the time the receipt does; a failure to write one never
   // fails a request that has already been served — see
   // {@link recordEdgeRouteSwitch}.
-  for (const event of completion.routeSwitchEvents) {
+  //
+  // `?? []` because this line sits AFTER the hold is settled: a client that
+  // reported no switches at all must produce zero notices, not an exception that
+  // turns a charged request into a 500 with the money already taken. The field is
+  // optional for that reason and not for convenience — `tsconfig.json` excludes
+  // `__tests__`, so a required field is enforced by nobody in exactly the files
+  // most likely to construct a completion by hand.
+  for (const event of completion.routeSwitchEvents ?? []) {
     await recordEdgeRouteSwitch(context, admitted, event);
   }
 
