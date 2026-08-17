@@ -159,6 +159,7 @@ exactly that shape) — and no metric here derives one from a telemetry sum.
 | Fallback | `fallback` — **`state: 'pending'`** | `.route_switches` |
 | Reserve failures | `reserveFailures.refusedRequests` | events with `status_code = 402` |
 | Settlement lag | `settlementLagMs` — p50/p95/p99/max | `usage_receipts.settled_at − usage_reservations.created_at` |
+| Unmeasured settlements | `unmeasuredSettlements.receiptCount` | `usage_receipts` where `usage_source = 'estimated'` — see below |
 | Reconciliation drift | `reconciliationDrift` | `billing_reconciliation_runs` / `_discrepancies` |
 
 ### Two metrics have NO DATA YET, and say so rather than reporting zero
@@ -210,6 +211,32 @@ One number this metric is NOT: `inference_route_switch_events` is the
 customer-visible record of a switch and has its own writer. `fallback` counts the
 telemetry column instead, so the two are different figures and are deliberately not
 compared here.
+
+### `unmeasuredSettlements` gives a partial index its first reader
+
+`usage_receipts_estimated_idx` is partial on `(settled_at) WHERE usage_source =
+'estimated'` and was commented "the reconciliation queue: estimated receipts
+awaiting a provider's real figures". A census over non-test source finds
+`'estimated'` in exactly three places — the schema enum, the ledger's reason
+mapping, and the index predicate itself — and **no query, job, alert or endpoint**.
+A partial index nothing reads is write amplification on the largest financial
+table, and a queue nobody drains is worse than a documented absence.
+
+Rather than drop the index, this surface reads it, with a query that is
+deliberately the index's own shape: same predicate, ranging on the same leading
+column. The index comment has been corrected too, because "awaiting a provider's
+real figures" implies a drainer that does not exist — there is no ingestion path
+for a provider's retrospective usage.
+
+What these rows actually are: requests the data plane reported nothing for, settled
+at ZERO with refund reason `usage_unavailable`, so the customer was not charged and
+Oxy absorbed the upstream cost. So **a rising count means the data plane is losing
+usage reports**, not that a backlog is building. `settledReceipts` is reported
+beside it as the denominator, and `latestSettledAt` so a stale figure is visibly
+stale.
+
+Distinct from a `zero-usage` REFUSAL ([billing.md](./billing.md#refuse-never-estimate-972-73)),
+which writes no receipt at all and therefore never appears here.
 
 ### There is no latency column on the rollup, deliberately
 

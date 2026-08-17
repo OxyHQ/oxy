@@ -797,6 +797,23 @@ export type SettleResult =
       readonly reservedAmount: string;
     }
   | {
+      /**
+       * A `completed` request that metered nothing (#972 §7.3). REFUSED, never
+       * estimated — see {@link settle}'s "A completed request consumed something".
+       */
+      readonly status: 'zero-usage';
+      /**
+       * How many unit keys the report carried, every one of them zero.
+       *
+       * `0` means the report named no units at all; a positive number means it
+       * named units and reported zero for each. Both are refused, and the
+       * difference is what tells an operator whether the provider omitted the
+       * usage block or filled it with zeros — two different upstream bugs with
+       * the same effect on a bill.
+       */
+      readonly reportedUnitKeys: number;
+    }
+  | {
       readonly status: 'insufficient-funds';
       readonly available: string;
       readonly required: string;
@@ -817,6 +834,33 @@ export type SettleResult =
  * silently dropped by the join. A join that quietly omits an unpriced unit
  * undercharges, and undercharging is the failure that looks like everything
  * working.
+ *
+ * ## A completed request consumed something: refuse, never estimate (#972 §7.3)
+ *
+ * A `completed` outcome carrying no metered units is refused with
+ * `zero-usage`. Nothing is written — no receipt, no refund, no journal entry —
+ * so the hold stands and the sweeper returns the customer's money on its own,
+ * while the caller's existing loud branch makes the provider bug visible.
+ *
+ * The alternative was to estimate and charge, and the trade is not symmetric.
+ * Refusing costs OXY the upstream spend on a rare provider bug. Estimating costs
+ * the CUSTOMER money nobody can reconcile afterwards, which is the case
+ * `usageReceipts`' own header already refuses: "an estimate indistinguishable
+ * from a reported figure is one nobody can reconcile". So the loss is taken on
+ * the side that can absorb it and can see it.
+ *
+ * **`failed`, `cancelled` and `partial` with zero units still settle at zero, and
+ * must keep doing so.** Nothing was delivered, so zero is the correct charge, and
+ * a zero-unit receipt is how ADR 0009 records an upstream failure that produced
+ * nothing. The bug is specifically a request that claims to have COMPLETED and
+ * accounts for nothing.
+ *
+ * This is the api-side half of a guarantee whose other half is on the wire.
+ * `inferenceUsageReportSchema` now refuses `completed` with an EMPTY unit array,
+ * so that shape is unrepresentable — but `usageQuantitySchema` allows
+ * `quantity: 0`, so `[{ unit: 'input_tokens', quantity: 0 }]` still validates and
+ * still arrives here as zero usage. The schema closes "no units"; this closes
+ * "units that sum to zero", and only the pair closes the free request.
  */
 export async function settle(input: SettleInput): Promise<SettleResult> {
   return getDb().transaction(async (tx): Promise<SettleResult> => {
@@ -834,6 +878,16 @@ export async function settle(input: SettleInput): Promise<SettleResult> {
     const existing = await findReceiptByKey(tx, input.idempotencyKey);
     if (existing) {
       return { status: 'already-settled', receipt: existing };
+    }
+
+    /*
+     * Ordered deliberately: AFTER the idempotency read, so a retry of a
+     * settlement that already succeeded still answers `already-settled` rather
+     * than re-litigating its usage, and BEFORE `computeCharge`, because a refusal
+     * that needs no query should not run one.
+     */
+    if (input.outcome === 'completed' && totalMeteredUnits(input.units) === 0) {
+      return { status: 'zero-usage', reportedUnitKeys: Object.keys(input.units).length };
     }
 
     const charge = await computeCharge(tx, input.priceVersionId, input.units);
@@ -1886,11 +1940,33 @@ async function applySettlementBalance(
 }
 
 /**
+ * Everything the report says was consumed, as one number.
+ *
+ * Sums the VALUES rather than counting the keys, because a report that names
+ * eleven units and reports zero for each has metered nothing — and it is the
+ * shape the wire schema still admits, since `usageQuantitySchema` allows
+ * `quantity: 0`. Counting keys would read that as usage.
+ *
+ * A negative quantity cannot reach here (the contract's `nonnegative()`, and the
+ * table's own CHECK), so a total of zero means every unit is zero rather than
+ * some cancelling out.
+ */
+function totalMeteredUnits(units: Partial<Record<UsageUnit, number>>): number {
+  return Object.values(units).reduce((total, quantity) => total + (quantity ?? 0), 0);
+}
+
+/**
  * The customer-facing reason a hold's remainder came back.
  *
  * `usage_unavailable` wins over the outcome: a provider that returned no usage
  * at all is the fact worth recording, because it is the one that makes a receipt
  * reconcilable later. Everything else maps straight from ADR 0009's own table.
+ *
+ * There is deliberately no reason here for a `completed` report that metered
+ * nothing: `settle` refuses that with `zero-usage` before anything is written, so
+ * no refund row exists to carry a reason. The hold's remainder comes back through
+ * the expiry sweep instead — see `settle`'s own "A completed request consumed
+ * something".
  */
 function releaseReason(outcome: InferenceRequestOutcome, usageSource: UsageSource): UsageRefundReason {
   if (usageSource === 'estimated') return 'usage_unavailable';

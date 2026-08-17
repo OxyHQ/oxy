@@ -699,6 +699,219 @@ describe('settle charges the exact usage and releases the rest atomically', () =
  * arithmetic accident, and so a cache discount and a reasoning price are each
  * exercised as their own line rather than inheriting a parent's.
  */
+/* ==========================================================================
+ * A completed request consumed something (#972 §7.3)
+ * ========================================================================== */
+
+/**
+ * ## The bug this closes
+ *
+ * A `completed` settlement carrying no metered units billed nothing, so a
+ * provider that omitted its usage block yielded a silently FREE request. The
+ * policy is refuse-and-release, never estimate: refusing costs Oxy the upstream
+ * spend on a rare provider bug, while estimating costs the customer money nobody
+ * can reconcile.
+ *
+ * ## What makes each claim falsifiable
+ *
+ * "It was refused" is worthless on its own — a `settle` that refused everything
+ * would satisfy it. So every refusal here is paired with the SAME fixture settling
+ * normally, and each asserts the two things a refusal has to get right beyond the
+ * status: **nothing was written** (no receipt, no refund, no journal entry) and
+ * **the hold still stands**, because that is what returns the customer's money
+ * through the sweeper rather than stranding it.
+ *
+ * The three-way pairing is the point: `completed` + zero is refused, `completed` +
+ * usage settles, and `failed`/`cancelled`/`partial` + zero STILL settle at zero.
+ * Without that third arm this suite would pass for a change that refused every
+ * zero-unit settlement, which would break the upstream-failure path ADR 0009
+ * depends on.
+ */
+describe('a completed request that metered nothing is refused, not estimated', () => {
+  /** Reserve, then settle with whatever the caller wants to report. */
+  async function reserveThenSettle(
+    f: Fixture,
+    outcome: 'completed' | 'failed' | 'cancelled' | 'partial',
+    units: Record<string, number>
+  ) {
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: f.priceVersionId,
+      maxAmount: '1.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error(`reserve failed: ${reserved.status}`);
+
+    const settled = await settle({
+      idempotencyKey: `s-${randomUUID()}`,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome,
+      usageSource: 'provider_reported',
+      units,
+      resolvedModelReference: 'oxy/test',
+      servingProvider: 'oxy-hosted',
+      priceVersionId: f.priceVersionId,
+    });
+    return { reservationId: reserved.reservation.reservationId, settled };
+  }
+
+  /** Everything a settlement would have written, for the "nothing" assertion. */
+  async function writesFor(accountId: string, reservationId: string) {
+    const db = getDb();
+    const [receipts] = await db
+      .select({ n: sql<string>`count(*)::text` })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, accountId));
+    const [refunds] = await db
+      .select({ n: sql<string>`count(*)::text` })
+      .from(usageRefunds)
+      .where(eq(usageRefunds.accountId, accountId));
+    const [entries] = await db
+      .select({ n: sql<string>`count(*)::text` })
+      .from(billingLedgerEntries)
+      .where(eq(billingLedgerEntries.reservationId, reservationId));
+    const [reservation] = await db
+      .select({ status: usageReservations.status })
+      .from(usageReservations)
+      .where(eq(usageReservations.id, reservationId))
+      .limit(1);
+    return {
+      receipts: Number(receipts.n),
+      refunds: Number(refunds.n),
+      entries: Number(entries.n),
+      reservationStatus: reservation?.status,
+    };
+  }
+
+  it('refuses a report that names no units at all, and writes nothing', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const { reservationId, settled } = await reserveThenSettle(f, 'completed', {});
+
+    expect(settled.status).toBe('zero-usage');
+    if (settled.status !== 'zero-usage') return;
+    // `0` keys means the provider omitted the usage block entirely — a different
+    // upstream bug from filling it with zeros, and the reason this is reported.
+    expect(settled.reportedUnitKeys).toBe(0);
+
+    const writes = await writesFor(f.accountId, reservationId);
+    expect(writes).toEqual({
+      receipts: 0,
+      refunds: 0,
+      entries: 1, // the reservation_hold from `reserve`, and nothing since.
+      // The hold STANDS. This is what returns the money through the sweeper; a
+      // refusal that released it here would look identical in the status and
+      // would drop the evidence that a request was served and not charged.
+      reservationStatus: 'held',
+    });
+
+    // And the money is still held, not returned and not taken.
+    const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+    await expectAmount(balance?.reservedBalance ?? 'missing', '1.000000000000');
+    await expectAmount(balance?.purchasedBalance ?? 'missing', '9.000000000000');
+  });
+
+  it('refuses a report whose units are all present and all zero', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    // The residual the wire schema does NOT close: `usageQuantitySchema` allows
+    // `quantity: 0`, so this shape validates on the wire and arrives here.
+    const { settled } = await reserveThenSettle(f, 'completed', {
+      input_tokens: 0,
+      output_tokens: 0,
+    });
+
+    expect(settled.status).toBe('zero-usage');
+    if (settled.status !== 'zero-usage') return;
+    // Two keys, both zero — distinguishable in the log from the omitted case.
+    expect(settled.reportedUnitKeys).toBe(2);
+  });
+
+  it('CONTROL: the same fixture settles when one unit is non-zero', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    // One input token and no output at all — the smallest report that is real.
+    const { reservationId, settled } = await reserveThenSettle(f, 'completed', {
+      input_tokens: 1,
+      output_tokens: 0,
+    });
+
+    expect(settled.status).toBe('settled');
+    if (settled.status !== 'settled') return;
+    // $3/M x 1 = 0.000003 exactly.
+    await expectAmount(settled.receipt.billedAmount, '0.000003000000');
+
+    const writes = await writesFor(f.accountId, reservationId);
+    expect(writes.receipts).toBe(1);
+    expect(writes.reservationStatus).toBe('settled');
+  });
+
+  it('CONTROL: failed, cancelled and partial with zero units STILL settle at zero', async () => {
+    // The arm that stops this change breaking ADR 0009's upstream-failure path.
+    // Nothing was delivered, so zero is the correct charge and a zero-unit receipt
+    // is how that is recorded.
+    for (const outcome of ['failed', 'cancelled', 'partial'] as const) {
+      const f = await makeFixture({ fund: '10.000000000000' });
+      const { reservationId, settled } = await reserveThenSettle(f, outcome, {});
+
+      expect(settled.status).toBe('settled');
+      if (settled.status !== 'settled') return;
+      await expectAmount(settled.receipt.billedAmount, '0');
+
+      const writes = await writesFor(f.accountId, reservationId);
+      expect(writes.receipts).toBe(1);
+      expect(writes.reservationStatus).toBe('settled');
+      // The whole hold came back, in the same settlement.
+      const balance = await getAccountBalance(getDb(), f.accountId, 'USD');
+      await expectAmount(balance?.purchasedBalance ?? 'missing', '10.000000000000');
+    }
+  });
+
+  it('answers a RETRY of an already-settled request with already-settled, not the refusal', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    const reserved = await reserve({
+      idempotencyKey: `r-${randomUUID()}`,
+      attribution: f.attribution,
+      ceilingPriceVersionId: f.priceVersionId,
+      maxAmount: '1.000000000000',
+      currency: 'USD',
+      expiresInSeconds: 300,
+    });
+    if (reserved.status !== 'reserved') throw new Error('reserve failed');
+
+    const key = `s-${randomUUID()}`;
+    const first = await settle({
+      idempotencyKey: key,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units: { input_tokens: 100 },
+      resolvedModelReference: 'oxy/test',
+      servingProvider: 'oxy-hosted',
+      priceVersionId: f.priceVersionId,
+    });
+    expect(first.status).toBe('settled');
+
+    // The same key replayed, this time with the usage lost. The idempotency read
+    // comes FIRST, so the settled receipt is returned rather than the request
+    // being re-litigated and refused — which would make a retry look like a
+    // provider bug and hide a charge that already happened.
+    const replay = await settle({
+      idempotencyKey: key,
+      reservationId: reserved.reservation.reservationId,
+      attribution: f.attribution,
+      outcome: 'completed',
+      usageSource: 'provider_reported',
+      units: {},
+      resolvedModelReference: 'oxy/test',
+      servingProvider: 'oxy-hosted',
+      priceVersionId: f.priceVersionId,
+    });
+    expect(replay.status).toBe('already-settled');
+  });
+});
+
 describe('cached and reasoning tokens are priced as siblings, never as details of a total', () => {
   /** What the data plane owes Oxy: the partition, with nothing counted twice. */
   const PARTITIONED = {

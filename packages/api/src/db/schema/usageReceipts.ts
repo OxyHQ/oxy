@@ -226,8 +226,19 @@ export const usageReceipts = pgTable(
     index('usage_receipts_routing_policy_version_id_idx')
       .on(t.routingPolicyVersionId)
       .where(sql`${t.routingPolicyVersionId} is not null`),
-    // The reconciliation queue: estimated receipts awaiting a provider's real
-    // figures. Partial, because they are a small minority of a large table.
+    // Settlements whose usage the data plane never reported: settled at ZERO with
+    // the refund reason `usage_unavailable`, so the customer was not charged and
+    // Oxy absorbed the upstream cost. Partial, because they are a small minority
+    // of a large table.
+    //
+    // This was described as "the reconciliation queue: estimated receipts awaiting
+    // a provider's real figures", and that was aspirational in a way worth
+    // correcting: no ingestion path exists for a provider's retrospective usage,
+    // so nothing arrives to reconcile these against and no job drains them. Read
+    // by `services/inferenceMetrics.service.ts` (`unmeasuredSettlements` on the
+    // staff metrics surface), which uses exactly this shape — same predicate,
+    // ranging on the same leading column. A rising count means the data plane is
+    // losing usage reports, not that a backlog is building.
     index('usage_receipts_estimated_idx')
       .on(t.settledAt)
       .where(sql`${t.usageSource} = 'estimated'`),
