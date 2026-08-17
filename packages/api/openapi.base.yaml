@@ -82,7 +82,13 @@ tags:
       ActivityPub / WebFinger inbox-outbox endpoints for cross-instance
       federation. Routes under /federation/*.
   - name: AI
-    description: AI features — Alia assistant, model usage stats.
+    description: AI features — the Alia assistant proxy.
+  - name: Inference
+    description: >
+      The public inference edge (/v1/*), the model catalogue, and the
+      control-plane surfaces behind it — routing policies, provider
+      connections (BYOK), usage reporting and the staff deployment admin.
+      Routes under /v1/*, /models/* and /inference/*.
   - name: Analytics
     description: Read-only analytics for the authenticated account.
   - name: System
@@ -107,6 +113,17 @@ components:
         Service-to-service JWT obtained from /auth/service-token by exchanging
         a `service`-type ApplicationCredential (publicKey + secret). For
         delegated calls also include `X-Oxy-User-Id: <userId>`.
+    machineCredentialAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: oxy_sk_<id>_<secret>
+      description: >
+        Machine credential for the inference edge, created in the developer
+        console: `oxy_sk_` followed by a 16-hex credential id, an underscore,
+        and a 64-hex secret. Sent as `Authorization: Bearer oxy_sk_...`. It is
+        not a JWT and carries no user identity — the owning account and
+        application come from the credential row. A user session bearer is
+        refused on /v1/*.
     csrfToken:
       type: apiKey
       in: header
