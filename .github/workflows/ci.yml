@@ -369,6 +369,40 @@ jobs:
       - run: bun scripts/test-check-no-payload-persistence.mjs
       - run: bun scripts/check-no-payload-persistence.mjs
 
+  # `packages/console` hand-duplicates the API's two permission vocabularies, and
+  # NOTHING can make that drift a compile error: `@oxyhq/core` types the wire field
+  # `AccountMember.permissions` as `string[]`, so no API type ever flows into
+  # Console's unions, which are consumed only as parameter types whose call sites
+  # pass literals Console itself wrote. #1032 added eleven `inference:*` strings
+  # Console never learned, and `tsc --noEmit` stayed green over all of it.
+  #
+  # Its own job rather than a step inside `console-test` so the check has a NAME in
+  # the required set: `check-ci-complete.mjs` then refuses a run where it is not a
+  # dependency of `CI complete`. `bun install` is for `typescript`, which reads the
+  # Console type aliases with the real compiler instead of a regex; the API module
+  # the gate imports has no dependencies of its own, so nothing needs building.
+  permission-vocabulary:
+    name: Permission Vocabulary
+    runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install
+      # The gate's own fixture cases, run before the gate — both directions of
+      # drift, the vacuity floor on a pair of sets that agree perfectly, and a
+      # permission named only in an apostrophe-heavy doc comment, which is what a
+      # regex census reads as a match that does not exist.
+      - run: bun scripts/test-check-permission-vocabulary.mjs
+      - run: bun scripts/check-permission-vocabulary.mjs
+
   # Two questions about the same journal, both answerable with no database:
   # whether each migration says which side of a deploy it belongs on, and whether
   # the order it is listed in can apply at all.
@@ -739,6 +773,7 @@ jobs:
       - deploy-secrets-sync
       - secret-scan
       - schema-policy
+      - permission-vocabulary
       - migration-phases
       - db-test
       - contracts-test
