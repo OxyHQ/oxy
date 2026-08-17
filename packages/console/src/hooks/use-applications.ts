@@ -69,6 +69,8 @@ const queryKeys = {
   applications: (accountId: string | undefined) => ['applications', accountId ?? null] as const,
   application: (appId: string) => ['application', appId] as const,
   credentials: (appId: string) => ['application-credentials', appId] as const,
+  credentialAudit: (appId: string, credentialId: string) =>
+    ['application-credential-audit', appId, credentialId] as const,
   usage: (appId: string, period: string) => ['application-usage', appId, period] as const,
 };
 
@@ -227,12 +229,87 @@ export function useRotateCredential() {
       appId: string;
       credentialId: string;
     }): Promise<CredentialWithSecret> => oxyServices.rotateAppCredential(appId, credentialId),
-    onSuccess: ({ credential }) => {
+    onSuccess: ({ credential }, { appId, credentialId }) => {
       queryClient.setQueryData<Array<ApplicationCredential>>(
         queryKeys.credentials(credential.applicationId),
         (old) => (old ? old.map((c) => (c._id === credential._id ? credential : c)) : [credential])
       );
+      // A rotation writes the `rotated` row AND the replacement's `created` row,
+      // so an open trail is stale the instant this lands. Invalidated for both
+      // ids: the rotated credential and the one that replaced it.
+      queryClient.invalidateQueries({ queryKey: queryKeys.credentialAudit(appId, credentialId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.credentialAudit(appId, credential._id),
+      });
     },
+  });
+}
+
+/**
+ * One credential's audit trail — `created`, `rotated`, `revoked` and every
+ * refused validation — newest first.
+ *
+ * There is no `select` projection here, and its absence is the point. The BYOK
+ * equivalent (`use-provider-connections.ts`) projects `metadata` away in `select`
+ * because the server sends whole rows and a cache holding that blob is one
+ * component away from printing it. This endpoint has nothing to project: the
+ * server's own wire type, `CredentialAuditTrailEntry`, has no `metadata`
+ * property at all, so the field is absent STRUCTURALLY rather than by this
+ * hook's discipline. Re-adding a projection here would imply the opposite.
+ *
+ * These rows exist BECAUSE a secret was shown exactly once, and they carry none:
+ * the only writer takes ids and closed enums, so there is no parameter a secret
+ * could arrive through.
+ */
+export interface CredentialAuditEvent {
+  readonly eventType: 'created' | 'rotated' | 'revoked' | 'validation_failed';
+  /**
+   * Why a validation was refused. Non-null ONLY on `validation_failed`, which is
+   * also the only event with a null `actorUserId` — two correlated states, not
+   * four independent ones.
+   */
+  readonly reason:
+    | 'secret_mismatch'
+    | 'not_usable'
+    | 'environment_mismatch'
+    | 'application_inactive'
+    | 'scope_missing'
+    | null;
+  /** The member who performed a transition; null on `validation_failed`. */
+  readonly actorUserId: string | null;
+  readonly environment: string | null;
+  readonly createdAt: string;
+  /** A deadline the event established — a rotation's grace end. */
+  readonly effectiveUntil: string | null;
+}
+
+/**
+ * How many events one trail asks for. The server accepts 1–200 and defaults to
+ * 50; this asks for the default rather than the maximum, because a collapsible
+ * trail under one credential row is read, not analysed — a member auditing a
+ * long history wants an export, which is a different surface.
+ */
+const CREDENTIAL_AUDIT_LIMIT = 50;
+
+export function useCredentialAudit(
+  appId: string,
+  credentialId: string | undefined,
+  enabled: boolean = true
+) {
+  const { oxyServices, isAuthenticated, isReady } = useAuth();
+
+  return useQuery({
+    queryKey: queryKeys.credentialAudit(appId, credentialId ?? ''),
+    queryFn: () =>
+      oxyServices.makeRequest<Array<CredentialAuditEvent>>(
+        'GET',
+        `/applications/${appId}/credentials/${credentialId ?? ''}/audit`,
+        { limit: CREDENTIAL_AUDIT_LIMIT },
+        { cache: false }
+      ),
+    enabled: isReady && isAuthenticated && !!appId && !!credentialId && enabled,
+    staleTime: 1000 * 30,
+    retry: 1,
   });
 }
 
@@ -259,6 +336,8 @@ export function useRevokeCredential() {
             )
           : []
       );
+      // The revoke writes a `revoked` row; an open trail must show it.
+      queryClient.invalidateQueries({ queryKey: queryKeys.credentialAudit(appId, credentialId) });
     },
   });
 }
