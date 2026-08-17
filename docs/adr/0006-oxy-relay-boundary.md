@@ -23,14 +23,23 @@ actually charged. None of that needs to know who the customer is beyond an
 opaque identifier, and all of it is latency-critical in a way a control plane is
 not.
 
-**The Relay repository does not exist.** Verified 2026-08-15: `gh repo view
-OxyHQ/Relay` returns `Could not resolve to a Repository with the name
-'OxyHQ/Relay'`. Workstream 13 of the epic is therefore an *external dependency*
-of this epic, not a task inside it: the contracts in this ADR and ADRs 0007–0010
-are written to be implementable against a data plane that does not yet exist,
-and the Oxy side must be buildable and testable before it does.
+**When this ADR was written the Relay repository did not exist** — verified
+2026-08-15, `gh repo view OxyHQ/Relay` returning `Could not resolve to a
+Repository with the name 'OxyHQ/Relay'`. It exists now: public, Go, created
+2026-08-16T11:55:46Z, re-verified 2026-08-17 via `gh api repos/OxyHQ/Relay`.
 
-`Relay` is the production name — see ADR 0011, which is closed.
+That changes nothing about this ADR's decision, and the reason is worth keeping:
+workstream 13 is an *external dependency* of this epic rather than a task inside
+it, so the contracts in this ADR and in ADRs 0007–0010 were written to be
+implementable against a counterparty that did not exist, and the Oxy side had to
+be buildable and testable before it did. **Nothing Oxy can reach has changed** —
+no deployment, no endpoint, and `services/relayClient.ts` still refuses every
+invoke — so the abstraction the constraint forced is exactly as load-bearing as it
+was.
+
+`Relay` is the production name — see ADR 0011, which is closed. The wire
+fields below stay role-named regardless — that is ADR 0010's rule, not a hedge
+against a rename.
 
 ## Decision
 

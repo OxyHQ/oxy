@@ -3,8 +3,8 @@
 #972 asks for "explicit deprecation and sunset dates before removing
 compatibility paths". **This page publishes no date, because there is none to
 publish and inventing one would be worse than omitting it.** What it does
-publish is the policy a date will be issued under, and the list of things that
-will need one.
+publish is the policy a date will be issued under — **adopted 2026-08-17, and
+binding** — and the list of things that will need one.
 
 Status of the whole platform: [README.md](./README.md).
 
@@ -30,9 +30,13 @@ relative to, published to an audience of nobody, and stale before it applied.
 
 ## The policy
 
-**Proposed, and awaiting the owner's confirmation.** It is written in windows
-relative to events rather than calendar dates, so it can be adopted now and
-still be true later.
+**Adopted 2026-08-17** by the owner, as written. It is expressed in windows
+relative to events rather than calendar dates, which is what let it be adopted
+before there is a launch for a date to be relative to — and is why adopting it
+publishes no date and invents none.
+
+Adopted means binding: the windows below are the minimum notice a removal owes,
+and a removal that cannot show its notice is not ready to merge.
 
 ### What a deprecation notice must carry
 

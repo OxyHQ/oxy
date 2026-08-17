@@ -706,6 +706,61 @@ jobs:
         run: bun run test
         working-directory: ./packages/console
 
+  # packages/api/openapi.json must describe the API it claims to
+  # (see scripts/check-openapi-fresh.mjs).
+  #
+  # The generator walks only route files present in a hand-maintained MOUNT_MAP
+  # and silently skips any file absent from it — a clean exit with the routes
+  # simply not in the document. Measured before this job existed: the entire
+  # inference surface was missing while the deprecated Alia proxy was described,
+  # `/models/stats` was described from a route file deleted a fortnight earlier,
+  # and 128 authenticated operations were published as needing no credential.
+  # Nothing failed.
+  #
+  # Deliberately NOT a diff alone: the committed document matched what the map
+  # produced through all of it, and a diff stays green forever when a map entry
+  # is dropped and the artifact regenerated in the same commit. The check asserts
+  # the surface by NAME and the credential requirement by rule as well.
+  openapi-contract:
+    name: OpenAPI Contract
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install
+
+      # The generator imports src/schemas/**, which reach @oxyhq/contracts, and it
+      # REFUSES to write a partial document when a schema module cannot be
+      # imported — it names this sequence itself when they are missing.
+      #
+      # @oxyhq/protocol is here even though nothing in packages/api imports it
+      # directly: core's BUILT esm output (`dist/esm/crypto/polyfill.js`) imports
+      # it at RUNTIME. Measured on a cold tree — `@oxyhq/core build` SUCCEEDS
+      # without protocol's dist, and the generator then dies importing
+      # auth.schemas.ts. A build-order list derived from what compiles is not the
+      # same list as what runs.
+      #
+      # packages/api's own `tsc` is deliberately not run: the generator executes
+      # the route TypeScript through bun rather than from dist/, so `api-build`
+      # already owns that check and this job does not repeat it.
+      - name: Build the workspace deps the generator reads
+        run: |
+          bun run --filter @oxyhq/contracts build
+          bun run --filter @oxyhq/protocol build
+          bun run --filter @oxyhq/core build
+          bun run --filter @oxyhq/db build
+
+      # The gate's own fixture tests, including the positive control: an entry
+      # removed from a fixture MOUNT_MAP with the artifact regenerated in the same
+      # commit, so the freshness layer is green and only the by-name layer fails.
+      - run: bun scripts/test-check-openapi-fresh.mjs
+      - run: bun scripts/check-openapi-fresh.mjs
+
   # Dependency advisories (see scripts/check-dependency-audit.mjs).
   #
   # This job used to run `npm audit --audit-level=high || true`. Ask the standard
@@ -787,6 +842,7 @@ jobs:
       - commons-test
       - accounts-test
       - console-test
+      - openapi-contract
       - security-audit
     if: always()
     runs-on: ubuntu-latest

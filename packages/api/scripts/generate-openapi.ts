@@ -32,7 +32,7 @@
  * loader when extending the API.
  */
 
-import { readFile, writeFile, readdir } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
@@ -427,52 +427,69 @@ interface RouteEntry {
 }
 
 /**
- * Mount map: route file basename → Express mount prefix (from `server.ts`).
- * Kept in sync with the order of `app.use(...)` calls.
+ * Mount map: route file basename → the Express mount prefixes it is served
+ * under (from `server.ts`). Kept in sync with the order of `app.use(...)` calls.
+ *
+ * The value is a LIST because a router may legitimately be mounted more than
+ * once, and a single-string map could not say so: `inferenceCatalogue.ts` is
+ * mounted at both `/v1/models` (the public edge dialect) and `/models` (the URL
+ * Console still calls). Describing one and omitting the other would publish a
+ * contract that is silently narrower than the server.
  */
-const MOUNT_MAP: Record<string, string> = {
-  'auth.ts': '/auth',
-  'authLinking.ts': '/auth',
-  'assets.ts': '/assets',
-  'cdn.ts': '/cdn',
-  'storage.ts': '/storage',
-  'search.ts': '/search',
-  'profiles.ts': '/profiles',
-  'users.ts': '/users',
-  'userData.ts': '/users/me/app-data',
-  'sessionDevice.ts': '/session/device',
-  'session.ts': '/session',
-  'privacy.ts': '/privacy',
-  'analytics.routes.ts': '/analytics',
-  'payment.routes.ts': '/payments',
-  'notifications.routes.ts': '/notifications',
-  'reputation.routes.ts': '/reputation',
-  'wallet.routes.ts': '/wallet',
-  'linkMetadata.ts': '/link-metadata',
-  'links.ts': '/links',
-  'locationSearch.ts': '/location-search',
-  'applications.ts': '/applications',
-  'accounts.ts': '/accounts',
-  'devices.ts': '/devices',
-  'security.ts': '/security',
-  'subscription.routes.ts': '/subscription',
-  'emailProxy.ts': '/email/proxy',
-  'emailInbound.ts': '/email/inbound',
-  'email.ts': '/email',
-  'alia.ts': '/alia',
-  'credits.ts': '/credits',
-  'billing.ts': '/billing',
-  'models-stats.ts': '/models',
-  'platform-stats.ts': '/platform-stats',
-  'topics.routes.ts': '/topics',
-  'contacts.ts': '/contacts',
-  'socialAuth.ts': '/auth/social',
-  'appSignals.ts': '/app-signals',
-  'identity.ts': '/identity',
-  'civic.ts': '/civic',
-  'nodes.ts': '/nodes',
-  'federation.ts': '/federation',
-  'did.ts': '/',
+const MOUNT_MAP: Record<string, readonly string[]> = {
+  'auth.ts': ['/auth'],
+  'authLinking.ts': ['/auth'],
+  'assets.ts': ['/assets'],
+  'cdn.ts': ['/cdn'],
+  'storage.ts': ['/storage'],
+  'search.ts': ['/search'],
+  'profiles.ts': ['/profiles'],
+  'users.ts': ['/users'],
+  'userData.ts': ['/users/me/app-data'],
+  'sessionDevice.ts': ['/session/device'],
+  'session.ts': ['/session'],
+  'privacy.ts': ['/privacy'],
+  'analytics.routes.ts': ['/analytics'],
+  'payment.routes.ts': ['/payments'],
+  'notifications.routes.ts': ['/notifications'],
+  'reputation.routes.ts': ['/reputation'],
+  'wallet.routes.ts': ['/wallet'],
+  'linkMetadata.ts': ['/link-metadata'],
+  'links.ts': ['/links'],
+  'locationSearch.ts': ['/location-search'],
+  'applications.ts': ['/applications'],
+  'accounts.ts': ['/accounts'],
+  'devices.ts': ['/devices'],
+  'security.ts': ['/security'],
+  'subscription.routes.ts': ['/subscription'],
+  'emailProxy.ts': ['/email/proxy'],
+  'emailInbound.ts': ['/email/inbound'],
+  'email.ts': ['/email'],
+  'credits.ts': ['/credits'],
+  'billing.ts': ['/billing'],
+  'inferenceEdge.ts': ['/v1'],
+  'inferenceCatalogue.ts': ['/v1/models', '/models'],
+  'inferenceAdmin.ts': ['/inference/admin'],
+  'inferenceRoutingPolicies.ts': ['/inference/routing-policies'],
+  'inferenceProviderConnections.ts': ['/inference/provider-connections'],
+  'inferenceReporting.ts': ['/inference/reporting'],
+  // Mounted twice, and the two mounts STRADDLE the edge in `server.ts`: `/alia`
+  // at `:683`, the edge's `/v1` at `:690`, this router's `/v1` at `:701`. The
+  // entry sits after the edge because only the `/v1` mount can collide, and the
+  // edge must win it: `server.ts:695-700` states that what the proxy still owns
+  // under `/v1` is `/v1/voice/token` and `/v1/voice/transcribe`, and that
+  // `/v1/chat/completions` is no longer among them. First-wins in dispatch order
+  // reproduces exactly that.
+  'alia.ts': ['/alia', '/v1'],
+  'platform-stats.ts': ['/platform-stats'],
+  'topics.routes.ts': ['/topics'],
+  'contacts.ts': ['/contacts'],
+  'appSignals.ts': ['/app-signals'],
+  'identity.ts': ['/identity'],
+  'civic.ts': ['/civic'],
+  'nodes.ts': ['/nodes'],
+  'federation.ts': ['/federation'],
+  'did.ts': ['/'],
 };
 
 /**
@@ -481,7 +498,6 @@ const MOUNT_MAP: Record<string, string> = {
  */
 const TAG_GROUPS: Record<string, string> = {
   '/auth': 'Authentication',
-  '/auth/social': 'Authentication',
   '/assets': 'Files',
   '/cdn': 'Files',
   '/storage': 'Files',
@@ -511,7 +527,13 @@ const TAG_GROUPS: Record<string, string> = {
   '/alia': 'AI',
   '/credits': 'Credits',
   '/billing': 'Billing',
-  '/models': 'AI',
+  '/v1': 'Inference',
+  '/v1/models': 'Inference',
+  '/models': 'Inference',
+  '/inference/admin': 'Inference',
+  '/inference/routing-policies': 'Inference',
+  '/inference/provider-connections': 'Inference',
+  '/inference/reporting': 'Inference',
   '/platform-stats': 'System',
   '/topics': 'Misc',
   '/contacts': 'Contacts',
@@ -583,60 +605,209 @@ function findLeadingComment(source: string, position: number): string | undefine
 }
 
 /**
+ * Middleware identifiers the generator recognises, and which is the whole of
+ * what it can reason about.
+ *
+ * The auth/authorization half is HAND-MAINTAINED, so a gate whose name is
+ * missing from it is a gate this generator cannot see — and the spec then
+ * publishes the route as needing no credential at all, which is the most
+ * dangerous direction to be wrong in. Add every new auth/authorization
+ * middleware here, and give it a case in `buildOperation`'s security block.
+ *
+ * The limiter half is a RULE rather than a list (`…Limiter` / `…RateLimit`),
+ * because a missing limiter name costs only an undocumented 429 and a
+ * hand-maintained list of them was already drifting.
+ */
+const MIDDLEWARE_TOKEN_RE =
+  /\b(authMiddleware|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
+
+function middlewareTokens(args: string): string[] {
+  const found: string[] = [];
+  const re = new RegExp(MIDDLEWARE_TOKEN_RE.source, 'g');
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(args)) !== null) {
+    const token = match[1];
+    if (token && !found.includes(token)) found.push(token);
+  }
+  return found;
+}
+
+/**
+ * A copy of the source with every comment's content replaced by spaces, byte for
+ * byte, so an offset into the result is the same offset into the original.
+ *
+ * Everything that looks for CODE below scans this copy, because a census over
+ * source that does not exclude comments measures the comments too. Measured:
+ * `src/routes/accounts.ts:81` and `:114` both quote the literal text
+ * `router.use(authMiddleware)` inside prose explaining why the routes above the
+ * real gate are deliberately unauthenticated. Scanning the raw source finds two
+ * phantom gates at those offsets and injects `authMiddleware` into the three
+ * service-credential routes that sit between them and the real gate at `:314`.
+ *
+ * That did not corrupt the emitted document only because `serviceAuthMiddleware`
+ * is evaluated before `authMiddleware` in the security block, so those three
+ * routes published `serviceTokenAuth` either way. A genuinely public route below
+ * such a comment would have been published as requiring a bearer — a claim about
+ * a credential, invented by prose.
+ *
+ * Comments are blanked rather than removed so the JSDoc reader below can still
+ * find the real comment above a route in the ORIGINAL source at the same offset.
+ * Newlines are preserved for the same reason.
+ */
+export function blankComments(source: string): string {
+  const out = source.split('');
+  let i = 0;
+  let inStr: string | null = null;
+  let inTemplate = false;
+  while (i < source.length) {
+    const ch = source[i];
+    if (inStr !== null) {
+      if (ch === '\\') {
+        i += 2;
+        continue;
+      }
+      if (ch === inStr) inStr = null;
+      i += 1;
+      continue;
+    }
+    if (inTemplate) {
+      if (ch === '\\') {
+        i += 2;
+        continue;
+      }
+      if (ch === '`') inTemplate = false;
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      inStr = ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '`') {
+      inTemplate = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && source[i + 1] === '/') {
+      while (i < source.length && source[i] !== '\n') {
+        out[i] = ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === '/' && source[i + 1] === '*') {
+      const closed = source.indexOf('*/', i + 2);
+      const stop = closed === -1 ? source.length : closed + 2;
+      for (let j = i; j < stop; j += 1) out[j] = source[j] === '\n' ? '\n' : ' ';
+      i = stop;
+      continue;
+    }
+    i += 1;
+  }
+  return out.join('');
+}
+
+/**
+ * Read the full argument list of a call whose opening paren has already been
+ * consumed, using a balanced-parentheses walk that respects string and template
+ * literals. Handler arguments contain whole function bodies, so counting parens
+ * naively would stop in the middle of one.
+ */
+function readCallArgs(source: string, argsStart: number): string {
+  let depth = 1;
+  let i = argsStart;
+  let inStr: string | null = null;
+  let inTemplate = false;
+  while (i < source.length && depth > 0) {
+    const ch = source[i];
+    if (inStr) {
+      if (ch === '\\') {
+        i += 2;
+        continue;
+      }
+      if (ch === inStr) {
+        inStr = null;
+      }
+      i += 1;
+      continue;
+    }
+    if (inTemplate) {
+      if (ch === '`') {
+        inTemplate = false;
+      }
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      inStr = ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '`') {
+      inTemplate = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth -= 1;
+    i += 1;
+  }
+  return source.slice(argsStart, i - 1);
+}
+
+/**
+ * The router-level gates a file installs with `router.use(...)`, each paired
+ * with the offset it takes effect from.
+ *
+ * This exists because a `router.use(authMiddleware)` is INVISIBLE to a walker
+ * that only reads `router.<verb>(...)` argument lists, and the consequence is
+ * the worst-direction error the middleware whitelist below already warns about:
+ * the generator sees no credential on the route and publishes it as public.
+ * Measured on `main` before this change — every route in `devices.ts`,
+ * `privacy.ts`, `email.ts`, `wallet.routes.ts`, `applications.ts` and nine more
+ * files carries a router-level `authMiddleware` and was published with
+ * `security: [{}]`.
+ *
+ * Express applies a pathless `use` only to what is registered AFTER it, and
+ * several files rely on exactly that — `accounts.ts` registers its public
+ * routes above `router.use(authMiddleware)` deliberately. So the offset is part
+ * of the fact, not decoration. A PATH-SCOPED `router.use('/x', …)` is skipped
+ * rather than guessed at: it gates a subtree this walker does not resolve, and
+ * claiming a gate that may not apply is as wrong as missing one.
+ */
+function routerLevelGates(source: string): Array<{ from: number; middlewares: string[] }> {
+  const gates: Array<{ from: number; middlewares: string[] }> = [];
+  const useRe = /router\.use\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = useRe.exec(source)) !== null) {
+    const args = readCallArgs(source, useRe.lastIndex);
+    if (/^\s*['"`]/.test(args)) continue;
+    const middlewares = middlewareTokens(args);
+    if (middlewares.length > 0) gates.push({ from: useRe.lastIndex, middlewares });
+  }
+  return gates;
+}
+
+/**
  * Parse all `router.<verb>(...)` calls in a single file. We use a regex to
  * find the call start and then a balanced-parentheses walker to capture the
  * full argument list, since handler arguments can include function
  * definitions with their own parens / strings.
  */
-function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> {
+export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> {
   const out: Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> = [];
+  // Code is read from the comment-blanked copy, prose from the original. Offsets
+  // are identical between the two by construction.
+  const code = blankComments(source);
+  const gates = routerLevelGates(code);
   const callRe = /router\.([a-zA-Z]+)\s*\(/g;
   let match: RegExpExecArray | null;
-  while ((match = callRe.exec(source)) !== null) {
+  while ((match = callRe.exec(code)) !== null) {
     const verb = (match[1] ?? '').toLowerCase();
     if (!VERB_RE.test(verb)) continue;
     const argsStart = callRe.lastIndex;
-    // Walk forward to find the matching close paren.
-    let depth = 1;
-    let i = argsStart;
-    let inStr: string | null = null;
-    let inTemplate = false;
-    while (i < source.length && depth > 0) {
-      const ch = source[i];
-      if (inStr) {
-        if (ch === '\\') {
-          i += 2;
-          continue;
-        }
-        if (ch === inStr) {
-          inStr = null;
-        }
-        i += 1;
-        continue;
-      }
-      if (inTemplate) {
-        if (ch === '`') {
-          inTemplate = false;
-        }
-        i += 1;
-        continue;
-      }
-      if (ch === "'" || ch === '"') {
-        inStr = ch;
-        i += 1;
-        continue;
-      }
-      if (ch === '`') {
-        inTemplate = true;
-        i += 1;
-        continue;
-      }
-      if (ch === '(') depth += 1;
-      else if (ch === ')') depth -= 1;
-      i += 1;
-    }
-    const argsEnd = i - 1;
-    const args = source.slice(argsStart, argsEnd);
+    const args = readCallArgs(code, argsStart);
 
     // First argument: the path literal. Pull it out — first quoted token.
     const pathMatch = args.match(/^\s*['"`]([^'"`]+)['"`]/);
@@ -660,17 +831,14 @@ function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefi
     }
 
     // Token-extract any middleware identifiers appearing before the handler
-    // (used to infer required security: auth, csrf, ownership, etc.).
-    const middlewares: string[] = [];
-    // This list is HAND-MAINTAINED, so a gate whose name is missing from it is
-    // a gate this generator cannot see — and the spec then publishes the route
-    // as needing no credential at all, which is the most dangerous direction to
-    // be wrong in. Add every new auth/authorization middleware here.
-    const mwRe = /\b(authMiddleware|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|rateLimit|userRateLimiter|authRateLimiter|challengeLimiter|verifyLimiter|checkLimiter|serviceTokenLimiter|discoverLimiter|webhookLimiter|mediaHeadersMiddleware)\b/g;
-    let mwMatch: RegExpExecArray | null;
-    while ((mwMatch = mwRe.exec(args)) !== null) {
-      const token = mwMatch[1];
-      if (token && !middlewares.includes(token)) middlewares.push(token);
+    // (used to infer required security: auth, csrf, ownership, etc.), then add
+    // the router-level gates already in force at this point in the file.
+    const middlewares = middlewareTokens(args);
+    for (const gate of gates) {
+      if (gate.from > argsStart) continue;
+      for (const token of gate.middlewares) {
+        if (!middlewares.includes(token)) middlewares.push(token);
+      }
     }
 
     // Look for the leading JSDoc above the `router.<verb>(` token. The
@@ -685,26 +853,50 @@ function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefi
   return out;
 }
 
-async function listRouteFiles(): Promise<string[]> {
-  if (!existsSync(ROUTES_DIR)) return [];
-  const entries = await readdir(ROUTES_DIR);
-  return entries
-    .filter((f) => f.endsWith('.ts'))
-    .map((f) => path.join(ROUTES_DIR, f));
-}
-
+/**
+ * Route entries in EXPRESS DISPATCH ORDER.
+ *
+ * Iterating `MOUNT_MAP`'s keys rather than the directory listing is what makes
+ * the map's documented promise — "kept in sync with the order of `app.use(...)`
+ * calls" — load-bearing instead of decorative. The synthesis below is first-wins
+ * on `<VERB> <path>`, which is exactly how Express dispatches, so two routers
+ * sharing a prefix resolve the way the server resolves them. Under a directory
+ * listing the winner was whichever FILENAME sorted first, which is not a fact
+ * about the server at all: `alia.ts` sorts before `inferenceEdge.ts`, so the
+ * deprecated proxy would have taken `/v1/chat/completions` from the edge that
+ * actually serves it, and published `serviceTokenAuth` where the real answer is a
+ * machine credential.
+ *
+ * A mapped file that does not exist is a hard failure rather than a skip. That is
+ * the `models-stats.ts` case: deleted in #982, its map entry left behind, and the
+ * committed document went on describing `/models/stats` from it for a fortnight
+ * because a missing file looked exactly like a file with no routes.
+ */
 async function extractRoutes(): Promise<RouteEntry[]> {
-  const files = await listRouteFiles();
   const out: RouteEntry[] = [];
-  for (const file of files) {
-    const basename = path.basename(file);
-    const mountPrefix = MOUNT_MAP[basename];
-    if (!mountPrefix) continue;
+  const missing: string[] = [];
+  for (const [basename, mountPrefixes] of Object.entries(MOUNT_MAP)) {
+    const file = path.join(ROUTES_DIR, basename);
+    if (!existsSync(file)) {
+      missing.push(basename);
+      continue;
+    }
     const source = await readFile(file, 'utf8');
     const parsed = parseRoutesFromFile(source);
-    for (const route of parsed) {
-      out.push({ ...route, mountPrefix, filename: basename });
+    for (const mountPrefix of mountPrefixes) {
+      for (const route of parsed) {
+        out.push({ ...route, mountPrefix, filename: basename });
+      }
     }
+  }
+  if (missing.length > 0) {
+    console.error(
+      `\n[generate-openapi] MOUNT_MAP names ${missing.length} route file(s) that do not exist:\n` +
+        `${missing.map((name) => `  - src/routes/${name}`).join('\n')}\n\n` +
+        '  A stale entry is how a deleted route stays in the published contract. Remove\n' +
+        '  the entry, or restore the file.\n'
+    );
+    process.exit(1);
   }
   return out;
 }
@@ -864,9 +1056,30 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
   const isServiceOnly = middlewares.some(
     (m) => m === 'serviceAuthMiddleware' || m === 'requireFirstPartyInferenceCaller'
   );
+  // The public inference edge (`routes/inferenceEdge.ts`): `edgeGate` calls
+  // `authenticateEdgeCaller`, which accepts an `oxy_sk_…` machine credential or
+  // a first-party service token, and nothing else — a user session bearer is
+  // refused, so `bearerAuth` would be the wrong scheme to publish here.
+  const isEdgeCredential = middlewares.includes('edgeGate');
+  // The inference control-plane routers install one `…Principal` gate at router
+  // level that takes a service token when the bearer verifies as one and falls
+  // back to the user session lane otherwise. Both are genuinely accepted, so
+  // both are published as alternatives.
+  const isDualPrincipal = middlewares.some(
+    (m) =>
+      m === 'reportingPrincipal' ||
+      m === 'providerConnectionPrincipal' ||
+      m === 'routingPolicyPrincipal'
+  );
   const isAuth = middlewares.includes('authMiddleware');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');
-  if (isServiceOnly) {
+  if (isEdgeCredential) {
+    security.push({ machineCredentialAuth: [] });
+    security.push({ serviceTokenAuth: [] });
+  } else if (isDualPrincipal) {
+    security.push({ serviceTokenAuth: [] });
+    security.push({ bearerAuth: [] });
+  } else if (isServiceOnly) {
     security.push({ serviceTokenAuth: [] });
   } else if (isAuth) {
     security.push({ bearerAuth: [] });
@@ -876,6 +1089,7 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
   } else {
     security.push({});
   }
+  const requiresCredential = isEdgeCredential || isDualPrincipal || isServiceOnly || isAuth;
 
   // CSRF — if the route file is mounted with csrfProtection at the server
   // level we don't add it again per-op. The base spec documents the header
@@ -891,13 +1105,18 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
-  if (isServiceOnly || isAuth) {
+  if (requiresCredential) {
     responses['401'] = {
       description: 'Authentication required',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
-  if (middlewares.includes('requireOwnership') || isServiceOnly) {
+  if (
+    middlewares.includes('requireOwnership') ||
+    middlewares.includes('requireStaff') ||
+    isServiceOnly ||
+    isDualPrincipal
+  ) {
     responses['403'] = {
       description: 'Insufficient privileges',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
@@ -909,7 +1128,7 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
-  if (middlewares.some((m) => m.endsWith('Limiter') || m === 'rateLimit' || m === 'userRateLimiter' || m === 'authRateLimiter')) {
+  if (middlewares.some((m) => m === 'rateLimit' || /(?:Limiter|RateLimit)$/.test(m))) {
     responses['429'] = {
       description: 'Rate limit exceeded',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },

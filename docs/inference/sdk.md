@@ -1,4 +1,4 @@
-# The TypeScript SDK, and the OpenAI SDK
+# The TypeScript SDK, and the OpenAI SDK in TypeScript and Python
 
 Two ways to authenticate, one set of endpoints. Both reach
 `https://api.oxy.so/v1`, and **every invoke refuses today** — see
@@ -225,6 +225,127 @@ refusal that silently kept the money is the failure that looks like it worked.
 
 ---
 
+## Python: the stock `openai` client, unmodified
+
+There is no Oxy Python package and there does not need to be one, because the
+edge was built to be reachable from the client a Python developer already has.
+`POST /v1/chat/completions` is OpenAI-compatible by explicit design
+(`packages/api/src/routes/inferenceEdge.ts`: "The body is exactly what a stock
+OpenAI client parses, in both directions. Everything Oxy-specific … rides in
+headers, which is the rule that keeps it compatible rather than merely similar").
+
+**Nobody has run any of this.** No data plane is configured, so every invoke
+refuses before it reaches a provider — see the constraints below. What follows is
+a documented claim derived from the route code and the published contract, not a
+verified transcript. Treat the first real call as the verification.
+
+```python
+import os
+
+from openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["OXY_API_KEY"],       # oxy_sk_<16 hex>_<64 hex>
+    base_url="https://api.oxy.so/v1",
+    max_retries=0,                           # see "Retries" below
+)
+
+completion = client.chat.completions.create(
+    model="oxy/some-model",                  # a canonical <publisher>/<model> id
+    messages=[{"role": "user", "content": "hello"}],
+)
+```
+
+The four differences from OpenAI's own service listed under "The OpenAI SDK,
+unmodified" apply identically here: `model` is a canonical Oxy
+`<publisher>/<model>` id, unknown request fields are rejected rather than ignored,
+`stream=True` is refused, and Oxy-specific metadata rides in headers.
+
+### Reading the Oxy headers
+
+`client.chat.completions.create(...)` returns the parsed body, which by design
+carries nothing Oxy-specific. The request id, the revision-pinned model that
+actually ran, the serving provider, the metered units and the routing policy
+version are all headers, so reach for the raw response:
+
+```python
+raw = client.chat.completions.with_raw_response.create(
+    model="oxy/some-model",
+    messages=[{"role": "user", "content": "hello"}],
+)
+
+request_id = raw.headers["x-oxy-request-id"]
+served_by = raw.headers.get("x-oxy-model"), raw.headers.get("x-oxy-provider")
+completion = raw.parse()
+```
+
+The full header list is the table under "The OpenAI SDK, unmodified" above — it
+is the same edge and the same headers. `X-Oxy-Request-Id` is present on every
+response including a `401`, which is what makes a refusal reportable by id
+instead of by reproduction.
+
+### Errors
+
+A refusal arrives as the OpenAI error envelope, so the SDK raises its own
+exception types and the Oxy code is inside them:
+
+```python
+from openai import APIStatusError
+
+try:
+    client.chat.completions.create(model="oxy/some-model", messages=[...])
+except APIStatusError as error:
+    oxy_code = error.body["error"]["code"]              # e.g. "service_unavailable"
+    retryable = error.response.headers["x-oxy-error-retryable"] == "true"
+    request_id = error.response.headers["x-oxy-request-id"]
+```
+
+`error.body["error"]["type"]` is the OpenAI type the code maps to (an Oxy
+`service_unavailable` renders as `api_error`), and `error.body["error"]["code"]`
+is the Oxy code. The code is the one to branch on; the type exists so a stock
+client's own error classes still work.
+
+### Retries
+
+`max_retries=0` above is deliberate. The `openai` client retries on its own
+schedule, and Oxy already publishes per-code retryability in
+`X-Oxy-Error-Retryable` plus `Retry-After` where a wait is known. Leaving both
+layers on means retrying refusals Oxy has said are not retryable — `503
+service_unavailable` is `retryable: false` precisely so that an unconfigured data
+plane does not teach every client to retry forever
+(`packages/api/src/utils/inferenceEdgeErrors.ts`). Retry on
+`X-Oxy-Error-Retryable`, and honour `Retry-After`.
+
+### What refuses today, and why
+
+- **`stream=True` is refused** with `invalid_request` and HTTP 400 — verified by
+  `routes/__tests__/inferenceEdge.test.ts`, "refuses streaming with a typed error
+  rather than silently answering non-streamed". Note the reason: the edge *has*
+  streaming for both dialects, and it is unreachable because this deployment
+  configures no data plane, not because it was never built. A stock `openai`
+  client defaults to non-streaming, so ordinary calls are unaffected.
+- **Every invoke returns `service_unavailable` (HTTP 503).** The request is
+  refused after authentication and admission and before any provider is
+  contacted. Nothing is charged: the hold is released before the refusal returns.
+- **"Built" and "configured" are different facts here**, and the refusal is the
+  second one. `services/relayClient.ts` says it plainly: the data plane exists as
+  a repository with a build and a test suite, no deployment of it is configured,
+  and that is why every invoke refuses. The fix is three environment variables,
+  not a project.
+- **`model` must name a catalogue entry**, and the catalogue is empty by design
+  until a real model is published, so there is no id that resolves today either.
+
+None of the three is a Python-specific limitation; they are the state of the edge.
+
+### The machine-readable contract
+
+`packages/api/openapi.json` now describes `/v1/responses`,
+`/v1/chat/completions`, `/v1/generations/{id}` and the catalogue reads, including
+the `machineCredentialAuth` scheme the `oxy_sk_…` key satisfies. That is the
+artifact any generated client — Python or otherwise — would be generated from,
+and `scripts/check-openapi-fresh.mjs` is what keeps it describing the routes that
+exist.
+
 ## There is no Python SDK, and this is not the moment to start one
 
 #972 lists a Python SDK "after the HTTP contract stabilizes". It has not
@@ -243,3 +364,12 @@ The TypeScript client above exists anyway because it is the reference the HTTP
 contract is checked against, and because `packages/api`'s
 `sdkRequestCompatibility.test.ts` fails the build if the two drift. A second
 language doubles that surface without doubling the coverage.
+
+What HAS changed is the cost of the alternative. `packages/api/openapi.json` now
+describes the `/v1` edge, so a *generated* Python client is cheap in a way a
+hand-written one is not: it costs a generator invocation rather than a second
+implementation of streaming, cancellation and the catalogue, and it cannot drift
+from the contract by hand. It is still not worth publishing while every invoke
+refuses — a generated client whose happy path has never run is the same set of
+assumptions in a different language — but the decision is now "generate it when
+the edge serves a request", not "write one".

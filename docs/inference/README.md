@@ -84,10 +84,12 @@ the reason given in [deprecation.md](./deprecation.md).
 
 ### The data plane — workstream 13
 
-Relay does not exist: no repository, no adapters, no routing execution, no
-streaming, no health scoring, no usage receipts from a real provider. Every
-`Oxy → data plane` statement in the contracts package is a contract waiting for a
-counterparty.
+The repository exists — `OxyHQ/Relay`, public, Go, created 2026-08-16, verified
+2026-08-17 — and what it contains is a question for that repository, not this one.
+What matters here is unchanged: **nothing Oxy can reach.** No deployment, no
+endpoint, no routing execution Oxy invokes, no streaming, no health scoring, no
+usage receipt from a real provider. Every `Oxy → data plane` statement in the
+contracts package is still a contract waiting for a counterparty.
 
 **This is one of the two facts that make every invoke refuse**; the other is
 that no deployment has opened `INFERENCE_EDGE_AUDIENCE`, so a caller is refused
@@ -236,7 +238,9 @@ read it back rather than inferring it from this repository.
 withheld, and the list of what remains blocked.
 
 Alia also remains the upstream of the proxy above. That does not change here:
-removing it is conditioned on Relay being live, and Relay does not exist. The
+removing it is conditioned on Relay being LIVE, which is a claim about a
+deployment Oxy can reach and not about a repository — the repository exists, and
+nothing Oxy can reach does. The
 proxy kept a working path when the edge took `/v1/chat/completions` — it is
 still served at `POST /alia/chat/completions`, and `/v1/voice/*` still falls
 through to it. Retiring it needs a dated notice; see
