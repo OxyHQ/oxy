@@ -5,7 +5,11 @@
   SDK catalogue client and the `docs/inference/` doc set landed; one §5 row was
   corrected at the same time because `models-stats.ts` no longer exists. **§6
   and one §7 row were re-verified on 2026-08-16** against #1012's route-selection
-  enforcement and the usage-unit contract (#1017, #1018). Every other row is
+  enforcement and the usage-unit contract (#1017, #1018). **Five §12 rows were
+  re-verified and updated on 2026-08-17** — the two payload-retention rows and the
+  PII row against [ADR 0016](../adr/0016-no-inference-payload-persistence.md), and
+  the secret-scanning and rotation-runbook rows against the gates and
+  [`docs/runbooks/`](../runbooks/README.md) that landed with it. Every other row is
   still a claim about 2026-08-15, and §5's descriptor rows in particular predate
   the catalogue merging (#982) — re-verify before citing them.
 - Governing decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md),
@@ -333,13 +337,13 @@ ADR 0005 invariant 5.
 |---|---|---|---|
 | No-user-IPs-at-rest invariant (platform-wide) | Oxy | OxyHQServices `packages/api/src/db/schema/securityActivities.ts:6-19`, `packages/api/src/utils/ipKey.ts` | exists |
 | `security_activities` (account's own audit trail) | Oxy | OxyHQServices `packages/api/src/db/schema/securityActivities.ts` | exists |
-| No prompt/response persistence by default | Oxy + Relay | OxyHQServices + OxyHQ/Relay | planned |
-| Opt-in, time-limited, encrypted, audited debug payload retention | Oxy | OxyHQServices `packages/api/src` | planned |
-| PII/redaction controls for opted-in traces | Oxy | OxyHQServices `packages/api/src` | planned |
+| No prompt/response persistence by default | Oxy + Relay | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md`, `scripts/check-no-payload-persistence.mjs` + OxyHQ/Relay | exists for Oxy — no column in the schema can hold a prompt, a completion, a chat message body or a tool argument, enforced by a census over the drizzle barrel in the `Schema Payload Policy` CI job; `planned` for Relay, which does not exist |
+| Opt-in, time-limited, encrypted, audited debug payload retention | Oxy | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md` | refused, not planned — ADR 0016 makes the four properties PRECONDITIONS on building capture rather than follow-up work, and precondition 3 (a key Oxy does not hold in PostgreSQL) needs the same absent managed-secret backend as ADR 0013 |
+| PII/redaction controls for opted-in traces | Oxy | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md` | blocked on the row above, and vacuous until then — no trace or span infrastructure exists in this repository, so there is nothing to redact PII from |
 | Deployment policy fields (retention, training, region, subprocessors, ZDR) | Oxy (catalogue), Relay (truth) | OxyHQServices + OxyHQ/Relay | planned |
 | Deletion/export preserving legally required financial records | Oxy | OxyHQServices `packages/api/src` | planned |
-| Secret-scanning and accidental-serialization tests | Oxy | OxyHQServices `packages/api` | planned |
-| Rotation runbooks and break-glass procedures | Oxy | oxy-infra `docs/runbooks/` | planned |
+| Secret-scanning and accidental-serialization tests | Oxy | OxyHQServices `scripts/check-secret-scan.mjs` (scanning), `packages/api/src/services/__tests__/inferenceProviderConnection.service.test.ts` (serialization) | exists — twelve issued-token grammars plus a tracked-dotenv refusal over every tracked file, in the `Secret Scan` CI job, each rule verified against its own sample on every run; the serialization half walks a returned DTO to every leaf, its `JSON.stringify`, its exact key set, every stored column and the audit trail, with a positive control proving the credential really passed through |
+| Rotation runbooks and break-glass procedures | Oxy (credentials Oxy issues), infra (AWS) | OxyHQServices `docs/runbooks/` + oxy-infra `docs/runbooks/` | exists for the five credential classes Oxy issues — application credential, `oxy_sk_…` machine key, BYOK provider connection, the token signing keys, and the Oxy→Relay edge signing key (that one written against ADR 0015 and pending it); `planned` for the AWS half, which is oxy-infra's and is deliberately not duplicated here |
 | Immutable audit events for credential, billing, routing, provider-connection changes | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
 | Staff vs customer action distinction in audit | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
 | Least-privilege admin roles | Oxy | OxyHQServices `packages/api/src` | planned |
