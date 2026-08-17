@@ -22,7 +22,7 @@
     "@oxyhq/core": "*",
     "@oxyhq/expo-splash": "workspace:*",
     "@oxyhq/services": "*",
-    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@shopify/react-native-skia": "catalog:",
     "@tanstack/query-async-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
