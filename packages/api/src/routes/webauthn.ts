@@ -535,13 +535,9 @@ router.post(
         // serves via an explicit allow-list. `required` here is exactly what made a
         // Google Titan fail Chrome's "device can't be used with this site" gate.
         residentKey: 'preferred',
-        // `preferred`, not `required` (owner possession-credential policy): a
-        // UV-capable authenticator (platform Face ID / Windows Hello, FIDO2-with-PIN)
-        // STILL performs user verification unchanged; only a UV-incapable key (a
-        // U2F/CTAP1 Titan with no PIN) falls back to presence-only. The assurance
-        // level of each ceremony is captured on the credential's `userVerified` flag
-        // (see register/verify) so a future step-up can gate on UV-backed credentials.
-        userVerification: 'preferred',
+        // Account authentication must prove local user verification (PIN,
+        // biometric, or equivalent), not mere possession of an authenticator.
+        userVerification: 'required',
         // `authenticatorAttachment` is deliberately UNPINNED so both platform (Face ID /
         // Touch ID / Windows Hello) and cross-platform/roaming (USB-C / NFC security key)
         // authenticators are offered.
@@ -599,10 +595,7 @@ router.post(
         expectedChallenge: challenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        // Possession-only credentials are accepted (owner policy): a presence-only
-        // U2F/CTAP1 key would fail here if UV were required. The actual assurance
-        // level is recorded per-credential via `registrationInfo.userVerified`.
-        requireUserVerification: false,
+        requireUserVerification: true,
       });
     } catch (error) {
       logger.warn('webauthn register verification threw', {
@@ -617,8 +610,7 @@ router.post(
     }
 
     // CAVEAT — `userVerified` is authenticator-SELF-ASSERTED, not attestation-proven.
-    // We register with `attestationType: 'none'` and verify with
-    // `requireUserVerification: false`, so this flag is only the UV bit the
+    // We register with `attestationType: 'none'`, so this flag is only the UV bit the
     // authenticator reported for THIS ceremony; nothing cryptographically attests the
     // authenticator's UV capability or that UV actually happened. Treat it as an
     // assurance/telemetry marker ONLY — it must NOT be used as a hard security
@@ -853,11 +845,8 @@ router.post(
     const options = await generateAuthenticationOptions({
       rpID,
       allowCredentials,
-      // `preferred` (owner possession-credential policy): UV-capable authenticators
-      // still verify; a UV-incapable U2F key authenticates presence-only. The
-      // ceremony's real assurance level is refreshed onto the credential's
-      // `userVerified` flag at verify time.
-      userVerification: 'preferred',
+      // Require local user verification rather than authenticator possession alone.
+      userVerification: 'required',
     });
 
     await db.insert(webauthnChallenges).values({
@@ -944,9 +933,7 @@ router.post(
         expectedChallenge: challenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        // Possession-only assertions are accepted (owner policy); the actual
-        // assurance level is refreshed onto `credential.userVerified` below.
-        requireUserVerification: false,
+        requireUserVerification: true,
         credential: {
           id: credential.credentialID,
           publicKey: new Uint8Array(credential.credentialPublicKey),
@@ -993,11 +980,9 @@ router.post(
       .set({
         counter: newCounter,
         lastUsedAt: new Date(),
-        // Refresh the assurance level: a credential that enrolled UV-capable but
-        // authenticated presence-only (or vice versa) reflects its most recent ceremony.
+        // Refresh the assurance telemetry from the successfully verified ceremony.
         // CAVEAT (same as register/verify): `userVerified` is authenticator-SELF-ASSERTED
-        // — verify runs with `requireUserVerification: false` and no attestation, so this
-        // is only the UV bit the authenticator reported for this assertion. It is an
+        // — this is only the UV bit the authenticator reported for this assertion. It is an
         // assurance/telemetry marker, NOT an attestation-proven fact, and must NOT gate a
         // hard step-up boundary without attestation.
         userVerified,
