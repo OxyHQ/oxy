@@ -26,10 +26,12 @@ import { InferenceAvailabilityNotice } from '@/components/inference-availability
 import { useModelCatalogue, useRoutingProfiles } from '@/hooks/use-models';
 import {
   EMPTY_CATALOGUE_FILTERS,
+  PRICE_CAP_PER,
   catalogueFacets,
   filterCatalogue,
   isEmptyFilterSet,
 } from '@/lib/model-catalogue-filters';
+import { formatMoney } from '@/lib/money';
 
 export const Route = createFileRoute('/_layout/models')({
   component: ModelsPage,
@@ -185,10 +187,11 @@ function CatalogueTab() {
 /**
  * The filter bar, with options derived from the loaded catalogue.
  *
- * There is no PRICE filter. `pricing` is optional on a catalogue entry and the
- * API never populates it yet (price versions are workstream 7), so a price
- * filter would return nothing for every value — indistinguishable from "nothing
- * is that cheap". A published price is rendered on the entry when one exists.
+ * Every control here is shown only when the loaded catalogue could actually be
+ * narrowed by it — a select needs more than one value to choose between, and the
+ * price cap needs at least one published input-token price. So the bar never
+ * offers a filter whose every setting returns the same list, which is the state
+ * a price filter would have been in before the API published prices at all.
  */
 function CatalogueFilterBar({
   facets,
@@ -249,6 +252,35 @@ function CatalogueFilterBar({
           </div>
         )}
 
+        {facets.outputModalities.length > 1 && (
+          <div className="w-44 space-y-1.5">
+            <Label htmlFor="model-output-modality" className="text-xs text-muted-foreground">
+              Output modality
+            </Label>
+            <Select
+              value={filters.outputModality ?? ANY}
+              onValueChange={(value) =>
+                onChange({
+                  ...filters,
+                  outputModality: value === ANY ? null : (value as InferenceModality),
+                })
+              }
+            >
+              <SelectTrigger id="model-output-modality">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>Any modality</SelectItem>
+                {facets.outputModalities.map((modality) => (
+                  <SelectItem key={modality} value={modality}>
+                    {modality}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         {facets.regions.length > 1 && (
           <div className="w-44 space-y-1.5">
             <Label htmlFor="model-region" className="text-xs text-muted-foreground">
@@ -298,6 +330,32 @@ function CatalogueFilterBar({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+
+        {/*
+          A text input, not `type="number"`: the value is an exact decimal
+          compared against the ledger's own exact decimals, and a number input
+          hands back a value that has been through a float. `inputMode` still
+          gets the numeric keypad on a phone without that cost.
+        */}
+        {facets.hasInputTokenPricing && (
+          <div className="w-52 space-y-1.5">
+            <Label htmlFor="model-max-price" className="text-xs text-muted-foreground">
+              Max price / {PRICE_CAP_PER.toLocaleString()} input tokens
+            </Label>
+            <Input
+              id="model-max-price"
+              inputMode="decimal"
+              value={filters.maxPricePerMillionInputTokens ?? ''}
+              onChange={(e) =>
+                onChange({
+                  ...filters,
+                  maxPricePerMillionInputTokens: e.target.value === '' ? null : e.target.value,
+                })
+              }
+              placeholder="3.00"
+            />
           </div>
         )}
       </div>
@@ -423,6 +481,13 @@ function CatalogueEntryRow({ entry, isLast }: { entry: ModelCatalogueEntry; isLa
         />
         <Fact label="Input" value={capabilities.inputModalities.join(', ')} />
         <Fact label="Output" value={capabilities.outputModalities.join(', ')} />
+        {/*
+          The UNION of every serving route's regions — the same field the region
+          filter matches on. Without it a customer can narrow by a region the row
+          never shows, and the per-provider badges below only say which regions
+          THAT provider covers.
+        */}
+        {entry.regions.length > 0 && <Fact label="Regions" value={entry.regions.join(', ')} />}
         <Fact label="Licence" value={license.displayName} />
         <Fact label="Release" value={provenance.releaseKind.replace(/_/g, ' ')} />
         {entry.knowledgeCutoff !== undefined && (
@@ -479,16 +544,26 @@ function CatalogueEntryRow({ entry, isLast }: { entry: ModelCatalogueEntry; isLa
         </div>
       </div>
 
+      {/*
+        The published price for the PRIMARY route — the same route whose data
+        policy and terms this row reports. `formatMoney` groups the digits as
+        text; the amount never passes through a `Number`, so a per-token price of
+        `0.000003000000` renders as `0.000003` rather than as a `0.00` that reads
+        like nothing is charged.
+
+        The price VERSION id is shown because it is the record a later invoice can
+        be re-priced against — a customer disputing a charge quotes it.
+      */}
       {pricing !== undefined && (
         <div className="mt-4">
           <p className="text-xs text-muted-foreground mb-2">
-            Price ({pricing.currency}, version {pricing.priceVersionId})
+            Price · version <code className="font-mono">{pricing.priceVersionId}</code>
           </p>
           <div className="flex flex-wrap gap-1.5">
             {pricing.unitPrices.map((unitPrice) => (
               <Badge key={unitPrice.unit} variant="outline" className="text-xs">
-                {unitPrice.amount} {unitPrice.currency} per {unitPrice.per.toLocaleString()}{' '}
-                {unitPrice.unit.replace(/_/g, ' ')}
+                {formatMoney(unitPrice.amount, unitPrice.currency)} per{' '}
+                {unitPrice.per.toLocaleString()} {unitPrice.unit.replace(/_/g, ' ')}
               </Badge>
             ))}
           </div>

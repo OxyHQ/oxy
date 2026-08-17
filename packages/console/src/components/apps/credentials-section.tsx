@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -52,6 +53,7 @@ import {
   useRevokeCredential,
   useRotateCredential,
 } from '@/hooks/use-applications';
+import { usePlaygroundKey } from '@/lib/playground-key';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -111,6 +113,12 @@ interface CredentialsSectionProps {
 }
 
 export function CredentialsSection({ application, access }: CredentialsSectionProps) {
+  const navigate = useNavigate();
+  // The playground's key holder. This is the ONLY moment a machine credential's
+  // bearer token exists in the browser, so it is the only moment the hand-off is
+  // possible at all — see `lib/playground-key.ts` for why it is a store rather
+  // than router state.
+  const setPlaygroundKey = usePlaygroundKey((state) => state.setApiKey);
   const appId = application._id;
   const canRead = access.can('credentials:read');
   const canCreate = access.can('credentials:create');
@@ -338,9 +346,33 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
               </div>
             ) : null}
           </div>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => setRevealed(null)}>
-            I saved my secret
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => setRevealed(null)}>
+              I saved my secret
+            </Button>
+            {/*
+              Offered only for a machine credential's `token`. The `secret` above
+              belongs to a confidential or service client and is not an `oxy_sk_…`
+              bearer, so it cannot authenticate the inference edge — a button
+              carrying it would produce a refusal that looked like a bug.
+
+              The key is handed over in MEMORY (never a URL, never storage) and
+              this component unmounts on navigation, so the reveal box does not
+              survive the hop.
+            */}
+            {revealed.token ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPlaygroundKey(revealed.token ?? '');
+                  navigate({ to: '/playground' });
+                }}
+              >
+                Try this key in the playground
+              </Button>
+            ) : null}
+          </div>
         </div>
       )}
 

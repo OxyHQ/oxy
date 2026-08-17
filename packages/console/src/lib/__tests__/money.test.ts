@@ -5,6 +5,7 @@ import {
   formatBasisPoints,
   formatCount,
   formatMoney,
+  isUnitPriceAtMost,
   isZeroAmount,
 } from '@/lib/money';
 
@@ -107,6 +108,75 @@ describe('compareExactDecimals', () => {
   it('falls back to a stable text order for unparseable input', () => {
     expect(compareExactDecimals('abc', 'abc')).toBe(0);
     expect(compareExactDecimals('abc', 'abd')).toBe(-1);
+  });
+});
+
+describe('isUnitPriceAtMost', () => {
+  /**
+   * The property this function exists for: the two sides are quoted per
+   * DIFFERENT denominators, and the row whose raw `amount` is smaller is the more
+   * expensive one. An implementation comparing `amount` alone answers both of
+   * these backwards, and an implementation that divided to normalise would have
+   * to round somewhere.
+   */
+  it('compares rates, not amounts', () => {
+    const perThousand = { amount: '0.005000000000', per: 1_000 };
+    const perMillion = { amount: '3.000000000000', per: 1_000_000 };
+    const cap = { amount: '4.00', per: 1_000_000 };
+
+    expect(isUnitPriceAtMost(perMillion, cap)).toBe(true);
+    // 0.005 per 1,000 == 5.00 per 1,000,000, so it is OVER a 4.00 cap despite
+    // the far smaller amount string.
+    expect(isUnitPriceAtMost(perThousand, cap)).toBe(false);
+  });
+
+  it('is at-MOST, so an equal rate passes and a hair more does not', () => {
+    const price = { amount: '3.000000000000', per: 1_000_000 };
+    expect(isUnitPriceAtMost(price, { amount: '3.00', per: 1_000_000 })).toBe(true);
+    expect(isUnitPriceAtMost(price, { amount: '2.999999999999', per: 1_000_000 })).toBe(false);
+  });
+
+  it('stays exact where a float would not', () => {
+    // `0.1 + 0.2 !== 0.3` is the canonical failure; the ratio below is the same
+    // hazard in a comparison. Both sides are exactly 0.3 per unit.
+    expect(
+      isUnitPriceAtMost({ amount: '0.300000000000', per: 1 }, { amount: '0.300000000000', per: 1 })
+    ).toBe(true);
+
+    // A denominator with no finite decimal reciprocal: 1/3 cannot be written
+    // exactly, so any implementation that divided would round here.
+    expect(isUnitPriceAtMost({ amount: '1.000000000000', per: 3 }, { amount: '1.000000000000', per: 3 })).toBe(true);
+    expect(isUnitPriceAtMost({ amount: '1.000000000001', per: 3 }, { amount: '1.000000000000', per: 3 })).toBe(false);
+  });
+
+  it('handles an integer part beyond Number.MAX_SAFE_INTEGER', () => {
+    // Cross-multiplication grows the operands, which is exactly where a `number`
+    // implementation would start losing digits even for prices that fit.
+    expect(
+      isUnitPriceAtMost(
+        { amount: '9007199254740993.000000000001', per: 1 },
+        { amount: '9007199254740993.000000000000', per: 1 }
+      )
+    ).toBe(false);
+  });
+
+  it('refuses rather than guessing when either side is not an exact decimal', () => {
+    const price = { amount: '3.00', per: 1_000_000 };
+    expect(isUnitPriceAtMost(price, { amount: '', per: 1_000_000 })).toBeUndefined();
+    expect(isUnitPriceAtMost(price, { amount: '0.', per: 1_000_000 })).toBeUndefined();
+    expect(isUnitPriceAtMost(price, { amount: '1e-6', per: 1_000_000 })).toBeUndefined();
+    expect(isUnitPriceAtMost(price, { amount: '-1', per: 1_000_000 })).toBeUndefined();
+    expect(isUnitPriceAtMost({ amount: 'abc', per: 1 }, price)).toBeUndefined();
+  });
+
+  it('refuses a non-positive or non-integer denominator', () => {
+    // `per` divides in every settlement expression; zero is a division by zero
+    // and a fraction is not a quantity of units.
+    const cap = { amount: '3.00', per: 1_000_000 };
+    expect(isUnitPriceAtMost({ amount: '1.00', per: 0 }, cap)).toBeUndefined();
+    expect(isUnitPriceAtMost({ amount: '1.00', per: -1 }, cap)).toBeUndefined();
+    expect(isUnitPriceAtMost({ amount: '1.00', per: 1.5 }, cap)).toBeUndefined();
+    expect(isUnitPriceAtMost({ amount: '1.00', per: 1 }, { amount: '3.00', per: 0 })).toBeUndefined();
   });
 });
 

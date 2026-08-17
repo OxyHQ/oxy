@@ -47,6 +47,13 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   const { oxyServices } = useAuth();
   const canEdit = access.can('app:update');
   const canDelete = access.can('app:delete');
+  // Read off the permissions the SERVER serialises for this application, never
+  // re-derived from a role name. `webhooks:*` is its own pair rather than a reuse
+  // of `app:*`: the API derives it by containment from `apps:update`, so asking
+  // for the specific right means this form follows the server if that ever
+  // stops being true.
+  const canReadWebhooks = access.can('webhooks:read');
+  const canEditWebhooks = access.can('webhooks:update');
   const updateApplication = useUpdateApplication();
   const deleteApplication = useDeleteApplication();
 
@@ -60,12 +67,23 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   const [newRedirectUri, setNewRedirectUri] = useState('');
   const [paymentsRead, setPaymentsRead] = useState(application.scopes.includes('payments:read'));
   const [paymentsWrite, setPaymentsWrite] = useState(application.scopes.includes('payments:write'));
+  const [webhookUrl, setWebhookUrl] = useState(application.webhookUrl ?? '');
+  const [devWebhookUrl, setDevWebhookUrl] = useState(application.devWebhookUrl ?? '');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const nextScopes = mergePaymentsScopes(application.scopes, {
     read: paymentsRead,
     write: paymentsWrite,
   });
+
+  // Only fields this caller may actually write count as dirty. A caller with
+  // `app:update` but no `webhooks:update` sees the URLs disabled, so a webhook
+  // difference could only ever come from a stale render — and enabling Save on
+  // one would send a field the server drops.
+  const webhooksDirty =
+    canEditWebhooks &&
+    (webhookUrl !== (application.webhookUrl ?? '') ||
+      devWebhookUrl !== (application.devWebhookUrl ?? ''));
 
   const isDirty =
     name !== application.name ||
@@ -75,7 +93,8 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
     termsUrl !== (application.termsUrl ?? '') ||
     icon !== (application.icon ?? '') ||
     !arraysEqual(redirectUris, application.redirectUris) ||
-    !arraysEqual(nextScopes, application.scopes);
+    !arraysEqual(nextScopes, application.scopes) ||
+    webhooksDirty;
 
   const handleAddRedirectUri = () => {
     const value = newRedirectUri.trim();
@@ -115,6 +134,14 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
           icon: stripSensitiveImageUrlQueryParams(icon),
           redirectUris,
           scopes: nextScopes,
+          // Sent only by a caller holding the right, and only as a trimmed
+          // string. An empty string CLEARS the stored URL server-side, which is
+          // the only way to turn delivery off — and for `webhookUrl` that also
+          // discards the signing secret, since the server rotates it on every
+          // change of the URL.
+          ...(canEditWebhooks
+            ? { webhookUrl: webhookUrl.trim(), devWebhookUrl: devWebhookUrl.trim() }
+            : {}),
         },
       });
       toast.success('Application updated');
@@ -324,6 +351,66 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
           </div>
         </div>
       </section>
+
+      {/*
+        Webhook endpoints. Two URLs rather than one because the environments are
+        separate everywhere else in this Console too — a staging deployment must
+        not receive production events.
+
+        The signing secret is deliberately NOT rendered: the API never serialises
+        it, so there is nothing here to show, and it is replaced whenever the
+        production URL changes. Saying so in the help text is the only way a
+        developer can discover real server behaviour that would otherwise look
+        like their receiver silently breaking.
+      */}
+      {canReadWebhooks && (
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Webhooks</h2>
+            <p className="text-sm text-muted-foreground">
+              Where Oxy delivers events for this application. Leave a field empty to stop
+              delivery to that environment.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="app-webhook-url" className="text-sm">
+              Production endpoint
+            </Label>
+            <Input
+              id="app-webhook-url"
+              type="url"
+              value={webhookUrl}
+              onChange={(e) => setWebhookUrl(e.target.value)}
+              placeholder="https://example.com/webhooks/oxy"
+              disabled={!canEditWebhooks}
+            />
+            <p className="text-xs text-muted-foreground">
+              Changing this URL generates a new signing secret and discards the old one. The
+              secret is never shown again after that, so update your receiver in the same
+              change.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="app-dev-webhook-url" className="text-sm">
+              Development endpoint
+            </Label>
+            <Input
+              id="app-dev-webhook-url"
+              type="url"
+              value={devWebhookUrl}
+              onChange={(e) => setDevWebhookUrl(e.target.value)}
+              placeholder="https://localhost:3000/webhooks/oxy"
+              disabled={!canEditWebhooks}
+            />
+            <p className="text-xs text-muted-foreground">
+              Used for development and staging deliveries. Changing it does not rotate the
+              signing secret.
+            </p>
+          </div>
+        </section>
+      )}
 
       <section className="space-y-3">
         <div>

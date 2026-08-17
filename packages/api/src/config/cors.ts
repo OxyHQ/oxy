@@ -57,10 +57,25 @@ export const ALLOWED_HEADERS = [
   'X-Device-Fingerprint',
   'x-device-fingerprint',
   'X-Native-App',
+  // The inference edge reads `Idempotency-Key` on every invoke and dedupes on
+  // it. Absent from this list, a browser cannot SEND it at all — the preflight
+  // rejects the header — so no browser client could use idempotency support the
+  // edge already implements. Sending it is safe by construction: it is the
+  // caller's own correlation string, bounded server-side.
+  'Idempotency-Key',
 ] as const;
 
 /**
- * Headers that browsers are allowed to access from responses
+ * Headers that browsers are allowed to access from responses.
+ *
+ * The `X-Oxy-*` block is the inference edge's documented integration surface,
+ * and it is not decoration: the OpenAI-compat body at `/v1/chat/completions` is
+ * deliberately stock, so on THAT surface the request id, the resolved model
+ * revision, the serving provider, the routing policy and the metered units exist
+ * ONLY in these headers. Without them here, `Access-Control-Expose-Headers`
+ * omits them and `res.headers.get('X-Oxy-Request-Id')` returns `null` in every
+ * browser — silently, with no error and nothing in a network log to explain it.
+ * That makes an unreportable request id the default for every browser customer.
  */
 export const EXPOSED_HEADERS = [
   'Content-Type',
@@ -72,6 +87,24 @@ export const EXPOSED_HEADERS = [
   'ETag',
   'Cache-Control',
   'X-CSRF-Token',
+  // The inference edge (`utils/inferenceEdgeErrors.ts`, `routes/inferenceEdge.ts`).
+  'X-Oxy-Request-Id',
+  'X-Oxy-Inference-Contract-Version',
+  'X-Oxy-Model',
+  'X-Oxy-Provider',
+  'X-Oxy-Routing-Policy',
+  'X-Oxy-Routing-Policy-Version',
+  // Four token headers, not two: the contract's units PARTITION a request, so
+  // the cached-input and reasoning counts are what make the charge add up.
+  'X-Oxy-Usage-Input-Tokens',
+  'X-Oxy-Usage-Cached-Input-Tokens',
+  'X-Oxy-Usage-Output-Tokens',
+  'X-Oxy-Usage-Reasoning-Tokens',
+  // The compat surface's error idiom: a stock OpenAI client sees only
+  // `{ error: { … } }`, so retryability rides here (ADR 0010).
+  'X-Oxy-Error-Code',
+  'X-Oxy-Error-Retryable',
+  'X-Oxy-Finish-Reason',
 ] as const;
 
 /**

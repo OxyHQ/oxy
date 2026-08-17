@@ -151,6 +151,55 @@ export function compareExactDecimals(left: string, right: string): number {
 }
 
 /**
+ * Is a unit price at most a cap, when the two are quoted per DIFFERENT
+ * denominators?
+ *
+ * A catalogue price is `amount` per `per` units — "$3.00 per 1000000 input
+ * tokens" — and a customer filtering the catalogue types a cap in their own
+ * denominator. So the comparison is between two ratios, `amount/per` and
+ * `cap.amount/cap.per`, whose denominators genuinely differ across rows.
+ *
+ * Cross-multiplied rather than divided, because DIVISION is where the exactness
+ * goes: `1000000/3` has no finite decimal form, so normalising both sides to a
+ * common denominator would have to round, and a rounded price comparison
+ * silently includes or excludes rows at the boundary. Both `per` values are
+ * positive integers (the ledger's own CHECK), so multiplying both sides by them
+ * preserves the direction of the inequality exactly.
+ *
+ * The multiplication itself is `BigInt` over the digit strings padded to a
+ * common fractional width — no step passes through a `number`, which is the
+ * whole rule this file exists to keep. This is admissible where the `add` above
+ * is not: it produces a BOOLEAN, never an amount, so there is no figure here
+ * that could be rendered as money the ledger never computed.
+ *
+ * `undefined` when either side is not an exact decimal — the same refusal
+ * `splitDecimal` makes, so a caller decides what an unparseable cap means rather
+ * than inheriting a silent `false`.
+ */
+export function isUnitPriceAtMost(
+  unitPrice: { readonly amount: string; readonly per: number },
+  cap: { readonly amount: string; readonly per: number }
+): boolean | undefined {
+  const left = splitDecimal(unitPrice.amount);
+  const right = splitDecimal(cap.amount);
+  if (left === undefined || right === undefined) {
+    return undefined;
+  }
+  if (!Number.isSafeInteger(unitPrice.per) || unitPrice.per <= 0) {
+    return undefined;
+  }
+  if (!Number.isSafeInteger(cap.per) || cap.per <= 0) {
+    return undefined;
+  }
+
+  const width = Math.max(left.fraction.length, right.fraction.length);
+  const scaled = (parts: DecimalParts): bigint =>
+    BigInt(`${parts.integer}${parts.fraction.padEnd(width, '0')}`);
+
+  return scaled(left) * BigInt(cap.per) <= scaled(right) * BigInt(unitPrice.per);
+}
+
+/**
  * Basis points of a budget consumed, as a percentage.
  *
  * A count, not money: `utilizationBps` is a server-computed integer bounded at

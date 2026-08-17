@@ -44,10 +44,15 @@ import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type {
   AvailabilityScope,
   ModelCatalogueEntry,
+  PriceSnapshot,
   RoutingPolicy,
   RoutingProfile,
 } from '@oxyhq/contracts';
-import { modelCatalogueEntrySchema, routingProfileSchema } from '@oxyhq/contracts';
+import {
+  modelCatalogueEntrySchema,
+  priceSnapshotSchema,
+  routingProfileSchema,
+} from '@oxyhq/contracts';
 import type { SelectedRow } from '@oxyhq/db';
 import { getDb } from '../config/postgres';
 import {
@@ -59,6 +64,8 @@ import {
   inferencePublishers,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
+  priceVersions,
+  priceVersionUnitPrices,
   SELECTABLE_PERMISSION_STATE,
 } from '../db/schema';
 import {
@@ -616,6 +623,22 @@ export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
  */
 export type CustomerSafeDeploymentRow = SelectedRow<typeof CUSTOMER_SAFE_DEPLOYMENT_COLUMNS>;
 
+/**
+ * A deployment row as the catalogue READS it: the customer-safe projection plus
+ * the price-version JOIN KEY.
+ *
+ * `priceVersionId` stays in {@link INTERNAL_DEPLOYMENT_COLUMNS} and out of the
+ * allow-list — the two lists must not name the same column, and the schema test
+ * fails if they do. It rides along under a `join` name for the same reason
+ * `joinModelId` and `joinRevisionId` do: it is a key the serializer resolves
+ * something else THROUGH, never a field it copies out. What the customer is
+ * shown is the price SNAPSHOT the key resolves to, which
+ * `priceSnapshotSchema` publishes with the version id inside it.
+ */
+type CatalogueDeploymentRow = CustomerSafeDeploymentRow & {
+  readonly joinPriceVersionId: string | null;
+};
+
 /* -------------------------------------------------------------------------- */
 /*  Canonical reference composition                                           */
 /* -------------------------------------------------------------------------- */
@@ -716,26 +739,113 @@ function dataPolicyOf(deployment: CustomerSafeDeploymentRow) {
 }
 
 /**
+ * The published price for every price version named by a set of routes, keyed by
+ * version id.
+ *
+ * TWO queries for the whole listing, never one per entry: `GET /models` is
+ * uncached per request, so a per-entry lookup would make the catalogue's cost
+ * grow with the number of models it serves.
+ *
+ * A version with no unit-price rows resolves to NOTHING rather than to an empty
+ * snapshot. `priceSnapshotSchema` requires at least one unit price, so an empty
+ * one cannot be published at all — and the honest reading of a priced route
+ * whose prices are missing is "we cannot quote this", which is what an absent
+ * `pricing` says. The alternative, a snapshot with an empty `unitPrices`, would
+ * fail the parse and take the whole listing down for every customer.
+ */
+async function loadPriceSnapshots(
+  priceVersionIds: readonly string[]
+): Promise<ReadonlyMap<string, PriceSnapshot>> {
+  if (priceVersionIds.length === 0) return new Map();
+
+  const db = getDb();
+
+  const versionRows = await db
+    .select({ id: priceVersions.id, currency: priceVersions.currency })
+    .from(priceVersions)
+    .where(inArray(priceVersions.id, [...priceVersionIds]));
+
+  if (versionRows.length === 0) return new Map();
+
+  const unitPriceRows = await db
+    .select({
+      priceVersionId: priceVersionUnitPrices.priceVersionId,
+      unit: priceVersionUnitPrices.unit,
+      amount: priceVersionUnitPrices.amount,
+      per: priceVersionUnitPrices.per,
+    })
+    .from(priceVersionUnitPrices)
+    .where(inArray(priceVersionUnitPrices.priceVersionId, versionRows.map((row) => row.id)))
+    .orderBy(asc(priceVersionUnitPrices.unit));
+
+  const snapshots = new Map<string, PriceSnapshot>();
+  for (const version of versionRows) {
+    const unitPrices = unitPriceRows
+      .filter((row) => row.priceVersionId === version.id)
+      // The same construction as the settled receipt's
+      // (`inferenceEdge.service.ts`' `readGenerationReceipt`): each unit price
+      // carries the PARENT version's currency, which the table's own check
+      // constrains it to. Copied rather than re-derived so a customer's quote and
+      // the receipt that later prices them cannot disagree in shape.
+      .map((row) => ({
+        unit: row.unit,
+        amount: row.amount,
+        per: row.per,
+        currency: version.currency,
+      }));
+    if (unitPrices.length === 0) continue;
+    // Parsed rather than cast. `exactDecimalSchema` is BRANDED precisely so an
+    // unchecked `string` off a database row cannot become an amount, and its own
+    // docs name `.parse()` as how a producer constructs one. It cannot fail on
+    // well-formed data — the column is `numeric(_, INFERENCE_MONEY_SCALE)` with a
+    // `>= 0` check, which is exactly what the brand's regex admits — so a failure
+    // here means the ledger's own schema disagrees with the money contract, which
+    // is worth hearing about loudly rather than serving a price around.
+    snapshots.set(
+      version.id,
+      priceSnapshotSchema.parse({
+        priceVersionId: version.id,
+        currency: version.currency,
+        unitPrices,
+      })
+    );
+  }
+
+  return snapshots;
+}
+
+/**
  * Build one customer-facing catalogue entry.
  *
  * Every parameter is already narrowed to a customer-safe shape, so this
  * function has no opportunity to leak: `deployments` is
- * `CustomerSafeDeploymentRow[]`, whose type has no internal route id and no
+ * `CatalogueDeploymentRow[]`, whose type has no internal route id and no
  * wholesale cost to read. The `.parse()` at the end is the second, runtime
  * guard — it strips anything unknown and fails loudly on anything malformed.
  *
- * `pricing` is deliberately never populated yet: price versions are the
- * LEDGER's table (workstream 7) and it has not landed. An entry with no
- * `pricing` says "we have not published a price for this"; an invented one
- * would be quoted back to us.
+ * `pricing` comes from the PRIMARY route's price version, the same route whose
+ * data policy, availability scope and commercial permission this entry reports —
+ * one route's commercial terms, resolved once, rather than a price from one row
+ * beside a policy from another.
+ *
+ * Absent `pricing` on a LISTED entry has exactly one meaning: the primary route
+ * names no price version, i.e. it is not yet priced — which is the state
+ * {@link resolveEdgeRoute} refuses with `unpriced-route`, so the edge will not
+ * serve it either. The other case the schema allows, a `byok_only` route whose
+ * price version the CHECK `inference_deployments_byok_has_no_price_version`
+ * forces to null, is NOT reachable here: `byok_only` is in
+ * {@link UNGRANTABLE_SCOPES}, so no viewer is served such a route and none is
+ * ever listed. An invented price would be quoted back to us, so there is still
+ * none.
  */
 function buildCatalogueEntry(
   model: CatalogueModelRow,
   currentRevision: CatalogueRevisionRow,
   availableRevisions: readonly CatalogueRevisionRow[],
-  deployments: readonly CustomerSafeDeploymentRow[],
+  deployments: readonly CatalogueDeploymentRow[],
   providersBySlug: ReadonlyMap<string, CatalogueProviderRow>,
-  evaluations: readonly { suite: string; metric: string; score: string; evaluatedAt: Date | null; reportUrl: string | null }[]
+  evaluations: readonly { suite: string; metric: string; score: string; evaluatedAt: Date | null; reportUrl: string | null }[],
+  priceSnapshotsByVersionId: ReadonlyMap<string, PriceSnapshot>
 ): ModelCatalogueEntry | null {
   if (model.modelId === null || deployments.length === 0) return null;
 
@@ -747,6 +857,14 @@ function buildCatalogueEntry(
       SCOPE_PRIMACY.indexOf(right.availabilityScope as AvailabilityScope);
     return byScope !== 0 ? byScope : left.providerSlug.localeCompare(right.providerSlug);
   })[0];
+
+  // Resolved from the SAME row the terms above come from. `undefined` when the
+  // route names no price version, and also when the version it names has no unit
+  // prices — see `loadPriceSnapshots`.
+  const pricing =
+    primary.joinPriceVersionId === null
+      ? undefined
+      : priceSnapshotsByVersionId.get(primary.joinPriceVersionId);
 
   const regions = [...new Set(deployments.flatMap((deployment) => deployment.regions))].sort();
 
@@ -813,6 +931,7 @@ function buildCatalogueEntry(
     regions,
     servingProviders,
     dataPolicy: dataPolicyOf(primary),
+    ...(pricing === undefined ? {} : { pricing }),
     availabilityScope: primary.availabilityScope,
     commercialPermission: primary.commercialPermission,
     deprecation: {
@@ -877,10 +996,12 @@ export async function listCatalogueForViewer(
     .select({
       ...CUSTOMER_SAFE_DEPLOYMENT_COLUMNS,
       // Join keys, not part of the customer shape — see the serializer, whose
-      // parameter type is `CustomerSafeDeploymentRow` and therefore cannot read
-      // this even though the query returns it.
+      // parameter type is `CatalogueDeploymentRow` and therefore cannot read the
+      // internal route id or the wholesale cost even though this query could
+      // have asked for them.
       joinModelId: inferenceModelRevisions.modelId,
       joinRevisionId: inferenceModelRevisions.id,
+      joinPriceVersionId: inferenceDeployments.priceVersionId,
     })
     .from(inferenceDeployments)
     .innerJoin(
@@ -980,6 +1101,16 @@ export async function listCatalogueForViewer(
           .where(inArray(inferenceModelEvaluations.modelRevisionId, currentRevisionIds))
           .orderBy(asc(inferenceModelEvaluations.suite), asc(inferenceModelEvaluations.metric));
 
+  // Every price version any listed route names, resolved in two queries before
+  // the loop rather than inside it.
+  const priceSnapshotsByVersionId = await loadPriceSnapshots([
+    ...new Set(
+      deploymentRows.flatMap((row) =>
+        row.joinPriceVersionId === null ? [] : [row.joinPriceVersionId]
+      )
+    ),
+  ]);
+
   const entries: ModelCatalogueEntry[] = [];
   for (const model of modelRows) {
     const revisions = revisionRows.filter((revision) => revision.modelId === model.id);
@@ -1002,7 +1133,8 @@ export async function listCatalogueForViewer(
       availableRevisions,
       deployments,
       providersBySlug,
-      evaluationRows.filter((row) => row.modelRevisionId === currentRevision.id)
+      evaluationRows.filter((row) => row.modelRevisionId === currentRevision.id),
+      priceSnapshotsByVersionId
     );
     if (entry !== null) entries.push(entry);
   }
