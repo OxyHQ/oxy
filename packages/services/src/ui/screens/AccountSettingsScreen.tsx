@@ -120,7 +120,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
   const handleArchive = useCallback(async () => {
     const confirmed = await surfaces.confirm({
       title: t('accounts.settings.archive.confirmTitle') || 'Archive account',
-      message:
+      description:
         t('accounts.settings.archive.confirmDescription')
         || 'Archive this account? It will be deactivated and its members will lose access.',
       confirmLabel: t('accounts.settings.archive.title') || 'Archive account',

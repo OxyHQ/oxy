@@ -104,7 +104,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                             {displayName}
                         </Text>
                         <View style={styles.tierRow} className="mt-space-4">
-                            <Chip size="small" variant="soft" color={isPodium ? 'primary' : 'default'}>
+                            <Chip size="small" variant="subtle" color={isPodium ? 'primary' : 'default'}>
                                 {trustTierLabel(locale, item.trustTier)}
                             </Chip>
                         </View>

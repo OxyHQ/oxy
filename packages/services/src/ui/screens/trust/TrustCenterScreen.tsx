@@ -89,7 +89,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({
                     </Text>
                     {resolvedTrustTierLabel ? (
                         <Chip
-                            variant="soft"
+                            variant="subtle"
                             color="primary"
                             startIcon={
                                 <Ionicons
@@ -217,7 +217,7 @@ const TrustCenterScreen: React.FC<BaseScreenProps> = ({
                                 }
                                 rightElement={
                                     <Chip
-                                        variant="soft"
+                                        variant="subtle"
                                         size="small"
                                         color={entry.points > 0 ? 'success' : 'error'}
                                     >

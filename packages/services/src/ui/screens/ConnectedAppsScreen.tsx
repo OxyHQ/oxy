@@ -65,7 +65,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
         async (app: ConnectedApp) => {
             const confirmed = await surfaces.confirm({
                 title: t('connectedApps.confirm.title') || 'Revoke access',
-                message:
+                description:
                     t('connectedApps.confirm.message', { name: app.name })
                     || `Revoke ${app.name}'s access to your Oxy account?`,
                 confirmLabel: t('common.revoke') || 'Revoke',

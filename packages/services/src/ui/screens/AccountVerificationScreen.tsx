@@ -54,7 +54,7 @@ const AccountVerificationScreen: React.FC<BaseScreenProps> = ({
             // returns; there is no negative action.
             await surfaces.confirm({
                 title: t('accountVerification.successTitle') || 'Request Submitted',
-                message:
+                description:
                     t('accountVerification.successMessage') || `Your verification request has been submitted. Request ID: ${result.requestId}`,
                 confirmLabel: t('accountVerification.ok') || 'OK',
                 hideCancel: true,

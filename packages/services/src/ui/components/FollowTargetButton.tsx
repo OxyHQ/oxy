@@ -12,8 +12,8 @@
  * choices that a single press cannot express — follow for a while, stop showing
  * this here without giving it up everywhere — and those belong behind a
  * disclosure precisely because they are not what most people want most of the
- * time. Bloom's `Menu` renders as a bottom sheet on native and a dropdown on
- * web, so this is one component and not a platform fork.
+ * time. Bloom's `DropdownMenu` is platform-forked inside Bloom, so this is one
+ * component and not a platform fork here.
  *
  * ## Verbs
  *
@@ -37,7 +37,12 @@ import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
 import { Button } from '@oxyhq/bloom/button';
 import { ChevronBottom_Stroke2_Corner0_Rounded as ChevronDown } from '@oxyhq/bloom/icons';
-import { Menu, MenuContent, MenuItem, MenuItemText, MenuTrigger } from '@oxyhq/bloom/menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@oxyhq/bloom/dropdown-menu';
 import { toast } from '@oxyhq/bloom/toast';
 import { useFollowTarget } from '../hooks/useFollowTarget';
 import { useFollowTargetStore } from '../stores/followTargetStore';
@@ -392,32 +397,31 @@ export const FollowTargetButton = memo(function FollowTargetButton({
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 4 }, style]}>
       {primary}
-      <Menu>
-        <MenuTrigger label={`${label} options`} hint="Opens follow options">
-          {({ props }) => (
-            // The trigger's props are mapped rather than spread: `MenuTrigger`
-            // hands back a DOM-ish bag (focus handlers, an accessibility role)
-            // and `Button` accepts a different set, so a spread would pass
-            // props it silently drops.
-            <Button
-              variant="secondary"
-              size={size === 'large' ? 'large' : 'small'}
-              icon={<ChevronDown width={16} />}
-              disabled={disabled || isUnknown}
-              onPress={props.onPress}
-              accessibilityLabel={props.accessibilityLabel}
-              accessibilityHint={props.accessibilityHint}
-            />
-          )}
-        </MenuTrigger>
-        <MenuContent showCancel>
+      <DropdownMenu>
+        {/*
+          `asChild` renders the Button ITSELF as the trigger, merging the open
+          handler into it. Bloom ignores the trigger's own `label` when the
+          child carries an accessible name, so the name and hint stay on the
+          Button, where they were.
+        */}
+        <DropdownMenuTrigger asChild disabled={disabled || isUnknown}>
+          <Button
+            variant="secondary"
+            size={size === 'large' ? 'large' : 'small'}
+            icon={<ChevronDown width={16} />}
+            disabled={disabled || isUnknown}
+            accessibilityLabel={`${label} options`}
+            accessibilityHint="Opens follow options"
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent label={`${label} options`}>
           {menuItems.map((item) => (
-            <MenuItem key={item.key} label={item.label} onPress={() => runItem(item)}>
-              <MenuItemText>{item.label}</MenuItemText>
-            </MenuItem>
+            <DropdownMenuItem key={item.key} onPress={() => runItem(item)}>
+              {item.label}
+            </DropdownMenuItem>
           ))}
-        </MenuContent>
-      </Menu>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </View>
   );
 });

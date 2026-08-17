@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/app-preset",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "The Oxy distro of Expo — centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, …). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
@@ -63,9 +63,10 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs",
     "test": "node --test __tests__/*.test.js"
   },
+  "//peerDependencies": "THE CAPS ON THE TWO @oxyhq PEERS ARE DELIBERATE, AND RE-RAISING ONE MEANS RE-CHECKING THE PATH IT GUARDS, NOT JUST THE NUMBER. This package couples to those two by FILE PATH, not by API: `css/base.css` imports `@oxyhq/bloom/design-tokens/theme.css`, and `plugin/withOxyAppPreset.js` optionally requires `@oxyhq/services/plugins/withSharedIdentityReader`. Both paths were verified present across the whole floor-to-cap range, so the floors are measured rather than guessed. They were previously `*`, which is not a range but the absence of one -- and an unbounded peer on a package that ships breaking majors is exactly what let a consumer install @oxyhq/services with an @oxyhq/bloom it could not work with, silently. When @oxyhq/services 31 or @oxyhq/bloom 2 ships, confirm the two subpaths above still resolve in the new major BEFORE widening the cap; a cap widened without that check is worse than no cap, because it looks like someone checked.",
   "peerDependencies": {
-    "@oxyhq/bloom": "*",
-    "@oxyhq/services": "*",
+    "@oxyhq/bloom": ">=0.59.0 <2.0.0",
+    "@oxyhq/services": ">=24.0.0 <31.0.0",
     "babel-plugin-module-resolver": "*",
     "babel-preset-expo": "*",
     "eslint": ">=9.0.0",
