@@ -80,6 +80,10 @@ import { expireDueFollows } from './services/followCommand.service';
 import { runAutoRechargeSweep } from './services/stripeAccountBilling.service';
 import { expireReservations } from './services/inferenceLedger.service';
 import { runScheduledReconciliation } from './services/billingReconciliation.service';
+import {
+  sweepTokenAnomalies,
+  TOKEN_ANOMALY_SWEEP_INTERVAL_MS,
+} from './services/tokenAnomaly.service';
 import { RECONCILIATION_SWEEP_INTERVAL_MS } from './db/schema/billingReconciliation';
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
@@ -1208,6 +1212,32 @@ export async function bootstrap(
       );
   }, SPEND_ANOMALY_SWEEP_INTERVAL_MS);
   spendAnomalySweep.unref();
+
+  // The TOKEN half of the same signal (issue #972 section 8). Separate from the
+  // spend sweep above because they are separate claims over separate tables: a
+  // token spike with flat spend is a retry loop or a prompt that grew, not a
+  // switch to an expensive model. It RECORDS and LOGS and blocks nothing, for the
+  // reason its own header gives at length. Unref'd + failures logged, like the
+  // sweeps above.
+  const tokenAnomalySweep = setInterval(() => {
+    sweepTokenAnomalies()
+      .then((result) => {
+        if (result.recorded > 0) {
+          logger.info('Token anomaly sweep recorded new signals', {
+            recorded: result.recorded,
+            observed: result.detected.length,
+            thresholdMultiple: result.thresholdMultiple,
+          });
+        }
+      })
+      .catch((err) =>
+        logger.error(
+          'Token anomaly sweep failed',
+          err instanceof Error ? err : new Error(String(err))
+        )
+      );
+  }, TOKEN_ANOMALY_SWEEP_INTERVAL_MS);
+  tokenAnomalySweep.unref();
   // Reconcile Oxy's record of processor payments against the processor's, one
   // window at a time (issue #972 workstream 16). Without THIS registration
   // "reconciliation drift" is a metric with no series behind it: every pass

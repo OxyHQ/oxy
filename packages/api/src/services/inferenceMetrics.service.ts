@@ -276,6 +276,42 @@ export interface ReserveFailureMetric {
   readonly reasonsDistinguishableBy: 'inference.edge.reservation_refused log line';
 }
 
+/**
+ * Settlements where usage was never measured — the `estimated` receipts.
+ *
+ * This is the first reader `usage_receipts_estimated_idx` has ever had. That index
+ * is partial on `(settled_at) WHERE usage_source = 'estimated'` and was built for
+ * "the reconciliation queue: estimated receipts awaiting a provider's real
+ * figures" — but a census over non-test source finds `'estimated'` in exactly
+ * three places (the schema enum, the ledger's reason mapping, and the index
+ * predicate itself) and no query, job, alert or endpoint. A partial index nothing
+ * reads is write amplification on the largest financial table, and a queue nobody
+ * drains is worse than a documented absence.
+ *
+ * So the figure is served rather than the index dropped, and this query is
+ * deliberately the index's own shape: the same predicate, ranging on the same
+ * leading column.
+ *
+ * **What these rows are is narrower than "awaiting real figures".** They are
+ * requests the data plane reported nothing for, settled at ZERO with the refund
+ * reason `usage_unavailable`, so the customer was not charged and Oxy absorbed the
+ * upstream cost. Nothing arrives later to reconcile them against today — there is
+ * no ingestion path for a provider's retrospective usage — so the honest reading
+ * of a rising number is "the data plane is losing usage reports", not "a backlog is
+ * building".
+ *
+ * Distinct from a `zero-usage` REFUSAL (#972 §7.3), which writes no receipt at all
+ * and therefore never appears here.
+ */
+export interface UnmeasuredSettlementMetric {
+  /** Receipts in the window whose usage was never measured. */
+  readonly receiptCount: number;
+  /** Every settled receipt in the window, so the count has a denominator. */
+  readonly settledReceipts: number;
+  /** The newest one, so a stale figure is visibly stale. `undefined` when none. */
+  readonly latestSettledAt?: string;
+}
+
 export interface ReconciliationDriftRun {
   readonly runId: string;
   readonly provider: string;
@@ -344,6 +380,7 @@ export interface InferenceOperationalMetrics {
   readonly fallback: FallbackMetric;
   readonly reserveFailures: ReserveFailureMetric;
   readonly settlementLagMs: DistributionMetric;
+  readonly unmeasuredSettlements: UnmeasuredSettlementMetric;
   readonly reconciliationDrift: ReconciliationDriftMetric;
 }
 
@@ -595,6 +632,40 @@ async function readSettlementLag(scope: MetricsScope): Promise<DistributionMetri
   };
 }
 
+/** Receipts whose usage the data plane never reported — see the shape's doc. */
+async function readUnmeasuredSettlements(
+  scope: MetricsScope
+): Promise<UnmeasuredSettlementMetric> {
+  const [row] = await executeRows<Record<string, unknown>>(
+    getDb(),
+    sql`
+      select
+        count(*)::bigint::text as settled_receipts,
+        count(*) filter (where rc.usage_source = 'estimated')::bigint::text as receipt_count,
+        to_char(
+          max(rc.settled_at) filter (where rc.usage_source = 'estimated') at time zone 'UTC',
+          ${ISO_INSTANT}::text
+        ) as latest_settled_at
+      from ${usageReceipts} rc
+      where rc.settled_at >= ${scope.window.from}::date
+        and rc.settled_at < (${scope.window.to}::date + interval '1 day')
+        ${scope.accountId === undefined ? sql`` : sql`and rc.account_id = ${scope.accountId}`}
+        ${
+          scope.applicationId === undefined
+            ? sql``
+            : sql`and rc.application_id = ${scope.applicationId}`
+        }
+    `
+  );
+
+  const latest = row?.latest_settled_at;
+  return {
+    receiptCount: toCount(row?.receipt_count ?? 0),
+    settledReceipts: toCount(row?.settled_receipts ?? 0),
+    ...(latest === null || latest === undefined ? {} : { latestSettledAt: String(latest) }),
+  };
+}
+
 /**
  * Reconciliation drift.
  *
@@ -726,6 +797,7 @@ export async function readInferenceOperationalMetrics(
     fallback: await readFallback(scope),
     reserveFailures: await readReserveFailures(scope),
     settlementLagMs: await readSettlementLag(scope),
+    unmeasuredSettlements: await readUnmeasuredSettlements(scope),
     reconciliationDrift: await readReconciliationDrift(scope),
   };
 }

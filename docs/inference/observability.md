@@ -159,6 +159,7 @@ exactly that shape) — and no metric here derives one from a telemetry sum.
 | Fallback | `fallback` — **`state: 'pending'`** | `.route_switches` |
 | Reserve failures | `reserveFailures.refusedRequests` | events with `status_code = 402` |
 | Settlement lag | `settlementLagMs` — p50/p95/p99/max | `usage_receipts.settled_at − usage_reservations.created_at` |
+| Unmeasured settlements | `unmeasuredSettlements.receiptCount` | `usage_receipts` where `usage_source = 'estimated'` — see below |
 | Reconciliation drift | `reconciliationDrift` | `billing_reconciliation_runs` / `_discrepancies` |
 
 ### Two metrics have NO DATA YET, and say so rather than reporting zero
@@ -210,6 +211,32 @@ One number this metric is NOT: `inference_route_switch_events` is the
 customer-visible record of a switch and has its own writer. `fallback` counts the
 telemetry column instead, so the two are different figures and are deliberately not
 compared here.
+
+### `unmeasuredSettlements` gives a partial index its first reader
+
+`usage_receipts_estimated_idx` is partial on `(settled_at) WHERE usage_source =
+'estimated'` and was commented "the reconciliation queue: estimated receipts
+awaiting a provider's real figures". A census over non-test source finds
+`'estimated'` in exactly three places — the schema enum, the ledger's reason
+mapping, and the index predicate itself — and **no query, job, alert or endpoint**.
+A partial index nothing reads is write amplification on the largest financial
+table, and a queue nobody drains is worse than a documented absence.
+
+Rather than drop the index, this surface reads it, with a query that is
+deliberately the index's own shape: same predicate, ranging on the same leading
+column. The index comment has been corrected too, because "awaiting a provider's
+real figures" implies a drainer that does not exist — there is no ingestion path
+for a provider's retrospective usage.
+
+What these rows actually are: requests the data plane reported nothing for, settled
+at ZERO with refund reason `usage_unavailable`, so the customer was not charged and
+Oxy absorbed the upstream cost. So **a rising count means the data plane is losing
+usage reports**, not that a backlog is building. `settledReceipts` is reported
+beside it as the denominator, and `latestSettledAt` so a stale figure is visibly
+stale.
+
+Distinct from a `zero-usage` REFUSAL ([billing.md](./billing.md#refuse-never-estimate-972-73)),
+which writes no receipt at all and therefore never appears here.
 
 ### There is no latency column on the rollup, deliberately
 
@@ -418,16 +445,23 @@ what stops the three refusals reading the same as routes that refuse everybody.
    for rows written before the column existed, which were NOT back-filled. The
    full argument, including why "no person authored it" has to be a value rather
    than a blank, is in [billing.md](./billing.md#who-authored-an-entry).
-2. **The BYOK trail cannot tell a person from a service token.** Still open; it
-   needs a column, so it is recorded here rather than changed.
-   `inference_provider_connection_audit_events.actor_user_id` is written from
-   `authorOf(principal)`, which returns the calling user's id for a session
-   principal and the **owning account's** id for a service-token principal. Both
-   land in the same column, so "a member rotated this connection" and "an
-   application rotated it with a service token" read identically. That applies to
-   every event with an actor — create, validate, rotate, disable, enable, revoke;
-   `used` is already NULL-actor by CHECK. Telling them apart needs a principal
-   kind on the row, which is a column.
+2. **The BYOK trail cannot tell a person from a service token — CLOSED**
+   (issue #1043, migration `0049_inference_provider_connection_actor`).
+   `inference_provider_connection_audit_events.actor_user_id` used to be written
+   from `authorOf(principal)`, which returned the calling user's id for a session
+   principal and the **owning account's** id for a service-token one. Both landed
+   in the same column, so "a member rotated this connection" and "an application
+   rotated it with a service token" read identically, on every event with an actor
+   — create, validate, rotate, disable, enable, revoke.
+
+   The row now carries `actor_kind`, one of
+   `PROVIDER_CONNECTION_ACTOR_KINDS` = `user | service | platform`, with a CHECK
+   enumerating the legal combinations. `authorOf` is gone from that path in favour
+   of a discriminated-union `actorOf`, so the two incoherent rows the CHECK refuses
+   — a `user` with no id, a `service` or `platform` carrying one — are not
+   expressible in TypeScript either: a writer that omits the kind fails `tsc`
+   rather than the database. `used` remains NULL-actor by CHECK, which the column's
+   nullable first branch admits.
 
 ### Least-privilege admin roles: today there is exactly one tier
 

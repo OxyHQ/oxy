@@ -40,6 +40,7 @@ import { z } from 'zod';
 import { getDb } from '../config/postgres';
 import { describeRolloutFlags } from '../config/rolloutFlags';
 import {
+  inferenceTokenAnomalies,
   DEPLOYMENT_LEGAL_REVIEW_STATUSES,
   inferenceDeployments,
   inferenceModelRevisions,
@@ -173,6 +174,11 @@ const spendAnomalyQuery = z
   .object({ limit: z.coerce.number().int().min(1).max(200).default(100) })
   .strict();
 
+/** The token half's read, bounded identically — see {@link spendAnomalyQuery}. */
+const tokenAnomalyQuery = z
+  .object({ limit: z.coerce.number().int().min(1).max(200).default(100) })
+  .strict();
+
 const legalReviewBody = z
   .object({
     status: z.enum(DEPLOYMENT_LEGAL_REVIEW_STATUSES),
@@ -266,6 +272,39 @@ router.get(
       .select()
       .from(inferenceSpendAnomalies)
       .orderBy(desc(inferenceSpendAnomalies.detectedForHour))
+      .limit(limit);
+
+    res.json({ data: rows, count: rows.length });
+  })
+);
+
+/**
+ * `GET /inference/admin/token-anomalies`
+ *
+ * Every account-hour whose TOKEN consumption jumped past a multiple of its own
+ * trailing daily median (#972 section 8), newest first.
+ *
+ * The token half of "spend/token spikes"; `GET /spend-anomalies` beside it is the
+ * money half. They are separate endpoints over separate tables because they are
+ * separate claims: a token spike with flat spend means a retry loop or a prompt
+ * that grew, a spend spike with flat tokens means a switch to an expensive model,
+ * and one endpoint returning both would answer neither question.
+ *
+ * A READ, and the only consumer of `inference_token_anomalies`. The detector blocks
+ * nothing — argued at length in `services/tokenAnomaly.service.ts` — so this is
+ * what turns the signal into something a person can act on.
+ *
+ * Not graded by capability: it discloses no credential and changes nothing.
+ */
+router.get(
+  '/token-anomalies',
+  validate({ query: tokenAnomalyQuery }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { limit } = tokenAnomalyQuery.parse(req.query);
+    const rows = await getDb()
+      .select()
+      .from(inferenceTokenAnomalies)
+      .orderBy(desc(inferenceTokenAnomalies.detectedForHour))
       .limit(limit);
 
     res.json({ data: rows, count: rows.length });

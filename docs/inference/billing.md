@@ -39,6 +39,39 @@ Two properties hold across every path, and they are what the tests must be able
 to falsify rather than confirm: **no path may charge twice, and no path may
 execute unreserved.**
 
+### Refuse, never estimate (#972 §7.3)
+
+A step 3 that cannot be done exactly is **refused**, not approximated. If the data
+plane reports a `completed` request and accounts for nothing — no units, or units
+that are all zero — `settle` answers `zero-usage` and writes nothing at all: no
+receipt, no refund, no journal entry. You get an error, your hold stands, and the
+expiry sweep returns the money within about a minute of the deadline.
+
+**It used to bill nothing and return `200`, which is the bug this closes.** A
+provider that omitted its usage block yielded a silently free request, and a free
+request is not a gift — it is a completion with no receipt, which no invoice can
+explain and no support conversation can settle.
+
+The alternative was to estimate and charge. It was rejected because the trade is
+not symmetric: refusing costs **Oxy** the upstream spend on a rare provider bug,
+while estimating costs **you** money nobody can reconcile afterwards. `usage_receipts`
+already holds that line for its own reasons — "an estimate indistinguishable from a
+reported figure is one nobody can reconcile" — so the loss is taken on the side
+that can absorb it and can see it.
+
+Requests that failed, were cancelled, or delivered partial output and metered
+nothing still settle at **zero** exactly as before. Nothing was delivered, so zero
+is the right charge; the change is only about a request that claims to have
+completed.
+
+`estimated` receipts still exist for the not-completed cases above, and one thing
+about them is worth stating plainly because this document used to imply otherwise:
+**nothing reconciles them later.** There is no path by which a provider's
+retrospective usage arrives, so an `estimated` receipt is final, settled at zero,
+with Oxy absorbing the upstream cost. Their count is served to Oxy staff as
+`unmeasuredSettlements`, where a rising number means the data plane is losing usage
+reports.
+
 ## The account is the payer, not a user
 
 The billable principal is the Oxy account that owns the application — see
@@ -170,7 +203,8 @@ database CHECK is the second line, for anything reaching the table another way.
 | You cancel mid-stream | The units actually produced are settled; the rest is refunded. Cancellation is a normal terminal state, not an error. |
 | Provider fails before producing output | Settle zero, refund the whole reservation. |
 | Provider fails after partial output | Settle the produced units exactly, refund the rest. Partial output is billable output. |
-| Provider omits usage | Settle from Oxy's own measurement, mark the receipt **estimated**, reconcile later against the provider's reported figures. The estimate is labelled as one on the receipt and in your usage view. |
+| Provider omits usage, on a request that did NOT complete | Settle zero, refund the whole reservation, and mark the receipt **estimated** — which records "usage was never measured" rather than "usage was zero". You are not charged. |
+| Provider omits usage on a request it says COMPLETED | The settlement is **refused** and you get an error rather than a free completion. Nothing is billed and your hold is released by the expiry sweep. See "Refuse, never estimate" below. |
 | A reservation with no settlement by its deadline | Expired after 15 minutes and released as a refund carrying a `reservation_expiry` journal entry — never a silent release. The sweep that does this runs every minute, so a hold is released within about a minute of its deadline; every path out of the edge settles its own hold, so no reservation reaches its deadline today. |
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
 | Redelivered webhook or data-plane event | Idempotent no-op on the provider event id. |

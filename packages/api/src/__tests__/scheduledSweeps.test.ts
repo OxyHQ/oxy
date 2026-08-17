@@ -56,6 +56,11 @@ import {
   MINIMUM_BASELINE_DAYS,
   SPEND_ANOMALY_SWEEP_INTERVAL_MS,
 } from '../services/spendAnomaly.service';
+import {
+  MINIMUM_TOKEN_BASELINE_DAYS,
+  TOKEN_ANOMALY_SWEEP_INTERVAL_MS,
+  TOKEN_BASELINE_WINDOW_DAYS,
+} from '../services/tokenAnomaly.service';
 
 const SERVER_PATH = join(__dirname, '..', 'server.ts');
 const SERVER_SOURCE = readFileSync(SERVER_PATH, 'utf8');
@@ -235,5 +240,46 @@ describe('the spend-anomaly sweep is registered', () => {
     // finding nothing while looking exactly like a quiet platform.
     expect(BASELINE_WINDOW_DAYS).toBeGreaterThanOrEqual(MINIMUM_BASELINE_DAYS);
     expect(MINIMUM_BASELINE_DAYS).toBeGreaterThan(0);
+  });
+});
+
+describe('the token-anomaly sweep is registered', () => {
+  /*
+   * The token half of "spend/token spikes". Registered beside the spend sweep and
+   * gated here for the same reason that one is: a detector implemented, tested and
+   * called by nothing has no symptom until the spike it was built for goes
+   * unnoticed, and this one is a launch gate in §12.
+   */
+  it('schedules sweepTokenAnomalies on its own interval', () => {
+    expect(SERVER_CODE).toContain("from './services/tokenAnomaly.service'");
+    expect(SERVER_CODE).toContain('sweepTokenAnomalies()');
+    expect(SERVER_CODE).toContain('TOKEN_ANOMALY_SWEEP_INTERVAL_MS');
+    expect(SERVER_CODE).toContain('tokenAnomalySweep.unref()');
+  });
+
+  it('is a SEPARATE registration from the spend sweep, not a rename of it', () => {
+    // Both must be scheduled. A change that replaced one with the other would
+    // satisfy either assertion alone while silently dropping half the signal, and
+    // the two measure different things over different tables.
+    expect(SERVER_CODE).toContain('spendAnomalySweep.unref()');
+    expect(SERVER_CODE).toContain('tokenAnomalySweep.unref()');
+    expect(SERVER_CODE).toContain('sweepSpendAnomalies()');
+    expect(SERVER_CODE).toContain('sweepTokenAnomalies()');
+  });
+
+  it('runs often enough to notice inside the hour it evaluates', () => {
+    // The detector buckets by HOUR, so a sweep slower than an hour would let a
+    // spike's own bucket close before anything looked at it. `> 0` rules out a
+    // disabled interval satisfying the upper bound.
+    expect(TOKEN_ANOMALY_SWEEP_INTERVAL_MS).toBeLessThanOrEqual(60 * 60 * 1000);
+    expect(TOKEN_ANOMALY_SWEEP_INTERVAL_MS).toBeGreaterThan(0);
+  });
+
+  it('has a baseline long enough for the median it takes', () => {
+    // A window shorter than the minimum it demands would leave every account
+    // permanently unevaluated, and the sweep would run forever finding nothing
+    // while looking exactly like a quiet platform.
+    expect(TOKEN_BASELINE_WINDOW_DAYS).toBeGreaterThanOrEqual(MINIMUM_TOKEN_BASELINE_DAYS);
+    expect(MINIMUM_TOKEN_BASELINE_DAYS).toBeGreaterThan(0);
   });
 });

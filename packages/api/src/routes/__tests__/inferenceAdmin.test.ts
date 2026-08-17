@@ -812,6 +812,7 @@ describe('GET /inference/admin/metrics', () => {
       'fallback',
       'reserveFailures',
       'settlementLagMs',
+      'unmeasuredSettlements',
       'reconciliationDrift',
     ]) {
       expect(data).toHaveProperty(metric);

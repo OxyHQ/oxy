@@ -14991,6 +14991,66 @@
         ]
       }
     },
+    "/inference/admin/token-anomalies": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`GET /inference/admin/token-anomalies`",
+        "description": "Every account-hour whose TOKEN consumption jumped past a multiple of its own\ntrailing daily median (#972 section 8), newest first.\n\nThe token half of \"spend/token spikes\"; `GET /spend-anomalies` beside it is the\nmoney half. They are separate endpoints over separate tables because they are\nseparate claims: a token spike with flat spend means a retry loop or a prompt\nthat grew, a spend spike with flat tokens means a switch to an expensive model,\nand one endpoint returning both would answer neither question.\n\nA READ, and the only consumer of `inference_token_anomalies`. The detector blocks\nnothing — argued at length in `services/tokenAnomaly.service.ts` — so this is\nwhat turns the signal into something a person can act on.\n\nNot graded by capability: it discloses no credential and changes nothing.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/inference/provider-connections/accounts/{accountId}": {
       "get": {
         "tags": [

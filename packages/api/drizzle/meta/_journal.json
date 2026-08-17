@@ -358,6 +358,13 @@
       "when": 1786990670440,
       "tag": "0051_retire_account_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1787003267146,
+      "tag": "0052_inference_token_anomalies",
+      "breakpoints": true
     }
   ]
 }

@@ -476,6 +476,63 @@ describe('settlement lag', () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/*  Unmeasured settlements — the `estimated` index's first reader             */
+/* -------------------------------------------------------------------------- */
+
+describe('unmeasured settlements', () => {
+  /** Settle with no hold, so the fixture needs no reservation. */
+  async function settleWith(f: Fixture, usageSource: 'provider_reported' | 'estimated') {
+    const settled = await settle({
+      idempotencyKey: `met-um-${randomUUID()}`,
+      attribution: {
+        accountId: f.accountId,
+        applicationId: f.applicationId,
+        applicationCredentialId: f.credentialId,
+        requestId: `req-${randomUUID()}`,
+        environment: 'production',
+      },
+      // `failed`, so a zero-unit `estimated` settlement is the legitimate shape
+      // this metric counts rather than the `completed` one the ledger refuses.
+      outcome: 'failed',
+      usageSource,
+      units: usageSource === 'estimated' ? {} : { input_tokens: 10 },
+      resolvedModelReference: 'oxy/met@2026-08-01',
+      servingProvider: 'oxy-hosted',
+      priceVersionId: f.priceVersionId,
+    });
+    if (settled.status !== 'settled') throw new Error(`settle failed: ${settled.status}`);
+  }
+
+  it('counts the estimated receipts and reports the denominator beside them', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    await settleWith(f, 'estimated');
+    await settleWith(f, 'estimated');
+    await settleWith(f, 'provider_reported');
+
+    const metrics = await readInferenceOperationalMetrics(scopeOf(f));
+    // Two of three. The denominator is what stops a raw count reading as a rate,
+    // and it is also the positive control: a query that found nothing would report
+    // `settledReceipts: 0` here rather than 3.
+    expect(metrics.unmeasuredSettlements).toMatchObject({
+      receiptCount: 2,
+      settledReceipts: 3,
+    });
+    expect(typeof metrics.unmeasuredSettlements.latestSettledAt).toBe('string');
+  });
+
+  it('omits the timestamp entirely when nothing is unmeasured', async () => {
+    const f = await makeFixture({ fund: '10.000000000000' });
+    await settleWith(f, 'provider_reported');
+
+    const metrics = await readInferenceOperationalMetrics(scopeOf(f));
+    // A receipt EXISTS — so this is "nothing unmeasured", not "nothing found" —
+    // and the absent timestamp is absent rather than an epoch or a null.
+    expect(metrics.unmeasuredSettlements).toEqual({ receiptCount: 0, settledReceipts: 1 });
+    expect(metrics.unmeasuredSettlements).not.toHaveProperty('latestSettledAt');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /*  Reconciliation drift                                                      */
 /* -------------------------------------------------------------------------- */
 

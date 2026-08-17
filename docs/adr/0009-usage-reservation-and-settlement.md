@@ -116,7 +116,8 @@ after the fact.
 | Client cancels mid-stream | Settle the units actually produced, refund the remainder. Cancellation is a normal terminal state, not an error. |
 | Upstream provider fails before producing output | Settle zero, refund the whole reservation. A failed request the customer got nothing from is not billable. |
 | Upstream fails after partial output | Settle the produced units exactly; refund the rest. Partial output is billable output. |
-| Provider omits usage in its response | Settle from Oxy's own measurement of the normalized units, mark the receipt as **estimated**, and reconcile against the provider's later reported figures. An estimate is labelled as one on the receipt and in the customer-visible usage view. |
+| Provider omits usage, and the report does not claim to have completed | Settle ZERO units, mark the receipt **estimated**, refund the whole hold with reason `usage_unavailable`. The receipt says "usage was never measured" rather than "usage was zero" — a distinction any later reconciliation depends on, and the reason this is a settlement and not a bare release. |
+| Provider omits usage on a report that claims `completed` | **REFUSE the settlement** (`zero-usage`) and write nothing. See "Refuse, never estimate" below. |
 | Reservation exists with no settlement after its deadline | Expire and refund it. An expiry is a refund with a reason, and it is emitted as an event; it is never a silent release. |
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
 | Redelivered webhook or Relay event | Idempotent no-op on the provider event id. |
@@ -126,6 +127,52 @@ after the fact.
 two properties the tests in workstream 16 must falsify rather than confirm: the
 duplicate-charge test must be able to fail, and the unreserved-execution test
 must assert the wrong answer is not produced, not merely that the right one is.
+
+### Refuse, never estimate — a change to this ADR (#972 §7.3)
+
+**This supersedes what the "provider omits usage" row of the table above used to
+say.** It read: "Settle from Oxy's own measurement of the normalized units, mark
+the receipt as **estimated**, and reconcile against the provider's later reported
+figures." Two things were wrong with it, and both are recorded here rather than
+quietly edited away, because a reader who implemented against the old row needs to
+know which part changed.
+
+**The behaviour changed, by the owner's decision.** A `completed` report that
+metered nothing is now REFUSED, not estimated. The trade is not symmetric:
+
+- refusing costs **Oxy** the upstream spend on a rare provider bug;
+- estimating costs the **customer** money nobody can reconcile afterwards, which
+  `usage_receipts`' own schema already refuses in as many words — "an estimate
+  indistinguishable from a reported figure is one nobody can reconcile".
+
+So the loss is taken on the side that can absorb it and can see it. `settle`
+returns `zero-usage`, nothing is written — no receipt, no refund, no journal
+entry — the hold stands, and the expiry sweep returns the customer's money on its
+own while the edge's existing loud branch makes the provider bug visible. There is
+deliberately no refund *reason* for this case, because there is no refund row: the
+remainder comes back through expiry, under `reservation_expiry`.
+
+**`failed`, `cancelled` and `partial` with zero units still settle at zero**, and
+must keep doing so — nothing was delivered, so zero is the correct charge, and a
+zero-unit receipt is how this ADR records an upstream failure that produced
+nothing. The bug was specifically a request claiming to have COMPLETED while
+accounting for nothing.
+
+**The second wrong thing was the reconciliation.** "reconcile against the
+provider's later reported figures" describes a mechanism that does not exist and
+has no owner: there is no ingestion path for a provider's retrospective usage, so
+nothing arrives to reconcile an `estimated` receipt against. The `estimated`
+receipts that remain (the first row of the table) are settled at zero and Oxy
+absorbs the cost; a rising count of them means the data plane is losing usage
+reports, not that a backlog is building. They are surfaced as
+`unmeasuredSettlements` on the staff metrics surface rather than left to imply a
+queue somebody drains.
+
+Enforced on both sides of the wire, and it takes both: `inferenceUsageReportSchema`
+refuses `completed` with an EMPTY unit array, so that shape is unrepresentable —
+but `usageQuantitySchema` permits `quantity: 0`, so a report of units that are all
+zero still validates and is caught by the ledger instead. The schema closes "no
+units"; the ledger closes "units that sum to zero".
 
 ## Alternatives rejected
 
