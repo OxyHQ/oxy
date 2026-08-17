@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getErrorMessage } from '@/lib/api-error';
-import { mergePaymentsScopes } from '@/lib/application-scopes';
+import { availablePaymentsScopes, mergePaymentsScopes } from '@/lib/application-scopes';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
 import {
   useDeleteApplication,
@@ -65,8 +65,18 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   const [icon, setIcon] = useState(application.icon ?? '');
   const [redirectUris, setRedirectUris] = useState<Array<string>>(application.redirectUris);
   const [newRedirectUri, setNewRedirectUri] = useState('');
-  const [paymentsRead, setPaymentsRead] = useState(application.scopes.includes('payments:read'));
-  const [paymentsWrite, setPaymentsWrite] = useState(application.scopes.includes('payments:write'));
+  // Through `availablePaymentsScopes`, which returns `PaymentsScope[]`, so a
+  // misspelt scope here is a build error. `application.scopes` is `string[]`, so
+  // comparing a literal against it directly compiles and answers false forever —
+  // the same hazard as the permission call sites above, in the adjacent
+  // vocabulary.
+  const grantedPaymentsScopes = availablePaymentsScopes(application.scopes);
+  const [paymentsRead, setPaymentsRead] = useState(
+    grantedPaymentsScopes.includes('payments:read')
+  );
+  const [paymentsWrite, setPaymentsWrite] = useState(
+    grantedPaymentsScopes.includes('payments:write')
+  );
   const [webhookUrl, setWebhookUrl] = useState(application.webhookUrl ?? '');
   const [devWebhookUrl, setDevWebhookUrl] = useState(application.devWebhookUrl ?? '');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);

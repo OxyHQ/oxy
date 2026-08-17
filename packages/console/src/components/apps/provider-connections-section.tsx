@@ -79,7 +79,11 @@ import {
  *
  * Every affordance is gated on a server-supplied permission: `app:update` for a
  * connection scoped to this application, `account:update` for one inherited from
- * the account, both read off `callerMembership.permissions`.
+ * the account. Both go through the typed predicates (`access.can`, and
+ * `useAccount`'s `canReadAccount`/`canEditAccount`) rather than comparing
+ * `callerMembership.permissions` directly, because that field is `string[]` and a
+ * misspelt literal in an inline comparison answers false forever with no
+ * compile error.
  */
 interface ProviderConnectionsSectionProps {
   application: Application;
@@ -96,12 +100,17 @@ export function ProviderConnectionsSection({
   application,
   access,
 }: ProviderConnectionsSectionProps) {
-  const { accounts } = useAccount();
+  const { accounts, canReadAccount, canEditAccount } = useAccount();
   const ownerAccountId = application.ownerAccountId;
   const ownerAccount = accounts.find((account) => account.accountId === ownerAccountId);
-  const ownerPermissions = ownerAccount?.callerMembership?.permissions ?? [];
-  const canReadAccount = ownerPermissions.includes('account:read');
-  const canUpdateAccount = ownerPermissions.includes('account:update');
+  // Through the predicates rather than comparing the raw `permissions` array.
+  // `callerMembership.permissions` is `string[]` on the wire, so an inline
+  // `includes('account:updaet')` compiles, answers false forever, and is invisible
+  // to `scripts/check-permission-vocabulary.mjs`, whose subject is the union
+  // declarations rather than the call sites. `hasPermission` types its argument as
+  // `AccountPermission`, so the same typo is a build error.
+  const canReadOwnerAccount = ownerAccount !== undefined && canReadAccount(ownerAccount);
+  const canUpdateOwnerAccount = ownerAccount !== undefined && canEditAccount(ownerAccount);
   const canUpdateApplication = access.can('app:update');
 
   const {
@@ -109,7 +118,7 @@ export function ProviderConnectionsSection({
     isLoading,
     isError,
     error,
-  } = useAccountProviderConnections(ownerAccountId, canReadAccount);
+  } = useAccountProviderConnections(ownerAccountId, canReadOwnerAccount);
 
   const createConnection = useCreateApplicationProviderConnection();
   const rotateConnection = useRotateProviderConnection();
@@ -143,7 +152,7 @@ export function ProviderConnectionsSection({
 
   /** Which permission governs this connection is decided by ITS scope, as on the server. */
   const canManage = (connection: ProviderConnectionView): boolean =>
-    connection.scope.kind === 'application' ? canUpdateApplication : canUpdateAccount;
+    connection.scope.kind === 'application' ? canUpdateApplication : canUpdateOwnerAccount;
 
   const closeConnectDialog = () => {
     setShowConnect(false);
@@ -237,7 +246,7 @@ export function ProviderConnectionsSection({
     }
   };
 
-  if (!canReadAccount) {
+  if (!canReadOwnerAccount) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
         You do not have permission to view this application's provider connections.

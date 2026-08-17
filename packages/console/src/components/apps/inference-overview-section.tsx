@@ -31,11 +31,13 @@ export function InferenceOverviewSection({
   application,
   access,
 }: InferenceOverviewSectionProps) {
-  const { accounts } = useAccount();
+  const { accounts, canReadAccount } = useAccount();
   const ownerAccountId = application.ownerAccountId;
   const ownerAccount = accounts.find((account) => account.accountId === ownerAccountId);
-  const canReadAccount =
-    ownerAccount?.callerMembership?.permissions.includes('account:read') ?? false;
+  // Through the predicate rather than comparing the raw `permissions` array: that
+  // field is `string[]` on the wire, so an inline `includes('account:raed')` is
+  // neither a compile error nor something the permission-vocabulary gate can see.
+  const canReadOwnerAccount = ownerAccount !== undefined && canReadAccount(ownerAccount);
 
   const { data: catalogue = [], isLoading: isCatalogueLoading } = useModelCatalogue();
   const { data: policy, isLoading: isPolicyLoading } = useEffectiveRoutingPolicy(
@@ -44,7 +46,7 @@ export function InferenceOverviewSection({
   );
   const { data: connections = [] } = useAccountProviderConnections(
     ownerAccountId,
-    canReadAccount
+    canReadOwnerAccount
   );
 
   const applicableConnections = connections.filter((connection) =>
@@ -98,7 +100,7 @@ export function InferenceOverviewSection({
           isLoading={false}
           value={String(liveConnections.length)}
           detail={
-            canReadAccount
+            canReadOwnerAccount
               ? liveConnections.length === 0
                 ? 'Requests would run on Oxy’s own provider accounts.'
                 : 'Live connections that apply to this application.'
