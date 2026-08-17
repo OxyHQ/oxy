@@ -51,6 +51,11 @@ import {
   RECONCILIATION_PERIOD_MS,
   RECONCILIATION_SWEEP_INTERVAL_MS,
 } from '../db/schema/billingReconciliation';
+import {
+  BASELINE_WINDOW_DAYS,
+  MINIMUM_BASELINE_DAYS,
+  SPEND_ANOMALY_SWEEP_INTERVAL_MS,
+} from '../services/spendAnomaly.service';
 
 const SERVER_PATH = join(__dirname, '..', 'server.ts');
 const SERVER_SOURCE = readFileSync(SERVER_PATH, 'utf8');
@@ -99,6 +104,20 @@ describe('the entrypoint this suite reads', () => {
     expect(SERVER_CODE).toContain('export async function bootstrap(');
     expect(SERVER_SOURCE).toContain('// Release holds whose deadline has passed');
     expect(SERVER_CODE).not.toContain('// Release holds whose deadline has passed');
+  });
+
+  it('strips BLOCK comments too, not only line comments', () => {
+    // The stripper has two independent stages — a `/* … */` replace and a `//`
+    // line filter — and the control above only exercises the second. Measured: a
+    // mutation that broke the block stage alone left all thirteen tests green,
+    // because every registration comment in `server.ts` happens to be a line
+    // comment. A `/* … */` block quoting `runScheduledReconciliation()` would
+    // then satisfy the searches below, which is the exact thing the stripping is
+    // for. So the block stage gets its own control, in the same shape.
+    const jsdocLine =
+      '* True only for the service-token media stream-upload requests. Uses `req.path`';
+    expect(SERVER_SOURCE).toContain(jsdocLine);
+    expect(SERVER_CODE).not.toContain(jsdocLine);
   });
 });
 
@@ -184,4 +203,37 @@ describe('the reconciliation sweep is registered', () => {
   // `services/__tests__/billingReconciliation.service.test.ts` — importing the
   // service here would drag the Stripe adapter's graph into a file whose subject
   // is one `setInterval`.
+});
+
+describe('the spend-anomaly sweep is registered', () => {
+  /*
+   * Added by the change that registered it in `bootstrap()` but not here, which is
+   * the exact shape of this file's opening paragraph: a detector that is
+   * implemented, tested, and called by nothing outside `__tests__` has no symptom
+   * until the spend spike it was built for goes unnoticed. It is a LAUNCH GATE in
+   * #972 section 12, so inert is worse here than for most sweeps.
+   */
+  it('schedules sweepSpendAnomalies on its own interval', () => {
+    expect(SERVER_CODE).toContain("from './services/spendAnomaly.service'");
+    expect(SERVER_CODE).toContain('sweepSpendAnomalies()');
+    expect(SERVER_CODE).toContain('SPEND_ANOMALY_SWEEP_INTERVAL_MS');
+    expect(SERVER_CODE).toContain('spendAnomalySweep.unref()');
+  });
+
+  it('runs often enough to notice inside the hour it evaluates', () => {
+    // The detector buckets spend by HOUR, so a sweep slower than an hour would let
+    // a spike's own bucket close before anything looked at it. Both bounds: the
+    // upper one is the claim, and `> 0` rules out a disabled interval satisfying it.
+    expect(SPEND_ANOMALY_SWEEP_INTERVAL_MS).toBeLessThanOrEqual(60 * 60 * 1000);
+    expect(SPEND_ANOMALY_SWEEP_INTERVAL_MS).toBeGreaterThan(0);
+  });
+
+  it('has a baseline long enough for the median it takes', () => {
+    // A floor on the detector's own inputs, in the spirit of "has something to
+    // sweep": a baseline window shorter than the minimum it demands would make
+    // every account permanently unevaluated, and the sweep would run forever
+    // finding nothing while looking exactly like a quiet platform.
+    expect(BASELINE_WINDOW_DAYS).toBeGreaterThanOrEqual(MINIMUM_BASELINE_DAYS);
+    expect(MINIMUM_BASELINE_DAYS).toBeGreaterThan(0);
+  });
 });

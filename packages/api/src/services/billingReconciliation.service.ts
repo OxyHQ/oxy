@@ -479,6 +479,27 @@ async function accountOfStripeCustomer(customerRef: string): Promise<string | un
  * IS the claim, and holding a database lock across a third-party HTTP call would
  * tie a Postgres connection to Stripe's latency.
  *
+ * ## Why the sweep beside this one needs no lock, stated so nobody copies the
+ * wrong half
+ *
+ * `server.ts` registers `sweepSpendAnomalies` a few lines above this, and it
+ * claims with a bare `ON CONFLICT DO NOTHING` on
+ * `(account_id, currency, detected_for_hour)` and no lock at all. That is correct
+ * there and would be wrong here, and the rule that separates them is worth naming:
+ *
+ * **A lock is needed when the duplicated work has an effect OUTSIDE the row you
+ * would conflict on.** The anomaly sweep's duplicate is a read plus a no-op
+ * insert: N tasks race for one row, one wins, nothing else happens, and the
+ * unique index alone is a complete interlock. This pass calls Stripe — a paged,
+ * rate-limited third party — and inserts a run row that has no natural unique key
+ * at the moment it is written, because it is written BEFORE the comparison it
+ * describes. So N tasks would mean N processor scans and N run rows, and no
+ * `ON CONFLICT` target exists to collapse them.
+ *
+ * Two scheduled sweeps in one entrypoint with different claim disciplines is how
+ * the next person picks the wrong one; the discriminator above is which of them to
+ * pick, not which came first.
+ *
  * ## It disables itself where it cannot work
  *
  * With no `STRIPE_SECRET_KEY` there is no processor to compare against and

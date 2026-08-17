@@ -166,18 +166,25 @@ function json(response: RawResponse): Record<string, unknown> {
 /**
  * The rollout flags this file runs with, and why.
  *
- * All three default to the state that serves and charges nobody, so every
+ * All four default to the state that serves and charges nobody, so every
  * assertion here about authentication and settlement would otherwise pass for the
- * wrong reason — a refusal at the gate is indistinguishable from a refusal at the
- * credential once you are reading only the status code. Copied from
- * `inferenceEdge.test.ts`; the DEFAULTS are asserted in
- * `config/__tests__/rolloutFlags.test.ts` and their effect on this edge in
- * `inferenceEdgeRollout.test.ts`. Nothing in this file is evidence about them.
+ * wrong reason — a refusal at the audience gate is indistinguishable from a
+ * refusal at the credential once you are reading only the status code, and both
+ * are the 403/401 pair this file is about. Mirrors `inferenceEdge.test.ts`'s set;
+ * the DEFAULTS are asserted in `config/__tests__/rolloutFlags.test.ts` and their
+ * effect on this edge in `inferenceEdgeRollout.test.ts`. Nothing in this file is
+ * evidence about them.
+ *
+ * `INFERENCE_PRIVACY_REVIEW` is the newest of the four and is the second
+ * precondition a `public` audience re-checks: without it `admitToInferenceEdge`
+ * resolves closed with `public_requires_privacy_review` and every case here reads
+ * `403 permission_denied` before a credential is ever consulted.
  */
 const ROLLOUT_ENVIRONMENT = {
   INFERENCE_EDGE_AUDIENCE: 'public',
   INFERENCE_MACHINE_CREDENTIAL_AUTH: 'enabled',
   INFERENCE_CHARGING_AUTHORIZED: 'lanes-suite-fixture:2026-08-01',
+  INFERENCE_PRIVACY_REVIEW: 'lanes-suite-fixture:2026-08-01',
 } as const;
 
 const ORIGINAL_ROLLOUT_ENVIRONMENT = Object.fromEntries(
