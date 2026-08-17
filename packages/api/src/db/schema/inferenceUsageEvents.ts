@@ -21,17 +21,21 @@
  *     internal` describe any served request.
  *
  * Reshaping it in place would mean making `application_id` NOT NULL and
- * retargeting `api_key_id` off `developer_api_keys` — a narrowing migration
+ * retargeting its `api_key_id` off `developer_api_keys` — a narrowing migration
  * against a table whose two readers this PR does not rewrite, and one that
  * forces the `developer_api_keys` removal that is workstream 2.3's checkbox, not
  * this one's. It would also bolt eleven unit columns, a model reference, a
  * provider, a deployment and two data-plane ids onto rows describing a plain
  * REST call, where every one of them is null.
  *
- * So: a new stream for inference, and `api_key_usage_events` is left exactly as
- * it is for workstream 2.3 to retire along with `developer_api_keys`. The
- * boundary is stated in that table's header too, so whoever finds two usage
- * tables finds the reason before reaching for the obvious tidy-up.
+ * So: a new stream for inference, and `api_key_usage_events` was left as it
+ * stood. Workstream 2.3 has since dropped its `api_key_id` column and the
+ * `developer_api_keys` table together
+ * (`drizzle/0047_retire_developer_api_keys.sql`), and left the table itself in
+ * place with its two readers — it remains general API telemetry, and merging it
+ * into this stream is still not the tidy-up it looks like. The boundary is stated
+ * in that table's header too, so whoever finds two usage tables finds the reason
+ * before reaching for it.
  *
  * # There is no money column here, and that is the point
  *

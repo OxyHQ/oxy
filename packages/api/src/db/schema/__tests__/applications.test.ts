@@ -39,7 +39,6 @@ import {
 import { applicationModerationTrust } from '../applicationModerationTrust';
 import { APPLICATION_STATUSES, APPLICATION_TYPES, applications } from '../applications';
 import { appUserSignals } from '../appUserSignals';
-import { developerApiKeys } from '../developerApiKeys';
 import { users } from '../users';
 
 /** Postgres `unique_violation`. */
@@ -778,84 +777,6 @@ describe('account_members', () => {
   });
 });
 
-describe('developer_api_keys', () => {
-  it('applies the default scopes and the default daily request limit', async () => {
-    const [row] = await getDb()
-      .insert(developerApiKeys)
-      .values({
-        userId: await account(),
-        applicationId: await application(),
-        name: 'Key',
-        keyHash: randomUUID(),
-        keyPrefix: 'oxy_dk_',
-      })
-      .returning();
-
-    expect(row.scopes).toEqual(['inference:invoke', 'inference:models:read']);
-    expect(row.rateLimitRequestsPerDay).toBe(1000);
-    // NULL is "unlimited" — the meaning Mongoose's `default: null` carried.
-    expect(row.rateLimitRequestsPerMinute).toBeNull();
-    expect(row.rateLimitTokensPerMinute).toBeNull();
-    expect(row.rateLimitTokensPerDay).toBeNull();
-  });
-
-  it('rejects a scope outside the developer-key vocabulary', async () => {
-    // `updates:publish` is a real APPLICATION scope and NOT a developer-key one,
-    // which is the mistake worth catching.
-    const error = await rejection(
-      getDb().execute(sql`
-        insert into developer_api_keys (id, user_id, application_id, name, key_hash, key_prefix, scopes)
-        values (${randomUUID()}, ${await account()}, ${await application()}, 'Bad',
-                ${randomUUID()}, 'oxy_dk_', array['updates:publish']::text[])
-      `)
-    );
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-  });
-
-  it('rejects a retired inference scope name and accepts its successor', async () => {
-    // This table's vocabulary is a NARROWER subset of APPLICATION_SCOPES, so it
-    // has its own CHECK and its own rebuild in 0031 — retiring the names from
-    // the wide list would not have reached it.
-    const error = await rejection(
-      getDb().execute(sql`
-        insert into developer_api_keys (id, user_id, application_id, name, key_hash, key_prefix, scopes)
-        values (${randomUUID()}, ${await account()}, ${await application()}, 'Retired',
-                ${randomUUID()}, 'oxy_dk_', array['chat:completions']::text[])
-      `)
-    );
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-
-    await expect(
-      getDb()
-        .insert(developerApiKeys)
-        .values({
-          userId: await account(),
-          applicationId: await application(),
-          name: 'Successor',
-          keyHash: randomUUID(),
-          keyPrefix: 'oxy_dk_',
-          scopes: ['inference:invoke', 'inference:models:read'],
-        })
-    ).resolves.toBeDefined();
-  });
-
-  it('rejects a non-positive rate limit', async () => {
-    const error = await rejection(
-      getDb()
-        .insert(developerApiKeys)
-        .values({
-          userId: await account(),
-          applicationId: await application(),
-          name: 'Zero',
-          keyHash: randomUUID(),
-          keyPrefix: 'oxy_dk_',
-          rateLimitRequestsPerDay: 0,
-        })
-    );
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-  });
-});
-
 describe('api_key_usage_events', () => {
   it('records the request instant as `created_at` and has no `updated_at`', async () => {
     const rows = await getDb().execute<{ column_name: string }>(sql`
@@ -869,6 +790,12 @@ describe('api_key_usage_events', () => {
     expect(names).not.toContain('updated_at');
     // And the Mongoose field name does not travel — see the file header.
     expect(names).not.toContain('timestamp');
+    // #972 workstream 2.3 dropped `api_key_id` together with the
+    // `developer_api_keys` table it referenced. Asserted against the MIGRATED
+    // database, because that is the one thing the schema declaration cannot
+    // prove: deleting the column from the TypeScript makes every functional test
+    // here pass whether or not `0047` ever reached a database.
+    expect(names).not.toContain('api_key_id');
   });
 
   it('rejects an impossible status code or negative consumption', async () => {
@@ -908,36 +835,27 @@ describe('api_key_usage_events', () => {
     expect(row.authType).toBe('api_key');
   });
 
-  it('drops a usage row when its API KEY is deleted rather than reclassifying it', async () => {
+  it('drops a usage row when its APPLICATION is deleted rather than reclassifying it', async () => {
     const userId = await account();
-    const [key] = await getDb()
-      .insert(developerApiKeys)
-      .values({
-        userId,
-        applicationId: await application(),
-        name: 'Key',
-        keyHash: randomUUID(),
-        keyPrefix: 'oxy_dk_',
-      })
-      .returning({ id: developerApiKeys.id });
+    const applicationId = await application();
 
     await getDb().insert(apiKeyUsageEvents).values({
-      apiKeyId: key.id,
+      applicationId,
       userId,
       endpoint: '/v1/chat',
       method: 'POST',
       statusCode: 200,
     });
 
-    await getDb().delete(developerApiKeys).where(eq(developerApiKeys.id, key.id));
+    await getDb().delete(applications).where(eq(applications.id, applicationId));
 
     const remaining = await getDb()
       .select({ id: apiKeyUsageEvents.id })
       .from(apiKeyUsageEvents)
       .where(eq(apiKeyUsageEvents.userId, userId));
 
-    // `SET NULL` would leave the row with `auth_type = 'api_key'` and no key,
-    // which the aggregates would then read as session traffic.
+    // `SET NULL` would leave the row attributed to no application, which the
+    // per-application aggregate would then read as unattributed traffic.
     expect(remaining).toEqual([]);
   });
 });

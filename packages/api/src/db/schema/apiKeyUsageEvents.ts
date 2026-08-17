@@ -29,8 +29,8 @@
  *
  * Mongo auto-deleted these after 90 days. The same 90 days is registered in
  * `db/expiry.ts` against `created_at`, with the supporting btree the sweep
- * requires. That retention is also why the two `SET NULL`-shaped foreign keys
- * below are `CASCADE` instead — see `api_key_id`.
+ * requires. That retention is also why the one `SET NULL`-shaped foreign key
+ * below is `CASCADE` instead — see `application_id`.
  *
  * ## This is NOT the inference telemetry stream — read this before merging them
  *
@@ -42,17 +42,26 @@
  * for keeping them apart — including why this table was not reshaped in place —
  * is in `inferenceUsageEvents.ts`'s header.
  *
- * This table still has **no writer anywhere in `packages/api/src` outside
- * tests**, and its `api_key_id` still references `developer_api_keys`. Retiring
- * both is #972 workstream 2.3's checkbox, not workstream 8's; nothing in the
- * inference ledger reads or writes this table.
+ * ## The `api_key` in the name is now historical
+ *
+ * This table has **no writer anywhere in `packages/api/src` outside tests**, and
+ * as of #972 workstream 2.3 it no longer references any key table: the
+ * `api_key_id` column and the `developer_api_keys` table it pointed at were
+ * dropped together (`drizzle/0047_retire_developer_api_keys.sql`). What survives
+ * is the two READERS — `routes/applications.ts` (per-application usage stats) and
+ * `routes/credits.ts` (per-user credit history) — neither of which ever selected
+ * that column, plus the expiry registration in `db/expiry.ts`.
+ *
+ * `auth_type` still carries `'api_key'` as a value and as its default. That is a
+ * record of how a historical request authenticated, not a reference to a live
+ * credential table, and rewriting it would change the meaning of rows already
+ * written. Nothing in the inference ledger reads or writes this table.
  */
 
 import { sql } from 'drizzle-orm';
 import { check, doublePrecision, index, integer, pgTable, text } from 'drizzle-orm/pg-core';
 import { applications } from './applications';
 import { createdAt, generatedId } from '@oxyhq/db';
-import { developerApiKeys } from './developerApiKeys';
 import { users } from './users';
 
 /** How a request authenticated. Decides which attribution columns are populated. */
@@ -78,17 +87,6 @@ export const apiKeyUsageEvents = pgTable(
   {
     id: generatedId(),
     /**
-     * The key the request authenticated with, when it authenticated with one.
-     *
-     * `CASCADE`, not `SET NULL`, and for the same reason
-     * `push_tokens.application_id` is: NULL here already MEANS something —
-     * "not an API-key request" — so `SET NULL` would silently reclassify a
-     * deleted key's requests as session traffic and corrupt the very aggregates
-     * this table exists to produce. Losing them outright is honest, and the rows
-     * are 90-day telemetry that self-delete anyway.
-     */
-    apiKeyId: text().references(() => developerApiKeys.id, { onDelete: 'cascade' }),
-    /**
      * The user the request is billed to. `CASCADE` — usage attributed to a
      * deleted account is not billable and not reportable.
      *
@@ -98,7 +96,17 @@ export const apiKeyUsageEvents = pgTable(
     userId: text()
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** The application the request is attributed to. `CASCADE` — see `api_key_id`. */
+    /**
+     * The application the request is attributed to.
+     *
+     * `CASCADE`, not `SET NULL`, and for the same reason
+     * `push_tokens.application_id` is: NULL here already MEANS something — "not
+     * attributed to an application" — so `SET NULL` would silently reclassify a
+     * deleted application's requests as unattributed traffic and corrupt the very
+     * aggregate this table exists to produce (`routes/applications.ts` groups by
+     * exactly this column). Losing them outright is honest, and the rows are
+     * 90-day telemetry that self-delete anyway.
+     */
     applicationId: text().references(() => applications.id, { onDelete: 'cascade' }),
 
     endpoint: text().notNull(),
@@ -137,10 +145,6 @@ export const apiKeyUsageEvents = pgTable(
     ),
     // `{userId, timestamp: {$gte}}` (`routes/credits.ts:59`).
     index('api_key_usage_events_user_id_created_at_idx').on(t.userId, t.createdAt.desc()),
-    // Mongo's `{apiKeyId, timestamp: -1}`. Kept even though no query reads it
-    // today: it is also the index that stops a key deletion from scanning what
-    // is by far the largest table in this batch.
-    index('api_key_usage_events_api_key_id_created_at_idx').on(t.apiKeyId, t.createdAt.desc()),
     // Supports the expiry sweep in `db/expiry.ts` — the replacement for Mongo's
     // TTL index. None of the compounds above LEAD with this column, so the
     // sweep's range scan needs its own.

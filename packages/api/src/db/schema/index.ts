@@ -53,7 +53,6 @@ export * from './bundles';
 export * from './civicNonces';
 export * from './conductStrikes';
 export * from './contacts';
-export * from './developerApiKeys';
 export * from './deviceAccountContexts';
 export * from './devicePairingSessions';
 export * from './devicePrincipalBackfillConflicts';
