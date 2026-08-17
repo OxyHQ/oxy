@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import axios from 'axios';
+import { safeErrorTextSchema } from '@oxyhq/contracts';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
@@ -26,21 +27,86 @@ const isReadableStream = (value: unknown): value is NodeJS.ReadableStream => {
   );
 };
 
-const toSafeErrorMessage = (data: unknown): unknown => {
+/**
+ * The upstream's own error text when it is safe to relay, and the generic
+ * message when it is not.
+ *
+ * ## What this replaces
+ *
+ * `toSafeErrorMessage` returned its argument unchanged for everything except
+ * `null`/`undefined`, a stream, and an object that would not serialise — so
+ * every string and every serialisable object reached the caller verbatim. It was
+ * a serialisability check wearing a redaction's name, and the name was the
+ * dangerous half: a reader sees `toSafeErrorMessage` and stops looking.
+ *
+ * Every route in this file calls ONE upstream with ONE shared platform
+ * credential (`ALIA_API_KEY`). An OpenAI-family error body is
+ * `{"error":{"message":"Incorrect API key provided: sk-…"}}`, so a verbatim
+ * relay hands Oxy's own upstream key to whoever provoked the error.
+ *
+ * ## The rule
+ *
+ * The whole upstream body is reduced to one string, that string is offered to
+ * `safeErrorTextSchema` — the SAME last-resort refusal the metered `/v1` edge
+ * applies through `utils/inferenceEdgeErrors.ts` — and a refused string is
+ * REPLACED, never edited. Three consequences, each of which is the reason for a
+ * line below rather than a preference:
+ *
+ *  - The check reads the WHOLE body, not a `message` field picked out of it, so
+ *    a credential echoed into a field nobody thought to read is still refused.
+ *  - Nothing is truncated before the check. Truncating first can cut a marker
+ *    away from the value it marks and so turn a refusal into an accept, which is
+ *    why a body the schema will not look at (over its 2000-character bound) is
+ *    not relayed at all rather than shortened until it fits.
+ *  - A refused body is replaced WHOLE. Replacing only the matched span would
+ *    leave the credential and remove the evidence — measured in OxyHQ/Relay#3
+ *    and written up on `safeErrorTextSchema` itself.
+ *
+ * A benign upstream error still reaches the caller with its text intact:
+ * blanking every error would trade a bounded leak for first-party clients that
+ * can never be debugged.
+ *
+ * ## This is a refusal, not the control
+ *
+ * Issue #1027's rule applies here too — the reliable control is redacting the
+ * credential where the bytes are still held, which for this proxy is Alia's own
+ * error writer, on the other side of an HTTP boundary Oxy does not own. That is
+ * precisely why the refusal sits here, and why it is the last line rather than
+ * the only one: retiring these routes for the metered edge (#972 workstream 14 /
+ * ADR 0010) is what removes the shared key they leak.
+ */
+const relayableUpstreamMessage = (data: unknown, status: number): string => {
   if (data === undefined || data === null || isReadableStream(data)) {
     return ALIA_PROXY_ERROR_MESSAGE;
   }
 
-  if (typeof data !== 'object') {
-    return data;
-  }
-
-  try {
-    JSON.stringify(data);
-    return data;
-  } catch {
+  let text: string;
+  if (typeof data === 'string') {
+    text = data;
+  } else if (typeof data === 'object') {
+    try {
+      text = JSON.stringify(data);
+    } catch {
+      return ALIA_PROXY_ERROR_MESSAGE;
+    }
+  } else {
+    // A number or a boolean body carries no upstream detail to relay, and
+    // rendering one as text would only put a bare `0` in front of a caller.
     return ALIA_PROXY_ERROR_MESSAGE;
   }
+
+  if (text.length === 0) {
+    return ALIA_PROXY_ERROR_MESSAGE;
+  }
+
+  if (!safeErrorTextSchema.safeParse(text).success) {
+    // The status and the length, never the text: writing the string that was
+    // refused FOR carrying a credential into the log is the leak moving house.
+    logger.warn('alia.proxy.upstream_message_withheld', { status, messageLength: text.length });
+    return ALIA_PROXY_ERROR_MESSAGE;
+  }
+
+  return text;
 };
 
 const proxyAliaJson = async (req: Request, res: Response, path: string) => {
@@ -61,7 +127,7 @@ const proxyAliaJson = async (req: Request, res: Response, path: string) => {
     res.json(response.data);
   } catch (err: any) {
     const status = err.response?.status ?? 502;
-    const message = toSafeErrorMessage(err.response?.data);
+    const message = relayableUpstreamMessage(err.response?.data, status);
     res.status(status).json({ error: 'ALIA_PROXY_ERROR', message });
   }
 };
@@ -270,7 +336,7 @@ router.post('/chat/completions', requireFirstPartyInferenceCaller, async (req: R
     }
   } catch (err: any) {
     const status = err.response?.status ?? 502;
-    const message = toSafeErrorMessage(err.response?.data);
+    const message = relayableUpstreamMessage(err.response?.data, status);
     res.status(status).json({ error: 'ALIA_PROXY_ERROR', message });
   }
 });
