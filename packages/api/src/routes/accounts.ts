@@ -334,8 +334,10 @@ function resolveCallerDeviceId(req: AuthRequest): string | null {
 }
 
 /**
- * Resolve the OPERATOR anchoring the caller's account graph and switches — the
- * HUMAN behind the request, NOT the account currently being acted-as.
+ * Resolve both the authenticated account and the human operator recorded on an
+ * operated session. Callers must keep those two authorities distinct: the
+ * operator id is useful for projecting the graph, but an operated bearer alone
+ * must never establish access to a new account in that graph.
  *
  * For an ordinary session the operator IS the authenticated account. For an
  * operated (managed / sub-account) session — one minted by `POST /:id/switch`
@@ -345,30 +347,47 @@ function resolveCallerDeviceId(req: AuthRequest): string | null {
  * (which has no children/memberships of its own) collapses the switchable set to
  * just that account and makes sibling switches fail `verifyActingAs`.
  *
- * `operatedByUserId` is authoritative and server-set at switch time (bound to
- * the operator's `account:act_as` membership, re-verified on validate/refresh),
- * so trusting it here escalates nothing. The bearer JWT does not carry it
- * (session-doc-only), so it is read from the (request-cached) session record; a
- * missing/unreadable session degrades safely to the authenticated account.
+ * `operatedByUserId` is server-set at switch time and is useful attribution,
+ * but it is not independent operator authentication. The bearer JWT does not
+ * carry it (session-doc-only), so it is read from the session record; a missing
+ * or unreadable session degrades safely to the authenticated account.
  */
-async function resolveOperatorId(req: AuthRequest): Promise<string> {
+interface AccountAuthority {
+  authenticatedAccountId: string;
+  operatorId: string;
+  isOperatedSession: boolean;
+}
+
+async function resolveAccountAuthority(req: AuthRequest): Promise<AccountAuthority> {
   const authedUserId = requireUserId(req);
   const token = extractTokenFromRequest(req);
   const sessionId = token ? decodeToken(token)?.sessionId : undefined;
   if (!sessionId) {
-    return authedUserId;
+    return {
+      authenticatedAccountId: authedUserId,
+      operatorId: authedUserId,
+      isOperatedSession: false,
+    };
   }
   try {
     const sessionDoc = await sessionService.getSession(sessionId, true);
     const operator = sessionDoc?.operatedByUserId ? sessionDoc.operatedByUserId.toString() : null;
-    return operator ?? authedUserId;
+    return {
+      authenticatedAccountId: authedUserId,
+      operatorId: operator ?? authedUserId,
+      isOperatedSession: operator !== null,
+    };
   } catch (error) {
-    logger.debug('[accounts] resolveOperatorId: session lookup failed, using active account', {
+    logger.debug('[accounts] resolveAccountAuthority: session lookup failed, using active account', {
       component: 'accounts',
-      method: 'resolveOperatorId',
+      method: 'resolveAccountAuthority',
       error: error instanceof Error ? error.message : String(error),
     });
-    return authedUserId;
+    return {
+      authenticatedAccountId: authedUserId,
+      operatorId: authedUserId,
+      isOperatedSession: false,
+    };
   }
 }
 
@@ -598,19 +617,31 @@ function requireAccountPermission(permission: AccountPermission) {
  * account they can reach (direct membership + inherited subtree). Flat by
  * default; `?tree=true` nests children under parents.
  *
- * Anchored on the operator (the human), NOT the currently-active account, so the
- * switchable set is IDENTICAL regardless of which of the operator's accounts is
- * active — switching only flips which account is marked current, never which are
- * listed. (When acting-as a leaf sub-account, anchoring on the active account
- * would collapse the list to just that account.)
+ * Anchored on the operator (the human), NOT the currently-active account. An
+ * ordinary operator session sees the complete graph. An operated session is
+ * constrained to the subset already registered on its signed device, preventing
+ * a managed-account bearer from enumerating the operator's other accounts.
  */
 router.get(
   '/',
   readLimiter,
   validate({ query: listAccountsQuerySchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = await resolveOperatorId(req);
-    const nodes = await accountService.listAccessibleAccounts(userId);
+    const authority = await resolveAccountAuthority(req);
+    let nodes = await accountService.listAccessibleAccounts(authority.operatorId);
+
+    // An operated-account bearer is not fresh proof of the human operator's
+    // authority. Keep the useful operator-anchored switcher, but expose only
+    // accounts whose sessions were already established on this same device.
+    if (authority.isOperatedSession) {
+      const deviceId = resolveCallerDeviceId(req);
+      const permittedIds = new Set<string>([authority.authenticatedAccountId]);
+      if (deviceId) {
+        const state = await deviceSessionService.getState(deviceId);
+        for (const account of state.accounts) permittedIds.add(account.accountId);
+      }
+      nodes = nodes.filter((node) => permittedIds.has(node.accountId));
+    }
     const serialized = nodes.map(serializeAccountNode);
 
     if (req.query.tree === 'true') {
@@ -649,12 +680,26 @@ router.post(
     // operated session it is the recorded `operatedByUserId`, so the operator
     // chain never nests (a switch out of a sub-account is still authorised as,
     // and recorded against, the human — never the sub-account).
-    const operatorId = await resolveOperatorId(req);
+    const authority = await resolveAccountAuthority(req);
+    const operatorId = authority.operatorId;
     const id = req.params.id;
 
+    // A managed-account token must not inherit the human operator's authority
+    // to establish a new sibling session. It may only select an account whose
+    // session the operator previously registered on this exact device. A
+    // personal operator session remains the proof required to add a new target.
+    if (authority.isOperatedSession) {
+      const callerDeviceId = resolveCallerDeviceId(req);
+      const state = callerDeviceId ? await deviceSessionService.getState(callerDeviceId) : null;
+      if (!state?.accounts.some((account) => account.accountId === id)) {
+        throw new ForbiddenError('You are not authorized to switch into this account');
+      }
+    }
+
     // Authorize: the operator must hold account:act_as over the target (directly
-    // or inherited). Non-members / insufficient role → 403. This is the ONLY gate
-    // — the session token then carries identity; no per-request header is trusted.
+    // or inherited). Non-members / insufficient role → 403. For an operated
+    // bearer, the device-membership gate above additionally prevents lateral
+    // establishment of a sibling session.
     const role = await accountService.verifyActingAs(operatorId, id);
     if (!role) {
       throw new ForbiddenError('You are not authorized to switch into this account');
