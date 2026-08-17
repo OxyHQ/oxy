@@ -41,6 +41,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import {
   inferenceDeployments,
@@ -50,7 +51,9 @@ import {
   inferencePublishers,
 } from '../../db/schema';
 import { users } from '../../db/schema/users';
+import { MACHINE_CREDENTIAL_AUTH_VARIABLE } from '../../config/rolloutFlags';
 import { errorHandler } from '../../middleware/errorHandler';
+import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import catalogueRouter from '../inferenceCatalogue';
 import type { ModelCatalogueEntry } from '@oxyhq/contracts';
 
@@ -239,6 +242,84 @@ async function tokenForApplication(input: {
   return signServiceToken({ appId: application.id, ownerAccountId: account.id });
 }
 
+/**
+ * An application of the given type, plus a REAL `oxy_sk_…` machine credential
+ * for it — the bearer a stock OpenAI SDK sends to `client.models.list()`.
+ *
+ * Minted through `generateMachineCredentialToken` and stored as the lane reads
+ * it (`token_prefix` for the lookup, SHA-256 of the WHOLE token in `token_hash`),
+ * so what is asserted below is `resolveMachineCredential` resolving a row rather
+ * than this file's idea of one. `environment: 'development'` is what
+ * `deploymentCredentialEnvironment()` answers under `NODE_ENV=test`; a
+ * `production` credential would be refused for the environment and every case
+ * here would read as a public viewer for the wrong reason.
+ *
+ * The scopes are `inference:models:read` and NOT `inference:invoke`, deliberately:
+ * the catalogue's audience is derived from the application, never from what the
+ * credential may spend.
+ */
+async function machineTokenForApplication(input: {
+  type: 'internal' | 'system' | 'first_party' | 'third_party';
+  isInternal?: boolean;
+  status?: 'active' | 'revoked';
+}): Promise<string> {
+  const [account] = await getDb()
+    .insert(users)
+    .values({ username: `mcat-${suffix()}`, kind: 'organization' })
+    .returning({ id: users.id });
+  const [application] = await getDb()
+    .insert(applications)
+    .values({
+      name: `Catalogue Machine ${suffix()}`,
+      ownerAccountId: account.id,
+      createdByUserId: account.id,
+      type: input.type,
+      isInternal: input.isInternal ?? false,
+      scopes: ['inference:models:read'],
+    })
+    .returning({ id: applications.id });
+
+  const minted = generateMachineCredentialToken();
+  await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: `mkey-${suffix()}`,
+      publicKey: `oxy_dk_${suffix()}`,
+      tokenPrefix: minted.tokenPrefix,
+      tokenHash: minted.tokenHash,
+      type: 'machine',
+      environment: 'development',
+      scopes: ['inference:models:read'],
+      status: input.status ?? 'active',
+    });
+
+  return minted.token;
+}
+
+/**
+ * Run one case with the machine lane in a stated position, then put the variable
+ * back exactly as it was.
+ *
+ * The position is always written out at the call site. `INFERENCE_MACHINE_CREDENTIAL_AUTH`
+ * is unset in production and its default is asserted in
+ * `config/__tests__/rolloutFlags.test.ts`; nothing here is evidence about it.
+ */
+async function withMachineLane(
+  position: 'enabled' | 'unset',
+  run: () => Promise<void>
+): Promise<void> {
+  const original = process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE];
+  if (position === 'enabled') process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = 'enabled';
+  else delete process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE];
+  try {
+    await run();
+  } finally {
+    if (original === undefined) delete process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE];
+    else process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = original;
+  }
+}
+
 function signServiceToken(input: {
   appId: string;
   ownerAccountId: string;
@@ -366,6 +447,123 @@ describe('the audience is resolved from the request, and every branch but one is
     // The one branch that widens. Paired with the six above, this is what makes
     // the withholding a decision rather than an accident.
     expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeDefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  1b. The MACHINE credential lane resolves an audience too                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `oxy_sk_…` on `GET /models`, which is the second call a stock OpenAI SDK makes.
+ *
+ * The bug this covers: `viewerForRequest` resolved the bearer through
+ * `verifyServiceToken` ALONE. A machine credential is not a JWT, so it failed
+ * verification and the caller silently became an anonymous PUBLIC viewer —
+ * authenticated on `POST /v1/chat/completions` and unknown here, at every flag
+ * setting, with no error anywhere to notice.
+ *
+ * **A 200 with a body proves nothing about this**, and that is the whole
+ * difficulty: the public viewer is served a real catalogue, so "the request
+ * worked" is exactly what the bug produced. Every case below therefore turns on a
+ * row that is visible to the credential's application and NOT to an anonymous
+ * caller — an `internal_alia` deployment — with the `public_payg` route as the
+ * control proving the caller could read the catalogue at all.
+ */
+describe('a machine credential resolves the audience of the application that holds it', () => {
+  it('serves the internal audience to an internal application’s oxy_sk_ bearer, and withholds it from an anonymous one', async () => {
+    await withMachineLane('enabled', async () => {
+      const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+      const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+      const token = await machineTokenForApplication({ type: 'internal' });
+
+      const response = await request(MOUNT, { token });
+      expect(response.status).toBe(200);
+      // The control: this caller reads the catalogue, so what follows is a
+      // resolution and not a failed read.
+      expect(entryFor(response.body, 'data', publicRoute.modelId)).toBeDefined();
+      // The measurement. Under the bug this was `undefined`: the machine bearer
+      // resolved public, and a public viewer is served no `internal_alia` route.
+      expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeDefined();
+
+      // The DISCRIMINATOR the two viewers cannot share, on the detail read: the
+      // same URL is 200 for this bearer and 404 for an anonymous caller. `GET
+      // /models/:publisher/:model` runs the same `catalogueAccess`, so this is the
+      // second endpoint of the pair rather than a restatement of the first.
+      const detail = await request(`${MOUNT}/${internalRoute.modelId}`, { token });
+      expect(detail.status).toBe(200);
+      expect((detail.body.data as ModelCatalogueEntry).modelId).toBe(internalRoute.modelId);
+
+      const anonymous = await request(`${MOUNT}/${internalRoute.modelId}`, { token: null });
+      expect(anonymous.status).toBe(404);
+    });
+  });
+
+  it('serves the PUBLIC audience to an ordinary third-party application’s oxy_sk_ bearer', async () => {
+    await withMachineLane('enabled', async () => {
+      const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+      const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+      // The lane resolving a credential is not a widening. Without this case the
+      // suite above would also pass against a router that handed the internal
+      // audience to every machine bearer it managed to resolve.
+      const token = await machineTokenForApplication({ type: 'third_party' });
+
+      const response = await request(MOUNT, { token });
+      expect(response.status).toBe(200);
+      expect(entryFor(response.body, 'data', publicRoute.modelId)).toBeDefined();
+      expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeUndefined();
+    });
+  });
+
+  it('resolves a REVOKED machine credential to the public audience', async () => {
+    await withMachineLane('enabled', async () => {
+      const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+      const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+      const token = await machineTokenForApplication({ type: 'internal', status: 'revoked' });
+
+      const response = await request(MOUNT, { token });
+      expect(response.status).toBe(200);
+      expect(entryFor(response.body, 'data', publicRoute.modelId)).toBeDefined();
+      // The credential's application IS internal, so this is the credential's own
+      // lifecycle being honoured rather than the tier failing to resolve.
+      expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeUndefined();
+    });
+  });
+});
+
+/**
+ * The catalogue and the edge must agree about who the caller is in EVERY flag
+ * position, so a machine credential is never MORE privileged on the catalogue
+ * than it is on the request path.
+ *
+ * `authenticateEdgeCaller` refuses a machine-prefixed bearer outright with
+ * `machine_lane_disabled` while `INFERENCE_MACHINE_CREDENTIAL_AUTH` is unset. The
+ * catalogue's equivalent of a refusal is the public audience, and this is the pair
+ * that proves it: the SAME internal application's SAME bearer sees the internal
+ * route with the lane open and does not see it with the lane shut.
+ */
+describe('the machine lane’s rollout flag gates the catalogue exactly as it gates the edge', () => {
+  it('withholds the internal audience from a machine bearer while the lane is shut, and grants it once open', async () => {
+    const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+    const internalRoute = await insertRoute({ availabilityScope: 'internal_alia' });
+    const token = await machineTokenForApplication({ type: 'internal' });
+
+    await withMachineLane('unset', async () => {
+      const shut = await request(MOUNT, { token });
+      expect(shut.status).toBe(200);
+      expect(entryFor(shut.body, 'data', publicRoute.modelId)).toBeDefined();
+      expect(entryFor(shut.body, 'data', internalRoute.modelId)).toBeUndefined();
+      expect((await request(`${MOUNT}/${internalRoute.modelId}`, { token })).status).toBe(404);
+    });
+
+    // The POSITIVE CONTROL for the assertion above, over the same fixture and the
+    // same bearer: without it, a withholding and a credential that never resolved
+    // at all read identically.
+    await withMachineLane('enabled', async () => {
+      const open = await request(MOUNT, { token });
+      expect(entryFor(open.body, 'data', internalRoute.modelId)).toBeDefined();
+      expect((await request(`${MOUNT}/${internalRoute.modelId}`, { token })).status).toBe(200);
+    });
   });
 });
 

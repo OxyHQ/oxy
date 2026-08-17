@@ -25,12 +25,15 @@
  *
  * ## Reads are audience-scoped, and the default audience is the public one
  *
- * Every read resolves a {@link CatalogueViewer} first. No principal, a plain
- * user bearer, or a service token belonging to an ordinary application all
- * resolve to the PUBLIC viewer; only an internal/system application sees
- * `internal_alia` routes. An internal-only route and a model that does not
- * exist are deliberately the same answer, so the catalogue is never an oracle
- * for what Oxy runs internally.
+ * Every read resolves a {@link CatalogueViewer} first, from EITHER credential
+ * lane — a verified service token or an `oxy_sk_…` machine credential, which is
+ * the bearer a stock OpenAI SDK sends to `client.models.list()`. No principal, a
+ * plain user bearer, or a credential of either kind belonging to an ordinary
+ * application all resolve to the PUBLIC viewer; only an internal/system
+ * application sees `internal_alia` routes. An internal-only route and a model
+ * that does not exist are deliberately the same answer, so the catalogue is never
+ * an oracle for what Oxy runs internally. See {@link viewerForRequest} for why
+ * the lane order and its rollout flag are the inference edge's own.
  *
  * ## Publication is a separate, flagged decision
  *
@@ -52,10 +55,13 @@
 import { Router, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { isCataloguePublished } from '../config/rolloutFlags';
+import { isCataloguePublished, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema';
+import { extractTokenFromRequest } from '../middleware/authUtils';
+import { resolveMachineCredential } from '../middleware/machineCredential';
 import { rateLimit } from '../middleware/rateLimiter';
 import { verifyServiceToken } from '../middleware/serviceToken';
+import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 import {
   type CatalogueViewer,
   getCatalogueEntryForViewer,
@@ -98,14 +104,10 @@ type CatalogueAccess =
  * Resolve the audience for this request, and whether this deployment publishes
  * to it.
  *
- * Reuses `verifyServiceToken` — the SAME verification the shared service-auth
- * middleware performs — rather than parsing the header itself, so there is no
- * second token-decoding path to drift. What differs is only that a missing or
- * unverifiable token is not an error here: it resolves to the public viewer,
- * which is the default-deny direction.
- *
- * A failure to LOAD the application also resolves public. A read that cannot
- * establish a principal must not fall through to the wider audience.
+ * A missing or unresolvable bearer is not an error here: it resolves to the
+ * public viewer, which is the default-deny direction. A failure to LOAD the
+ * application resolves public for the same reason — a read that cannot establish
+ * a principal must not fall through to the wider audience.
  *
  * The publication check is applied to the RESOLVED viewer rather than to the
  * request, so an internal application still reads the catalogue while it is
@@ -119,19 +121,83 @@ async function catalogueAccess(req: Request): Promise<CatalogueAccess> {
   return { served: true, viewer };
 }
 
+/**
+ * The audience this request belongs to.
+ *
+ * ## BOTH credential lanes, because a stock SDK uses both endpoints
+ *
+ * `client.models.list()` is the second call every OpenAI-compatible client
+ * makes, and it sends the same `oxy_sk_…` bearer that authenticated
+ * `POST /v1/chat/completions`. A machine credential is NOT a JWT, so resolving
+ * this header through `verifyServiceToken` alone made every such caller an
+ * anonymous public viewer — authenticated on the edge and unknown here, with no
+ * error to notice, at every flag setting.
+ *
+ * So both lanes resolve an APPLICATION ID and nothing else: this endpoint reads
+ * an audience, not a spend authorization, and the two application columns below
+ * are all an audience is derived from.
+ *
+ * ## The lane order and the flag are the EDGE's, deliberately
+ *
+ * `authenticateEdgeCaller` (`services/inferenceEdge.service.ts`) refuses a
+ * machine-prefixed bearer outright when `INFERENCE_MACHINE_CREDENTIAL_AUTH` is
+ * not `enabled`, before any lookup, rather than letting it fall through to the
+ * service lane. This mirrors that exactly, so the two endpoints agree about who
+ * the caller is in EVERY flag state and a machine credential can never be more
+ * privileged on the catalogue than it is on the edge. What differs is only the
+ * consequence of a refusal: the edge answers 401, and a catalogue read that
+ * cannot establish a principal is served the public audience.
+ *
+ * ## One mapping, and it is `resolveCatalogueViewer`
+ *
+ * The edge's `viewerForPrincipal` is a two-line adapter over the very same
+ * `resolveCatalogueViewer` call this function ends in — it is not a second
+ * mapping, and calling it from here would mean fabricating five `EdgePrincipal`
+ * fields it does not read (a lane, a credential id, an owner account, an
+ * environment and a scope list) purely to reach the two it does. Both endpoints
+ * therefore map through ONE function, which is the property that matters: a
+ * widening of the internal audience cannot land on one endpoint and miss the
+ * other.
+ *
+ * Scopes are deliberately not consulted, on either lane, exactly as the edge's
+ * own audience resolution does not consult them. `inference:models:read` gates
+ * what a credential may DO; the audience decides what EXISTS for it to see, and
+ * conflating the two would make an unscoped credential see a different catalogue
+ * from the one it is refused access to.
+ */
 async function viewerForRequest(req: Request): Promise<CatalogueViewer> {
-  const header = req.headers.authorization;
-  if (header === undefined || !header.startsWith('Bearer ')) return PUBLIC_CATALOGUE_VIEWER;
+  const token = extractTokenFromRequest(req);
+  if (token === undefined) return PUBLIC_CATALOGUE_VIEWER;
 
-  const verification = verifyServiceToken(header.slice('Bearer '.length));
-  if (!verification.ok) return PUBLIC_CATALOGUE_VIEWER;
+  const applicationId = await applicationForBearer(token);
+  if (applicationId === undefined) return PUBLIC_CATALOGUE_VIEWER;
 
   const [application] = await getDb()
     .select({ type: applications.type, isInternal: applications.isInternal })
     .from(applications)
-    .where(eq(applications.id, verification.payload.appId));
+    .where(eq(applications.id, applicationId));
 
   return resolveCatalogueViewer(application);
+}
+
+/**
+ * The application a bearer identifies, or `undefined` when it identifies none.
+ *
+ * `undefined` covers every distinguishable failure — a plain user session token,
+ * an unverifiable JWT, a revoked or expired machine credential, a machine bearer
+ * presented while the lane is shut — because the caller's next move is the same
+ * for all of them and the catalogue never reports which it was. Distinguishing
+ * them would turn a public read into an oracle on a credential's lifecycle.
+ */
+async function applicationForBearer(token: string): Promise<string | undefined> {
+  if (machineCredentialTokenPrefix(token) !== null) {
+    if (!isMachineCredentialLaneEnabled()) return undefined;
+    const machine = await resolveMachineCredential(token);
+    return machine.ok ? machine.principal.applicationId : undefined;
+  }
+
+  const verification = verifyServiceToken(token);
+  return verification.ok ? verification.payload.appId : undefined;
 }
 
 /**
