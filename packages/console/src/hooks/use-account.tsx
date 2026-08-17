@@ -63,7 +63,16 @@ export type AccountPermission =
   | 'credentials:revoke'
   | 'billing:read'
   | 'billing:manage'
-  | 'ownership:transfer';
+  | 'ownership:transfer'
+  // The inference lane (#972 workstream 3). `inference:usage:read` is UNITS;
+  // money stays on `billing:read`/`billing:manage`, which is why there is no
+  // `inference:billing:*`.
+  | 'inference:invoke'
+  | 'inference:routing:read'
+  | 'inference:routing:write'
+  | 'inference:providers:read'
+  | 'inference:providers:write'
+  | 'inference:usage:read';
 
 /** Roles assignable via invite/update — everything except `owner`. */
 export type AssignableAccountRole = Exclude<AccountRole, 'owner'>;
