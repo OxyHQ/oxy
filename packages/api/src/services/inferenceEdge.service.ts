@@ -66,6 +66,35 @@
  * no usage is an open policy question that belongs with the estimation and
  * reconciliation work, not here.
  *
+ * ## Two providers, and they are allowed to differ
+ *
+ * `route.provider` is the provider this request was ADMITTED against: the one
+ * whose price version sized the hold and whose constraints the routing policy was
+ * checked over. `usage.servingProvider` is the provider the data plane REPORTS as
+ * having actually served it. A same-model deployment failover makes them
+ * different, and the epic declares that failover LEGITIMATE — so a mismatch is
+ * not an error to refuse, it is a fact to record.
+ *
+ * Every record that describes what was SERVED therefore names the REPORTED
+ * provider: the receipt, the usage event (and so the daily rollup, whose primary
+ * key includes it), the customer's response body and its `X-Oxy-Provider` header.
+ * Every record that describes a request nothing served names the ADMITTED one,
+ * because there is no reported value to name — a reservation refused before the
+ * forward, and a completion repudiated as unreadable or model-substituted, are
+ * both in that class. The pattern mirrors `requestedModelReference` beside
+ * `resolvedModelReference`, which the schema already carries for the same reason.
+ *
+ * {@link settlementFrom} resolves the two into ONE value per request, so the
+ * receipt and the telemetry event can never name different providers for the same
+ * charge. A streaming response is the one place the admitted provider reaches a
+ * customer: `X-Oxy-Provider` is a header, headers go out before the first frame,
+ * and a switch that happens afterwards is delivered as a `route_switch` event
+ * instead — see {@link streamInferenceRequest}.
+ *
+ * ## A reported route switch is RECORDED, never validated
+ *
+ * See {@link recordEdgeRouteSwitch}.
+ *
  * ## Prompts never enter this module's logs
  *
  * Every log line here names ids, codes and counts. The request body, the
@@ -90,6 +119,7 @@ import {
   type InferenceRequest,
   type InferenceScope,
   type InferenceStreamEvent,
+  type InferenceStreamRouteSwitchEvent,
   type NormalizedUsageReport,
   type RoutingPolicyReference,
   type UsageSource,
@@ -123,7 +153,11 @@ import {
   type LedgerAttribution,
   type ReservationView,
 } from './inferenceLedger.service';
-import { resolveEffectiveRoutingPolicy } from './inferenceRoutingPolicy.service';
+import {
+  recordRouteSwitch,
+  resolveEffectiveRoutingPolicy,
+  type RouteSwitchDetail,
+} from './inferenceRoutingPolicy.service';
 import { recordInferenceUsage } from './inferenceTelemetry.service';
 import {
   DataPlaneNotConfiguredError,
@@ -397,6 +431,12 @@ export interface EdgeCompletion {
   readonly requestId: string;
   readonly generationId?: string;
   readonly resolvedModelReference: string;
+  /**
+   * The provider that actually served this request, as the data plane REPORTED
+   * it — which after a same-model failover is not the provider the edge admitted.
+   * The receipt and the daily rollup name the same value, so a customer reading
+   * `X-Oxy-Provider` and a customer reading their usage dashboard see one answer.
+   */
   readonly servingProvider: string;
   readonly finishReason: RelayCompletion['finishReason'];
   readonly output: readonly InferenceMessage[];
@@ -425,6 +465,17 @@ export type EdgeStreamFrame =
 export interface EdgeStreamHead {
   readonly requestId: string;
   readonly resolvedModelReference: string;
+  /**
+   * The ADMITTED provider — the one exception to the rule that a
+   * customer-visible provider is the reported one.
+   *
+   * This head becomes response HEADERS, and headers are sent before the first
+   * frame. The reported provider is not knowable then: the usage report is
+   * terminal, and a failover can happen at any point after. So a stream states
+   * the route it opened on and reports a later change as a `route_switch` event,
+   * which is the transport the contract provides for exactly this. The RECEIPT
+   * for the same request still names the reported provider.
+   */
   readonly servingProvider: string;
   readonly routingPolicy: RoutingPolicyReference;
 }
@@ -760,6 +811,9 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         statusCode: inferenceErrorStatus(held.error.code),
         units: {},
         resolvedModelReference: route.modelReference,
+        // ADMITTED, and it can only be: this refusal happens BEFORE the forward,
+        // so no provider has served anything and there is no reported value in
+        // existence. The row says which route the request would have taken.
         servingProvider: route.provider,
       });
       logger.warn('inference.edge.reservation_refused', {
@@ -831,17 +885,24 @@ export async function executeInferenceRequest(
     // carries it — is what this settles against. A full refund on a request that
     // produced two hundred tokens would be Oxy absorbing a cost it can account
     // for, which is the mirror of the over-charge the reservation prevents.
-    await settleMeasured(
-      context,
-      admitted,
-      settlementFrom(usageEvidenceOf(error), failure.outcome)
+    //
+    // Built ONCE and shared with the telemetry row below, so the receipt and the
+    // event name the same provider: a failure whose evidence was a full report
+    // names the REPORTED provider on both, and one with no report names the
+    // admitted route on both. Two `settlementFrom` calls would be two chances to
+    // disagree about a request that already failed.
+    const settlement = settlementFrom(
+      usageEvidenceOf(error),
+      failure.outcome,
+      route.provider
     );
+    await settleMeasured(context, admitted, settlement);
     await recordEdgeTelemetry(context, {
       requestedModelReference: admitted.requestedModelReference,
       statusCode: inferenceErrorStatus(failure.code),
       units: {},
       resolvedModelReference: route.modelReference,
-      servingProvider: route.provider,
+      servingProvider: settlement.servingProvider,
       outcome: failure.outcome,
     });
     return {
@@ -856,12 +917,22 @@ export async function executeInferenceRequest(
   // a substitution nobody permitted.
   const mismatch = validateCompletion(completion, requestId, route);
   if (mismatch !== undefined) {
-    await settleMeasured(context, admitted, settlementFrom(undefined, 'failed'));
+    await settleMeasured(
+      context,
+      admitted,
+      settlementFrom(undefined, 'failed', route.provider)
+    );
     await recordEdgeTelemetry(context, {
       requestedModelReference: admitted.requestedModelReference,
       statusCode: inferenceErrorStatus(mismatch.code),
       units: {},
       resolvedModelReference: route.modelReference,
+      // ADMITTED, deliberately, even though the rejected report carries a
+      // `servingProvider`. The whole answer was just repudiated — it either did
+      // not parse, or it named a model nobody authorized — so reading a field out
+      // of it would attribute a refused request to a provider on the authority of
+      // a document the edge declined to believe. The admitted route is the last
+      // thing about this request Oxy itself established.
       servingProvider: route.provider,
       outcome: 'failed',
     });
@@ -884,10 +955,22 @@ export async function executeInferenceRequest(
   //    discrepancy into a second failure the customer sees.
   const units = unitsFromReport(completion.usage);
 
+  // The provider that actually served the request, as the data plane reports it —
+  // not `route.provider`, which is the provider the edge ADMITTED. A same-model
+  // deployment failover makes the two differ, and the epic authorizes that
+  // failover, so this is the value the receipt, the telemetry event, the daily
+  // rollup's primary key and the customer's own response body carry.
+  //
+  // Safe to read without a further check because {@link validateCompletion} has
+  // already parsed `completion.usage` against `normalizedUsageReportSchema` above,
+  // where `servingProvider` is a required provider slug.
+  const servingProvider = completion.usage.servingProvider;
+
   if (hold === undefined) {
     await recordShadowMetering(context, route, units, {
       outcome: completion.usage.outcome,
       usageSource: completion.usage.usageSource,
+      servingProvider,
       ...(completion.generationId === undefined
         ? {}
         : { generationId: completion.generationId }),
@@ -905,7 +988,7 @@ export async function executeInferenceRequest(
       usageSource: completion.usage.usageSource,
       units,
       resolvedModelReference: route.modelReference,
-      servingProvider: route.provider,
+      servingProvider,
       priceVersionId: route.priceVersionId,
       ...(admitted.routingPolicyVersionId === undefined
         ? {}
@@ -939,12 +1022,21 @@ export async function executeInferenceRequest(
     }
   }
 
+  // The switches the data plane reported, as the persisted customer-visible
+  // notice. Written after the settlement so the row a customer joins to their
+  // receipt exists by the time the receipt does; a failure to write one never
+  // fails a request that has already been served — see
+  // {@link recordEdgeRouteSwitch}.
+  for (const event of completion.routeSwitchEvents) {
+    await recordEdgeRouteSwitch(context, admitted, event);
+  }
+
   await recordEdgeTelemetry(context, {
     requestedModelReference: admitted.requestedModelReference,
     statusCode: 200,
     units,
     resolvedModelReference: route.modelReference,
-    servingProvider: route.provider,
+    servingProvider,
     outcome: completion.usage.outcome,
     usageSource: completion.usage.usageSource,
     // The two figures only the data plane can know. `routeSwitches` is the
@@ -967,7 +1059,7 @@ export async function executeInferenceRequest(
         ? {}
         : { generationId: completion.generationId }),
       resolvedModelReference: route.modelReference,
-      servingProvider: route.provider,
+      servingProvider,
       finishReason: completion.finishReason,
       output: completion.output,
       units,
@@ -1038,7 +1130,11 @@ export async function* streamInferenceRequest(
     // before reserving anything. Handled rather than asserted because the
     // alternative is a non-null assertion, and because a future edit to that
     // order would otherwise release nothing.
-    await settleMeasured(context, admitted, settlementFrom(undefined, 'failed'));
+    await settleMeasured(
+      context,
+      admitted,
+      settlementFrom(undefined, 'failed', route.provider)
+    );
     yield {
       kind: 'error',
       error: refuseRequest(
@@ -1078,6 +1174,8 @@ export async function* streamInferenceRequest(
           head: {
             requestId: context.requestId,
             resolvedModelReference: route.modelReference,
+            // ADMITTED — the head becomes headers, and the reported provider is
+            // not knowable before the first frame. See {@link EdgeStreamHead}.
             servingProvider: route.provider,
             routingPolicy: admitted.routingPolicy,
           },
@@ -1093,6 +1191,17 @@ export async function* streamInferenceRequest(
       }
 
       yield { kind: 'event', event };
+
+      // AFTER the yield, deliberately. A `yield` suspends until the route asks
+      // for the next frame, so this insert sits between "the customer has the
+      // notice" and "the edge reads the next frame from the data plane" — never
+      // in front of a frame somebody is waiting for. Written here rather than
+      // accumulated for the `finally` because a notice already shown to a
+      // customer must survive a process that dies later in the same stream, and
+      // because this function keeps no array of events by design.
+      if (event.type === 'route_switch') {
+        await recordEdgeRouteSwitch(context, admitted, event);
+      }
     }
   } catch (error) {
     forwardFailure = classifyForwardFailure(error, context.signal);
@@ -1118,7 +1227,7 @@ export async function* streamInferenceRequest(
     const evidence: RelayUsageEvidence | undefined =
       usable !== undefined ? { kind: 'report', report: usable } : partial;
     const outcome = streamOutcome(context, { terminal, sawOutput });
-    const settlement = settlementFrom(evidence, outcome);
+    const settlement = settlementFrom(evidence, outcome, route.provider);
 
     await settleMeasured(context, admitted, settlement);
     await recordEdgeTelemetry(context, {
@@ -1129,7 +1238,11 @@ export async function* streamInferenceRequest(
         : inferenceErrorStatus(forwardFailure?.code ?? terminal?.code ?? 'internal_error'),
       units: settlement.units,
       resolvedModelReference: route.modelReference,
-      servingProvider: route.provider,
+      // REPORTED when a usable report arrived, admitted otherwise — the same
+      // value the receipt carries, resolved once in `settlementFrom`. A stream's
+      // `X-Oxy-Provider` header deliberately differs here: see
+      // {@link EdgeStreamHead}.
+      servingProvider: settlement.servingProvider,
       outcome: settlement.outcome,
       usageSource: settlement.usageSource,
       ...(usable === undefined ? {} : { routeSwitches: usable.routeSwitches }),
@@ -1171,6 +1284,154 @@ function streamOutcome(
   if (context.signal.aborted) return 'cancelled';
   if (observed.terminal?.code === 'cancelled') return 'cancelled';
   return observed.sawOutput ? 'partial' : 'failed';
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The customer-visible record of a route switch                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Persist one route switch the data plane REPORTED, as the customer-visible
+ * notice `inference_route_switch_events` was built for (issue #972 workstream 6,
+ * "Emit a customer-visible event/receipt when an allowed route switch occurs").
+ *
+ * Reached from BOTH dialects and BOTH transports: a streaming request records
+ * each `route_switch` event as it forwards it, and a non-streaming one records
+ * the events `RelayCompletion.routeSwitchEvents` carried out of the fold. The
+ * writer itself is `inferenceRoutingPolicy.service.ts`'s `recordRouteSwitch`,
+ * which already owns the authorisation lookup and the idempotency — this function
+ * is the edge's adapter onto it, not a second writer.
+ *
+ * ## What a recorded row DOES and does NOT claim
+ *
+ * It claims: the data plane reported this switch, and — for a `model`-scope
+ * substitution only — the destination is named in the customer's own
+ * authorisation rows, because `recordRouteSwitch` looks that up and refuses to
+ * write a row it cannot find one for.
+ *
+ * It does NOT claim the switch respected the customer's routing policy. The
+ * envelope this edge sends carries a policy REFERENCE and nothing more (see
+ * {@link buildEnvelope}), so the data plane holds no provider allowlist, no
+ * region residency requirement, no zero-retention requirement and no price
+ * ceiling to check a replacement against; those were checked once, for the route
+ * the request was ADMITTED on. **Do not upgrade this to a compliance assertion.**
+ *
+ * The contract half of the fix has LANDED — `inferenceRequestSchema` now accepts
+ * an optional ordered `authorizedRoutes` list — and this edge does not populate it
+ * yet, which is the whole of what keeps the claim narrow. The condition to watch
+ * for is therefore concrete rather than pending: once {@link buildEnvelope} sends
+ * that list, "a switch happened" starts to imply "to a route Oxy authorized" and
+ * this comment is what should be revisited. Until then the row is a NOTICE, and
+ * reading it as an approval would be reading a fact about the past as a
+ * permission.
+ *
+ * ## Failing to write one never fails the request
+ *
+ * By the time this runs the customer has been served and the hold has been
+ * settled. Every refusal and every exception is logged and swallowed, for the
+ * same reason `recordEdgeTelemetry` is best-effort: turning a bookkeeping gap
+ * into a second, customer-visible failure trades one lost row for one lost
+ * response.
+ *
+ * ## The platform default cannot be recorded, and that is a configuration gap
+ *
+ * `routing_policy_version_id` is `NOT NULL`: a switch that cannot name the
+ * configuration which allowed it explains nothing, and for a same-model failover
+ * the authorising configuration is a policy version's `sameModelDeployment`. An
+ * application served under {@link PLATFORM_DEFAULT_ROUTING_POLICY} has NO version
+ * row — deliberately, that is how a reader tells the platform default from a
+ * configured policy — so there is nothing to point at and the notice is skipped
+ * with a named log line rather than written against an invented authority.
+ * Closing that needs a real platform-default policy version somebody decides to
+ * seed, not a nullable column here.
+ */
+async function recordEdgeRouteSwitch(
+  context: EdgeExecutionContext,
+  admitted: AdmittedRequest,
+  event: InferenceStreamRouteSwitchEvent
+): Promise<void> {
+  if (event.requestId !== context.requestId) {
+    // Same reasoning as `validateUsageReport`: a record that crosses a service
+    // boundary and names a different request is discarded, not stored under this
+    // one's id.
+    logger.error(
+      'inference.edge.route_switch_request_mismatch',
+      new Error('the data plane reported a route switch for a different request'),
+      { requestId: context.requestId, sequence: event.sequence }
+    );
+    return;
+  }
+
+  const routingPolicyVersionId = admitted.routingPolicyVersionId;
+  if (routingPolicyVersionId === undefined) {
+    logger.warn('inference.edge.route_switch_unrecordable', {
+      requestId: context.requestId,
+      sequence: event.sequence,
+      scope: event.detail.scope,
+      reason: 'platform_default_policy_has_no_version_row',
+    });
+    return;
+  }
+
+  // `authorizedByPolicy` is deliberately NOT forwarded. On the wire it is a
+  // `z.literal(true)` — a producer asserting its own permission — and
+  // `recordRouteSwitch` LOOKS the authorisation up instead, so there is no field
+  // here for the data plane's claim about itself to travel in.
+  const detail: RouteSwitchDetail =
+    event.detail.scope === 'deployment'
+      ? {
+          scope: 'deployment',
+          modelReference: event.detail.modelReference,
+          toProvider: event.detail.toProvider,
+          ...(event.detail.toDeploymentId === undefined
+            ? {}
+            : { toDeploymentId: event.detail.toDeploymentId }),
+        }
+      : {
+          scope: 'model',
+          requestedModelId: event.detail.requestedModelId,
+          fromModelReference: event.detail.fromModelReference,
+          toModelReference: event.detail.toModelReference,
+          toProvider: event.detail.toProvider,
+        };
+
+  try {
+    const result = await recordRouteSwitch({
+      requestId: context.requestId,
+      sequence: event.sequence,
+      accountId: context.principal.ownerAccountId,
+      applicationId: context.principal.applicationId,
+      environment: context.principal.environment,
+      routingPolicyVersionId,
+      reason: event.reason,
+      detail,
+      occurredAt: new Date(event.occurredAt),
+    });
+
+    // `already-recorded` is the idempotent answer, not a failure: the unique
+    // `(request_id, sequence)` key makes a retried or redelivered event a no-op,
+    // which is the same guarantee the ledger's own idempotency key gives the
+    // charge. No second mechanism is introduced for it.
+    if (result.status === 'recorded' || result.status === 'already-recorded') return;
+
+    logger.error(
+      'inference.edge.route_switch_refused',
+      new Error(`the reported route switch could not be recorded: ${result.status}`),
+      {
+        requestId: context.requestId,
+        sequence: event.sequence,
+        scope: event.detail.scope,
+        routingPolicyVersionId,
+        status: result.status,
+      }
+    );
+  } catch (error) {
+    logger.error(
+      'inference.edge.route_switch_write_failed',
+      error instanceof Error ? error : new Error(String(error)),
+      { requestId: context.requestId, sequence: event.sequence }
+    );
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1292,6 +1553,14 @@ async function recordShadowMetering(
   measured: {
     readonly outcome: NormalizedUsageReport['outcome'];
     readonly usageSource: UsageSource;
+    /**
+     * The provider the data plane reported, or the admitted route's when it
+     * reported none. Passed rather than read off `route`, because a shadow record
+     * that named the admitted provider while the eventual bill named the reported
+     * one would not be the same figure a charged run produces — which is the ONE
+     * property a shadow period exists to establish.
+     */
+    readonly servingProvider: string;
     readonly generationId?: string;
     readonly routingPolicyVersionId: string | undefined;
   }
@@ -1308,7 +1577,7 @@ async function recordShadowMetering(
     credentialId: context.principal.credentialId,
     environment: context.principal.environment,
     resolvedModelReference: route.modelReference,
-    servingProvider: route.provider,
+    servingProvider: measured.servingProvider,
     priceVersionId: route.priceVersionId,
     ...(measured.routingPolicyVersionId === undefined
       ? {}
@@ -1342,6 +1611,14 @@ interface MeasuredSettlement {
   readonly usageSource: UsageSource;
   readonly outcome: NormalizedUsageReport['outcome'];
   readonly generationId: string | undefined;
+  /**
+   * The provider this request's receipt, telemetry event and rollup bucket name.
+   *
+   * Already resolved — reported when the data plane reported one, the admitted
+   * route's provider otherwise — so no consumer of this shape has to decide, and
+   * two records of one charge cannot disagree. See {@link settlementFrom}.
+   */
+  readonly servingProvider: string;
 }
 
 /**
@@ -1364,10 +1641,23 @@ interface MeasuredSettlement {
  * chosen because the alternative — estimating — invents the number a bill is
  * computed from, and an estimator belongs with the reconciliation work rather than
  * inside a settlement path.
+ *
+ * ## Which provider the settlement names
+ *
+ * The REPORTED one on the first arm, and `admittedProvider` on the other two —
+ * and that split is the whole of the reported-versus-admitted decision for every
+ * failure and streaming path, made once here rather than at each write site.
+ *
+ * A report is the only form that names a provider at all. The in-stream `usage`
+ * event carries units and a source and nothing else, and "nothing arrived" names
+ * nothing by definition — so on both of those arms the admitted provider is not a
+ * fallback chosen for convenience, it is the only provider anybody knows about.
+ * Substituting a guess there would put a provider in a receipt on no evidence.
  */
 function settlementFrom(
   evidence: RelayUsageEvidence | undefined,
-  fallbackOutcome: 'failed' | 'cancelled' | 'partial'
+  fallbackOutcome: 'failed' | 'cancelled' | 'partial',
+  admittedProvider: string
 ): MeasuredSettlement {
   if (evidence === undefined) {
     return {
@@ -1375,6 +1665,7 @@ function settlementFrom(
       usageSource: 'estimated',
       outcome: fallbackOutcome,
       generationId: undefined,
+      servingProvider: admittedProvider,
     };
   }
   if (evidence.kind === 'report') {
@@ -1383,6 +1674,7 @@ function settlementFrom(
       usageSource: evidence.report.usageSource,
       outcome: evidence.report.outcome,
       generationId: evidence.report.generationId,
+      servingProvider: evidence.report.servingProvider,
     };
   }
   return {
@@ -1390,6 +1682,7 @@ function settlementFrom(
     usageSource: evidence.usageSource,
     outcome: fallbackOutcome,
     generationId: undefined,
+    servingProvider: admittedProvider,
   };
 }
 
@@ -1429,6 +1722,7 @@ async function settleMeasured(
     await recordShadowMetering(context, route, settlement.units, {
       outcome: settlement.outcome,
       usageSource: settlement.usageSource,
+      servingProvider: settlement.servingProvider,
       ...(settlement.generationId === undefined
         ? {}
         : { generationId: settlement.generationId }),
@@ -1449,7 +1743,7 @@ async function settleMeasured(
       usageSource: settlement.usageSource,
       units: settlement.units,
       resolvedModelReference: route.modelReference,
-      servingProvider: route.provider,
+      servingProvider: settlement.servingProvider,
       priceVersionId: route.priceVersionId,
       ...(admitted.routingPolicyVersionId === undefined
         ? {}
@@ -1719,14 +2013,16 @@ function buildEnvelope(
     // by the data plane's own refusal to substitute the MODEL, which is
     // structural there rather than policy-derived.
     //
-    // The fix is DECIDED and is a follow-up, not an open question: the envelope
-    // will carry an ordered list of pre-authorized routes that Oxy filtered, plus
-    // an explicit cross-model authorization flag, so failover becomes "take the
-    // next entry" and needs no policy semantics in the data plane at all. That is
-    // a published-contract change with matching ADR 0006/0010 amendments and a
-    // data-plane change, landing on top of this. Until it does, do NOT add a
-    // snapshot field here: a second, unpublished shape on this hop is exactly the
-    // divergence the contract package exists to prevent.
+    // The CONTRACT half of the fix has since landed (ADR 0017, #1041):
+    // `inferenceRequestSchema` now accepts an optional ordered `authorizedRoutes`
+    // list — routes Oxy filtered, each carrying its own substitution kind — so
+    // failover becomes "take the next entry" and needs no policy semantics in the
+    // data plane at all. This edge has NOT adopted it, which is why the paragraph
+    // above still describes today accurately; populating it is the api half of that
+    // workstream, plus a matching data-plane change. When it lands, `authorizedRoutes`
+    // is the field to add — and do NOT invent a snapshot field beside it, because a
+    // second, unpublished shape on this hop is exactly the divergence the contract
+    // package exists to prevent.
     routingPolicy,
   });
 }

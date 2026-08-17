@@ -117,8 +117,15 @@ interface EdgeRequest extends MachineCredentialRequest {
   };
 }
 
-/** Both dialects and the receipt read share one budget, per credential. */
-const inferenceEdgeLimiter = rateLimit({
+/**
+ * Both dialects and the receipt read share one budget, per credential.
+ *
+ * Exported for `__tests__/inferenceEdgeGateCoverage.test.ts`, which asserts by
+ * IDENTITY that every registered route carries it. Name cannot substitute:
+ * `rateLimit()` returns `expressRateLimit(...)` directly, so all three limiters on
+ * these routes have the same `Function.name` and are indistinguishable by it.
+ */
+export const inferenceEdgeLimiter = rateLimit({
   windowMs: 60_000,
   max: 600,
   prefix: 'rl:inference:edge:',
@@ -182,10 +189,20 @@ function edgeGate(render: ErrorRenderer) {
 
       // Is this deployment's edge open to this application at all (issue #972
       // workstream 16, `config/rolloutFlags.ts`)? Applied HERE, in the one gate
-      // all three endpoints share, so both dialects and the receipt read are
-      // covered by one decision and a fourth endpoint cannot be added without
-      // it. Distinct from authentication, and answered distinctly: the caller
-      // proved who they are, and this deployment does not serve them yet.
+      // every endpoint below mounts, so both dialects and the receipt read are
+      // covered by one decision. Distinct from authentication, and answered
+      // distinctly: the caller proved who they are, and this deployment does not
+      // serve them yet.
+      //
+      // It is NOT structurally impossible to add an endpoint without it. This
+      // gate is a per-route middleware, repeated on each `router.post`/`router.get`
+      // below, and it cannot be hoisted to a `router.use` because each dialect
+      // needs its OWN error renderer (`sendInferenceError` vs `sendOpenAiError`)
+      // and a `router.use` sees one chain for all of them. What actually enforces
+      // it is `__tests__/inferenceEdgeGateCoverage.test.ts`, which walks this
+      // router's own stack, DISCOVERS every registered route rather than being
+      // given a list, and fails when one answers anything but the gate's own
+      // refusal — so a fourth endpoint added without the gate goes red there.
       const admission = admitToInferenceEdge(authentication.principal);
       if (admission.status === 'refused') {
         logger.warn('inference.edge.outside_audience', {

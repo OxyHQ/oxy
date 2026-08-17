@@ -50,6 +50,7 @@ import {
   inferenceProviders,
   inferencePublishers,
 } from '../../db/schema';
+import { inferenceUsageDailyRollups } from '../../db/schema/inferenceUsageDailyRollups';
 import { inferenceUsageEvents } from '../../db/schema/inferenceUsageEvents';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { usageReceipts } from '../../db/schema/usageReceipts';
@@ -434,6 +435,10 @@ function completionFor(
       startedAt: now,
       completedAt: now,
     },
+    // Stated rather than omitted: "this request had no route switch" is a fact
+    // about the fixture, and a failover has its own suite
+    // (`__tests__/inferenceEdgeServingProvider.test.ts`).
+    routeSwitchEvents: [],
   };
 }
 
@@ -1333,6 +1338,179 @@ describe('edge timings', () => {
     // still there. Without this the case above would also pass for an edge that
     // stopped writing latency altogether.
     expect(event.latencyMs).toBeGreaterThan(0);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The provider that SERVED it, versus the provider that was ADMITTED        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A same-model deployment failover, which the epic declares legitimate.
+ *
+ * Every case in this file until now passed the fixture's own provider into
+ * `completionFor`, so `route.provider` and `usage.servingProvider` were the same
+ * string and nothing could tell which one the edge wrote. Here they DIFFER, which
+ * is what makes each assertion below falsifiable: before the reported/admitted
+ * split, all four of the receipt, the usage event, the daily rollup and the
+ * customer's response body carried `fixture.provider`.
+ *
+ * `routeSwitches: 2` rides along because the two facts belong together — the
+ * count says a failover happened and the provider column says who it went to, and
+ * an edge that recorded the count without moving the provider is the exact bug
+ * this describes.
+ */
+describe('the serving provider, when the data plane failed over', () => {
+  /** The provider the data plane reports. Never the one the fixture published. */
+  const FAILOVER_PROVIDER = 'failover-provider';
+
+  it('names the REPORTED provider on the receipt, the event, the rollup and the response', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    expect(FAILOVER_PROVIDER).not.toBe(fixture.provider);
+
+    await withServer(
+      fakeRelay((envelope) => {
+        const completion = completionFor(envelope, {
+          input: 12,
+          output: 20,
+          // The SAME resolved model — this is a deployment failover, not a
+          // substitution, so `validateCompletion` must let it through.
+          provider: FAILOVER_PROVIDER,
+        });
+        return {
+          ...completion,
+          usage: { ...completion.usage, routeSwitches: 2 },
+        };
+      }),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+
+        expect(response.status).toBe(200);
+        // The customer's own body and header. A customer debugging a latency
+        // spike reads these to know which provider to ask about.
+        expect(json(response).servingProvider).toBe(FAILOVER_PROVIDER);
+        expect(response.headers['x-oxy-provider']).toBe(FAILOVER_PROVIDER);
+      }
+    );
+
+    const db = getDb();
+
+    // The receipt — the immutable record of what was charged and by whom it was
+    // served. Attributing a failover's cost to the provider that did NOT run it
+    // is a wrong answer that cannot be corrected without a compensating entry.
+    const [receipt] = await db
+      .select({
+        servingProvider: usageReceipts.servingProvider,
+        resolvedModelReference: usageReceipts.resolvedModelReference,
+      })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipt.servingProvider).toBe(FAILOVER_PROVIDER);
+    // …while the MODEL is unchanged, which is what makes this a deployment
+    // failover rather than the substitution the epic forbids.
+    expect(receipt.resolvedModelReference).toBe(`${fixture.modelReference}@2026-01-01`);
+
+    const [event] = await db
+      .select({
+        servingProvider: inferenceUsageEvents.servingProvider,
+        routeSwitches: inferenceUsageEvents.routeSwitches,
+      })
+      .from(inferenceUsageEvents)
+      .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
+    expect(event.servingProvider).toBe(FAILOVER_PROVIDER);
+    expect(event.routeSwitches).toBe(2);
+
+    // The rollup's PRIMARY KEY includes `serving_provider`, so a wrong value here
+    // is not a mislabelled row — it is a permanently separate bucket that no later
+    // correction can merge back. Asserting the key by reading the row for the
+    // reported provider AND asserting no row exists for the admitted one is what
+    // distinguishes "recorded correctly" from "recorded twice".
+    const rollups = await db
+      .select({
+        servingProvider: inferenceUsageDailyRollups.servingProvider,
+        requestCount: inferenceUsageDailyRollups.requestCount,
+      })
+      .from(inferenceUsageDailyRollups)
+      .where(eq(inferenceUsageDailyRollups.accountId, fixture.accountId));
+    expect(rollups).toEqual([
+      { servingProvider: FAILOVER_PROVIDER, requestCount: 1 },
+    ]);
+  });
+
+  it('names the ADMITTED provider when nothing served the request', async () => {
+    // No funding, so `reserve` refuses before anything is forwarded. There is no
+    // reported provider in existence on this path, and the telemetry row must
+    // still say which route the request would have taken — so this is the control
+    // that proves the change above is a SPLIT and not a blanket swap.
+    const fixture = await makeFixture();
+
+    await withServer(
+      fakeRelay((envelope) =>
+        completionFor(envelope, { input: 12, output: 20, provider: FAILOVER_PROVIDER })
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(402);
+        expect(json(response)).toMatchObject({ code: 'insufficient_balance' });
+      }
+    );
+
+    const [event] = await getDb()
+      .select({ servingProvider: inferenceUsageEvents.servingProvider })
+      .from(inferenceUsageEvents)
+      .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
+    expect(event.servingProvider).toBe(fixture.provider);
+  });
+
+  it('names the ADMITTED provider when the completion is repudiated as a substitution', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+
+    await withServer(
+      fakeRelay((envelope) => {
+        const completion = completionFor(envelope, {
+          input: 12,
+          output: 20,
+          provider: FAILOVER_PROVIDER,
+        });
+        return {
+          ...completion,
+          usage: {
+            ...completion.usage,
+            // A model nobody authorized. The whole answer is refused, so the
+            // provider it names is refused with it — reading a field out of a
+            // document the edge just declined to believe would attribute a
+            // refused request to a provider on that document's own authority.
+            resolvedModelReference: 'someone/else@2026-01-01',
+          },
+        };
+      }),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(403);
+        expect(json(response)).toMatchObject({ code: 'policy_violation' });
+      }
+    );
+
+    const [event] = await getDb()
+      .select({ servingProvider: inferenceUsageEvents.servingProvider })
+      .from(inferenceUsageEvents)
+      .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
+    expect(event.servingProvider).toBe(fixture.provider);
   });
 });
 
