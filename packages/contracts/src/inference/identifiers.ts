@@ -66,8 +66,16 @@ export const oxyCredentialIdSchema = z.string().min(1).max(64);
  * traceable as one that was served (ADR 0007, and step 1 of ADR 0010's edge
  * order). It is required on the inbound envelope, which is what makes the data
  * plane a consumer of this id rather than its source: the data plane echoes it
- * on every stream event, on the usage report and on anything it can be asked
- * about later.
+ * on every stream event, on the usage report, in its response header and on
+ * anything it can be asked about later. It never mints one for a request it
+ * received.
+ *
+ * The one case that is NOT an exception to that: an envelope the data plane
+ * cannot read or authenticate carries no id to echo, so its rejection is
+ * labelled with an id of the data plane's own — visibly local, and never
+ * correlated with an Oxy request, because there is no Oxy request it belongs to.
+ * Saying so is what stops "consumer, not source" from being read as forbidding
+ * the only id such a rejection could have.
  *
  * Correlates the Oxy edge, the data plane, the financial ledger and the
  * customer-visible receipt, so it appears on every stream event and every
@@ -120,6 +128,19 @@ export const inferenceHttpsUrlSchema = z
   .string()
   .max(2048)
   .regex(/^https:\/\/[^\s]+$/, 'must be an absolute https URL');
+
+/**
+ * A content digest, `sha256:<64 lowercase hex>`.
+ *
+ * ONE spelling, because a digest is compared for equality and nothing else: an
+ * uppercase or unprefixed variant of the same hash is a different string, so two
+ * records describing the same bytes would not match. Lowercase hex with the
+ * algorithm prefix is what the `inference_model_revisions` CHECK stores and what
+ * every artifact registry emits.
+ */
+export const sha256DigestSchema = z
+  .string()
+  .regex(/^sha256:[a-f0-9]{64}$/, 'digest must be sha256:<64 lowercase hex>');
 
 /* -------------------------------------------------------------------------- */
 /*  Catalogue references                                                      */

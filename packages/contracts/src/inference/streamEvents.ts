@@ -100,6 +100,33 @@ export const inferenceStreamToolCallEventSchema = z.object({
  * derived from these units and a price version at settlement; a cost quoted by
  * the data plane would be a second, unauthoritative answer to the same
  * question.
+ *
+ * ## This event is MEASUREMENT EVIDENCE, never a settleable record
+ *
+ * `normalizedUsageReportSchema` is the only shape a settlement is written from,
+ * and this event is deliberately NOT a subset of it that could be widened into
+ * one. It carries units and a source; a report additionally carries the
+ * attribution block, the outcome, the resolved route, the route-switch count and
+ * the two timestamps. Every one of those is knowable only by one END of the
+ * request rather than by the frame: the outcome only by the edge, which is the
+ * only party that knows whether the CLIENT cancelled, and the route record only
+ * by the data plane.
+ *
+ * So the event is not widened, and that is a decision rather than an omission.
+ * Adding the route record and the attribution block here would repeat both on
+ * EVERY usage frame of every stream, and each repetition is one more place two
+ * frames of one stream could disagree about which route served it — a second
+ * source of truth per frame, for fields no consumer of a progress signal reads.
+ *
+ * **What the edge may do with it, and what it may not.** The units are exact and
+ * may be settled; the record around them may not be inferred. When no terminal
+ * report arrives — the ordinary case for a client disconnect, since the report
+ * frame can no longer be delivered to a connection that is gone — the edge
+ * settles the units from the last such event and takes the OUTCOME from itself,
+ * never from the event. Its outcome is then `cancelled`, `partial` or `failed`;
+ * it is never `completed`, because nothing here can witness that the customer
+ * received the whole answer. Zero units marked `estimated` is the arm for no
+ * evidence at ALL, not for a disconnect that reported some.
  */
 export const inferenceStreamUsageEventSchema = z.object({
   /** See `version.ts`: each stream event is a whole message on the wire. */

@@ -5,8 +5,8 @@
  * definitions, so this file answers one question: is what they compiled against still what this
  * package emits?
  *
- * Three mechanisms, because two of them alone would be satisfiable by an empty
- * scan:
+ * Four mechanisms, because any three of them alone would be satisfiable by an
+ * empty scan:
  *
  *  1. **A frozen version map**, asserted with EXACT equality. Every versioned
  *     shape and its `schemaVersion` is listed; adding a shape, removing one, or
@@ -17,7 +17,13 @@
  *     scan, and every exported object schema in those modules must be either
  *     versioned or on the frozen embedded list — being on neither is a failure,
  *     not a skip.
- *  3. **A round-trip parse per versioned shape**, with a fixture map whose key
+ *  3. **A frozen list of the exported UNIONS.** The census takes a union branch
+ *     and `continue`s before the versioned/embedded split, so until this list
+ *     existed a union was the one shape a contract addition could take and be
+ *     frozen by nothing at all. The `>= 8` vacuity floor could not catch it
+ *     either: a floor that a new shape only ever RAISES is satisfied by
+ *     definition.
+ *  4. **A round-trip parse per versioned shape**, with a fixture map whose key
  *     set must equal the version map's, so a new shape also cannot ship without
  *     a realistic example proving it parses.
  */
@@ -28,6 +34,7 @@ import { z } from 'zod';
 
 import * as barrel from '../index';
 import * as accountBilling from '../inference/accountBilling';
+import * as aliaModelRelease from '../inference/aliaModelRelease';
 import * as attribution from '../inference/attribution';
 import * as catalogue from '../inference/catalogue';
 import * as entitlement from '../inference/entitlement';
@@ -49,6 +56,7 @@ import * as version from '../inference/version';
  */
 const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   accountBilling,
+  aliaModelRelease,
   attribution,
   catalogue,
   entitlement,
@@ -164,6 +172,8 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   costCenterSchema: 1,
   costCenterSpendSchema: 1,
   productEntitlementSchema: 1,
+  // Alia model release manifest (§12) — schema only; no ingestion endpoint
+  aliaModelReleaseManifestSchema: 1,
   // Errors
   inferenceErrorSchema: 1,
 };
@@ -176,6 +186,8 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
  * ever-growing list is the gate switching itself off one line at a time.
  */
 const FROZEN_EMBEDDED_SHAPES: string[] = [
+  'aliaReleaseArtifactSchema',
+  'aliaReleaseSignatureSchema',
   'authenticatedPrincipalSchema',
   'autoRechargeSchema',
   'billingPrincipalSchema',
@@ -207,6 +219,36 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   'toolDefinitionSchema',
   'unitPriceSchema',
   'usageQuantitySchema',
+];
+
+/**
+ * Every exported UNION, frozen with the same exactness as the two lists above.
+ *
+ * The census classifies a union into neither of them — it takes the union branch
+ * and `continue`s before the versioned/embedded split — so before this list a new
+ * union was the one shape that could be added to the contract and be covered by
+ * nothing. The `>= 8` vacuity floor below could not catch it either: a floor a
+ * new shape only ever raises is satisfied by definition.
+ *
+ * A union carries no `schemaVersion` of its own by design (its OPTIONS do, where
+ * they are versioned messages — `inferenceStreamEventSchema` — and the
+ * "unregistered versioned option" test is what holds that). What this list adds
+ * is that the SET of unions is a decision somebody makes on purpose.
+ */
+const FROZEN_UNION_SHAPES: string[] = [
+  // The routes the control plane authorized, and how each one is authorized
+  'authorizedRouteSchema',
+  'inferenceContentPartSchema',
+  'inferenceContentSourceSchema',
+  'inferenceInputSchema',
+  'inferenceRouteSwitchDetailSchema',
+  'inferenceStreamEventSchema',
+  'providerConnectionScopeSchema',
+  'responseFormatSchema',
+  'routingPolicyScopeSchema',
+  'routingTargetSchema',
+  'toolChoiceSchema',
+  'usageRefundSubjectSchema',
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -302,6 +344,32 @@ const FIXTURES: Record<string, unknown> = {
     },
     idempotencyKey: 'idem_01H8Z9T6NB',
     routingPolicy: { routingPolicyId: 'rp_alia_prod', policyVersion: 12 },
+    // Preference order. The primary, one same-model failover, and one
+    // substitution the customer authorized by name.
+    authorizedRoutes: [
+      {
+        substitution: 'same_model',
+        deploymentId: 'dep_anthropic_usw2_opus5',
+        modelReference: 'anthropic/claude-opus-5@2026-05-01',
+        provider: 'anthropic',
+        regions: ['us-west-2'],
+      },
+      {
+        substitution: 'same_model',
+        deploymentId: 'dep_bedrock_use1_opus5',
+        modelReference: 'anthropic/claude-opus-5@2026-05-01',
+        provider: 'bedrock',
+        regions: ['us-east-1'],
+      },
+      {
+        substitution: 'cross_model',
+        deploymentId: 'dep_openai_usw2_gpt5',
+        modelReference: 'openai/gpt-5@2026-04-11',
+        provider: 'openai',
+        regions: ['us-west-2'],
+        authorizedByPolicy: true,
+      },
+    ],
   },
 
   inferenceStreamStartEventSchema: {
@@ -842,13 +910,75 @@ const FIXTURES: Record<string, unknown> = {
     retryable: false,
     requestId: 'req_01H8Z9T6NB',
   },
+
+  aliaModelReleaseManifestSchema: {
+    schemaVersion: 1,
+    releaseId: 'arel_01H8ZA1000',
+    issuedAt: '2026-08-16T12:00:00.000Z',
+    revision: {
+      schemaVersion: 1,
+      revisionId: 'rev_alia_v2_20260801',
+      modelId: 'alia/alia-2',
+      revision: '2026-08-01',
+      reference: 'alia/alia-2@2026-08-01',
+      releasedAt: '2026-08-16T12:00:00.000Z',
+      artifactDigest: `sha256:${'b'.repeat(64)}`,
+      modelCardUrl: 'https://alia.onl/models/alia-2/card',
+      evaluations: [{ suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' }],
+      safety: {
+        safetyCardUrl: 'https://alia.onl/models/alia-2/safety',
+        contentFilteringDefault: 'strict',
+        knownLimitations: ['Weaker on languages outside its training mix.'],
+        provenanceMarking: 'c2pa',
+      },
+    },
+    provenance: {
+      releaseKind: 'first_party_derived',
+      baseModelId: 'meta/llama-3.1-70b',
+      trainingOrganization: 'Alia',
+    },
+    license: {
+      licenseId: 'LicenseRef-Alia-Community-1.0',
+      displayName: 'Alia community licence 1.0',
+      url: 'https://alia.onl/licence',
+      commercialUseAllowed: true,
+      requiresAttribution: true,
+    },
+    artifacts: [
+      {
+        path: 'model-00001-of-00002.safetensors',
+        digest: `sha256:${'b'.repeat(64)}`,
+        sizeBytes: 9_876_543_210,
+        mediaType: 'application/octet-stream',
+      },
+      {
+        path: 'tokenizer.json',
+        digest: `sha256:${'c'.repeat(64)}`,
+        sizeBytes: 1_842_311,
+        mediaType: 'application/json',
+      },
+    ],
+    signatures: [
+      {
+        algorithm: 'ed25519',
+        canonicalization: 'jcs',
+        keyId: 'alia-release-2026-08',
+        signature: 'A'.repeat(86),
+        signedAt: '2026-08-16T12:00:05.000Z',
+      },
+    ],
+  },
 };
 
 /* -------------------------------------------------------------------------- */
 
 describe('inference contract versioning', () => {
   it('exposes the contract-set version the two planes handshake on', () => {
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.1.0');
+    // MINOR since 1.1.0: one shape added (the Alia release manifest), one
+    // optional field added (`authorizedRoutes`), and one refinement tightened
+    // (a `completed` usage report needs a unit). No shape's own `schemaVersion`
+    // moved, so this is not MAJOR.
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.2.0');
   });
 
   it('matches the frozen schema version map exactly', () => {
@@ -884,6 +1014,17 @@ describe('inference contract census', () => {
 
   it('classifies every exported object schema as versioned or embedded', () => {
     expect(censusEmbedded.slice().sort()).toEqual(FROZEN_EMBEDDED_SHAPES.slice().sort());
+  });
+
+  it('holds the set of exported unions as an exact equality too', () => {
+    // The third classification. Without this, a union is the one shape a new
+    // contract addition can take and be frozen by nothing.
+    expect(
+      censusUnions
+        .map((union) => union.name)
+        .slice()
+        .sort(),
+    ).toEqual(FROZEN_UNION_SHAPES.slice().sort());
   });
 
   it('found the shapes it claims to have scanned', () => {

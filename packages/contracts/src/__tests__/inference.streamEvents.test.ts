@@ -6,6 +6,8 @@ import {
   inferenceStreamEventSchema,
   inferenceStreamRouteSwitchEventSchema,
   inferenceStreamStartEventSchema,
+  inferenceStreamUsageEventSchema,
+  normalizedUsageReportSchema,
   safeParseContract,
 } from '../index';
 
@@ -215,5 +217,52 @@ describe('terminal events', () => {
     expect(
       inferenceStreamDoneEventSchema.safeParse({ ...done, finishReason: 'done' }).success,
     ).toBe(false);
+  });
+});
+
+describe('inferenceStreamUsageEventSchema', () => {
+  const usageEvent = {
+    schemaVersion: 1 as const,
+    type: 'usage' as const,
+    requestId: 'req_1',
+    sequence: 2,
+    units: [{ unit: 'output_tokens', quantity: 204 }],
+    usageSource: 'provider_reported' as const,
+  };
+
+  it('carries units and a source, and nothing money', () => {
+    const parsed = inferenceStreamUsageEventSchema.parse(usageEvent);
+    expect(parsed.units).toHaveLength(1);
+    expect(parsed.usageSource).toBe('provider_reported');
+
+    // A progress signal reporting no units is not progress.
+    expect(
+      inferenceStreamUsageEventSchema.safeParse({ ...usageEvent, units: [] }).success,
+    ).toBe(false);
+  });
+
+  it('is NOT widenable into a settleable usage report', () => {
+    // The gate on the decision: this event is measurement evidence, not a
+    // narrower report. Handing its fields to the report schema fails, and the
+    // fields it lacks are exactly the ones only an END of the request knows —
+    // the attribution block and the outcome (the edge's), and the resolved
+    // route, switch count and timestamps (the data plane's).
+    const promoted = normalizedUsageReportSchema.safeParse(usageEvent);
+    expect(promoted.success).toBe(false);
+
+    if (!promoted.success) {
+      const missing = new Set(promoted.error.issues.map((issue) => issue.path.join('.')));
+      for (const field of [
+        'attribution',
+        'outcome',
+        'resolvedModelReference',
+        'servingProvider',
+        'routeSwitches',
+        'startedAt',
+        'completedAt',
+      ]) {
+        expect(missing.has(field)).toBe(true);
+      }
+    }
   });
 });

@@ -22,11 +22,19 @@
  * REJECTED, rather than being quietly resolved by whichever field the executor
  * happens to read first. That rejection is `routingPolicySchema`'s refinement.
  *
- * Decided in: docs/adr/0008-catalogue-concept-separation.md, issue #972 workstream 6.
+ * **The policy itself never crosses to the data plane.** What crosses is
+ * {@link authorizedRouteSchema} — the candidate routes that SURVIVED these
+ * controls, in preference order — plus {@link routingPolicyReferenceSchema} as
+ * provenance for the receipt. The data plane holds no control value and needs
+ * none: it fails over by taking the next entry. See ADR 0017.
+ *
+ * Decided in: docs/adr/0008-catalogue-concept-separation.md,
+ * docs/adr/0017-authorized-routes-in-the-envelope.md, issue #972 workstream 6.
  */
 
 import { z } from 'zod';
 import {
+  deploymentIdSchema,
   inferenceProviderSlugSchema,
   inferenceRegionSchema,
   inferenceTimestampSchema,
@@ -240,8 +248,84 @@ export const routingPolicyReferenceSchema = z
   })
   .strict();
 
+/* -------------------------------------------------------------------------- */
+/*  Pre-authorized routes                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What every authorized route carries, whichever kind it is.
+ *
+ * Exactly what EXECUTING a route needs, and nothing a policy could be
+ * re-derived from. There is no price, no data-retention flag, no licence id and
+ * no availability scope here: those are the values the control plane already
+ * evaluated to put this entry in the list, and repeating them would invite the
+ * data plane to evaluate them a second time — differently, in another language.
+ *
+ * `regions` is plural and matches `modelDeploymentSchema.regions`, because a
+ * deployment declares every region it MAY serve from and choosing among them is
+ * routing execution (ADR 0006). Oxy checked the whole set against the customer's
+ * residency controls as a SUBSET, so any region in this list is one the policy
+ * permits and the data plane's choice among them cannot escape it. Collapsing it
+ * to one region would make Oxy take a decision the boundary assigns elsewhere.
+ */
+const authorizedRouteFields = {
+  /** Which concrete endpoint. Opaque to customers; the data plane's own key. */
+  deploymentId: deploymentIdSchema,
+  /** Always revision-pinned: the entry names the exact weights to serve. */
+  modelReference: modelReferenceSchema,
+  provider: inferenceProviderSlugSchema,
+  regions: z.array(inferenceRegionSchema).min(1),
+} as const;
+
+/**
+ * One route the control plane has already authorized for one request.
+ *
+ * **Authorization is an ENTRY, never a boolean.** The same stance
+ * `inference_routing_policy_fallbacks` takes in storage: being allowed to serve
+ * a route IS appearing here, and every entry names its destination. A flag
+ * saying "substitution allowed" without naming the destination is exactly the
+ * silent substitution the platform forbids, and it invents a "flag set, list
+ * empty" state somebody then has to decide what to do with.
+ *
+ * Discriminated on `substitution`, relative to the FIRST entry — the primary
+ * route Oxy resolved:
+ *
+ *  - `same_model` serves the same model line as the primary. This is
+ *    availability failover between deployments of one model.
+ *  - `cross_model` serves a DIFFERENT model line, and is expressible only with
+ *    `authorizedByPolicy: true` as a literal. So "a model was substituted
+ *    without the customer authorizing it" is not a sentence this contract can
+ *    say — the same construction `inferenceRouteSwitchDetailSchema` uses to make
+ *    the resulting route-switch event unreportable.
+ */
+export const authorizedRouteSchema = z
+  .discriminatedUnion('substitution', [
+    z.object({ substitution: z.literal('same_model'), ...authorizedRouteFields }).strict(),
+    z
+      .object({
+        substitution: z.literal('cross_model'),
+        ...authorizedRouteFields,
+        /** Literal `true`: an unauthorized substitution cannot be expressed. */
+        authorizedByPolicy: z.literal(true),
+      })
+      .strict(),
+  ])
+  .superRefine((route, ctx) => {
+    // Same rule as `modelDeploymentSchema`: a route serves specific weights. An
+    // unpinned entry would leave the data plane choosing a revision, which is
+    // the one substitution the customer never authorized by naming a model.
+    if (!route.modelReference.includes('@')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['modelReference'],
+        message: 'an authorized route must pin an immutable revision (<publisher>/<model>@<revision>)',
+      });
+    }
+  });
+
 export type RoutingTarget = z.infer<typeof routingTargetSchema>;
 export type RoutingPolicyScope = z.infer<typeof routingPolicyScopeSchema>;
 export type RoutingFallbackPolicy = z.infer<typeof routingFallbackPolicySchema>;
 export type RoutingPolicy = z.infer<typeof routingPolicySchema>;
 export type RoutingPolicyReference = z.infer<typeof routingPolicyReferenceSchema>;
+export type AuthorizedRoute = z.infer<typeof authorizedRouteSchema>;

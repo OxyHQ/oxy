@@ -705,6 +705,7 @@ export {
     inferenceTimestampSchema,
     inferenceDateSchema,
     inferenceHttpsUrlSchema,
+    sha256DigestSchema,
     // Catalogue references
     publisherSlugSchema,
     modelSlugSchema,
@@ -852,6 +853,8 @@ export {
     routingFallbackPolicySchema,
     routingPolicySchema,
     routingPolicyReferenceSchema,
+    // What the data plane actually receives: the routes the policy authorized.
+    authorizedRouteSchema,
 } from './inference/routingPolicy';
 
 export type {
@@ -860,7 +863,21 @@ export type {
     RoutingFallbackPolicy,
     RoutingPolicy,
     RoutingPolicyReference,
+    AuthorizedRoute,
 } from './inference/routingPolicy';
+
+export {
+    // The signed Alia model release manifest (ingestion contract; no endpoint).
+    aliaReleaseArtifactSchema,
+    aliaReleaseSignatureSchema,
+    aliaModelReleaseManifestSchema,
+} from './inference/aliaModelRelease';
+
+export type {
+    AliaReleaseArtifact,
+    AliaReleaseSignature,
+    AliaModelReleaseManifest,
+} from './inference/aliaModelRelease';
 
 export {
     // The normalized Oxy→data-plane request envelope.

@@ -42,6 +42,12 @@ may *consume* it; only the owner may write it.
 - `open decision` — the repo and the epic disagree, and the disagreement is not
   the matrix's to settle. Each occurrence names the two readings and the evidence
   for each.
+- `contract only` — the published SHAPE exists and no producer writes it, so the
+  behaviour does not happen. Distinct from both neighbours on purpose, and the
+  distinction this whole matrix nearly lost once: `exists` would claim a working
+  feature, `planned` would claim an absent one, and the state that actually
+  misleads is a schema field a reviewer reads as evidence of the behaviour it
+  describes. Each occurrence names what has to write the field.
 
 `Relay` is a working name only (ADR 0011). Where a row's repo is
 `OxyHQ/Relay`, the repository itself does not exist — verified 2026-08-15:
@@ -273,6 +279,18 @@ a predicate over one candidate and refuses with `policy_violation` when none
 qualifies. What is left to the data plane is ranking among routes that already
 qualify, and failover within destinations the policy authorized.
 
+**Re-verified again 2026-08-17 ([ADR 0017](../adr/0017-authorized-routes-in-the-envelope.md)).**
+That last clause described a capability the envelope did not support: it named no
+destinations, so `resolveEdgeRoute` computed the ordered survivor set
+(`permitted.kept`), served `[0]` and discarded the rest. The contract now carries
+`authorizedRoutes` — the survivors, in preference order, each naming a deployment,
+a revision-pinned model, a provider and its regions, with cross-model
+substitution expressible only through an entry carrying
+`authorizedByPolicy: true`. **The field is OPTIONAL and the edge does not populate
+it yet**, so the two fallback rows below are `contract only`: absent means no
+failover is authorized, which is the behaviour the data plane already has. The
+populating change is a follow-up in `inferenceEdge.service.ts`.
+
 Every control of `routingPolicySchema` is either enforced by
 `violatedConstraints` or named with its reason in `UNFILTERED_ROUTING_CONTROLS`;
 a control in neither list fails `tsc`, so this table cannot silently fall behind
@@ -290,8 +308,9 @@ the contract.
 | Oxy-hosted-only option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Licence / usage-right constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Fallback-disabled option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceRoutingPolicy.service.ts` | exists |
-| Same-model deployment fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
-| Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
+| The ordered list of PRE-AUTHORIZED ROUTES the envelope carries — the candidates that survived the policy, in preference order (ADR 0017) | Oxy (authorization), Relay (execution: take the next entry) | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`authorizedRouteSchema`) + `request.ts` | contract only — the shape exists and is OPTIONAL; `inferenceEdge.service.ts` does not populate it yet, and absent means no failover is authorized |
+| Same-model deployment fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | contract only — expressible as a `same_model` entry since ADR 0017; unpopulated, so still no failover in practice |
+| Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | contract only — expressible ONLY as a `cross_model` entry carrying `authorizedByPolicy: true`, and never for a request that pinned a revision; unpopulated |
 | Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement + candidate filter), Relay (capacity) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` + OxyHQ/Relay | planned |
 | Routing-policy versioning; the request envelope and the receipt record a REFERENCE to the exact policy revision used, as provenance rather than as instructions | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`routingPolicyReferenceSchema`) + `packages/api/src/db/schema` | exists |
 | Customer-visible route-switch event/receipt | Oxy (emission to customer), Relay (source) | OxyHQServices + OxyHQ/Relay | planned |

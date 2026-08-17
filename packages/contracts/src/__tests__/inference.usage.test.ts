@@ -235,6 +235,51 @@ describe('normalizedUsageReportSchema', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('REFUSES a completed report with no units, so a free request is unrepresentable', () => {
+    // The load-bearing case. Settlement prices every reported unit and sums, so
+    // an empty list on a `completed` report is a request served for nothing —
+    // which is exactly what a provider that omits its usage block produces. The
+    // policy is refuse-and-release, so the shape must not parse.
+    expect(normalizedUsageReportSchema.safeParse({ ...report, units: [] }).success).toBe(false);
+
+    const refusal = normalizedUsageReportSchema.safeParse({ ...report, units: [] });
+    expect(refusal.success).toBe(false);
+    if (!refusal.success) {
+      expect(refusal.error.issues.some((issue) => issue.path.join('.') === 'units')).toBe(true);
+    }
+  });
+
+  it('accepts a failed report with no units, because that is how failure is reported', () => {
+    // `outcomeFor` in the reference data plane's `internal/relay/executor.go`
+    // DERIVES `failed` from having no units and `partial` from having some, so an
+    // unconditional minimum would refuse every failure — and a refused report is
+    // a request that ran, cost money upstream, and can never be settled.
+    const failed = normalizedUsageReportSchema.parse({
+      ...report,
+      outcome: 'failed',
+      units: [],
+      usageSource: 'estimated',
+    });
+    expect(failed.units).toEqual([]);
+  });
+
+  it('accepts a cancelled report with no units, for a client that stopped before output', () => {
+    const cancelled = normalizedUsageReportSchema.parse({
+      ...report,
+      outcome: 'cancelled',
+      units: [],
+      usageSource: 'estimated',
+    });
+    expect(cancelled.units).toEqual([]);
+  });
+
+  it('still accepts a completed report that has units', () => {
+    // Positive control: the refinement rejects the empty list and nothing else.
+    const completed = normalizedUsageReportSchema.parse(report);
+    expect(completed.outcome).toBe('completed');
+    expect(completed.units).toHaveLength(1);
+  });
 });
 
 describe('usageReceiptSchema', () => {

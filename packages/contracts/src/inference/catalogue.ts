@@ -42,6 +42,7 @@ import {
   publisherSlugSchema,
   RESERVED_ALIA_PUBLISHER,
   routingProfileSlugSchema,
+  sha256DigestSchema,
 } from './identifiers';
 import { priceSnapshotSchema } from './priceVersion';
 
@@ -315,10 +316,7 @@ export const modelRevisionSchema = z
     releasedAt: inferenceTimestampSchema,
     retiredAt: inferenceTimestampSchema.optional(),
     /** Digest of the served artifact, where Oxy hosts the weights itself. */
-    artifactDigest: z
-      .string()
-      .regex(/^sha256:[a-f0-9]{64}$/, 'artifact digest must be sha256:<64 lowercase hex>')
-      .optional(),
+    artifactDigest: sha256DigestSchema.optional(),
     modelCardUrl: inferenceHttpsUrlSchema.optional(),
     evaluations: z.array(modelEvaluationResultSchema).default([]),
     safety: modelSafetyMetadataSchema.optional(),

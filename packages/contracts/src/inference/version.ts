@@ -62,7 +62,20 @@
  * escapes, and the billing and entitlement records, where one is a second
  * number beside an exact amount.
  *
- * Decided in: docs/adr/0006-oxy-relay-boundary.md, docs/adr/0010-public-api-compatibility.md.
+ * A SIGNED document is strict at its top level for a third reason, and there it
+ * is forced rather than chosen. `aliaModelReleaseManifestSchema` carries
+ * signatures over its own canonical bytes, so a field stripped at this parse is a
+ * field missing from the bytes a verifier re-canonicalizes: a tolerant parse
+ * would report an invalid SIGNATURE where the truth is that this build does not
+ * understand the DOCUMENT. Its producer can run ahead of this package — Alia's
+ * release tooling is deployed independently — so the usual argument applies here
+ * and is outweighed, because the refusal costs an operator one retry after Oxy
+ * takes the newer contract, while the tolerant parse costs a misdiagnosis of a
+ * cryptographic failure.
+ *
+ * Decided in: docs/adr/0006-oxy-relay-boundary.md,
+ * docs/adr/0010-public-api-compatibility.md,
+ * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
 
 /**
@@ -87,4 +100,4 @@
  * change to, say, the catalogue reject every in-flight inference request; the
  * per-shape `schemaVersion` is what a message is validated against.
  */
-export const INFERENCE_CONTRACT_VERSION = '1.1.0';
+export const INFERENCE_CONTRACT_VERSION = '1.2.0';
