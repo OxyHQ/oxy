@@ -58,7 +58,7 @@
     "expo-updates": "~57.0.11",
     "expo-web-browser": "catalog:",
     "jszip": "catalog:",
-    "lottie-react-native": "~7.3.8",
+    "lottie-react-native": "~7.4.0",
     "nativewind": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
