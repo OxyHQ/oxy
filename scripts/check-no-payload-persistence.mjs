@@ -103,8 +103,12 @@ const fixtureFloors = process.env.PAYLOAD_PERSISTENCE_FIXTURE_FLOORS === '1';
  * SQL types a payload could physically live in. Anything else is excluded
  * structurally: a `boolean` cannot hold a prompt however it is named.
  *
- * Matched on the LEADING word of `getSQLType()`, so `character varying(255)` and
- * `numeric(30, 12)` both classify correctly.
+ * Matched on the LEADING word of `getSQLType()` with any array dimensions
+ * stripped, so `character varying(255)`, `numeric(30, 12)` and `text[]` all
+ * classify correctly. The stripping is not cosmetic: drizzle renders an array as
+ * `<base>[]`, so a classification keyed on the raw leading word skipped every
+ * array column — 38 of them here — while this file claimed to cover `text[]`.
+ * Found in review of PR #1029.
  */
 const FREE_SHAPED_TYPES = new Set([
   'text',
@@ -284,7 +288,10 @@ for (const exported of Object.values(schema)) {
   for (const column of Object.values(getTableColumns(exported))) {
     columnsInspected += 1;
     const sqlType = column.getSQLType();
-    const leadingType = sqlType.split(/[\s(]/)[0];
+    // Array dimensions stripped before the lookup — see FREE_SHAPED_TYPES. An
+    // array of prompts is a list of prompts, and `jsonb[]` can hold an entire
+    // request just as `jsonb` can.
+    const leadingType = sqlType.split(/[\s(]/)[0].replace(/(?:\[\])+$/, '');
     if (!FREE_SHAPED_TYPES.has(leadingType)) continue;
     freeShapedInspected += 1;
 

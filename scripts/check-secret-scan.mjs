@@ -67,13 +67,18 @@
  * ## HOW THIS CANNOT PASS VACUOUSLY
  *
  * Every rule carries a `sample` — synthetic material of the right shape — and the
- * run asserts that its own pattern still matches its own sample and that the
- * sample is not excused by the placeholder predicate. That is the positive
- * control, and it runs on every invocation rather than only in the fixture test:
- * a typo in a regex, or a placeholder predicate widened until it excuses
- * everything, turns this red immediately instead of printing a clean zero.
- * Samples are ASSEMBLED at runtime, so no complete token literal exists in this
- * file for the scanner to find in its own source.
+ * run asserts that its own pattern still matches it. That is the positive control,
+ * and it runs on every invocation rather than only in the fixture test: a typo in
+ * a regex turns this red immediately instead of printing a clean zero. Samples are
+ * ASSEMBLED at runtime, so no complete token literal exists in this file for the
+ * scanner to find in its own source.
+ *
+ * A rule that opts into {@link PLACEHOLDER} carries two more checks: its sample
+ * must survive the predicate, and its own pattern must not SPELL a placeholder
+ * word. The second is there because a sample cannot see the failure the first is
+ * aimed at — a rule whose grammar contains `test` goes half-dead while the
+ * surviving half keeps the control green, which is exactly what happened to the
+ * Stripe rule and was caught in review rather than by this file.
  *
  * Two floors sit beside it: the number of files scanned, and the bytes read. A
  * broken `git ls-files` or a listing that stopped resolving reports a clean tree,
@@ -158,6 +163,11 @@ const RULES = [
     what: 'an AWS access key id (the half that names the secret half)',
     pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g,
     sample: `AKIA${synthetic(16, UPPER_ALNUM)}`,
+    // The ONE rule that asks for the placeholder predicate, because it is the one
+    // whose length is FIXED at twenty characters — so no floor can separate
+    // `AKIAEXAMPLENOTREAL00` in a contracts test from a real key. See PLACEHOLDER
+    // for why this is opt-in rather than applied to every rule.
+    excusePlaceholders: true,
   },
   {
     name: 'google-api-key',
@@ -226,16 +236,26 @@ const RULES = [
 /**
  * A matched value that is inert on its face.
  *
- * The one heuristic here, and it is load-bearing for exactly one rule: an AWS
- * access key id is a FIXED 20 characters, so no length floor can separate
- * `AKIAEXAMPLENOTREAL00` in a contracts test from a real one. For every other
- * rule the length floor already does that work and this predicate is defence in
- * depth.
+ * **Applied only to the rules that ASK for it — today exactly one, and that is a
+ * correction rather than a design flourish.** Applied globally it silently killed
+ * half of another rule: a Stripe test-mode key is `sk_test_…`, so the word `test`
+ * is in the GRAMMAR, and every match of the `_test_` alternative was excused
+ * before it could be reported. The rule read as if it covered those keys and
+ * could not. Worse, the in-run positive control could not see it, because that
+ * rule's sample is a `sk_live_` string — a rule can be half-inert and still pass
+ * a control over one sample. Found in review of PR #1029.
  *
- * Its failure mode is a false NEGATIVE — a real credential containing one of
- * these substrings is not reported. For CSPRNG material the probability is
- * around 1e-6 per marker; for a HUMAN-chosen secret it is not small at all,
- * which is a further reason the named-assignment rule is not here.
+ * So the predicate belongs where the SHAPE cannot separate an inert value from a
+ * real one, and nowhere else. That is the AWS access key id: a fixed twenty
+ * characters, no room for a length floor, and
+ * `packages/contracts/src/__tests__/inference.errors.test.ts` legitimately
+ * carries `AKIAEXAMPLENOTREAL00`. Every other rule has a length floor set from
+ * the real issued shape, which does that work without reading the value.
+ *
+ * Its failure mode is a false NEGATIVE — a real AWS key id containing one of
+ * these substrings is not reported. For CSPRNG material that is around 1e-6 per
+ * marker; for a HUMAN-chosen secret it is not small at all, which is a further
+ * reason the named-assignment rule is not here.
  */
 const PLACEHOLDER =
   /(?:example|sample|test|fake|dummy|placeholder|redacted|changeme|your[_-]?|xxx+|not[_-]?a[_-]?real|do[_-]?not[_-]?use)/i;
@@ -327,7 +347,14 @@ function trackedFiles() {
     maxBuffer: 256 * 1024 * 1024,
   });
   if (listed.status !== 0) {
-    console.error(`git ls-files failed in ${repositoryRoot}: ${listed.stderr ?? listed.error}`);
+    // The tree's PATH is deliberately not echoed. It comes from the environment
+    // (`SECRET_SCAN_ROOT`), and a scanner whose whole output contract is "never
+    // print what came from outside this process into a CI log" should not make an
+    // exception for its own diagnostics. git's own stderr says what failed, and
+    // the caller knows which tree it pointed this at. CodeQL flags the
+    // interpolation as clear-text logging of environment data; it is a directory
+    // path rather than a credential, and removing it costs nothing.
+    console.error(`git ls-files failed: ${listed.stderr ?? listed.error}`);
     process.exit(1);
   }
   return listed.stdout.split('\0').filter(Boolean);
@@ -362,11 +389,22 @@ for (const rule of RULES) {
     );
     continue;
   }
-  if (PLACEHOLDER.test(matched[0])) {
+  if (rule.excusePlaceholders === true && PLACEHOLDER.test(matched[0])) {
     problems.push(
       `Rule \`${rule.name}\` matches its sample, but the placeholder predicate then excuses `
       + 'it — so the rule is inert. Either the sample accidentally spells a placeholder '
       + 'marker, or PLACEHOLDER has been widened until it excuses real material.',
+    );
+  }
+  if (rule.excusePlaceholders === true && PLACEHOLDER.test(rule.pattern.source)) {
+    // The PR #1029 finding, as an assertion rather than a memory: a rule whose
+    // GRAMMAR spells a placeholder word (Stripe's `_test_`) goes half-dead the
+    // moment it opts into the predicate, and a control over ONE sample cannot see
+    // it — the surviving half still matches. This sees it at the rule level.
+    problems.push(
+      `Rule \`${rule.name}\` opts into PLACEHOLDER and has a placeholder word in its own `
+      + 'pattern, so that part of the grammar can never report anything. Either narrow the '
+      + 'pattern or drop `excusePlaceholders` from this rule.',
     );
   }
 }
@@ -436,7 +474,8 @@ for (const relativePath of tracked) {
     rule.pattern.lastIndex = 0;
     let match = rule.pattern.exec(text);
     while (match !== null) {
-      if (!PLACEHOLDER.test(match[0])) {
+      // Per rule, never globally — see PLACEHOLDER.
+      if (!(rule.excusePlaceholders === true && PLACEHOLDER.test(match[0]))) {
         const { line, column } = positionOf(text, match.index);
         findings.push({
           file: relativePath,

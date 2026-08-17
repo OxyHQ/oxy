@@ -58,7 +58,7 @@ if (banned.length === 0 || declared.length === 0 || requiredTables.length === 0)
  * a shape the real schema has and would exercise a branch that does not exist.
  */
 function schemaSource(tables) {
-  const lines = [`import { boolean, jsonb, pgTable, text } from '${pgCoreUrl}';`, ''];
+  const lines = [`import { boolean, integer, jsonb, pgTable, text } from '${pgCoreUrl}';`, ''];
   let index = 0;
   for (const [tableName, columns] of Object.entries(tables)) {
     const body = Object.entries(columns)
@@ -186,6 +186,33 @@ const cases = [
     tables: cleanTables({ usage_receipts: { d: 'jsonb()' } }),
     expectFailure: true,
     expectOutput: 'usage_receipts.d',
+  },
+  {
+    // THE ARRAY CASE, and the reason the type classification strips dimensions.
+    // `getSQLType()` renders `text().array()` as `text[]`, so a lookup on the raw
+    // leading word skipped all 38 array columns in this schema — a
+    // `prompts text[]` was neither name-checked nor required to declare itself,
+    // while the guard's header claimed `text[]` was covered. Found in review of
+    // PR #1029, and this case is what stops it coming back.
+    name: 'a payload-named text[] column is flagged',
+    tables: cleanTables({ inference_usage_events: { promptHistory: 'text().array()' } }),
+    expectFailure: true,
+    expectOutput: 'inference_usage_events.promptHistory',
+  },
+  {
+    // The open-shape half of the same gap: an array of jsonb can hold a whole
+    // request per element, so it needs a declaration exactly as `jsonb` does.
+    name: 'an undeclared jsonb[] column is flagged',
+    tables: cleanTables({ usage_receipts: { batches: 'jsonb().array()' } }),
+    expectFailure: true,
+    expectOutput: 'can hold an entire request',
+  },
+  {
+    // The narrowness half: an array of a CLOSED type still cannot hold a payload,
+    // so stripping dimensions must not drag `integer[]` into scope.
+    name: 'an integer[] column does NOT fire',
+    tables: cleanTables({ usage_receipts: { promptTokenCounts: 'integer().array()' } }),
+    expectFailure: false,
   },
 
   // ------------------------------------------------- the narrowness proofs -------

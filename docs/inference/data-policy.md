@@ -51,12 +51,13 @@ see gets no migration — and it fails a pull request on either of two things:
   and the rest), among columns whose type could actually hold one. The type filter
   is structural, which is why the real `supports_prompt_caching` and
   `retains_payloads` BOOLEANS need no exception;
-- any `jsonb`, `json` or `bytea` column that does not declare what it holds. That
-  is the half a name ban cannot do: a payload column called `capture` or `d`
-  matches no pattern, and an open shape is the one type that can hold an entire
-  request without anyone deciding it should. All 32 open-shaped or payload-named
-  columns in the schema carry a written purpose, and an entry naming a column that
-  no longer exists fails too, so the list cannot drift.
+- any `jsonb`, `json` or `bytea` column — array forms included — that does not
+  declare what it holds. That is the half a name ban cannot do: a payload column
+  called `capture` or `d` matches no pattern, and an open shape is the one type
+  that can hold an entire request without anyone deciding it should. All 32
+  open-shaped or payload-named columns in the schema carry a written purpose, and
+  an entry naming a column that no longer exists fails too, so the list cannot
+  drift.
 
 It runs as the `Schema Payload Policy` job, which `CI complete` — the one status
 check `main` requires — must depend on. Its own fixture test plants a payload

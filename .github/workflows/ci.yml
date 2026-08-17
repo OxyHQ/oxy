@@ -315,6 +315,12 @@ jobs:
   secret-scan:
     name: Secret Scan
     runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -342,6 +348,12 @@ jobs:
   schema-policy:
     name: Schema Payload Policy
     runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -685,6 +697,12 @@ jobs:
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v7

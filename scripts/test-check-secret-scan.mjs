@@ -210,6 +210,22 @@ const cases = [
     expectFailure: false,
   },
   {
+    // THE DEAD-BRANCH PIN, from review of PR #1029. A Stripe test-mode key spells
+    // `test` in its own GRAMMAR, so a placeholder predicate applied to every rule
+    // excused every one of them and the `_test_` half of that rule could never
+    // report anything — while the rule's `sk_live_` sample kept the in-run control
+    // green, because a rule can be half-inert and still match one sample. The key
+    // is derived from the gate's own sample, so no Stripe-shaped literal is
+    // committed here for the scanner to find in its own test.
+    name: 'a Stripe TEST-mode key is reported, not excused as a placeholder',
+    files: filler({
+      'packages/api/src/services/billing.ts':
+        `const key = '${sampleFor('stripe-key').replace('_live_', '_test_')}';\n`,
+    }),
+    expectFailure: true,
+    expectOutput: 'stripe-key',
+  },
+  {
     // The other half, and the reason `sk-` has a 40-character floor: this string
     // appears eight times in this tree as a deliberate fixture, and it is 25
     // characters after the prefix where a real key is 48.
