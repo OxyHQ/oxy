@@ -61,7 +61,11 @@ bearer, it never worked; move it to one of the two flows above. Full detail in
 [credentials.md](./credentials.md#3-oxy_dk_-is-a-public-client-id-not-a-bearer).
 
 The single bearer string a standard SDK can send is the `oxy_sk_…` machine
-credential — which, as that page states, no endpoint accepts yet.
+credential. It IS accepted now, by the inference edge (`/v1`), which resolves it
+to an application principal before anything is forwarded — but only where the
+deployment sets `INFERENCE_MACHINE_CREDENTIAL_AUTH=enabled`. Unset or any other
+value means the lane is off and an `oxy_sk_…` bearer is refused, so "accepted" is
+a per-deployment fact rather than a property of the credential.
 
 ---
 
@@ -84,15 +88,16 @@ as a bearer.
 
 **What you need to do:** if you hold an `alia_sk_…` key, it is a credential for
 Alia's product API and its lifecycle is Alia's. It is not a route into Oxy
-inference, and there is nothing to migrate it to today — the Oxy machine
-credential that will eventually serve that purpose (`oxy_sk_…`) authenticates
-nowhere yet. Decoupling Alia's developer keys is workstream 14 of
+inference. The Oxy machine credential that serves that purpose is `oxy_sk_…`, on
+the `/v1` edge, where the machine lane is enabled (see §2). Decoupling Alia's
+developer keys is workstream 14 of
 [#972](https://github.com/OxyHQ/oxy/issues/972), and it is not started.
 
-Separately and confusingly similar: Oxy has its own legacy `developer_api_keys`
-table. It has no reader or writer left in this package, and removing it is an
-open checkbox of workstream 2.3. It is not the same thing as `alia_sk_…`, and
-neither is a supported way to authenticate.
+Separately and confusingly similar: Oxy used to have its own legacy
+`developer_api_keys` table. It never authenticated anything in this package, it
+was not the same thing as `alia_sk_…`, and workstream 2.3 has now dropped it
+(`packages/api/drizzle/0047_retire_developer_api_keys.sql`). There is nothing to
+migrate: it had no reader, no writer, and no supported way to authenticate.
 
 ---
 

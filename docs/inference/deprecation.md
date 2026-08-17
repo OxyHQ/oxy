@@ -117,17 +117,33 @@ reach it at all — so this is the 90-day, addressed-by-name row rather than a
 public announcement. **Owed by:** workstream 14, when `Alia → data plane` is
 live. **Clock starts:** when Alia no longer needs the proxy.
 
-### The `developer_api_keys` table
+### The `developer_api_keys` table — REMOVED
 
-An Oxy legacy table with no reader and no writer left in this package. One
-foreign key still points at it, from `api_key_usage_events.api_key_id`. It has
-never been a supported way to authenticate and is not the same thing as an
+An Oxy legacy table with no reader and no writer left in this package, and one
+stale foreign key pointing at it from `api_key_usage_events.api_key_id`. It was
+never a supported way to authenticate and was not the same thing as an
 Alia-issued `alia_sk_…` key.
 
-**Notice owed:** none to customers — it authenticates nothing. It is the
-"immediate, with proof" row, and the proof is a row count against production
-rather than a grep. Removing it and its stale foreign key is an open checkbox of
-#972 workstream 2.3.
+**Notice owed:** none to customers — it authenticated nothing. It was the
+"immediate, with proof" row, and the proof was a row count against production
+rather than a grep.
+
+**Removed** by #972 workstream 2.3 in
+`packages/api/drizzle/0047_retire_developer_api_keys.sql`, which drops the
+`api_key_id` column and then the table. The migration is `post`-phase, so it
+applies only once the image that no longer declares either is live.
+
+The row count came first and gated the merge, which was the whole point of this
+row: a grep could not settle it. **Measured 2026-08-17 against production**, with
+read-only queries from a one-shot Fargate task on the live `oxy-oxy-api:201` task
+definition — `developer_api_keys` 0 rows, `api_key_usage_events` 0 rows, 0 of them
+with a non-null `api_key_id`. Beside controls, because a bare zero is not
+evidence: 69,432 users, 31 applications, 34 application_credentials, 153 public
+tables, 46 of 46 migrations applied. Nothing needed migrating.
+
+`api_key_usage_events` itself SURVIVES: it is general API telemetry, it has two
+live readers (`routes/applications.ts`, `routes/credits.ts`), and its retirement
+is not part of this.
 
 ### The public edge itself, once it serves a request
 

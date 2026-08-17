@@ -28,9 +28,16 @@ may *consume* it; only the owner may write it.
 
 - `exists` — present in the repo at the path given, verified by reading it.
 - `planned` — named by the epic, and confirmed **absent** from the repo.
+- `removed` — was present, and has since been deleted rather than renamed,
+  aliased or deprecated. Distinct from `planned`, which has never existed: a
+  reader who finds neither the thing nor a row saying it went cannot tell an
+  intentional deletion from an incomplete port.
 - `unverified` — a fact about production data or an external system that cannot
   be established from the repo. Used sparingly, and each occurrence says what
   would settle it.
+- `open decision` — the repo and the epic disagree, and the disagreement is not
+  the matrix's to settle. Each occurrence names the two readings and the evidence
+  for each.
 
 `Relay` is a working name only (ADR 0011). Where a row's repo is
 `OxyHQ/Relay`, the repository itself does not exist — verified 2026-08-15:
@@ -52,14 +59,67 @@ may *consume* it; only the owner may write it.
 | Application access derived from owning account, no per-app member table | Oxy | OxyHQServices `packages/api/src/routes/applications.ts:72-79` | exists |
 | `application_credentials` (public key, secret hash, rotation grace, lineage) | Oxy | OxyHQServices `packages/api/src/db/schema/applicationCredentials.ts:55,71,87,102` | exists |
 | Credential usability predicate (active OR deprecated-in-grace) | Oxy | OxyHQServices `packages/api/src/utils/credentialUsability.ts` | exists |
-| `developer_api_keys` (legacy; removal candidate, epic §2.3) | Oxy | OxyHQServices `packages/api/src/db/schema/developerApiKeys.ts` | exists |
-| `developer_api_keys` confirmed empty in production | Oxy | production database | unverified — settled by a production row count, not by reading the repo |
-| Machine/API-key credential type (`oxy_sk_*`), one-time bearer | Oxy | OxyHQServices `packages/api/src/db/schema/applicationCredentials.ts` (extension) | planned |
-| Helper: application → owner account | Oxy | OxyHQServices `packages/api/src` | planned |
-| Helper: credential → application → owner account | Oxy | OxyHQServices `packages/api/src` | planned |
-| Helper: owner account → billing profile | Oxy | OxyHQServices `packages/api/src` | planned |
+| `developer_api_keys` (legacy, epic §2.3) | Oxy | dropped by `packages/api/drizzle/0047_retire_developer_api_keys.sql` | removed |
+| `developer_api_keys` confirmed empty in production | Oxy | production database, read from a one-shot Fargate task on `oxy-oxy-api:201` | **verified 2026-08-17: 0 rows**, as were `api_key_usage_events` (0) and its rows with a non-null `api_key_id` (0). Controls that make the zero mean something: 69,432 users, 31 applications, 34 application_credentials, 153 public tables, 46 of 46 migrations applied. Read-only queries |
+| `account_credentials` — a second credential table that authenticates nothing | Oxy | OxyHQServices `packages/api/src/db/schema/accountCredentials.ts:49` | open decision — see §1.1 below |
+| Machine/API-key credential type (`oxy_sk_*`), one-time bearer | Oxy | OxyHQServices `packages/api/src/db/schema/applicationCredentials.ts:87` (`'machine'`), minted by `packages/api/src/utils/machineCredentialToken.ts`, resolved by `packages/api/src/middleware/machineCredential.ts` | exists — accepted on the `/v1` edge, gated per deployment by `INFERENCE_MACHINE_CREDENTIAL_AUTH` (`config/rolloutFlags.ts`), which is OFF when unset |
+| Helper: application → owner account | Oxy | OxyHQServices `packages/api/src/services/attribution.service.ts:130` | exists |
+| Helper: credential → application → owner account | Oxy | OxyHQServices `packages/api/src/services/attribution.service.ts:220,244` | exists |
+| Helper: owner account → billing profile | Oxy | OxyHQServices `packages/api/src/services/attribution.service.ts:513,561` | exists |
 | Relay organization / workspace / project / membership table | **forbidden** (ADR 0005 invariants 1–3) | — | must never exist |
 | Relay application-id or API-key issuance | **forbidden** (ADR 0005 invariants 2–3) | — | must never exist |
+
+### 1.1 `account_credentials` — the epic's §2 invariant does not account for it
+
+The §2 invariant reads *"there is exactly one customer credential lifecycle: Oxy
+`ApplicationCredential`."* Retiring `developer_api_keys` was the one removal on
+anybody's checklist, and it is done. A second key table remains, and it is on no
+checklist at all.
+
+**What it is.** `account_credentials`
+(`packages/api/src/db/schema/accountCredentials.ts:49`) is a `service`-only
+credential issued against a `bot`-kind account rather than against an
+application. It has a full public lifecycle — list, create, rotate, revoke at
+`packages/api/src/routes/accounts.ts:1157`, `:1176`, `:1217`, `:1245` — a
+`secret_hash`, validation against `APPLICATION_SCOPES`, a staff gate on
+privileged scopes, and the same rotation-grace predicate
+`application_credentials` uses.
+
+**What it is not.** *Nothing authenticates against it.* Its only resolver is
+`accountService.resolveUsableCredential`
+(`packages/api/src/services/account.service.ts:1600`), and that method has zero
+callers anywhere in the repository, tests included. (The identically named calls
+in `packages/api/src/routes/auth.ts` are a different, file-local function over
+`application_credentials`, defined in that file.) No middleware reads the table.
+Outside `account.service.ts` the only importers are a zod enum and two test
+files. Verified with a positive control: the same grep finds real callers for
+`listCredentials`, `createCredential`, `rotateCredential` and `revokeCredential`
+on the same service, at the four route lines above.
+
+So today a customer can mint, rotate and revoke a secret that grants access to
+nothing.
+
+**Why this is not the matrix's call.** ADR 0005 invariant 3 forbids "a second key
+table" and names only `developer_api_keys`
+(`docs/adr/0005-oxy-is-the-single-control-plane.md:63-68`). Two readings fit the
+evidence, and they lead to opposite work:
+
+- **(a) Legitimate, and the invariant's wording is wrong.** The principal is an
+  account-owned bot, not a customer inference credential — a different subject
+  from `ApplicationCredential`, so "one customer credential lifecycle" is
+  satisfied and the invariant should name this as an exception *with that reason*.
+  In favour: the table is deliberate, documented, scope-validated and staff-gated;
+  bot accounts are a real part of the account graph; nothing about it touches
+  inference.
+- **(b) A third removal candidate.** In favour: it is a key table with a
+  `secret_hash` and a public mint/rotate/revoke surface that authenticates
+  nothing, which is precisely the shape `developer_api_keys` had when it was
+  written off — and a credential a customer can create but never use is a support
+  burden and a false sense of a revocation having done something.
+
+An invariant that reads "exactly one" while this exists cannot be checked off as
+written under either reading. **Owner decision required**; whoever takes it
+should also update ADR 0005 invariant 3, which is the binding text.
 
 ## 2. Authentication and authorization (epic §2.2, §3)
 
@@ -67,16 +127,16 @@ may *consume* it; only the owner may write it.
 |---|---|---|---|
 | `POST /auth/service-token` (client credentials → 1h service JWT) | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3663` | exists |
 | Service-token claims: `appId`, `appName`, `credentialId`, `scopes`, `environment` | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3663-3673` | exists |
-| Service-token claims: `ownerAccountId`, effective scopes envelope | Oxy | OxyHQServices `packages/api/src/routes/auth.ts` | planned |
+| Service-token claims: `ownerAccountId`, effective scopes envelope | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3688` (`ownerAccountId`), `:3680-3681` (scopes intersected into the claim) | exists |
 | Delegated end-user header `X-Oxy-User-Id` | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.auth.ts:734`, `OxyServices.utility.ts:514` | exists |
 | Service-token verification (signature required) | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.utility.ts` | exists |
 | Shared-secret vs asymmetric/JWKS cross-repo verification decision | Oxy | OxyHQServices `docs/` | planned |
 | `APPLICATION_SCOPES` vocabulary | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:61` | exists |
-| `chat:completions`, `models:read` scopes | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:67-68` | exists |
-| `inference:invoke`, `inference:models:read`, `inference:usage:read`, `inference:routing:read`, `inference:routing:write`, `inference:providers:read`, `inference:providers:write` | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts` | planned |
+| `chat:completions`, `models:read` scopes | Oxy | dropped by `packages/api/drizzle/0031_inference_scope_family.sql`, which rewrote every stored row to a successor | removed — **not aliased**, deliberately: neither name was ever read by any middleware, route or service, so an alias would have been a second way to spell a no-op (`packages/api/src/utils/applicationScopes.ts:41-46`) |
+| `inference:invoke`, `inference:models:read`, `inference:usage:read`, `inference:routing:read`, `inference:routing:write`, `inference:providers:read`, `inference:providers:write` | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:83-89` | exists |
 | Credential scopes intersected with application scopes | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3660-3662` | exists |
-| Privileged / staff-approval scope list | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts` (`PRIVILEGED_APPLICATION_SCOPES`) | exists |
-| Account/application RBAC mappings for inference, usage, routing, BYOK, billing | Oxy | OxyHQServices `packages/api/src` | planned |
+| Privileged / staff-approval scope list | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:184` (`PRIVILEGED_APPLICATION_SCOPES`, including both inference writes) | exists |
+| Account/application RBAC mappings for inference, usage, routing, BYOK, billing | Oxy | OxyHQServices `packages/api/src/utils/accountRoles.ts` | partially enforced as of this revision — every one of those routes IS gated, but by REUSED generic permissions (`account:read`/`account:update`, `app:read`/`app:update`, `billing:read`/`billing:manage`, `usage:read`); there is no inference-specific permission, so an account cannot grant "edit this app" without also granting "repoint where inference is served from". A separate pull request is landing the inference-specific vocabulary; it is not merged at this revision and this row is what is true without it |
 | Relay-side customer authorization | **forbidden** (ADR 0006) — the edge authorizes before forwarding | — | must never exist |
 
 ## 3. Public API edge (epic §4, ADR 0010)
@@ -105,6 +165,46 @@ may *consume* it; only the owner may write it.
 | Idempotency keys for non-streaming / batch-safe operations | Oxy | OxyHQServices `packages/api/src` | planned |
 | Request-size, context-size, output-token limits | Oxy | OxyHQServices `packages/api/src` | planned |
 | Abuse / fraud / anomaly controls before public launch | Oxy | OxyHQServices `packages/api/src` | planned |
+
+### 3.1 The remaining shared-upstream-key paths — an exception list, counted
+
+The epic's §1 checkbox is that an application inherits access and billing
+responsibility from `Application.ownerAccountId`. Three routes still forward a
+caller-supplied body to Alia on one static `ALIA_API_KEY`, where the financially
+responsible principal is Oxy's shared upstream budget and no `ownerAccountId` at
+all. They are listed here **exhaustively and by count**, because an exception list
+without an exact count grows silently:
+
+| Route | Gate today | Reference |
+|---|---|---|
+| `POST /alia/chat/completions` | service token whose credential resolves to an active platform-trusted application (#981) | `packages/api/src/routes/alia.ts:246` |
+| `POST /v1/voice/token` | `authMiddleware` only | `packages/api/src/routes/alia.ts:296` |
+| `POST /v1/voice/transcribe` | `authMiddleware` only | `packages/api/src/routes/alia.ts:299` |
+
+Exactly three, asserted in
+`packages/api/src/routes/__tests__/inferenceEdgeMount.test.ts` against the route
+declarations in `routes/alia.ts` — a fourth cannot be added without that
+assertion failing.
+
+`POST /alia/chat/completions` is the only one offering GENERIC CHAT inference, and
+that route's own header states the consequence: "no reservation, no metering, no
+attribution and no per-caller stop — `max_tokens` and the prompt are the
+caller's, so a request limiter bounds the COUNT of requests and never their cost"
+(`alia.ts:96-108`). The two voice routes share the same shape and the same
+exposure, deliberately left ungated by #981 because they offer no generic chat
+inference and are reached by signed-in users of Oxy's own voice surfaces, which
+hold no service credential (`alia.ts:279-294`).
+
+Separately, two server-side services call Alia on the same key —
+`services/aiLabeling.service.ts` and `services/cardExtraction.service.ts`. They
+are not customer-reachable inference paths (no caller-supplied body, no
+per-customer attribution question), so they are not in the count above, but they
+are on the same key and a rotation touches them.
+
+`POST /v1/chat/completions` is **not** in this list: the inference edge owns that
+path, mounted before the Alia router, which the same test file gates by mount
+order. Retiring these three is workstream 14 (ADR 0010); until then, the §1
+checkbox is honest only if it is explicitly scoped to `/v1` minus `/v1/voice/*`.
 
 ## 4. Oxy↔Relay contracts (epic §0 "Contract package")
 
@@ -241,9 +341,9 @@ the contract.
 | `credits_used double precision` (telemetry only, never the ledger) | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:95` | exists |
 | `user_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:83` | exists |
 | `application_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:87` | exists |
-| `api_key_id` → `developer_api_keys` reference (obsolete) | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:75` | exists |
+| `api_key_id` → `developer_api_keys` reference (obsolete) | Oxy | dropped by `packages/api/drizzle/0047_retire_developer_api_keys.sql`, together with the table it referenced | removed — asserted against the MIGRATED database in `packages/api/src/db/schema/__tests__/applications.test.ts`, because deleting the column from the TypeScript alone would leave every functional test green whether or not the migration ever ran |
 | `account_id` column | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned |
-| `application_credential_id` attribution (replacing `api_key_id`) | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned |
+| `application_credential_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned — it does not "replace `api_key_id`", which is simply gone; `inference_usage_events` already carries credential attribution for inference, and whether this general-telemetry table needs its own is workstream 8's call |
 | `request_id`, optional `generation_id` | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned |
 | Endpoint, status, latency columns | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:89-97` | exists |
 | Normalized unit totals (tokens/time/images, separate from money) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |

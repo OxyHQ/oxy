@@ -1,0 +1,83 @@
+-- oxy:deploy-phase=post
+--
+-- Retire `developer_api_keys` and the stale foreign key into it (issue #972
+-- workstream 2.3).
+--
+-- The table was ported from the Mongoose `DeveloperApiKey` model and has had no
+-- reader or writer in `packages/api/src` since — no route, no service, no seed
+-- script, and no surviving Mongoose model. Its only remaining reference in the
+-- schema was `api_key_usage_events.api_key_id`, the one foreign key in the whole
+-- snapshot that targeted it (measured against `meta/0046_snapshot.json`: 1 of
+-- 285 foreign keys).
+--
+-- WHY `post`, AND NOT `pre`
+--
+-- Every statement here is destructive: a dropped column and a dropped table
+-- cannot be un-dropped by rolling the image back. `post` runs only once the new
+-- image is live, so no version of the code that still declares `api_key_id` is
+-- serving when it disappears.
+--
+-- That ordering is a safety margin rather than a repair of a known break: both
+-- surviving readers of `api_key_usage_events` project explicit columns and
+-- aggregates and neither names `api_key_id` (`routes/applications.ts`
+-- `getUsageStats`, `routes/credits.ts`), and the expiry sweep in `db/expiry.ts`
+-- deletes on `created_at`. So the previous image tolerates the drop — but a
+-- `pre` phase would be claiming that as a guarantee for every future reader
+-- rather than as a measurement of today's two.
+--
+-- The phase is about ORDERING against the still-serving image, not about how
+-- long the statements take. On duration there is nothing to weigh:
+-- `api_key_usage_events` holds ZERO rows in production (measured — see ROWS),
+-- so `DROP COLUMN` rewrites no tuples and the `ACCESS EXCLUSIVE` lock it takes
+-- is held for the catalogue update alone. That is what makes `post` cheap here
+-- rather than risky; it is not what makes it correct.
+--
+-- WHY THE ORDER OF STATEMENTS DIFFERS FROM `drizzle-kit generate`
+--
+-- drizzle-kit emitted `DROP TABLE "developer_api_keys" CASCADE` FIRST and the
+-- `ALTER TABLE … DROP CONSTRAINT` for the referencing foreign key second. The
+-- `CASCADE` drops that constraint as a dependent object, so by the time the
+-- second statement runs the constraint no longer exists.
+--
+-- That is not a tidiness argument, it is a broken migration: the generated file
+-- (with only this phase marker added, so the migrator would run it at all) was
+-- applied to a throwaway database from empty, and the chain ABORTED at that
+-- statement — `42704`, `constraint "…_developer_api_keys_id_fk" of relation
+-- "api_key_usage_events" does not exist`. Shipped as generated it would have
+-- failed the pre/post migration one-shot in production.
+--
+-- Reordered so the child side goes first, which also removes the need for
+-- `CASCADE`: with the foreign key and its index gone, `developer_api_keys` has
+-- no dependent objects left and a plain `DROP TABLE` is the honest statement.
+-- `CASCADE` on a table drop is worth avoiding on its own account — it silently
+-- drops whatever else happens to depend on the table, which is the opposite of
+-- what a reviewed migration should do.
+--
+-- The snapshot (`meta/0047_snapshot.json`) is the generated one, unedited; only
+-- the SQL is reordered. `scripts/check-drizzle-snapshot-sync.mjs` holds the two
+-- together.
+--
+-- ROWS — MEASURED, NOT ASSUMED
+--
+-- Counted against PRODUCTION before this shipped, with read-only queries from a
+-- one-shot Fargate task on the live `oxy-oxy-api:201` task definition (cluster
+-- `oxy-cluster`, us-west-2), reading `DATABASE_URL` from the same SSM secret the
+-- service uses:
+--
+--   developer_api_keys                        0 rows
+--   api_key_usage_events                     0 rows
+--   api_key_usage_events with api_key_id     0 rows
+--
+-- A zero is only evidence beside a control, because "I found nothing" and "there
+-- is nothing" are indistinguishable from inside the query — and a zero on the
+-- local dev database was NOT evidence, that database being both empty and behind.
+-- The controls on the production run: 69,432 users, 31 applications, 34
+-- application_credentials, 153 public tables, and 46 migrations applied against
+-- the 46 that existed on disk, so the schema was current rather than truncated.
+--
+-- So no row migration precedes these statements: there was nothing to migrate.
+
+ALTER TABLE "api_key_usage_events" DROP CONSTRAINT "api_key_usage_events_api_key_id_developer_api_keys_id_fk";--> statement-breakpoint
+DROP INDEX "api_key_usage_events_api_key_id_created_at_idx";--> statement-breakpoint
+ALTER TABLE "api_key_usage_events" DROP COLUMN "api_key_id";--> statement-breakpoint
+DROP TABLE "developer_api_keys";

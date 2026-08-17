@@ -6,27 +6,38 @@
  * to: `applicationId`, `credentialId`, `ownerAccountId`, `environment` and the
  * effective scopes.
  *
- * ## NOTHING MOUNTS THIS YET, AND THAT IS THE DECISION
+ * ## WHAT MOUNTS THIS, AND WHAT STILL DOES NOT
  *
- * No route in this package uses {@link requireMachineCredential}. That is
- * deliberate and it is not an oversight to be tidied away by wiring it to the
+ * The RESOLVER is mounted. {@link resolveMachineCredential} is called by
+ * `services/inferenceEdge.service.ts` (`authenticateEdgeCaller`), and
+ * `routes/inferenceEdge.ts` puts the resulting principal on
+ * `req.machineCredential`; the edge itself is live at `server.ts`
+ * (`app.use('/v1', inferenceEdgeRoutes)`). So an `oxy_sk_…` credential DOES
+ * authenticate today — which is workstream 4 having landed, not a drift.
+ *
+ * Whether it authenticates in a given DEPLOYMENT is a separate question, and the
+ * answer is `INFERENCE_MACHINE_CREDENTIAL_AUTH` (`config/rolloutFlags.ts`).
+ * Unset — the default — the edge refuses a machine-prefixed bearer outright with
+ * `machine_lane_disabled`, before this module is consulted. So "the lane exists"
+ * and "the lane is on here" are two facts, and only the first is a property of
+ * this repository.
+ *
+ * The express middleware {@link requireMachineCredential} is the part with no
+ * route caller: the edge resolves the principal in its own gate rather than
+ * through a per-route handler, so the middleware and its two limiters below are
+ * used by `routes/__tests__/machineCredentials.test.ts` and by nothing in
+ * production. That is not an oversight to be tidied away by wiring it to the
  * nearest plausible endpoint.
  *
- * The nearest plausible endpoint is `POST /v1/chat/completions`
- * (`routes/alia.ts`), and mounting it there was wrong for a reason a rate limit
- * cannot fix: that route forwards the caller's body verbatim to Alia on ONE
+ * The nearest plausible endpoint would be `POST /alia/chat/completions`
+ * (`routes/alia.ts`), and mounting it there would be wrong for a reason a rate
+ * limit cannot fix: that route forwards the caller's body verbatim to Alia on ONE
  * static `ALIA_API_KEY`, and `max_tokens` is the caller's to choose — so a cap
  * of N requests per window bounds requests, never cost. Worse, the cost lands on
  * a single shared Oxy budget with no per-account attribution, so one key cannot
- * be stopped without stopping all of them. The epic's own invariant is "reserve
- * spend before the request enters the data plane", and nothing in the platform
- * reserves, meters or charges anything yet — `api_key_usage_events` has no
- * writer and `deductCredits` has no production caller (audit, #976).
- *
- * **Workstream 4 mounts this**, on the real public inference edge, behind the
- * reservation workstream 7 is building. Until both exist, an `oxy_sk_…`
- * credential can be minted, rotated, revoked and audited — and authenticates
- * nowhere. That is the intended state, not a gap.
+ * be stopped without stopping all of them. The epic's invariant is "reserve spend
+ * before the request enters the data plane", and that reservation lives on the
+ * `/v1` edge, which is where this lane already is.
  *
  * ## Its own lane, and its own request property
  *

@@ -35,7 +35,9 @@ process.env.AWS_ACCESS_KEY_ID ??= 'edge-mount';
 process.env.AWS_SECRET_ACCESS_KEY ??= 'edge-mount';
 process.env.AWS_S3_BUCKET ??= 'edge-mount';
 
+import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
+import { join } from 'node:path';
 import { closePostgres, connectPostgres } from '../../config/postgres';
 
 const SLOW_STEP_TIMEOUT_MS = 120_000;
@@ -140,5 +142,55 @@ describe('/v1 mount order', () => {
     expect(response.requestId).toBeNull();
     // The #981 gate's own refusal, not the edge's.
     expect(response.status).toBe(401);
+  });
+});
+
+/**
+ * The shared-upstream-key exception list, counted (#972 workstream 2.3).
+ *
+ * Every route in `routes/alia.ts` forwards a caller-supplied body to Alia on the
+ * one static `ALIA_API_KEY`, so it bills Oxy's shared upstream budget and no
+ * `ownerAccountId` — the exception to the epic's §1 attribution invariant. That
+ * makes the FILE the exception list, and an exception list with no exact count
+ * grows silently: a fourth route added here would inherit the exemption without
+ * anybody deciding to grant it.
+ *
+ * Read from source rather than probed over HTTP because the question is "which
+ * routes exist", and a live probe can only answer it one guessed path at a time —
+ * the route nobody thought to guess is exactly the one this is for.
+ *
+ * Comments are stripped first. `routes/alia.ts` discusses `router.post` in prose
+ * (the #981 header, and the note on why the voice routes stayed ungated), so an
+ * un-anchored census over the raw text counts sentences as routes.
+ */
+describe('shared ALIA_API_KEY routes', () => {
+  const ALIA_ROUTES_PATH = join(__dirname, '..', 'alia.ts');
+
+  /**
+   * Exactly the three routes documented in
+   * `docs/architecture/inference-responsibility-matrix.md` §3.1. Retiring them is
+   * workstream 14; until then this is the whole list.
+   */
+  const EXPECTED_SHARED_KEY_ROUTES = [
+    'post /chat/completions',
+    'post /voice/token',
+    'post /voice/transcribe',
+  ];
+
+  it('declares exactly the three routes the responsibility matrix exempts', () => {
+    const source = readFileSync(ALIA_ROUTES_PATH, 'utf8');
+    const code = source
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+    // Vacuity floor on the strip itself: a regex that ate the file would leave
+    // nothing to match, and an empty census is indistinguishable from a clean one.
+    expect(code).toContain('const router = Router()');
+
+    const declared = [...code.matchAll(/^router\.(get|post|put|patch|delete)\(\s*'([^']+)'/gm)].map(
+      (match) => `${match[1]} ${match[2]}`
+    );
+
+    expect(declared.sort()).toEqual([...EXPECTED_SHARED_KEY_ROUTES].sort());
   });
 });
