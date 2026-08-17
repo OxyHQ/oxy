@@ -383,8 +383,14 @@ function policyControls(
 }
 
 /**
- * A fake data plane. TESTS ONLY — `services/relayClient.ts` has no production
- * implementation, and this is the fake its header says belongs here.
+ * A NON-STREAMING fake data plane, for the cases in this file.
+ *
+ * `stream` throws rather than being implemented: no case here sends
+ * `stream: true`, so an implementation would be untested code satisfying a type,
+ * and a throw is what makes a future case that DOES stream through this fake fail
+ * loudly instead of silently taking a path nobody wrote. The streaming and
+ * cancellation paths are covered end to end, against a stub Relay that verifies
+ * the Ed25519 signature, in `__tests__/relayStreaming.test.ts`.
  */
 function fakeRelay(
   build: (envelope: InferenceRequest) => RelayCompletion,
@@ -394,6 +400,9 @@ function fakeRelay(
     execute: async (envelope) => {
       seen?.push(envelope);
       return build(envelope);
+    },
+    stream: () => {
+      throw new Error('this fake serves only non-streaming requests');
     },
   };
 }

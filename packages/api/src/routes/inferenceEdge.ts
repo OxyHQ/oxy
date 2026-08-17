@@ -60,7 +60,14 @@
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import type { InferenceFinishReason, InferenceMessage } from '@oxyhq/contracts';
+import type {
+  InferenceError,
+  InferenceFinishReason,
+  InferenceMessage,
+  InferenceStreamEvent,
+  UsageQuantity,
+  UsageUnit,
+} from '@oxyhq/contracts';
 import { admitToInferenceEdge } from '../config/rolloutFlags';
 import {
   machineApplicationLimiter,
@@ -75,9 +82,14 @@ import {
   MAX_IDEMPOTENCY_KEY_LENGTH,
   MAX_REQUEST_BYTES,
   readGenerationReceipt,
+  streamInferenceRequest,
   type EdgeCompletion,
+  type EdgeExecutionContext,
   type EdgePrincipal,
+  type EdgeStreamFrame,
+  type EdgeStreamHead,
 } from '../services/inferenceEdge.service';
+import { createHttpRelayClient } from '../services/httpRelayClient';
 import type { RelayClient } from '../services/relayClient';
 import {
   chatCompletionsRequestSchema,
@@ -89,6 +101,7 @@ import {
 import {
   applyInferenceHeaders,
   buildInferenceError,
+  openAiErrorBody,
   sendInferenceError,
   sendOpenAiError,
 } from '../utils/inferenceEdgeErrors';
@@ -352,10 +365,294 @@ function openAiFinishReason(reason: InferenceFinishReason): string {
   return reason === 'cancelled' || reason === 'refusal' ? 'stop' : reason;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Streaming                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** OpenAI's end-of-stream sentinel. Its stock clients stop on this exact text. */
+const OPENAI_STREAM_DONE = '[DONE]';
+
+/**
+ * Write one SSE frame and let it go out.
+ *
+ * `res.write` on a chunked response reaches the socket immediately, so there is
+ * no explicit flush here — but that only holds because
+ * {@link openEventStream} sets `Cache-Control: no-transform`, which is what makes
+ * `compression()` (mounted globally in `server.ts`, and matching `text/*`) leave
+ * this response alone. Compressed, every frame would sit in a zlib buffer until
+ * it filled, and time to first token would become time to last token with nothing
+ * failing.
+ *
+ * A write to a socket the client already dropped is skipped rather than attempted:
+ * the disconnect is handled by the abort signal, and an EPIPE from a courtesy
+ * write would surface as an unrelated error.
+ */
+function writeSse(res: Response, name: string | undefined, data: string): void {
+  if (res.writableEnded || res.destroyed) return;
+  res.write(`${name === undefined ? '' : `event: ${name}\n`}data: ${data}\n\n`);
+}
+
+/**
+ * Commit the response to being a stream, before the first frame.
+ *
+ * The model, provider and routing policy are known at admission and go out as
+ * headers, exactly as they do on a non-streaming response. The USAGE headers do
+ * not: they are only known when the stream ends, and headers cannot be sent
+ * twice. A streaming customer reads usage from the `usage` event instead, which
+ * is why the contract has one.
+ */
+function openEventStream(res: Response, head: EdgeStreamHead): void {
+  applyInferenceHeaders(res, head.requestId);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  // `no-transform` is load-bearing, not decoration — see {@link writeSse}.
+  res.setHeader('Cache-Control', 'no-cache, no-store, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  // Defence in depth against a reverse proxy that buffers by default and would
+  // otherwise silently undo everything above.
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.setHeader('X-Oxy-Model', head.resolvedModelReference);
+  res.setHeader('X-Oxy-Provider', head.servingProvider);
+  res.setHeader('X-Oxy-Routing-Policy', head.routingPolicy.routingPolicyId);
+  res.setHeader('X-Oxy-Routing-Policy-Version', String(head.routingPolicy.policyVersion));
+  res.status(200);
+  res.flushHeaders();
+}
+
+/** How one dialect renders a normalized stream onto an already-open response. */
+interface StreamWriter {
+  /** Render one normalized event. */
+  readonly event: (event: InferenceStreamEvent) => void;
+  /** Terminal: a failure the EDGE produced, after the response was committed. */
+  readonly fail: (error: InferenceError) => void;
+  readonly end: () => void;
+}
+
+/**
+ * `/v1/responses` — the normalized events themselves, one named SSE frame each.
+ *
+ * The frame name is the event's own `type`, so an `EventSource` consumer can
+ * subscribe per kind, and the `data:` payload is exactly the contract shape a
+ * non-streaming caller would have received inside the response. There is no
+ * `[DONE]` sentinel: `done` and `error` are already terminal, and a second
+ * terminality signal is a second thing that can disagree with the first.
+ */
+function responsesStreamWriter(res: Response): StreamWriter {
+  let lastSequence = -1;
+
+  return {
+    event: (event) => {
+      lastSequence = event.sequence;
+      writeSse(res, event.type, JSON.stringify(event));
+    },
+    fail: (error) => {
+      // A well-formed `error` event rather than a bare error body, so a client
+      // parsing this stream against `inferenceStreamEventSchema` never meets a
+      // frame the union cannot describe. The sequence continues the data plane's
+      // own numbering, which is what keeps it monotonic.
+      writeSse(
+        res,
+        'error',
+        JSON.stringify({
+          schemaVersion: 1,
+          type: 'error',
+          requestId: error.requestId,
+          sequence: lastSequence + 1,
+          error,
+        })
+      );
+    },
+    end: () => {
+      res.end();
+    },
+  };
+}
+
+/**
+ * `/v1/chat/completions` — OpenAI's own streaming idiom.
+ *
+ * Unnamed `data:` frames carrying `chat.completion.chunk` objects, terminated by
+ * `data: [DONE]`, because that is what an unmodified OpenAI SDK parses. Three
+ * consequences of that constraint, stated rather than discovered:
+ *
+ *  - **`reasoning` deltas are dropped.** There is no field for them in the chunk
+ *    shape, and putting them in `delta.content` would render a model's private
+ *    reasoning to a customer as its answer. A caller who wants reasoning uses
+ *    `/v1/responses`, where it is a first-class channel.
+ *  - **A `route_switch` rides on a chunk with `choices: []`**, under
+ *    `oxy_route_switch`. The epic requires the switch be surfaced to the
+ *    customer; a frame that is not chunk-shaped would break a stock parser, and
+ *    `choices: []` is a shape OpenAI itself emits for its usage-only chunk, so a
+ *    stock client skips it and an Oxy-aware one reads the extension.
+ *  - **`usage` rides the same way**, so a customer sees what they were metered
+ *    without the Oxy usage headers a stream cannot carry.
+ */
+function chatCompletionsStreamWriter(res: Response, head: EdgeStreamHead): StreamWriter {
+  const id = `chatcmpl-${head.requestId}`;
+  const created = Math.floor(Date.now() / 1000);
+  /** OpenAI numbers tool calls by position in the message; the contract does not. */
+  const toolCallIndexes = new Map<string, number>();
+
+  const chunk = (choices: unknown[], extra: Record<string, unknown> = {}): void => {
+    writeSse(
+      res,
+      undefined,
+      JSON.stringify({
+        id,
+        object: 'chat.completion.chunk',
+        created,
+        model: head.resolvedModelReference,
+        choices,
+        ...extra,
+      })
+    );
+  };
+
+  return {
+    event: (event) => {
+      switch (event.type) {
+        case 'start':
+          chunk([{ index: 0, delta: { role: 'assistant' }, finish_reason: null }]);
+          break;
+        case 'delta':
+          if (event.channel === 'output_text') {
+            chunk([
+              { index: event.outputIndex, delta: { content: event.text }, finish_reason: null },
+            ]);
+          } else if (event.channel === 'refusal') {
+            // `delta.refusal` is OpenAI's own field, not an Oxy extension.
+            chunk([
+              { index: event.outputIndex, delta: { refusal: event.text }, finish_reason: null },
+            ]);
+          }
+          break;
+        case 'tool_call': {
+          const index = toolCallIndexes.get(event.toolCallId) ?? toolCallIndexes.size;
+          toolCallIndexes.set(event.toolCallId, index);
+          chunk([
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  {
+                    index,
+                    id: event.toolCallId,
+                    type: 'function',
+                    function: {
+                      ...(event.name === undefined ? {} : { name: event.name }),
+                      ...(event.argumentsDelta === undefined
+                        ? {}
+                        : { arguments: event.argumentsDelta }),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ]);
+          break;
+        }
+        case 'usage':
+          chunk([], { usage: openAiUsage(unitMap(event.units)) });
+          break;
+        case 'route_switch':
+          chunk([], {
+            oxy_route_switch: { reason: event.reason, detail: event.detail },
+          });
+          break;
+        case 'error':
+          // The data plane's terminal error. No `[DONE]` follows one, so a client
+          // that saw a failure never also has to reconcile a success.
+          writeSse(res, undefined, JSON.stringify(openAiErrorBody(event.error)));
+          break;
+        case 'done':
+          chunk([
+            {
+              index: 0,
+              delta: {},
+              finish_reason: openAiFinishReason(event.finishReason),
+            },
+          ]);
+          writeSse(res, undefined, OPENAI_STREAM_DONE);
+          break;
+      }
+    },
+    fail: (error) => {
+      writeSse(res, undefined, JSON.stringify(openAiErrorBody(error)));
+    },
+    end: () => {
+      res.end();
+    },
+  };
+}
+
+/** The contract's unit array as the map {@link openAiUsage} reads. */
+function unitMap(quantities: readonly UsageQuantity[]): Partial<Record<UsageUnit, number>> {
+  const units: Partial<Record<UsageUnit, number>> = {};
+  for (const quantity of quantities) units[quantity.unit] = quantity.quantity;
+  return units;
+}
+
+/**
+ * Drive one streamed request from the service's frames onto the response.
+ *
+ * Shared by both dialects, because everything that differs is inside a
+ * {@link StreamWriter}: what a frame LOOKS like is the dialect's business, and
+ * when a frame is written, whether the response has been committed and what
+ * happens when the client vanishes are not.
+ *
+ * Three properties this loop is responsible for:
+ *
+ *  - **Nothing is buffered.** Each frame is written inside the loop, so the
+ *    customer has frame N before the data plane has produced N+1.
+ *  - **A refusal before the first frame is still an HTTP status.** The response
+ *    is committed only on `open`, so an unauthorized, unfundable or unroutable
+ *    request answers `403`/`402`/`503` with a normal body, exactly as a
+ *    non-streaming one does.
+ *  - **A dead socket ends the loop, which settles the hold.** `break` runs the
+ *    generator's `finally`, which aborts the hop to the data plane and settles
+ *    whatever was measured. Nothing here has to know that; it only has to stop.
+ */
+async function pumpEdgeStream(
+  res: Response,
+  frames: AsyncGenerator<EdgeStreamFrame>,
+  renderError: ErrorRenderer,
+  createWriter: (head: EdgeStreamHead) => StreamWriter
+): Promise<void> {
+  let writer: StreamWriter | undefined;
+
+  for await (const frame of frames) {
+    if (frame.kind === 'open') {
+      openEventStream(res, frame.head);
+      writer = createWriter(frame.head);
+      continue;
+    }
+
+    if (frame.kind === 'error') {
+      if (writer === undefined) {
+        // Nothing was written yet, so this is an ordinary HTTP refusal.
+        renderError(res, frame.error);
+        return;
+      }
+      writer.fail(frame.error);
+      writer.end();
+      return;
+    }
+
+    // `open` always precedes the first event, so the writer exists; the guard is
+    // what makes that a fact the compiler agrees with rather than an assertion.
+    if (writer === undefined) break;
+    writer.event(frame.event);
+    if (res.destroyed) break;
+  }
+
+  writer?.end();
+}
+
 export interface InferenceEdgeRouterOptions {
   /**
-   * The data plane. Absent in every deployment today, which is why every invoke
-   * resolves to a typed `service_unavailable`. A fake belongs only in a test.
+   * The data plane. `undefined` means this deployment configured none, and every
+   * invoke then answers a typed `service_unavailable` while `stream: true` is
+   * refused. A fake belongs only in a test.
    */
   readonly relayClient?: RelayClient;
 }
@@ -413,7 +710,7 @@ export function createInferenceEdgeRouter(
       }
 
       const normalized: NormalizedEdgeRequest = normalizeResponsesRequest(parsed.data);
-      const execution = await executeInferenceRequest({
+      const context: EdgeExecutionContext = {
         requestId: edge.requestId,
         receivedAt: edge.receivedAt,
         principal: edge.principal,
@@ -426,7 +723,16 @@ export function createInferenceEdgeRouter(
         endpoint: '/v1/responses',
         signal: connectionSignal(res),
         ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
-      });
+      };
+
+      if (normalized.stream) {
+        await pumpEdgeStream(res, streamInferenceRequest(context), sendInferenceError, () =>
+          responsesStreamWriter(res)
+        );
+        return;
+      }
+
+      const execution = await executeInferenceRequest(context);
 
       if (execution.status === 'refused') {
         sendInferenceError(res, execution.error);
@@ -505,7 +811,7 @@ export function createInferenceEdgeRouter(
 
       const normalized = normalizeChatCompletionsRequest(parsed.data);
       const delegated = delegatedUserId(req, normalized.delegatedUserId);
-      const execution = await executeInferenceRequest({
+      const context: EdgeExecutionContext = {
         requestId: edge.requestId,
         receivedAt: edge.receivedAt,
         principal: edge.principal,
@@ -516,7 +822,16 @@ export function createInferenceEdgeRouter(
         endpoint: '/v1/chat/completions',
         signal: connectionSignal(res),
         ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
-      });
+      };
+
+      if (normalized.stream) {
+        await pumpEdgeStream(res, streamInferenceRequest(context), sendOpenAiError, (head) =>
+          chatCompletionsStreamWriter(res, head)
+        );
+        return;
+      }
+
+      const execution = await executeInferenceRequest(context);
 
       if (execution.status === 'refused') {
         sendOpenAiError(res, execution.error);
@@ -619,5 +934,22 @@ export function createInferenceEdgeRouter(
   return router;
 }
 
-/** The router `server.ts` mounts: no data plane, so every invoke refuses. */
-export default createInferenceEdgeRouter();
+/**
+ * The router `server.ts` mounts, wired to whatever data plane this deployment
+ * configured.
+ *
+ * `createHttpRelayClient()` returns `undefined` unless `RELAY_BASE_URL`,
+ * `RELAY_EDGE_SIGNING_KEY_ID` and `RELAY_EDGE_SIGNING_PRIVATE_KEY` are all set,
+ * so a deployment that has configured none behaves exactly as it did before this
+ * existed: every invoke answers a typed `service_unavailable` and `stream: true`
+ * is refused.
+ *
+ * Resolved HERE rather than inside {@link createInferenceEdgeRouter}, so a test
+ * that constructs a router gets exactly the client it passed and never one the
+ * ambient environment supplied.
+ */
+const configuredRelayClient = createHttpRelayClient();
+
+export default createInferenceEdgeRouter(
+  configuredRelayClient === undefined ? {} : { relayClient: configuredRelayClient }
+);
