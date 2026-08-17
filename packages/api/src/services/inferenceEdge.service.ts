@@ -1028,12 +1028,17 @@ export async function executeInferenceRequest(
   // fails a request that has already been served — see
   // {@link recordEdgeRouteSwitch}.
   //
-  // `?? []` because this line sits AFTER the hold is settled: a client that
-  // reported no switches at all must produce zero notices, not an exception that
-  // turns a charged request into a 500 with the money already taken. The field is
-  // optional for that reason and not for convenience — `tsconfig.json` excludes
-  // `__tests__`, so a required field is enforced by nobody in exactly the files
-  // most likely to construct a completion by hand.
+  // `?? []` because `RelayCompletion` is deserialized JSON, and a required
+  // property on a wire-derived shape is a CLAIM about what the far side sends
+  // rather than an enforcement of it: a producer that omits this leaves
+  // `undefined` at runtime and `for…of` throws with `tsc` having signed off. The
+  // set of producers is not closed by the type system, so the guard belongs here
+  // and not in the annotation.
+  //
+  // It matters at THIS line in particular because it runs after the hold is
+  // settled and the handler has no try/catch: measured, the throw became an
+  // unhandled rejection with NO response written — not a 500, a request that
+  // never answers, with the money already taken.
   for (const event of completion.routeSwitchEvents ?? []) {
     await recordEdgeRouteSwitch(context, admitted, event);
   }

@@ -99,16 +99,27 @@ export interface RelayCompletion {
    * `stream` flag, so carrying them here costs nothing and is what lets one
    * writer serve both dialects.
    *
-   * **OPTIONAL, and absent means the same as empty.** It was briefly required, on
-   * the argument that "no switches" is a fact a producer should state — which
-   * bought nothing and cost an outage. `packages/api/tsconfig.json` excludes
-   * `src/**\/__tests__/**`, so a fake omitting a required field is not a type
-   * error anywhere; the requirement was enforced only by each author remembering
-   * it, and the consumer's `for…of` then threw AFTER the hold was settled, which
-   * turns a served request into a 500 with the money already taken. A field whose
-   * absence is a crash must not depend on memory. `httpRelayClient` still always
-   * sets it, so a real completion still distinguishes "reported none" from
-   * "did not report" — by construction rather than by type.
+   * **OPTIONAL, and absent means the same as empty.** It was briefly required,
+   * on the argument that "no switches" is a fact a producer should state — which
+   * bought nothing and cost an outage.
+   *
+   * The reason it cannot be required is general rather than local to this field:
+   * **a required property on a type reconstructed from a WIRE is a claim about
+   * what the far side sends, not an enforcement of it.** This shape is built from
+   * deserialized JSON, so a producer that omits it leaves `undefined` at runtime
+   * and the consumer throws with `tsc` having signed off. The set of producers is
+   * not closed by the type system, which is why "make every producer set it" was
+   * never available as a fix — it applies to every required property on every
+   * wire-derived shape in this module, so guard at the consumer instead.
+   *
+   * A second, narrower reason it went unnoticed for as long as it did:
+   * `packages/api/tsconfig.json` excludes `src/**\/__tests__/**`, so a fake
+   * omitting a required field is not a type error anywhere — verified, `tsc
+   * --noEmit` exited 0 on the red `main`.
+   *
+   * `httpRelayClient` still always sets it, so a real completion still
+   * distinguishes "reported none" from "did not report" — by construction rather
+   * than by type.
    */
   readonly routeSwitchEvents?: readonly InferenceStreamRouteSwitchEvent[];
 }
