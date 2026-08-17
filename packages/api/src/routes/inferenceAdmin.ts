@@ -9,6 +9,12 @@
  * else's model, which no customer-held role can know and therefore no
  * customer-held role may grant.
  *
+ * The two WRITES are narrower still, as of #972 section 12: they additionally
+ * require the graded `inference:catalogue:publish` staff capability
+ * (`users.staff_capabilities`), which no staff member holds until an
+ * administrator grants it. Being able to read this surface is no longer the same
+ * right as being able to publish through it.
+ *
  * Reads here return the FULL row, including the fields the customer projection
  * withholds — that is the point of a staff surface. `legal_review_evidence_ref`
  * is a pointer into the contract register and never the contract itself; the
@@ -37,10 +43,11 @@ import {
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
+  inferenceSpendAnomalies,
 } from '../db/schema';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
-import { requireStaff } from '../middleware/requireStaff';
+import { requireStaff, requireStaffCapability } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import {
   applyPermissionAction,
@@ -61,7 +68,21 @@ const adminLimiter = rateLimit({
   prefix: 'rl:inference:admin:',
 });
 
+/**
+ * Staff for the whole router; the two WRITES additionally require the graded
+ * `inference:catalogue:publish` capability (#972 section 12).
+ *
+ * The split is read-versus-write and not endpoint-by-endpoint taste: `GET
+ * /rollout` and `GET /deployments` disclose Oxy's own commercial position to a
+ * staff member, which is what `requireStaff` is for, while recording a legal
+ * review or approving a route ASSERTS that Oxy may resell somebody else's model.
+ * The second is not a thing every staff member should be able to do by virtue of
+ * being able to read a dashboard.
+ */
 router.use(adminLimiter, authMiddleware, requireStaff);
+
+/** Publishing a catalogue route is a graded write — see the note above. */
+const requireCataloguePublish = requireStaffCapability('inference:catalogue:publish');
 
 const deploymentParams = z.object({ deploymentId: z.string().min(1).max(128) });
 
@@ -77,6 +98,25 @@ const permissionActionParams = deploymentParams.extend({
 });
 
 const permissionActionBody = z.object({ note: z.string().max(500).optional() }).strict();
+
+/**
+ * The spend-anomaly page size.
+ *
+ * A ceiling rather than an offset-paginated read: the question this answers is
+ * "what fired recently", and 200 rows of it is an operator's screen. Anything
+ * larger is a report, which belongs on the reporting surface with a window.
+ *
+ * `z.coerce.number()`, which is IDEMPOTENT and has to be: `middleware/validate`
+ * writes its parsed output back onto `req.query` and the handler parses again, so
+ * this schema is fed a number on the second pass. Coercing a number is the
+ * identity, so both passes agree — where a transform that only accepted the string
+ * form would raise `invalid_type` outside any validation boundary and answer 500.
+ * That is not hypothetical; `GET /billing/cost-centers` carried exactly that
+ * defect on every request.
+ */
+const spendAnomalyQuery = z
+  .object({ limit: z.coerce.number().int().min(1).max(200).default(100) })
+  .strict();
 
 const legalReviewBody = z
   .object({
@@ -148,6 +188,36 @@ router.get(
 );
 
 /**
+ * `GET /inference/admin/spend-anomalies`
+ *
+ * Every account-hour whose inference spend jumped past a multiple of its own
+ * trailing daily median (#972 sections 8 and 12), newest first.
+ *
+ * A READ, and the only consumer of `inference_spend_anomalies`. The detector
+ * blocks nothing — that is argued at length in
+ * `services/spendAnomaly.service.ts` — so this endpoint is what turns the signal
+ * into something a person can act on. It lives on this router for the same reason
+ * `GET /rollout` does: it needs the staff gate and nothing weaker, and a second
+ * staff mount is a second thing to keep gated correctly.
+ *
+ * Not graded by capability: it discloses no credential and changes nothing.
+ */
+router.get(
+  '/spend-anomalies',
+  validate({ query: spendAnomalyQuery }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { limit } = spendAnomalyQuery.parse(req.query);
+    const rows = await getDb()
+      .select()
+      .from(inferenceSpendAnomalies)
+      .orderBy(desc(inferenceSpendAnomalies.detectedForHour))
+      .limit(limit);
+
+    res.json({ data: rows, count: rows.length });
+  })
+);
+
+/**
  * `GET /inference/admin/deployments`
  *
  * Every route in the catalogue, including the ones no customer can see. Ordered
@@ -185,6 +255,7 @@ router.get(
  */
 router.post(
   '/deployments/:deploymentId/legal-review',
+  requireCataloguePublish,
   validate({ params: deploymentParams, body: legalReviewBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const body = legalReviewBody.parse(req.body);
@@ -209,6 +280,7 @@ router.post(
  */
 router.post(
   '/deployments/:deploymentId/:action',
+  requireCataloguePublish,
   validate({ params: permissionActionParams, body: permissionActionBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const params = permissionActionParams.parse(req.params);

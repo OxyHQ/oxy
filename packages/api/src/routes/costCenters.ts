@@ -5,7 +5,7 @@
  * literal segment rather than treating it as a parameter of the personal-billing
  * router.
  *
- * ## Staff-only, all of it
+ * ## Staff-only, all of it — and the writes are narrower than that
  *
  * A cost centre is how Oxy books its OWN first-party spend — Alia production
  * chat, Codea, research, voice, evaluations. It is not a customer-facing concept
@@ -13,6 +13,10 @@
  * `requireStaff` rather than behind an account permission. A customer wanting to
  * split spend uses accounts and spending limits, which is what the account graph
  * is for.
+ *
+ * Registering and retiring additionally require the graded
+ * `billing:cost_centers` staff capability (#972 section 12), which no staff
+ * member holds until an administrator grants it.
  *
  * ## The rows are not seeded by this file
  *
@@ -26,7 +30,7 @@
 import { Router, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
-import { requireStaff } from '../middleware/requireStaff';
+import { requireStaff, requireStaffCapability } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import {
   costCenterListQuery,
@@ -60,6 +64,16 @@ const costCenterLimiter = rateLimit({
 });
 
 router.use(authMiddleware, requireStaff, costCenterLimiter);
+
+/**
+ * The two writes are narrower than the reads (#972 section 12).
+ *
+ * A slug is how every historical report addresses a centre, so registering one —
+ * and, more sharply, retiring one — changes what future spend is attributed to.
+ * Reading the list and the spend report is what staff need; changing the
+ * attribution map is not.
+ */
+const requireCostCenterWrite = requireStaffCapability('billing:cost_centers');
 
 /*
  * ORDER MATTERS. `/spend` is registered BEFORE `/:slug`, or Express captures the
@@ -116,6 +130,7 @@ router.get(
  */
 router.post(
   '/',
+  requireCostCenterWrite,
   validate({ body: registerCostCenterBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const body = registerCostCenterBody.parse(req.body);
@@ -145,6 +160,7 @@ router.post(
  */
 router.delete(
   '/:slug',
+  requireCostCenterWrite,
   validate({ params: costCenterSlugParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { slug } = costCenterSlugParams.parse(req.params);

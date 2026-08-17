@@ -5,7 +5,18 @@
  * take a portable, verifiable snapshot of their Oxy account: DID document,
  * profile (secrets stripped exactly like `formatUserResponse`), verified
  * domains, auth methods (no secrets), published signed records, per-app data,
- * and social graph — sealed with an Oxy provenance attestation.
+ * social graph, and what the account was charged — sealed with an Oxy provenance
+ * attestation.
+ *
+ * ## The financial section (#972 section 12)
+ *
+ * `DELETE /users/me` retains financial records by law while erasing everything
+ * optional, and this export disclosed none of them: a person exercising a
+ * subject-access request learned nothing about what they had been charged unless
+ * they also happened to be an account administrator with access to the enterprise
+ * reporting route. {@link readFinancialSection} is the other half of that
+ * checkbox — read-only, scoped to the caller's own account, and additive to the
+ * contract.
  *
  * The attestation is an `ES256K-DER-SHA256` signature over the canonical-JSON of
  * the bundle WITHOUT the attestation, produced with the server-held Oxy key
@@ -51,10 +62,14 @@ import { canonicalize } from '@oxyhq/protocol';
 import type {
   ExportBundle,
   ExportAttestation,
+  ExportFinancialSection,
   VerifiedDomain,
   SignedRecordEnvelope,
 } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
+import { billingLedgerEntries } from '../db/schema/billingLedgerEntries';
+import { usageReceipts } from '../db/schema/usageReceipts';
+import { usageReservations } from '../db/schema/usageReservations';
 import { userAppData } from '../db/schema/userAppData';
 import { userAuthMethods } from '../db/schema/userAuthMethods';
 import { userFollows } from '../db/schema/userFollows';
@@ -83,6 +98,120 @@ export interface ExportBundleResult {
 
 function toIsoString(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : String(value);
+}
+
+/**
+ * What this account was charged, for the subject-access export (#972 section 12).
+ *
+ * ## Scoped to the caller's OWN account, and to nothing else
+ *
+ * Every one of the three tables is keyed on `account_id`, and every read below
+ * filters on the caller's id — never on an application, never on a delegated
+ * user, never on an organization the caller belongs to. An account this person
+ * merely has a membership in has its own subject and its own export;
+ * `GET /inference/reporting/accounts/:accountId/charges/export` is the
+ * enterprise surface for that, with its own authorization.
+ *
+ * `__tests__/identityExport.financial.test.ts` asserts the isolation in both
+ * directions against a real database: A's export carries A's rows and none of
+ * B's, in the same bundle.
+ *
+ * ## Read-only, and ORDERED for the same reason every other section is
+ *
+ * The bundle's bytes are the signing input of the Oxy attestation, so an
+ * unordered read would let two exports of an unchanged account produce different
+ * signatures. Each ordering leads with the natural time column and breaks ties on
+ * the id, which is total.
+ *
+ * ## The projection is deliberately narrow
+ *
+ * A receipt carries Oxy's own commercial position — the price version it was
+ * computed from, the routing policy revision, the internal usage source. What a
+ * person is owed is what they were charged, for which request, when, and in what
+ * currency. `resolvedModelReference` and `servingProvider` are included because
+ * they are already customer-visible on the receipt read.
+ *
+ * Amounts are carried as the exact decimal STRINGS the ledger stores. A JSON
+ * number cannot represent them and a rounded bill is a wrong bill.
+ *
+ * ## Unbounded, and that is a stated property
+ *
+ * There is no cap: a truncated subject-access export would be a worse defect than
+ * a large one, and the route's `?format=ndjson` arm exists for the accounts where
+ * size becomes the problem. The route is rate-limited to 5/hour per user.
+ */
+async function readFinancialSection(accountId: string): Promise<ExportFinancialSection> {
+  const db = getDb();
+
+  const [receiptRows, ledgerRows, reservationRows] = await Promise.all([
+    db
+      .select({
+        receiptId: usageReceipts.id,
+        requestId: usageReceipts.requestId,
+        settledAt: usageReceipts.settledAt,
+        billedAmount: usageReceipts.billedAmount,
+        currency: usageReceipts.currency,
+        outcome: usageReceipts.outcome,
+        resolvedModelReference: usageReceipts.resolvedModelReference,
+        servingProvider: usageReceipts.servingProvider,
+        platformFeeOnly: usageReceipts.platformFeeOnly,
+      })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, accountId))
+      .orderBy(usageReceipts.settledAt, usageReceipts.id),
+    db
+      .select({
+        entryId: billingLedgerEntries.id,
+        kind: billingLedgerEntries.kind,
+        currency: billingLedgerEntries.currency,
+        createdAt: billingLedgerEntries.createdAt,
+      })
+      .from(billingLedgerEntries)
+      .where(eq(billingLedgerEntries.accountId, accountId))
+      .orderBy(billingLedgerEntries.createdAt, billingLedgerEntries.id),
+    db
+      .select({
+        reservationId: usageReservations.id,
+        requestId: usageReservations.requestId,
+        status: usageReservations.status,
+        reservedAmount: usageReservations.reservedAmount,
+        currency: usageReservations.currency,
+        createdAt: usageReservations.createdAt,
+        expiresAt: usageReservations.expiresAt,
+      })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, accountId))
+      .orderBy(usageReservations.createdAt, usageReservations.id),
+  ]);
+
+  return {
+    receipts: receiptRows.map((row) => ({
+      receiptId: row.receiptId,
+      requestId: row.requestId,
+      settledAt: toIsoString(row.settledAt),
+      billedAmount: row.billedAmount,
+      currency: row.currency,
+      outcome: row.outcome,
+      resolvedModelReference: row.resolvedModelReference,
+      servingProvider: row.servingProvider,
+      platformFeeOnly: row.platformFeeOnly,
+    })),
+    ledgerEntries: ledgerRows.map((row) => ({
+      entryId: row.entryId,
+      kind: row.kind,
+      currency: row.currency,
+      createdAt: toIsoString(row.createdAt),
+    })),
+    reservations: reservationRows.map((row) => ({
+      reservationId: row.reservationId,
+      requestId: row.requestId,
+      status: row.status,
+      reservedAmount: row.reservedAmount,
+      currency: row.currency,
+      createdAt: toIsoString(row.createdAt),
+      expiresAt: toIsoString(row.expiresAt),
+    })),
+  };
 }
 
 /**
@@ -212,7 +341,7 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
     .filter((record): record is { envelope: SignedRecordEnvelope } => record !== null)
     .map((record) => record.envelope);
 
-  const [appDataRows, followingRows, followerRows] = await Promise.all([
+  const [appDataRows, followingRows, followerRows, financial] = await Promise.all([
     db
       .select({ namespace: userAppData.namespace, key: userAppData.key, value: userAppData.value })
       .from(userAppData)
@@ -228,6 +357,7 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
       .from(userFollows)
       .where(eq(userFollows.followedId, userId))
       .orderBy(userFollows.createdAt, userFollows.id),
+    readFinancialSection(userId),
   ]);
 
   const appData: Record<string, unknown>[] = appDataRows.map((row) => ({
@@ -251,6 +381,7 @@ export async function buildExportBundle(userId: string): Promise<ExportBundleRes
     signedRecords,
     appData,
     social: { following, followers },
+    financial,
   };
 
   const attestation = signBundle(bundleWithoutAttestation);

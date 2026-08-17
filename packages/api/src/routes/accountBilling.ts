@@ -50,7 +50,7 @@
 import { Router, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
-import { requireStaff } from '../middleware/requireStaff';
+import { requireStaff, requireStaffCapability } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
 import {
@@ -139,12 +139,111 @@ const billingCheckoutLimiter = rateLimit({
   prefix: 'rl:billing:account:checkout:',
 });
 
+/**
+ * Top-up VELOCITY, keyed on the billing profile (#972 sections 8 and 12, "rate
+ * limits and fraud controls before enabling prepaid public inference").
+ *
+ * ## Why a second limiter on a route that already has one
+ *
+ * `billingCheckoutLimiter` keys on `hashedIpKey`, the factory's default. That is
+ * the right unit for "one machine hammering the API" and the wrong one for the
+ * fraud question, which is about a PROFILE: a card being probed against one
+ * balance from a dozen addresses satisfies the IP budget twelve times over, and
+ * the account-id path segment is no better because a project that inherits its
+ * organization's profile can be addressed by any of the account ids in the
+ * subtree — twelve ids, one payer, one card.
+ *
+ * So this keys on the resolved PAYER, which is `billing_profiles`' primary key
+ * and the thing a card is attached to. `resolveTopUpPayer` runs first and is what
+ * makes that key available; see the note there for why the resolution moved into
+ * a middleware.
+ *
+ * ## The numbers, and what they are not
+ *
+ * 10 checkout sessions per hour per profile. A person funding a balance opens
+ * one, occasionally two after a failure; ten is far above any honest pattern and
+ * far below what card-probing needs to be useful. It is a VELOCITY CEILING, not
+ * card-testing detection — detecting that is a product decision this workstream
+ * deliberately leaves open (`docs/inference/rollout.md`), and a limiter is not a
+ * substitute for it.
+ *
+ * The prefix is unique, as the factory requires: two limiters sharing one Redis
+ * key make `rate-limit-redis` throw `ERR_ERL_DOUBLE_COUNT` and silently halve
+ * both budgets.
+ */
+const topUpVelocityLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  prefix: 'rl:billing:topup:',
+  message:
+    'Too many top-up attempts for this billing profile in the last hour. Try again later, or ' +
+    'contact support if a payment is not completing.',
+  keyGenerator: (req) => (req as BillingRequest).topUpPayer?.accountId ?? '',
+  // The NEGATION of "the key exists", never a policy decision. A request whose
+  // payer did not resolve never reaches the handler anyway — `resolveTopUpPayer`
+  // has already thrown — so bucketing it under one shared empty key would only
+  // exhaust that bucket for everybody.
+  skip: (req) => (req as BillingRequest).topUpPayer === undefined,
+});
+
+/**
+ * Resolve and AUTHORISE the payer before the velocity limiter reads its key.
+ *
+ * The limiter has to key on the billing profile, which is not knowable from the
+ * path — a project that merely inherits resolves to its organization — so the
+ * resolution has to happen in front of it. Doing it here rather than in the
+ * handler means it happens exactly ONCE: the handler reads `req.topUpPayer`
+ * instead of resolving again, so there is one authorization decision on this
+ * route and not two that could disagree.
+ *
+ * Ordering consequence, stated because it is a real behaviour change: an
+ * unauthorised caller now gets its 403/404 BEFORE the velocity budget is
+ * consulted, which is correct — a stranger's failed attempts must not exhaust the
+ * owner's budget — and a `429` therefore always means "this profile, too often".
+ */
+const resolveTopUpPayer = asyncHandler(async (req, _res, next) => {
+  const billingRequest = req as BillingRequest;
+  const { accountId } = accountBillingParams.parse(req.params);
+  billingRequest.topUpPayer = await authorizeBillingProfile(
+    principalOf(billingRequest),
+    accountId,
+    'billing:manage'
+  );
+  next();
+});
+
+/**
+ * The two staff writes on this surface that MOVE MONEY (#972 section 12,
+ * "least-privilege admin roles").
+ *
+ * `requireStaff` still runs first and still means "any staff"; this narrows the
+ * two operations that create balance out of nothing (a promotional grant) and
+ * that book a rounding entry against a customer (closing an invoice period). The
+ * reads beside them — a reconciliation report, an invoice list — stay on the
+ * plain flag, because the thing worth restricting is the write, not the ability
+ * to look at the ledger.
+ *
+ * Reconciliation is deliberately NOT graded: it compares Oxy's record against
+ * the processor's and repairs nothing, so the row it writes is a report rather
+ * than a movement. If it ever credits what it finds, it belongs here.
+ */
+const requireBillingAdjust = requireStaffCapability('billing:adjust');
+
 /* -------------------------------------------------------------------------- */
 /*  Principals                                                                */
 /* -------------------------------------------------------------------------- */
 
 interface BillingRequest extends AuthRequest {
   serviceApp?: ServiceTokenPayload;
+  /**
+   * The PAYER this request resolved to, for the routes that resolve it in a
+   * middleware because a rate limiter has to key on it.
+   *
+   * Set only by {@link resolveTopUpPayer}. Nothing else reads it, and no handler
+   * may assume it is present — the routes that need it name that middleware in
+   * their own chain.
+   */
+  topUpPayer?: BillingAccount;
 }
 
 type BillingPrincipal =
@@ -495,13 +594,20 @@ router.post(
   '/:accountId/checkout',
   billingCheckoutLimiter,
   validate({ params: accountBillingParams, body: topUpCheckoutBody }),
+  // Resolved and authorised HERE so the velocity limiter below can key on the
+  // payer, which the path cannot name. See `topUpVelocityLimiter`.
+  resolveTopUpPayer,
+  topUpVelocityLimiter,
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
-    const billing = await authorizeBillingProfile(
-      principalOf(req),
-      accountId,
-      'billing:manage'
-    );
+    const billing = req.topUpPayer;
+    if (billing === undefined) {
+      // Unreachable through the chain above, which either sets it or throws. It
+      // is checked rather than asserted so the guarantee is the type system's and
+      // not a comment's — reordering the middleware would make this fire instead
+      // of charging a card against an unresolved profile.
+      throw new UnauthorizedError('The paying account could not be resolved');
+    }
 
     const body = topUpCheckoutBody.parse(req.body);
     if (!isAllowedRedirect(body.successUrl) || !isAllowedRedirect(body.cancelUrl)) {
@@ -596,6 +702,7 @@ router.post(
   '/:accountId/grants',
   billingWriteLimiter,
   requireStaff,
+  requireBillingAdjust,
   validate({ params: accountBillingParams, body: promotionalGrantBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);
@@ -661,6 +768,7 @@ router.post(
   '/:accountId/invoices',
   billingWriteLimiter,
   requireStaff,
+  requireBillingAdjust,
   validate({ params: accountBillingParams, body: closeInvoicePeriodBody }),
   asyncHandler(async (req: BillingRequest, res: Response) => {
     const { accountId } = accountBillingParams.parse(req.params);

@@ -44,6 +44,7 @@ import {
   CHARGING_AUTHORIZED_VARIABLE,
   EDGE_AUDIENCE_VARIABLE,
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
+  PRIVACY_REVIEW_VARIABLE,
 } from '../../config/rolloutFlags';
 import { accountBalances } from '../../db/schema/accountBalances';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
@@ -388,12 +389,16 @@ const FLAG_VARIABLES = [
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
   CHARGING_AUTHORIZED_VARIABLE,
   CATALOGUE_AUDIENCE_VARIABLE,
+  PRIVACY_REVIEW_VARIABLE,
 ] as const;
 
 const ORIGINAL = Object.fromEntries(FLAG_VARIABLES.map((key) => [key, process.env[key]]));
 
 /** Comfortably in the past: the flag refuses a future date, never an old one. */
 const ARMED_CHARGING = 'rollout-suite-fixture:2026-08-01';
+
+/** The same, for the privacy/security review a public launch is gated on. */
+const ARMED_PRIVACY_REVIEW = 'rollout-suite-fixture:2026-08-01';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -573,7 +578,17 @@ describe('each rollout stage admits the applications it names', () => {
     });
   });
 
-  it('refuses a public launch that has not authorized charging, and serves it once armed', async () => {
+  /**
+   * A public launch has TWO prerequisites and this walks both of them, in the
+   * order an operator would hit them.
+   *
+   * The middle step is the load-bearing one, and it is the state a launch is
+   * actually attempted from: charging armed, everything commercial ready, and
+   * the privacy/security review (#972 section 12) not recorded. Without it the
+   * review gate would be green and inert — the flag would parse and report and
+   * the edge would serve the world regardless.
+   */
+  it('refuses a public launch until BOTH charging and the privacy review are armed', async () => {
     const fixture = await makeFixture({ fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
 
@@ -587,6 +602,15 @@ describe('each rollout stage admits the applications it names', () => {
       expect(refused.status).toBe(403);
 
       process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
+      const stillRefused = await request(
+        'POST',
+        '/v1/chat/completions',
+        chatBody(fixture),
+        bearer(fixture.token)
+      );
+      expect(stillRefused.status).toBe(403);
+
+      process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
       const admitted = await request(
         'POST',
         '/v1/chat/completions',

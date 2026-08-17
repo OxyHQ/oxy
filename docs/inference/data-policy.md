@@ -244,6 +244,35 @@ enforced — see [routing.md](./routing.md#not-enforced).
 - **There is no inference-specific deletion or export path for payload data**,
   because there is no payload data to delete or export. #972's "deletion/export
   behaviour that preserves legally required financial records while deleting
-  optional payload data" becomes real work the day opt-in debug retention does.
-- **`GET /users/me/export`** is the identity and profile export and is unrelated
-  to inference. It is documented with the identity layer, not here.
+  optional payload data" becomes real work for PAYLOADS the day opt-in debug
+  retention does.
+- **`GET /users/me/export` now carries a `financial` section** — the calling
+  account's own `usage_receipts`, `billing_ledger_entries` and
+  `usage_reservations`, read-only, scoped to that account and to nothing else.
+  Before it did not, and the practical consequence was that a person exercising a
+  subject-access request learned nothing about what they had been charged unless
+  they also happened to be an account administrator with access to the reporting
+  route above. The deletion side of #972 section 12 retained financial records the
+  export then never disclosed; this is the other half.
+
+  Amounts are exact decimal STRINGS, never JSON numbers. Empty arrays are the
+  normal answer and mean the account has no ledger history, not that anything was
+  withheld — the section is required by the contract precisely so "nothing" is a
+  statement somebody made rather than a missing key.
+
+  The enterprise route is unchanged and remains a different thing: it is an
+  account-billing surface with its own authorization, over an account the caller
+  administers. This is the subject's own copy.
+- **A live BYOK connection now BLOCKS account deletion, loudly.**
+  `inference_provider_connections.owner_account_id` is `RESTRICT` so that deleting
+  an account can never orphan a credential in the secret store, and the schema
+  comment always promised that "account deletion must revoke these first, which is
+  a deliberate, loud step". The step now exists: `DELETE /users/me` answers `409`
+  naming every connection whose credential is still stored, and the customer
+  revokes each one — which is what destroys the stored secret.
+
+  It is refused rather than revoked automatically for the same reason a live
+  subscription is refused: revoking a BYOK credential is a declaration to a THIRD
+  PARTY, whose own console still shows a key the customer believes is in use.
+  "Still stored" means any status other than `revoked` — `disabled` is reversible
+  and keeps its secret, so the serving statuses are the wrong test here.

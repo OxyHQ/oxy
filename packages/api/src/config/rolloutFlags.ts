@@ -1,11 +1,11 @@
 /**
  * The inference platform's rollout flags (issue #972 workstream 16, "Rollout").
  *
- * FOUR switches, declared here and nowhere else, one per surface the epic names:
- * the new authentication lane, the public API edge, the ledger and the
- * catalogue. {@link describeRolloutFlags} renders all four at once, so "what is
- * on in production" is one call rather than a grep — and `GET
- * /inference/admin/rollout` is that call over HTTP.
+ * FIVE switches, declared here and nowhere else: the new authentication lane,
+ * the public API edge, the ledger, the catalogue, and the privacy/security
+ * review a public launch is gated on. {@link describeRolloutFlags} renders all
+ * five at once, so "what is on in production" is one call rather than a grep —
+ * and `GET /inference/admin/rollout` is that call over HTTP.
  *
  * ## Every one of them defaults to the state that does nothing
  *
@@ -16,6 +16,10 @@
  * defaulting to the dangerous side. Each default is asserted in
  * `__tests__/rolloutFlags.test.ts` with the environment explicitly cleared, so
  * the assertion fails if a default is ever flipped.
+ *
+ * An unset variable also never asserts that a review HAPPENED — see
+ * {@link resolveInferencePrivacyReview}, whose absence closes the public
+ * audience rather than being read as "nothing to review".
  *
  * ## An unreadable value resolves to the SAFE state, loudly
  *
@@ -42,6 +46,14 @@
  * this deployment; scopes, commercial permission, routing policy and the ledger's
  * own refusals all still apply behind every one of them. Opening a flag can only
  * ever expose a gate that was already there.
+ *
+ * The two dated ones — {@link resolveInferenceCharging} and
+ * {@link resolveInferencePrivacyReview} — are DOCUMENTED SELF-ATTESTATIONS and
+ * nothing more. Nobody checks that the reason names a real commercial decision
+ * or that the reviewer read anything: the mechanism is that the state cannot be
+ * reached by forgetting a variable, and that the readout says who claimed it and
+ * how long ago. An operator who types a name they did not earn has defeated
+ * both, and no amount of parsing in this module changes that.
  */
 
 import { classifyApplicationTier, type ApplicationTier } from '../utils/applicationTier';
@@ -117,15 +129,17 @@ export interface EdgeAudience {
 }
 
 /**
- * Why the edge is closed, when it is. Four arms rather than a boolean, because
+ * Why the edge is closed, when it is. Five arms rather than a boolean, because
  * an operator's next action differs in each: set the variable, nothing at all,
- * fix a typo, or authorize charging before opening to the world.
+ * fix a typo, authorize charging, or record the privacy and security review
+ * before opening to the world.
  */
 export type EdgeClosedReason =
   | 'not_configured'
   | 'closed'
   | 'unreadable'
-  | 'public_requires_charging';
+  | 'public_requires_charging'
+  | 'public_requires_privacy_review';
 
 export type EdgeAudienceResolution =
   | { readonly status: 'open'; readonly audience: EdgeAudience }
@@ -147,6 +161,19 @@ const EDGE_AUDIENCE_SHAPE =
  * resolves CLOSED, and says which of the two to fix. The failure that produces —
  * a launch that visibly does not start — costs an environment variable; the one
  * it prevents is unbounded free inference at internet scale.
+ *
+ * The privacy and security review is the epic's OTHER named prerequisite for
+ * that same step (#972 section 12), and it is checked here for the same reason
+ * and in the same place: the two are separate decisions, taken by different
+ * people, and a launch that has one and not the other is exactly the state a
+ * single combined flag could not express. Both are checked here rather than at
+ * each endpoint, so a fourth endpoint cannot be added without them.
+ *
+ * Charging is checked FIRST, deliberately: an operator arming a public launch
+ * needs one next action at a time, and the charging flag is the one whose
+ * absence also silently changes what every served request DOES (shadow
+ * metering). Neither refusal is more severe than the other; the order only
+ * decides which one an operator is told about first.
  */
 export function resolveEdgeAudience(): EdgeAudienceResolution {
   const configured = process.env[EDGE_AUDIENCE_VARIABLE]?.trim();
@@ -181,6 +208,9 @@ export function resolveEdgeAudience(): EdgeAudienceResolution {
   if (configured === 'public') {
     if (resolveInferenceCharging().status !== 'authorized') {
       return { status: 'closed', reason: 'public_requires_charging' };
+    }
+    if (resolveInferencePrivacyReview().status !== 'reviewed') {
+      return { status: 'closed', reason: 'public_requires_privacy_review' };
     }
     return { status: 'open', audience: { name: 'public', allowedApplicationIds: [] } };
   }
@@ -321,18 +351,25 @@ export function isMachineCredentialLaneEnabled(): boolean {
  */
 export const CHARGING_AUTHORIZED_VARIABLE = 'INFERENCE_CHARGING_AUTHORIZED';
 
-/** `<reason>:<YYYY-MM-DD>`. The reason carries no colon, so the split is exact. */
-const CHARGING_AUTHORIZATION_PATTERN = /^([^:]{1,120}):(\d{4})-(\d{2})-(\d{2})$/;
+/** `<label>:<YYYY-MM-DD>`. The label carries no colon, so the split is exact. */
+const DATED_ATTESTATION_PATTERN = /^([^:]{1,120}):(\d{4})-(\d{2})-(\d{2})$/;
 
 const CHARGING_AUTHORIZATION_SHAPE =
   '<reason>:<YYYY-MM-DD>, e.g. commercial-launch:2026-08-16 — it states who accepted charging customers, and when';
 
-export type ChargingRefusal =
+/**
+ * How a `<label>:<YYYY-MM-DD>` attestation can be refused.
+ *
+ * ONE union for both dated flags rather than one each: the refusals are the same
+ * four facts about the same grammar, and two copies would let a tightening of
+ * one drift away from the other while both still read as "the same shape".
+ */
+export type DatedAttestationRefusal =
   | 'not_configured'
   /** A bare `true`/`1`/`yes`: the value that arrives by accident. */
   | 'bare_boolean'
   | 'unreadable'
-  /** A date that has not happened. An authorization cannot be pre-dated. */
+  /** A date that has not happened. An attestation cannot be pre-dated. */
   | 'future_date';
 
 export type ChargingAuthorization =
@@ -344,48 +381,82 @@ export type ChargingAuthorization =
       /** Whole days since `authorizedOn`, for the readout. */
       readonly ageInDays: number;
     }
-  | { readonly status: 'shadow'; readonly refusal: ChargingRefusal };
+  | { readonly status: 'shadow'; readonly refusal: DatedAttestationRefusal };
 
 /** The values a boolean-shaped flag would have accepted, refused by name. */
 const BARE_BOOLEANS = ['true', '1', 'yes', 'on', 'enabled'] as const;
 
 const MILLISECONDS_PER_DAY = 86_400_000;
 
-export function resolveInferenceCharging(): ChargingAuthorization {
-  const configured = process.env[CHARGING_AUTHORIZED_VARIABLE]?.trim();
+type ParsedAttestation =
+  | {
+      readonly status: 'attested';
+      /** Whatever stood before the colon: a reason, or a reviewer. */
+      readonly label: string;
+      /** `YYYY-MM-DD`, exactly as configured. */
+      readonly on: string;
+      readonly ageInDays: number;
+    }
+  | { readonly status: 'refused'; readonly refusal: DatedAttestationRefusal };
+
+/**
+ * Read a `<label>:<YYYY-MM-DD>` attestation out of the environment.
+ *
+ * Shared by {@link resolveInferenceCharging} and
+ * {@link resolveInferencePrivacyReview}, which differ only in what the two
+ * halves MEAN — a commercial decision and its date, or a reviewer and the date
+ * they signed off. Every refusal, including the bare-boolean one and the
+ * rolled-date one, is therefore identical by construction rather than by
+ * somebody keeping two copies in step.
+ */
+function parseDatedAttestation(variable: string, shape: string): ParsedAttestation {
+  const configured = process.env[variable]?.trim();
   if (configured === undefined || configured.length === 0) {
-    return { status: 'shadow', refusal: 'not_configured' };
+    return { status: 'refused', refusal: 'not_configured' };
   }
 
   if ((BARE_BOOLEANS as readonly string[]).includes(configured.toLowerCase())) {
-    reportUnreadable(CHARGING_AUTHORIZED_VARIABLE, configured, CHARGING_AUTHORIZATION_SHAPE);
-    return { status: 'shadow', refusal: 'bare_boolean' };
+    reportUnreadable(variable, configured, shape);
+    return { status: 'refused', refusal: 'bare_boolean' };
   }
 
-  const match = CHARGING_AUTHORIZATION_PATTERN.exec(configured);
+  const match = DATED_ATTESTATION_PATTERN.exec(configured);
   if (match === null) {
-    reportUnreadable(CHARGING_AUTHORIZED_VARIABLE, configured, CHARGING_AUTHORIZATION_SHAPE);
-    return { status: 'shadow', refusal: 'unreadable' };
+    reportUnreadable(variable, configured, shape);
+    return { status: 'refused', refusal: 'unreadable' };
   }
 
-  const [, reason, year, month, day] = match;
-  const authorizedOn = `${year}-${month}-${day}`;
-  const parsed = Date.parse(`${authorizedOn}T00:00:00.000Z`);
+  const [, label, year, month, day] = match;
+  const on = `${year}-${month}-${day}`;
+  const parsed = Date.parse(`${on}T00:00:00.000Z`);
   // `Date.parse` accepts `2026-02-31` and rolls it into March, so the round trip
   // is what rejects a date that does not exist. A silently-moved date would put
-  // a wrong day on a financial authorization.
-  if (Number.isNaN(parsed) || new Date(parsed).toISOString().slice(0, 10) !== authorizedOn) {
-    reportUnreadable(CHARGING_AUTHORIZED_VARIABLE, configured, CHARGING_AUTHORIZATION_SHAPE);
-    return { status: 'shadow', refusal: 'unreadable' };
+  // a wrong day on a financial authorization, or on a review.
+  if (Number.isNaN(parsed) || new Date(parsed).toISOString().slice(0, 10) !== on) {
+    reportUnreadable(variable, configured, shape);
+    return { status: 'refused', refusal: 'unreadable' };
   }
 
   const ageInDays = Math.floor((Date.now() - parsed) / MILLISECONDS_PER_DAY);
   if (ageInDays < 0) {
-    reportUnreadable(CHARGING_AUTHORIZED_VARIABLE, configured, CHARGING_AUTHORIZATION_SHAPE);
-    return { status: 'shadow', refusal: 'future_date' };
+    reportUnreadable(variable, configured, shape);
+    return { status: 'refused', refusal: 'future_date' };
   }
 
-  return { status: 'authorized', reason, authorizedOn, ageInDays };
+  return { status: 'attested', label, on, ageInDays };
+}
+
+export function resolveInferenceCharging(): ChargingAuthorization {
+  const parsed = parseDatedAttestation(CHARGING_AUTHORIZED_VARIABLE, CHARGING_AUTHORIZATION_SHAPE);
+  if (parsed.status === 'refused') {
+    return { status: 'shadow', refusal: parsed.refusal };
+  }
+  return {
+    status: 'authorized',
+    reason: parsed.label,
+    authorizedOn: parsed.on,
+    ageInDays: parsed.ageInDays,
+  };
 }
 
 /**
@@ -448,6 +519,90 @@ export function isCataloguePublished(): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  5. The privacy and security review a public launch is gated on            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `INFERENCE_PRIVACY_REVIEW=<reviewer>:<YYYY-MM-DD>` — whether the privacy and
+ * security review #972 section 12 requires before a public launch has been
+ * recorded for this deployment.
+ *
+ * ## Why it is a flag and not a document
+ *
+ * The review itself is human work and this module cannot do any of it. What it
+ * can do is make the review's ABSENCE stop a public launch, which is the half
+ * that was missing: every item section 12 asks for could be outstanding and
+ * `INFERENCE_EDGE_AUDIENCE=public` would still serve the world, because nothing
+ * anywhere read a privacy decision. Now the launch does not start until somebody
+ * has put their name and a date against it.
+ *
+ * `INFERENCE_CHARGING_AUTHORIZED` is the precedent and NOT a substitute: it
+ * records a COMMERCIAL acceptance — that Oxy may take money — which is a
+ * different decision, usually taken by a different person, and a deployment can
+ * legitimately be in either state without the other.
+ *
+ * ## The same shape, and the same refusal of a bare `true`
+ *
+ * `<reviewer>:<YYYY-MM-DD>`, parsed by {@link parseDatedAttestation}, so
+ * `true`, `1`, `yes`, `on` and `enabled` are refused by name and a future date is
+ * refused as well. The reasoning is the charging flag's, unchanged: `true` is
+ * what a copied task definition carries and what somebody types to see whether a
+ * flag does anything, whereas `security-privacy-review:2026-08-16` is not typed
+ * by accident and records the two things an auditor asks — who reviewed it, and
+ * when.
+ *
+ * ## It does not expire either
+ *
+ * For the reason argued above {@link resolveInferenceCharging}: at public scale a
+ * lapsed attestation either refuses every request or serves the world anyway, and
+ * both are worse than an age reported beside the flag. A review whose findings
+ * have gone stale is re-run and the variable re-stamped; the readout's
+ * `ageInDays` is what makes "when was this last looked at" answerable without
+ * asking anybody.
+ *
+ * ## What this is NOT
+ *
+ * Not an authorization control, and not evidence that any item in section 12 was
+ * fixed. It is a self-attested gate — the module header says the same about the
+ * other four — whose whole mechanism is that the state cannot be reached by
+ * forgetting a variable, and that the readout names who claimed it.
+ */
+export const PRIVACY_REVIEW_VARIABLE = 'INFERENCE_PRIVACY_REVIEW';
+
+const PRIVACY_REVIEW_SHAPE =
+  '<reviewer>:<YYYY-MM-DD>, e.g. security-privacy-review:2026-08-16 — it states who signed off the privacy and security review, and when';
+
+export type PrivacyReviewResolution =
+  | {
+      readonly status: 'reviewed';
+      /** Who signed the review off. Never a secret — it names a person or a team. */
+      readonly reviewer: string;
+      /** `YYYY-MM-DD`, exactly as configured. */
+      readonly reviewedOn: string;
+      /** Whole days since `reviewedOn`, so a stale review is visible. */
+      readonly ageInDays: number;
+    }
+  | { readonly status: 'unreviewed'; readonly refusal: DatedAttestationRefusal };
+
+export function resolveInferencePrivacyReview(): PrivacyReviewResolution {
+  const parsed = parseDatedAttestation(PRIVACY_REVIEW_VARIABLE, PRIVACY_REVIEW_SHAPE);
+  if (parsed.status === 'refused') {
+    return { status: 'unreviewed', refusal: parsed.refusal };
+  }
+  return {
+    status: 'reviewed',
+    reviewer: parsed.label,
+    reviewedOn: parsed.on,
+    ageInDays: parsed.ageInDays,
+  };
+}
+
+/** Whether this deployment has recorded the review a public launch is gated on. */
+export function isPrivacyReviewRecorded(): boolean {
+  return resolveInferencePrivacyReview().status === 'reviewed';
+}
+
+/* -------------------------------------------------------------------------- */
 /*  The readout                                                               */
 /* -------------------------------------------------------------------------- */
 
@@ -472,12 +627,22 @@ export interface RolloutFlagReport {
     readonly authorizedOn: string | null;
     readonly ageInDays: number | null;
     readonly shadowMetering: boolean;
-    readonly refusal: ChargingRefusal | null;
+    readonly refusal: DatedAttestationRefusal | null;
   };
   readonly catalogue: {
     readonly variable: string;
     readonly audience: CatalogueAudienceName;
     readonly reason: CatalogueAudienceResolution['reason'];
+  };
+  readonly privacyReview: {
+    readonly variable: string;
+    readonly authorized: boolean;
+    /** Present only when recorded. Never a secret — it names a reviewer. */
+    readonly reviewer: string | null;
+    readonly reviewedOn: string | null;
+    /** How long ago the review was signed off. A stale review is still armed. */
+    readonly ageInDays: number | null;
+    readonly refusal: DatedAttestationRefusal | null;
   };
 }
 
@@ -485,7 +650,7 @@ export interface RolloutFlagReport {
  * Every rollout flag, resolved, in one object.
  *
  * The point of the module: "what is on in production" is answerable without
- * knowing which four variables to grep for, and every arm carries WHY, so a flag
+ * knowing which five variables to grep for, and every arm carries WHY, so a flag
  * that is off because it was mistyped is distinguishable from one that is off
  * because nobody set it.
  *
@@ -498,6 +663,7 @@ export function describeRolloutFlags(): RolloutFlagReport {
   const lane = resolveMachineCredentialLane();
   const charging = resolveInferenceCharging();
   const catalogue = resolveCatalogueAudience();
+  const privacyReview = resolveInferencePrivacyReview();
 
   return {
     edge: {
@@ -525,6 +691,14 @@ export function describeRolloutFlags(): RolloutFlagReport {
       variable: CATALOGUE_AUDIENCE_VARIABLE,
       audience: catalogue.name,
       reason: catalogue.reason,
+    },
+    privacyReview: {
+      variable: PRIVACY_REVIEW_VARIABLE,
+      authorized: privacyReview.status === 'reviewed',
+      reviewer: privacyReview.status === 'reviewed' ? privacyReview.reviewer : null,
+      reviewedOn: privacyReview.status === 'reviewed' ? privacyReview.reviewedOn : null,
+      ageInDays: privacyReview.status === 'reviewed' ? privacyReview.ageInDays : null,
+      refusal: privacyReview.status === 'unreviewed' ? privacyReview.refusal : null,
     },
   };
 }

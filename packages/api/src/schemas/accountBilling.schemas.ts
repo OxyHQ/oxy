@@ -200,12 +200,29 @@ export const costCenterSpendQuery = z
  * centres would get them anyway, and only omitting the parameter entirely — via
  * the default — would ever mean false. The transform below is what makes the
  * flag say what it reads as.
+ *
+ * ## Why the boolean arm exists: a TRANSFORMING schema must be IDEMPOTENT here
+ *
+ * `middleware/validate.ts` writes its parsed output BACK onto `req.query`, and
+ * every route in this repository then parses again in the handler to obtain a
+ * typed value without a cast. For a schema that only narrows strings, the second
+ * parse is a no-op. For a schema that TRANSFORMS, it is fed its own output —
+ * so a string-only `includeRetired` sees a boolean, raises `invalid_type`
+ * outside any validation boundary, and the route answers 500.
+ *
+ * That is not hypothetical: `GET /billing/cost-centers` did exactly this on
+ * EVERY request, including the default one with no parameter at all, from the day
+ * it was written until `routes/__tests__/staffCapabilityGates.test.ts` called it.
+ * No test had ever issued the request.
+ *
+ * So the schema accepts its own output as well as its input. The refusal
+ * behaviour is unchanged — `'no'`, `'0'`, `'FALSE'` and `''` are still refused
+ * rather than guessed, which is the property the paragraph above is about.
  */
 export const costCenterListQuery = z
   .object({
     includeRetired: z
-      .enum(['true', 'false'])
-      .default('false')
-      .transform((value) => value === 'true'),
+      .union([z.enum(['true', 'false']).transform((value) => value === 'true'), z.boolean()])
+      .default(false),
   })
   .strict();

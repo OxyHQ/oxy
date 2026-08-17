@@ -155,6 +155,10 @@ export {
     authMethodEntrySchema,
     authMethodsResponseSchema,
     exportAttestationSchema,
+    exportUsageReceiptSchema,
+    exportLedgerEntrySchema,
+    exportUsageReservationSchema,
+    exportFinancialSectionSchema,
     exportBundleSchema,
 } from './identity';
 
@@ -171,6 +175,10 @@ export type {
     AuthMethodEntry,
     AuthMethodsResponse,
     ExportAttestation,
+    ExportUsageReceipt,
+    ExportLedgerEntry,
+    ExportUsageReservation,
+    ExportFinancialSection,
     ExportBundle,
 } from './identity';
 

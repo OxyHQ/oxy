@@ -43,6 +43,22 @@ describe('costCenterListQuery', () => {
       expect(costCenterListQuery.safeParse({ includeRetired: value }).success).toBe(false);
     }
   });
+
+  /**
+   * Parsing this schema's OWN OUTPUT must succeed, because that is what happens
+   * on every request: `middleware/validate.ts` writes the parsed query back onto
+   * `req.query` and the handler parses it again to get a typed value. A
+   * string-only schema fails that second parse with `invalid_type` outside any
+   * validation boundary, which is a 500 on a read — measured on
+   * `GET /billing/cost-centers`, on every request, for as long as the route
+   * existed.
+   */
+  it('parses its own output, in both positions', () => {
+    for (const input of [{}, { includeRetired: 'true' }, { includeRetired: 'false' }] as const) {
+      const once = costCenterListQuery.parse(input);
+      expect(costCenterListQuery.parse(once)).toEqual(once);
+    }
+  });
 });
 
 describe('the money-moving bodies are strict', () => {

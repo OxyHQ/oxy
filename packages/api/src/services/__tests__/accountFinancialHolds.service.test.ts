@@ -22,10 +22,16 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import { uuidv7 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { billingSubscriptions } from '../../db/schema/billingSubscriptions';
+import {
+  inferenceProviderConnections,
+  type ProviderConnectionStatusValue,
+} from '../../db/schema/inferenceProviderConnections';
+import { inferenceProviders } from '../../db/schema/inferenceProviders';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
 import { users } from '../../db/schema/users';
 import {
@@ -135,6 +141,50 @@ describe('the blocking set is read from the catalogue', () => {
   });
 });
 
+/**
+ * A BYOK connection row in a chosen status.
+ *
+ * `secret_ref` must satisfy two database CHECKs — the store-prefixed grammar and
+ * the partition suffix `/<environment>/<owner_account_id>/<id>` — so the id is
+ * generated here rather than defaulted, which is the only way to name it inside
+ * the reference.
+ */
+async function seedProviderConnection(
+  accountId: string,
+  status: ProviderConnectionStatusValue
+): Promise<string> {
+  const tag = randomUUID().replace(/-/g, '').slice(0, 10);
+  const provider = `prv${tag}`;
+  await getDb().insert(inferenceProviders).values({
+    slug: provider,
+    displayName: 'Holds Fixture Provider',
+    kind: 'customer_byok',
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+  });
+
+  const id = uuidv7();
+  const environment = 'production';
+  await getDb()
+    .insert(inferenceProviderConnections)
+    .values({
+      id,
+      provider,
+      ownerAccountId: accountId,
+      scopeKind: 'account',
+      applicationId: null,
+      environment,
+      status,
+      secretRef: `secretsmanager:oxy/inference/byok/${environment}/${accountId}/${id}`,
+      keyPrefix: 'sk-live-1234',
+      fingerprint: 'a'.repeat(64),
+      validationState: 'unvalidated',
+    });
+  return id;
+}
+
 describe('an account that has never transacted', () => {
   it('reports nothing standing in the way', async () => {
     const accountId = await seedAccount();
@@ -143,7 +193,69 @@ describe('an account that has never transacted', () => {
     expect(holds.blocksHardDelete).toBe(false);
     expect(holds.hasLiveSubscription).toBe(false);
     expect(holds.heldReservations).toBe(0);
+    expect(holds.hasLiveProviderConnection).toBe(false);
+    expect(holds.liveProviderConnections).toEqual([]);
     expect(holds.retainedRecords).toEqual([]);
+  });
+});
+
+/**
+ * The arm that is not financial (#972 section 12).
+ *
+ * `inference_provider_connections.owner_account_id` is `RESTRICT` so that account
+ * deletion cannot orphan a credential in the secret store, and its schema comment
+ * promises "Account deletion must revoke these first, which is a deliberate, loud
+ * step". The step did not exist: an account with a live connection archived and
+ * the row stayed live, with its credential still in the store and the table
+ * listed among the records Oxy claimed to be retaining for legal reasons.
+ *
+ * The status axis is the whole claim, so all three positions are asserted. A test
+ * that only checked `active` would pass identically against a query reading
+ * `status = 'active'`, which would let a DISABLED connection's credential — one
+ * whose secret is very much still there — outlive its owner.
+ */
+describe('a BYOK connection whose credential is still in the secret store', () => {
+  it('is reported for an ACTIVE connection, by id', async () => {
+    const accountId = await seedAccount();
+    const connectionId = await seedProviderConnection(accountId, 'active');
+
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.hasLiveProviderConnection).toBe(true);
+    expect(holds.liveProviderConnections).toEqual([connectionId]);
+  });
+
+  it('is reported for a DISABLED connection, which keeps its secret', async () => {
+    const accountId = await seedAccount();
+    const connectionId = await seedProviderConnection(accountId, 'disabled');
+
+    const holds = await describeAccountFinancialHolds(accountId);
+    // `disabled` is reversible and only `revoke` destroys a stored credential, so
+    // "may a request be served through it" is the wrong question here.
+    expect(holds.liveProviderConnections).toEqual([connectionId]);
+  });
+
+  it('is reported for a connection still PENDING VALIDATION', async () => {
+    const accountId = await seedAccount();
+    const connectionId = await seedProviderConnection(accountId, 'pending_validation');
+
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.liveProviderConnections).toEqual([connectionId]);
+  });
+
+  it('is NOT reported once revoked — the negative control on the status axis', async () => {
+    const accountId = await seedAccount();
+    await seedProviderConnection(accountId, 'revoked');
+
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.hasLiveProviderConnection).toBe(false);
+    expect(holds.liveProviderConnections).toEqual([]);
+    // But the row still BLOCKS a hard delete, and that is the distinction the
+    // readout's own documentation now makes: a blocking reference is not the same
+    // thing as a financial record.
+    expect(holds.blocksHardDelete).toBe(true);
+    expect(holds.retainedRecords.map((record) => record.table)).toContain(
+      'inference_provider_connections'
+    );
   });
 });
 

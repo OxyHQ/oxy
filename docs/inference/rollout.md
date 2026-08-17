@@ -10,7 +10,7 @@ Read [README.md](./README.md) for what is built, and
 
 ---
 
-## The four flags
+## The five flags
 
 They live in one module — `packages/api/src/config/rolloutFlags.ts` — and they
 are readable in one call: `GET /inference/admin/rollout` (staff only) returns
@@ -22,8 +22,9 @@ every flag, its resolved state, and the reason for that state.
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `enabled` · `disabled` | **disabled** | Whether an `oxy_sk_…` machine credential authenticates at all |
 | `INFERENCE_CHARGING_AUTHORIZED` | `<reason>:<YYYY-MM-DD>` | **shadow metering — nobody is charged** | Whether the edge reserves, settles and moves money |
 | `INFERENCE_CATALOGUE_AUDIENCE` | `internal` · `public` | **internal** | Whether a public viewer is served the published catalogue |
+| `INFERENCE_PRIVACY_REVIEW` | `<reviewer>:<YYYY-MM-DD>` | **no review recorded — a public audience stays closed** | Whether the privacy and security review a public launch is gated on has been recorded |
 
-None of them is a secret — each names a deployment STATE — so all four belong in
+None of them is a secret — each names a deployment STATE — so all five belong in
 the ECS task definition's plain environment and never in SSM.
 
 ### Every default is the state that does nothing
@@ -81,6 +82,145 @@ unpriced, and that is what the shadow period is for.
 
 ---
 
+## The privacy and security review gate
+
+`INFERENCE_EDGE_AUDIENCE=public` with no review recorded also resolves
+**closed**, with the reason `public_requires_privacy_review`. It is the second
+precondition on the same step, and it is separate from charging because the two
+are different decisions usually taken by different people: charging records that
+Oxy may take money, this records that somebody has looked at what serving the
+whole internet does to people's data.
+
+```
+INFERENCE_PRIVACY_REVIEW=security-privacy-review:2026-08-16
+```
+
+`<reviewer>:<YYYY-MM-DD>`, and a bare `true`, `1`, `yes`, `on` or `enabled` is
+refused by name, for the reason the charging flag refuses them: `true` is the
+value that arrives by accident — what a copied task definition carries and what
+somebody types to see whether a flag does anything. A future date is refused too;
+a review cannot be pre-dated. It does not expire, for the reason argued above
+about charging, and the readout carries `ageInDays` so "when was this last looked
+at" is answerable without asking anybody.
+
+### THIS IS A DOCUMENTED SELF-ATTESTATION, NOT AN AUTHORIZATION CONTROL
+
+Nobody checks that the reviewer named is a real person, that they read anything,
+or that any finding was fixed. The same is true of the other four flags — they
+"are not authorization", as `rolloutFlags.ts` puts it — and it is worth saying
+plainly here because this is the flag most likely to be mistaken for evidence.
+What the mechanism buys is exactly two things:
+
+- the state cannot be reached by FORGETTING a variable, which is the failure mode
+  a review gate actually has;
+- the readout names who claimed it and how long ago, so the claim is attributable.
+
+An operator who types a name they did not earn has defeated both, and no amount
+of parsing in that module changes it.
+
+### What the review must cover
+
+The rows of [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972) section 12,
+plus section 10's secret-storage row. Each is a question with a current answer in
+this repository, so the review is a re-check rather than a survey:
+
+| What | Where it stands today |
+|---|---|
+| Debug payload retention: opt-in, time-limited, encrypted, audited | **Not built, and there is nothing to opt into** — no table in this schema carries a prompt or a completion. [data-policy.md](./data-policy.md) states it. "Encrypted" blocks on the same absent KMS backend as the secret store, so building it before that would be a half-control. |
+| PII redaction for opted-in traces | No traces exist to redact. The adjacent control that DOES exist is the credential refusal in free error text (`@oxyhq/contracts`' `safeErrorTextSchema`, enforced at `utils/inferenceEdgeErrors.ts`). |
+| Deletion and export preserve legally required financial records | `DELETE /users/me` refuses a live subscription, a held reservation and a live BYOK connection, then erases everything optional and ARCHIVES rather than deletes when financial history blocks. `GET /users/me/export` carries the account's own receipts, ledger entries and holds. **Open: an archived account is not anonymised** — it keeps its username, email and display name, and that is an owner decision, not a code gap. |
+| No upstream provider key in logs, traces, metrics, errors or responses | Structural: `ProviderSecretValue`'s runtime-private `#value` plus three overridden serialisers. Plus a logger-level `redact` FLOOR (`utils/logger.ts`), which is defence in depth and covers one level of nesting only. |
+| Secret scanning and accidental-serialization tests | Serialization tests exist and are strong. Secret scanning in CI is a separate workstream. |
+| Rotation runbooks and break-glass | The flag-side break-glass is [The rollback plan](#the-rollback-plan) below. Store-side rotation cannot be written truthfully until a secret store exists; it belongs in `oxy-infra`'s `docs/runbooks/`. |
+| Least-privilege admin roles | Graded staff capabilities (`users.staff_capabilities`) on the highest-value writes: catalogue publication, balance adjustment, cost centres. Read-only staff surfaces stay on the plain `is_staff` flag. |
+| Rate limits and fraud controls | See [Fraud controls](#fraud-controls-and-what-is-deliberately-left-open) below. |
+| Provider secrets in Vault/KMS, not Postgres | Done for everything in Oxy's control — only a locator is stored, and every path that would accept a credential refuses with `503` because no store backend ships in this build. |
+
+### Ordering
+
+Arm it in the order the readout reports, and never as a batch: the review is the
+prerequisite for the audience, so `INFERENCE_PRIVACY_REVIEW` and
+`INFERENCE_CHARGING_AUTHORIZED` are both set BEFORE
+`INFERENCE_EDGE_AUDIENCE=public`. A rollback reverses that — see
+[Step 1](#step-1--stop-the-flow), which is unchanged: clear charging first, and
+close the audience only if the problem is the serving itself.
+
+---
+
+## Fraud controls, and what is deliberately left open
+
+The inference edge is already bounded four ways and this workstream added no
+fifth: `rl:inference:edge:` at 600/60s per credential, `rl:machine:credential:`
+at 60/min per credential, `rl:machine:application:` at 300/min per application,
+and a request-size cap checked on `content-length` before authentication. A
+single application is therefore capped at 300/min across every credential it
+mints, which is the layer that makes the per-credential limit mean anything.
+
+So the two controls added here sit where the money is, not where the requests
+are.
+
+### Top-up velocity, per billing profile
+
+`rl:billing:topup:` — 10 checkout sessions per hour, keyed on the resolved PAYER
+(`billing_profiles.account_id`).
+
+The route already had an IP-keyed limiter, and two ordinary things defeat it: the
+same profile probed from many addresses, and the same payer addressed through many
+account ids, because a project that inherits its organization's profile can be
+named by any account in the subtree — many ids, one payer, one card. So the payer
+is resolved and AUTHORISED before the limiter reads its key, which also means a
+stranger cannot exhaust somebody else's budget by hammering their account id.
+
+It is a velocity ceiling and not card-testing detection. Ten is far above any
+honest funding pattern and far below what probing needs to be useful.
+
+### Spend anomaly, per account and hour
+
+An account whose inference spend in one hour exceeds `N ×` its own trailing daily
+median is recorded in `inference_spend_anomalies` and logged as
+`inference.spend.anomaly`. `N` is `INFERENCE_SPEND_ANOMALY_MULTIPLE`, default
+**3** — an hour is a twenty-fourth of a day, so 3× a normal DAY is roughly seventy
+times the account's usual hourly rate. `GET /inference/admin/spend-anomalies`
+(staff) is the readout.
+
+**It blocks nothing, deliberately.** The expensive error here is the false
+positive: an automated hard stop on a spend multiple takes a paying customer's
+production traffic down during precisely the launch, migration or backfill that
+made their spend jump, and does it with nobody deciding. A customer who wants
+their own spend stopped has `spending_limits`, which already refuse inside
+`reserve`.
+
+Four things keep it from being noise, each argued in
+`services/spendAnomaly.service.ts`: the baseline excludes the current day so a
+spike cannot raise its own baseline; an account needs seven days of history before
+it can be flagged at all; a zero median is excluded, because every multiple of
+zero is exceeded; and the comparison is per currency, because adding USD to EUR
+produces a number that is not money.
+
+Both sides of the comparison come from `usage_receipts` and not from
+`inference_usage_daily_rollups`, which cannot answer the question in either
+dimension — it carries no money column, and its grain is a calendar day. Using it
+would mean detecting a TOKEN spike and calling it a spend spike.
+
+### Left open, on purpose
+
+Two things #972 could be read as asking for are NOT built, and are product
+decisions rather than gaps to be closed quietly:
+
+- **A first-charge hold** — making a new customer's first top-up unspendable for
+  a period. That is a customer-visible commercial policy about who is trusted with
+  what, and building it as a side effect of a security workstream would ship a
+  policy nobody chose.
+- **Card-testing detection** — inferring from decline patterns that a card is
+  being probed. The signal lives largely at the processor, the false-positive cost
+  falls on real customers at checkout, and the rule set is a product decision.
+
+Neither is required by the ordering the flags enforce: prepaid public inference
+cannot be switched on without charging AND the privacy review, and both of these
+belong to the conversation that happens before the review is signed.
+
+---
+
 ## Shadow metering
 
 While `INFERENCE_CHARGING_AUTHORIZED` is unset, the edge does everything it
@@ -131,13 +271,16 @@ with.
 These are operational states. The code does not decide when to enter one; it
 decides that each is expressible, enforceable, and answerable from one endpoint.
 
-| Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` |
-|---|---|---|---|---|
-| Today, every deployment | unset | unset | unset | unset |
-| Internal Alia canary | `internal` | unset | unset | unset |
-| Oxy first-party canary | `first_party` | `enabled` | unset | unset |
-| Closed external beta | `allowlist:<appId>,…` | `enabled` | unset | `public` |
-| Prepaid public launch | `public` | `enabled` | `<reason>:<date>` | `public` |
+| Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` | `INFERENCE_PRIVACY_REVIEW` |
+|---|---|---|---|---|---|
+| Today, every deployment | unset | unset | unset | unset | unset |
+| Internal Alia canary | `internal` | unset | unset | unset | unset |
+| Oxy first-party canary | `first_party` | `enabled` | unset | unset | unset |
+| Closed external beta | `allowlist:<appId>,…` | `enabled` | unset | `public` | unset |
+| Prepaid public launch | `public` | `enabled` | `<reason>:<date>` | `public` | `<reviewer>:<date>` |
+
+The review is required only for `public`, exactly as charging is: a bounded,
+named audience runs without either.
 
 The audiences are cumulative: a stage never locks out the previous stage's
 callers, because an advance that did would be an outage for the people already
@@ -280,7 +423,7 @@ rest on the rollback being done carefully:
 
 ### What to check after a rollback
 
-1. `GET /inference/admin/rollout` — the resolved state of all four flags, with
+1. `GET /inference/admin/rollout` — the resolved state of all five flags, with
    the reason for each. `charging.shadowMetering: true` is the assertion that the
    flow has stopped.
 2. `inference.edge.shadow_metered` log lines appearing again, which is what
