@@ -1041,6 +1041,29 @@ router.post(
       );
     }
 
+    // A privileged scope the APPLICATION holds is not a privileged scope any
+    // member may put on a new long-lived credential. `authorizeRequestedScopes`
+    // makes adding one to the application staff-only; without the same filter
+    // here, a member holding `credentials:create` (the `developer` role does, and
+    // it carries no `account:update`) could mint a credential carrying a scope
+    // staff granted for the application's own use, and act with it. The account
+    // credential path has always had this check — `accounts.ts`, "Privileged
+    // scopes … are NOT self-grantable" — so the two now read the same.
+    //
+    // Defence in depth rather than the whole fix: `POST
+    // /:appId/credentials/:credId/rotate` copies the previous credential's
+    // scopes forward and returns a fresh secret, so this cannot be the only
+    // thing standing between a member and a privileged credential. The surfaces
+    // that matter refuse the machine lane outright (issue #972 §3).
+    if (!isStaffUser(req)) {
+      const privileged = requestedScopes.filter((scope) => isPrivilegedScope(scope));
+      if (privileged.length > 0) {
+        throw new ForbiddenError(
+          `Granting the scope(s) [${privileged.join(', ')}] requires Oxy platform staff privileges`
+        );
+      }
+    }
+
     const { publicKey, secret, secretHash } = generateCredentialMaterial();
     const machineToken = isMachineCredential ? generateMachineCredentialToken() : null;
     const isPublicClient = body.type === 'public';

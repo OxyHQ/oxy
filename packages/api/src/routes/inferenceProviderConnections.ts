@@ -11,17 +11,35 @@
  * ## Two principals, the same two lanes the routing policies use
  *
  * A user bearer is authorised through the account graph
- * (`resolveCallerAccountAccess` / `resolveCallerApplicationAccess`); a service
- * token is authorised by `inference:providers:read` / `inference:providers:write`
- * intersected with its application's own scopes at mint time, and may only ever
- * reach ITS OWN application's or owner account's connections.
- * `inference:providers:write` is STAFF-GATED (`PRIVILEGED_APPLICATION_SCOPES`),
- * which is deliberate and is the reason a service credential can manage BYOK at
- * all: it is the scope whose misuse redirects other people's requests and the
- * secrets used to serve them.
+ * (`resolveCallerAccountAccess` / `resolveCallerApplicationAccess`), needing
+ * `inference:providers:read` / `inference:providers:write` on the account lane
+ * and `inference:byok:read` / `inference:byok:write` on the application lane.
+ * Those replaced `account:read`/`account:update` and `app:read`/`app:update`
+ * (issue #972 §3), so that rotating a provider secret is no longer the same
+ * permission as changing a webhook URL: an `editor` may edit an application and
+ * may not touch its BYOK, and a `viewer` no longer reads provider metadata by
+ * inheriting `account:read`. Both narrowings are restorable per member through
+ * `permission_grants`.
+ *
+ * A service token is authorised by `inference:providers:read` /
+ * `inference:providers:write` intersected with its application's own scopes at
+ * mint time, and may only ever reach ITS OWN application's or owner account's
+ * connections — and only to READ them. **There is no write lane for a service
+ * credential on this surface at all**; see {@link refuseServiceWrite} for the
+ * escalation that closed it. `inference:providers:write` remains STAFF-GATED
+ * (`PRIVILEGED_APPLICATION_SCOPES`) and still bounds what an application may be
+ * granted, but holding it is no longer a substitute for holding the permission.
  *
  * The dispatch is byte-for-byte the arrangement in `inferenceRoutingPolicies.ts`
  * and defines no third parsing path.
+ *
+ * `POST /:connectionId/validation` is inside that refusal, and the consequence is
+ * deliberate: the credential check runs where the credential is, so the verdict's
+ * natural reporter is the data plane, and an `invalid` verdict also DISABLES the
+ * connection. Leaving the lane open for it would have left a disable-equivalent
+ * open to exactly the credential this refusal exists to stop. When the data plane
+ * needs to report a verdict it needs a principal designed for that, not a
+ * customer-mintable service token — recorded in `docs/inference/byok.md`.
  *
  * ## Order of checks on a write, and why it is this order
  *
@@ -182,6 +200,62 @@ function authorOf(principal: ProviderPrincipal): string {
 /*  Authorization                                                             */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A service credential may not change BYOK configuration. Throws the refusal.
+ *
+ * This is the same answer `accountBilling.ts` gives on the financially
+ * equivalent surface, for the same reason: registering, rotating or destroying a
+ * provider credential is a decision a person holding
+ * `inference:providers:write` makes, and a machine credential that could make it
+ * would put an account's provider configuration — and the secrets used to serve
+ * its traffic — behind a key that lives in a deployment environment.
+ *
+ * ## The escalation this closes (issue #972 §3)
+ *
+ * The service lane used to check the SCOPE and the owner match and then return,
+ * never consulting an account permission at all, while the user lane on the very
+ * same function required `account:update` — which only `owner` and `admin` hold.
+ * Ten lines apart, and the asymmetry was invisible. So, entirely inside one
+ * tenant: a member with the `developer` role holds `credentials:create` and
+ * `credentials:rotate` but not `account:update`; they mint (or rotate, which
+ * copies `scopes` verbatim and re-issues a working secret) a `service` credential
+ * carrying `inference:providers:write`; and with that token they register, rotate
+ * and destroy provider secrets they would be refused as a signed-in user.
+ *
+ * Staff-gating the scope does not close it, and neither does filtering privileged
+ * scopes at credential CREATE: `POST /:appId/credentials/:credId/rotate` carries
+ * the previous credential's scopes forward and hands back a fresh secret, so a
+ * single staff-granted credential is enough. The only thing that closes it is
+ * refusing the lane, which is what this does.
+ *
+ * ## Why the scope is checked BEFORE this refusal
+ *
+ * Both checks stay live, and the refusal becomes testable only by REPRODUCING
+ * the escalation — a token that reaches it is one that genuinely carries
+ * `inference:providers:write`. Ordered the other way, a scopeless token would
+ * trigger the refusal too, and a test could then pass without ever building the
+ * credential the attack needs.
+ *
+ * ## It is an ALLOW-LIST, and that is the point
+ *
+ * The two reads below are the whole of what a service credential may ask for on
+ * this surface; anything else is refused. Written as a check for the two WRITE
+ * spellings it would fail OPEN for a permission added later — and the classifying
+ * decision would sit at each call site, where the next person to add a write can
+ * forget it. Here there is one place, and forgetting it denies rather than
+ * permits. Same shape as `accountBilling.ts`, whose allow-list has one entry.
+ */
+const SERVICE_PERMITTED_PERMISSIONS: readonly (AccountPermission | ApplicationPermission)[] = [
+  'inference:providers:read',
+  'inference:byok:read',
+];
+
+function refuseServiceWrite(permission: AccountPermission | ApplicationPermission): void {
+  if (!SERVICE_PERMITTED_PERMISSIONS.includes(permission)) {
+    throw new ForbiddenError('A service credential may not change provider connections');
+  }
+}
+
 /** May this principal act on `accountId`'s connections? Throws the refusal. */
 async function authorizeAccount(
   principal: ProviderPrincipal,
@@ -193,6 +267,7 @@ async function authorizeAccount(
     if (!principal.service.scopes.includes(scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
+    refuseServiceWrite(permission);
     if (principal.service.ownerAccountId !== accountId) {
       throw new NotFoundError('No provider connection is available for that account');
     }
@@ -219,6 +294,10 @@ async function authorizeApplication(
     if (!principal.service.scopes.includes(scope)) {
       throw new ForbiddenError(`This credential does not carry the ${scope} scope`);
     }
+    // Same refusal as the account lane, and it has to be on both: an
+    // application-scoped connection belongs to the same account and holds the
+    // same kind of secret. See {@link refuseServiceWrite}.
+    refuseServiceWrite(permission);
     // A service token reaches only its OWN application. Without this, any
     // credential holding the scope could read or repoint any tenant's BYOK.
     if (principal.service.appId !== applicationId) {
@@ -368,7 +447,7 @@ router.get(
     await authorizeAccount(
       principalOf(req),
       accountId,
-      'account:read',
+      'inference:providers:read',
       'inference:providers:read'
     );
 
@@ -390,7 +469,12 @@ router.post(
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { accountId } = providerConnectionAccountParams.parse(req.params);
     const principal = principalOf(req);
-    await authorizeAccount(principal, accountId, 'account:update', 'inference:providers:write');
+    await authorizeAccount(
+      principal,
+      accountId,
+      'inference:providers:write',
+      'inference:providers:write'
+    );
 
     const store = providerSecretStoreOr503();
     const body = providerConnectionAccountBody.parse(req.body);
@@ -431,7 +515,12 @@ router.get(
     const { applicationId } = providerConnectionApplicationParams.parse(req.params);
     const { provider, environment } = providerConnectionEffectiveQuery.parse(req.query);
     const principal = principalOf(req);
-    await authorizeApplication(principal, applicationId, 'app:read', 'inference:providers:read');
+    await authorizeApplication(
+      principal,
+      applicationId,
+      'inference:byok:read',
+      'inference:providers:read'
+    );
 
     const resolution = await resolveProviderConnectionForApplication({
       applicationId,
@@ -472,7 +561,7 @@ router.post(
     await authorizeApplication(
       principal,
       applicationId,
-      'app:update',
+      'inference:byok:write',
       'inference:providers:write'
     );
 
@@ -518,7 +607,7 @@ router.post(
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'app:update', account: 'account:update' },
+      { application: 'inference:byok:write', account: 'inference:providers:write' },
       'inference:providers:write'
     );
 
@@ -565,7 +654,7 @@ router.post(
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'app:update', account: 'account:update' },
+      { application: 'inference:byok:write', account: 'inference:providers:write' },
       'inference:providers:write'
     );
 
@@ -587,7 +676,7 @@ router.post(
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'app:update', account: 'account:update' },
+      { application: 'inference:byok:write', account: 'inference:providers:write' },
       'inference:providers:write'
     );
 
@@ -618,7 +707,7 @@ router.post(
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'app:update', account: 'account:update' },
+      { application: 'inference:byok:write', account: 'inference:providers:write' },
       'inference:providers:write'
     );
 
@@ -663,7 +752,7 @@ router.post(
     await authorizeConnection(
       principal,
       connectionId,
-      { application: 'app:update', account: 'account:update' },
+      { application: 'inference:byok:write', account: 'inference:providers:write' },
       'inference:providers:write'
     );
 
@@ -705,7 +794,7 @@ router.get(
     await authorizeConnection(
       principalOf(req),
       connectionId,
-      { application: 'app:read', account: 'account:read' },
+      { application: 'inference:byok:read', account: 'inference:providers:read' },
       'inference:providers:read'
     );
 
@@ -729,7 +818,7 @@ router.get(
     const row = await authorizeConnection(
       principalOf(req),
       connectionId,
-      { application: 'app:read', account: 'account:read' },
+      { application: 'inference:byok:read', account: 'inference:providers:read' },
       'inference:providers:read'
     );
     res.json({ data: toProviderConnection(row) });

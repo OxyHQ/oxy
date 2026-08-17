@@ -31,13 +31,25 @@ under `/inference/routing-policies`:
 | `GET /applications/:applicationId/route-switches` | the customer-visible route-switch record |
 
 Two principals reach these, and they are authorised differently: a **user
-bearer** through the account graph (`app:read`/`app:update`,
-`account:read`/`account:update`, with inheritance and per-member revokes coming
-from the same resolver the applications routes use), and a **service token** by
-scope — `inference:routing:read` to read, `inference:routing:write` to write,
-and only ever for its OWN application or that application's owner account.
-`inference:routing:write` is staff-granted, because it changes what other
-people's requests do.
+bearer** through the account graph, needing `inference:routing:read` to read and
+`inference:routing:write` to write on BOTH lanes (with inheritance and per-member
+revokes coming from the same resolver the applications routes use), and a
+**service token** by scope — `inference:routing:read` to read,
+`inference:routing:write` to write, and only ever for its OWN application or that
+application's owner account. `inference:routing:write` is staff-granted, because
+it changes what other people's requests do.
+
+Those two permissions replaced `app:read`/`app:update` and
+`account:read`/`account:update`, and the narrowing is the point: `app:update`
+conferred "publish an OTA update", "change the webhook URL" AND "repoint where
+inference is served from" as one string, so an account that wanted an `editor` who
+could edit an application but not touch routing had no way to say so. An `editor`
+therefore no longer writes a routing policy and a `billing` member no longer reads
+one; both are restorable for an individual member through `permission_grants`. The
+permission is spelled the same as the scope on purpose — see the header of
+`packages/api/src/utils/accountRoles.ts` for why that is one word for one power
+and not the two lanes collapsing. The equivalent for BYOK, and the full list of
+what makes these high-privilege, is in [byok.md](./byok.md).
 
 ### Writes append; nothing is edited and nothing is deleted
 

@@ -33,6 +33,33 @@
  *  - Workspace member → editor, Workspace viewer → viewer
  *  - Application owner → admin (on the owning account), developer/billing/viewer
  *    → developer/billing/viewer (unchanged)
+ *
+ * ## The `inference:*` permissions are spelled like the `inference:*` SCOPES, on purpose
+ *
+ * Six of the account permissions below (`inference:invoke`,
+ * `inference:routing:read`/`:write`, `inference:providers:read`/`:write`,
+ * `inference:usage:read`) are spelled EXACTLY like entries in
+ * `utils/applicationScopes.ts`'s `APPLICATION_SCOPES`. They are two different
+ * sets over the same strings, and the collision is deliberate: one power, one
+ * word, whichever principal is asking. A route gating the same operation for a
+ * person and for a credential should not need two names for it.
+ *
+ * What keeps that safe is that neither set is ever read from the other's place.
+ * A SCOPE is only ever read off `principal.service.scopes` — what a machine
+ * credential may do, bounded at mint time by its application's own grant. A
+ * PERMISSION is only ever read off `access.accountPermissions` /
+ * `access.applicationPermissions` — what a person may do, resolved from a
+ * membership row through this module. Nothing accepts "either", and the two
+ * answers can differ for the same string on the same request: that is the
+ * escalation the BYOK service lane used to permit (issue #972), where holding
+ * the scope was substituted for holding the permission.
+ *
+ * The APPLICATION vocabulary deliberately does NOT collide: BYOK is
+ * `inference:byok:read`/`:write` there, spellings that appear in no scope list,
+ * and {@link ACCOUNT_COUNTERPART} states the correspondence — the same shape
+ * `app:update` ↔ `apps:update` already has. A reader who finds
+ * `inference:byok:write` therefore knows without checking that they are looking
+ * at a permission and not at a scope.
  */
 
 /**
@@ -41,6 +68,18 @@
  * per-app member table) via {@link appPermissionsForAccountAccess} — the role's
  * baseline WITH the member's own grants and revokes translated into this
  * vocabulary. Routes in `applications.ts` gate on these strings.
+ *
+ * The `inference:*` entries are the app lane of the inference control plane
+ * (issue #972 §3). They exist so that repointing where an application's
+ * inference is served from, and rotating the provider credential it is served
+ * with, are separable from `app:update`. Before them one string conferred
+ * "publish an OTA update", "change the webhook URL" AND "repoint routing and
+ * rotate the BYOK secret", so an account that wanted an editor who could edit an
+ * app but not touch routing had no way to say so. They are deliberately NOT
+ * mapped to `apps:update` in {@link ACCOUNT_COUNTERPART}: unlike
+ * `updates:manage`, a routing repoint is not a stronger FORM of updating the
+ * application's configuration, so a granter of `apps:update` would not expect to
+ * be conferring it.
  */
 export const APPLICATION_PERMISSIONS = [
   'app:read',
@@ -61,10 +100,41 @@ export const APPLICATION_PERMISSIONS = [
   'billing:manage',
   'ownership:transfer',
   'updates:manage',
+  'inference:invoke',
+  'inference:routing:read',
+  'inference:routing:write',
+  'inference:byok:read',
+  'inference:byok:write',
 ] as const;
 
 export type ApplicationPermission = (typeof APPLICATION_PERMISSIONS)[number];
 
+/**
+ * Account-level permissions.
+ *
+ * The `inference:*` entries are the account lane of the same control plane the
+ * application `inference:*` permissions cover, plus `inference:usage:read` for
+ * the spend and token reports, which have no application-lane counterpart of
+ * their own (the app lane reads those through `usage:read`).
+ *
+ * Two of them have NO route gating on them today, and that is deliberate rather
+ * than an oversight:
+ *
+ *  - `inference:invoke`. The inference edge authenticates only credential and
+ *    machine principals (`routes/inferenceEdge.ts`), so a signed-in person cannot
+ *    invoke through a user session at all and there is nothing to gate. It is
+ *    declared now because the moment Console grows a "try it" surface, or an
+ *    account wants a member who may configure inference but not spend on it, the
+ *    missing permission is the thing somebody papers over with `account:read`.
+ *    Declaring it costs nothing — an unheld permission grants nothing — and no
+ *    route was invented to make it reachable.
+ *  - `inference:usage:read`. `routes/inferenceReporting.ts` gates on
+ *    `billing:read` / `billing:manage` and KEEPS doing so: the reports are money,
+ *    and moving them would take them away from the `billing` role. The permission
+ *    is the account-lane name for the already-live `inference:usage:read` SCOPE,
+ *    so the vocabulary can say what a member may see without that being the same
+ *    decision as what they may spend.
+ */
 export const ACCOUNT_PERMISSIONS = [
   'account:read',
   'account:update',
@@ -89,6 +159,12 @@ export const ACCOUNT_PERMISSIONS = [
   'billing:read',
   'billing:manage',
   'ownership:transfer',
+  'inference:invoke',
+  'inference:routing:read',
+  'inference:routing:write',
+  'inference:providers:read',
+  'inference:providers:write',
+  'inference:usage:read',
 ] as const;
 
 export type AccountPermission = (typeof ACCOUNT_PERMISSIONS)[number];
@@ -127,6 +203,12 @@ const ADMIN_PERMISSIONS: readonly AccountPermission[] = [
   'credentials:rotate',
   'credentials:revoke',
   'billing:read',
+  'inference:invoke',
+  'inference:routing:read',
+  'inference:routing:write',
+  'inference:providers:read',
+  'inference:providers:write',
+  'inference:usage:read',
 ];
 
 const EDITOR_PERMISSIONS: readonly AccountPermission[] = [
@@ -139,6 +221,14 @@ const EDITOR_PERMISSIONS: readonly AccountPermission[] = [
   'apps:update',
   'credentials:read',
   'billing:read',
+  // Reads and invoke, no inference WRITES. This is the separation the app-lane
+  // `inference:*` permissions were added for: an editor may edit an application
+  // and may not repoint where its inference is served from, which `apps:update`
+  // alone could not express.
+  'inference:invoke',
+  'inference:routing:read',
+  'inference:providers:read',
+  'inference:usage:read',
 ];
 
 const DEVELOPER_PERMISSIONS: readonly AccountPermission[] = [
@@ -149,6 +239,14 @@ const DEVELOPER_PERMISSIONS: readonly AccountPermission[] = [
   'credentials:create',
   'credentials:rotate',
   'credentials:revoke',
+  // Same inference set as `editor`, and for the same reason. A developer mints
+  // and rotates credentials, which is precisely why they must not hold the BYOK
+  // write: a credential outlives the membership, and `credentials:rotate`
+  // re-issues a working secret for an existing credential's scopes.
+  'inference:invoke',
+  'inference:routing:read',
+  'inference:providers:read',
+  'inference:usage:read',
 ];
 
 const BILLING_PERMISSIONS: readonly AccountPermission[] = [
@@ -156,6 +254,9 @@ const BILLING_PERMISSIONS: readonly AccountPermission[] = [
   'apps:read',
   'billing:read',
   'billing:manage',
+  // Finance, not configuration. The spend and token reports, and nothing about
+  // routing or which provider credential serves a request.
+  'inference:usage:read',
 ];
 
 const VIEWER_PERMISSIONS: readonly AccountPermission[] = [
@@ -163,6 +264,14 @@ const VIEWER_PERMISSIONS: readonly AccountPermission[] = [
   'members:read',
   'children:read',
   'apps:read',
+  // Routing and usage, deliberately NOT `inference:providers:read`. BYOK read
+  // returns no credential material, but it does return which provider an account
+  // uses, a key prefix, a fingerprint and the validation failures — security
+  // configuration rather than the app description a viewer is entitled to. It
+  // used to be inherited from `account:read`, which every role holds; withholding
+  // it here is the decision that inheritance was standing in for.
+  'inference:routing:read',
+  'inference:usage:read',
 ];
 
 export const ROLE_PERMISSIONS: Readonly<Record<AccountRole, readonly AccountPermission[]>> = {
@@ -293,6 +402,11 @@ const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly Application
     'usage:read',
     'billing:read',
     'updates:manage',
+    'inference:invoke',
+    'inference:routing:read',
+    'inference:routing:write',
+    'inference:byok:read',
+    'inference:byok:write',
   ],
   editor: [
     'app:read',
@@ -302,6 +416,9 @@ const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly Application
     'webhooks:read',
     'webhooks:update',
     'usage:read',
+    'inference:invoke',
+    'inference:routing:read',
+    'inference:byok:read',
   ],
   developer: [
     'app:read',
@@ -313,9 +430,12 @@ const APP_PERMISSIONS_BY_ROLE: Readonly<Record<AccountRole, readonly Application
     'webhooks:update',
     'usage:read',
     'updates:manage',
+    'inference:invoke',
+    'inference:routing:read',
+    'inference:byok:read',
   ],
   billing: ['app:read', 'billing:read', 'billing:manage', 'usage:read'],
-  viewer: ['app:read', 'members:read', 'usage:read'],
+  viewer: ['app:read', 'members:read', 'usage:read', 'inference:routing:read'],
 };
 
 /**
@@ -366,6 +486,16 @@ const ACCOUNT_COUNTERPART: Readonly<Record<ApplicationPermission, AccountPermiss
   'billing:manage': 'billing:manage',
   'ownership:transfer': 'ownership:transfer',
   'updates:manage': 'apps:update',
+  // The same power under two spellings, except for BYOK: the account lane calls
+  // it `providers` (an account registers a provider connection) and the
+  // application lane calls it `byok` (an application is served by one). Neither
+  // answers to `apps:read`/`apps:update` — see the note on
+  // {@link APPLICATION_PERMISSIONS} for why containment does not hold here.
+  'inference:invoke': 'inference:invoke',
+  'inference:routing:read': 'inference:routing:read',
+  'inference:routing:write': 'inference:routing:write',
+  'inference:byok:read': 'inference:providers:read',
+  'inference:byok:write': 'inference:providers:write',
 };
 
 /**

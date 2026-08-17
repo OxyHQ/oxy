@@ -44,7 +44,15 @@ jest.mock('../../middleware/auth', () => ({
   },
 }));
 
-jest.mock('../../middleware/requireStaff', () => ({ isStaffUser: () => false }));
+/**
+ * Non-staff by default, flippable for the one case that needs a staff control.
+ * A plain `() => false` could not express "staff MAY do this", which is half of
+ * what makes a staff gate a gate.
+ */
+const mockIsStaffUser = jest.fn(() => false);
+jest.mock('../../middleware/requireStaff', () => ({
+  isStaffUser: () => mockIsStaffUser(),
+}));
 
 const mockRefreshOriginRegistry = jest.fn(async () => {});
 jest.mock('../../config/dynamicOriginRegistry', () => ({
@@ -63,6 +71,7 @@ import applicationsRouter from '../applications';
 import { errorHandler } from '../../middleware/errorHandler';
 import type { AccountPermission, AccountRole } from '../../utils/accountRoles';
 import { permissionsForAccountRole } from '../../utils/accountRoles';
+import type { ApplicationScope } from '../../utils/applicationScopes';
 
 let server: http.Server;
 let currentUserId = '';
@@ -145,10 +154,13 @@ async function seedMember(
   });
 }
 
-async function seedApp(ownerAccountId: string): Promise<string> {
+async function seedApp(
+  ownerAccountId: string,
+  scopes: ApplicationScope[] = []
+): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
-    .values({ name: 'Override App', ownerAccountId, createdByUserId: ownerAccountId })
+    .values({ name: 'Override App', ownerAccountId, createdByUserId: ownerAccountId, scopes })
     .returning({ id: applications.id });
   return row.id;
 }
@@ -184,6 +196,10 @@ async function seedOrgWithApp(
   const appId = await seedApp(org);
   return { org, subject, control, appId };
 }
+
+beforeEach(() => {
+  mockIsStaffUser.mockReturnValue(false);
+});
 
 beforeAll(async () => {
   await connectPostgres();
@@ -309,5 +325,92 @@ describe('a per-member GRANT is honoured by the application RBAC lane', () => {
     currentUserId = control;
     const ungranted = await request('GET', `/applications/${appId}/credentials`);
     expect(ungranted.status).toBe(403);
+  });
+});
+
+/**
+ * A privileged scope is staff-gated on the CREDENTIAL-create path too
+ * (issue #972 §3).
+ *
+ * `authorizeRequestedScopes` makes adding a privileged scope to an APPLICATION
+ * staff-only, and `accounts.ts` has always filtered them on account-credential
+ * create. `applications.ts` did not, so a member holding `credentials:create` —
+ * the `developer` role does, and it carries no `account:update` — could put a
+ * scope staff had granted the application onto a new long-lived credential of
+ * their own and act with it.
+ */
+describe('a privileged scope may not be self-granted onto a new credential', () => {
+  const PRIVILEGED: ApplicationScope = 'inference:providers:write';
+  const ORDINARY: ApplicationScope = 'files:read';
+
+  async function seedDeveloperOnScopedApp() {
+    const org = await seedAccount('organization');
+    const developer = await seedAccount();
+    await seedMember(org, developer, 'developer');
+    // The application legitimately HOLDS the privileged scope — staff granted it
+    // for the application's own use. Without this the subset check at
+    // `applications.ts` would refuse first and the filter would go untested.
+    const appId = await seedApp(org, [ORDINARY, PRIVILEGED]);
+    return { org, developer, appId };
+  }
+
+  function createCredential(appId: string, scopes: ApplicationScope[]) {
+    return request('POST', `/applications/${appId}/credentials`, {
+      name: 'Minted',
+      type: 'confidential',
+      environment: 'production',
+      scopes,
+    });
+  }
+
+  test('refused for a non-staff member, permitted for staff, same member and body', async () => {
+    // Non-vacuity: the role must be able to create credentials at all, and must
+    // not already hold the BYOK write — otherwise the refusal is the RBAC gate.
+    expect(permissionsForAccountRole('developer')).toContain('credentials:create');
+    expect(permissionsForAccountRole('developer')).not.toContain('inference:providers:write');
+
+    const { developer, appId } = await seedDeveloperOnScopedApp();
+    currentUserId = developer;
+
+    const refused = await createCredential(appId, [PRIVILEGED]);
+    expect(refused.status).toBe(403);
+    expect(refused.body.message).toContain(PRIVILEGED);
+    expect(refused.body.message).toContain('staff');
+
+    // CONTROL: the same request carrying only a self-grantable scope succeeds, so
+    // the 403 is the filter and not a fixture that cannot reach the route.
+    const ordinary = await createCredential(appId, [ORDINARY]);
+    expect(ordinary.status).toBe(201);
+
+    // CONTROL: staff may. Identical member, identical body to the refusal.
+    mockIsStaffUser.mockReturnValue(true);
+    const staffMinted = await createCredential(appId, [PRIVILEGED]);
+    expect(staffMinted.status).toBe(201);
+
+    // Exactly one credential carries it, and it is the staff-minted one.
+    const rows = await getDb()
+      .select({ scopes: applicationCredentials.scopes })
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.applicationId, appId));
+    expect(rows.filter((row) => row.scopes.includes(PRIVILEGED))).toHaveLength(1);
+    expect(rows).toHaveLength(2);
+  });
+
+  test('a mixed request is refused whole, naming only the privileged scope', async () => {
+    const { developer, appId } = await seedDeveloperOnScopedApp();
+    currentUserId = developer;
+
+    const refused = await createCredential(appId, [ORDINARY, PRIVILEGED]);
+    expect(refused.status).toBe(403);
+    expect(refused.body.message).toContain(PRIVILEGED);
+    expect(refused.body.message).not.toContain(ORDINARY);
+
+    // Nothing was minted with the self-grantable half either — a partial mint
+    // would be a credential the caller did not ask for.
+    const rows = await getDb()
+      .select({ id: applicationCredentials.id })
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.applicationId, appId));
+    expect(rows).toHaveLength(0);
   });
 });

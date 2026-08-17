@@ -834,13 +834,18 @@ describe('credentials', () => {
     // about the scope makes the credential reachable.
     const foreign = await seedApp({
       ownerAccountId: ORG_ID,
-      scopes: ['inference:invoke', 'inference:providers:write'],
+      // Both halves, so the subset check is satisfied either way and the only
+      // thing that can refuse a request below is an authorization decision.
+      scopes: ['inference:invoke', 'inference:providers:read', 'inference:providers:write'],
     });
+    // The scope here is deliberately the READ. `inference:providers:write` is
+    // staff-only on this path as well (asserted below), and using it for the
+    // boundary case would conflate the two refusals.
     const res = await requestJson(server, 'POST', `/applications/${foreign.id}/credentials`, {
       name: 'stolen',
       type: 'confidential',
       environment: 'production',
-      scopes: ['inference:providers:write'],
+      scopes: ['inference:providers:read'],
     });
     expect(res.status).toBe(403);
 
@@ -851,9 +856,40 @@ describe('credentials', () => {
       name: 'legitimate',
       type: 'confidential',
       environment: 'production',
-      scopes: ['inference:providers:write'],
+      scopes: ['inference:providers:read'],
     });
     expect(allowed.status).toBe(201);
+
+    // …and that same member is still refused the PRIVILEGED half, for a DIFFERENT
+    // reason: a scope staff granted the application is not a scope a member may
+    // put on a new long-lived credential of their own (issue #972 §3). The two
+    // 403s are distinguished by their message, so neither can be mistaken for the
+    // other.
+    const escalation = await requestJson(
+      server,
+      'POST',
+      `/applications/${foreign.id}/credentials`,
+      {
+        name: 'escalation',
+        type: 'confidential',
+        environment: 'production',
+        scopes: ['inference:providers:write'],
+      }
+    );
+    expect(escalation.status).toBe(403);
+    expect(escalation.body.message).toContain('staff');
+    expect(res.body.message).not.toContain('staff');
+
+    // Control: staff may mint it. Same member, same application, same body — so
+    // the refusal above is the staff gate and not the credential route failing.
+    actAs(OWNER_ID, true);
+    const asStaff = await requestJson(server, 'POST', `/applications/${foreign.id}/credentials`, {
+      name: 'staff-minted',
+      type: 'confidential',
+      environment: 'production',
+      scopes: ['inference:providers:write'],
+    });
+    expect(asStaff.status).toBe(201);
   });
 
   it('rotate mints a new credential and deprecates the previous one', async () => {
