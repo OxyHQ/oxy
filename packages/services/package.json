@@ -149,7 +149,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@oxyhq/core": "workspace:*",
     "@react-native-async-storage/async-storage": "^2.0.0",
-    "@react-native-community/netinfo": "^11.4.1",
+    "@react-native-community/netinfo": "^12.0.1",
     "@react-native/babel-preset": "^0.86.2",
     "@release-it/conventional-changelog": "^10.0.6",
     "@tanstack/query-async-storage-persister": "catalog:",
