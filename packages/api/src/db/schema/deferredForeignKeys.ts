@@ -50,6 +50,8 @@ import { federationKeyPairs } from './federationKeyPairs';
 import { fileLinks } from './fileLinks';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
+import { inferenceModelReleaseSignatures } from './inferenceModelReleaseSignatures';
+import { inferenceModelReleases } from './inferenceModelReleases';
 import { inferenceModels } from './inferenceModels';
 import { inferenceRouteSwitchEvents } from './inferenceRouteSwitchEvents';
 import { inferenceUsageEvents } from './inferenceUsageEvents';
@@ -639,5 +641,28 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'pinned revision unrepresentable here, and the value must stay readable ' +
       'after the catalogue entry is gone — a notice already shown to a customer ' +
       'must not become unexplainable because a model was retired.',
+  },
+
+  // --- ingesting a signed model release (#972 workstream 12) ---------------
+
+  {
+    table: inferenceModelReleases,
+    column: inferenceModelReleases.releaseId,
+    reason:
+      "The MANIFEST's own identity, chosen by the signer and carried inside the " +
+      'bytes a signature covers. Not a row id in this database and not Oxy’s ' +
+      'to allocate; it is UNIQUE here so a retried ingest finds the release ' +
+      'instead of creating a second revision, which is the only thing this ' +
+      'schema does with it.',
+  },
+  {
+    table: inferenceModelReleaseSignatures,
+    column: inferenceModelReleaseSignatures.keyId,
+    reason:
+      'An OPAQUE identifier of the public key that signed a release. What ' +
+      'resolves it — the existing attestation machinery or a dedicated Alia ' +
+      'release key — is an open owner decision, so no table can be named as ' +
+      'its target without presupposing the answer. It is stored so a verifier ' +
+      'that lands later has the key name the signer used.',
   },
 ];

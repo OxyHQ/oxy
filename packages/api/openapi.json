@@ -14950,6 +14950,155 @@
         ]
       }
     },
+    "/inference/admin/model-releases": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /inference/admin/model-releases`",
+        "description": "Ingest a signed Alia model release manifest, the capability sheet the manifest\ncannot carry, and the EU AI Act / GPAI documentation record for the revision it\nreleases (#972 §12).\n\n## Graded on the SAME capability as approving a route, deliberately\n\n`inference:catalogue:publish` already means \"publishing, restricting or\nretiring a model route in the inference catalogue\", and this writes the model\nand revision IDENTITIES that a route is later attached to — under `alia/*`,\nwhere the namespace itself is a provenance claim. A second capability whose\ngrant list would be exactly the same people would lengthen the list in\n`users.staff_capabilities` without making any state unreachable, and\n`STAFF_CAPABILITIES`' own header says a grant list nobody reads is the failure\nmode.\n\n## Ingesting is not publishing\n\nThe revision lands with `is_current = false` and no deployment, so nothing here\nbecomes servable or listed. See the service module's header for why that is the\ncontainment that makes an unverifiable signature acceptable at this stage.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/inference/admin/revisions/{revisionId}/gpai-documentation": {
+      "put": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`PUT /inference/admin/revisions/:revisionId/gpai-documentation`",
+        "description": "Restate the documentation record for a revision that already exists.\n\nA PUT and not a PATCH: the Article 53(2) and Article 51(2) conditionals are\nabout the record AS A WHOLE, so a partial update could satisfy them against\nfields the caller never saw. Replacing means whoever writes it has read all of\nit.\n\nIt exists because Article 51(1)(b) lets the Commission designate a model as\ncarrying systemic risk AFTER release, which turns a complete record into an\nincomplete one through no act of Oxy's — and the alternative, re-releasing\nidentical weights under a new revision, is exactly what the revision\nimmutability trigger is right to refuse.",
+        "parameters": [
+          {
+            "name": "revisionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/inference/admin/rollout": {
       "get": {
         "tags": [
@@ -18739,6 +18888,81 @@
         ],
         "summary": "`GET /models/:publisher/:model` — one entry by canonical id.",
         "description": "Two path segments rather than one, because a canonical model id CONTAINS a\nslash (`openai/gpt-5`) and a single `:id` segment would never match it.\n\nA model the viewer may not see answers 404, identically to one that does not\nexist. Distinguishing them would make this endpoint an existence oracle for\nthe internal catalogue — and an unpublished catalogue answers the same 404 for\nthe same reason.",
+        "parameters": [
+          {
+            "name": "publisher",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/models/{publisher}/{model}/documentation": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`GET /models/:publisher/:model/documentation[?revision=]`",
+        "description": "The customer-safe documentation of ONE revision (#972 §12: \"store/publicize the\ncustomer-safe documentation needed by downstream developers\").\n\n## Why this is not part of `GET /models/:publisher/:model`\n\nA catalogue entry documents whichever revision is CURRENT. The catalogue also\ninvites a customer to pin `<publisher>/<model>@<revision>` — that is what\n`available_revisions` is for, and what the revision immutability trigger\nexists to make meaningful — and until this endpoint the model card,\nevaluations, safety metadata and artifact digest of the revision a customer was\nACTUALLY calling were unreadable. A model card that only ever describes the\nnewest weights is the exact conflation ADR 0008 separates revisions to prevent.\n\nOmitting `?revision=` answers for the CURRENT revision, not the newest: that is\nwhat a bare model id resolves to, so anything else would document weights the\ncustomer's own request would not reach.\n\nAudience-scoped like every other read here, and by the same predicate — the\nservice asks `getCatalogueEntryForViewer` first, so a model this viewer may not\nsee is a 404 identical to one that does not exist. A retired revision DOES\nanswer: its documentation is what a developer needs in order to migrate off it,\nand `retiredAt` says plainly that it is retired.\n\nRegistered BEFORE `/:publisher/:model` for readability only — a two-segment\nroute cannot match a three-segment path either way.",
         "parameters": [
           {
             "name": "publisher",
@@ -24865,6 +25089,81 @@
         ],
         "summary": "`GET /models/:publisher/:model` — one entry by canonical id.",
         "description": "Two path segments rather than one, because a canonical model id CONTAINS a\nslash (`openai/gpt-5`) and a single `:id` segment would never match it.\n\nA model the viewer may not see answers 404, identically to one that does not\nexist. Distinguishing them would make this endpoint an existence oracle for\nthe internal catalogue — and an unpublished catalogue answers the same 404 for\nthe same reason.",
+        "parameters": [
+          {
+            "name": "publisher",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "model",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/v1/models/{publisher}/{model}/documentation": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`GET /models/:publisher/:model/documentation[?revision=]`",
+        "description": "The customer-safe documentation of ONE revision (#972 §12: \"store/publicize the\ncustomer-safe documentation needed by downstream developers\").\n\n## Why this is not part of `GET /models/:publisher/:model`\n\nA catalogue entry documents whichever revision is CURRENT. The catalogue also\ninvites a customer to pin `<publisher>/<model>@<revision>` — that is what\n`available_revisions` is for, and what the revision immutability trigger\nexists to make meaningful — and until this endpoint the model card,\nevaluations, safety metadata and artifact digest of the revision a customer was\nACTUALLY calling were unreadable. A model card that only ever describes the\nnewest weights is the exact conflation ADR 0008 separates revisions to prevent.\n\nOmitting `?revision=` answers for the CURRENT revision, not the newest: that is\nwhat a bare model id resolves to, so anything else would document weights the\ncustomer's own request would not reach.\n\nAudience-scoped like every other read here, and by the same predicate — the\nservice asks `getCatalogueEntryForViewer` first, so a model this viewer may not\nsee is a 404 identical to one that does not exist. A retired revision DOES\nanswer: its documentation is what a developer needs in order to migrate off it,\nand `retiredAt` says plainly that it is retired.\n\nRegistered BEFORE `/:publisher/:model` for readability only — a two-segment\nroute cannot match a three-segment path either way.",
         "parameters": [
           {
             "name": "publisher",

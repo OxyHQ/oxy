@@ -880,6 +880,33 @@ export type {
 } from './inference/aliaModelRelease';
 
 export {
+    // Model documentation: the GPAI/EU AI Act record, the ingestion request that
+    // accepts it beside a signed manifest, and the revision-scoped documentation
+    // view a downstream developer reads.
+    modelDistributionMethodSchema,
+    modelSystemicRiskTierSchema,
+    trainingComputeFlopsSchema,
+    SYSTEMIC_RISK_COMPUTE_THRESHOLD_FLOPS,
+    modelDownstreamDocumentationSchema,
+    modelGpaiDocumentationSchema,
+    modelLineDeclarationSchema,
+    modelReleaseIngestionRequestSchema,
+    modelReleaseIngestionResultSchema,
+    modelDocumentationSchema,
+} from './inference/modelDocumentation';
+
+export type {
+    ModelDistributionMethod,
+    ModelSystemicRiskTier,
+    ModelDownstreamDocumentation,
+    ModelGpaiDocumentation,
+    ModelLineDeclaration,
+    ModelReleaseIngestionRequest,
+    ModelReleaseIngestionResult,
+    ModelDocumentation,
+} from './inference/modelDocumentation';
+
+export {
     // The normalized Oxy→data-plane request envelope.
     inferenceContentSourceSchema,
     inferenceContentPartSchema,
