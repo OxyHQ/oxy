@@ -30,6 +30,44 @@
   the thing gets built. `exists` rows rot only when something is deleted, which is
   rarer. **Re-verify every `planned` row before citing this document as evidence
   that work remains.**
+
+- **2026-08-18: the STATUS column was audited row by row against `main` at
+  `2a25ca3e`, and 97 of the 111 `planned` rows were wrong** — 71 fully shipped, 21
+  `partial` (a status value this pass added to the legend) plus 2 rows split
+  instead, and 3 that rule 1 makes `unverified` rather than `planned`. 13 were
+  correctly `planned`; §7's zero-usage
+  reconciliation row was left for the workstream holding the ledger service. Census
+  for this pass: **302 data rows before the edit, 111 carrying exactly `planned`**,
+  with the same positive control (`/v1/responses` reads `exists`) and negative
+  control (`/v1/zzz-nope` matches nothing). Fourteen `planned` rows remain, and they
+  are the honest ones: the five later-modality endpoints, normalized rate-limit
+  headers, the three `api_key_usage_events` columns, the static Alia proxy's removal
+  (a row whose `planned` means it is still LIVE), the Python SDK, alerts firing into
+  a destination that does not exist, status-page signals, and §7's reconciliation
+  row. Whole
+  sections had finished without their rows moving: §11 all seven, §9 fifteen of
+  eighteen, §16 thirteen of eighteen, §10 nine of eleven. Every re-judged row now
+  cites `file.ts:line`, and rows 393 and 399 were split so each owner carries its
+  own status.
+
+  **The direction was one-way and that is the useful result: not one row claimed a
+  feature that is absent.** The dangerous direction was swept three ways — every
+  backticked symbol, table and route in all 146 `exists` rows resolved against the
+  migrated table list and an index of 849 non-test source files (zero unresolved,
+  with a fabricated-symbol control); every `file:line` anchor checked for
+  plausibility (9 flagged, 8 drift, 1 real error); and all 13 `exists` rows
+  asserting an ENFORCEMENT read in full. What that sweep cannot see is a row whose
+  subject still exists while its assertion is false — the §5 fake-id rows were
+  exactly that, and only reading caught them. The behavioural truth of the
+  remaining `exists` rows is unaudited; §1 and §2 are where a false one would cost
+  most.
+
+  Four corrections beyond the statuses: §1's `account_credentials` row cited
+  `0048_…` for a migration that is `0051_retire_account_credentials.sql`; §8's
+  `api_key_usage_events` anchors had drifted 10–25 lines; §9's playground row named
+  `/v1/chat/completions` when it posts to `/v1/responses`; and §2's RBAC row was
+  written before the inference-specific permission vocabulary landed, which it now
+  has.
 - Governing decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md),
   [ADR 0006](../adr/0006-oxy-relay-boundary.md),
   [ADR 0007](../adr/0007-canonical-request-attribution.md),
@@ -69,6 +107,14 @@ are spelled out after the list, because getting them wrong made rows in this fil
   feature, `planned` would claim an absent one, and the state that actually
   misleads is a schema field a reviewer reads as evidence of the behaviour it
   describes. Each occurrence names what has to write the field.
+- `partial` — one clause of the row shipped and another did not. **The status text
+  MUST say which**, or the value is a hedge: "some of this is done" is not a
+  finding anybody can act on. Added 2026-08-18, when 21 rows turned out to need
+  it — a row asking for four things and holding three is the single most common
+  shape in this file, and forcing it into `exists` or `planned` is what made it
+  rot. Where the missing clause is another system's, prefer splitting the row so
+  each half carries its own owner and status; two rows were split that day rather
+  than made `partial`.
 
 ### Two rules the status list cannot carry on its own
 
@@ -135,7 +181,7 @@ evidence that it is deployed (§4.1).
 | Credential usability predicate (active OR deprecated-in-grace) | Oxy | OxyHQServices `packages/api/src/utils/credentialUsability.ts` | exists |
 | `developer_api_keys` (legacy, epic §2.3) | Oxy | dropped by `packages/api/drizzle/0047_retire_developer_api_keys.sql` | removed |
 | `developer_api_keys` confirmed empty in production | Oxy | production database, read from a one-shot Fargate task on `oxy-oxy-api:201` | **verified 2026-08-17: 0 rows**, as were `api_key_usage_events` (0) and its rows with a non-null `api_key_id` (0). Controls that make the zero mean something: 69,432 users, 31 applications, 34 application_credentials, 153 public tables, 46 of 46 migrations applied. Read-only queries |
-| `account_credentials` — a second credential table that authenticated nothing | Oxy | dropped by `packages/api/drizzle/0048_retire_account_credentials.sql` | removed — see §1.1 below |
+| `account_credentials` — a second credential table that authenticated nothing | Oxy | dropped by `packages/api/drizzle/0051_retire_account_credentials.sql` | removed — see §1.1 below |
 | Machine/API-key credential type (`oxy_sk_*`), one-time bearer | Oxy | OxyHQServices `packages/api/src/db/schema/applicationCredentials.ts:87` (`'machine'`), minted by `packages/api/src/utils/machineCredentialToken.ts`, resolved by `packages/api/src/middleware/machineCredential.ts` | exists — accepted on the `/v1` edge, gated per deployment by `INFERENCE_MACHINE_CREDENTIAL_AUTH` (`config/rolloutFlags.ts`), which is OFF when unset |
 | Helper: application → owner account | Oxy | OxyHQServices `packages/api/src/services/attribution.service.ts:130` | exists |
 | Helper: credential → application → owner account | Oxy | OxyHQServices `packages/api/src/services/attribution.service.ts:220,244` | exists |
@@ -203,13 +249,13 @@ appears beside `application_credentials`.
 | Service-token claims: `ownerAccountId`, effective scopes envelope | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3688` (`ownerAccountId`), `:3680-3681` (scopes intersected into the claim) | exists |
 | Delegated end-user header `X-Oxy-User-Id` | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.auth.ts:734`, `OxyServices.utility.ts:514` | exists |
 | Service-token verification (signature required) | Oxy | OxyHQServices `packages/core/src/mixins/OxyServices.utility.ts` | exists |
-| Shared-secret vs asymmetric/JWKS cross-repo verification decision | Oxy | OxyHQServices `docs/` | planned |
+| Shared-secret vs asymmetric/JWKS cross-repo verification decision | Oxy | OxyHQServices `docs/adr/0012-service-token-signing-key-model.md` | exists — the DECISION is recorded and accepted (2026-08-16): asymmetric signing with a published JWKS, the shared HMAC secret retired. The MIGRATION is not written and that ADR names two sub-decisions still needing the owner, so this row is the decision alone |
 | `APPLICATION_SCOPES` vocabulary | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:61` | exists |
 | `chat:completions`, `models:read` scopes | Oxy | dropped by `packages/api/drizzle/0031_inference_scope_family.sql`, which rewrote every stored row to a successor | removed — **not aliased**, deliberately: neither name was ever read by any middleware, route or service, so an alias would have been a second way to spell a no-op (`packages/api/src/utils/applicationScopes.ts:41-46`) |
 | `inference:invoke`, `inference:models:read`, `inference:usage:read`, `inference:routing:read`, `inference:routing:write`, `inference:providers:read`, `inference:providers:write` | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:83-89` | exists |
 | Credential scopes intersected with application scopes | Oxy | OxyHQServices `packages/api/src/routes/auth.ts:3660-3662` | exists |
 | Privileged / staff-approval scope list | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:184` (`PRIVILEGED_APPLICATION_SCOPES`, including both inference writes) | exists |
-| Account/application RBAC mappings for inference, usage, routing, BYOK, billing | Oxy | OxyHQServices `packages/api/src/utils/accountRoles.ts` | partially enforced as of this revision — every one of those routes IS gated, but by REUSED generic permissions (`account:read`/`account:update`, `app:read`/`app:update`, `billing:read`/`billing:manage`, `usage:read`); there is no inference-specific permission, so an account cannot grant "edit this app" without also granting "repoint where inference is served from". A separate pull request is landing the inference-specific vocabulary; it is not merged at this revision and this row is what is true without it |
+| Account/application RBAC mappings for inference, usage, routing, BYOK, billing | Oxy | OxyHQServices `packages/api/src/utils/accountRoles.ts:37-74,103` | exists — the inference-specific vocabulary this row was written without has since landed. `accountRoles.ts:103` carries `inference:invoke`, `inference:routing:read`/`:write`, `inference:providers:read`/`:write` and `inference:usage:read`, spelled deliberately like the SCOPES, plus `inference:byok:read`/`:write`, which appear in no scope list. The earlier reading — generic permissions only, so granting "edit this app" also granted "repoint where inference is served from" — is no longer what the code does |
 | Relay-side customer authorization | **forbidden** (ADR 0006) — the edge authorizes before forwarding | — | must never exist |
 
 ## 3. Public API edge (epic §4, ADR 0010)
@@ -235,9 +281,9 @@ appears beside `application_credentials`.
 | Streaming pass-through without buffering | Oxy | OxyHQServices `packages/api/src/services/httpRelayClient.ts` (SSE, both dialects) | exists |
 | Client-cancellation propagation to Relay and upstream | Oxy → Relay | OxyHQServices `packages/api/src/services/httpRelayClient.ts:239-241` (`AbortController`, client signal → hop abort) | **Oxy half exists** (#1034) — whether Relay propagates the cancellation upstream is unaudited from here; the repository exists, so this is "not looked at", not "absent" |
 | Normalized rate-limit and usage headers | Oxy | OxyHQServices `packages/api/src` | planned |
-| Idempotency keys for non-streaming / batch-safe operations | Oxy | OxyHQServices `packages/api/src` | planned |
-| Request-size, context-size, output-token limits | Oxy | OxyHQServices `packages/api/src` | planned |
-| Abuse / fraud / anomaly controls before public launch | Oxy | OxyHQServices `packages/api/src` | planned |
+| Idempotency keys for non-streaming / batch-safe operations | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:269-285`, `services/inferenceEdge.service.ts:1462`, `services/inferenceLedger.service.ts:410,639` | partial — the NON-STREAMING half is complete: the header is parsed and an over-long key REFUSED rather than truncated, the ledger key is namespaced per credential, a replay is refused `idempotency_conflict` (`inferenceEdge.service.ts:771`) and the ledger dedupes reservations and entries on it. "Batch-safe operations" cannot ship while `/v1/batches` does not exist |
+| Request-size, context-size, output-token limits | Oxy | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts:715-728` | partial — context and maximum output are checked TOGETHER before forwarding, so a request that cannot fit is refused rather than paid for. A request-BODY size limit specific to this edge is absent |
+| Abuse / fraud / anomaly controls before public launch | Oxy | OxyHQServices `packages/api/src/server.ts:1188-1210` | partial — spend-anomaly detection is wired and running over `inference_spend_anomalies`, and every inference route carries its own rate limiter (§12). Abuse and fraud controls beyond those two are absent |
 
 ### 3.1 The remaining shared-upstream-key paths — an exception list, counted
 
@@ -327,7 +373,7 @@ suite, which needs agreement from the other side rather than more code here.
 | Price-version schema | Oxy | `packages/contracts/src/inference/priceVersion.ts` | exists |
 | Error and retryability schema | Oxy | `packages/contracts/src/inference/errors.ts` (`inferenceErrorCodeSchema`, `upstreamErrorCategorySchema`, `safeErrorTextSchema`) | exists |
 | Envelope/event version fields on every externally consumed shape | Oxy | `packages/contracts/src/inference/version.ts` (`INFERENCE_CONTRACT_VERSION`) | exists |
-| Schema-version compatibility tests (Oxy ↔ Relay) | Oxy + Relay | OxyHQServices + OxyHQ/Relay | planned — the only row here still absent from `OxyHQ/oxy`, and it is a CROSS-REPO suite, so Oxy building its half alone would not close it |
+| Schema-version compatibility tests (Oxy ↔ Relay) | Oxy + Relay | OxyHQServices `packages/contracts/src/__tests__/inference.compatibility.test.ts` + OxyHQ/Relay | partial — Oxy's half EXISTS, and is not a thin scan: a frozen version map asserted with EXACT equality, a census over `readdirSync` of `src/inference/` so a new file cannot hide, a frozen list of the exported unions, and a round-trip fixture per versioned shape. The CROSS-REPO half needs Relay and is `unverified` from here, not `planned` |
 
 ### 4.1 The Oxy→Relay wire is BUILT and NOT DEPLOYED — two facts, kept apart
 
@@ -362,48 +408,72 @@ What that repository actually implements has not been audited from here; see §1
 
 ## 5. Model catalogue (epic §5, ADR 0008)
 
-**Thirteen rows in this section are still `planned` and were NOT judged**, on
-purpose. They are FIELD-level claims — knowledge cutoff, provenance, licence,
-capability flags, model card, deprecation pointer — and the six TABLE-level rows
-above them are now `exists` because the tables are present in
-`meta/0049_snapshot.json` and in production. A table existing says nothing about a
-column, so settling the thirteen needs a per-column read of
-`inferenceModels.ts` / `inferenceModelRevisions.ts` / `inferenceDeployments.ts`.
+**The thirteen field-level rows were judged on 2026-08-18, per column, and all
+thirteen were wrong.** They had stood at `planned` — which this file's legend
+defines as *confirmed absent* — while every field they name was present in the
+migrated schema (`meta/0051_snapshot.json`, created by
+`drizzle/0035_inference_catalogue.sql`) and read by the customer projection.
+Eleven are now `contract only` and two are `exists`; each says which file and
+line settles it.
 
-That distinction is not pedantic; it is the trap that produced a false lead during
-this review. A check that asked "does the file this row names exist?" flagged three
-rows about `api_key_usage_events` — and the columns those rows name
-(`account_id`, `application_credential_id`, `request_id`, `generation_id`) are
-absent from that file, so all three were correctly `planned` and the check was
-measuring the wrong thing. Ask of it what it would report if the feature were
-absent: exactly what it did report, because the file exists either way.
+`contract only` rather than `exists` is the whole point of the re-judgement, and
+it is a stronger statement than either neighbour would have been. The columns are
+real and the read path is real, and **nothing in the repository can write them**:
+outside tests, the only writer of any catalogue table is
+`packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers
+only. `exists` would have read as a working feature; `planned` claimed an absent
+one; the state that actually misleads is a schema field a reviewer takes as
+evidence of the behaviour it describes.
+
+Two traps produced false readings during these reviews, and both are worth
+keeping:
+
+**A path is not a citation.** Ten of these thirteen rows cited the bare directory
+`packages/api/src/db/schema`, which exists whether or not a single column the row
+names does — so nothing could confirm or refute them. They now cite `file.ts:line`.
+The same shape produced a false lead earlier in this file's history: a check that
+asked "does the file this row names exist?" flagged three rows about
+`api_key_usage_events`, and the columns those rows name are absent from that file,
+so all three were correctly `planned` and the check was measuring nothing. Ask of
+any check what it would report if the feature were absent.
+
+**A grep matches the comment that documents a removal.** Three rows in this
+section read `exists` for the four retired model ids after #982/#991 had deleted
+them, because the surviving text is the comment explaining the retirement. A
+comment-aware, boundary-anchored census finds **three** code occurrences of those
+names in the whole repository — one in production
+(`packages/api/src/config/email.config.ts:112`, correct, see
+`docs/inference/migration.md`) and two test fixtures — and **zero** anywhere in
+Console.
 
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
 | Static `alia-lite` / `alia-v1` / `alia-v1-pro` / `alia-v1-pro-max` array (retired) | Oxy | OxyHQServices `packages/api/src/routes/models-stats.ts` | **gone** — the file was deleted with the catalogue landing (#982). Every surviving occurrence of the four names is enumerated in `docs/inference/migration.md` |
-| Same fake ids in Console model docs | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/models.tsx:13-43` | exists |
-| Same fake ids in quickstart / chat-completions examples | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/quickstart.tsx:127`, `documentation/chat-completions.tsx:109` | exists |
-| Playground default model string | Oxy | OxyHQServices `packages/console/src/routes/_layout/playground.tsx:103` | exists |
-| `AI_LABELING_MODEL` default `alia-lite` (internal consumer) | Oxy | OxyHQServices `packages/api/src/config/email.config.ts:100` | exists |
+| Same fake ids in Console model docs | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/models.tsx:13-43` | removed — gone from this page as DATA. The two surviving lines (`:15-16`, four occurrences) are the comment explaining what was retired, which is exactly why this row read `exists` after #982/#991 deleted the array: a grep returns hits in both worlds |
+| Same fake ids in quickstart / chat-completions examples | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/quickstart.tsx:127`, `documentation/chat-completions.tsx:109` | removed — **0 occurrences** in either file, measured comment-aware and boundary-anchored so `alia-v1-voice` is not counted as `alia-v1` |
+| Playground default model string | Oxy | OxyHQServices `packages/console/src/routes/_layout/playground.tsx:103` | removed — **0 occurrences**; the playground selects from the real catalogue |
+| `AI_LABELING_MODEL` default `alia-lite` (internal consumer) | Oxy | OxyHQServices `packages/api/src/config/email.config.ts:112` (`:100` begins the comment explaining why it is correct) | exists — and it is the ONLY production-code occurrence of the four names in the repository. Repo-wide there are three in code: this one plus two test fixtures (`services/__tests__/aiLabeling.service.test.ts:105`, `routes/__tests__/alia.test.ts:197`). `docs/inference/migration.md` carries the reasoning |
 | `Publisher` descriptor | Oxy | OxyHQServices `packages/api/src/db/schema/inferencePublishers.ts` | exists — table present in the migrated schema (`meta/0049_snapshot.json`) and in production (0 rows) |
 | `Model` descriptor, canonical id `<publisher>/<model>` | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts` | exists — table present in the migrated schema and in production (0 rows) |
 | `ModelRevision` (immutable), id `<publisher>/<model>@<revision>` | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts` | exists — table present in the migrated schema and in production (0 rows) |
 | `InferenceProvider` identity | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviders.ts` | exists — table present in the migrated schema and in production (0 rows) |
-| `Deployment` / endpoint identity and region | Relay (health/availability); Oxy (customer-safe projection) | OxyHQ/Relay + OxyHQServices | planned |
+| `Deployment` / endpoint identity and region | Relay (health/availability); Oxy (customer-safe projection) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:124,140-155` + `services/inferenceCatalogue.service.ts:560` | exists — the table and its `regions` column are in the migrated schema, and the customer-safe projection is an explicit allow-list. This row was `planned` while Oxy's half was built, which rule 1 forbids: on a row Oxy part-owns, `planned` claims Oxy owes something |
+| Deployment HEALTH and route availability | Relay | OxyHQ/Relay | unverified — Relay-owned and not audited from here (rule 1). `inference_deployments.status` is the CATALOGUE's offerability decision and deliberately not a health signal |
 | `RoutingProfile` (`auto`, `fast`, `quality`, customer-defined) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceRoutingProfiles.ts` | exists — table present in the migrated schema and in production (0 rows) |
-| Capability fields (tools, vision, audio, structured output, reasoning, context, max output, caching, modalities) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Publisher and model licence | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Provenance / base model | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Knowledge cutoff and release date | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Regions and deployment providers | Relay (truth); Oxy (projection) | OxyHQ/Relay + OxyHQServices | planned |
-| Data-retention and training-on-customer-data policy | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Zero-data-retention availability | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Customer pricing by unit and price version | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Deprecation status and replacement pointer | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Model card, evaluation summary, safety metadata | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Upstream provider secrets, internal route ids, wholesale cost | Relay — **never exposed** to customers (ADR 0006) | OxyHQ/Relay | planned |
-| `alia/*` namespace, reserved for real Alia-owned releases | Alia (publisher), Oxy (registry) | OxyHQServices `packages/api/src/db/schema` | planned |
+| Capability fields (tools, vision, audio, structured output, reasoning, context, max output, caching, modalities) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:135-146` | contract only — `input_modalities`, `output_modalities`, seven `supports_*` flags, `max_context_tokens` and `max_output_tokens`, all in the migrated schema and all read by `services/inferenceCatalogue.service.ts:899-911`; `max_context_tokens` is additionally ENFORCED at `services/inferenceEdge.service.ts:715`. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing. Vision and audio are modality MEMBERS, not `supports_*` flags — a search for either column name finds nothing while the capability is fully expressible |
+| Publisher and model licence | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:151-162,174` | contract only — `license_id`, `license_display_name`, `license_url`, `commercial_use_allowed`, `requires_attribution`, `acceptable_use_policy_url`, plus `base_model_attribution_required`. Licence attaches to the MODEL and never to the publisher: `inference_publishers` has no licence column and `modelPublisherSchema` no licence field, deliberately. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Provenance / base model | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:178-187`, `inferenceModelProvenance.ts:98-170` | contract only — `release_kind`, `base_model_reference` and `training_organization`, with the two content-provenance triggers beside them. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Knowledge cutoff and release date | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:197-198` | contract only — `knowledge_cutoff` and `released_on`, both `date` rather than `timestamptz`, because a cutoff is published as a DAY and inventing a timezone makes two records of one published fact compare unequal. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Regions and deployment providers | Relay (truth); Oxy (projection) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:155`, `inferenceProviders.ts:61`, `services/inferenceCatalogue.service.ts:869-884` | exists — Oxy's projection is built: the union of the routes' regions and the customer-safe serving providers, both on the catalogue entry. Was `planned` while built, which rule 1 forbids on a row Oxy part-owns |
+| Deployment availability and provider health as the source of REGION truth | Relay | OxyHQ/Relay | unverified — Relay-owned and not audited from here (rule 1). Oxy consumes a customer-safe projection; it does not own the availability fact |
+| Data-retention and training-on-customer-data policy | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:159-164,314-321`, `inferenceProviders.ts:65-72` | contract only — the ROUTE's own policy and the PROVIDER's published one, deliberately two copies, with coherence CHECKs on both. Already enforced against a customer routing policy wherever rows exist (`services/inferenceCatalogue.service.ts:432-443`). Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Zero-data-retention availability | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:162`, `inferenceProviders.ts:69` | contract only — and the capability-versus-actual distinction is already enforced: `services/inferenceCatalogue.service.ts:432-439` excludes a route that merely OFFERS zero retention while still retaining. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Customer pricing by unit and price version | Oxy | OxyHQServices `packages/api/src/db/schema/priceVersions.ts:116,196` + `inferenceDeployments.ts:228` | contract only — `price_versions` and its child `price_version_unit_prices` (unit drawn from `USAGE_UNITS`) exist, a route links one through `price_version_id`, and the catalogue entry publishes a price SNAPSHOT (`services/inferenceCatalogue.service.ts:806`). **Nothing writes either table**, which that file says of itself at `:48-54`; the intended home is the same catalogue authoring surface. Note the path: pricing is the LEDGER's `priceVersions.ts`, not an `inference*` schema file |
+| Deprecation status and replacement pointer | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:202-210,272-275` | contract only — `deprecation_status`, `replacement_model_reference`, `deprecation_announced_at`, `deprecation_sunset_at`, with the CHECK refusing a sunset date on an `active` model, so the deprecation must be announced first. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Model card, evaluation summary, safety metadata | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts:111,121-129,168-171`, `inferenceModelEvaluations.ts:26-70` | contract only — `model_card_url`, the safety group with a CHECK making it present-or-absent as a WHOLE, and evaluations as a child table keyed on `(revision, suite, metric)` rather than `jsonb`. All three hang off the REVISION, because they describe specific weights. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
+| Upstream provider secrets, internal route ids, wholesale cost | Relay — **never exposed** to customers (ADR 0006) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:239,259-265`, `protectedColumns.ts:172-179`, `services/inferenceCatalogue.service.ts:560-614` + OxyHQ/Relay | exists — and this row was in the wrong repository. `internal_route_id` and the four `upstream_wholesale_cost_*` columns are OXY columns: Relay owns the MEASURED upstream cost (ADR 0006) while Oxy stores a contracted rate for margin review, and the NON-EXPOSURE is enforced here twice — a default-DENY allow-list (`CUSTOMER_SAFE_DEPLOYMENT_COLUMNS`) plus the protected-column registry, with `schema/__tests__/inferenceCatalogue.test.ts:555-585` failing on any deployment column classified in neither list. Upstream provider SECRETS are genuinely absent from Oxy: BYOK stores a reference, never the secret (ADR 0013) |
+| `alia/*` namespace, reserved for real Alia-owned releases | Alia (publisher), Oxy (registry) | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:294-297` | contract only — the reservation is a live CHECK in the database (`inference_models_reserved_namespace_is_first_party`, present in `meta/0051_snapshot.json`), mirrored by the contract refinement at `packages/contracts/src/inference/catalogue.ts:283-293` and driven against real rows by `schema/__tests__/inferenceCatalogue.test.ts:211-270`. The enforcement works; what is absent is any model row for it to constrain. Nothing WRITES it: outside tests the only writer of any catalogue table is `packages/api/scripts/seed-inference-catalogue.ts:130`, and it writes publishers only. What has to write it is the catalogue authoring surface — §11's admin API moves a deployment's permission state and publishes nothing |
 | Catalogue SEEDED in production (`inference_publishers` non-empty) | Oxy | OxyHQServices `packages/api/scripts/seed-inference-catalogue.ts`, `bun run seed:inference-catalogue` | **verified 2026-08-17: NOT seeded.** `inference_publishers` is 0 rows in production, as is every other inference table (models, revisions, evaluations, providers, deployments, routing profiles and policies, provider connections and their audit events, route-switch events, usage events, receipts, reservations, price versions), read-only from a one-shot Fargate task on `oxy-oxy-api:206`. Controls: `users` 69,465, `applications` 31, 47 migrations applied, a nonexistent table 0. The script exists and is idempotent, but **no workflow or deploy script invokes it** — only the manual `bun run`, verified by grep over `.github/workflows/` and `.github/scripts/`. Consequence, which is stronger than a missing display name: `inference_models.publisher_slug` carries an FK to `inference_publishers.slug` (`onDelete: restrict`, confirmed in `meta/0049_snapshot.json`), so with the publishers table empty **no model row can be inserted at all**. Note the CHECK `inference_models_reserved_namespace_is_first_party` is NOT affected — it is a self-contained predicate over `publisher_slug` and `release_kind` and needs no publisher row |
 
 ## 6. Routing policy (epic §6)
@@ -443,17 +513,17 @@ the contract.
 | Region / data-residency constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Zero-retention requirement | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Prohibit-training-on-customer-data constraint | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
-| Maximum customer price per unit/request — stored, versioned, pinned on the receipt, enforced by NEITHER side (named inert in `UNFILTERED_ROUTING_CONTROLS`, issue #1011) | Oxy | OxyHQServices `packages/api/src/db/schema` | exists |
-| Sort by price / latency / throughput / balanced — the one routing decision the data plane makes | Oxy (policy), Relay (execution) | OxyHQServices + OxyHQ/Relay | planned |
+| Maximum customer price per unit/request — stored, versioned, pinned on the receipt, enforced by NEITHER side (named inert in `UNFILTERED_ROUTING_CONTROLS`, issue #1011) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyPriceCaps.ts` (the per-UNIT half) + `inferenceRoutingPolicyVersions.ts` (`max_price_per_request_amount`, the per-REQUEST half) | exists |
+| Sort by price / latency / throughput / balanced — the one routing decision the data plane makes | Oxy (policy), Relay (execution) | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` + `services/inferenceCatalogue.service.ts:277-298` + OxyHQ/Relay | partial — Oxy's half is stored and versioned (`optimise_for`) and deliberately classified INERT on this side in `UNFILTERED_ROUTING_CONTROLS`, because ranking among routes that already qualify is the data plane's (ADR 0006). Oxy owes nothing further here; the execution half is `unverified`, not `planned` |
 | Oxy-hosted-only option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Licence / usage-right constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Fallback-disabled option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceRoutingPolicy.service.ts` | exists |
 | The ordered list of PRE-AUTHORIZED ROUTES the envelope carries — the candidates that survived the policy, in preference order (ADR 0017) | Oxy (authorization), Relay (execution: take the next entry) | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`authorizedRouteSchema`) + `request.ts` | contract only — the shape exists and is OPTIONAL; `inferenceEdge.service.ts` does not populate it yet, and absent means no failover is authorized |
 | Same-model deployment fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | contract only — expressible as a `same_model` entry since ADR 0017; unpopulated, so still no failover in practice |
 | Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | contract only — expressible ONLY as a `cross_model` entry carrying `authorizedByPolicy: true`, and never for a request that pinned a revision; unpopulated |
-| Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement + candidate filter), Relay (capacity) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` + OxyHQ/Relay | planned |
-| Routing-policy versioning; the request envelope and the receipt record a REFERENCE to the exact policy revision used, as provenance rather than as instructions | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`routingPolicyReferenceSchema`) + `packages/api/src/db/schema` | exists |
-| Customer-visible route-switch event/receipt | Oxy (emission to customer), Relay (source) | OxyHQServices + OxyHQ/Relay | planned |
+| Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement + candidate filter), Relay (capacity) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts:254,347,369` + OxyHQ/Relay | exists — `dedicated_capacity` is a real candidate FILTER, not merely a stored preference. The capacity itself is Relay's and is `unverified` from here |
+| Routing-policy versioning; the request envelope and the receipt record a REFERENCE to the exact policy revision used, as provenance rather than as instructions | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`routingPolicyReferenceSchema`) + `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` + `usageReceipts.ts:181` (`routing_policy_version_id`) | exists |
+| Customer-visible route-switch event/receipt | Oxy (emission to customer), Relay (source) | OxyHQServices `packages/api/src/db/schema/inferenceRouteSwitchEvents.ts` + `services/inferenceEdge.service.ts:157,1042` + OxyHQ/Relay | partial — the event is RECORDED: the table exists and the edge writes it. No customer-visible surface renders it yet, and the switch itself is the data plane's to report |
 | Contradictory-policy validation | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` | exists |
 | Circuit breakers, health scoring, provider failover execution | Relay | OxyHQ/Relay | unverified — Relay-owned and not audited from here (rule 1); `planned` would claim Oxy owes something here, and it does not |
 
@@ -500,25 +570,25 @@ the contract.
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| `api_key_usage_events` (append-only, 90-day retention) | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:61`, retention `:54` | exists |
-| `credits_used double precision` (telemetry only, never the ledger) | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:95` | exists |
-| `user_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:83` | exists |
-| `application_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:87` | exists |
+| `api_key_usage_events` (append-only, 90-day retention) | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:85`, retention constant `:78` | exists |
+| `credits_used double precision` (telemetry only, never the ledger) | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:118` | exists |
+| `user_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:96` | exists |
+| `application_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:110` | exists |
 | `api_key_id` → `developer_api_keys` reference (obsolete) | Oxy | dropped by `packages/api/drizzle/0047_retire_developer_api_keys.sql`, together with the table it referenced | removed — asserted against the MIGRATED database in `packages/api/src/db/schema/__tests__/applications.test.ts`, because deleting the column from the TypeScript alone would leave every functional test green whether or not the migration ever ran |
-| `account_id` column | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned |
+| `account_id` column | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned — measured against the migrated schema rather than inferred: `api_key_usage_events` has no `account_id`. Same nuance as the row below, which this one was missing: `inference_usage_events.account_id` DOES exist, so inference attribution is not waiting on this, and whether general telemetry needs its own is workstream 8's call |
 | `application_credential_id` attribution | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned — it does not "replace `api_key_id`", which is simply gone; `inference_usage_events` already carries credential attribution for inference, and whether this general-telemetry table needs its own is workstream 8's call |
-| `request_id`, optional `generation_id` | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned |
-| Endpoint, status, latency columns | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:89-97` | exists |
-| Normalized unit totals (tokens/time/images, separate from money) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Requested model, resolved model revision, customer-safe serving provider/deployment | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
+| `request_id`, optional `generation_id` | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts` | planned — absent from `api_key_usage_events`. `inference_usage_events` carries both, so inference correlation is not waiting on this row either |
+| Endpoint, status, latency columns | Oxy | OxyHQServices `packages/api/src/db/schema/apiKeyUsageEvents.ts:112-120` | exists |
+| Normalized unit totals (tokens/time/images, separate from money) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceUsageEvents.ts` | exists — `inference_usage_events` carries `input_tokens`, `output_tokens`, `cached_input_tokens`, `reasoning_tokens`, `audio_input_milliseconds`, `audio_output_milliseconds`, `images`, `embeddings`, `characters` and `video_milliseconds`, and NO money column at all — the amount lives on `usage_receipts`, which is the separation this row asks for |
+| Requested model, resolved model revision, customer-safe serving provider/deployment | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceUsageEvents.ts` | exists — `requested_model_reference`, `resolved_model_reference`, `serving_provider` and `deployment_id`, all four on `inference_usage_events` |
 | Upstream wholesale cost kept out of customer responses | Relay | OxyHQ/Relay | unverified — Relay-owned and not audited from here (rule 1); `planned` would claim Oxy owes something here, and it does not |
-| Telemetry retention separated from financial receipt retention | Oxy | OxyHQServices `packages/api/src/db/expiry.ts` | planned |
-| Aggregates by account, project, application, credential, model, provider, status, day | Oxy | OxyHQServices `packages/api/src` | planned |
-| Customer-visible usage with documented eventual consistency | Oxy | OxyHQServices `packages/console` | planned |
-| Exact billed amount sourced from the ledger, not telemetry | Oxy | OxyHQServices `packages/api/src` | planned |
-| Enterprise reconciliation exports | Oxy | OxyHQServices `packages/api/src` | planned |
-| Spend/token spike anomaly detection | Oxy | OxyHQServices `packages/api/src` | planned |
-| `GET /applications/:appId/usage` | Oxy | OxyHQServices `packages/api/src/routes/applications.ts:1139` | exists |
+| Telemetry retention separated from financial receipt retention | Oxy | OxyHQServices `packages/api/src/db/expiry.ts:263-268` | exists — ninety days of inference telemetry, with `usage_receipts`, `usage_refunds` and `usage_reservations` deliberately EXCLUDED from the sweep registry and the reason written beside them: a receipt swept on a telemetry schedule is a destroyed financial record |
+| Aggregates by account, project, application, credential, model, provider, status, day | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceUsageDailyRollups.ts` | partial — `inference_usage_daily_rollups` aggregates by account, application, credential, `requested_model_reference`, `serving_provider`, `outcome`, `environment` and `day`. There is no PROJECT dimension of its own; a project is an account KIND, so say which reading is intended before treating this as closed |
+| Customer-visible usage with documented eventual consistency | Oxy | OxyHQServices `packages/console/src/routes/_layout/usage.tsx:32,44,154` | exists — the page tags its own source `{ source: 'usage_telemetry_rollups', consistency: 'eventual' }` and says so to the reader in the empty state, rather than letting a lag read as a missing charge |
+| Exact billed amount sourced from the ledger, not telemetry | Oxy | OxyHQServices `packages/api/src/services/inferenceReporting.service.ts:7,23,69` | exists — the reporting service reads `usage_receipts`; telemetry is never the money source |
+| Enterprise reconciliation exports | Oxy | OxyHQServices `packages/api/src/routes/inferenceReporting.ts:518-521,954-960` | exists — CSV export, with its own rate limiter |
+| Spend/token spike anomaly detection | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceSpendAnomalies.ts` + `server.ts:1188-1210` | partial — SPEND spike detection exists and runs: an hour's amount against a baseline median and a threshold multiple. TOKEN spike detection is absent at this revision |
+| `GET /applications/:appId/usage` | Oxy | OxyHQServices `packages/api/src/routes/applications.ts:1440` | exists |
 
 ## 9. Oxy Console (epic §9)
 
@@ -534,61 +604,61 @@ ADR 0005 invariant 5.
 | Per-app Usage | Oxy | OxyHQServices `packages/console/src/components/apps/usage-section.tsx` | exists |
 | Per-app Store / Updates | Oxy | OxyHQServices `packages/console/src/components/apps/store-section.tsx`, `updates-section.tsx` | exists |
 | Models page (static catalogue today) | Oxy | OxyHQServices `packages/console/src/routes/_layout/models.tsx` | exists |
-| Playground (posts to `/v1/chat/completions`) | Oxy | OxyHQServices `packages/console/src/routes/_layout/playground.tsx:148` | exists |
+| Playground (posts to `/v1/chat/completions`) | Oxy | OxyHQServices `packages/console/src/routes/_layout/playground.tsx`, `hooks/use-playground.ts:133` | exists — but it posts to **`/v1/responses`**, not `/v1/chat/completions`. The feature is there; this row's parenthetical named the wrong endpoint |
 | Usage page | Oxy | OxyHQServices `packages/console/src/routes/_layout/usage.tsx` | exists |
-| Billing page | Oxy | OxyHQServices `packages/console/src/routes/_layout/billing.tsx` | exists |
+| Billing page | Oxy | OxyHQServices `packages/console/src/routes/_layout/billing/` (a directory since the page grew tabs: `index`, `spend`, `charges`, `budgets`, `plans`) | exists |
 | Account settings page | Oxy | OxyHQServices `packages/console/src/routes/_layout/settings/account.tsx` | exists |
 | Documentation and SDK pages | Oxy | OxyHQServices `packages/console/src/routes/_layout/documentation/` | exists |
-| Members / account-settings management surface | Oxy | OxyHQServices `packages/console` | planned |
-| Per-app Inference overview | Oxy | OxyHQServices `packages/console` | planned |
-| Per-app Usage and spend | Oxy | OxyHQServices `packages/console` | planned |
-| Per-app Routing policy | Oxy | OxyHQServices `packages/console` | planned |
-| Per-app Provider connections / BYOK | Oxy | OxyHQServices `packages/console` | planned |
-| Per-app Limits and budgets | Oxy | OxyHQServices `packages/console` | planned |
-| Per-app Webhooks / audit events | Oxy | OxyHQServices `packages/console` | planned |
-| Per-app environment-specific configuration | Oxy | OxyHQServices `packages/console` | planned |
-| Real model catalogue rendering (ids, publishers, revisions, capabilities, regions, providers, data policy, prices) | Oxy | OxyHQServices `packages/console` | planned |
-| Routing profiles rendered separately from models | Oxy | OxyHQServices `packages/console` | planned |
-| Catalogue filters (modality, tools, region, provider, price, data policy) | Oxy | OxyHQServices `packages/console` | planned |
-| Playground bound to active account/application and selected credential/environment | Oxy | OxyHQServices `packages/console` | planned |
-| Post-run detail: request id, model revision, provider route, latency, units, billed amount | Oxy | OxyHQServices `packages/console` | planned |
-| Balance split: purchased / promotional / reserved | Oxy | OxyHQServices `packages/console` | planned |
-| Pending reservations and settled charges | Oxy | OxyHQServices `packages/console` | planned |
-| Spend by application / model / provider / time | Oxy | OxyHQServices `packages/console` | planned |
-| Budget creation and alerts | Oxy | OxyHQServices `packages/console` | planned |
-| Server-provided permission gating (no client role re-derivation) | Oxy | OxyHQServices `packages/console` | planned |
+| Members / account-settings management surface | Oxy | OxyHQServices `packages/console/src/routes/_layout/settings/account.tsx:144-147` | exists — members, active versus invited, and role labels |
+| Per-app Inference overview | Oxy | OxyHQServices `packages/console/src/components/apps/inference-overview-section.tsx`, mounted at `routes/_layout/apps/$appId/inference.tsx:15` | exists |
+| Per-app Usage and spend | Oxy | OxyHQServices `packages/console/src/components/apps/application-usage-spend-section.tsx`, mounted at `routes/_layout/apps/$appId/inference.tsx:18` | exists |
+| Per-app Routing policy | Oxy | OxyHQServices `packages/console/src/components/apps/routing-policy-section.tsx` + `routing-policy-form.tsx`, mounted at `routes/_layout/apps/$appId/inference.tsx:16` | exists |
+| Per-app Provider connections / BYOK | Oxy | OxyHQServices `packages/console/src/components/apps/provider-connections-section.tsx`, mounted at `routes/_layout/apps/$appId/inference.tsx:17` | exists |
+| Per-app Limits and budgets | Oxy | OxyHQServices `packages/console/src/components/apps/application-budgets-section.tsx`, mounted at `routes/_layout/apps/$appId/inference.tsx:19` | exists |
+| Per-app Webhooks / audit events | Oxy | OxyHQServices `packages/console/src/components/apps/provider-connections-section.tsx:628`, `components/apps/credentials-section.tsx`, `lib/credential-audit.ts` | partial — audit trails render for provider connections and, since #1053, for credentials. There is no per-app WEBHOOKS surface: `general-section.tsx:366-382` configures two webhook URLs, which is configuration rather than an event trail |
+| Per-app environment-specific configuration | Oxy | OxyHQServices `packages/console/src/components/apps/credentials-section.tsx:72,136` | partial — credentials are environment-scoped (`credentials-section.tsx:72,136`) and the playground carries an environment. The per-app inference page has no environment dimension of its own |
+| Real model catalogue rendering (ids, publishers, revisions, capabilities, regions, providers, data policy, prices) | Oxy | OxyHQServices `packages/console/src/routes/_layout/models.tsx` + `hooks/use-models.ts` | exists — renders the real catalogue read, which answers `[]` until the catalogue is written (§5). An empty list is the honest render, not an error state |
+| Routing profiles rendered separately from models | Oxy | OxyHQServices `packages/console/src/routes/_layout/models.tsx:43,66` | exists — two tabs, with the reason in the comment: a profile is not a model |
+| Catalogue filters (modality, tools, region, provider, price, data policy) | Oxy | OxyHQServices `packages/console/src/routes/_layout/models.tsx:28-33`, `lib/model-catalogue-filters.ts` | exists |
+| Playground bound to active account/application and selected credential/environment | Oxy | OxyHQServices `packages/console/src/routes/_layout/playground.tsx:21-22,73,81`, `hooks/use-playground.ts:178` | exists |
+| Post-run detail: request id, model revision, provider route, latency, units, billed amount | Oxy | OxyHQServices `packages/console/src/components/playground/playground-receipt.tsx:71-108` | partial — request id, model revision, provider route, routing policy, finish reason, generation id, metered units and billed amount all render. LATENCY does not: what is shown is a client-measured round trip, and the component says so rather than passing it off as the server's measurement |
+| Balance split: purchased / promotional / reserved | Oxy | OxyHQServices `packages/console/src/components/billing/account-balance-card.tsx:111-119` | exists |
+| Pending reservations and settled charges | Oxy | OxyHQServices `packages/console/src/routes/_layout/billing/charges.tsx:46-76` | exists — a reservation is shown as money HELD and not charged, which is the distinction the ledger draws |
+| Spend by application / model / provider / time | Oxy | OxyHQServices `packages/console/src/routes/_layout/billing/spend.tsx:53,99-102` | exists — selectable dimensions |
+| Budget creation and alerts | Oxy | OxyHQServices `packages/console/src/components/billing/budget-form-dialog.tsx:90,128,315-335`, `routes/_layout/billing/budgets.tsx` | exists — thresholds come from the closed set the column's CHECK admits, and each is recorded once per period so an alert does not re-fire on every request |
+| Server-provided permission gating (no client role re-derivation) | Oxy | OxyHQServices `packages/console/src/hooks/use-applications.ts:283-291,348-361` | exists — the Console reads `callerMembership.permissions` as serialised by the server and re-derives no roles |
 | Relay customer console | **forbidden** (ADR 0005 invariant 5) | — | must never exist |
 
 ## 10. BYOK provider connections (epic §10)
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| Provider connection metadata (provider, owner account, application scope, environment, status) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Provider secret material in Vault/KMS/managed secret storage | Vault/KMS (Oxy-managed) | oxy-infra | planned |
-| Secret *reference* stored in Postgres | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Environment/account encryption separation | Oxy | OxyHQServices `packages/api/src` | planned |
-| Safe prefixes / fingerprints / validation status in responses | Oxy | OxyHQServices `packages/api/src` | planned |
+| Provider connection metadata (provider, owner account, application scope, environment, status) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnections.ts` | exists — `provider`, `owner_account_id`, `application_id`, `scope_kind`, `environment` and `status`, all in the migrated schema |
+| Provider secret material in Vault/KMS/managed secret storage | Vault/KMS (Oxy-managed) | oxy-infra | unverified — the owner is not Oxy and the path is `oxy-infra`, so rule 1 applies: `planned` would claim Oxy owes something here, and Oxy's half (a reference, never the secret) is done |
+| Secret *reference* stored in Postgres | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnections.ts` (`secret_ref`) | exists — the column holds a reference; the secret itself never reaches Postgres (ADR 0013) |
+| Environment/account encryption separation | Oxy | OxyHQServices `packages/api/src/services/inferenceProviderConnection.service.ts:555-565` | partial — the REFERENCE is partitioned by environment, owner account and connection id, and a partition CHECK enforces that the reference contains them. Whether the encryption KEY differs per environment and account is a secret-store fact this repository cannot settle |
+| Safe prefixes / fingerprints / validation status in responses | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnections.ts` | exists — `key_prefix`, `fingerprint`, `validation_state`, `validation_failure_code` and `last_validated_at`, and no response carries the secret |
 | Credential validation via a dedicated provider check (never logged) | Relay | OxyHQ/Relay | unverified — Relay-owned and not audited from here (rule 1); `planned` would claim Oxy owes something here, and it does not |
-| Rotation, replacement, immediate disable | Oxy | OxyHQServices `packages/api/src` | planned |
-| Audit log: create, validate, rotate, use, revoke | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Connection scope decision (account-wide / project-wide / application-only) | Oxy | OxyHQServices `docs/` | planned |
-| Routing policy "prefer/require BYOK" | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| BYOK usage still produces Oxy usage receipts and platform-fee charges | Oxy | OxyHQServices `packages/api/src` | planned |
-| Provider-terms acknowledgement record | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
+| Rotation, replacement, immediate disable | Oxy | OxyHQServices `packages/api/src/routes/inferenceProviderConnections.ts:618,665,718` | exists |
+| Audit log: create, validate, rotate, use, revoke | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviderConnectionAuditEvents.ts:123-126` | exists — the event vocabulary covers all five plus `disabled`/`enabled`, and the table is append-only (see §12) |
+| Connection scope decision (account-wide / project-wide / application-only) | Oxy | OxyHQServices `docs/inference/byok.md:54,63,80` + `inference_provider_connections.scope_kind` | exists — the decision is recorded and the column implements it |
+| Routing policy "prefer/require BYOK" | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` (`byok_preference`) | exists — stored on the versioned policy and applied as a candidate filter |
+| BYOK usage still produces Oxy usage receipts and platform-fee charges | Oxy | OxyHQServices `packages/api/src/db/schema/usageReceipts.ts` (`platform_fee_only`) + `schemas/inferenceEdge.schemas.ts:298-303` | exists — a BYOK request settles a receipt flagged `platform_fee_only`, so `billed_amount` is Oxy's fee rather than the cost of the tokens, and reporting and the CSV export both carry the flag |
+| Provider-terms acknowledgement record | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceProviders.ts:76-115` + `inference_provider_connections.terms_acknowledged_at` | exists — and it is structural: a composite foreign key refuses an un-acknowledged connection for a provider whose terms require one, and refuses turning the requirement ON while such connections exist |
 | BYOK secret in an application table | **forbidden** (ADR 0005 invariant 12) | — | must never exist |
 
 ## 11. Commercial permissions (epic §11)
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| `availabilityScope` (`internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted`) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| `commercialPermission` (`standard_application_use`, `public_resale_approved`, `wholesale_contract`, `customer_byok`, `open_weight_hosting`) | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Public catalogue/routing block unless permission approved | Oxy | OxyHQServices `packages/api/src` | planned |
-| Contract/legal review status and evidence reference | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Open-weight licence, attribution, acceptable-use requirements | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Base-model attribution requirement for derived names | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
+| `availabilityScope` (`internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted`) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:168,291-294` | exists — the column's enum is taken from the contract's own zod enum rather than restated, so the column, the CHECK and the wire cannot disagree |
+| `commercialPermission` (`standard_application_use`, `public_resale_approved`, `wholesale_contract`, `customer_byok`, `open_weight_hosting`) | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:169,295-298` | exists — same derivation from the contract |
+| Public catalogue/routing block unless permission approved | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:172-174` + `services/inferenceCatalogue.service.ts:201` | exists — default DENY as a column default (`pending_review`) and ONE selectability predicate requiring `approved`, with no internal-routes-are-exempt branch |
+| Contract/legal review status and evidence reference | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:186-198,359-374` | exists — and the CHECKs make the cheapest green the honest one: a route cannot be `approved` until its legal review is, and an approved review needs a non-blank evidence reference, tested with `length(btrim(...)) > 0` so an empty string cannot pass for one |
+| Open-weight licence, attribution, acceptable-use requirements | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:151-162` | exists as columns — see §5's licence row for the fact that nothing writes them yet |
+| Base-model attribution requirement for derived names | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModels.ts:174` | exists — `base_model_attribution_required`, deliberately distinct from `requires_attribution`: some licences constrain what a fine-tune may be CALLED, separately from the right to serve it |
 | "Available to Alia internally" vs "available to external customers" separation | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:168` (`availability_scope`), vocabulary in `packages/contracts/src/inference/catalogue.ts:165` | exists — the enum IS the separation (`internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted`), and it is ENFORCED rather than merely stored: `services/inferenceCatalogue.service.ts:200` filters every catalogue read to the viewer's permitted scopes |
-| Admin workflow: approve, restrict, suspend, retire a route | Oxy | OxyHQServices `packages/console` + `packages/api/src` | planned |
+| Admin workflow: approve, restrict, suspend, retire a route | Oxy | OxyHQServices `packages/api/src/services/inferenceCatalogueAdmin.service.ts:37-44,123,182` + `routes/inferenceAdmin.ts:152,367,393` | exists — all four actions behind a staff gate, with the legal-review recording beside them |
 
 ## 12. Privacy, security, compliance (epic §12)
 
@@ -599,19 +669,19 @@ ADR 0005 invariant 5.
 | No prompt/response persistence by default | Oxy + Relay | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md`, `scripts/check-no-payload-persistence.mjs` + OxyHQ/Relay | exists for Oxy — no column in the schema can hold a prompt, a completion, a chat message body or a tool argument, enforced by a census over the drizzle barrel in the `Schema Payload Policy` CI job; for Relay, **unverified** — the repository exists and its payload handling has not been audited from here, which is a different claim from `planned` |
 | Opt-in, time-limited, encrypted, audited debug payload retention | Oxy | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md` | refused, not planned — ADR 0016 makes the four properties PRECONDITIONS on building capture rather than follow-up work, and precondition 3 (a key Oxy does not hold in PostgreSQL) needs the same absent managed-secret backend as ADR 0013 |
 | PII/redaction controls for opted-in traces | Oxy | OxyHQServices `docs/adr/0016-no-inference-payload-persistence.md` | blocked on the row above, and vacuous until then — no trace or span infrastructure exists in this repository, so there is nothing to redact PII from |
-| Deployment policy fields (retention, training, region, subprocessors, ZDR) | Oxy (catalogue), Relay (truth) | OxyHQServices + OxyHQ/Relay | planned |
-| Deletion/export preserving legally required financial records | Oxy | OxyHQServices `packages/api/src` | planned |
+| Deployment policy fields (retention, training, region, subprocessors, ZDR) | Oxy (catalogue), Relay (truth) | OxyHQServices `packages/api/src/db/schema/inferenceDeployments.ts:155-164` + OxyHQ/Relay | exists as columns, enforced against a routing policy at `services/inferenceCatalogue.service.ts:432-443`; see §5 for the absent writer. The TRUTH of a route's policy is Relay's and is `unverified` from here |
+| Deletion/export preserving legally required financial records | Oxy | OxyHQServices `packages/api/src/db/expiry.ts:263-269` + `routes/users.ts:1590-1617` | partial — the retention side is done: financial tables are excluded from the telemetry sweep, with the reason recorded. Whether an EXPORT of those records exists for a deletion request is not established here |
 | Secret-scanning and accidental-serialization tests | Oxy | OxyHQServices `scripts/check-secret-scan.mjs` (scanning), `packages/api/src/services/__tests__/inferenceProviderConnection.service.test.ts` (serialization) | exists — twelve issued-token grammars plus a tracked-dotenv refusal over every tracked file, in the `Secret Scan` CI job, each rule verified against its own sample on every run; the serialization half walks a returned DTO to every leaf, its `JSON.stringify`, its exact key set, every stored column and the audit trail, with a positive control proving the credential really passed through |
 | Rotation runbooks and break-glass procedures | Oxy (credentials Oxy issues), infra (AWS) | OxyHQServices `docs/runbooks/` + oxy-infra `docs/runbooks/` | exists for the five credential classes Oxy issues — application credential, `oxy_sk_…` machine key, BYOK provider connection, the token signing keys, and the Oxy→Relay edge signing key (that one written against ADR 0015 and pending it); `planned` for the AWS half, which is oxy-infra's and is deliberately not duplicated here |
-| Immutable audit events for credential, billing, routing, provider-connection changes | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Staff vs customer action distinction in audit | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Least-privilege admin roles | Oxy | OxyHQServices `packages/api/src` | planned |
-| Rate limits and fraud controls before prepaid public inference | Oxy | OxyHQServices `packages/api/src/middleware/rateLimiter.ts` (factory exists; inference limiters planned) | planned |
-| Privacy/security review gate for public launch | Oxy | OxyHQServices `docs/` | planned |
-| Signed Alia model release manifest ingestion contract | Oxy (ingest), Alia (issuer) | OxyHQServices `packages/api/src` | planned |
-| Model card, licence, provenance, evaluation, safety results, artifact digests | Alia (produces), Oxy (stores/publishes) | OxyHQServices `packages/api/src/db/schema` | planned |
-| EU AI Act / GPAI documentation metadata | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Content-provenance / marking metadata | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
+| Immutable audit events for credential, billing, routing, provider-connection changes | Oxy | OxyHQServices `packages/api/src/db/schema/applicationCredentialAuditImmutability.ts`, `ledgerImmutability.ts`, `accountBillingImmutability.ts`, `inferenceRoutingImmutability.ts`, `inferenceProviderConnectionImmutability.ts` | exists — all four domains: `application_credential_audit_events`, `billing_ledger_entries`, `inference_routing_policy_versions` and `inference_provider_connection_audit_events`, each with its immutability enforced by a trigger rather than by convention |
+| Staff vs customer action distinction in audit | Oxy | OxyHQServices `packages/api/src/db/schema/billingLedgerEntries.ts:249,316-318`, `inferenceProviderConnectionAuditEvents.ts:144,300-303` | partial — `actor_kind` + `actor_user_id` exist on TWO of the four audit surfaces, each with a CHECK pairing the kind against the presence of a user id. `application_credential_audit_events` carries `actor_user_id` and NO kind, and `inference_routing_policy_versions` only `created_by_user_id`. A null `actor_kind` means "written before the column existed", which is why both CHECKs are written with `is not distinct from` |
+| Least-privilege admin roles | Oxy | OxyHQServices `packages/api/src/routes/inferenceAdmin.ts:6,51` | exists — every catalogue-admin action is behind a staff capability gate, and the staff-only application fields are gated separately |
+| Rate limits and fraud controls before prepaid public inference | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:128-131` and the limiter in each `routes/inference*.ts` | partial — the limiters this row's earlier note called planned now EXIST: ten of them, each with its own `rl:inference:*` prefix, including `rl:inference:edge:` on the public edge. Fraud controls beyond those and the spend-anomaly detector (§8) do not |
+| Privacy/security review gate for public launch | Oxy | OxyHQServices `docs/inference/rollout.md:25,85-89` (`INFERENCE_PRIVACY_REVIEW`) | exists — the GATE is built and fails CLOSED: a public audience with no review recorded resolves closed with the reason `public_requires_privacy_review`. The review itself is unrecorded, which is an open decision rather than a missing mechanism |
+| Signed Alia model release manifest ingestion contract | Oxy (ingest), Alia (issuer) | OxyHQServices `packages/contracts/src/inference/aliaModelRelease.ts` | partial — the CONTRACT ships, which is what the epic's box asks for ("define an ingestion contract"). No INGEST exists: a census over non-test `packages/api/src` finds zero references to it, so nothing can accept a manifest yet |
+| Model card, licence, provenance, evaluation, safety results, artifact digests | Alia (produces), Oxy (stores/publishes) | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts:110-129`, `inferenceModels.ts:151-187`, `inferenceModelEvaluations.ts` | partial — all six are STORABLE today (model card url, licence block, release kind plus base model, the evaluations child table, the safety group, `artifact_digest`). What is missing is a path that ACCEPTS them: no HTTP route and no writer outside the publisher seed (§5) |
+| EU AI Act / GPAI documentation metadata | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelRevisions.ts:121-129`, `inferenceModels.ts:178-187` | partial — the FIELDS the regime expects beside a served model exist (safety metadata, model card, provenance, licence). There is no dedicated GPAI documentation artifact, and the only textual reference to the regime in the repository is a doc comment in `packages/contracts/src/inference/catalogue.ts:214` |
+| Content-provenance / marking metadata | Oxy | OxyHQServices `packages/api/src/db/schema/inferenceModelProvenance.ts` + `drizzle/0050_inference_model_provenance_marking.sql` | exists — `provenance_marking` on a revision, and two triggers make an unmarked revision under a non-text-output model unreachable from either direction: inserting or updating the revision, and widening the model's output modalities afterwards. `text` is the only exemption, and `none` counts as a declaration |
 
 ## 13. Relay data plane (epic §13 — external dependency)
 
@@ -652,12 +722,12 @@ workstreams 0–12 may block on it.
 |---|---|---|---|
 | Alia registered as an Oxy first-party/internal Application under the correct account | Oxy (registry), Alia (consumer) | production registry | unverified — settled by reading the production `applications` row, not the repo |
 | Separate development / staging / production credentials for Alia | Oxy | production registry | unverified — settled by reading production `application_credentials` rows |
-| Inference scopes granted to Alia | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts` | planned |
-| Alia delegating an end-user id while billing the Alia account/cost center | Oxy | OxyHQServices `packages/api/src` | planned |
-| Internal cost centers: Alia production chat, Codea, research, voice, evaluations | Oxy | OxyHQServices `packages/api/src/db/schema` | planned |
-| Entitlement/billing API consumed by Alia product plans | Oxy | OxyHQServices `packages/api/src` | planned |
+| Inference scopes granted to Alia | Oxy | OxyHQServices `packages/api/src/utils/applicationScopes.ts:83-89` | unverified — the scope VOCABULARY exists; whether Alia's application holds those grants is production data, which is the same class of fact this file marks `unverified` elsewhere |
+| Alia delegating an end-user id while billing the Alia account/cost center | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:261-266` + `db/schema/inferenceUsageEvents.ts` (`delegated_user_id`) | exists — the header is parsed and length-bounded, the delegated id is recorded on the usage event and the receipt, and the BILLING principal stays the caller's own account (ADR 0007) |
+| Internal cost centers: Alia production chat, Codea, research, voice, evaluations | Oxy | OxyHQServices `packages/api/src/db/schema/internalCostCenters.ts` + `scripts/internalCostCenterSpecs.ts:85,93,99,105,111` | exists — the table plus all five specifications, each addressed by a slug that IS the project account's username |
+| Entitlement/billing API consumed by Alia product plans | Oxy | OxyHQServices `packages/api/src/routes/accountBilling.ts:88,816`, `routes/costCenters.ts:46`, `packages/contracts/src/inference/entitlement.ts` | exists — the contract and the routes. Whether Alia consumes them is Alia's half and is `unverified` from here |
 | Removal of the static Oxy→Alia infrastructure proxy | Oxy | OxyHQServices `packages/api/src/routes/alia.ts` | planned — **a removal row, so this means the proxy is STILL LIVE** (rule 2). All three of its routes are mounted and now gated by `requireFirstPartyInferenceCaller`; see §3.1. Workstream 14 owns retiring them |
-| Deprecation of Alia-owned developer keys, provider billing, generic `/v1` endpoints | Alia | Alia repo | planned — **a removal row on a non-Oxy owner**, so it means neither that Oxy owes anything nor that Alia has done it: `alia_sk_…` keys are still Alia-issued and unaudited from here (rules 1 and 2 together) |
+| Deprecation of Alia-owned developer keys, provider billing, generic `/v1` endpoints | Alia | Alia repo | unverified — **a removal row on a non-Oxy owner**, which is what rules 1 and 2 together make of it: `planned` would claim Oxy owes something, and no reading of it would say whether Alia has done the work. `alia_sk_…` keys are still Alia-issued as far as this repository can see, and that is the limit of what it can see |
 | Alia assistant product, conversations, memory, agents, tools, approvals | Alia | Alia repo | exists (outside this repo) |
 
 ## 15. SDKs and documentation (epic §15)
@@ -690,23 +760,23 @@ workstreams 0–12 may block on it.
 
 | Item | Owner | Repo / path | Status |
 |---|---|---|---|
-| Oxy↔Relay schema compatibility tests | Oxy + Relay | OxyHQServices + OxyHQ/Relay | planned |
-| Attribution tests (account/application/credential) | Oxy | OxyHQServices `packages/api` | planned |
-| Scope and RBAC tests | Oxy | OxyHQServices `packages/api` | planned |
-| Credential create/rotate/revoke/expiry tests | Oxy | OxyHQServices `packages/api/src/routes/__tests__/applications.test.ts` (credential coverage exists; inference cases planned) | planned |
-| Reservation/settlement/refund/idempotency tests | Oxy | OxyHQServices `packages/api` | planned |
-| Price-version snapshot tests | Oxy | OxyHQServices `packages/api` | planned |
-| Cross-account isolation tests | Oxy | OxyHQServices `packages/api` | planned |
-| Commercial-permission route filtering tests | Oxy | OxyHQServices `packages/api` | planned |
-| Retention-policy filtering tests | Oxy | OxyHQServices `packages/api` | planned |
-| E2E: non-streaming, SSE streaming, disconnect-cancels, same-model failover, forbidden cross-model fallback | Oxy + Relay | OxyHQServices + OxyHQ/Relay | planned |
-| E2E: Alia service token with delegated user, external machine key, BYOK route | Oxy + Relay | OxyHQServices + OxyHQ/Relay | planned |
-| E2E: insufficient balance, partial stream settlement, retry with no duplicate charge, rotation during traffic | Oxy | OxyHQServices `packages/api` | planned |
-| `requestId` correlation across edge, Relay, ledger and receipt | Oxy + Relay | OxyHQServices + OxyHQ/Relay | planned |
-| Metrics: request rate, error rate, TTFT, total latency, cancellation, fallback | Oxy + Relay | OxyHQServices + OxyHQ/Relay | planned |
-| Metrics: reserve failures, settlement lag, reconciliation drift | Oxy | OxyHQServices | planned |
+| Oxy↔Relay schema compatibility tests | Oxy + Relay | OxyHQServices `packages/contracts/src/__tests__/inference.compatibility.test.ts` + OxyHQ/Relay | partial — Oxy's half exists (frozen version map with exact equality, a `readdirSync` census so a new contract file cannot hide, a frozen union list, a round-trip fixture per shape). The cross-repo half is `unverified` |
+| Attribution tests (account/application/credential) | Oxy | OxyHQServices `packages/api/src/services/__tests__/attribution.service.test.ts` | exists |
+| Scope and RBAC tests | Oxy | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts`, `accountsMemberPermissions.test.ts`, `applicationPermissionOverrides.test.ts`, `accountBillingAuthorization.test.ts` | exists |
+| Credential create/rotate/revoke/expiry tests | Oxy | OxyHQServices `packages/api/src/routes/__tests__/machineCredentials.test.ts:370-535`, `credentialAuditTrail.test.ts`, `serviceTokenCredentials.test.ts` | exists — including the inference cases this row's earlier note called planned: the machine token is returned exactly once, the stored hash is asserted never to be the plaintext WITH a control proving that check can fail, an unscoped or over-scoped credential is refused, and an expired one is refused on the bearer lane |
+| Reservation/settlement/refund/idempotency tests | Oxy | OxyHQServices `packages/api/src/services/__tests__/inferenceLedger.service.test.ts` | exists — reserve → settle → refund against a REAL Postgres, with the interleavings FORCED by a second reserved connection and the contender observed BLOCKED, rather than hoping a race reproduces |
+| Price-version snapshot tests | Oxy | OxyHQServices `packages/api/src/services/__tests__/inferenceLedger.service.test.ts:43` + `db/schema/__tests__/inferenceLedger.test.ts` | exists |
+| Cross-account isolation tests | Oxy | OxyHQServices `packages/api/src/routes/__tests__/inferenceRoutingPolicies.test.ts:462,485,1088`, `inferenceProviderConnections.test.ts` | exists |
+| Commercial-permission route filtering tests | Oxy | OxyHQServices `packages/api/src/routes/__tests__/inferenceCataloguePublication.test.ts:199` | exists |
+| Retention-policy filtering tests | Oxy | OxyHQServices `packages/api/src/services/__tests__/inferenceRoutingConstraints.test.ts:170,210,245` | exists — including the subtle case: a route offering zero retention as a CAPABILITY while still retaining is excluded |
+| E2E: non-streaming, SSE streaming, disconnect-cancels, same-model failover, forbidden cross-model fallback | Oxy + Relay | OxyHQServices `packages/api/src/routes/__tests__/relayStreaming.test.ts`, `inferenceEdge.test.ts`, `inferenceEdgeRouteSwitchEvents.test.ts` + OxyHQ/Relay | exists against the injected data-plane fake, which is what makes these runnable with no Relay. End to end against a live Relay is a different claim and is `unverified` |
+| E2E: Alia service token with delegated user, external machine key, BYOK route | Oxy + Relay | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdgeCredentialLanes.test.ts:4-28` | partial — that file states in its own header which halves it covers: the delegated user IS covered on the machine lane, and what is not is that the delegated user is never the BILLING principal on that lane |
+| E2E: insufficient balance, partial stream settlement, retry with no duplicate charge, rotation during traffic | Oxy | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdgeRollout.test.ts:847`, `relayStreaming.test.ts`, `services/__tests__/inferenceLedger.service.test.ts` | exists — the refusal is asserted on the error CODE (`insufficient_balance`), not on a phrase |
+| `requestId` correlation across edge, Relay, ledger and receipt | Oxy + Relay | OxyHQServices `packages/api/src/routes/__tests__/inferenceEdge.test.ts:424,623` + OxyHQ/Relay | exists for Oxy's three hops (edge → ledger → receipt); the Relay hop is `unverified` |
+| Metrics: request rate, error rate, TTFT, total latency, cancellation, fallback | Oxy + Relay | OxyHQServices `packages/api/src/services/inferenceMetrics.service.ts:24,32,318` + OxyHQ/Relay | exists on Oxy's side; whether Relay emits its half is `unverified` |
+| Metrics: reserve failures, settlement lag, reconciliation drift | Oxy | OxyHQServices `packages/api/src/services/inferenceMetrics.service.ts:345-347` | exists |
 | Alerts: ledger imbalance, duplicate event ids, provider error/cost spikes | Oxy | OxyHQServices + oxy-infra | planned |
-| Audit dashboards for credential and billing changes | Oxy | OxyHQServices `packages/console` | planned |
+| Audit dashboards for credential and billing changes | Oxy | OxyHQServices `packages/console/src/components/apps/credentials-section.tsx`, `lib/credential-audit.ts` | partial — the CREDENTIAL trail renders since #1053, and it derives attribution from the event type rather than from a null actor id, which is the correct reading for that table. There is no BILLING audit dashboard |
 | Status-page signals from customer-safe model/deployment availability | Oxy (surface), Relay (source) | OxyHQServices + OxyHQ/Relay | planned |
 | Feature flags for new auth, API edge, ledger, catalogue | Oxy | OxyHQServices `packages/api/src/config/rolloutFlags.ts` | exists |
 | Rollout-flag readout (`GET /inference/admin/rollout`) | Oxy | OxyHQServices `packages/api/src/routes/inferenceAdmin.ts` | exists |
@@ -730,3 +800,26 @@ workstreams 0–12 may block on it.
   repo can answer the question.
 - **New tables, events and API surfaces are added here in the same PR that adds
   them**, with their owner, not afterwards.
+- **The PR that SHIPS a thing edits its row in the same change.** This is the rule
+  the file was missing, and its absence is measurable: on 2026-08-18 a per-row
+  audit found **97 of the 111 `planned` rows wrong** — 71 fully shipped, 23
+  partial, 3 that rule 1 makes `unverified`. Three separate audits have now
+  rediscovered overlapping subsets of the same rows, because nothing forces a
+  revisit when work lands. A `planned` row is the one that rots; an `exists` row
+  rots only when something is deleted, which is rarer.
+- **A JUDGED row cites its subject, never an ANCESTOR of it.** A path cell reading
+  `packages/api/src` or `packages/console` beside `exists`, `partial` or
+  `contract only` is satisfied by the repository existing, so it confirms nothing
+  and can never be refuted — which is how ten §5 rows survived two reviews. Cite
+  `file.ts:line`; a directory is right only where the row's SUBJECT is a directory
+  or a package (`@oxyhq/contracts`, `docs/runbooks/`, a route folder), and a bare
+  ancestor is acceptable only on a `planned` or `unverified` row, where it names
+  the intended home of something absent. No judged row cites an ancestor as of
+  2026-08-18; the eight citing a directory each have one as their subject.
+- **A row with two owners gets two rows.** One status cannot describe both halves
+  of an Oxy/Relay item: whichever half a reader has in mind, the single word is
+  wrong about the other. Rows 393 and 399 were split for this reason on
+  2026-08-18.
+- **Re-verify against the CURRENT remote tip, not the base you started from.**
+  This pass initially reported no Console credential-audit surface; #1053 had
+  landed one between the audit and the edit, and a rebase is what caught it.
