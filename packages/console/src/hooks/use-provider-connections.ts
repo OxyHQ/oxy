@@ -23,6 +23,15 @@ import { toProviderConnectionView } from '@/lib/provider-connection';
 // which the SDK's default retry policy WOULD retry, because it is a 5xx.
 // ===========================================================================
 
+/**
+ * What kind of principal caused an audit event, as the server records it.
+ *
+ * Three kinds, and TWO of them carry a null `actorUserId` — which is why the
+ * kind has to travel to the client rather than be inferred from the id. See
+ * {@link providerConnectionAuditAttribution}.
+ */
+export type ProviderConnectionActorKind = 'user' | 'service' | 'platform';
+
 /** One entry of a connection's append-only trail. */
 export interface ProviderConnectionAuditEvent {
   readonly eventType:
@@ -33,7 +42,13 @@ export interface ProviderConnectionAuditEvent {
     | 'disabled'
     | 'enabled'
     | 'revoked';
-  /** Null for an event a service credential caused — there is no person behind one. */
+  /**
+   * Who or what caused it. `null` on rows written before the column existed
+   * (`0049`), never on a new one — the server's CHECK pairs each kind with the
+   * presence or absence of `actorUserId`.
+   */
+  readonly actorKind: ProviderConnectionActorKind | null;
+  /** Set only when `actorKind` is `user`; null for `service` and `platform` alike. */
   readonly actorUserId: string | null;
   readonly environment: string;
   readonly createdAt: string;
@@ -100,6 +115,11 @@ export function useProviderConnectionAudit(
     select: (events): Array<ProviderConnectionAuditEvent> =>
       events.map((event) => ({
         eventType: event.eventType,
+        // `actorKind` is projected THROUGH, not dropped. It was omitted here
+        // until #1057, and the screen re-derived attribution from
+        // `actorUserId === null` — which reads every `platform` event, and so
+        // every `used` event, as a service credential.
+        actorKind: event.actorKind,
         actorUserId: event.actorUserId,
         environment: event.environment,
         createdAt: event.createdAt,

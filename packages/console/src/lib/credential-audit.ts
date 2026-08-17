@@ -14,12 +14,22 @@ import type { CredentialAuditEvent } from '@/hooks/use-applications';
  *   - `reason` is non-null ONLY on `validation_failed`.
  *   - `actorUserId` is null ONLY on `validation_failed`.
  *
- * So a null `actorUserId` does not mean "a service credential did this" — the
- * inference the BYOK trail beside this one makes correctly, because a BYOK event
- * really can be caused by a service credential. Here it means nobody did it: a
- * request arrived and was REFUSED. Attributing a refusal to a service credential
- * would invent an actor for an event that has none, and it would read as though a
- * machine had rotated a key when in fact a request failed validation.
+ * So a null `actorUserId` does not mean "a service credential did this". Here it
+ * means nobody did it: a request arrived and was REFUSED. Attributing a refusal
+ * to a service credential would invent an actor for an event that has none, and
+ * it would read as though a machine had rotated a key when in fact a request
+ * failed validation.
+ *
+ * This file originally described the BYOK trail beside it as making that
+ * inference CORRECTLY. It does not, and the claim is corrected here rather than
+ * left standing, because a comment asserting correctness stops the next reader
+ * checking. A BYOK event can be caused by a service credential — but it can also
+ * be caused by the PLATFORM, and `inference_provider_connection_audit_events`
+ * gives both a null `actor_user_id`; only `actor_kind` separates them. Since
+ * every `used` event is written `platform`, the null inference was wrong on the
+ * most numerous row in that trail. `lib/provider-connection.ts` now reads
+ * `actorKind` there, which is the same discipline as this file's: key off the
+ * field that actually distinguishes the states.
  *
  * That is why attribution below keys off `eventType` and never off the nullness
  * of `actorUserId`.

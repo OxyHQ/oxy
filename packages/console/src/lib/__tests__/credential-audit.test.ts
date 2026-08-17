@@ -45,11 +45,15 @@ const ROTATION: CredentialAuditEvent = {
 describe('credentialAuditAttribution', () => {
   /**
    * The bug this function exists to prevent. `actorUserId` is null on a refusal,
-   * and the BYOK trail beside this one reads a null actor as "by a service
-   * credential" — correctly, for BYOK, where a service credential really can
-   * cause an event. Reusing that inference here would invent an actor for an
-   * event that has none, and would report a turned-away request as a machine
-   * having rotated a key.
+   * so reading a null actor as "by a service credential" would invent an actor
+   * for an event that has none, and would report a turned-away request as a
+   * machine having rotated a key.
+   *
+   * The BYOK trail beside this one used to make exactly that inference, and this
+   * comment used to call it correct there. It was not: a `platform` event is also
+   * null-actored, and every `used` event is one. That trail now reads `actorKind`
+   * (`lib/provider-connection.ts`), so neither surface infers an actor from a
+   * null id.
    */
   it('never attributes a refused validation to an actor, even though its actor is null', () => {
     expect(REFUSAL.actorUserId).toBeNull();
