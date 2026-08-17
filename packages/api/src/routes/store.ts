@@ -75,12 +75,54 @@ const readLimiter = rateLimit({
  * already a constraint, so the budget that matters is how fast one person can
  * churn reviews across apps — and an IP key would throttle a whole office
  * network to one reviewer.
+ *
+ * ## The account key is only available AFTER `authMiddleware`
+ *
+ * This limiter therefore runs after it on every route below, and that ordering
+ * is the whole mechanism rather than a detail. It used to run BEFORE
+ * `authMiddleware` on all nine of them, so `req.user` was undefined every single
+ * time and the `?? req.ip` fallback was not a fallback — it was the only branch
+ * that ever executed. Both halves of the paragraph above were false in
+ * production: every store write minted a Redis key holding a RAW CLIENT IP,
+ * violating the platform's no-user-IPs-at-rest invariant, and a whole office
+ * network really did share one 20-writes-per-minute budget.
+ *
+ * So there is no IP branch here at all, not even a hashed one. A request whose
+ * account did not resolve is SKIPPED rather than bucketed under a shared key: if
+ * this limiter is ever reordered in front of `authMiddleware` again the
+ * degradation is "no per-account budget" — visible, and still covered by the
+ * global limiters named below — instead of silently reintroducing an IP key or
+ * collapsing every anonymous caller into one bucket.
+ *
+ * ## What guards the pre-auth lane, since this no longer does
+ *
+ * Two global middlewares, both registered in `server.ts` before any router and
+ * neither skipping `/store`, and both already keyed through `hashedIpKey`:
+ *
+ *   - `rateLimiter` (`rl:general:`, 1000/15min in production) — the per-IP
+ *     ceiling every unauthenticated request on this API is subject to.
+ *   - `bruteForceProtection` (`slowDown`, 500ms after 100/15min) — a progressive
+ *     delay on the same key.
+ *
+ * That is a deliberate trade, and the thing being traded away is small: an
+ * unauthenticated store write reaches no database write and has no secret to
+ * guess. It gets a 401 out of `authMiddleware` after a JWT decode and a cached
+ * session lookup — cheaper than the storefront GETs this same file serves
+ * anonymously at 240/min. A dedicated pre-auth write budget would be a second
+ * Redis round-trip guarding a 401, and to avoid re-throttling that office
+ * network its ceiling would have to sit near `rl:general:`'s anyway.
  */
 const writeLimiter = rateLimit({
   prefix: 'rl:store:write:',
   windowMs: WINDOW_1_MIN,
   max: 20,
-  keyGenerator: (req) => (req as AuthRequest).user?._id?.toString() ?? req.ip ?? 'unknown',
+  keyGenerator: (req) => (req as AuthRequest).user?._id?.toString() ?? '',
+  // The NEGATION of "the key exists", never a policy decision — see above for
+  // why this limiter refuses to invent a key it does not have. Spelled as the
+  // same expression the key generator uses, rather than as a separate test for
+  // `undefined`, so the two cannot drift into disagreeing about what "no key"
+  // means and leave a request bucketed under the empty string.
+  skip: (req) => ((req as AuthRequest).user?._id?.toString() ?? '') === '',
 });
 
 function requireUserId(req: AuthRequest): string {
@@ -175,8 +217,8 @@ router.get(
  */
 router.put(
   '/apps/:slug/review',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   csrfProtection,
   validate({ params: storeSlugParams, body: storeReviewBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -195,8 +237,8 @@ router.put(
 /** DELETE /store/apps/:slug/review — withdraw the caller's own review. */
 router.delete(
   '/apps/:slug/review',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   csrfProtection,
   validate({ params: storeSlugParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -214,8 +256,8 @@ router.delete(
  */
 router.put(
   '/reviews/:reviewId/reply',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   csrfProtection,
   validate({ params: storeReviewParams, body: storeReplyBody }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -231,8 +273,8 @@ router.put(
 /** DELETE /store/reviews/:reviewId/reply — withdraw it. Same gate. */
 router.delete(
   '/reviews/:reviewId/reply',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   csrfProtection,
   validate({ params: storeReviewParams }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -268,8 +310,8 @@ router.get(
 /** POST /store/moderation/listings/:applicationId/approve — publish it. */
 router.post(
   '/moderation/listings/:applicationId/approve',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   requireStaff,
   csrfProtection,
   validate({ params: storeModerationParams }),
@@ -281,8 +323,8 @@ router.post(
 /** POST /store/moderation/listings/:applicationId/reject — send it back. */
 router.post(
   '/moderation/listings/:applicationId/reject',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   requireStaff,
   csrfProtection,
   validate({ params: storeModerationParams }),
@@ -303,8 +345,8 @@ router.post(
 /** POST /store/moderation/categories — add a shelf. */
 router.post(
   '/moderation/categories',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   requireStaff,
   csrfProtection,
   validate({ body: storeCategoryBody }),
@@ -322,8 +364,8 @@ router.post(
 /** PATCH /store/moderation/categories/:slug — rename, re-word, or reorder it. */
 router.patch(
   '/moderation/categories/:slug',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   requireStaff,
   csrfProtection,
   validate({ params: storeCategoryParams, body: storeCategoryPatch }),
@@ -341,8 +383,8 @@ router.patch(
  */
 router.delete(
   '/moderation/categories/:slug',
-  writeLimiter,
   authMiddleware,
+  writeLimiter,
   requireStaff,
   csrfProtection,
   validate({ params: storeCategoryParams }),
