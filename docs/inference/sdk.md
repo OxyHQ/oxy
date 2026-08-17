@@ -318,13 +318,20 @@ plane does not teach every client to retry forever
 
 ### What refuses today, and why
 
-- **`stream=True` is refused** with `invalid_request`. Nothing streams at the
-  edge yet (`docs/inference/streaming.md`). A stock `openai` client defaults to
-  non-streaming, so ordinary calls are unaffected.
-- **Every invoke returns `service_unavailable` (HTTP 503).** No data plane is
-  configured, so the request is refused after authentication and admission and
-  before any provider is contacted. Nothing is charged: the hold is released
-  before the refusal returns.
+- **`stream=True` is refused** with `invalid_request` and HTTP 400 — verified by
+  `routes/__tests__/inferenceEdge.test.ts`, "refuses streaming with a typed error
+  rather than silently answering non-streamed". Note the reason: the edge *has*
+  streaming for both dialects, and it is unreachable because this deployment
+  configures no data plane, not because it was never built. A stock `openai`
+  client defaults to non-streaming, so ordinary calls are unaffected.
+- **Every invoke returns `service_unavailable` (HTTP 503).** The request is
+  refused after authentication and admission and before any provider is
+  contacted. Nothing is charged: the hold is released before the refusal returns.
+- **"Built" and "configured" are different facts here**, and the refusal is the
+  second one. `services/relayClient.ts` says it plainly: the data plane exists as
+  a repository with a build and a test suite, no deployment of it is configured,
+  and that is why every invoke refuses. The fix is three environment variables,
+  not a project.
 - **`model` must name a catalogue entry**, and the catalogue is empty by design
   until a real model is published, so there is no id that resolves today either.
 
