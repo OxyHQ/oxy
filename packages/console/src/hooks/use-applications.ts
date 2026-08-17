@@ -320,7 +320,15 @@ export type ApplicationPermission =
   | 'billing:read'
   | 'billing:manage'
   | 'ownership:transfer'
-  | 'updates:manage';
+  | 'updates:manage'
+  // The inference lane (#972 workstream 3). Spelled `byok` on an application and
+  // `providers` on an account: the same power under the two vocabularies' own
+  // names, which is why neither list can be derived from the other.
+  | 'inference:invoke'
+  | 'inference:routing:read'
+  | 'inference:routing:write'
+  | 'inference:byok:read'
+  | 'inference:byok:write';
 
 export interface CallerAccess {
   /** The caller's membership in the application's owning account, if any. */
