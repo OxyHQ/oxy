@@ -945,86 +945,6 @@ export function createInferenceEdgeRouter(
   );
 
   /**
-   * `GET /v1/generations/:id` — the usage and cost receipt.
-   *
-   * `:id` is the `requestId` from `X-Oxy-Request-Id`, or the `generationId`.
-   * A caller without `inference:usage:read`, or one whose application did not
-   * make the request, is told the receipt does not exist — the entitlement
-   * answer and the existence answer are deliberately the same, so this endpoint
-   * cannot be used to probe another application's spend.
-   *
-   * The refusal carries `model_not_found`, which is a compromise worth naming:
-   * `INFERENCE_ERROR_CODES` is a CLOSED set with no generic "not found" member,
-   * and it is the only code in it that maps to a 404 — which is the status a
-   * customer's HTTP client needs for a GET that resolved nothing. The message
-   * says what was actually not found. Widening the enum is a contract change
-   * with a version bump, and it belongs to whoever next has a second reason for
-   * one rather than to this route alone.
-   */
-  /* ------------------------------------------------------------------------ */
-  /*  The two modalities that have NO ROUTE, and why                          */
-  /* ------------------------------------------------------------------------ */
-
-  /**
-   * `POST /v1/audio/transcriptions` and `POST /v1/batches` are ABSENT from this
-   * router deliberately. The reason lives here, beside the routes that do exist,
-   * because the next person to reach for either will be reading this file — and
-   * both have a plausible-looking implementation that is financially unsound.
-   *
-   * ## Transcriptions: no sound ceiling exists in the request
-   *
-   * Providers bill audio by DURATION, and duration is a property of the uploaded
-   * bytes rather than a declared field. `Content-Length` bounds bytes only, and
-   * `duration = bytes ÷ bitrate` needs a bitrate the request never states: 25 MB
-   * is roughly thirty minutes of 112 kbps MP3 or four minutes of 48 kHz 16-bit
-   * stereo WAV, a ~7x spread that widens across the formats such an endpoint
-   * accepts. A byte-derived hold sized for the worst case over-holds by an order
-   * of magnitude on every ordinary request; sized for the typical case it
-   * UNDER-holds, and an under-sized hold is how a balance goes negative.
-   * `output_tokens` inherits the same unsoundness, because transcript length is a
-   * function of duration.
-   *
-   * **Do not reach for `bytes / 4`.** Two things would make this sound, and both
-   * are decisions rather than code: probe the container server-side before
-   * reserving (a new dependency, a parsing attack surface on untrusted bytes, and
-   * a rule for a container that lies about its own duration), or have the
-   * catalogue declare a per-route maximum duration and hold at
-   * `min(byte-derived worst case, route max)` — which needs an additive field on
-   * `modelCapabilitiesSchema` and is therefore a two-repo release, since Relay
-   * derives its contract from the published package and gates on drift.
-   *
-   * It is also blocked upstream of the ceiling: the request is
-   * `multipart/form-data` with a file, this edge is JSON-only behind
-   * `express.json`, and the internal envelope's input union has no audio-reference
-   * arm.
-   *
-   * ## Batches: the ledger protocol does not fit, which is the disqualifying half
-   *
-   * Two independent failures. The ceiling is a sum over N sub-requests of each
-   * one's own ceiling — computable only by parsing the uploaded file, and no
-   * sounder than the weakest modality it contains, so a batch of transcriptions
-   * inherits everything above.
-   *
-   * The second is the one that cannot be engineered around here: `reserve` →
-   * `settle` assumes ONE hold per HTTP request, settled inside
-   * `RESERVATION_TTL_SECONDS`. OpenAI's `completion_window` is twenty-four hours.
-   * A day-long hold against a fifteen-minute TTL means `expireReservations`
-   * releases it mid-batch and the work later settles against a reservation that no
-   * longer stands. **Raising the TTL is not the fix** — a day-long hold on a shared
-   * balance is a different financial product, and ADR 0009's terminal-write model
-   * has exactly one settlement per hold. What batches actually need is a hold per
-   * sub-request taken at dispatch, or a new long-lived reservation class with its
-   * own expiry and partial-settlement semantics. That is an amendment to ADR 0009,
-   * not an endpoint.
-   *
-   * Until then a caller of either path gets a 404 from the router, which is the
-   * honest answer: the endpoint does not exist. It is deliberately NOT a route
-   * that refuses, because a registered route implies a surface Oxy intends to
-   * serve, and `inferenceEdgeGateCoverage.test.ts` would then have to carry two
-   * entries that can never pass their own gate.
-   */
-
-  /**
    * `POST /v1/audio/speech` — text to audio (#972, the later modalities).
    *
    * Ceiling: `characters` = `input.length`. EXACT, declared, and the unit every
@@ -1204,6 +1124,23 @@ export function createInferenceEdgeRouter(
     }
   );
 
+  /**
+   * `GET /v1/generations/:id` — the usage and cost receipt.
+   *
+   * `:id` is the `requestId` from `X-Oxy-Request-Id`, or the `generationId`.
+   * A caller without `inference:usage:read`, or one whose application did not
+   * make the request, is told the receipt does not exist — the entitlement
+   * answer and the existence answer are deliberately the same, so this endpoint
+   * cannot be used to probe another application's spend.
+   *
+   * The refusal carries `model_not_found`, which is a compromise worth naming:
+   * `INFERENCE_ERROR_CODES` is a CLOSED set with no generic "not found" member,
+   * and it is the only code in it that maps to a 404 — which is the status a
+   * customer's HTTP client needs for a GET that resolved nothing. The message
+   * says what was actually not found. Widening the enum is a contract change
+   * with a version bump, and it belongs to whoever next has a second reason for
+   * one rather than to this route alone.
+   */
   router.get(
     '/generations/:id',
     edgeGate(sendInferenceError),
@@ -1270,3 +1207,87 @@ const configuredRelayClient = createHttpRelayClient();
 export default createInferenceEdgeRouter(
   configuredRelayClient === undefined ? {} : { relayClient: configuredRelayClient }
 );
+
+/* -------------------------------------------------------------------------- */
+/*  Placement note                                                            */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The block below sits AFTER the factory on purpose, not beside the routes it
+ * talks about.
+ *
+ * `scripts/generate-openapi.ts` harvests the JSDoc block immediately above a
+ * `router.<verb>(...)` call as that operation's published summary and description.
+ * An explanatory block placed between a route's own JSDoc and the route therefore
+ * DISPLACES it, and the generated contract falls back to "No long-form
+ * description. Add a JSDoc block…" for a live endpoint — silently, with a green
+ * build and no path added or removed.
+ *
+ * Measured: an earlier draft of this comment sat above `GET /generations/:id` and
+ * cost that endpoint its entire published description, including the argument for
+ * why it answers `model_not_found` on a 404. A prose comment is not inert here; it
+ * is an input to a published artifact.
+ */
+
+/* ------------------------------------------------------------------------ */
+/*  The two modalities that have NO ROUTE, and why                          */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * `POST /v1/audio/transcriptions` and `POST /v1/batches` are ABSENT from this
+ * router deliberately. The reason lives here, beside the routes that do exist,
+ * because the next person to reach for either will be reading this file — and
+ * both have a plausible-looking implementation that is financially unsound.
+ *
+ * ## Transcriptions: no sound ceiling exists in the request
+ *
+ * Providers bill audio by DURATION, and duration is a property of the uploaded
+ * bytes rather than a declared field. `Content-Length` bounds bytes only, and
+ * `duration = bytes ÷ bitrate` needs a bitrate the request never states: 25 MB
+ * is roughly thirty minutes of 112 kbps MP3 or four minutes of 48 kHz 16-bit
+ * stereo WAV, a ~7x spread that widens across the formats such an endpoint
+ * accepts. A byte-derived hold sized for the worst case over-holds by an order
+ * of magnitude on every ordinary request; sized for the typical case it
+ * UNDER-holds, and an under-sized hold is how a balance goes negative.
+ * `output_tokens` inherits the same unsoundness, because transcript length is a
+ * function of duration.
+ *
+ * **Do not reach for `bytes / 4`.** Two things would make this sound, and both
+ * are decisions rather than code: probe the container server-side before
+ * reserving (a new dependency, a parsing attack surface on untrusted bytes, and
+ * a rule for a container that lies about its own duration), or have the
+ * catalogue declare a per-route maximum duration and hold at
+ * `min(byte-derived worst case, route max)` — which needs an additive field on
+ * `modelCapabilitiesSchema` and is therefore a two-repo release, since Relay
+ * derives its contract from the published package and gates on drift.
+ *
+ * It is also blocked upstream of the ceiling: the request is
+ * `multipart/form-data` with a file, this edge is JSON-only behind
+ * `express.json`, and the internal envelope's input union has no audio-reference
+ * arm.
+ *
+ * ## Batches: the ledger protocol does not fit, which is the disqualifying half
+ *
+ * Two independent failures. The ceiling is a sum over N sub-requests of each
+ * one's own ceiling — computable only by parsing the uploaded file, and no
+ * sounder than the weakest modality it contains, so a batch of transcriptions
+ * inherits everything above.
+ *
+ * The second is the one that cannot be engineered around here: `reserve` →
+ * `settle` assumes ONE hold per HTTP request, settled inside
+ * `RESERVATION_TTL_SECONDS`. OpenAI's `completion_window` is twenty-four hours.
+ * A day-long hold against a fifteen-minute TTL means `expireReservations`
+ * releases it mid-batch and the work later settles against a reservation that no
+ * longer stands. **Raising the TTL is not the fix** — a day-long hold on a shared
+ * balance is a different financial product, and ADR 0009's terminal-write model
+ * has exactly one settlement per hold. What batches actually need is a hold per
+ * sub-request taken at dispatch, or a new long-lived reservation class with its
+ * own expiry and partial-settlement semantics. That is an amendment to ADR 0009,
+ * not an endpoint.
+ *
+ * Until then a caller of either path gets a 404 from the router, which is the
+ * honest answer: the endpoint does not exist. It is deliberately NOT a route
+ * that refuses, because a registered route implies a surface Oxy intends to
+ * serve, and `inferenceEdgeGateCoverage.test.ts` would then have to carry two
+ * entries that can never pass their own gate.
+ */

@@ -24475,8 +24475,8 @@
         "tags": [
           "Inference"
         ],
-        "summary": "GET /v1/generations/{id}",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceEdge.ts` to fill in summary, description, request/response examples.",
+        "summary": "`GET /v1/generations/:id` — the usage and cost receipt.",
+        "description": "`:id` is the `requestId` from `X-Oxy-Request-Id`, or the `generationId`.\nA caller without `inference:usage:read`, or one whose application did not\nmake the request, is told the receipt does not exist — the entitlement\nanswer and the existence answer are deliberately the same, so this endpoint\ncannot be used to probe another application's spend.\n\nThe refusal carries `model_not_found`, which is a compromise worth naming:\n`INFERENCE_ERROR_CODES` is a CLOSED set with no generic \"not found\" member,\nand it is the only code in it that maps to a 404 — which is the status a\ncustomer's HTTP client needs for a GET that resolved nothing. The message\nsays what was actually not found. Widening the enum is a contract change\nwith a version bump, and it belongs to whoever next has a second reason for\none rather than to this route alone.",
         "parameters": [
           {
             "name": "id",
