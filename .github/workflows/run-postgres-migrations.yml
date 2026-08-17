@@ -32,11 +32,12 @@ name: Run PostgreSQL migrations
 #    out of it. drizzle-kit depends on esbuild directly, so shipping the CLI
 #    would drag it back in.
 #
-# 3. It builds its own image from `ref` rather than reusing whatever `latest`
-#    happens to be, so the migrations applied are exactly the ones at the ref you
-#    chose, and a fix can be tried from a branch before it merges. The image
-#    differs from the live one only by tag; the throwaway task definition differs
-#    from the live one only by image.
+# 3. It builds its own image from the exact commit on protected `main` that
+#    dispatched the workflow rather than reusing whatever `latest` happens to
+#    be. The image differs from the live one only by tag; the throwaway task
+#    definition differs from the live one only by image. Never allow a caller to
+#    select an unreviewed ref here: this image runs with the live task's secrets
+#    and IAM role.
 #
 # ALWAYS run dry FIRST (`dry_run=true`, the default). A dry run reads the
 # journal and the `drizzle.__drizzle_migrations` ledger, prints which migrations
@@ -53,11 +54,6 @@ name: Run PostgreSQL migrations
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Branch or SHA to build the migration image from'
-        required: true
-        type: string
-        default: 'main'
       dry_run:
         description: 'Report which migrations WOULD be applied, write nothing'
         required: true
@@ -92,13 +88,17 @@ permissions:
 
 jobs:
   migrate:
+    # A dispatch against another ref must never reach the production-privileged
+    # task. Pinning checkout to github.sha below then gives us the immutable
+    # reviewed commit from protected main, not caller-selected source.
+    if: github.ref == 'refs/heads/main'
     # Same arch as the deployed image — the service runs linux/arm64.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ github.sha }}
 
       - name: Configure AWS credentials (OIDC, no stored keys)
         uses: aws-actions/configure-aws-credentials@v6
