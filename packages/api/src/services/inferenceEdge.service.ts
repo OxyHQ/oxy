@@ -142,6 +142,7 @@ import {
   resolveCatalogueViewer,
   resolveEdgeRoute,
   routingConstraintsOf,
+  TEXT_COMPLETION_MODALITY,
   UNCONSTRAINED_ROUTING,
   type CatalogueViewer,
   type EdgeRoute,
@@ -660,7 +661,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   const resolution = await resolveEdgeRoute(
     viewerForPrincipal(principal),
     requestedModelReference,
-    routingConstraints
+    routingConstraints,
+    TEXT_COMPLETION_MODALITY
   );
   if (resolution.status === 'unknown-model') {
     // A model that does not exist and one this credential may not see are
@@ -694,6 +696,25 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       'policy_violation',
       `Every route for ${requestedModelReference} is excluded by this application’s routing policy: ${resolution.constraints.join(', ')}.`,
       { reason: `policy_excluded:${resolution.constraints.join(',')}` }
+    );
+  }
+  if (resolution.status === 'modality-unsupported') {
+    // `unsupported_modality` and not `model_not_found`: the model exists and this
+    // credential can see it, it just cannot do what this endpoint asks. Telling a
+    // caller the model does not exist would send them to change a correct id.
+    await recordEdgeTelemetry(context, {
+      requestedModelReference,
+      statusCode: inferenceErrorStatus('unsupported_modality'),
+      units: {},
+    });
+    const wanted =
+      resolution.required.output === undefined
+        ? `${resolution.required.input} input`
+        : `${resolution.required.input} input and ${resolution.required.output} output`;
+    return refuse(
+      'unsupported_modality',
+      `${requestedModelReference} does not serve ${wanted}. It accepts ${resolution.supportedInput.join(', ')} and produces ${resolution.supportedOutput.join(', ')}.`,
+      { param: 'model' }
     );
   }
   if (resolution.status === 'unpriced-route') {

@@ -68,6 +68,7 @@ import {
   priceVersionUnitPrices,
   SELECTABLE_PERMISSION_STATE,
 } from '../db/schema';
+import type { InferenceModalityValue } from '../db/schema/inferenceModels';
 import {
   classifyApplicationTier,
   type ApplicationClassification,
@@ -1273,7 +1274,58 @@ export interface EdgeRoute {
   readonly priceVersionId: string;
   readonly maxContextTokens: number;
   readonly maxOutputTokens: number;
+  /**
+  * What the model accepts and produces. Non-empty by CHECK on `inference_models`,
+  * which also constrains the values to `INFERENCE_MODALITIES`.
+  *
+  * Typed `string[]` and NOT the modality union, deliberately. These arrive from
+  * the database as `text[]`, so a union type here would be a claim about stored
+  * data that nothing in this process verifies — the same shape of mistake as a
+  * required field on a wire type that the wire may omit. Every use is a
+  * membership test or an error message, neither of which needs the narrower type.
+  */
+  readonly inputModalities: readonly string[];
+  readonly outputModalities: readonly string[];
 }
+
+/**
+ * What a request needs a route to be able to do, checked before the route is
+ * admitted rather than discovered by the data plane.
+ *
+ * ## Why this is a parameter and not a routing constraint
+ *
+ * {@link RoutingConstraints} is `Pick<RoutingPolicy, …>` — every member is a
+ * field the CUSTOMER set, and `policy-excluded` tells them which of their own
+ * controls refused. A modality is not theirs: it is a property of the endpoint
+ * they called. Folding it in would answer "your policy excluded every route" to a
+ * customer whose policy is empty, and send them to change a setting that was
+ * never involved.
+ *
+ * ## Why `output` is optional
+ *
+ * `INFERENCE_MODALITIES` is `text | image | audio | video | embedding`, and that
+ * vocabulary **cannot express a ranking**. `POST /v1/rerank` consumes text and
+ * returns indices with relevance scores, which is none of the five. So rerank
+ * constrains its INPUT and leaves its output unconstrained, rather than claiming
+ * a modality that would be false. A `ranking` member would be a `@oxyhq/contracts`
+ * enum change, and therefore a two-repo release (Relay derives its own contract
+ * from the published package and gates on drift) — not something to smuggle in
+ * behind an endpoint.
+ *
+ * Absent `output` is therefore a deliberate, documented weakening for exactly one
+ * endpoint. It is not a default: every caller states it, and the compiler makes
+ * them.
+ */
+export interface EdgeModalityRequirement {
+  readonly input: InferenceModalityValue;
+  readonly output?: InferenceModalityValue;
+}
+
+/** The requirement a text-in, text-out completion places on a route. */
+export const TEXT_COMPLETION_MODALITY: EdgeModalityRequirement = {
+  input: 'text',
+  output: 'text',
+};
 
 /**
  * Outcome of {@link resolveEdgeRoute}.
@@ -1303,6 +1355,14 @@ export type EdgeRouteResolution =
       readonly modelReference: string;
       /** Non-empty by construction. Deterministically ordered. */
       readonly constraints: readonly RoutingConstraint[];
+    }
+  | {
+      readonly status: 'modality-unsupported';
+      readonly modelReference: string;
+      readonly required: EdgeModalityRequirement;
+      /** What the candidate routes actually declare, deduplicated and sorted. */
+      readonly supportedInput: readonly string[];
+      readonly supportedOutput: readonly string[];
     };
 
 /**
@@ -1343,7 +1403,8 @@ export type EdgeRouteResolution =
 export async function resolveEdgeRoute(
   viewer: CatalogueViewer,
   modelReference: string,
-  constraints: RoutingConstraints
+  constraints: RoutingConstraints,
+  modality: EdgeModalityRequirement
 ): Promise<EdgeRouteResolution> {
   if (viewer.scopes.length === 0) {
     return { status: 'unknown-model', modelReference };
@@ -1363,6 +1424,8 @@ export async function resolveEdgeRoute(
       resolvedModelId: inferenceModels.modelId,
       maxContextTokens: inferenceModels.maxContextTokens,
       maxOutputTokens: inferenceModels.maxOutputTokens,
+      inputModalities: inferenceModels.inputModalities,
+      outputModalities: inferenceModels.outputModalities,
     })
     .from(inferenceDeployments)
     .innerJoin(
@@ -1382,7 +1445,31 @@ export async function resolveEdgeRoute(
     return { status: 'unknown-model', modelReference };
   }
 
-  const permitted = applyRoutingConstraints(constraints, candidates);
+  // A model that cannot do what the endpoint asks is refused HERE, before the
+  // customer's own policy is consulted, because the two are different facts and
+  // only one of them is theirs to fix. Ordering it after `applyRoutingConstraints`
+  // would answer `policy_violation` to a caller whose policy is empty.
+  //
+  // This is also what makes every ceiling downstream a fact rather than an
+  // assumption: an embeddings ceiling is only sound about a route that actually
+  // produces embeddings, and before this filter existed an embeddings request
+  // could resolve a chat-only model's route and be held against its price.
+  const capable = candidates.filter(
+    (row) =>
+      row.inputModalities.includes(modality.input) &&
+      (modality.output === undefined || row.outputModalities.includes(modality.output))
+  );
+  if (capable.length === 0) {
+    return {
+      status: 'modality-unsupported',
+      modelReference,
+      required: modality,
+      supportedInput: sortedModalities(candidates.flatMap((row) => row.inputModalities)),
+      supportedOutput: sortedModalities(candidates.flatMap((row) => row.outputModalities)),
+    };
+  }
+
+  const permitted = applyRoutingConstraints(constraints, capable);
   if (permitted.kept.length === 0) {
     // Refuse, and say what refused. Never widen back to a candidate the policy
     // excluded, and never answer as though the request had been unconstrained —
@@ -1409,8 +1496,21 @@ export async function resolveEdgeRoute(
       priceVersionId: chosen.priceVersionId,
       maxContextTokens: chosen.maxContextTokens,
       maxOutputTokens: chosen.maxOutputTokens,
+      inputModalities: chosen.inputModalities,
+      outputModalities: chosen.outputModalities,
     },
   };
+}
+
+/**
+ * Deduplicated, sorted modality list for a refusal message.
+ *
+ * Sorted so the refusal is deterministic — a set iteration order would make the
+ * same request produce two different messages, which is the kind of thing a
+ * customer opens a ticket about and a test cannot pin.
+ */
+function sortedModalities(values: readonly string[]): readonly string[] {
+  return [...new Set(values)].sort();
 }
 
 /* -------------------------------------------------------------------------- */

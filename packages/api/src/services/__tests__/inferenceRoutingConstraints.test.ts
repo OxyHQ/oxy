@@ -71,6 +71,7 @@ import {
   UNCONSTRAINED_ROUTING,
   UNFILTERED_ROUTING_CONTROLS,
   type RoutingConstraints,
+  TEXT_COMPLETION_MODALITY,
 } from '../inferenceCatalogue.service';
 
 beforeAll(async () => {
@@ -105,12 +106,18 @@ interface ModelFixture {
 
 /** One publisher, one model, one current revision. */
 async function insertModel(
-  options: { licenseId?: string; commercialUseAllowed?: boolean } = {}
+  options: {
+    licenseId?: string;
+    commercialUseAllowed?: boolean;
+    inputModalities?: string[];
+    outputModalities?: string[];
+  } = {}
 ): Promise<ModelFixture> {
   const db = getDb();
   const publisherSlug = `pub${suffix()}`;
   const modelSlug = `mdl${suffix()}`;
   const revision = `r${suffix()}`;
+  const outputModalities = options.outputModalities ?? ['text'];
 
   await db
     .insert(inferencePublishers)
@@ -122,8 +129,8 @@ async function insertModel(
       publisherSlug,
       slug: modelSlug,
       displayName: 'Constraint Fixture Model',
-      inputModalities: ['text'],
-      outputModalities: ['text'],
+      inputModalities: options.inputModalities ?? ['text'],
+      outputModalities,
       supportsTools: true,
       supportsParallelToolCalls: false,
       supportsStructuredOutput: true,
@@ -143,7 +150,20 @@ async function insertModel(
 
   const [revisionRow] = await db
     .insert(inferenceModelRevisions)
-    .values({ modelId: model.id, revision, releasedAt: new Date(), isCurrent: true })
+    .values({
+      modelId: model.id,
+      revision,
+      releasedAt: new Date(),
+      isCurrent: true,
+      // A model whose output is not text-only must declare a provenance marking,
+      // enforced by the trigger `0050_inference_model_provenance_marking` adds —
+      // and a paired CHECK requires `contentFilteringDefault` to be set with it.
+      // So every non-text modality fixture carries both; `none` is a real answer
+      // ("this marks nothing"), not a placeholder.
+      ...(outputModalities.every((modality) => modality === 'text')
+        ? {}
+        : { provenanceMarking: 'none' as const, contentFilteringDefault: 'provider_default' as const }),
+    })
     .returning({ id: inferenceModelRevisions.id });
 
   if (model.modelId === null) throw new Error('the generated model id did not compose');
@@ -270,7 +290,8 @@ async function servingProvider(
   const resolution = await resolveEdgeRoute(
     PUBLIC_CATALOGUE_VIEWER,
     modelReference,
-    constraints
+    constraints,
+    TEXT_COMPLETION_MODALITY
   );
   if (resolution.status !== 'resolved') {
     throw new Error(`expected a resolved route, got ${resolution.status}`);
@@ -480,7 +501,8 @@ describe('the licence controls are model-level, so both candidates stand or fall
     const refused = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       nonCommercial.modelId,
-      constraints
+      constraints,
+      TEXT_COMPLETION_MODALITY
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -507,7 +529,8 @@ describe('the licence controls are model-level, so both candidates stand or fall
     const refused = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      constrain({ allowedLicenseIds: ['apache-2.0'] })
+      constrain({ allowedLicenseIds: ['apache-2.0'] }),
+      TEXT_COMPLETION_MODALITY
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -537,7 +560,8 @@ describe('byokPreference', () => {
     const refused = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      constrain({ byokPreference: 'require' })
+      constrain({ byokPreference: 'require' }),
+      TEXT_COMPLETION_MODALITY
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -574,7 +598,8 @@ describe('a request that cannot be served under its own policy is refused', () =
     const refused = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      constrain({ requireZeroDataRetention: true })
+      constrain({ requireZeroDataRetention: true }),
+      TEXT_COMPLETION_MODALITY
     );
 
     // The exact answer, not merely "not resolved": the status, the reference and
@@ -590,7 +615,8 @@ describe('a request that cannot be served under its own policy is refused', () =
     const served = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      UNCONSTRAINED_ROUTING
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
     );
     expect(served.status).toBe('resolved');
   });
@@ -616,7 +642,8 @@ describe('a request that cannot be served under its own policy is refused', () =
     const refused = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      constrain({ requireZeroDataRetention: true, prohibitTrainingOnCustomerData: true })
+      constrain({ requireZeroDataRetention: true, prohibitTrainingOnCustomerData: true }),
+      TEXT_COMPLETION_MODALITY
     );
     expect(refused).toEqual({
       status: 'policy-excluded',
@@ -642,7 +669,8 @@ describe('a request that cannot be served under its own policy is refused', () =
     const resolution = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       model.modelId,
-      constrain({ prohibitTrainingOnCustomerData: true, requireZeroDataRetention: true })
+      constrain({ prohibitTrainingOnCustomerData: true, requireZeroDataRetention: true }),
+      TEXT_COMPLETION_MODALITY
     );
     expect(resolution).toEqual({
       status: 'resolved',
@@ -667,7 +695,8 @@ describe('a policy refusal is never confused with an absent route', () => {
     const absent = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       `nobody/nothing${suffix()}`,
-      constraints
+      constraints,
+      TEXT_COMPLETION_MODALITY
     );
     expect(absent.status).toBe('unknown-model');
 
@@ -686,7 +715,8 @@ describe('a policy refusal is never confused with an absent route', () => {
     const excluded = await resolveEdgeRoute(
       PUBLIC_CATALOGUE_VIEWER,
       present.modelId,
-      constraints
+      constraints,
+      TEXT_COMPLETION_MODALITY
     );
     expect(excluded).toEqual({
       status: 'policy-excluded',
@@ -705,7 +735,8 @@ describe('a policy refusal is never confused with an absent route', () => {
       resolveEdgeRoute(
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
-        constrain({ requireZeroDataRetention: true })
+        constrain({ requireZeroDataRetention: true }),
+        TEXT_COMPLETION_MODALITY
       )
     ).resolves.toEqual({ status: 'unknown-model', modelReference: model.modelId });
 
@@ -713,7 +744,8 @@ describe('a policy refusal is never confused with an absent route', () => {
     const internal = await resolveEdgeRoute(
       INTERNAL_VIEWER,
       model.modelId,
-      constrain({ requireZeroDataRetention: true })
+      constrain({ requireZeroDataRetention: true }),
+      TEXT_COMPLETION_MODALITY
     );
     expect(internal.status).toBe('resolved');
   });
@@ -736,7 +768,8 @@ describe('a policy refusal is never confused with an absent route', () => {
       resolveEdgeRoute(
         PUBLIC_CATALOGUE_VIEWER,
         model.modelId,
-        constrain({ prohibitTrainingOnCustomerData: true })
+        constrain({ prohibitTrainingOnCustomerData: true }),
+        TEXT_COMPLETION_MODALITY
       )
     ).resolves.toEqual({
       status: 'policy-excluded',
@@ -747,7 +780,7 @@ describe('a policy refusal is never confused with an absent route', () => {
     // CONTROL: without the control it IS the pricing gap, so the assertion above
     // is about the ordering of the two checks and not about the fixture.
     await expect(
-      resolveEdgeRoute(PUBLIC_CATALOGUE_VIEWER, model.modelId, UNCONSTRAINED_ROUTING)
+      resolveEdgeRoute(PUBLIC_CATALOGUE_VIEWER, model.modelId, UNCONSTRAINED_ROUTING, TEXT_COMPLETION_MODALITY)
     ).resolves.toEqual({ status: 'unpriced-route', modelReference: model.modelId });
   });
 });
@@ -877,5 +910,154 @@ describe('the classification covers the contract exactly', () => {
     for (const field of Object.keys(UNCONSTRAINED_ROUTING) as (keyof RoutingConstraints)[]) {
       expect(constraints[field]).toEqual(policy[field]);
     }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The modality filter                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `resolveEdgeRoute` must refuse a route that cannot do what the endpoint asks,
+ * BEFORE the customer's own policy is consulted.
+ *
+ * Until this filter existed, `resolveEdgeRoute` read neither `input_modalities`
+ * nor `output_modalities` — so an embeddings request could resolve a chat-only
+ * model's route and be held against its price. Every per-modality ceiling
+ * downstream is only sound about a route that actually serves that modality, so
+ * this is the check that makes those ceilings facts rather than assumptions.
+ *
+ * The ORDER matters as much as the filter: a modality refusal must not arrive as
+ * `policy-excluded`, because that would tell a customer with an empty policy to
+ * go and change a control that was never involved.
+ */
+describe('resolveEdgeRoute — the modality filter', () => {
+  it('serves a text request from a text model (positive control)', async () => {
+    const model = await insertModel();
+    await insertDeployment(model, {});
+
+    const resolved = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    // Without this passing, every refusal below could be refusing for an
+    // unrelated reason and the suite would still look meaningful.
+    expect(resolved.status).toBe('resolved');
+  });
+
+  it('carries the model’s declared modalities onto the route', async () => {
+    const model = await insertModel({
+      inputModalities: ['text'],
+      outputModalities: ['text', 'embedding'],
+    });
+    await insertDeployment(model, {});
+
+    const resolved = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    if (resolved.status !== 'resolved') throw new Error(`expected resolved, got ${resolved.status}`);
+    expect(resolved.route.inputModalities).toEqual(['text']);
+    expect(resolved.route.outputModalities).toEqual(['text', 'embedding']);
+  });
+
+  it('REFUSES when no route produces the required OUTPUT modality', async () => {
+    // A chat-only model asked for embeddings — the case that could previously
+    // resolve and be priced as chat.
+    const model = await insertModel({ inputModalities: ['text'], outputModalities: ['text'] });
+    await insertDeployment(model, {});
+
+    const refused = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      { input: 'text', output: 'embedding' }
+    );
+
+    expect(refused).toEqual({
+      status: 'modality-unsupported',
+      modelReference: model.modelId,
+      required: { input: 'text', output: 'embedding' },
+      supportedInput: ['text'],
+      supportedOutput: ['text'],
+    });
+  });
+
+  it('REFUSES when no route accepts the required INPUT modality', async () => {
+    const model = await insertModel({ inputModalities: ['text'], outputModalities: ['image'] });
+    await insertDeployment(model, {});
+
+    const refused = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      { input: 'audio', output: 'image' }
+    );
+
+    if (refused.status !== 'modality-unsupported') {
+      throw new Error(`expected modality-unsupported, got ${refused.status}`);
+    }
+    expect(refused.supportedInput).toEqual(['text']);
+  });
+
+  it('serves a request whose output modality the model declares among several', async () => {
+    const model = await insertModel({
+      inputModalities: ['text'],
+      outputModalities: ['text', 'embedding'],
+    });
+    await insertDeployment(model, {});
+
+    const resolved = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      { input: 'text', output: 'embedding' }
+    );
+
+    expect(resolved.status).toBe('resolved');
+  });
+
+  it('treats an ABSENT output requirement as unconstrained on output — the rerank case', async () => {
+    // `INFERENCE_MODALITIES` cannot express a ranking, so rerank constrains its
+    // input only. This asserts the weakening is real rather than accidental: the
+    // same model that is refused for `output: 'embedding'` above is served here.
+    const model = await insertModel({ inputModalities: ['text'], outputModalities: ['text'] });
+    await insertDeployment(model, {});
+
+    const resolved = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      { input: 'text' }
+    );
+
+    expect(resolved.status).toBe('resolved');
+  });
+
+  it('answers modality-unsupported and NOT policy-excluded when both would refuse', async () => {
+    // The ordering assertion. This model fails the modality check AND would fail
+    // the customer's policy; the answer must name the one the customer cannot fix
+    // by editing their policy, or the message sends them to the wrong place.
+    const model = await insertModel({
+      inputModalities: ['text'],
+      outputModalities: ['text'],
+      commercialUseAllowed: false,
+    });
+    await insertDeployment(model, {});
+
+    const refused = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      constrain({ requireCommercialUseRights: true }),
+      { input: 'text', output: 'audio' }
+    );
+
+    expect(refused.status).toBe('modality-unsupported');
   });
 });
