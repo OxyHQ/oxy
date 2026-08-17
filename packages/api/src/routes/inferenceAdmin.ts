@@ -292,10 +292,16 @@ router.get(
  *
  * `timeToFirstTokenMs` and `fallback` come back as
  * `{ state: 'pending', reason, observedRows, rowsCarryingValue }` while no row
- * carries a value — because this edge does not stream and no data plane switches a
- * route. A `0` there would be indistinguishable from a correctly-zero measurement,
- * and the second reading is the one a dashboard takes. The state is derived from
- * the rows, so it flips to `measured` on its own the moment one arrives.
+ * carries a value. A `0` there would be indistinguishable from a correctly-zero
+ * measurement, and the second reading is the one a dashboard takes. The state is
+ * derived from the rows, so it flips to `measured` on its own the moment one
+ * arrives.
+ *
+ * The reason names the MEASURED absence, not a cause — the edge streams both
+ * dialects and forwards both figures when a report carries them. `dataPlane` on the
+ * payload is what supplies the cause: `absent` means nothing can have streamed, so
+ * the pending needs no investigation, while the same pending with `configured`
+ * means the data plane is not reporting what it should.
  *
  * Staff-only, like everything on this router: request counts per application are
  * customer data, and a settlement-lag distribution is Oxy's own operational

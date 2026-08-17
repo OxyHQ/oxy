@@ -778,10 +778,13 @@ describe('GET /inference/admin/metrics', () => {
 
     expect(data).toMatchObject({ schemaVersion: 1, consistency: 'eventually-consistent' });
     expect(data.window).toEqual({ from: '2020-01-01', to: '2020-01-02' });
+    // The cause a reader needs to interpret the two pending metrics below. This
+    // process configures no data plane, so nothing can have streamed.
+    expect(data.dataPlane).toBe('absent');
 
-    // The two metrics this edge structurally cannot produce. `pending` plus a
-    // reason, and NO percentile field at all — because a consumer that found
-    // `p50Ms: 0` beside `state: 'pending'` would plot the zero.
+    // The two metrics with no data yet. `pending` plus a reason, and NO percentile
+    // field at all — because a consumer that found `p50Ms: 0` beside
+    // `state: 'pending'` would plot the zero.
     expect(data.timeToFirstTokenMs).toMatchObject({ state: 'pending' });
     expect(data.timeToFirstTokenMs).not.toHaveProperty('p50Ms');
     expect(data.fallback).toMatchObject({ state: 'pending' });

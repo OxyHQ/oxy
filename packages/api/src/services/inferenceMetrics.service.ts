@@ -19,16 +19,32 @@
  * observability, and with no scrape target configured anywhere a second
  * in-process copy of these numbers would be weaker than the table it duplicates.
  *
- * ## Two metrics are STRUCTURALLY PENDING and are reported as such
+ * ## Two metrics have NO DATA YET, and say so rather than reporting zero
  *
- * `time_to_first_token_ms` is NULL on every row because this edge does not
- * stream, and `route_switches` is 0 on every row because no data plane switches a
- * route. Both are reported through a discriminated `state` — `pending` with a
- * reason and the row counts behind it, never a zero. A metric that reads `0` when
- * it means "unmeasurable" is indistinguishable from one that is correctly zero,
- * and the second reading is the one a dashboard takes. The discriminator is
- * DERIVED from the rows (`rowsCarryingValue`), so the pending arm disappears by
- * itself the moment a data plane reports one — the arm is not a hardcoded state.
+ * `time_to_first_token_ms` and `route_switches` are NULL/`0` on every row today.
+ * Both are reported through a discriminated `state` — `pending` with a reason and
+ * the row counts behind it, never a zero. A metric that reads `0` when it means
+ * "unmeasurable" is indistinguishable from one that is correctly zero, and the
+ * second reading is the one a dashboard takes.
+ *
+ * **The reason is NOT that the edge cannot produce them.** It once was, and that
+ * changed: since the signed relay hop landed the edge streams both public dialects
+ * and forwards the data plane's own `timeToFirstTokenMs` and `routeSwitches` when
+ * the usage report carries them (`inferenceEdge.service.ts`). What is absent is a
+ * data plane: `resolveRelayDataPlane()` answers `absent` unless `RELAY_BASE_URL`
+ * and the two signing variables are all set, and no deployment sets them, so
+ * nothing has ever streamed and no route has ever switched.
+ *
+ * That distinction is worth a field rather than a comment, because it is the one
+ * that will matter the day Relay is deployed: `dataPlane` on the payload reports
+ * what `resolveRelayDataPlane()` says, so "no data because nothing is deployed"
+ * and "deployed, and STILL not reporting a first token" are different readings of
+ * the same `pending`. The second is a bug in the data plane; the first is a
+ * Tuesday.
+ *
+ * Both discriminators are DERIVED — `rowsCarryingValue` is a `count()` over the
+ * column and `dataPlane` is read from the environment resolver — so neither arm is
+ * a hardcoded state, and both stop being pending by themselves.
  *
  * ## Which table answers which question, and why
  *
@@ -85,6 +101,7 @@
 import { sql } from 'drizzle-orm';
 import { executeRows } from '@oxyhq/db';
 import { getDb } from '../config/postgres';
+import { resolveRelayDataPlane } from '../config/relayDataPlane';
 import {
   billingReconciliationDiscrepancies,
   billingReconciliationRuns,
@@ -182,9 +199,15 @@ export interface DurationDistribution {
 export const METRIC_PENDING_REASONS = [
   /** Nothing was recorded in the window at all. */
   'no_requests_recorded',
-  /** Rows exist; none carries a first-token time, because this edge does not stream. */
-  'no_streaming_data_plane',
-  /** Rows exist; none reports a route switch, because no data plane switches one. */
+  /**
+   * Rows exist; no data plane has reported a first-token time for any of them.
+   *
+   * Names the MEASURED absence, not a cause. The edge streams and forwards the
+   * figure when a report carries it, so read `dataPlane` beside this to tell
+   * "nothing is deployed" from "deployed and not reporting".
+   */
+  'no_first_token_time_reported',
+  /** Rows exist; no data plane has reported a route switch for any of them. */
   'no_route_switch_reported',
   /** Receipts exist; none is joined to a reservation, so no lag is measurable. */
   'no_settled_reservation',
@@ -286,9 +309,29 @@ export type ReconciliationDriftMetric =
       readonly observationsByKind: Readonly<Record<string, number>>;
     };
 
+/**
+ * Whether this deployment has a data plane at all, from
+ * `resolveRelayDataPlane()`.
+ *
+ * On the payload because it is what makes a `pending` metric readable: with
+ * `absent`, no request can ever have streamed and no route can have switched, so
+ * `timeToFirstTokenMs` and `fallback` are pending for a reason nobody needs to
+ * investigate. With `configured`, the same `pending` means the data plane is not
+ * reporting what it should — which is a bug, and one that would otherwise look
+ * identical.
+ *
+ * `unreadable` is the third state the resolver has: the variables are set and
+ * malformed. It is reported rather than folded into `absent` because a deployment
+ * that believes it configured a data plane and has not is the case that produces
+ * the most confusing pending metric of the three.
+ */
+export type DataPlanePresence = 'configured' | 'absent' | 'unreadable';
+
 export interface InferenceOperationalMetrics {
   readonly schemaVersion: 1;
   readonly window: MetricsWindow;
+  /** What `resolveRelayDataPlane()` says — see {@link DataPlanePresence}. */
+  readonly dataPlane: DataPlanePresence;
   /**
    * Telemetry is written outside the ledger transaction, so every count and
    * distribution here can lag a settlement or miss a request whose recorder
@@ -429,6 +472,12 @@ async function readEventDistribution(
  * data plane reported no switch" and "the data plane reported nothing" are the
  * same stored value, and a `count(column)` would report every row as a sample.
  * That is precisely the zero this metric must not present as a measurement.
+ *
+ * The edge forwards `routeSwitches` and surfaces `route_switch` frames on both
+ * dialects, so this is a reporting absence rather than a missing capability — read
+ * `dataPlane` beside it. `inference_route_switch_events` is the customer-visible
+ * record of the same event and has its own writer; this metric counts the
+ * telemetry column, so the two are not the same number and are not compared here.
  */
 async function readFallback(scope: MetricsScope): Promise<FallbackMetric> {
   const [row] = await executeRows<Record<string, unknown>>(
@@ -665,13 +714,14 @@ export async function readInferenceOperationalMetrics(
   return {
     schemaVersion: 1,
     window: scope.window,
+    dataPlane: resolveRelayDataPlane().status,
     consistency: 'eventually-consistent',
     requests: await readRates(scope),
     totalLatencyMs: await readEventDistribution(scope, 'latency_ms', 'no_requests_recorded'),
     timeToFirstTokenMs: await readEventDistribution(
       scope,
       'time_to_first_token_ms',
-      'no_streaming_data_plane'
+      'no_first_token_time_reported'
     ),
     fallback: await readFallback(scope),
     reserveFailures: await readReserveFailures(scope),

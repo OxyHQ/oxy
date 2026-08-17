@@ -273,13 +273,19 @@ describe('time to first token', () => {
     const metrics = await readInferenceOperationalMetrics(scopeOf(f));
     expect(metrics.timeToFirstTokenMs).toEqual({
       state: 'pending',
-      // Not `no_requests_recorded`: three requests WERE recorded. This edge does
-      // not stream, so no report carries a first-token time.
-      reason: 'no_streaming_data_plane',
+      // Not `no_requests_recorded`: three requests WERE recorded. And the reason
+      // names the MEASURED absence rather than a cause — the edge streams and
+      // forwards this figure when a report carries one, so "the edge cannot
+      // produce it" would be a stale claim rather than an observation.
+      reason: 'no_first_token_time_reported',
       observedRows: 3,
       rowsCarryingValue: 0,
     });
     expect(metrics.timeToFirstTokenMs).not.toHaveProperty('p50Ms');
+    // The field that makes that pending READABLE: with no data plane configured,
+    // nothing can have streamed, so this pending needs no investigation. The same
+    // pending with `configured` would be a data-plane bug.
+    expect(metrics.dataPlane).toBe('absent');
   });
 
   it('distinguishes an empty window from a window whose rows carry no value', async () => {
@@ -579,6 +585,9 @@ describe('the payload', () => {
 
     expect(metrics.schemaVersion).toBe(1);
     expect(metrics.window).toEqual(window);
+    // Derived from `resolveRelayDataPlane()`, not asserted: it is what tells a
+    // reader whether a pending metric is expected or a fault.
+    expect(metrics.dataPlane).toBe('absent');
     // A required literal rather than prose: telemetry is written outside the
     // ledger transaction, and every surface built on it has to say so.
     expect(metrics.consistency).toBe('eventually-consistent');

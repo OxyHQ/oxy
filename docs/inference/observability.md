@@ -96,11 +96,13 @@ metric surface that is correctly zero. The edge now fills them:
   control plane is answerable for.
 - **`time_to_first_token_ms`** — forwarded from the data plane's usage report
   when it reports one, and left NULL when it does not. Never imputed: the first
-  token is produced upstream, this edge does not stream, and a fabricated number
-  here would enter every dashboard as a fact. It is NULL on every row today, and
-  will stay NULL until a streaming data plane exists.
-- **`route_switches`** — forwarded from the same report. This is the fallback
-  metric; it is `0` on every row today for the same reason.
+  token is produced upstream, and a fabricated number here would enter every
+  dashboard as a fact. It is NULL on every row today because **no deployment
+  configures a data plane**, not because the edge cannot stream — it can, on both
+  public dialects, since the signed relay hop landed.
+- **`route_switches`** — forwarded from the same report, and surfaced as a
+  `route_switch` frame on both dialects. This is the fallback metric; it is `0` on
+  every row today for the same reason.
 
 ### What each named metric is derivable from, today
 
@@ -110,8 +112,8 @@ metric surface that is correctly zero. The edge now fills them:
 | Error rate | `.error_count` (status ≥ 400), or `inference_usage_events.status_code` | Yes |
 | Cancellation | `outcome = 'cancelled'` on the event and the rollup | Yes |
 | Total latency | `inference_usage_events.latency_ms` | Yes, per event — the rollup carries no latency column, and adding one is a migration |
-| Time to first token | `inference_usage_events.time_to_first_token_ms` | Column ready; NULL until a streaming data plane reports one |
-| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready; `0` until a data plane switches a route |
+| Time to first token | `inference_usage_events.time_to_first_token_ms` | Column ready, edge streams; NULL until a data plane is CONFIGURED and reports one |
+| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready, edge forwards it; `0` until a configured data plane switches a route. **The `serving_provider` column is NOT updated alongside it** — see below |
 | Reserve failures | `inference_usage_events` rows with `status_code = 402` (`insufficient_balance`, `spending_limit_exceeded`), plus the `inference.edge.reservation_refused` log line | Yes |
 | Settlement lag | `usage_receipts.settled_at − usage_reservations.created_at`, joined on `usage_receipts.reservation_id` | Yes |
 | Reconciliation drift | `billing_reconciliation_runs` / `_discrepancies`, filled by the scheduled pass | Yes — see [Reconciliation drift is a stream](#reconciliation-drift-is-a-stream-not-a-staff-triggered-pass) |
@@ -137,6 +139,16 @@ query behind the route reads `upstream_wholesale_cost_*` or any price column, so
 Oxy's commercial position cannot appear on a metric. No field is derived from a
 user IP, and none can be — the columns do not exist.
 
+**Counts come from the rollups; money never does.** `inference_usage_daily_rollups`
+has no cost, credit or amount column at all — the units/money split is enforced by
+the schema rather than by a convention — and its grain is a UTC `date`. So request,
+error and cancellation counts are read from it, and every money figure on this route
+comes from the financial tables: settlement lag from `usage_receipts.settled_at`
+against `usage_reservations.created_at`, and the reconciliation totals from
+`billing_reconciliation_runs`. A spend figure has one source, `usage_receipts`
+(`billed_amount`, `settled_at`, with `usage_receipts_account_id_settled_at_idx` for
+exactly that shape) — and no metric here derives one from a telemetry sum.
+
 | Metric | Served as | Source |
 |---|---|---|
 | Request rate | `requests.requestCount` | `inference_usage_daily_rollups.request_count` |
@@ -149,31 +161,55 @@ user IP, and none can be — the columns do not exist.
 | Settlement lag | `settlementLagMs` — p50/p95/p99/max | `usage_receipts.settled_at − usage_reservations.created_at` |
 | Reconciliation drift | `reconciliationDrift` | `billing_reconciliation_runs` / `_discrepancies` |
 
-### Two metrics are STRUCTURALLY PENDING, and are reported as such
+### Two metrics have NO DATA YET, and say so rather than reporting zero
 
 `timeToFirstTokenMs` and `fallback` come back as
 `{ state: 'pending', reason, observedRows, rowsCarryingValue }` — never `0`. A
 metric that reads zero when it means "unmeasurable" is indistinguishable from one
-that is correctly zero, and the second reading is the one a dashboard takes. So:
+that is correctly zero, and the second reading is the one a dashboard takes.
 
-- **`time_to_first_token_ms` is NULL on every row** because this edge does not
-  stream. `reason: 'no_streaming_data_plane'`.
-- **`route_switches` is 0 on every row** because no data plane switches a route.
+- **`time_to_first_token_ms` is NULL on every row.**
+  `reason: 'no_first_token_time_reported'`.
+- **`route_switches` is `0` on every row.** `reason: 'no_route_switch_reported'`.
   The column is `NOT NULL DEFAULT 0`, so "reported no switch" and "reported
   nothing" are the same stored value — which is why the predicate is
-  `route_switches > 0` and not `is not null`. `reason: 'no_route_switch_reported'`.
+  `route_switches > 0` and not `is not null`.
 
-The state is **derived from the rows**, not hardcoded: `rowsCarryingValue` is a
-`count()` over the column, so the arm flips to `measured` by itself the first time
-a data plane reports one. `services/__tests__/inferenceMetrics.service.test.ts`
-carries the positive control that proves it — a row with a first-token time
-surfaces as `measured` with real percentiles — and a mutation that counts NULLs as
-samples makes the pending case report `state: 'measured', p50Ms: 0`, which the same
-test rejects.
+**The reason is not that the edge cannot produce them, and this page used to say it
+was.** That claim was true and stopped being true: since the signed relay hop
+landed the edge streams both public dialects, forwards the data plane's own
+`timeToFirstTokenMs` and `routeSwitches` when a usage report carries them, and
+surfaces `route_switch` frames on both dialects. What is absent is a **data
+plane**. `resolveRelayDataPlane()` answers `absent` unless `RELAY_BASE_URL`,
+`RELAY_EDGE_SIGNING_KEY_ID` and `RELAY_EDGE_SIGNING_PRIVATE_KEY` are all set, and
+no deployment sets them — so nothing has ever streamed and no route has ever
+switched.
+
+That distinction gets a **field, not a comment**, because it is the one that will
+matter the day Relay is deployed: `dataPlane` on the payload reports
+`configured | absent | unreadable` straight from the resolver. With `absent`, a
+pending first-token time needs no investigation. With `configured`, the same
+pending means the data plane is not reporting what it should — a bug, and one that
+would otherwise look identical. `unreadable` is reported rather than folded into
+`absent`, because a deployment that believes it configured a data plane and has not
+is the most confusing of the three.
+
+Both discriminators are **derived**: `rowsCarryingValue` is a `count()` over the
+column and `dataPlane` is read from the environment resolver, so neither arm is
+hardcoded and both stop being pending by themselves.
+`services/__tests__/inferenceMetrics.service.test.ts` carries the positive control
+that proves it — a row with a first-token time surfaces as `measured` with real
+percentiles — and a mutation counting NULLs as samples makes the pending case
+report `state: 'measured', p50Ms: 0`, which the same test rejects.
 
 `pending` additionally distinguishes `observedRows: 0` (nothing happened) from
 `observedRows: 12, rowsCarryingValue: 0` (things happened; none carried the value).
 Both are asserted.
+
+One number this metric is NOT: `inference_route_switch_events` is the
+customer-visible record of a switch and has its own writer. `fallback` counts the
+telemetry column instead, so the two are different figures and are deliberately not
+compared here.
 
 ### There is no latency column on the rollup, deliberately
 
