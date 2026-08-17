@@ -106,6 +106,7 @@ import {
   type ProviderSecretStore,
 } from '../services/providerSecretStore';
 import type { InferenceProviderConnectionRow } from '../db/schema/inferenceProviderConnections';
+import type { ProviderConnectionActor } from '../db/schema/inferenceProviderConnectionAuditEvents';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
   ApiError,
@@ -185,15 +186,31 @@ function principalOf(req: ProviderRequest): ProviderPrincipal {
 }
 
 /**
- * The user id a write is attributed to.
+ * Who an audit row is attributed to.
  *
- * A service token has no person behind it, so its writes are attributed to the
- * account that owns the calling application — the principal that IS responsible
- * for them (ADR 0007). Deliberately not a delegated `X-Oxy-User-Id`: an end user
- * an application acted for did not register a BYOK credential.
+ * A person and a service credential are two DIFFERENT kinds of author, and this
+ * is where that stops being flattened. The previous version of this function
+ * returned a bare id — the caller's `users.id` for a session principal, the
+ * calling application's owning ACCOUNT id for a service token — and both landed
+ * in `actor_user_id`. Since an account is a `users` row here, nothing failed and
+ * nothing looked wrong: the trail simply could not tell "a member rotated this
+ * connection" from "an application rotated it with a service token", which is
+ * exactly what #972 workstream 12 requires it to answer. The kind is now a column
+ * (`db/schema/inferenceProviderConnectionAuditEvents.ts`, "Who acted").
+ *
+ * The service arm carries no id, deliberately: the only id it ever had to offer
+ * was the owning account's, and the authorisation above already requires that to
+ * equal the connection's own `owner_account_id`, which is on the row. Still
+ * deliberately not a delegated `X-Oxy-User-Id` — an end user an application acted
+ * for did not register a BYOK credential.
+ *
+ * No write on this surface is reachable by a service credential today
+ * ({@link refuseServiceWrite} refuses the lane), so this arm records what the row
+ * WOULD say if that lane were ever opened, rather than what it says now. That is
+ * the point: reopening the lane must not silently produce an unattributable row.
  */
-function authorOf(principal: ProviderPrincipal): string {
-  return principal.kind === 'user' ? principal.userId : principal.service.ownerAccountId;
+function actorOf(principal: ProviderPrincipal): ProviderConnectionActor {
+  return principal.kind === 'user' ? { kind: 'user', userId: principal.userId } : { kind: 'service' };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -487,7 +504,7 @@ router.post(
         environment: body.environment,
         secret: new ProviderSecretValue(body.secret),
         acknowledgeProviderTerms: body.acknowledgeProviderTerms,
-        actorUserId: authorOf(principal),
+        actor: actorOf(principal),
       },
       store
     );
@@ -582,7 +599,7 @@ router.post(
         environment: body.environment,
         secret: new ProviderSecretValue(body.secret),
         acknowledgeProviderTerms: body.acknowledgeProviderTerms,
-        actorUserId: authorOf(principal),
+        actor: actorOf(principal),
       },
       store
     );
@@ -618,7 +635,7 @@ router.post(
       {
         connectionId,
         secret: new ProviderSecretValue(body.secret),
-        actorUserId: authorOf(principal),
+        actor: actorOf(principal),
       },
       store
     );
@@ -660,7 +677,7 @@ router.post(
 
     respondToTransition(
       res,
-      await disableProviderConnection({ connectionId, actorUserId: authorOf(principal) })
+      await disableProviderConnection({ connectionId, actor: actorOf(principal) })
     );
   })
 );
@@ -682,7 +699,7 @@ router.post(
 
     respondToTransition(
       res,
-      await enableProviderConnection({ connectionId, actorUserId: authorOf(principal) })
+      await enableProviderConnection({ connectionId, actor: actorOf(principal) })
     );
   })
 );
@@ -717,7 +734,7 @@ router.post(
     // statement — refusing the revoke would leave the connection resolvable.
     const resolution = resolveProviderSecretStore();
     const result = await revokeProviderConnection(
-      { connectionId, actorUserId: authorOf(principal) },
+      { connectionId, actor: actorOf(principal) },
       resolution.status === 'available' ? resolution.store : undefined
     );
     switch (result.status) {
@@ -761,9 +778,11 @@ router.post(
       connectionId,
       state: verdict.state,
       failureCode: verdict.failureCode,
-      // A verdict a service token reported has no person behind it; one a member
-      // asked for does.
-      actorUserId: principal.kind === 'user' ? principal.userId : undefined,
+      // A verdict a member asked for names them; one a service token reported has
+      // no person behind it and now SAYS so, rather than leaving the row's actor
+      // blank in a way indistinguishable from a row written before the kind
+      // existed.
+      actor: actorOf(principal),
     });
     switch (result.status) {
       case 'recorded':

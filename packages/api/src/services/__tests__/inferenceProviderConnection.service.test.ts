@@ -155,7 +155,7 @@ describe('a secret cannot round-trip through the service', () => {
         environment: 'production',
         secret: new ProviderSecretValue(plaintext),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -220,7 +220,7 @@ describe('a secret cannot round-trip through the service', () => {
         environment: 'production',
         secret,
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -257,7 +257,7 @@ describe('a secret cannot round-trip through the service', () => {
         environment: 'staging',
         secret: new ProviderSecretValue('sk-live-partition'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -337,7 +337,7 @@ describe('scope precedence', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-account'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -350,7 +350,7 @@ describe('scope precedence', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-application'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -389,7 +389,7 @@ describe('scope precedence', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-root'),
         acknowledgeProviderTerms: false,
-        actorUserId: root,
+        actor: { kind: 'user', userId: root },
       },
       store
     );
@@ -401,7 +401,7 @@ describe('scope precedence', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-middle'),
         acknowledgeProviderTerms: false,
-        actorUserId: middle,
+        actor: { kind: 'user', userId: middle },
       },
       store
     );
@@ -432,7 +432,7 @@ describe('scope precedence', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-owner-only'),
         acknowledgeProviderTerms: false,
-        actorUserId: owner,
+        actor: { kind: 'user', userId: owner },
       },
       store
     );
@@ -461,7 +461,7 @@ describe('scope precedence', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-account-fallback'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -474,7 +474,7 @@ describe('scope precedence', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-application-fallback'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -482,7 +482,7 @@ describe('scope precedence', () => {
 
     await disableProviderConnection({
       connectionId: own.connection.connectionId,
-      actorUserId: account,
+      actor: { kind: 'user', userId: account },
     });
 
     // Disabling the specific connection must not silently promote the account
@@ -512,7 +512,7 @@ describe('lifecycle', () => {
         environment: 'production',
         secret: new ProviderSecretValue(`sk-${randomUUID()}`),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -528,7 +528,7 @@ describe('lifecycle', () => {
       .where(eq(inferenceProviderConnections.id, id));
 
     const rotated = await rotateProviderConnection(
-      { connectionId: id, secret: new ProviderSecretValue('sk-rotated-value'), actorUserId: account },
+      { connectionId: id, secret: new ProviderSecretValue('sk-rotated-value'), actor: { kind: 'user', userId: account } },
       store
     );
     if (rotated.status !== 'rotated') throw new Error(rotated.status);
@@ -554,7 +554,7 @@ describe('lifecycle', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-same-value'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -564,7 +564,7 @@ describe('lifecycle', () => {
       {
         connectionId: created.connection.connectionId,
         secret: new ProviderSecretValue('sk-same-value'),
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -575,15 +575,15 @@ describe('lifecycle', () => {
     const { store, account, id } = await seed();
     store.destroyThrows = true;
 
-    const disabled = await disableProviderConnection({ connectionId: id, actorUserId: account });
+    const disabled = await disableProviderConnection({ connectionId: id, actor: { kind: 'user', userId: account } });
     if (disabled.status !== 'updated') throw new Error(disabled.status);
     expect(disabled.connection.status).toBe('disabled');
     expect(store.destroyCalls).toEqual([]);
 
-    const again = await disableProviderConnection({ connectionId: id, actorUserId: account });
+    const again = await disableProviderConnection({ connectionId: id, actor: { kind: 'user', userId: account } });
     expect(again.status).toBe('already');
 
-    const enabled = await enableProviderConnection({ connectionId: id, actorUserId: account });
+    const enabled = await enableProviderConnection({ connectionId: id, actor: { kind: 'user', userId: account } });
     if (enabled.status !== 'updated') throw new Error(enabled.status);
     // Never straight back to `active`: re-enabling is not evidence the
     // credential works.
@@ -596,7 +596,7 @@ describe('lifecycle', () => {
     const valid = await recordProviderConnectionValidation({
       connectionId: id,
       state: 'valid',
-      actorUserId: account,
+      actor: { kind: 'user', userId: account },
     });
     if (valid.status !== 'recorded') throw new Error(valid.status);
     expect(valid.connection.status).toBe('active');
@@ -607,6 +607,9 @@ describe('lifecycle', () => {
       connectionId: id,
       state: 'invalid',
       failureCode: 'unauthorized',
+      // The data plane reporting its own verdict: no person, and the row now says
+      // so positively rather than leaving the actor blank.
+      actor: { kind: 'platform' },
     });
     if (invalid.status !== 'recorded') throw new Error(invalid.status);
     // A credential the provider rejected must stop serving.
@@ -632,9 +635,21 @@ describe('lifecycle', () => {
 
     const automaticDisable = events.find((event) => event.eventType === 'disabled');
     expect(automaticDisable).toBeDefined();
-    // The automatic disable has no actor: the provider's answer did it.
+    // The automatic disable has no actor: the provider's answer did it. `platform`
+    // is a POSITIVE statement of that — before the kind existed this row was a
+    // bare NULL, indistinguishable from a row whose author nobody recorded.
     expect(automaticDisable?.actorUserId).toBeNull();
+    expect(automaticDisable?.actorKind).toBe('platform');
     expect(automaticDisable?.metadata).toMatchObject({ reason: 'invalid' });
+
+    // …and the verdict the data plane reported is `platform` too, while the one a
+    // member asked for names them. THIS is the distinction the column was added
+    // for, asserted at the entry point rather than only in the schema: a CHECK
+    // that nothing feeds is green and inert.
+    const verdicts = events.filter((event) => event.eventType === 'validated');
+    expect(verdicts.map((event) => event.actorKind).sort()).toEqual(['platform', 'user']);
+    expect(verdicts.find((event) => event.actorKind === 'user')?.actorUserId).toBe(account);
+    expect(verdicts.find((event) => event.actorKind === 'platform')?.actorUserId).toBeNull();
   });
 
   it('revokes, destroys the credential, and records that it did', async () => {
@@ -644,7 +659,7 @@ describe('lifecycle', () => {
       .from(inferenceProviderConnections)
       .where(eq(inferenceProviderConnections.id, id));
 
-    const revoked = await revokeProviderConnection({ connectionId: id, actorUserId: account }, store);
+    const revoked = await revokeProviderConnection({ connectionId: id, actor: { kind: 'user', userId: account } }, store);
     if (revoked.status !== 'revoked') throw new Error(revoked.status);
     expect(revoked.secretDestroyed).toBe(true);
     expect(store.written.has(before.secretRef)).toBe(false);
@@ -660,7 +675,7 @@ describe('lifecycle', () => {
     expect(events[0].eventType).toBe('revoked');
     expect(events[0].metadata).toMatchObject({ secretDestroyed: true });
 
-    expect((await revokeProviderConnection({ connectionId: id, actorUserId: account }, store)).status).toBe(
+    expect((await revokeProviderConnection({ connectionId: id, actor: { kind: 'user', userId: account } }, store)).status).toBe(
       'already-revoked'
     );
   });
@@ -669,7 +684,7 @@ describe('lifecycle', () => {
     const { store, account, id } = await seed();
     store.destroyThrows = true;
 
-    const revoked = await revokeProviderConnection({ connectionId: id, actorUserId: account }, store);
+    const revoked = await revokeProviderConnection({ connectionId: id, actor: { kind: 'user', userId: account } }, store);
     if (revoked.status !== 'revoked') throw new Error(revoked.status);
     // Retiring a connection is a safety operation; a store outage must not be
     // able to keep it resolvable.
@@ -682,7 +697,7 @@ describe('lifecycle', () => {
 
   it('revokes with no store at all, recording that nothing was destroyed', async () => {
     const { account, id } = await seed();
-    const revoked = await revokeProviderConnection({ connectionId: id, actorUserId: account });
+    const revoked = await revokeProviderConnection({ connectionId: id, actor: { kind: 'user', userId: account } });
     if (revoked.status !== 'revoked') throw new Error(revoked.status);
     expect(revoked.secretDestroyed).toBe(false);
     const events = await listProviderConnectionAuditEvents(id, 50);
@@ -704,7 +719,7 @@ describe('provider terms', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-unacknowledged'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -730,7 +745,7 @@ describe('provider terms', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-acknowledged'),
         acknowledgeProviderTerms: true,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -752,7 +767,7 @@ describe('the `used` audit event', () => {
         environment: 'production',
         secret: new ProviderSecretValue('sk-used'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );
@@ -768,7 +783,13 @@ describe('the `used` audit event', () => {
     expect(await recordProviderConnectionUse(row)).toBe(false);
 
     const events = await listProviderConnectionAuditEvents(created.connection.connectionId, 50);
-    expect(events.filter((event) => event.eventType === 'used')).toHaveLength(1);
+    const used = events.filter((event) => event.eventType === 'used');
+    expect(used).toHaveLength(1);
+    // The data plane, not a person — and the row says which, beside the `created`
+    // row that a member DID author.
+    expect(used[0].actorKind).toBe('platform');
+    expect(used[0].actorUserId).toBeNull();
+    expect(events.find((event) => event.eventType === 'created')?.actorKind).toBe('user');
 
     // …and the cooldown is what bounds it, not a coincidence of timing.
     resetUseAuditCooldown();
@@ -787,7 +808,7 @@ describe('scope collisions', () => {
       scopeKind: 'account' as const,
       environment: 'production' as const,
       acknowledgeProviderTerms: false,
-      actorUserId: account,
+      actor: { kind: 'user', userId: account },
     };
 
     const first = await createProviderConnection(
@@ -822,7 +843,7 @@ describe('the serializer', () => {
         environment: 'development',
         secret: new ProviderSecretValue('sk-app-scoped'),
         acknowledgeProviderTerms: false,
-        actorUserId: account,
+        actor: { kind: 'user', userId: account },
       },
       store
     );

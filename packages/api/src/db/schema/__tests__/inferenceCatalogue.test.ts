@@ -12,6 +12,8 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { getTableColumns } from 'drizzle-orm';
 import {
@@ -23,6 +25,14 @@ import { closePostgres, connectPostgres, getDb } from '../../../config/postgres'
 import { inferenceDeployments } from '../inferenceDeployments';
 import { inferenceModelRevisions, INFERENCE_REVISION_IMMUTABLE_COLUMNS, INFERENCE_REVISION_IMMUTABILITY_TRIGGER_NAME } from '../inferenceModelRevisions';
 import { inferenceModels } from '../inferenceModels';
+import {
+  INFERENCE_MODEL_PROVENANCE_DDL,
+  INFERENCE_MODEL_PROVENANCE_TRIGGER_DDL,
+  INFERENCE_MODEL_PROVENANCE_TRIGGER_NAME,
+  INFERENCE_REVISION_PROVENANCE_DDL,
+  INFERENCE_REVISION_PROVENANCE_TRIGGER_DDL,
+  INFERENCE_REVISION_PROVENANCE_TRIGGER_NAME,
+} from '../inferenceModelProvenance';
 import { inferenceProviders } from '../inferenceProviders';
 import { inferencePublishers } from '../inferencePublishers';
 import { inferenceRoutingProfileCandidates } from '../inferenceRoutingProfileCandidates';
@@ -39,6 +49,9 @@ const CHECK_VIOLATION = '23514';
 const UNIQUE_VIOLATION = '23505';
 /** Postgres `generated_always` — writing a GENERATED column. */
 const GENERATED_ALWAYS = '428C9';
+
+/** The migration that installs the provenance triggers, read back as text. */
+const PROVENANCE_MIGRATION = '0050_inference_model_provenance_marking.sql';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -596,5 +609,196 @@ describe('the indexes the catalogue reads depend on exist', () => {
     expect(present.size).toBeGreaterThan(REQUIRED_INDEXES.length);
 
     expect(REQUIRED_INDEXES.filter((name) => !present.has(name))).toEqual([]);
+  });
+});
+
+describe('a non-text model must declare its content-provenance marking', () => {
+  /** The two required members of the safety object, as a marked revision states them. */
+  const MARKED = { contentFilteringDefault: 'provider_default', provenanceMarking: 'c2pa' } as const;
+
+  /** A model with the given OUTPUT modalities; inputs stay text. */
+  async function insertModelWithOutputs(
+    publisherSlug: string,
+    outputModalities: string[]
+  ): Promise<string> {
+    const [row] = await getDb()
+      .insert(inferenceModels)
+      .values({ publisherSlug, slug: `mdl${suffix()}`, ...modelDefaults(), outputModalities })
+      .returning({ id: inferenceModels.id });
+    return row.id;
+  }
+
+  it('has both triggers installed', async () => {
+    const rows = await getDb().execute<{ tgname: string }>(
+      sql`select tgname from pg_trigger where tgname in (
+        ${INFERENCE_REVISION_PROVENANCE_TRIGGER_NAME},
+        ${INFERENCE_MODEL_PROVENANCE_TRIGGER_NAME}
+      )`
+    );
+    // Vacuity floor: a trigger absent and a query that read nothing both return
+    // an empty set, so the COUNT is what is asserted.
+    expect(rows).toHaveLength(2);
+  });
+
+  it.each(['image', 'audio', 'video', 'embedding'])(
+    'refuses a revision with no marking under a %s-output model',
+    async (modality) => {
+      const publisher = await insertPublisher();
+      const modelId = await insertModelWithOutputs(publisher, [modality]);
+
+      const insert = getDb()
+        .insert(inferenceModelRevisions)
+        .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
+      expect(pgErrorCode(await rejection(insert))).toBe(CHECK_VIOLATION);
+    }
+  );
+
+  it('admits a TEXT-only model’s revision with no marking', async () => {
+    /*
+     * The control for every refusal above. A constraint that refused every
+     * revision would pass all of them and be indistinguishable from one that
+     * works — and this is also the shape every existing catalogue fixture uses,
+     * so it is what says the rule did not narrow the catalogue.
+     */
+    const publisher = await insertPublisher();
+    const modelId = await insertModelWithOutputs(publisher, ['text']);
+
+    await expect(
+      getDb()
+        .insert(inferenceModelRevisions)
+        .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true })
+    ).resolves.toBeDefined();
+  });
+
+  it('admits a non-text model’s revision once it declares one', async () => {
+    const publisher = await insertPublisher();
+    const modelId = await insertModelWithOutputs(publisher, ['text', 'image']);
+
+    await expect(
+      getDb()
+        .insert(inferenceModelRevisions)
+        .values({
+          modelId,
+          revision: `rev${suffix()}`,
+          releasedAt: new Date(),
+          isCurrent: true,
+          ...MARKED,
+        })
+    ).resolves.toBeDefined();
+  });
+
+  it('refuses UN-declaring a marking, which the immutability trigger does not cover', async () => {
+    const publisher = await insertPublisher();
+    const modelId = await insertModelWithOutputs(publisher, ['image']);
+    const [revision] = await getDb()
+      .insert(inferenceModelRevisions)
+      .values({
+        modelId,
+        revision: `rev${suffix()}`,
+        releasedAt: new Date(),
+        isCurrent: true,
+        ...MARKED,
+      })
+      .returning({ id: inferenceModelRevisions.id });
+
+    // The safety columns are deliberately NOT in
+    // `INFERENCE_REVISION_IMMUTABLE_COLUMNS` — a republished safety card changes
+    // nothing about the weights — so without the UPDATE arm a marking that had to
+    // be set could simply be removed afterwards. Both columns at once, because
+    // `inference_model_revisions_safety_is_whole` refuses half the object.
+    const update = getDb().execute(
+      sql`update inference_model_revisions
+          set provenance_marking = null, content_filtering_default = null
+          where id = ${revision.id}`
+    );
+    expect(pgErrorCode(await rejection(update))).toBe(CHECK_VIOLATION);
+  });
+
+  it('refuses widening a model past text while a revision declares nothing', async () => {
+    const publisher = await insertPublisher();
+    const modelId = await insertModelWithOutputs(publisher, ['text']);
+    // Legal today: the model is text-only.
+    await getDb()
+      .insert(inferenceModelRevisions)
+      .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true });
+
+    // …and this is the walk-around the second trigger closes: make the model an
+    // image model afterwards, and the revision that declared nothing is suddenly
+    // an undeclared image model's revision.
+    const widen = getDb().execute(
+      sql`update inference_models
+          set output_modalities = array['text','image']::text[]
+          where id = ${modelId}`
+    );
+    expect(pgErrorCode(await rejection(widen))).toBe(CHECK_VIOLATION);
+  });
+
+  it('permits widening once every revision declares, and permits unrelated edits regardless', async () => {
+    const publisher = await insertPublisher();
+    const modelId = await insertModelWithOutputs(publisher, ['text']);
+    const [revision] = await getDb()
+      .insert(inferenceModelRevisions)
+      .values({ modelId, revision: `rev${suffix()}`, releasedAt: new Date(), isCurrent: true })
+      .returning({ id: inferenceModelRevisions.id });
+
+    // The POSITIVE side of the case above: declare on the revision, then the same
+    // widening is accepted. Without this the refusal could be a trigger that
+    // rejects every modality change.
+    await getDb()
+      .update(inferenceModelRevisions)
+      .set(MARKED)
+      .where(eq(inferenceModelRevisions.id, revision.id));
+    await expect(
+      getDb().execute(
+        sql`update inference_models
+            set output_modalities = array['text','image']::text[]
+            where id = ${modelId}`
+      )
+    ).resolves.toBeDefined();
+
+    // And an edit that does not touch the modalities is never re-validated, so a
+    // deprecation or a description change on a non-text model stays a one-row
+    // write rather than a scan of its revisions.
+    await expect(
+      getDb()
+        .update(inferenceModels)
+        .set({ deprecationStatus: 'deprecated' })
+        .where(eq(inferenceModels.id, modelId))
+    ).resolves.toBeDefined();
+  });
+});
+
+describe('the provenance migration and the schema agree on the DDL', () => {
+  /*
+   * `inferenceModelProvenance.ts` claims to be the authoritative copy "so a
+   * regeneration of the table migrations has something to restore this file
+   * from". That claim rots the moment the two drift, and only a comparison keeps
+   * it — the same check `applicationCredentialAudit.test.ts` makes for 0043.
+   */
+  const migration = readFileSync(
+    join(__dirname, '..', '..', '..', '..', 'drizzle', PROVENANCE_MIGRATION),
+    'utf8'
+  );
+
+  it('carries both function texts the schema declares authoritative', () => {
+    expect(migration).toContain(INFERENCE_REVISION_PROVENANCE_DDL);
+    expect(migration).toContain(INFERENCE_MODEL_PROVENANCE_DDL);
+  });
+
+  it('carries both trigger texts the schema declares authoritative', () => {
+    expect(migration).toContain(INFERENCE_REVISION_PROVENANCE_TRIGGER_DDL);
+    expect(migration).toContain(INFERENCE_MODEL_PROVENANCE_TRIGGER_DDL);
+  });
+
+  it('declares a deploy phase, so the deploy knows which side it belongs on', () => {
+    expect(migration).toContain('-- oxy:deploy-phase=pre');
+  });
+
+  it('fires the revision trigger on INSERT as well as UPDATE', () => {
+    // Stated against the migration text because the two arms answer different
+    // attacks (a row that never declared, and a row that stopped declaring), and
+    // dropping either would leave the other's test green.
+    expect(migration).toContain('BEFORE INSERT OR UPDATE ON inference_model_revisions');
+    expect(migration).toContain('BEFORE UPDATE ON inference_models');
   });
 });

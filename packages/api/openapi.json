@@ -2483,7 +2483,7 @@
           "Developer"
         ],
         "summary": "Create a credential.",
-        "description": "The plaintext `secret` is returned in the response body EXACTLY ONCE and can\nnever be retrieved again — only its SHA-256 hash is persisted. `public`\ncredentials carry no secret (the `secret` field is `null`).",
+        "description": "Secret material is returned in the response body EXACTLY ONCE and can never be\nretrieved again — only a SHA-256 hash is persisted.\n\n - `public` credentials carry no secret at all (`secret: null`).\n - `confidential` / `service` credentials return `secret`, presented BESIDE\n   the `oxy_dk_…` client id.\n - `machine` credentials return `token`: the single `oxy_sk_…` bearer string a\n   stock OpenAI SDK sends as `Authorization: Bearer …` (issue #972 §2.3).\n   `secret` stays `null` on those, so the wire shape every existing client\n   reads is unchanged and the two lanes are visibly distinct in the response\n   as well as in the table.",
         "parameters": [
           {
             "name": "appId",
@@ -2550,7 +2550,8 @@
                     "enum": [
                       "public",
                       "confidential",
-                      "service"
+                      "service",
+                      "machine"
                     ]
                   },
                   "environment": {
@@ -2598,6 +2599,11 @@
                         "chains:read"
                       ]
                     }
+                  },
+                  "expiresInSeconds": {
+                    "type": "integer",
+                    "minimum": 60,
+                    "maximum": 63072000
                   }
                 },
                 "required": [
@@ -2678,13 +2684,91 @@
         ]
       }
     },
+    "/applications/{appId}/credentials/{credId}/audit": {
+      "get": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "`GET /applications/:appId/credentials/:credId/audit`",
+        "description": "One credential's lifecycle trail: created, rotated, revoked, and every bearer\nthat resolved to it and was still refused. Append-only in the database rather\nthan by convention — `0043_application_credential_audit_immutability.sql`.\n\n## What it cannot return\n\nSecret material, and not because this handler is careful: the rows themselves\nhold none (`services/applicationCredentialAudit.service.ts` is their only\nwriter and takes ids and closed enums, so there is no parameter a secret could\narrive through), and the wire type has no property one could occupy — see\n{@link CredentialAuditTrailEntry}, which deliberately omits `metadata`. These\nrows exist BECAUSE the secret was shown exactly once.\n\n## Authorization is the credential routes' own, not a new one\n\n`credentials:read` over the owning account, through `requireAppPermission` —\nthe same gate `GET /:appId/credentials` uses, because this is the same data\nseen through time. A caller with no access to the application gets 403 from\n`loadApplicationContext`, exactly as every other route on this router does.\n\nThe second refusal is the one that matters, and it is the reason this handler\nreads the credential row before reading the trail: `:credId` is a caller-chosen\nid, and the audit table is keyed on the credential rather than on the\napplication. Without this read, a member of account A could pass their OWN\n`:appId` beside account B's `:credId` and be served B's trail — the shape of\nIDOR the house rules describe, arriving through a path parameter instead of a\nbody. The statement below is scoped to the resolved application, so a\ncredential that does not belong to it is a 404 and nothing else, matching what\nrotate and revoke already answer for the same input.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "credId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/applications/{appId}/credentials/{credId}/rotate": {
       "post": {
         "tags": [
           "Developer"
         ],
-        "summary": "Rotate a credential — zero-downtime. Mints a replacement (fresh keys) then",
-        "description": "deprecates the previous one with a 7-day grace `expiresAt`. The new plaintext\n`secret` is returned EXACTLY ONCE.\n\nBoth writes run in ONE transaction: a mint that landed without its matching\ndeprecation would leave two live credentials for the same client, which is\nexactly the state the grace window exists to avoid.",
+        "summary": "Rotate a credential. Mints a replacement (fresh keys) then retires the",
+        "description": "previous one. The new secret material is returned EXACTLY ONCE.\n\n## Two grace policies, and the difference is the point\n\nAn OAuth/service credential is ALWAYS retired with the fixed seven-day grace\n(`deprecated`, `expires_at = now + CREDENTIAL_ROTATION_GRACE_MS`) — unchanged,\nbecause that is the contract every existing caller was written against.\n\nA `machine` credential's grace is OPT-IN (`graceSeconds`). Omitting it\n`revoked`s the previous token the instant the replacement is minted; naming it\nkeeps the old token working for exactly that long and no longer. \"Preserve the\ngrace window WHERE EXPLICITLY CONFIGURED\" (§2.3) is a real distinction and not\na default: an always-on window means a leaked API key that someone rotated in\na hurry stays live for a week, which is the opposite of what rotating it was\nfor. `graceSeconds` is refused on the other types rather than silently\nignored, so nobody can believe they narrowed a window they did not.\n\nBoth writes run in ONE transaction: a mint that landed without its matching\nretirement would leave two live credentials for the same client, which is\nexactly the state this is trying to control.",
         "parameters": [
           {
             "name": "appId",
@@ -2742,7 +2826,24 @@
         },
         "security": [
           {}
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "graceSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2592000
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/applications/{appId}/listing": {
@@ -5883,7 +5984,7 @@
           "Authentication"
         ],
         "summary": "Exchange credentials for a service token",
-        "description": "Internal service-to-service authentication endpoint. Exchange ApplicationCredential credentials (apiKey = publicKey, apiSecret = plaintext secret) for a short-lived service JWT (1 hour). Requires a usable credential of type `service` on an active application: either `active`, or `deprecated` but still within its rotation grace window (a credential rotated within the last 7 days keeps minting tokens until its grace `expiresAt`). `revoked` and grace-expired credentials are rejected. The minted JWT carries `appId` (Application `_id`) and `credentialId` (the minting ApplicationCredential `_id`).\n",
+        "description": "Internal service-to-service authentication endpoint. Exchange ApplicationCredential credentials (apiKey = publicKey, apiSecret = plaintext secret) for a short-lived service JWT (1 hour). Requires a usable credential of type `service` on an active application: either `active`, or `deprecated` but still within its rotation grace window (a credential rotated within the last 7 days keeps minting tokens until its grace `expiresAt`). `revoked` and grace-expired credentials are rejected. The minted JWT carries `appId` (Application `_id`), `credentialId` (the minting ApplicationCredential `_id`), `ownerAccountId` (the account financially responsible for the application), `environment` and the effective scopes (credential ∩ application).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -9284,8 +9385,34 @@
                       "type": "string"
                     }
                   },
+                  "attachments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fileId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "contentId": {
+                          "type": "string"
+                        },
+                        "isInline": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "fileId"
+                      ]
+                    },
+                    "maxItems": 20
+                  },
                   "existingDraftId": {
                     "type": "string"
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 1
                   }
                 }
               }
@@ -11074,6 +11201,150 @@
         ]
       }
     },
+    "/email/outbox": {
+      "get": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "GET /email/outbox",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/email/outbox/{outboxId}/cancel": {
+      "post": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "POST /email/outbox/{outboxId}/cancel",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "outboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/email/outbox/{outboxId}/retry": {
+      "post": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "POST /email/outbox/{outboxId}/retry",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "outboxId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/email/proxy": {
       "get": {
         "tags": [
@@ -11369,6 +11640,205 @@
         "parameters": [
           {
             "name": "reminderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/email/saved-searches": {
+      "get": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "GET /email/saved-searches",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      },
+      "post": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "POST /email/saved-searches",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "query": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "q": {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      "from": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "to": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "subject": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "hasAttachment": {
+                        "type": "boolean"
+                      },
+                      "dateAfter": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "dateBefore": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "mailbox": {
+                        "type": "string",
+                        "maxLength": 255
+                      },
+                      "starred": {
+                        "type": "boolean"
+                      },
+                      "unread": {
+                        "type": "boolean"
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 255
+                      }
+                    }
+                  },
+                  "order": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "name",
+                  "query",
+                  "filters"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/email/saved-searches/{savedSearchId}": {
+      "delete": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "DELETE /email/saved-searches/{savedSearchId}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "savedSearchId",
             "in": "path",
             "required": true,
             "schema": {
@@ -13150,34 +13620,6 @@
           {
             "bearerAuth": []
           }
-        ]
-      }
-    },
-    "/models/stats": {
-      "get": {
-        "tags": [
-          "AI"
-        ],
-        "summary": "Returns model information and stats",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/models-stats.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {}
         ]
       }
     },
@@ -17259,6 +17701,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded",
             "content": {
@@ -17282,7 +17734,7 @@
         },
         "security": [
           {
-            "bearerAuth": []
+            "serviceTokenAuth": []
           }
         ]
       }
@@ -17293,7 +17745,7 @@
           "Users"
         ],
         "summary": "Signed, open-format self-sovereign data export (\"credible exit\"). Returns the",
-        "description": "`ExportBundle` (DID document, profile, verified domains, auth methods, signed\nrecords, app data, social graph) sealed with an Oxy provenance attestation.\n`?format=ndjson` streams each section as newline-delimited JSON for large\naccounts.",
+        "description": "`ExportBundle` (DID document, profile, verified domains, auth methods, signed\nrecords, app data, social graph, and the account's own financial history)\nsealed with an Oxy provenance attestation. `?format=ndjson` streams each\nsection as newline-delimited JSON for large accounts.",
         "parameters": [
           {
             "name": "format",

@@ -17,7 +17,7 @@
  * `metadata` this module builds is assembled here rather than passed in.
  */
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import {
   applicationCredentialAuditEvents,
@@ -194,11 +194,88 @@ export async function recordCredentialValidationFailure(
 }
 
 /**
- * Every audit event for one credential, newest first. Reads the compound index
- * on `(credential_id, created_at desc)`.
+ * One audit event as `GET /applications/:appId/credentials/:credId/audit`
+ * returns it.
  *
- * Exists for tests and for whatever surface renders the trail; there is no route
- * on it yet, and adding one is a Console question rather than a schema one.
+ * Declared explicitly, and `metadata` is NOT a member of it. That column is the
+ * table's one open-shaped surface: several code paths write it, the writers above
+ * are what keep token material out of it, and a wire type with no such property
+ * is a stronger guarantee than a serializer that remembers to drop it — a
+ * projection that tried to include it would have to change this type first. It is
+ * the same argument `CREDENTIAL_COLUMNS` in `routes/applications.ts` makes about
+ * the two hash columns, and the same conclusion the Console reached from the
+ * other end for the BYOK trail (`use-provider-connections.ts` projects
+ * `metadata` away rather than merely not rendering it).
+ *
+ * Nothing readable is lost with it: a rotation's counterpart is on the
+ * credential row as `rotated_from_credential_id`, a credential's type and scopes
+ * are on the credential row, and a configured grace deadline is
+ * {@link CredentialAuditTrailEntry.effectiveUntil}. The one key that lives
+ * nowhere else is `requiredScope` on a `scope_missing` refusal, and if a surface
+ * needs it, it arrives as its own typed column or field — deliberately, not by
+ * opening a jsonb blob onto the wire.
+ */
+export interface CredentialAuditTrailEntry {
+  readonly eventType: CredentialAuditEventType;
+  /** Why a `validation_failed` event happened; null on the three transitions. */
+  readonly reason: CredentialValidationFailureReason | null;
+  /** The member who performed a transition; null on `validation_failed`. */
+  readonly actorUserId: string | null;
+  readonly environment: string | null;
+  readonly createdAt: string;
+  /** A deadline the event established — a rotation grace end. */
+  readonly effectiveUntil: string | null;
+}
+
+/**
+ * One credential's trail as the route serves it, newest first.
+ *
+ * Reads the compound index on `(credential_id, created_at desc)`. The caller has
+ * already established that the credential belongs to the application it asked
+ * under — this function authorises nothing.
+ *
+ * `id` is a secondary sort so a page is stable across reads, not because it
+ * orders anything: a rotation writes the `rotated` row and the replacement's
+ * `created` row in ONE transaction, so they share an instant (`now()` is the
+ * transaction's start time) and uuid v7 is not monotone within a millisecond.
+ * Their relative order is arbitrary and must not be read as a sequence.
+ */
+export async function listCredentialAuditTrail(
+  credentialId: string,
+  limit: number
+): Promise<readonly CredentialAuditTrailEntry[]> {
+  const rows = await getDb()
+    .select({
+      eventType: applicationCredentialAuditEvents.eventType,
+      reason: applicationCredentialAuditEvents.reason,
+      actorUserId: applicationCredentialAuditEvents.actorUserId,
+      environment: applicationCredentialAuditEvents.environment,
+      createdAt: applicationCredentialAuditEvents.createdAt,
+      effectiveUntil: applicationCredentialAuditEvents.effectiveUntil,
+    })
+    .from(applicationCredentialAuditEvents)
+    .where(eq(applicationCredentialAuditEvents.credentialId, credentialId))
+    .orderBy(
+      desc(applicationCredentialAuditEvents.createdAt),
+      desc(applicationCredentialAuditEvents.id)
+    )
+    .limit(limit);
+
+  return rows.map((row) => ({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    effectiveUntil: row.effectiveUntil?.toISOString() ?? null,
+  }));
+}
+
+/**
+ * Every audit event for one credential, newest first, as stored — every column,
+ * `metadata` included. Reads the same compound index as
+ * {@link listCredentialAuditTrail}.
+ *
+ * The full row, for the tests that assert what a writer put in `metadata`. No
+ * route uses it, and none should: the wire shape is
+ * {@link CredentialAuditTrailEntry}.
  */
 export async function listCredentialAuditEvents(
   credentialId: string,

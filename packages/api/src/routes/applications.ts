@@ -11,6 +11,7 @@ import {
 } from '../utils/applicationScopes';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { isStaffUser } from '../middleware/requireStaff';
+import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
@@ -36,6 +37,7 @@ import {
 import {
   appIdRouteParams,
   appCredentialParams,
+  credentialAuditQuerySchema,
   periodQuerySchema,
   createApplicationSchema,
   listApplicationsQuerySchema,
@@ -44,7 +46,10 @@ import {
   rotateCredentialSchema,
 } from '../schemas/application.schemas';
 import { generateMachineCredentialToken } from '../utils/machineCredentialToken';
-import { recordCredentialLifecycleEvent } from '../services/applicationCredentialAudit.service';
+import {
+  listCredentialAuditTrail,
+  recordCredentialLifecycleEvent,
+} from '../services/applicationCredentialAudit.service';
 import {
   storeListingBody,
   storeScreenshotBody,
@@ -159,6 +164,26 @@ const CREDENTIAL_COLUMNS = {
 };
 
 const router = express.Router();
+
+/**
+ * The audit trail's own budget.
+ *
+ * The only limiter on this router, and it is here rather than on the credential
+ * routes beside it because this is the one read whose cost grows with an
+ * application's history: a paged trail over a table that accrues a row per
+ * refused bearer, asked for by a Console panel that a member can leave open. The
+ * ceiling matches `providerReadLimiter` on the BYOK trail, which answers the same
+ * question about the same kind of data.
+ *
+ * `prefix` is mandatory and must be unique across the process: two limiters
+ * sharing one Redis key make `rate-limit-redis` throw `ERR_ERL_DOUBLE_COUNT` and
+ * halve both budgets. No other limiter in this package uses this one.
+ */
+const credentialAuditLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  prefix: 'rl:applications:credential-audit:',
+});
 
 /**
  * Rebuild the dynamic CORS origin snapshot after an Application
@@ -1339,6 +1364,67 @@ router.delete(
     });
 
     res.json({ success: true });
+  })
+);
+
+/**
+ * `GET /applications/:appId/credentials/:credId/audit`
+ *
+ * One credential's lifecycle trail: created, rotated, revoked, and every bearer
+ * that resolved to it and was still refused. Append-only in the database rather
+ * than by convention — `0043_application_credential_audit_immutability.sql`.
+ *
+ * ## What it cannot return
+ *
+ * Secret material, and not because this handler is careful: the rows themselves
+ * hold none (`services/applicationCredentialAudit.service.ts` is their only
+ * writer and takes ids and closed enums, so there is no parameter a secret could
+ * arrive through), and the wire type has no property one could occupy — see
+ * {@link CredentialAuditTrailEntry}, which deliberately omits `metadata`. These
+ * rows exist BECAUSE the secret was shown exactly once.
+ *
+ * ## Authorization is the credential routes' own, not a new one
+ *
+ * `credentials:read` over the owning account, through `requireAppPermission` —
+ * the same gate `GET /:appId/credentials` uses, because this is the same data
+ * seen through time. A caller with no access to the application gets 403 from
+ * `loadApplicationContext`, exactly as every other route on this router does.
+ *
+ * The second refusal is the one that matters, and it is the reason this handler
+ * reads the credential row before reading the trail: `:credId` is a caller-chosen
+ * id, and the audit table is keyed on the credential rather than on the
+ * application. Without this read, a member of account A could pass their OWN
+ * `:appId` beside account B's `:credId` and be served B's trail — the shape of
+ * IDOR the house rules describe, arriving through a path parameter instead of a
+ * body. The statement below is scoped to the resolved application, so a
+ * credential that does not belong to it is a 404 and nothing else, matching what
+ * rotate and revoke already answer for the same input.
+ */
+router.get(
+  '/:appId/credentials/:credId/audit',
+  credentialAuditLimiter,
+  validate({ params: appCredentialParams, query: credentialAuditQuerySchema }),
+  requireAppPermission('credentials:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    const { limit } = credentialAuditQuerySchema.parse(req.query);
+
+    const [credential] = await getDb()
+      .select({ id: applicationCredentials.id })
+      .from(applicationCredentials)
+      .where(
+        and(
+          eq(applicationCredentials.id, req.params.credId),
+          eq(applicationCredentials.applicationId, application.id)
+        )
+      )
+      .limit(1);
+    if (!credential) {
+      throw new NotFoundError('Credential not found');
+    }
+
+    const events = await listCredentialAuditTrail(credential.id, limit);
+    res.json({ data: events, count: events.length });
   })
 );
 

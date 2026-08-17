@@ -35,6 +35,63 @@
  * being used at 14:02 and was still in use at 15:30") survives that; the volume
  * does not.
  *
+ * ## Who acted: a person, a customer's service credential, or nobody
+ *
+ * `actor_kind` + `actor_user_id` answer "was this a person or a deployment's
+ * key", which #972 workstream 12 requires of every audit surface and which this
+ * table could not answer at all.
+ *
+ * The defect was one column carrying two different things.
+ * `routes/inferenceProviderConnections.ts` wrote `actor_user_id` from a helper
+ * that returned the calling USER's id for a session principal and the calling
+ * application's OWNING ACCOUNT id for a service-token principal — both real
+ * `users.id` values, since an account IS a users row here, so nothing failed and
+ * "a member rotated this connection" read identically to "an application rotated
+ * it with a service token" (`docs/inference/observability.md`).
+ *
+ * Four states, and no two of them can be read into one another:
+ *
+ *   ('user',     <users.id>)  a named person acted, through a session bearer.
+ *                             The id is required — a person who declines to be
+ *                             named is the state this pair exists to refuse.
+ *   ('service',   null)       a CUSTOMER'S SERVICE CREDENTIAL acted. No person
+ *                             is behind it. The id is refused rather than
+ *                             optional: the only id that lane ever had to offer
+ *                             was the owning account's, which is already
+ *                             `owner_account_id` on this very row — a second,
+ *                             shallower copy would be a thing to keep in sync,
+ *                             not a thing to read.
+ *   ('platform',  null)       OXY'S OWN machinery acted, with no principal at
+ *                             all: the data plane resolving a reference
+ *                             (`used`), a verdict it reported (`validated`), the
+ *                             automatic `disabled` that an `invalid` verdict
+ *                             causes. A POSITIVE value, never an absence.
+ *   (null,        null|<id>)  the row PREDATES this column. See below.
+ *
+ * `platform` rather than `billing_ledger_entries`' word for the same idea
+ * (`machine`), deliberately: on that table there is no service-token lane, so
+ * `machine` is unambiguous. Here a service credential is also a machine, and
+ * that ambiguity is the whole defect — so the two machine-ish authors get two
+ * names.
+ *
+ * **Existing rows are NOT back-filled, and cannot be.** A legacy row's
+ * `actor_user_id` may be a person or an account and nothing recorded which, so
+ * every possible back-fill value would be a claim the data does not support —
+ * precisely the distinction the column adds. The table is also append-only by
+ * trigger (below), so a back-fill would mean disabling that trigger on an audit
+ * table. A null `actor_kind` therefore means "written before
+ * `0049_inference_provider_connection_actor`" and means nothing else; `created_at`
+ * corroborates it. No code path can produce it on a new row —
+ * {@link ProviderConnectionActor} is a required field of the audit entry type in
+ * `services/inferenceProviderConnection.service.ts`, which is the only writer.
+ *
+ * In production that legacy set is empty: a connection can only be created
+ * through `createProviderConnection`, which requires a secret store, and
+ * `PROVIDER_SECRET_STORE_BACKENDS` is empty in the shipped build — so no
+ * connection exists to have an audit row. The nullable arm is kept anyway,
+ * because a development or staging database whose rows nobody can classify is
+ * exactly the case a migration must not fail on.
+ *
  * ## Append-only, and the ONE exception
  *
  * Nothing updates a row, and `0042_inference_provider_connection_immutability.sql`
@@ -75,6 +132,51 @@ export const PROVIDER_CONNECTION_AUDIT_EVENT_TYPES = [
 
 export type ProviderConnectionAuditEventType =
   (typeof PROVIDER_CONNECTION_AUDIT_EVENT_TYPES)[number];
+
+/**
+ * What kind of principal wrote a row. See "Who acted" in the header for why
+ * there are three, and why `platform` is a value rather than a blank.
+ *
+ * This tuple is the SINGLE declaration: the CHECK below names each value as a
+ * literal, and `check-drizzle-snapshot-sync` holds that rendering against the
+ * migration the database was built from.
+ */
+export const PROVIDER_CONNECTION_ACTOR_KINDS = ['user', 'service', 'platform'] as const;
+
+export type ProviderConnectionActorKind = (typeof PROVIDER_CONNECTION_ACTOR_KINDS)[number];
+
+/** A named person, acting through their own session bearer. */
+export interface UserProviderConnectionActor {
+  readonly kind: 'user';
+  /** `users.id`. Required BY THE TYPE — a person who is not named is unwritable. */
+  readonly userId: string;
+}
+
+/**
+ * A customer's service credential. No person is behind it, and it carries no id:
+ * the account it acts for is the row's own `owner_account_id`.
+ */
+export interface ServiceProviderConnectionActor {
+  readonly kind: 'service';
+}
+
+/** Oxy's own machinery, with no principal: the data plane, or an automatic transition. */
+export interface PlatformProviderConnectionActor {
+  readonly kind: 'platform';
+}
+
+/**
+ * Who wrote an audit row, as every writer must state it.
+ *
+ * A discriminated union rather than an optional id beside an optional kind: the
+ * two incoherent rows the CHECK refuses — a `user` with no id, a `service` or
+ * `platform` carrying one — are then not expressible in TypeScript either, so the
+ * database constraint is the second line of defence rather than the only one.
+ */
+export type ProviderConnectionActor =
+  | UserProviderConnectionActor
+  | ServiceProviderConnectionActor
+  | PlatformProviderConnectionActor;
 
 /** Two years, matching `security_activities` and the credential trail. */
 export const PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS = 730 * 24 * 60 * 60;
@@ -119,6 +221,16 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
     actorUserId: text().references(() => users.id, { onDelete: 'set null' }),
 
     /**
+     * WHAT KIND of principal acted — see "Who acted" in the header.
+     *
+     * Nullable only for rows written before this column existed. Every writer
+     * states it, because {@link ProviderConnectionActor} is a required field of
+     * the audit entry type, and the CHECK below refuses every pairing with
+     * `actor_user_id` that would mean two things at once.
+     */
+    actorKind: text({ enum: PROVIDER_CONNECTION_ACTOR_KINDS }),
+
+    /**
      * Per-event detail — the fingerprint a rotation replaced, the validation
      * verdict, whether a revoke managed to destroy the stored secret. Assembled
      * by the writer from ids and closed values; NEVER credential material. `{}`
@@ -159,6 +271,36 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
     check(
       'inference_provider_connection_audit_events_no_actor_on_use',
       sql`${t.eventType} <> 'used' or ${t.actorUserId} is null`
+    ),
+
+    /**
+     * The four states of "who acted", enumerated rather than implied. See "Who
+     * acted" in the header for what each one means; this is what makes the other
+     * combinations unrepresentable:
+     *
+     *   ('user', null)      a person acted and declines to be named.
+     *   ('service', <id>)   nobody was behind it, and here is their id.
+     *   ('platform', <id>)  the same, about Oxy's own machinery.
+     *
+     * Vocabulary is enforced by the same expression — each branch names its kind
+     * as a literal, so a value outside {@link PROVIDER_CONNECTION_ACTOR_KINDS}
+     * satisfies no branch and the row is refused.
+     *
+     * `is not distinct from`, NOT `=`, and that is load-bearing rather than
+     * stylistic: a CHECK rejects only FALSE, and `null = 'user'` is NULL. Written
+     * with `=`, a row whose `actor_kind` is null would make every later branch
+     * NULL and the whole disjunction NULL — accepted, which happens to be the
+     * legacy state we want accepted, but the same trap bites in the other
+     * direction the moment a branch is added. `billing_ledger_entries_actor_check`
+     * was measured failing exactly this way (`0046`), so this is written the way
+     * that survived.
+     */
+    check(
+      'inference_provider_connection_audit_events_actor_check',
+      sql`${t.actorKind} is null
+        or (${t.actorKind} is not distinct from 'user' and ${t.actorUserId} is not null)
+        or (${t.actorKind} is not distinct from 'service' and ${t.actorUserId} is null)
+        or (${t.actorKind} is not distinct from 'platform' and ${t.actorUserId} is null)`
     ),
   ]
 );
