@@ -1311,9 +1311,9 @@ const identityExportLimiter = rateLimit({
  *
  * Signed, open-format self-sovereign data export ("credible exit"). Returns the
  * `ExportBundle` (DID document, profile, verified domains, auth methods, signed
- * records, app data, social graph) sealed with an Oxy provenance attestation.
- * `?format=ndjson` streams each section as newline-delimited JSON for large
- * accounts.
+ * records, app data, social graph, and the account's own financial history)
+ * sealed with an Oxy provenance attestation. `?format=ndjson` streams each
+ * section as newline-delimited JSON for large accounts.
  */
 router.get(
   '/me/export',
@@ -1353,6 +1353,16 @@ router.get(
       for (const item of bundle.appData) writeLine({ kind: 'appData', item });
       for (const did of bundle.social.following) writeLine({ kind: 'following', did });
       for (const did of bundle.social.followers) writeLine({ kind: 'follower', did });
+      // One line per financial row rather than one line carrying the whole
+      // section: the ndjson arm exists for the accounts where a section is too
+      // large to hold, and this is the section that grows without bound.
+      for (const receipt of bundle.financial.receipts) writeLine({ kind: 'financial', receipt });
+      for (const entry of bundle.financial.ledgerEntries) {
+        writeLine({ kind: 'financial', ledgerEntry: entry });
+      }
+      for (const reservation of bundle.financial.reservations) {
+        writeLine({ kind: 'financial', reservation });
+      }
       writeLine({ kind: 'attestation', attestation: bundle.attestation });
       res.end();
       logger.info('Signed identity export streamed', { userId, format, attestationMissing });
@@ -1527,6 +1537,34 @@ router.delete(
       );
     }
 
+    if (holds.hasLiveProviderConnection) {
+      /*
+       * A BYOK CREDENTIAL IS STILL IN THE SECRET STORE (issue #972 section 12).
+       *
+       * `inference_provider_connections.owner_account_id` is `RESTRICT` rather
+       * than `CASCADE` precisely so this cannot happen silently, and its schema
+       * comment promises the missing half: "Account deletion must revoke these
+       * first, which is a deliberate, loud step." Until now the step did not
+       * exist — the account archived and the connection stayed live with its
+       * credential in the store, listed among the records Oxy claimed to be
+       * retaining for legal reasons.
+       *
+       * Refused rather than revoked on the customer's behalf, for the same reason
+       * the subscription above is refused: revoking a BYOK credential is a
+       * declaration to a THIRD PARTY, whose own console still shows a key the
+       * customer believes is in use. Destroying it as a side effect of a delete is
+       * the same class of act as cancelling somebody's payment agreement, and if
+       * the secret store were unreachable the alternative would delete the account
+       * and orphan the secret — which is the exact outcome the `RESTRICT` exists
+       * to prevent.
+       */
+      throw new ConflictError(
+        'This account still holds provider credentials. Revoke each connection first — ' +
+          'revoking destroys the stored credential, which deleting the account cannot do for you.',
+        { providerConnections: holds.liveProviderConnections }
+      );
+    }
+
     // Delete all email data (mailboxes, messages, S3 attachments)
     await emailService.deleteAllUserData(userId);
 
@@ -1576,7 +1614,9 @@ router.delete(
 
       sendSuccess(res, {
         message:
-          'Account closed. Financial records are retained as required by law; all optional data has been deleted.',
+          'Account closed. Records that must be retained are kept — financial history as required ' +
+          'by law, and the lifecycle audit of any credential that existed; all optional data has ' +
+          'been deleted.',
         retained: true,
         retainedRecords: holds.retainedRecords,
       });

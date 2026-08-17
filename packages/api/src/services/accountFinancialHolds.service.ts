@@ -10,7 +10,7 @@
  * violation. A 500, after the irreversible part.
  *
  * This module is what turns that constraint into an ANSWER. It is called before
- * anything is destroyed, and it reports three separable things:
+ * anything is destroyed, and it reports four separable things:
  *
  *  1. **A live subscription.** Stripe keeps billing a customer whose account no
  *     longer exists. This one is refused outright rather than worked around: the
@@ -19,7 +19,10 @@
  *     billing.
  *  2. **Money in flight.** A held reservation is money neither spent nor
  *     returned. Deleting through it strands it.
- *  3. **Retained financial history.** Receipts, ledger entries, invoices,
+ *  3. **A live BYOK provider connection.** Not financial at all, and the one arm
+ *     here that is not — see {@link AccountFinancialHolds.liveProviderConnections}
+ *     for why it belongs in this answer anyway.
+ *  4. **Retained financial history.** Receipts, ledger entries, invoices,
  *     processor payments. These are kept by law and by reconciliation need, so
  *     the account is RETAINED-and-archived rather than removed — the erasure of
  *     optional data still happens, and #972 section 12's "deletion that preserves
@@ -103,10 +106,58 @@ export interface AccountFinancialHolds {
   readonly liveSubscriptionIds: readonly string[];
   /** Reservations still `held` — money neither spent nor returned. */
   readonly heldReservations: number;
-  /** Every blocking table with at least one row, and how many. */
+  /**
+   * BYOK connections whose CREDENTIAL IS STILL IN THE SECRET STORE, by id.
+   *
+   * The one arm of this answer that is not financial, and it is here because it
+   * is the same question: what must a person deal with before their account can
+   * be deleted. `inference_provider_connections.owner_account_id` is `RESTRICT`
+   * rather than `CASCADE` on purpose, and its schema comment states the reason
+   * and the obligation:
+   *
+   *   > A cascade here would delete the metadata while leaving the credential
+   *   > sitting in the secret store with nothing left in Oxy that knows it
+   *   > exists — an orphaned secret nobody can find to destroy. Account deletion
+   *   > must revoke these first, which is a deliberate, loud step.
+   *
+   * The delete route never performed that step. So an account with a live
+   * connection archived — correctly, nothing leaked, the account could no longer
+   * act — while the row stayed live with its credential in the store, and the
+   * connection appeared in {@link retainedRecords} as though it were a financial
+   * record it must legally keep. This makes the promised step exist.
+   *
+   * ## The refusal is deliberate, not a cascade
+   *
+   * The caller refuses with `409` the way it refuses a live subscription, rather
+   * than revoking on the customer's behalf. Revoking a BYOK credential is a
+   * declaration to a THIRD PARTY — the provider still holds a key the customer
+   * believes is in use — and destroying it as a side effect of a delete is the
+   * same class of act as cancelling somebody's payment agreement.
+   *
+   * ## Why "not revoked" and not `LIVE_PROVIDER_CONNECTION_STATUSES`
+   *
+   * That constant answers "may a request be served through this connection", and
+   * excludes `disabled`. This asks whether a credential is still held in the
+   * secret store, and only `revoke` destroys one — `disabled` is explicitly
+   * reversible and keeps its secret. Using the serving constant here would let a
+   * disabled connection's credential survive its owner's account.
+   */
+  readonly liveProviderConnections: readonly string[];
+  /**
+   * Every blocking reference with at least one row, and how many.
+   *
+   * Derived from `pg_constraint`, so it covers whatever blocks TODAY. Most of it
+   * is financial history, which is why the delete route reports it as records it
+   * must retain — but not all of it is: a REVOKED provider connection still
+   * blocks (its secret is destroyed, its lifecycle audit is not), so a table
+   * appearing here means "this reference blocks a hard delete" and nothing
+   * stronger.
+   */
   readonly retainedRecords: readonly RetainedRecordCount[];
   /** True when Stripe would keep charging a deleted customer. */
   readonly hasLiveSubscription: boolean;
+  /** True when a credential of this account's is still in the secret store. */
+  readonly hasLiveProviderConnection: boolean;
   /** True when a `DELETE FROM users` would raise a foreign key violation. */
   readonly blocksHardDelete: boolean;
 }
@@ -164,12 +215,27 @@ export async function describeAccountFinancialHolds(
     `
   );
 
+  // `status <> 'revoked'` rather than the serving statuses: `disabled` is
+  // reversible and keeps its credential in the secret store, and only `revoke`
+  // destroys one. See `liveProviderConnections`.
+  const providerConnections = await executeRows<{ id: string }>(
+    db,
+    sql`
+      select id
+      from inference_provider_connections
+      where owner_account_id = ${accountId} and status <> 'revoked'
+      order by id
+    `
+  );
+
   return {
     accountId,
     liveSubscriptionIds: subscriptions.map((row) => row.id),
     heldReservations: Number(held[0]?.total ?? '0'),
+    liveProviderConnections: providerConnections.map((row) => row.id),
     retainedRecords,
     hasLiveSubscription: subscriptions.length > 0,
+    hasLiveProviderConnection: providerConnections.length > 0,
     blocksHardDelete: retainedRecords.length > 0,
   };
 }

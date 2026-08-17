@@ -330,6 +330,13 @@
       "when": 1786952738898,
       "tag": "0047_retire_developer_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786952738899,
+      "tag": "0048_staff_capabilities_and_spend_anomalies",
+      "breakpoints": true
     }
   ]
 }

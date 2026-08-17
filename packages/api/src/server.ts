@@ -83,6 +83,10 @@ import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
 import { RESERVATION_EXPIRY_SWEEP_INTERVAL_MS } from './db/schema/usageReservations';
+import {
+  SPEND_ANOMALY_SWEEP_INTERVAL_MS,
+  sweepSpendAnomalies,
+} from './services/spendAnomaly.service';
 import { VALIDATION_SWEEP_INTERVAL_MS, PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS } from './utils/civic.constants';
 import { FOLLOW_EXPIRY_SWEEP_INTERVAL_MS } from './utils/follow.constants';
 import { NODE_LIVENESS_SWEEP_INTERVAL_MS } from './utils/nodes.constants';
@@ -1176,6 +1180,32 @@ export async function bootstrap(
       );
   }, EXPIRY_SWEEP_INTERVAL_MS);
   retentionSweep.unref();
+
+  // Notice an account whose inference spend in one hour jumped past a multiple of
+  // its own trailing daily median (issue #972 sections 8 and 12). It RECORDS and
+  // LOGS; it blocks nothing, on purpose — see `services/spendAnomaly.service.ts`
+  // for why an automated hard stop on a spend multiple is the wrong trade, and
+  // `spending_limits` for the mechanism a customer uses to say what they do want
+  // refused. Unref'd + failures logged, like the two sweeps above.
+  const spendAnomalySweep = setInterval(() => {
+    sweepSpendAnomalies()
+      .then((result) => {
+        if (result.recorded > 0) {
+          logger.info('Spend anomaly sweep recorded new signals', {
+            recorded: result.recorded,
+            observed: result.detected.length,
+            thresholdMultiple: result.thresholdMultiple,
+          });
+        }
+      })
+      .catch((err) =>
+        logger.error(
+          'Spend anomaly sweep failed',
+          err instanceof Error ? err : new Error(String(err))
+        )
+      );
+  }, SPEND_ANOMALY_SWEEP_INTERVAL_MS);
+  spendAnomalySweep.unref();
 
   // Start SMTP inbound server if enabled
   if (getEnvBoolean('SMTP_ENABLED', false)) {

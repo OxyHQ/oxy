@@ -2,8 +2,73 @@ import pino from 'pino';
 
 const isDev = process.env.NODE_ENV === 'development';
 
+/**
+ * Field names this logger never writes the value of (issue #972 section 12, "no
+ * upstream provider key in logs").
+ *
+ * ## THIS IS DEFENCE IN DEPTH. IT IS NOT THE CONTROL.
+ *
+ * The control for a customer's BYOK credential is structural and lives
+ * elsewhere: `services/providerSecretStore.ts`'s `ProviderSecretValue` holds the
+ * plaintext in a `#value` — runtime-private, not merely `tsc`-private — and
+ * overrides `toString`, `toJSON` and `Symbol.for('nodejs.util.inspect.custom')`,
+ * the last being exactly what pino reaches for. A `ProviderSecretValue` cannot
+ * become a string by accident, whatever the field is called. Free-text error
+ * messages are refused separately, by `@oxyhq/contracts`' `safeErrorTextSchema`
+ * through `utils/inferenceEdgeErrors.ts`, and the inference edge's own log lines
+ * are pinned by `routes/__tests__/inferenceEdge.test.ts`.
+ *
+ * What none of those cover is a NEW call site somewhere else in `packages/api`
+ * logging a raw credential string it happens to hold. Every guarantee above is
+ * per-call-site; this is the only thing in the process that applies to a call
+ * site nobody has written yet.
+ *
+ * ## And it is a FLOOR, with a stated limit
+ *
+ * `*.token` matches one level of nesting, not any depth: pino's redaction is
+ * path-based, so `{ a: { b: { token } } }` is NOT covered and neither is a secret
+ * that arrives inside a message STRING rather than as a field. A wildcard deep
+ * enough to cover every shape would have to walk every log line, which is the
+ * cost this logger cannot pay on the request path. So: never treat a value as
+ * safe to log because this list exists.
+ *
+ * `error()` below merges an `Error` into `err`, so the `*.` arms also cover
+ * `err.token` and friends.
+ */
+const REDACTED_PATHS = [
+  'authorization',
+  '*.authorization',
+  'apiKey',
+  '*.apiKey',
+  'api_key',
+  '*.api_key',
+  'secret',
+  '*.secret',
+  'token',
+  '*.token',
+  'accessToken',
+  '*.accessToken',
+  'refreshToken',
+  '*.refreshToken',
+  'deviceSecret',
+  '*.deviceSecret',
+  'clientSecret',
+  '*.clientSecret',
+  'password',
+  '*.password',
+  // Express's own request shape, for any middleware that logs `{ req }`.
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'headers.authorization',
+  'headers.cookie',
+];
+
+/** What appears in place of a redacted value. */
+const CENSOR = '[redacted]';
+
 const pinoLogger = pino({
   level: process.env.LOG_LEVEL || (isDev ? 'debug' : 'info'),
+  redact: { paths: REDACTED_PATHS, censor: CENSOR },
   ...(isDev
     ? { transport: { target: 'pino-pretty', options: { colorize: true } } }
     : {}),

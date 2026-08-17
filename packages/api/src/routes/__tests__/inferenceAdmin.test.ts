@@ -20,6 +20,15 @@
  * scan that proves it can find a value which IS present — a scanner reading an
  * empty payload reports the same clean result as one reading a correct
  * projection.
+ *
+ * ## The staff row is REAL, and that is load-bearing since #972 section 12
+ *
+ * `authMiddleware` is mocked, but `seedStaffUser` inserts a row with
+ * `is_staff = true` and an explicit `staff_capabilities` list, because
+ * `requireStaffCapability` reads that column out of the database rather than off
+ * `req.user` (see `middleware/requireStaff.ts` for why). A fixture whose mock
+ * claimed staff while its row said otherwise would refuse every graded write for
+ * a reason that has nothing to do with the capability under test.
  */
 
 import express from 'express';
@@ -64,7 +73,7 @@ import {
   inferenceProviders,
   inferencePublishers,
 } from '../../db/schema';
-import { users } from '../../db/schema/users';
+import { users, type StaffCapability } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import adminRouter from '../inferenceAdmin';
 import catalogueRouter from '../inferenceCatalogue';
@@ -227,12 +236,30 @@ async function insertPendingDeployment(): Promise<DeploymentFixture> {
   };
 }
 
-async function seedStaffUser(): Promise<string> {
+/**
+ * A staff account, with the graded capabilities it holds.
+ *
+ * `isStaff` is written to the ROW and not only to the mocked `req.user`:
+ * `requireStaffCapability` re-reads both from the database. The default grant is
+ * the publish capability, so every pre-existing case in this file exercises the
+ * handler it was written for; the cases that are ABOUT the capability pass `[]`.
+ */
+async function seedStaffUser(
+  staffCapabilities: readonly StaffCapability[] = ['inference:catalogue:publish']
+): Promise<string> {
   const [row] = await getDb()
     .insert(users)
-    .values({ username: `adm-${suffix()}` })
+    .values({ username: `adm-${suffix()}`, isStaff: true, staffCapabilities: [...staffCapabilities] })
     .returning({ id: users.id });
   return row.id;
+}
+
+/** Grant a capability to an existing account, as an administrator would. */
+async function grantCapability(userId: string, capability: StaffCapability): Promise<void> {
+  await getDb()
+    .update(users)
+    .set({ staffCapabilities: [capability] })
+    .where(eq(users.id, userId));
 }
 
 /** Read one deployment's admin row straight out of the table. */
@@ -357,6 +384,135 @@ describe('every route on this mount is staff-gated', () => {
     const allowed = await request('GET', `${ADMIN}/deployments`);
     expect(allowed.status).toBe(200);
     expect(adminRowFor(allowed.body, fixture.deploymentId)).toBeDefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  1b. The two WRITES need the graded capability; the reads do not           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * THE ASSERTION THE CAPABILITY EXISTS FOR is the first case: a real, fully
+ * authenticated staff member — the exact caller who could publish a route
+ * yesterday — is REFUSED.
+ *
+ * A capability tested only in its granted position measures nothing: every write
+ * would still be served to every staff member and the column would be decoration.
+ * So each case below pairs the refusal with the grant, on the SAME account and
+ * the SAME request, and asserts the guard's own message so a 403 from `requireStaff`
+ * or from the handler cannot be mistaken for this one.
+ */
+describe('publishing a catalogue route requires the graded staff capability', () => {
+  const CAPABILITY_REFUSAL_FRAGMENT = 'requires the inference:catalogue:publish staff capability';
+
+  it('refuses a staff member holding NO capabilities, and admits the same account once granted', async () => {
+    const fixture = await insertPendingDeployment();
+    currentUserId = await seedStaffUser([]);
+    currentUserIsStaff = true;
+
+    const refused = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+    );
+    expect(refused.status).toBe(403);
+    expect(refused.body.message).toEqual(expect.stringContaining(CAPABILITY_REFUSAL_FRAGMENT));
+    // Nothing moved. A guard that answered 403 after writing would be worse than
+    // no guard, and the status code alone cannot tell the two apart.
+    expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('not_started');
+
+    // THE POSITIVE CONTROL: one UPDATE, nothing else changed, and the identical
+    // request is served.
+    await grantCapability(currentUserId, 'inference:catalogue:publish');
+    const allowed = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+    );
+    expect(allowed.status).toBe(200);
+    expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('approved');
+  });
+
+  it('refuses a permission ACTION on the same terms', async () => {
+    const fixture = await insertPendingDeployment();
+    // Reviewed first, by an account that holds the capability, so the refusal
+    // below cannot be the missing-review 409 wearing a different number.
+    const review = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+    );
+    expect(review.status).toBe(200);
+
+    currentUserId = await seedStaffUser([]);
+    const refused = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/approve`,
+      {}
+    );
+    expect(refused.status).toBe(403);
+    expect(refused.body.message).toEqual(expect.stringContaining(CAPABILITY_REFUSAL_FRAGMENT));
+    expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('pending_review');
+
+    await grantCapability(currentUserId, 'inference:catalogue:publish');
+    const allowed = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/approve`,
+      {}
+    );
+    expect(allowed.status).toBe(200);
+    expect((await readDeployment(fixture.deploymentId)).permissionState).toBe('approved');
+  });
+
+  it('does NOT narrow the reads — a capability-less staff member still sees the dashboard', async () => {
+    const fixture = await insertPendingDeployment();
+    currentUserId = await seedStaffUser([]);
+
+    const deployments = await request('GET', `${ADMIN}/deployments`);
+    expect(deployments.status).toBe(200);
+    expect(adminRowFor(deployments.body, fixture.deploymentId)).toBeDefined();
+
+    const rollout = await request('GET', `${ADMIN}/rollout`);
+    expect(rollout.status).toBe(200);
+  });
+
+  it('refuses a DIFFERENT capability, so the grant is per-capability and not a second staff flag', async () => {
+    const fixture = await insertPendingDeployment();
+    // A real, valid grant — for the wrong surface. Without this case, granting
+    // any capability at all would be indistinguishable from granting this one.
+    currentUserId = await seedStaffUser(['billing:adjust']);
+
+    const refused = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+    );
+    expect(refused.status).toBe(403);
+    expect(refused.body.message).toEqual(expect.stringContaining(CAPABILITY_REFUSAL_FRAGMENT));
+  });
+
+  it('refuses an account that holds the capability but is not staff at all', async () => {
+    const fixture = await insertPendingDeployment();
+    const [row] = await getDb()
+      .insert(users)
+      .values({
+        username: `adm-${suffix()}`,
+        isStaff: false,
+        staffCapabilities: ['inference:catalogue:publish'],
+      })
+      .returning({ id: users.id });
+    currentUserId = row.id;
+    // The mocked session claims staff — the state a stale cache would produce —
+    // so this measures the guard's re-read of the row and nothing else.
+    currentUserIsStaff = true;
+
+    const refused = await request(
+      'POST',
+      `${ADMIN}/deployments/${fixture.deploymentId}/legal-review`,
+      { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
+    );
+    expect(refused.status).toBe(403);
+    expect((await readDeployment(fixture.deploymentId)).legalReviewStatus).toBe('not_started');
   });
 });
 

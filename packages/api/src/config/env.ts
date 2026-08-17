@@ -80,17 +80,18 @@ export interface RequiredEnvVars {
   // would still NOT be enough to wire (no store client ships in this build).
   INFERENCE_PROVIDER_SECRET_STORE?: string;
 
-  // The inference platform's four rollout flags (issue #972 workstream 16).
-  // Declared, parsed and reported in ONE place — `config/rolloutFlags.ts` — and
-  // readable at `GET /inference/admin/rollout`. None is a secret: each names a
-  // deployment STATE, so all four belong in the ECS task definition's plain
-  // environment and never in SSM, and all four are absent from the `required`
+  // The inference platform's five rollout flags (issue #972 workstreams 16 and
+  // 12). Declared, parsed and reported in ONE place — `config/rolloutFlags.ts` —
+  // and readable at `GET /inference/admin/rollout`. None is a secret: each names
+  // a deployment STATE, so all five belong in the ECS task definition's plain
+  // environment and never in SSM, and all five are absent from the `required`
   // list below on purpose. Unset means the surface is closed, which is why an
   // absent variable can never open one.
   //
   //  - who may reach the public inference edge at all:
   //    `closed` | `internal` | `first_party` | `allowlist:<appId>,…` | `public`
-  //    (unset = closed; `public` additionally requires charging to be armed)
+  //    (unset = closed; `public` additionally requires BOTH charging to be armed
+  //    and the privacy/security review to be recorded)
   INFERENCE_EDGE_AUDIENCE?: string;
   //  - whether an `oxy_sk_…` machine credential authenticates: `enabled` |
   //    `disabled` (unset = disabled)
@@ -103,6 +104,21 @@ export interface RequiredEnvVars {
   //  - who is served the published model catalogue: `internal` | `public`
   //    (unset = internal)
   INFERENCE_CATALOGUE_AUDIENCE?: string;
+  //  - the privacy and security review a PUBLIC launch is gated on (#972
+  //    section 12), as `<reviewer>:<YYYY-MM-DD>`. A bare `true` is REFUSED.
+  //    Unset means no review has been recorded, and a `public` audience stays
+  //    CLOSED with `public_requires_privacy_review`. A self-attestation, not an
+  //    authorization control — see the module header.
+  INFERENCE_PRIVACY_REVIEW?: string;
+
+  // How far above its own trailing daily median an account's hourly inference
+  // spend has to go before it is recorded as an anomaly (#972 sections 8 and 12).
+  // A number above 1; unset means the documented default in
+  // `services/spendAnomaly.service.ts`, and an unreadable value falls back to it
+  // and is reported. NOT a rollout flag: it tunes a signal that blocks nothing,
+  // and it is deliberately not in `config/rolloutFlags.ts`, which declares the
+  // five switches that open or close a surface.
+  INFERENCE_SPEND_ANOMALY_MULTIPLE?: string;
 
   // The inference DATA PLANE this deployment forwards to, and the key it signs
   // envelopes with (issue #972 workstream 4, ADR 0015). Resolved once, at router

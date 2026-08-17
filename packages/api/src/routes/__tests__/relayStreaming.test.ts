@@ -65,6 +65,7 @@ import {
   RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
 } from '../../config/relayDataPlane';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { PRIVACY_REVIEW_VARIABLE } from '../../config/rolloutFlags';
 import { accountBalances } from '../../db/schema/accountBalances';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
@@ -832,17 +833,25 @@ function chunksOf(response: StreamedResponse): Record<string, unknown>[] {
 }
 
 /**
- * The rollout flags this file runs with (issue #972 workstream 16).
+ * The rollout flags this file runs with (issue #972 workstreams 16 and 12).
  *
- * All three default to serving and charging nobody, so every assertion here about
+ * All four default to serving and charging nobody, so every assertion here about
  * routing, reservation and settlement would otherwise pass for the wrong reason.
- * The authorization date is comfortably in the past because the flag refuses a
- * FUTURE date and midnight UTC on a runner an hour behind local time is one.
+ * Both dates are comfortably in the past because the flags refuse a FUTURE date
+ * and midnight UTC on a runner an hour behind local time is one.
+ *
+ * `public` requires BOTH an armed charging authorization and a recorded
+ * privacy/security review (#972 section 12) to resolve at all — leaving the review
+ * out closes the edge and every case below fails with 403 on the gate rather than
+ * on anything this file is about. The gate's own default and both positions belong
+ * to `config/__tests__/rolloutFlags.test.ts` and `inferenceEdgeRollout.test.ts`;
+ * nothing here is evidence about them.
  */
 const ROLLOUT_ENVIRONMENT = {
   INFERENCE_EDGE_AUDIENCE: 'public',
   INFERENCE_MACHINE_CREDENTIAL_AUTH: 'enabled',
   INFERENCE_CHARGING_AUTHORIZED: 'relay-suite-fixture:2026-08-01',
+  INFERENCE_PRIVACY_REVIEW: 'relay-suite-fixture:2026-08-01',
 } as const;
 
 const ORIGINAL_ENVIRONMENT = Object.fromEntries(
@@ -1883,5 +1892,120 @@ describe('the streaming path’s logs', () => {
     // same pass, so the absences above are real absences and not an unreadable
     // haystack.
     expect(serialized).toContain('inference.edge.refused');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The launch gate holds on the STREAMING entry point too                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The privacy/security review precondition (#972 section 12) refuses a STREAMING
+ * request, and refuses it BEFORE the data plane is reached.
+ *
+ * ## Why this is asserted rather than inherited
+ *
+ * `admitToInferenceEdge` sits in the router's own gate, so on today's code both
+ * dialects and both transports pass through it once. That is a property of where
+ * the gate is mounted, and a property of a mount is exactly the kind of thing a
+ * refactor moves without anybody noticing — #1034 split serving into a streaming
+ * and a non-streaming entry point, and "a constraint enforced on one path and
+ * forgotten on the other" is what ADR 0010 exists to prevent. A launch gate that
+ * a `stream: true` request walked around would be the worst instance of it: the
+ * refusal would be invisible, because the caller would simply be served.
+ *
+ * ## The two halves
+ *
+ * Each case clears ONLY the review variable — the audience stays `public` and
+ * charging stays armed, so the state under test is the one a launch is actually
+ * attempted from — and asserts three things: the status is 403, the body is not a
+ * stream, and `stub.verified` is 0, which is the sharp claim. A gate that refused
+ * after forwarding would already have sent the customer's prompt to the data
+ * plane, and the status code alone cannot tell the two apart.
+ *
+ * The positive control is the whole rest of this file: with the review armed —
+ * `ROLLOUT_ENVIRONMENT`, restored in `finally` — the same streaming requests are
+ * served, and their frames are asserted above.
+ */
+describe('a streaming request is refused by the privacy review gate, before the data plane', () => {
+  /**
+   * Run `body` with the review attestation absent, then restore it.
+   *
+   * Through the module's own exported variable name rather than a second copy of
+   * the string, so a rename cannot leave this file quietly clearing nothing —
+   * which would make both refusal cases below pass for the wrong reason.
+   */
+  async function withoutPrivacyReview(body: () => Promise<void>): Promise<void> {
+    const armed = process.env[PRIVACY_REVIEW_VARIABLE];
+    delete process.env[PRIVACY_REVIEW_VARIABLE];
+    try {
+      await body();
+    } finally {
+      if (armed === undefined) delete process.env[PRIVACY_REVIEW_VARIABLE];
+      else process.env[PRIVACY_REVIEW_VARIABLE] = armed;
+    }
+  }
+
+  it('refuses POST /v1/responses with stream: true, and forwards nothing', async () => {
+    const fixture = await makeFixture();
+
+    await withoutPrivacyReview(async () => {
+      await withEdge(servesCompletely(fixture.provider), async ({ stub, request }) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          responsesBody(fixture, { stream: true }),
+          bearer(fixture.token)
+        );
+
+        expect(response.status).toBe(403);
+        // Not a stream: the refusal is an HTTP status, not an error frame inside a
+        // 200 the client has already started reading.
+        expect(response.headers['content-type']).not.toContain('text/event-stream');
+        expect(response.frames).toEqual([]);
+        // THE SHARP ONE: the prompt never left this process.
+        expect(stub.verified).toBe(0);
+      });
+    });
+  });
+
+  it('refuses POST /v1/chat/completions with stream: true on the same terms', async () => {
+    const fixture = await makeFixture();
+
+    await withoutPrivacyReview(async () => {
+      await withEdge(servesCompletely(fixture.provider), async ({ stub, request }) => {
+        const response = await request(
+          'POST',
+          '/v1/chat/completions',
+          chatBody(fixture, { stream: true }),
+          bearer(fixture.token)
+        );
+
+        expect(response.status).toBe(403);
+        expect(response.frames).toEqual([]);
+        expect(stub.verified).toBe(0);
+      });
+    });
+  });
+
+  it('serves the same streaming request once the review is recorded — the control', async () => {
+    const fixture = await makeFixture();
+
+    // The review is armed here (this file's own `ROLLOUT_ENVIRONMENT`), and
+    // nothing else differs from the two cases above. Without this, both of them
+    // would pass just as well against an edge that refused every streaming
+    // request for any reason at all.
+    await withEdge(servesCompletely(fixture.provider), async ({ stub, request }) => {
+      const response = await request(
+        'POST',
+        '/v1/responses',
+        responsesBody(fixture, { stream: true }),
+        bearer(fixture.token)
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('text/event-stream');
+      expect(stub.verified).toBe(1);
+    });
   });
 });

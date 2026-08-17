@@ -209,6 +209,55 @@ const DEFAULT_REPUTATION_RANK_WEIGHT = 0.1;
 /** Applied to a new account that declares no locale. */
 export const DEFAULT_USER_LANGUAGES = ['en-US'] as const;
 
+/**
+ * The graded platform-staff capabilities (#972 section 12, "least-privilege
+ * admin roles").
+ *
+ * `is_staff` alone used to open every staff surface this API has: the metrics
+ * endpoint, the whole inference admin router, cost centres, platform statistics,
+ * promotional grants, invoice closure, reputation moderation, store publishing,
+ * topic resolution and the location cache. One boolean, and the two most
+ * expensive things on that list — publishing what Oxy sells, and creating
+ * customer balance out of nothing — sat behind the same flag as reading a
+ * dashboard.
+ *
+ * ## A CLOSED tuple, and not derived from route names
+ *
+ * Declared here the way `TRUST_TIERS` and `ACCOUNT_KINDS` are, so
+ * `Record<StaffCapability, …>` can be made total and the database can refuse an
+ * unknown element. Deriving the set from route paths would make the grant
+ * surface change whenever somebody renames a URL, and would silently widen the
+ * moment a route moved.
+ *
+ * ## What each one admits
+ *
+ * - `inference:catalogue:publish` — recording a contract/legal review and
+ *   approving, restricting, suspending or retiring a catalogue route. An
+ *   approval asserts Oxy has the right to resell somebody else's model.
+ * - `billing:adjust` — writes that MOVE MONEY on a customer's ledger: a
+ *   promotional grant (balance out of nothing) and closing an invoice period
+ *   (which books a rounding entry).
+ * - `billing:cost_centers` — registering and retiring the internal cost centres
+ *   Oxy books its own first-party spend against.
+ *
+ * READ-ONLY staff surfaces are deliberately NOT graded: a capability that only
+ * gates a dashboard buys nothing and makes the grant list long enough that
+ * nobody reads it.
+ *
+ * ## `is_staff` is still required, and is still not grantable
+ *
+ * A capability is a NARROWING of `is_staff`, never an alternative to it — see
+ * `middleware/requireStaff.ts`. Both columns are administrator-set; there is no
+ * self-service route to either.
+ */
+export const STAFF_CAPABILITIES = [
+  'inference:catalogue:publish',
+  'billing:adjust',
+  'billing:cost_centers',
+] as const;
+
+export type StaffCapability = (typeof STAFF_CAPABILITIES)[number];
+
 /** Renders a `const` tuple as a SQL `in (...)` list. */
 function inList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(', ');
@@ -400,6 +449,26 @@ export const users = pgTable(
     reputationTier: text({ enum: TRUST_TIERS }).notNull().default('new'),
     /** Administrator-set only — never via a self-service route. */
     isStaff: boolean().notNull().default(false),
+    /**
+     * Which graded staff surfaces this account may WRITE to — see
+     * {@link STAFF_CAPABILITIES}.
+     *
+     * Empty by default, including for existing staff: a migration that granted
+     * every capability to everyone who already had `is_staff` would produce
+     * exactly the state this column exists to end, while reporting that a
+     * least-privilege model had been adopted. So the graded surfaces start
+     * refusing every staff member, and each grant is a deliberate administrative
+     * act with a row to point at.
+     *
+     * No index. Every read asks "does THIS account hold X", answered from the
+     * account's own row by primary key; nothing queries by element, so a GIN
+     * index — the one `applications.capabilities` has, because the push-delivery
+     * sweep really does scan by element — would be dead weight here.
+     */
+    staffCapabilities: text()
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     /** Proof-of-personhood genesis node. Administrator-set only. */
     isSeedVerifier: boolean().notNull().default(false),
     /** Account-level NSFW flag (moderation-set). Distinct from the VIEWER's preference. */
@@ -648,6 +717,15 @@ export const users = pgTable(
     // problem (`account.service.ts` `wouldCreateCycle`); the one-hop case is
     // free to state here and is the shape a bad write actually produces.
     check('users_parent_account_id_not_self_check', sql`${t.parentAccountId} <> ${t.id}`),
+    // The array analogue of a closed value set, as `applications.scopes` has:
+    // every element must be a known capability. `<@` is containment, so the
+    // default empty array trivially satisfies it. Without this a typo in a grant
+    // — `billing:adjustment` — would be stored happily and would gate nothing,
+    // which reads from the database exactly like a granted capability.
+    check(
+      'users_staff_capabilities_check',
+      sql`${t.staffCapabilities} <@ ${sql.raw(textArrayLiteral(STAFF_CAPABILITIES))}`
+    ),
   ]
 );
 

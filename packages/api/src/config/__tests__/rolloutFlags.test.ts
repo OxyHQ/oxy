@@ -12,8 +12,8 @@
  *
  * ## The environment is cleared, not assumed
  *
- * `beforeEach` deletes all four variables rather than trusting them to be
- * absent. A sibling suite in the same worker sets three of them
+ * `beforeEach` deletes all five variables rather than trusting them to be
+ * absent. A sibling suite in the same worker sets four of them
  * (`routes/__tests__/inferenceEdge.test.ts`), and `process.env` is shared across
  * every file a worker runs — so an assumed-empty environment is exactly how a
  * default test would silently start measuring somebody else's fixture.
@@ -33,10 +33,13 @@ import {
   isCataloguePublished,
   isChargingAuthorized,
   isMachineCredentialLaneEnabled,
+  isPrivacyReviewRecorded,
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
+  PRIVACY_REVIEW_VARIABLE,
   resolveCatalogueAudience,
   resolveEdgeAudience,
   resolveInferenceCharging,
+  resolveInferencePrivacyReview,
   resolveMachineCredentialLane,
   type EdgeAdmissionPrincipal,
 } from '../rolloutFlags';
@@ -49,12 +52,16 @@ const FLAG_VARIABLES = [
   MACHINE_CREDENTIAL_AUTH_VARIABLE,
   CHARGING_AUTHORIZED_VARIABLE,
   CATALOGUE_AUDIENCE_VARIABLE,
+  PRIVACY_REVIEW_VARIABLE,
 ] as const;
 
 const ORIGINAL = Object.fromEntries(FLAG_VARIABLES.map((key) => [key, process.env[key]]));
 
 /** A charging authorization that is valid and comfortably in the past. */
 const ARMED_CHARGING = 'commercial-launch:2026-08-01';
+
+/** A recorded privacy/security review, same shape, same "in the past" reason. */
+const ARMED_PRIVACY_REVIEW = 'security-privacy-review:2026-08-01';
 
 beforeEach(() => {
   for (const key of FLAG_VARIABLES) delete process.env[key];
@@ -96,6 +103,9 @@ describe('the safe default', () => {
     expect(isMachineCredentialLaneEnabled()).toBe(false);
     expect(isChargingAuthorized()).toBe(false);
     expect(isCataloguePublished()).toBe(false);
+    // And claims no review has happened. An unset variable must never be read as
+    // "there was nothing to review".
+    expect(isPrivacyReviewRecorded()).toBe(false);
   });
 
   it('refuses every tier at the edge, the internal one included', () => {
@@ -119,6 +129,7 @@ describe('the safe default', () => {
     process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = 'enabled';
     process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
     process.env[CATALOGUE_AUDIENCE_VARIABLE] = 'public';
+    process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
 
     expect(resolveEdgeAudience()).toEqual({
       status: 'open',
@@ -127,6 +138,7 @@ describe('the safe default', () => {
     expect(isMachineCredentialLaneEnabled()).toBe(true);
     expect(isChargingAuthorized()).toBe(true);
     expect(isCataloguePublished()).toBe(true);
+    expect(isPrivacyReviewRecorded()).toBe(true);
     expect(admitToInferenceEdge(THIRD_PARTY)).toEqual({ status: 'admitted', audience: 'public' });
   });
 });
@@ -223,6 +235,10 @@ describe('a public audience requires an armed charging authorization', () => {
   it('opens the moment charging is authorized — the same value, one variable apart', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
     process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
+    // Both prerequisites, because this case is about the charging one: leaving
+    // the review out would make it fail for the other reason and stop being
+    // evidence about charging at all.
+    process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
 
     expect(resolveEdgeAudience().status).toBe('open');
   });
@@ -233,6 +249,139 @@ describe('a public audience requires an armed charging authorization', () => {
     expect(resolveEdgeAudience().status).toBe('open');
     expect(isChargingAuthorized()).toBe(false);
   });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  3b. …and on the privacy and security review (#972 section 12)             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * THE ASSERTION THIS FLAG EXISTS FOR is the first case below.
+ *
+ * A launch gate that only ever gets tested in its armed position is green and
+ * inert: the flag parses, the readout renders it, and a `public` audience with
+ * no review recorded serves the whole internet exactly as it did before. So the
+ * load-bearing case is the one where everything ELSE is ready — charging armed,
+ * which is the state a launch is actually attempted from — and the review alone
+ * is missing.
+ */
+describe('a public audience also requires a recorded privacy and security review', () => {
+  it('stays closed with charging armed and no review — the case the gate exists for', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
+    process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
+
+    expect(resolveEdgeAudience()).toEqual({
+      status: 'closed',
+      reason: 'public_requires_privacy_review',
+    });
+    expect(admitToInferenceEdge(THIRD_PARTY)).toMatchObject({
+      status: 'refused',
+      reason: 'public_requires_privacy_review',
+    });
+    // The internal tier is refused too. A launch gate that quietly kept serving
+    // the first-party canary would be a different flag from the one documented.
+    expect(admitToInferenceEdge(INTERNAL)).toMatchObject({
+      status: 'refused',
+      reason: 'public_requires_privacy_review',
+    });
+  });
+
+  it('opens once the review is recorded — the positive control on the same variable', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
+    process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
+    process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
+
+    expect(resolveEdgeAudience()).toEqual({
+      status: 'open',
+      audience: { name: 'public', allowedApplicationIds: [] },
+    });
+  });
+
+  it('does not gate a closed beta on it, exactly as charging does not', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${THIRD_PARTY.applicationId}`;
+
+    expect(resolveEdgeAudience().status).toBe('open');
+    expect(isPrivacyReviewRecorded()).toBe(false);
+  });
+
+  it('is refused by a value that only LOOKS armed, so a review cannot be claimed with `true`', () => {
+    process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
+    process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
+    process.env[PRIVACY_REVIEW_VARIABLE] = 'true';
+
+    expect(resolveInferencePrivacyReview()).toEqual({
+      status: 'unreviewed',
+      refusal: 'bare_boolean',
+    });
+    expect(resolveEdgeAudience()).toEqual({
+      status: 'closed',
+      reason: 'public_requires_privacy_review',
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  3c. The review attestation's own grammar                                  */
+/* -------------------------------------------------------------------------- */
+
+describe('the privacy and security review attestation', () => {
+  it('records nothing when unset', () => {
+    expect(resolveInferencePrivacyReview()).toEqual({
+      status: 'unreviewed',
+      refusal: 'not_configured',
+    });
+  });
+
+  it.each([['true'], ['1'], ['yes'], ['on'], ['enabled'], ['TRUE']])(
+    'refuses the bare boolean %s — a review is a person and a date, not a yes',
+    (value) => {
+      process.env[PRIVACY_REVIEW_VARIABLE] = value;
+      expect(resolveInferencePrivacyReview()).toEqual({
+        status: 'unreviewed',
+        refusal: 'bare_boolean',
+      });
+    }
+  );
+
+  it('accepts a reviewer and a date, and reports both', () => {
+    process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
+
+    const resolution = resolveInferencePrivacyReview();
+    expect(resolution).toMatchObject({
+      status: 'reviewed',
+      reviewer: 'security-privacy-review',
+      reviewedOn: '2026-08-01',
+    });
+    if (resolution.status !== 'reviewed') throw new Error('unreachable');
+    expect(resolution.ageInDays).toBeGreaterThanOrEqual(0);
+  });
+
+  it('refuses a date that has not happened — a review cannot be pre-dated', () => {
+    const tomorrow = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10);
+    process.env[PRIVACY_REVIEW_VARIABLE] = `pre-reviewed:${tomorrow}`;
+
+    expect(resolveInferencePrivacyReview()).toEqual({
+      status: 'unreviewed',
+      refusal: 'future_date',
+    });
+  });
+
+  it('refuses a date that does not exist, which Date.parse would have rolled forward', () => {
+    process.env[PRIVACY_REVIEW_VARIABLE] = 'review:2026-02-31';
+
+    expect(resolveInferencePrivacyReview()).toEqual({
+      status: 'unreviewed',
+      refusal: 'unreadable',
+    });
+  });
+
+  it.each([['review'], ['review:yesterday'], ['review:2026-8-1'], [':2026-08-01']])(
+    'refuses %s, which carries no reviewer-and-date pair',
+    (value) => {
+      process.env[PRIVACY_REVIEW_VARIABLE] = value;
+      expect(resolveInferencePrivacyReview().status).toBe('unreviewed');
+    }
+  );
 });
 
 /* -------------------------------------------------------------------------- */
@@ -370,6 +519,14 @@ describe('describeRolloutFlags answers "what is on here"', () => {
         audience: 'internal',
         reason: 'not_configured',
       },
+      privacyReview: {
+        variable: PRIVACY_REVIEW_VARIABLE,
+        authorized: false,
+        reviewer: null,
+        reviewedOn: null,
+        ageInDays: null,
+        refusal: 'not_configured',
+      },
     });
   });
 
@@ -391,13 +548,29 @@ describe('describeRolloutFlags answers "what is on here"', () => {
     });
   });
 
+  it('names the reviewer and how long ago they signed off', () => {
+    process.env[PRIVACY_REVIEW_VARIABLE] = ARMED_PRIVACY_REVIEW;
+
+    const report = describeRolloutFlags();
+    expect(report.privacyReview).toMatchObject({
+      variable: PRIVACY_REVIEW_VARIABLE,
+      authorized: true,
+      reviewer: 'security-privacy-review',
+      reviewedOn: '2026-08-01',
+      refusal: null,
+    });
+    expect(report.privacyReview.ageInDays).toBeGreaterThanOrEqual(0);
+  });
+
   it('never echoes an unreadable value back, since it is served over HTTP', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = 'stage-3-do-not-echo-me';
     process.env[CATALOGUE_AUDIENCE_VARIABLE] = 'everyone-do-not-echo-me';
+    process.env[PRIVACY_REVIEW_VARIABLE] = 'reviewed-by-do-not-echo-me';
 
     const serialized = JSON.stringify(describeRolloutFlags());
     expect(serialized).not.toContain('do-not-echo-me');
-    // The control: the report DID see both variables and said why each is off.
+    // The control: the report DID see all three variables and said why each is
+    // off.
     expect(serialized).toContain('unreadable');
   });
 });
