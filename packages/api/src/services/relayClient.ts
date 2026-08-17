@@ -65,6 +65,7 @@ import type {
   InferenceMessage,
   InferenceRequest,
   InferenceStreamEvent,
+  InferenceStreamRouteSwitchEvent,
   NormalizedUsageReport,
   UsageQuantity,
   UsageSource,
@@ -86,6 +87,24 @@ export interface RelayCompletion {
   readonly finishReason: InferenceFinishReason;
   /** Units and route. Never money — see the module header. */
   readonly usage: NormalizedUsageReport;
+  /**
+   * The route switches the data plane reported while serving this request, in
+   * the order it reported them.
+   *
+   * A non-streaming caller never sees the stream, so without this the switches
+   * would exist only as `usage.routeSwitches` — a COUNT, which cannot be turned
+   * into the customer-visible notice `inference_route_switch_events` records
+   * (there is no reason, no scope, no destination and no sequence in a number).
+   * The events themselves are already on the wire in both directions of the
+   * `stream` flag, so carrying them here costs nothing and is what lets one
+   * writer serve both dialects.
+   *
+   * Empty for the ordinary request that was served by the route it was admitted
+   * on, which is why it is not optional: "no switches" is a fact, and an absent
+   * array would make it indistinguishable from a client that does not report
+   * them.
+   */
+  readonly routeSwitchEvents: readonly InferenceStreamRouteSwitchEvent[];
 }
 
 /**

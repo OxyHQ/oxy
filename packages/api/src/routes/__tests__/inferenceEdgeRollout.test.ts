@@ -369,6 +369,8 @@ function fakeRelay(units: { input: number; output: number }, provider: string): 
           startedAt: now,
           completedAt: now,
         },
+        // No rollout case exercises a failover; a switch has its own suite.
+        routeSwitchEvents: [],
       };
     },
     // No rollout case streams, and a throw is what makes one that starts to fail

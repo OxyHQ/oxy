@@ -63,6 +63,7 @@ import {
   type InferenceFinishReason,
   type InferenceMessage,
   type InferenceRequest,
+  type InferenceStreamRouteSwitchEvent,
   type InferenceToolCall,
   type NormalizedUsageReport,
   type UsageQuantity,
@@ -330,6 +331,7 @@ async function foldStream(
   let report: NormalizedUsageReport | undefined;
   let partial: { units: readonly UsageQuantity[]; usageSource: UsageSource } | undefined;
   let terminalFailure: InferenceError | undefined;
+  const routeSwitchEvents: InferenceStreamRouteSwitchEvent[] = [];
 
   // The `catch` below is the difference between a partial settlement and a full
   // refund. An upstream cut off after two hundred tokens throws out of this
@@ -370,8 +372,15 @@ async function foldStream(
           partial = { units: event.units, usageSource: event.usageSource };
           break;
         case 'route_switch':
-          // Recorded on the usage report's `routeSwitches`, which is what the
-          // receipt and the telemetry row read. Nothing to fold.
+          // KEPT, not counted. `usage.routeSwitches` is the metric; this is the
+          // notice, and a count cannot be turned back into one. A non-streaming
+          // customer never sees the stream, so this list is the only way the
+          // switch reaches `inference_route_switch_events` on that dialect.
+          //
+          // Bounded by the contract: `routeSwitches` is capped at 100, and a data
+          // plane reporting more events than that is already refused by the
+          // report's own schema.
+          routeSwitchEvents.push(event);
           break;
         case 'error':
           // Terminal. Kept rather than thrown here so a usage report that follows
@@ -435,6 +444,7 @@ async function foldStream(
     output: foldedOutput(texts, toolCalls),
     finishReason,
     usage: report,
+    routeSwitchEvents,
   };
 }
 
