@@ -2,40 +2,34 @@ import {
   computeOfficialRedirectUriRepair,
   includesRedirectUri,
   originOfWebsiteUrl,
-  unionRedirectUris,
 } from '../redirectUris';
 
-describe('unionRedirectUris', () => {
-  it('preserves existing entries and appends new ones without duplicates', () => {
-    expect(unionRedirectUris(['https://a.example', 'https://b.example'], ['https://b.example', 'https://c.example'])).toEqual([
-      'https://a.example',
-      'https://b.example',
-      'https://c.example',
-    ]);
-  });
-
-  it('treats null/undefined current as empty', () => {
-    expect(unionRedirectUris(null, ['https://a.example'])).toEqual(['https://a.example']);
-  });
-});
-
 describe('computeOfficialRedirectUriRepair', () => {
-  it('returns null when the website origin is already registered', () => {
+  it('returns null when the website origin is the complete allowlist', () => {
     expect(
       computeOfficialRedirectUriRepair(
-        ['https://oxy.so', 'https://fairco.in'],
+        ['https://oxy.so'],
         'https://oxy.so/about',
       ),
     ).toBeNull();
   });
 
-  it('UNIONs the website origin instead of replacing the allowlist', () => {
+  it('replaces stale entries with the canonical website origin', () => {
     expect(
       computeOfficialRedirectUriRepair(
         ['https://fairco.in'],
         'https://oxy.so',
       ),
-    ).toEqual(['https://fairco.in', 'https://oxy.so']);
+    ).toEqual(['https://oxy.so']);
+  });
+
+  it('removes extra entries even when the website origin is already present', () => {
+    expect(
+      computeOfficialRedirectUriRepair(
+        ['https://oxy.so', 'https://stale.example/callback'],
+        'https://oxy.so/about',
+      ),
+    ).toEqual(['https://oxy.so']);
   });
 
   it('seeds the origin when redirectUris is empty', () => {

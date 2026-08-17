@@ -119,7 +119,10 @@ export function computeSeedApplicationPlan(
     isOfficial: true,
     isInternal: target.type === 'internal',
     ownerAccountId: target.ownerAccountId,
-    redirectUris: union(current?.redirectUris ?? [], target.redirectUris),
+    // Redirect URIs are an OAuth authorization boundary. Unlike scopes and
+    // capabilities, the seed allowlist is authoritative so retired callbacks
+    // are revoked on every reconciliation.
+    redirectUris: [...target.redirectUris],
     scopes: union(current?.scopes ?? [], target.scopes),
     capabilities: union(current?.capabilities ?? [], target.capabilities),
   };
