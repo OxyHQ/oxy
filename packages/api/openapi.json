@@ -986,336 +986,6 @@
         ]
       }
     },
-    "/accounts/{id}/credentials": {
-      "get": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "List an account's service credentials (`credentials:read`).",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/accounts.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Create a service credential for a bot account (`credentials:create`). The",
-        "description": "plaintext secret is returned EXACTLY ONCE. Privileged scopes are staff-gated.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/accounts/{id}/credentials/{credId}": {
-      "delete": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Revoke a credential (`credentials:revoke`).",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/accounts.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "credId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/accounts/{id}/credentials/{credId}/rotate": {
-      "post": {
-        "tags": [
-          "Users"
-        ],
-        "summary": "Rotate a credential — zero-downtime (`credentials:rotate`).",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/accounts.ts` to fill in summary, description, request/response examples.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "credId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          },
-          "400": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
     "/accounts/{id}/members": {
       "get": {
         "tags": [
@@ -2032,6 +1702,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -2045,7 +1725,7 @@
         },
         "security": [
           {
-            "bearerAuth": []
+            "serviceTokenAuth": []
           }
         ]
       }
@@ -2072,6 +1752,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -2085,7 +1775,7 @@
         },
         "security": [
           {
-            "bearerAuth": []
+            "serviceTokenAuth": []
           }
         ]
       }
@@ -3206,6 +2896,106 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/applications/{appId}/credentials/{credId}/audit": {
+      "get": {
+        "tags": [
+          "Developer"
+        ],
+        "summary": "`GET /applications/:appId/credentials/:credId/audit`",
+        "description": "One credential's lifecycle trail: created, rotated, revoked, and every bearer\nthat resolved to it and was still refused. Append-only in the database rather\nthan by convention — `0043_application_credential_audit_immutability.sql`.\n\n## What it cannot return\n\nSecret material, and not because this handler is careful: the rows themselves\nhold none (`services/applicationCredentialAudit.service.ts` is their only\nwriter and takes ids and closed enums, so there is no parameter a secret could\narrive through), and the wire type has no property one could occupy — see\n{@link CredentialAuditTrailEntry}, which deliberately omits `metadata`. These\nrows exist BECAUSE the secret was shown exactly once.\n\n## Authorization is the credential routes' own, not a new one\n\n`credentials:read` over the owning account, through `requireAppPermission` —\nthe same gate `GET /:appId/credentials` uses, because this is the same data\nseen through time. A caller with no access to the application gets 403 from\n`loadApplicationContext`, exactly as every other route on this router does.\n\nThe second refusal is the one that matters, and it is the reason this handler\nreads the credential row before reading the trail: `:credId` is a caller-chosen\nid, and the audit table is keyed on the credential rather than on the\napplication. Without this read, a member of account A could pass their OWN\n`:appId` beside account B's `:credId` and be served B's trail — the shape of\nIDOR the house rules describe, arriving through a path parameter instead of a\nbody. The statement below is scoped to the resolved application, so a\ncredential that does not belong to it is a 404 and nothing else, matching what\nrotate and revoke already answer for the same input.",
+        "parameters": [
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "credId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
             "content": {
               "application/json": {
                 "schema": {
@@ -15021,6 +14811,66 @@
         ]
       }
     },
+    "/inference/admin/metrics": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`GET /inference/admin/metrics?from=&to=[&accountId=][&applicationId=]`",
+        "description": "The workstream-16 operational metrics: request rate, error rate, cancellation,\ntotal latency, time to first token, fallback, reserve failures, settlement lag\nand reconciliation drift.\n\n## Not `GET /metrics`, and the difference is the reason it is here\n\n`server.ts`'s `GET /metrics` is a PROCESS-LOCAL registry — an in-memory ring\nbuffer keyed by `METHOD /path`, one instance's view, discarded on every deploy.\nEverything on this route is a QUERY over the durable record, so the answer is\nidentical from any instance and survives a deploy. Overloading the older\nendpoint would put two different kinds of number under one key and invite a\nreader to compare them.\n\n## Two of the metrics report a PENDING state rather than a zero\n\n`timeToFirstTokenMs` and `fallback` come back as\n`{ state: 'pending', reason, observedRows, rowsCarryingValue }` while no row\ncarries a value. A `0` there would be indistinguishable from a correctly-zero\nmeasurement, and the second reading is the one a dashboard takes. The state is\nderived from the rows, so it flips to `measured` on its own the moment one\narrives.\n\nThe reason names the MEASURED absence, not a cause — the edge streams both\ndialects and forwards both figures when a report carries them. `dataPlane` on the\npayload is what supplies the cause: `absent` means nothing can have streamed, so\nthe pending needs no investigation, while the same pending with `configured`\nmeans the data plane is not reporting what it should.\n\nStaff-only, like everything on this router: request counts per application are\ncustomer data, and a settlement-lag distribution is Oxy's own operational\nfigure. No wholesale cost or price column is read by any query behind it.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/inference/admin/rollout": {
       "get": {
         "tags": [
@@ -15028,6 +14878,66 @@
         ],
         "summary": "`GET /inference/admin/rollout`",
         "description": "What is switched on in THIS deployment (issue #972 workstream 16). The whole\npoint of `config/rolloutFlags.ts` having one readout is that \"is charging on\nin production\" is a question with an answer, rather than an ssh session and a\ngrep through a task definition.\n\nStaff-only, like everything else on this router: which stage of a commercial\nrollout a deployment is in is not a customer's business, and the audience\nreport names the applications in a closed beta. It reports the RESOLVED state\nand the reason for it, never the raw environment value.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/inference/admin/spend-anomalies": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`GET /inference/admin/spend-anomalies`",
+        "description": "Every account-hour whose inference spend jumped past a multiple of its own\ntrailing daily median (#972 sections 8 and 12), newest first.\n\nA READ, and the only consumer of `inference_spend_anomalies`. The detector\nblocks nothing — that is argued at length in\n`services/spendAnomaly.service.ts` — so this endpoint is what turns the signal\ninto something a person can act on. It lives on this router for the same reason\n`GET /rollout` does: it needs the staff gate and nothing weaker, and a second\nstaff mount is a second thing to keep gated correctly.\n\nNot graded by capability: it discloses no credential and changes nothing.",
         "parameters": [],
         "responses": {
           "200": {
@@ -23504,7 +23414,7 @@
           "Users"
         ],
         "summary": "Signed, open-format self-sovereign data export (\"credible exit\"). Returns the",
-        "description": "`ExportBundle` (DID document, profile, verified domains, auth methods, signed\nrecords, app data, social graph) sealed with an Oxy provenance attestation.\n`?format=ndjson` streams each section as newline-delimited JSON for large\naccounts.",
+        "description": "`ExportBundle` (DID document, profile, verified domains, auth methods, signed\nrecords, app data, social graph, and the account's own financial history)\nsealed with an Oxy provenance attestation. `?format=ndjson` streams each\nsection as newline-delimited JSON for large accounts.",
         "parameters": [
           {
             "name": "format",
@@ -24853,6 +24763,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -24866,7 +24786,7 @@
         },
         "security": [
           {
-            "bearerAuth": []
+            "serviceTokenAuth": []
           }
         ]
       }
@@ -24893,6 +24813,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -24906,7 +24836,7 @@
         },
         "security": [
           {
-            "bearerAuth": []
+            "serviceTokenAuth": []
           }
         ]
       }
