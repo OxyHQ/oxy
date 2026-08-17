@@ -152,3 +152,17 @@ export const rotateCredentialSchema = z
       .optional(),
   })
   .strict();
+
+/**
+ * GET /applications/:appId/credentials/:credId/audit — the credential's trail.
+ *
+ * Paging is a capped `limit` and nothing else, the same shape
+ * `providerConnectionAuditQuery` uses on the BYOK trail: the ceiling is what
+ * stops one request pulling a whole application's history, and the two audit
+ * surfaces answering the same question the same way is worth more than a cursor
+ * neither caller has asked for. `z.coerce` because a query string carries the
+ * value as text.
+ */
+export const credentialAuditQuerySchema = z
+  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+  .strict();

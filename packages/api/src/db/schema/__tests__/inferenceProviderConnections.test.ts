@@ -24,6 +24,7 @@ import { applications } from '../applications';
 import {
   inferenceProviderConnectionAuditEvents,
   PROVIDER_CONNECTION_AUDIT_EVENT_TYPES,
+  type ProviderConnectionActorKind,
 } from '../inferenceProviderConnectionAuditEvents';
 import {
   PROVIDER_CONNECTION_AUDIT_TABLE,
@@ -688,6 +689,208 @@ describe('the audit trail is append-only', () => {
         .delete(inferenceProviderConnections)
         .where(eq(inferenceProviderConnections.id, connection.id)),
       FOREIGN_KEY_VIOLATION
+    );
+  });
+});
+
+describe('the audit trail says what KIND of principal acted', () => {
+  /** A connection to hang audit rows off, and the account that owns it. */
+  async function trailFixture(): Promise<{ account: string; connectionId: string; environment: string }> {
+    const account = await insertAccount();
+    const provider = await insertProvider();
+    const connection = connectionValues(provider, account);
+    await getDb().insert(inferenceProviderConnections).values(connection);
+    return { account, connectionId: connection.id, environment: connection.environment };
+  }
+
+  it('accepts each of the four legal states', async () => {
+    const { account, connectionId, environment } = await trailFixture();
+
+    // ('user', <id>) — a named person, through a session bearer.
+    await getDb().insert(inferenceProviderConnectionAuditEvents).values({
+      connectionId,
+      ownerAccountId: account,
+      eventType: 'created',
+      actorKind: 'user',
+      actorUserId: account,
+      environment,
+    });
+    // ('service', null) — a customer's service credential. The account it acts
+    // for is this row's `owner_account_id`, so there is no second id.
+    await getDb().insert(inferenceProviderConnectionAuditEvents).values({
+      connectionId,
+      ownerAccountId: account,
+      eventType: 'rotated',
+      actorKind: 'service',
+      environment,
+    });
+    // ('platform', null) — Oxy's own machinery, no principal at all.
+    await getDb().insert(inferenceProviderConnectionAuditEvents).values({
+      connectionId,
+      ownerAccountId: account,
+      eventType: 'used',
+      actorKind: 'platform',
+      environment,
+    });
+    // (null, <id>) — the legacy row shape. Accepted DELIBERATELY: rows written
+    // before `0049` name someone whose kind nobody recorded, and a migration
+    // that refused them could not be applied to a database that has them.
+    await getDb().insert(inferenceProviderConnectionAuditEvents).values({
+      connectionId,
+      ownerAccountId: account,
+      eventType: 'disabled',
+      actorUserId: account,
+      environment,
+    });
+
+    const rows = await getDb()
+      .select({
+        eventType: inferenceProviderConnectionAuditEvents.eventType,
+        actorKind: inferenceProviderConnectionAuditEvents.actorKind,
+        actorUserId: inferenceProviderConnectionAuditEvents.actorUserId,
+      })
+      .from(inferenceProviderConnectionAuditEvents)
+      .where(eq(inferenceProviderConnectionAuditEvents.connectionId, connectionId));
+    expect(rows).toHaveLength(4);
+    // The point of the column, stated as an assertion: two rows that used to be
+    // indistinguishable now differ.
+    const created = rows.find((row) => row.eventType === 'created');
+    const rotated = rows.find((row) => row.eventType === 'rotated');
+    expect(created?.actorKind).toBe('user');
+    expect(created?.actorUserId).toBe(account);
+    expect(rotated?.actorKind).toBe('service');
+    expect(rotated?.actorUserId).toBeNull();
+  });
+
+  it('refuses a `user` row that does not name the person', async () => {
+    const { account, connectionId, environment } = await trailFixture();
+
+    // "A person did this and we will not say who" is the state the pair exists
+    // to make unwritable.
+    await expectPgError(
+      getDb().insert(inferenceProviderConnectionAuditEvents).values({
+        connectionId,
+        ownerAccountId: account,
+        eventType: 'created',
+        actorKind: 'user',
+        environment,
+      }),
+      CHECK_VIOLATION
+    );
+  });
+
+  it('refuses a `service` or `platform` row that names a person', async () => {
+    const { account, connectionId, environment } = await trailFixture();
+
+    for (const actorKind of ['service', 'platform'] as const) {
+      // "Nobody was behind this, and here is their id" — the false attribution.
+      await expectPgError(
+        getDb().insert(inferenceProviderConnectionAuditEvents).values({
+          connectionId,
+          ownerAccountId: account,
+          eventType: 'created',
+          actorKind,
+          actorUserId: account,
+          environment,
+        }),
+        CHECK_VIOLATION
+      );
+    }
+  });
+
+  it('refuses a kind outside the vocabulary, in both id shapes', async () => {
+    const { account, connectionId, environment } = await trailFixture();
+
+    /*
+     * There is no separate containment CHECK: each branch names its kind as a
+     * literal, so an unknown value satisfies none of them. Driven with an id and
+     * without one, because a single-shape probe would pass against a constraint
+     * that only happened to reject the other shape.
+     */
+    for (const actorUserId of [account, null]) {
+      await expectPgError(
+        getDb()
+          .insert(inferenceProviderConnectionAuditEvents)
+          .values({
+            connectionId,
+            ownerAccountId: account,
+            eventType: 'created',
+            // Not a member of PROVIDER_CONNECTION_ACTOR_KINDS. The column is
+            // typed to that tuple, so reaching the database at all needs the cast
+            // this row does: the point is what POSTGRES does with it.
+            actorKind: 'machine' as ProviderConnectionActorKind,
+            actorUserId,
+            environment,
+          }),
+        CHECK_VIOLATION
+      );
+    }
+  });
+
+  it('does not change what happens when the named person is deleted', async () => {
+    /*
+     * `actor_user_id` is `ON DELETE SET NULL`, so deleting the person a row names
+     * makes the database UPDATE that row — and a `('user', <id>)` row would become
+     * `('user', null)`, which the actor CHECK refuses. That reads like a new way
+     * for `DELETE FROM users` to fail, so it is measured rather than assumed, with
+     * a legacy-shaped row as the control.
+     *
+     * Both are refused, identically and for a reason that predates this column:
+     * the table is append-only by trigger (0042), which raises the same
+     * `check_violation` on ANY update, including one a foreign key performs. So the
+     * actor CHECK is never reached on this path and changes nothing about it. The
+     * pre-existing consequence — that a `SET NULL` reference into an append-only
+     * table cannot actually set null — belongs to 0041/0042 and is deliberately
+     * not touched here.
+     */
+    const owner = await insertAccount();
+    const provider = await insertProvider();
+    const connection = connectionValues(provider, owner);
+    await getDb().insert(inferenceProviderConnections).values(connection);
+
+    // A member, distinct from the owner: the connection's own reference to its
+    // owner is RESTRICT, so deleting the owner would be refused before any of
+    // this and would prove nothing about the actor column.
+    const legacyActor = await insertAccount();
+    const namedActor = await insertAccount();
+
+    await getDb().insert(inferenceProviderConnectionAuditEvents).values({
+      connectionId: connection.id,
+      ownerAccountId: owner,
+      eventType: 'disabled',
+      actorUserId: legacyActor,
+      environment: connection.environment,
+    });
+    await getDb().insert(inferenceProviderConnectionAuditEvents).values({
+      connectionId: connection.id,
+      ownerAccountId: owner,
+      eventType: 'created',
+      actorKind: 'user',
+      actorUserId: namedActor,
+      environment: connection.environment,
+    });
+
+    // CONTROL first: the legacy row carries no `actor_kind`, so the actor CHECK
+    // cannot be what refuses this one.
+    await expectPgError(
+      getDb().delete(users).where(eq(users.id, legacyActor)),
+      CHECK_VIOLATION
+    );
+    // …and the row this column added behaves the same way, not worse.
+    await expectPgError(
+      getDb().delete(users).where(eq(users.id, namedActor)),
+      CHECK_VIOLATION
+    );
+  });
+
+  it('names its actor constraint, so dropping it fails here', async () => {
+    const rows = await getDb().execute(sql`
+      select conname
+      from pg_constraint
+      where conrelid = ${PROVIDER_CONNECTION_AUDIT_TABLE}::regclass and contype = 'c'
+    `);
+    expect(rows.map((row) => row.conname)).toContain(
+      'inference_provider_connection_audit_events_actor_check'
     );
   });
 });

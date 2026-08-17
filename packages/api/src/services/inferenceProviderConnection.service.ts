@@ -53,6 +53,8 @@ import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import {
   inferenceProviderConnectionAuditEvents,
+  type ProviderConnectionActor,
+  type ProviderConnectionActorKind,
   type ProviderConnectionAuditEventType,
 } from '../db/schema/inferenceProviderConnectionAuditEvents';
 import {
@@ -143,7 +145,14 @@ interface AuditEntry {
   readonly ownerAccountId: string;
   readonly environment: string;
   readonly eventType: ProviderConnectionAuditEventType;
-  readonly actorUserId?: string | null;
+  /**
+   * Who acted. REQUIRED, and a discriminated union rather than an optional id:
+   * "a member did this" and "an application's service credential did this" used
+   * to land in one column and read identically (issue #972 workstream 12). A
+   * writer that omits it now fails `tsc` rather than writing a row nobody can
+   * attribute.
+   */
+  readonly actor: ProviderConnectionActor;
   readonly metadata?: Readonly<Record<string, AuditMetadataValue>>;
 }
 
@@ -163,7 +172,10 @@ async function appendAuditEvent(writer: Writer, entry: AuditEntry): Promise<void
     connectionId: entry.connectionId,
     ownerAccountId: entry.ownerAccountId,
     eventType: entry.eventType,
-    actorUserId: entry.actorUserId ?? null,
+    actorKind: entry.actor.kind,
+    // Only a `user` actor names a person. The other two kinds carry no id at
+    // all, and the table's CHECK refuses one — see that file's "Who acted".
+    actorUserId: entry.actor.kind === 'user' ? entry.actor.userId : null,
     environment: entry.environment,
     metadata: entry.metadata ?? {},
   });
@@ -238,9 +250,9 @@ export async function recordProviderConnectionUse(
       ownerAccountId: row.ownerAccountId,
       environment: row.environment,
       eventType: 'used',
-      // Never an actor: this is the data plane resolving a reference, and the
-      // table's own CHECK refuses one anyway.
-      actorUserId: null,
+      // No principal at all: this is the data plane resolving a reference. The
+      // table's CHECK refuses a named person here anyway.
+      actor: { kind: 'platform' },
     });
     return true;
   } catch (error) {
@@ -271,6 +283,7 @@ export async function listProviderConnectionAuditEvents(
 ): Promise<
   readonly {
     eventType: ProviderConnectionAuditEventType;
+    actorKind: ProviderConnectionActorKind | null;
     actorUserId: string | null;
     environment: string;
     metadata: unknown;
@@ -280,6 +293,7 @@ export async function listProviderConnectionAuditEvents(
   const rows = await getDb()
     .select({
       eventType: inferenceProviderConnectionAuditEvents.eventType,
+      actorKind: inferenceProviderConnectionAuditEvents.actorKind,
       actorUserId: inferenceProviderConnectionAuditEvents.actorUserId,
       environment: inferenceProviderConnectionAuditEvents.environment,
       metadata: inferenceProviderConnectionAuditEvents.metadata,
@@ -470,7 +484,7 @@ export interface CreateProviderConnectionInput {
   readonly secret: ProviderSecretValue;
   /** The customer's acknowledgement of the provider's own BYOK terms. */
   readonly acknowledgeProviderTerms: boolean;
-  readonly actorUserId: string;
+  readonly actor: ProviderConnectionActor;
 }
 
 /**
@@ -584,7 +598,7 @@ export async function createProviderConnection(
         ownerAccountId: row.ownerAccountId,
         environment: row.environment,
         eventType: 'created',
-        actorUserId: input.actorUserId,
+        actor: input.actor,
         metadata: {
           provider: row.provider,
           scopeKind: row.scopeKind,
@@ -635,7 +649,7 @@ export async function rotateProviderConnection(
   input: {
     readonly connectionId: string;
     readonly secret: ProviderSecretValue;
-    readonly actorUserId: string;
+    readonly actor: ProviderConnectionActor;
   },
   store: ProviderSecretStore
 ): Promise<RotateProviderConnectionResult> {
@@ -671,7 +685,7 @@ export async function rotateProviderConnection(
       ownerAccountId: row.ownerAccountId,
       environment: row.environment,
       eventType: 'rotated',
-      actorUserId: input.actorUserId,
+      actor: input.actor,
       metadata: {
         // Both already appear in the public DTO: a SHA-256 of a credential is
         // not the credential, and a 12-character prefix cannot be one.
@@ -704,11 +718,11 @@ export type ProviderConnectionStatusResult =
  */
 export async function disableProviderConnection(input: {
   readonly connectionId: string;
-  readonly actorUserId: string;
+  readonly actor: ProviderConnectionActor;
 }): Promise<ProviderConnectionStatusResult> {
   return transitionStatus({
     connectionId: input.connectionId,
-    actorUserId: input.actorUserId,
+    actor: input.actor,
     eventType: 'disabled',
     next: () => 'disabled',
     refuseWhen: (row) => (row.status === 'disabled' ? 'disabled' : undefined),
@@ -725,11 +739,11 @@ export async function disableProviderConnection(input: {
  */
 export async function enableProviderConnection(input: {
   readonly connectionId: string;
-  readonly actorUserId: string;
+  readonly actor: ProviderConnectionActor;
 }): Promise<ProviderConnectionStatusResult> {
   return transitionStatus({
     connectionId: input.connectionId,
-    actorUserId: input.actorUserId,
+    actor: input.actor,
     eventType: 'enabled',
     next: (row) => (row.validationState === 'valid' ? 'active' : 'pending_validation'),
     refuseWhen: (row) => (row.status === 'disabled' ? undefined : row.status),
@@ -738,7 +752,7 @@ export async function enableProviderConnection(input: {
 
 async function transitionStatus(input: {
   readonly connectionId: string;
-  readonly actorUserId: string;
+  readonly actor: ProviderConnectionActor;
   readonly eventType: Extract<ProviderConnectionAuditEventType, 'disabled' | 'enabled'>;
   readonly next: (row: InferenceProviderConnectionRow) => ProviderConnectionStatus;
   readonly refuseWhen: (row: InferenceProviderConnectionRow) => ProviderConnectionStatus | undefined;
@@ -763,7 +777,7 @@ async function transitionStatus(input: {
       ownerAccountId: row.ownerAccountId,
       environment: row.environment,
       eventType: input.eventType,
-      actorUserId: input.actorUserId,
+      actor: input.actor,
       metadata: { previousStatus: existing.status, status: row.status },
     });
 
@@ -804,7 +818,7 @@ export type RevokeProviderConnectionResult =
  * was not destroyed, which is the true statement.
  */
 export async function revokeProviderConnection(
-  input: { readonly connectionId: string; readonly actorUserId: string },
+  input: { readonly connectionId: string; readonly actor: ProviderConnectionActor },
   store?: ProviderSecretStore
 ): Promise<RevokeProviderConnectionResult> {
   const existing = await getProviderConnectionRow(input.connectionId);
@@ -828,7 +842,7 @@ export async function revokeProviderConnection(
       ownerAccountId: row.ownerAccountId,
       environment: row.environment,
       eventType: 'revoked',
-      actorUserId: input.actorUserId,
+      actor: input.actor,
       metadata: {
         previousStatus: existing.status,
         secretDestroyed,
@@ -864,8 +878,12 @@ export async function recordProviderConnectionValidation(input: {
   readonly connectionId: string;
   readonly state: ProviderConnectionValidationStateValue;
   readonly failureCode?: ProviderConnectionValidationFailureCode;
-  /** The member who asked for the check; absent when the data plane reported it. */
-  readonly actorUserId?: string;
+  /**
+   * Who asked for the check. `{kind:'platform'}` when the data plane reported the
+   * verdict itself, which is a different fact from a member requesting one and is
+   * now recorded as one.
+   */
+  readonly actor: ProviderConnectionActor;
 }): Promise<RecordValidationResult> {
   const existing = await getProviderConnectionRow(input.connectionId);
   if (existing === undefined) return { status: 'unknown-connection' };
@@ -895,7 +913,7 @@ export async function recordProviderConnectionValidation(input: {
       ownerAccountId: row.ownerAccountId,
       environment: row.environment,
       eventType: 'validated',
-      actorUserId: input.actorUserId ?? null,
+      actor: input.actor,
       metadata: {
         validationState: row.validationState,
         failureCode: row.validationFailureCode,
@@ -908,9 +926,9 @@ export async function recordProviderConnectionValidation(input: {
         ownerAccountId: row.ownerAccountId,
         environment: row.environment,
         eventType: 'disabled',
-        // Nobody disabled it: the provider's answer did. An actor here would be
-        // an accusation.
-        actorUserId: null,
+        // Nobody disabled it: the provider's answer did. Naming a person here
+        // would be an accusation, so the actor is Oxy's own machinery.
+        actor: { kind: 'platform' },
         metadata: { previousStatus: existing.status, reason: input.state },
       });
     }

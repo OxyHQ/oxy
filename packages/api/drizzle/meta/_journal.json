@@ -337,6 +337,20 @@
       "when": 1786952738899,
       "tag": "0048_staff_capabilities_and_spend_anomalies",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1786976748698,
+      "tag": "0049_inference_provider_connection_actor",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1786976748699,
+      "tag": "0050_inference_model_provenance_marking",
+      "breakpoints": true
     }
   ]
 }
