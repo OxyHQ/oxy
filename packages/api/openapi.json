@@ -6849,16 +6849,6 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -6891,9 +6881,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ]
       }
     },
@@ -7029,16 +7017,6 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -7071,9 +7049,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "requestBody": {
           "required": true,
@@ -7525,16 +7501,6 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -7567,9 +7533,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ],
         "requestBody": {
           "required": true,
@@ -14284,16 +14248,6 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -14608,16 +14562,6 @@
           },
           "401": {
             "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
             "content": {
               "application/json": {
                 "schema": {
@@ -20055,16 +19999,6 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -20077,9 +20011,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ]
       }
     },
@@ -22050,16 +21982,6 @@
           "200": {
             "description": "Success"
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Rate limit exceeded",
             "content": {
@@ -22082,9 +22004,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ]
       }
     },
@@ -22594,26 +22514,6 @@
           "200": {
             "description": "Success"
           },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -22626,9 +22526,7 @@
           }
         },
         "security": [
-          {
-            "bearerAuth": []
-          }
+          {}
         ]
       }
     },
@@ -23582,16 +23480,6 @@
               }
             }
           },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -23655,16 +23543,6 @@
               }
             }
           },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "429": {
             "description": "Rate limit exceeded",
             "content": {
@@ -23688,7 +23566,7 @@
         },
         "security": [
           {
-            "serviceTokenAuth": []
+            "bearerAuth": []
           }
         ]
       }
@@ -24143,16 +24021,6 @@
               }
             }
           },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -24178,93 +24046,7 @@
           {
             "bearerAuth": []
           }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "privacySettings": {
-                    "type": "object",
-                    "properties": {
-                      "isPrivateAccount": {
-                        "type": "boolean"
-                      },
-                      "hideOnlineStatus": {
-                        "type": "boolean"
-                      },
-                      "hideLastSeen": {
-                        "type": "boolean"
-                      },
-                      "profileVisibility": {
-                        "type": "boolean"
-                      },
-                      "loginAlerts": {
-                        "type": "boolean"
-                      },
-                      "blockScreenshots": {
-                        "type": "boolean"
-                      },
-                      "login": {
-                        "type": "boolean"
-                      },
-                      "biometricLogin": {
-                        "type": "boolean"
-                      },
-                      "showActivity": {
-                        "type": "boolean"
-                      },
-                      "allowTagging": {
-                        "type": "boolean"
-                      },
-                      "allowMentions": {
-                        "type": "boolean"
-                      },
-                      "hideReadReceipts": {
-                        "type": "boolean"
-                      },
-                      "allowDirectMessages": {
-                        "type": "boolean"
-                      },
-                      "dataSharing": {
-                        "type": "boolean"
-                      },
-                      "locationSharing": {
-                        "type": "boolean"
-                      },
-                      "analyticsSharing": {
-                        "type": "boolean"
-                      },
-                      "sensitiveContent": {
-                        "type": "boolean"
-                      },
-                      "autoFilter": {
-                        "type": "boolean"
-                      },
-                      "muteKeywords": {
-                        "type": "boolean"
-                      },
-                      "discoverableByEmail": {
-                        "type": "boolean"
-                      },
-                      "discoverableByPhone": {
-                        "type": "boolean"
-                      },
-                      "fediverseSharing": {
-                        "type": "boolean"
-                      }
-                    }
-                  }
-                },
-                "required": [
-                  "privacySettings"
-                ]
-              }
-            }
-          }
-        }
+        ]
       }
     },
     "/users/{userId}/follow-status": {
@@ -25045,6 +24827,86 @@
           },
           {
             "serviceTokenAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/voice/token": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "POST /v1/voice/token",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/voice/transcribe": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "POST /v1/voice/transcribe",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
           }
         ]
       }

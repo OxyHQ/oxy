@@ -32,7 +32,7 @@
  * loader when extending the API.
  */
 
-import { readFile, writeFile, readdir } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
@@ -465,7 +465,6 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'emailProxy.ts': ['/email/proxy'],
   'emailInbound.ts': ['/email/inbound'],
   'email.ts': ['/email'],
-  'alia.ts': ['/alia'],
   'credits.ts': ['/credits'],
   'billing.ts': ['/billing'],
   'inferenceEdge.ts': ['/v1'],
@@ -474,10 +473,17 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
   'inferenceRoutingPolicies.ts': ['/inference/routing-policies'],
   'inferenceProviderConnections.ts': ['/inference/provider-connections'],
   'inferenceReporting.ts': ['/inference/reporting'],
+  // Mounted twice, and the two mounts STRADDLE the edge in `server.ts`: `/alia`
+  // at `:683`, the edge's `/v1` at `:690`, this router's `/v1` at `:701`. The
+  // entry sits after the edge because only the `/v1` mount can collide, and the
+  // edge must win it: `server.ts:695-700` states that what the proxy still owns
+  // under `/v1` is `/v1/voice/token` and `/v1/voice/transcribe`, and that
+  // `/v1/chat/completions` is no longer among them. First-wins in dispatch order
+  // reproduces exactly that.
+  'alia.ts': ['/alia', '/v1'],
   'platform-stats.ts': ['/platform-stats'],
   'topics.routes.ts': ['/topics'],
   'contacts.ts': ['/contacts'],
-  'socialAuth.ts': ['/auth/social'],
   'appSignals.ts': ['/app-signals'],
   'identity.ts': ['/identity'],
   'civic.ts': ['/civic'],
@@ -492,7 +498,6 @@ const MOUNT_MAP: Record<string, readonly string[]> = {
  */
 const TAG_GROUPS: Record<string, string> = {
   '/auth': 'Authentication',
-  '/auth/social': 'Authentication',
   '/assets': 'Files',
   '/cdn': 'Files',
   '/storage': 'Files',
@@ -628,6 +633,82 @@ function middlewareTokens(args: string): string[] {
 }
 
 /**
+ * A copy of the source with every comment's content replaced by spaces, byte for
+ * byte, so an offset into the result is the same offset into the original.
+ *
+ * Everything that looks for CODE below scans this copy, because a census over
+ * source that does not exclude comments measures the comments too. Measured:
+ * `src/routes/accounts.ts:81` and `:114` both quote the literal text
+ * `router.use(authMiddleware)` inside prose explaining why the routes above the
+ * real gate are deliberately unauthenticated. Scanning the raw source finds two
+ * phantom gates at those offsets and injects `authMiddleware` into the three
+ * service-credential routes that sit between them and the real gate at `:314`.
+ *
+ * That did not corrupt the emitted document only because `serviceAuthMiddleware`
+ * is evaluated before `authMiddleware` in the security block, so those three
+ * routes published `serviceTokenAuth` either way. A genuinely public route below
+ * such a comment would have been published as requiring a bearer — a claim about
+ * a credential, invented by prose.
+ *
+ * Comments are blanked rather than removed so the JSDoc reader below can still
+ * find the real comment above a route in the ORIGINAL source at the same offset.
+ * Newlines are preserved for the same reason.
+ */
+export function blankComments(source: string): string {
+  const out = source.split('');
+  let i = 0;
+  let inStr: string | null = null;
+  let inTemplate = false;
+  while (i < source.length) {
+    const ch = source[i];
+    if (inStr !== null) {
+      if (ch === '\\') {
+        i += 2;
+        continue;
+      }
+      if (ch === inStr) inStr = null;
+      i += 1;
+      continue;
+    }
+    if (inTemplate) {
+      if (ch === '\\') {
+        i += 2;
+        continue;
+      }
+      if (ch === '`') inTemplate = false;
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      inStr = ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '`') {
+      inTemplate = true;
+      i += 1;
+      continue;
+    }
+    if (ch === '/' && source[i + 1] === '/') {
+      while (i < source.length && source[i] !== '\n') {
+        out[i] = ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === '/' && source[i + 1] === '*') {
+      const closed = source.indexOf('*/', i + 2);
+      const stop = closed === -1 ? source.length : closed + 2;
+      for (let j = i; j < stop; j += 1) out[j] = source[j] === '\n' ? '\n' : ' ';
+      i = stop;
+      continue;
+    }
+    i += 1;
+  }
+  return out.join('');
+}
+
+/**
  * Read the full argument list of a call whose opening paren has already been
  * consumed, using a balanced-parentheses walk that respects string and template
  * literals. Handler arguments contain whole function bodies, so counting parens
@@ -714,16 +795,19 @@ function routerLevelGates(source: string): Array<{ from: number; middlewares: st
  * full argument list, since handler arguments can include function
  * definitions with their own parens / strings.
  */
-function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> {
+export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> {
   const out: Array<Omit<RouteEntry, 'mountPrefix' | 'filename'>> = [];
-  const gates = routerLevelGates(source);
+  // Code is read from the comment-blanked copy, prose from the original. Offsets
+  // are identical between the two by construction.
+  const code = blankComments(source);
+  const gates = routerLevelGates(code);
   const callRe = /router\.([a-zA-Z]+)\s*\(/g;
   let match: RegExpExecArray | null;
-  while ((match = callRe.exec(source)) !== null) {
+  while ((match = callRe.exec(code)) !== null) {
     const verb = (match[1] ?? '').toLowerCase();
     if (!VERB_RE.test(verb)) continue;
     const argsStart = callRe.lastIndex;
-    const args = readCallArgs(source, argsStart);
+    const args = readCallArgs(code, argsStart);
 
     // First argument: the path literal. Pull it out — first quoted token.
     const pathMatch = args.match(/^\s*['"`]([^'"`]+)['"`]/);
@@ -769,21 +853,34 @@ function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mountPrefi
   return out;
 }
 
-async function listRouteFiles(): Promise<string[]> {
-  if (!existsSync(ROUTES_DIR)) return [];
-  const entries = await readdir(ROUTES_DIR);
-  return entries
-    .filter((f) => f.endsWith('.ts'))
-    .map((f) => path.join(ROUTES_DIR, f));
-}
-
+/**
+ * Route entries in EXPRESS DISPATCH ORDER.
+ *
+ * Iterating `MOUNT_MAP`'s keys rather than the directory listing is what makes
+ * the map's documented promise — "kept in sync with the order of `app.use(...)`
+ * calls" — load-bearing instead of decorative. The synthesis below is first-wins
+ * on `<VERB> <path>`, which is exactly how Express dispatches, so two routers
+ * sharing a prefix resolve the way the server resolves them. Under a directory
+ * listing the winner was whichever FILENAME sorted first, which is not a fact
+ * about the server at all: `alia.ts` sorts before `inferenceEdge.ts`, so the
+ * deprecated proxy would have taken `/v1/chat/completions` from the edge that
+ * actually serves it, and published `serviceTokenAuth` where the real answer is a
+ * machine credential.
+ *
+ * A mapped file that does not exist is a hard failure rather than a skip. That is
+ * the `models-stats.ts` case: deleted in #982, its map entry left behind, and the
+ * committed document went on describing `/models/stats` from it for a fortnight
+ * because a missing file looked exactly like a file with no routes.
+ */
 async function extractRoutes(): Promise<RouteEntry[]> {
-  const files = await listRouteFiles();
   const out: RouteEntry[] = [];
-  for (const file of files) {
-    const basename = path.basename(file);
-    const mountPrefixes = MOUNT_MAP[basename];
-    if (!mountPrefixes) continue;
+  const missing: string[] = [];
+  for (const [basename, mountPrefixes] of Object.entries(MOUNT_MAP)) {
+    const file = path.join(ROUTES_DIR, basename);
+    if (!existsSync(file)) {
+      missing.push(basename);
+      continue;
+    }
     const source = await readFile(file, 'utf8');
     const parsed = parseRoutesFromFile(source);
     for (const mountPrefix of mountPrefixes) {
@@ -791,6 +888,15 @@ async function extractRoutes(): Promise<RouteEntry[]> {
         out.push({ ...route, mountPrefix, filename: basename });
       }
     }
+  }
+  if (missing.length > 0) {
+    console.error(
+      `\n[generate-openapi] MOUNT_MAP names ${missing.length} route file(s) that do not exist:\n` +
+        `${missing.map((name) => `  - src/routes/${name}`).join('\n')}\n\n` +
+        '  A stale entry is how a deleted route stays in the published contract. Remove\n' +
+        '  the entry, or restore the file.\n'
+    );
+    process.exit(1);
   }
   return out;
 }
