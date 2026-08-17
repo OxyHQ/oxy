@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/services",
-  "version": "29.0.0",
+  "version": "30.0.0",
   "description": "OxyHQ Expo/React Native SDK \u2014 UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -187,9 +187,10 @@
     "typescript": "^5.9.2",
     "zustand": "catalog:"
   },
+  "//@oxyhq/bloom": "RE-RAISE THIS FLOOR ON EVERY BREAKING BLOOM RELEASE, in the same commit as the root package.json catalog entry. Bloom is below 1.0.0, where the breaking position is the MINOR, so `>=0.89.0` accepts 0.90.0 the day it ships -- a version this package has neither been compiled nor typechecked against. That gap is a deliberate, accepted trade (a cap was considered and rejected: tandas 2-4 ship intentionally-breaking Bloom minors and a cap would block every one of them). What makes the trade safe is raising the floor each time, so it keeps naming the version actually verified rather than the oldest that once worked. A floor is a claim about what was measured, not a guess at what might work.",
   "peerDependencies": {
     "@expo/vector-icons": "^15.0.3",
-    "@oxyhq/bloom": ">=0.59.0",
+    "@oxyhq/bloom": ">=0.89.0",
     "@oxyhq/core": "^21.0.0",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": ">=11.4.1",
