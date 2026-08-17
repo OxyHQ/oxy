@@ -13,6 +13,14 @@
  * Every refusal case asserts BOTH the refusal and that `axios.post` was never
  * called — a gate that refuses after spending the upstream budget would satisfy
  * a status-code assertion and none of the issue.
+ *
+ * The error-shaping block at the bottom is the other half: these routes call one
+ * upstream with ONE shared platform credential, and an upstream error body that
+ * quotes a rejected key was relayed to the caller verbatim until
+ * `relayableUpstreamMessage` replaced `toSafeErrorMessage`. Both directions are
+ * asserted there — the credential-shaped body is withheld, and the benign one
+ * still arrives with its text, because a redaction that blanks every error is
+ * indistinguishable from an outage to the caller.
  */
 
 import express from 'express';
@@ -462,6 +470,162 @@ describe('Alia proxy — upstream error shaping', () => {
       url: 'wss://livekit.example',
       roomName: 'room',
       sessionId: 'sess',
+    });
+  });
+
+  /**
+   * The shape that made this a leak rather than a theory.
+   *
+   * Every route in the router calls Alia with ONE shared platform credential,
+   * and an OpenAI-family upstream answers a bad key by QUOTING it back. The
+   * previous `toSafeErrorMessage` replaced only `null`, a stream and an
+   * unserialisable object, so this body — a perfectly serialisable one — went to
+   * the caller verbatim.
+   *
+   * `sk-` and the key itself are asserted against the RAW response bytes rather
+   * than a parsed field, because a leak that moved to another field would still
+   * be a leak and would still satisfy an assertion about `message`.
+   */
+  it('withholds an upstream error that quotes the platform API key', async () => {
+    const caller = await serviceCaller();
+    const upstreamKey = 'sk-alia-Ab12Cd34Ef56Gh78Ij90';
+
+    mockedAxios.post.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: {
+          error: {
+            message: `Incorrect API key provided: ${upstreamKey}. You can find your API key at https://alia.onl/account/api-keys.`,
+            type: 'invalid_request_error',
+            code: 'invalid_api_key',
+          },
+        },
+      },
+    });
+
+    const response = await request('/v1/chat/completions', CHAT_BODY, bearer(caller.token));
+
+    expect(response.status).toBe(401);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'ALIA_PROXY_ERROR',
+      message: 'Failed to reach Alia API',
+    });
+    expect(response.body).not.toContain(upstreamKey);
+    expect(response.body).not.toContain('sk-');
+    expect(response.body).not.toContain('Incorrect API key');
+
+    // The substitution is recorded, and the record does NOT carry the text it
+    // refused — a leak written to the log is the leak moving house.
+    expect(mockedLogger.warn).toHaveBeenCalledWith('alia.proxy.upstream_message_withheld', {
+      status: 401,
+      messageLength: expect.any(Number),
+    });
+    expect(JSON.stringify(mockedLogger.warn.mock.calls)).not.toContain(upstreamKey);
+  });
+
+  /**
+   * The other half of the fix, and the half a blanket redaction would break.
+   *
+   * A proxy that answered every upstream failure with `Failed to reach Alia API`
+   * would pass the leak test above and leave every first-party caller unable to
+   * tell a bad model name from an outage. This case is what keeps the redaction
+   * from being written that way — it goes red on a redaction that refuses
+   * everything, and the leak test goes red on one that refuses nothing.
+   */
+  it('relays a benign upstream error with its text intact', async () => {
+    const caller = await serviceCaller();
+
+    mockedAxios.post.mockRejectedValueOnce({
+      response: {
+        status: 400,
+        data: {
+          error: {
+            message: 'The model `alia-v99` does not exist or you do not have access to it.',
+            type: 'invalid_request_error',
+            code: 'model_not_found',
+          },
+        },
+      },
+    });
+
+    const response = await request('/v1/chat/completions', CHAT_BODY, bearer(caller.token));
+
+    expect(response.status).toBe(400);
+    const body = JSON.parse(response.body) as { error: string; message: string };
+    expect(body.error).toBe('ALIA_PROXY_ERROR');
+    expect(body.message).toContain('The model `alia-v99` does not exist');
+    expect(body.message).toContain('model_not_found');
+    expect(mockedLogger.warn).not.toHaveBeenCalledWith(
+      'alia.proxy.upstream_message_withheld',
+      expect.anything(),
+    );
+  });
+
+  /**
+   * A PLAIN STRING body was the widest hole in the old function: `typeof data
+   * !== 'object'` returned it unchanged, so an upstream that answered
+   * `text/plain` was relayed with no check at all.
+   */
+  it('withholds a credential-shaped upstream error delivered as plain text', async () => {
+    const caller = await serviceCaller();
+
+    mockedAxios.post.mockRejectedValueOnce({
+      response: {
+        status: 403,
+        data: 'upstream rejected the request (authorization: Bearer Zm9vYmFyYmF6cXV1eDEyMzQ1Ng)',
+      },
+    });
+
+    const response = await request('/v1/voice/transcribe', { audio: 'AAAA' }, bearer(caller.token));
+
+    expect(response.status).toBe(403);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'ALIA_PROXY_ERROR',
+      message: 'Failed to reach Alia API',
+    });
+    expect(response.body).not.toContain('Zm9vYmFyYmF6cXV1eDEyMzQ1Ng');
+  });
+
+  /**
+   * The no-truncation rule, stated as a test because it costs debuggability and
+   * a later reader will otherwise "fix" it.
+   *
+   * `safeErrorTextSchema` bounds the text it will inspect at 2000 characters.
+   * Shortening a longer body until it fits would mean checking something other
+   * than what arrived — and a cut between a marker and the value it marks turns a
+   * refusal into an accept. So an oversized body is not relayed, benign or not.
+   */
+  it('does not relay an upstream body too large for the credential check to read', async () => {
+    const caller = await serviceCaller();
+    const benignButHuge = `upstream trace: ${'context '.repeat(300)}`;
+    expect(benignButHuge.length).toBeGreaterThan(2000);
+
+    mockedAxios.post.mockRejectedValueOnce({
+      response: { status: 500, data: { error: { message: benignButHuge } } },
+    });
+
+    const response = await request('/v1/chat/completions', CHAT_BODY, bearer(caller.token));
+
+    expect(response.status).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'ALIA_PROXY_ERROR',
+      message: 'Failed to reach Alia API',
+    });
+  });
+
+  it('returns the generic message when the upstream body cannot be serialised', async () => {
+    const caller = await serviceCaller();
+    const circular: Record<string, unknown> = { detail: 'cycle' };
+    circular.self = circular;
+
+    mockedAxios.post.mockRejectedValueOnce({ response: { status: 502, data: circular } });
+
+    const response = await request('/v1/voice/token', { model: 'alia-v1-voice' }, bearer(caller.token));
+
+    expect(response.status).toBe(502);
+    expect(JSON.parse(response.body)).toEqual({
+      error: 'ALIA_PROXY_ERROR',
+      message: 'Failed to reach Alia API',
     });
   });
 

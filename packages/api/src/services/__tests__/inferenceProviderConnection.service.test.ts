@@ -5,8 +5,10 @@
  * does — and the first `describe` is the one the whole workstream exists for: a
  * credential handed to `createProviderConnection` must not appear in ANYTHING it
  * returns, in the row it wrote, or in the audit trail it left. That assertion is
- * mutation-tested in `providerSecretLeak.test.ts`, which makes the serializer
- * leak deliberately and confirms this shape of check goes red.
+ * mutation-tested in `providerSecretLeak.test.ts`, which gives the real
+ * serializer a row carrying a credential and confirms each of the checks below
+ * goes red on it — including the two the contract refuses outright, which never
+ * reach a check at all.
  *
  * Every fixture owns its identifiers, so nothing here reads a sibling file's
  * rows and no assertion depends on a table being empty.
@@ -44,6 +46,10 @@ import {
   REDACTED,
   type ProviderSecretStore,
 } from '../providerSecretStore';
+// The SAME walk `providerSecretLeak.test.ts` mutation-tests. A local copy would
+// leave the mutation test measuring a copy, and let the two drift while both
+// stayed green.
+import { containsDeep } from '../secretLeakProbe';
 
 beforeAll(async () => {
   await connectPostgres();
@@ -119,23 +125,6 @@ async function insertProvider(termsRequired = false): Promise<string> {
       byokTermsUrl: termsRequired ? 'https://example.test/terms' : null,
     });
   return slug;
-}
-
-/**
- * Does `haystack`, walked to every leaf, contain `needle` anywhere?
- *
- * Recursive rather than a `JSON.stringify().includes()` so a value hiding behind
- * a `toJSON` — which is exactly what {@link ProviderSecretValue} has — cannot
- * make the search pass by being redacted on the way out. Both forms are used
- * below, because they fail for different reasons.
- */
-function containsDeep(haystack: unknown, needle: string): boolean {
-  if (typeof haystack === 'string') return haystack.includes(needle);
-  if (haystack === null || typeof haystack !== 'object') return false;
-  if (Array.isArray(haystack)) return haystack.some((item) => containsDeep(item, needle));
-  return Object.values(haystack as Record<string, unknown>).some((value) =>
-    containsDeep(value, needle)
-  );
 }
 
 /* -------------------------------------------------------------------------- */
