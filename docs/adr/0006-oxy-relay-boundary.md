@@ -30,7 +30,7 @@ of this epic, not a task inside it: the contracts in this ADR and ADRs 0007–00
 are written to be implementable against a data plane that does not yet exist,
 and the Oxy side must be buildable and testable before it does.
 
-`Relay` is a working name only — see ADR 0011.
+`Relay` is the production name — see ADR 0011, which is closed.
 
 ## Decision
 

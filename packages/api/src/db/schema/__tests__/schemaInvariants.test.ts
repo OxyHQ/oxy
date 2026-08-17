@@ -97,3 +97,57 @@ it('holds every schema invariant', async () => {
 
   expect(violations).toEqual([]);
 });
+
+/**
+ * ADR 0005 invariant 3 — "one customer credential lifecycle" — as a gate.
+ *
+ * ## Why this exists, and why it is a census rather than a list
+ *
+ * The invariant forbids a second key table. It was nonetheless violated for
+ * months by `account_credentials`, and the reason it survived is instructive: it
+ * appeared on nobody's checklist, so every review that worked from a list of
+ * known key tables confirmed the invariant held. The audit that found it was
+ * looking at the SCHEMA instead.
+ *
+ * So this asks the schema, and derives the answer from column SHAPE rather than
+ * from any enumeration of tables. A new key table cannot join the codebase
+ * without either storing a hashed secret — in which case it appears here — or
+ * storing the secret in plaintext, which is a worse failure that other gates
+ * catch.
+ *
+ * ## What the two permitted answers are
+ *
+ * `application_credentials` is the one customer credential lifecycle ADR 0005
+ * permits: every customer credential shape is a `type` on it, the machine
+ * `oxy_sk_…` key included.
+ *
+ * `device_sessions` is NOT a customer credential and is not an exception being
+ * carved out — it is the device-first SESSION transport, whose whole design is
+ * that possession of a rotating per-device secret proves a session. It is a
+ * different lifecycle with a different owner (the device, not the customer's
+ * application), and collapsing the two would be the actual architectural error.
+ *
+ * Anything else with a `*secret_hash` is a third key table, which is what this
+ * fails on. Adding one is an amendment to ADR 0005 with its reason stated — and
+ * the amendment includes this list, deliberately, so the decision is recorded in
+ * the same commit as the table.
+ */
+it('stores a hashed secret in exactly the two tables ADR 0005 permits', async () => {
+  const rows = await getDb().execute<{ table_name: string; column_name: string }>(sql`
+    select table_name, column_name from information_schema.columns
+    where table_schema = 'public' and column_name like '%secret\\_hash'
+  `);
+
+  // Vacuity floor with a POSITIVE control, not just a count: a query that
+  // matched nothing — a typo'd pattern, the wrong schema — would report an empty
+  // set, and an empty set passes a "no unexpected tables" assertion trivially.
+  // This names the one column the invariant is ABOUT, so a broken pattern fails
+  // here rather than passing quietly.
+  const columns = rows.map((row) => `${row.table_name}.${row.column_name}`);
+  expect(columns).toContain('application_credentials.secret_hash');
+
+  expect([...new Set(rows.map((row) => row.table_name))].sort()).toEqual([
+    'application_credentials',
+    'device_sessions',
+  ]);
+});

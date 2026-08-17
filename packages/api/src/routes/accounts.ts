@@ -12,20 +12,19 @@ import {
   type AuthRequest,
   type ServiceAuthRequest,
 } from '../middleware/auth';
-import { isStaffUser } from '../middleware/requireStaff';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler } from '../utils/asyncHandler';
-import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
+import { ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
 import {
   accountService,
-  type AccountCredentialRow,
   type AccountMemberRow,
   type AccountNode,
   type AccountRow,
   type EffectiveAccess,
 } from '../services/account.service';
+import type { ApplicationScope } from '../utils/applicationScopes';
 import { publicColumns } from '@oxyhq/db/assert';
 import { getDb } from '../config/postgres';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
@@ -37,7 +36,6 @@ import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { logger } from '../utils/logger';
 import type { SessionAuthResponse } from '../types/session';
 import { resolveUserByIdentifier } from '../utils/resolveUserIdentifier';
-import { isPrivilegedScope, type ApplicationScope } from '../utils/applicationScopes';
 import { accountMembers } from '../db/schema/accountMembers';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { formatUserResponse } from '../utils/userTransform';
@@ -49,7 +47,6 @@ import {
 import {
   accountIdRouteParams,
   accountMemberParams,
-  accountCredentialParams,
   listAccountsQuerySchema,
   createAccountSchema,
   updateAccountSchema,
@@ -57,7 +54,6 @@ import {
   inviteAccountMemberSchema,
   updateAccountMemberSchema,
   transferAccountOwnershipSchema,
-  createAccountCredentialSchema,
   provisionChannelSchema,
   provisionChannelMemberSchema,
   provisionChannelMemberParams,
@@ -404,14 +400,6 @@ const membersLimiter = rateLimit({
   keyGenerator: userScopedKey('accounts:members'),
 });
 
-const credentialsLimiter = rateLimit({
-  prefix: 'rl:accounts:credentials:',
-  windowMs: 60 * 1000,
-  max: 30,
-  message: 'Too many credential operations. Please slow down.',
-  keyGenerator: userScopedKey('accounts:credentials'),
-});
-
 /** Serialise an account (a User doc) for client responses. */
 /**
  * Serialise a membership row for client responses. `source` is the contextual
@@ -511,39 +499,6 @@ async function countChildren(accountId: string): Promise<number> {
     .from(users)
     .where(and(eq(users.parentAccountId, accountId), ne(users.accountStatus, 'archived')));
   return row.value;
-}
-
-/** Serialise a credential — NEVER includes secret material. */
-function serializeCredential(credential: Omit<AccountCredentialRow, 'secretHash'>) {
-  return {
-    _id: credential.id,
-    accountId: credential.accountId,
-    name: credential.name,
-    publicKey: credential.publicKey,
-    type: credential.type,
-    environment: credential.environment,
-    scopes: credential.scopes,
-    status: credential.status,
-    lastUsedAt: credential.lastUsedAt,
-    expiresAt: credential.expiresAt,
-    // Mongoose omitted an unset optional; a nullable column reads back `null`.
-    rotatedFromCredentialId: credential.rotatedFromCredentialId ?? undefined,
-    createdByUserId: credential.createdByUserId,
-    createdAt: credential.createdAt,
-    updatedAt: credential.updatedAt,
-  };
-}
-
-/**
- * Serialise a freshly created/rotated credential WITH its one-time secret merged
- * in directly (no wrapper). `extra` carries rotation metadata.
- */
-function serializeCredentialWithSecret(
-  credential: Omit<AccountCredentialRow, 'secretHash'>,
-  secret: string,
-  extra?: Record<string, unknown>
-) {
-  return { ...serializeCredential(credential), secret, ...(extra ?? {}) };
 }
 
 /**
@@ -1145,114 +1100,6 @@ router.post(
     const { userId: targetUserId } = req.body as { userId: string };
 
     await accountService.transferOwnership(account.id, requireUserId(req), targetUserId);
-    res.json({ success: true });
-  })
-);
-
-// ============================================================================
-// Credentials (bot accounts)
-// ============================================================================
-
-/** List an account's service credentials (`credentials:read`). */
-router.get(
-  '/:id/credentials',
-  credentialsLimiter,
-  validate({ params: accountIdRouteParams }),
-  requireAccountPermission('credentials:read'),
-  asyncHandler(async (req: AccountContextRequest, res) => {
-    const account = req.account;
-    if (!account) {
-      throw new NotFoundError('Account not found');
-    }
-    const credentials = await accountService.listCredentials(account.id);
-    res.json({ credentials: credentials.map(serializeCredential) });
-  })
-);
-
-/**
- * Create a service credential for a bot account (`credentials:create`). The
- * plaintext secret is returned EXACTLY ONCE. Privileged scopes are staff-gated.
- */
-router.post(
-  '/:id/credentials',
-  credentialsLimiter,
-  validate({ params: accountIdRouteParams, body: createAccountCredentialSchema }),
-  requireAccountPermission('credentials:create'),
-  asyncHandler(async (req: AccountContextRequest, res) => {
-    const account = req.account;
-    if (!account) {
-      throw new NotFoundError('Account not found');
-    }
-    const body = req.body as {
-      name: string;
-      environment: AccountCredentialRow['environment'];
-      scopes?: ApplicationScope[];
-    };
-
-    // Privileged scopes (e.g. federation:write) confer act-on-behalf authority
-    // and are NOT self-grantable — only platform staff may mint a credential
-    // carrying one.
-    const requestedScopes = body.scopes ?? [];
-    if (!isStaffUser(req)) {
-      const privileged = requestedScopes.filter((scope) => isPrivilegedScope(scope));
-      if (privileged.length > 0) {
-        throw new ForbiddenError(
-          `Granting the scope(s) [${privileged.join(', ')}] requires Oxy platform staff privileges`
-        );
-      }
-    }
-
-    const { credential, secret } = await accountService.createCredential(
-      account.id,
-      requireUserId(req),
-      { name: body.name, environment: body.environment, scopes: requestedScopes }
-    );
-
-    // The credential-with-secret object is returned DIRECTLY (no wrapper).
-    res.status(201).json(serializeCredentialWithSecret(credential, secret));
-  })
-);
-
-/** Rotate a credential — zero-downtime (`credentials:rotate`). */
-router.post(
-  '/:id/credentials/:credId/rotate',
-  credentialsLimiter,
-  validate({ params: accountCredentialParams }),
-  requireAccountPermission('credentials:rotate'),
-  asyncHandler(async (req: AccountContextRequest, res) => {
-    const account = req.account;
-    if (!account) {
-      throw new NotFoundError('Account not found');
-    }
-
-    const result = await accountService.rotateCredential(
-      account.id,
-      req.params.credId,
-      requireUserId(req)
-    );
-
-    // The rotated credential-with-secret object is returned DIRECTLY (no wrapper).
-    res.json(
-      serializeCredentialWithSecret(result.credential, result.secret, {
-        rotatedFrom: result.rotatedFrom,
-        graceExpiresAt: result.graceExpiresAt,
-      })
-    );
-  })
-);
-
-/** Revoke a credential (`credentials:revoke`). */
-router.delete(
-  '/:id/credentials/:credId',
-  credentialsLimiter,
-  validate({ params: accountCredentialParams }),
-  requireAccountPermission('credentials:revoke'),
-  asyncHandler(async (req: AccountContextRequest, res) => {
-    const account = req.account;
-    if (!account) {
-      throw new NotFoundError('Account not found');
-    }
-    await accountService.revokeCredential(account.id, req.params.credId);
     res.json({ success: true });
   })
 );

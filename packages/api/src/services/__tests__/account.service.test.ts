@@ -24,7 +24,6 @@ import {
   type AccountCategoryId,
 } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { accountCredentials } from '../../db/schema/accountCredentials';
 import { accountMembers } from '../../db/schema/accountMembers';
 import { MAX_ACCOUNT_DEPTH, userAncestors } from '../../db/schema/userAncestors';
 import { userAuthMethods } from '../../db/schema/userAuthMethods';
@@ -158,14 +157,6 @@ async function memberRowsFor(accountId: string, memberUserId: string) {
     .where(
       and(eq(accountMembers.accountId, accountId), eq(accountMembers.memberUserId, memberUserId))
     );
-}
-
-async function credentialById(credentialId: string) {
-  const [row] = await getDb()
-    .select()
-    .from(accountCredentials)
-    .where(eq(accountCredentials.id, credentialId));
-  return row;
 }
 
 // ===========================================================================
@@ -952,73 +943,5 @@ describe('members CRUD', () => {
     await expect(accountService.transferOwnership(alice.id, alice.id, bob.id)).rejects.toThrow(
       /personal account cannot be transferred/i
     );
-  });
-});
-
-// ===========================================================================
-// Credentials (bot accounts)
-// ===========================================================================
-
-describe('bot account credentials', () => {
-  test('createCredential returns a secret once for a bot account', async () => {
-    const bot = await seedAccount({ kind: 'bot' });
-    const creator = await seedAccount();
-
-    const { credential, secret } = await accountService.createCredential(bot.id, creator.id, {
-      name: 'ci',
-      environment: 'production',
-    });
-    expect(secret).toMatch(/^[a-f0-9]{64}$/);
-    expect(credential.publicKey).toMatch(/^oxy_dk_/);
-    expect(credential.type).toBe('service');
-
-    // The plaintext secret is never persisted — only its hash.
-    const stored = await credentialById(credential.id);
-    expect(stored.secretHash).toEqual(expect.any(String));
-    expect(stored.secretHash).not.toBe(secret);
-  });
-
-  test('createCredential refuses a non-bot account', async () => {
-    const org = await seedAccount({ kind: 'organization' });
-    const creator = await seedAccount();
-    await expect(
-      accountService.createCredential(org.id, creator.id, {
-        name: 'x',
-        environment: 'production',
-      })
-    ).rejects.toThrow(/bot accounts/i);
-  });
-
-  test('rotateCredential deprecates the previous credential with a grace expiry', async () => {
-    const bot = await seedAccount({ kind: 'bot' });
-    const creator = await seedAccount();
-    const { credential } = await accountService.createCredential(bot.id, creator.id, {
-      name: 'ci',
-      environment: 'production',
-    });
-
-    const result = await accountService.rotateCredential(bot.id, credential.id, creator.id);
-
-    expect(result.rotatedFrom).toBe(credential.id);
-    expect(result.credential.publicKey).not.toBe(credential.publicKey);
-
-    const previous = await credentialById(credential.id);
-    // Deprecated, NOT revoked: the old secret keeps working for the grace window
-    // so a rotation does not break a running deployment mid-flight.
-    expect(previous.status).toBe('deprecated');
-    expect(previous.expiresAt?.getTime()).toBeGreaterThan(Date.now());
-  });
-
-  test('revokeCredential marks the credential revoked', async () => {
-    const bot = await seedAccount({ kind: 'bot' });
-    const creator = await seedAccount();
-    const { credential } = await accountService.createCredential(bot.id, creator.id, {
-      name: 'ci',
-      environment: 'production',
-    });
-
-    await accountService.revokeCredential(bot.id, credential.id);
-
-    expect((await credentialById(credential.id)).status).toBe('revoked');
   });
 });

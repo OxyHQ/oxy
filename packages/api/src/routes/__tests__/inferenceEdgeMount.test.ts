@@ -146,7 +146,7 @@ describe('/v1 mount order', () => {
 });
 
 /**
- * The shared-upstream-key exception list, counted (#972 workstream 2.3).
+ * The shared-upstream-key routes, counted AND gated (#972 workstream 2.3).
  *
  * Every route in `routes/alia.ts` forwards a caller-supplied body to Alia on the
  * one static `ALIA_API_KEY`, so it bills Oxy's shared upstream budget and no
@@ -155,29 +155,57 @@ describe('/v1 mount order', () => {
  * grows silently: a fourth route added here would inherit the exemption without
  * anybody deciding to grant it.
  *
- * Read from source rather than probed over HTTP because the question is "which
- * routes exist", and a live probe can only answer it one guessed path at a time —
- * the route nobody thought to guess is exactly the one this is for.
+ * Two separate claims are asserted, because they can fail independently:
  *
- * Comments are stripped first. `routes/alia.ts` discusses `router.post` in prose
- * (the #981 header, and the note on why the voice routes stayed ungated), so an
- * un-anchored census over the raw text counts sentences as routes.
+ *   1. The route SET is exactly three. A new shared-key route is a new exemption.
+ *   2. Every one of them is behind `requireFirstPartyInferenceCaller`. #981 gated
+ *      chat and left the two voice routes on `authMiddleware` alone; workstream
+ *      2.3 closed that, so the UNGATED count is now zero and must stay zero.
+ *      A route added with a gate is a decision; one added without is the bug.
+ *
+ * Read from source rather than probed over HTTP because the question is "which
+ * routes exist, and what is in front of them" — a live probe can only answer the
+ * first, one guessed path at a time, and the route nobody thought to guess is
+ * exactly the one this is for. It also cannot distinguish two middlewares that
+ * both refuse an unauthenticated caller with a 401, which is the case here.
+ *
+ * Comments are stripped first. `routes/alia.ts` discusses `router.post` and
+ * `authMiddleware` in prose (the #981 header, and the note on why the voice routes
+ * were once exempt), so an un-anchored census over the raw text counts sentences
+ * as routes.
  */
 describe('shared ALIA_API_KEY routes', () => {
   const ALIA_ROUTES_PATH = join(__dirname, '..', 'alia.ts');
 
+  /** The gate #981 introduced and workstream 2.3 extended to every route here. */
+  const REQUIRED_GATE = 'requireFirstPartyInferenceCaller';
+
   /**
    * Exactly the three routes documented in
-   * `docs/architecture/inference-responsibility-matrix.md` §3.1. Retiring them is
-   * workstream 14; until then this is the whole list.
+   * `docs/architecture/inference-responsibility-matrix.md` §3.1, each with the
+   * gate it must carry. Retiring them is workstream 14; until then this is the
+   * whole list.
    */
   const EXPECTED_SHARED_KEY_ROUTES = [
-    'post /chat/completions',
-    'post /voice/token',
-    'post /voice/transcribe',
+    `post /chat/completions -> ${REQUIRED_GATE}`,
+    `post /voice/token -> ${REQUIRED_GATE}`,
+    `post /voice/transcribe -> ${REQUIRED_GATE}`,
   ];
 
-  it('declares exactly the three routes the responsibility matrix exempts', () => {
+  /**
+   * Two censuses over the same stripped source, deliberately NOT one.
+   *
+   * `all` matches a route declaration and stops at the path, so it counts a route
+   * however it is written — with a named middleware, with a different middleware,
+   * or with nothing but an inline `(req, res) => …` handler. `gated` is the strict
+   * subset whose first argument after the path IS the gate.
+   *
+   * One combined regex that captured "the middleware" would MISS the inline-handler
+   * form entirely rather than flag it, which is the shape that escapes a census
+   * while looking like a clean pass. Measured: an earlier version of this helper
+   * did exactly that.
+   */
+  function census(): { all: string[]; gated: string[] } {
     const source = readFileSync(ALIA_ROUTES_PATH, 'utf8');
     const code = source
       .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -187,10 +215,31 @@ describe('shared ALIA_API_KEY routes', () => {
     // nothing to match, and an empty census is indistinguishable from a clean one.
     expect(code).toContain('const router = Router()');
 
-    const declared = [...code.matchAll(/^router\.(get|post|put|patch|delete)\(\s*'([^']+)'/gm)].map(
+    const verbs = 'get|post|put|patch|delete';
+    const all = [...code.matchAll(new RegExp(`^router\\.(${verbs})\\(\\s*'([^']+)'`, 'gm'))].map(
       (match) => `${match[1]} ${match[2]}`
     );
+    const gated = [
+      ...code.matchAll(
+        new RegExp(`^router\\.(${verbs})\\(\\s*'([^']+)'\\s*,\\s*${REQUIRED_GATE}\\b`, 'gm')
+      ),
+    ].map((match) => `${match[1]} ${match[2]} -> ${REQUIRED_GATE}`);
 
-    expect(declared.sort()).toEqual([...EXPECTED_SHARED_KEY_ROUTES].sort());
+    return { all, gated };
+  }
+
+  it('declares exactly the three routes the responsibility matrix exempts, each gated', () => {
+    expect(census().gated.sort()).toEqual([...EXPECTED_SHARED_KEY_ROUTES].sort());
+  });
+
+  it('leaves no shared-key route ungated', () => {
+    // The complement of the assertion above, and NOT a restatement of it: this one
+    // fails on a route the gated census cannot see. THIS is the property #981 left
+    // false and workstream 2.3 made true. Reported as the offending routes rather
+    // than a bare count, so a failure names them.
+    const { all, gated } = census();
+    const gatedPaths = new Set(gated.map((route) => route.slice(0, route.indexOf(' -> '))));
+
+    expect(all.filter((route) => !gatedPaths.has(route))).toEqual([]);
   });
 });

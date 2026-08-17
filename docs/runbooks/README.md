@@ -28,6 +28,33 @@ because the fifth is the one nobody writes down:
 | Service-token signing key, and `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` | Oxy | [service-token-signing-key-rotation.md](./service-token-signing-key-rotation.md) |
 | The Oxy→Relay edge signing key | Oxy | [relay-edge-signing-key-rotation.md](./relay-edge-signing-key-rotation.md) |
 | AWS access keys, RDS credentials, the ECS task role, the ALB certificate, KMS keys | infra | **`~/Oxy/oxy-infra`**, `docs/runbooks/` there |
+| `ALIA_API_KEY` — the shared upstream key the Alia proxy forwards on | **Alia**, not Oxy | no runbook here, deliberately — see below |
+
+**`ALIA_API_KEY` gets no rotation procedure in this repository, because Oxy cannot
+perform one.** It is issued inside the Alia product; Oxy holds a copy in SSM and
+forwards it. There is no grace window and no key id to resolve by, so the
+"two sides overlap" property below does not apply and cannot be made to — Alia
+issuing a new value and Oxy's SSM parameter changing are two events with no
+mechanism tying them together. Writing a procedure that reads as Oxy's would be
+inventing an authority Oxy does not have.
+
+What *is* worth writing down, and is the only part this repository can answer, is
+**who stops working when that value changes**. Five consumers, all server-side:
+
+- three proxy routes, every one of them behind `requireFirstPartyInferenceCaller`
+  since #972 workstream 2.3 — `POST /alia/chat/completions`, `POST /v1/voice/token`,
+  `POST /v1/voice/transcribe` (`packages/api/src/routes/alia.ts`);
+- two internal services that call Alia directly and are not customer-reachable —
+  `packages/api/src/services/aiLabeling.service.ts` and
+  `packages/api/src/services/cardExtraction.service.ts`.
+
+All five read `process.env.ALIA_API_KEY` at module load, so a changed value takes
+effect on the next task launch and not before. The routes fail loudly (`500`,
+`ALIA_API_KEY not configured on server`) when it is absent; **the two services fail
+SILENTLY** — each returns early when the key is unset, so a bad rotation degrades
+AI labelling and card extraction with no error surfaced anywhere. That asymmetry is
+the thing to check after any change to the parameter, and it is why this row exists
+even though the procedure does not belong here.
 
 **The infra half is deliberately not duplicated here.** `oxy-infra` owns the
 terraform, the task definitions, the IAM policies and the AWS procedures, and a

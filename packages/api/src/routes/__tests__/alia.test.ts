@@ -1,6 +1,7 @@
 /**
- * The Alia proxy router — the interim first-party gate on `POST
- * /chat/completions` (issue #981), and the proxy's own error shaping.
+ * The Alia proxy router — the interim first-party gate on EVERY route it serves
+ * (`/chat/completions` from #981; `/voice/token` and `/voice/transcribe` from
+ * #972 workstream 2.3), and the proxy's own error shaping.
  *
  * The gate runs against a REAL Postgres and REAL service JWTs rather than a
  * stubbed application row, because everything it decides is a registry fact:
@@ -27,10 +28,6 @@ jest.mock('axios');
 // tell a service token from a user one, so restore the real module.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 import jwt from 'jsonwebtoken';
-
-jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
-}));
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -221,6 +218,13 @@ afterAll(async () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  // `clearAllMocks` clears CALLS but not queued `mockResolvedValueOnce`
+  // implementations. A test whose request is refused before reaching axios
+  // therefore leaves its queued value behind for the NEXT test to consume, which
+  // is how gating the voice routes turned one failure into two: the second test
+  // ate the first's leftover and reported an unrelated status. `mockReset` drains
+  // the queue; nothing here relies on a persistent implementation.
+  mockedAxios.post.mockReset();
 });
 
 describe('POST /v1/chat/completions — first-party inference gate (#981)', () => {
@@ -369,13 +373,81 @@ describe('POST /v1/chat/completions — first-party inference gate (#981)', () =
   });
 });
 
+/**
+ * The voice routes carry the SAME gate as chat since #972 workstream 2.3.
+ *
+ * #981 left them on `authMiddleware` alone, reasoning that Oxy's own voice
+ * surfaces reached them with a user session and no service credential. A
+ * read-only census across every repository under `~/Oxy` found no caller of
+ * either route at all — Inbox's voice feature calls `https://api.alia.onl`
+ * directly through the installed `@alia.onl/sdk`, never this proxy — so the
+ * exemption was protecting nothing while leaving one shared upstream key
+ * spendable by any signed-in user.
+ *
+ * These cases are the refusals that exemption used to allow. They matter more
+ * than the positive control below: the positive control would still pass if the
+ * gate were removed.
+ */
+describe('voice routes — the same first-party gate (#972 w2.3)', () => {
+  it('REFUSES a voice token request with no bearer at all', async () => {
+    const response = await request('/v1/voice/token', { model: 'alia-v1-voice' });
+
+    expect(response.status).toBe(401);
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
+  it('REFUSES a voice token request carrying an ordinary user session bearer', async () => {
+    const response = await request(
+      '/v1/voice/token',
+      { model: 'alia-v1-voice' },
+      bearer(mintUserSessionToken()),
+    );
+
+    expect(response.status).toBe(403);
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
+  it('REFUSES a transcribe request carrying an ordinary user session bearer', async () => {
+    const response = await request(
+      '/v1/voice/transcribe',
+      { audio: 'AAAA' },
+      bearer(mintUserSessionToken()),
+    );
+
+    expect(response.status).toBe(403);
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
+  it('REFUSES a third-party caller whose application is active but untrusted', async () => {
+    const caller = await serviceCaller({
+      type: 'third_party',
+      isInternal: false,
+      isOfficial: false,
+    });
+
+    const response = await request(
+      '/v1/voice/transcribe',
+      { audio: 'AAAA' },
+      bearer(caller.token),
+    );
+
+    expect(response.status).toBe(403);
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+});
+
 describe('Alia proxy — upstream error shaping', () => {
   it('proxies voice token requests to the Alia API with the server key', async () => {
+    const caller = await serviceCaller();
     mockedAxios.post.mockResolvedValueOnce({
       data: { token: 'lk-token', url: 'wss://livekit.example', roomName: 'room', sessionId: 'sess' },
     });
 
-    const response = await request('/v1/voice/token', { model: 'alia-v1-voice', voice: 'nova' });
+    const response = await request(
+      '/v1/voice/token',
+      { model: 'alia-v1-voice', voice: 'nova' },
+      bearer(caller.token),
+    );
 
     expect(mockedAxios.post).toHaveBeenCalledWith(
       'https://api.alia.onl/v1/voice/token',
