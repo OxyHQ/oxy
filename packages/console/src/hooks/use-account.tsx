@@ -90,6 +90,7 @@ interface AccountContextValue {
   archiveAccount: (accountId: string) => Promise<AccountSuccessResult>;
 
   // Permissions — derived from the node's embedded `callerMembership`.
+  canReadAccount: (account: AccountNode) => boolean;
   canEditAccount: (account: AccountNode) => boolean;
   canManageMembers: (account: AccountNode) => boolean;
   canTransferOwnership: (account: AccountNode) => boolean;
@@ -270,6 +271,24 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  /**
+   * `account:read` on one account node.
+   *
+   * Baseline for every role, so it reads as always-true — which is exactly why it
+   * needs a named predicate rather than an inline check. It is REMOVABLE by a
+   * per-member revoke, and the two application sections that gate an
+   * account-scoped read on it were comparing the raw `permissions` string array
+   * instead. `permissions` is typed `string[]` on the wire, so a typo in that
+   * comparison was neither a compile error nor visible to
+   * `scripts/check-permission-vocabulary.mjs`, whose subject is the union
+   * DECLARATIONS and not the call sites. Going through `hasPermission` types the
+   * argument as `AccountPermission`, so the same typo now fails to compile.
+   */
+  const canReadAccount = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['account:read']),
+    []
+  );
+
   const canEditAccount = React.useCallback(
     (account: AccountNode): boolean => hasPermission(account, ['account:update']),
     []
@@ -331,6 +350,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       updateAccount,
       archiveAccount,
+      canReadAccount,
       canEditAccount,
       canManageMembers,
       canTransferOwnership,
@@ -348,6 +368,7 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       updateAccount,
       archiveAccount,
+      canReadAccount,
       canEditAccount,
       canManageMembers,
       canTransferOwnership,
