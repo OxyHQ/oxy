@@ -17,7 +17,6 @@
  * adding a table.
  */
 export * from './accountBalances';
-export * from './accountCredentials';
 export * from './accountMembers';
 export * from './apiKeyUsageEvents';
 export * from './appAffinityEdges';

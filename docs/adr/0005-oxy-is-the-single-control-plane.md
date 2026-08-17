@@ -63,9 +63,30 @@ The epic's non-negotiable invariants, each with what it forbids in this repo:
    `applications.id` and stores it as an opaque string.
 3. **One customer credential lifecycle: `ApplicationCredential`.** Forbids a
    second key table. The OpenAI-compatible machine key of workstream 2.3 is a new
-   `type` on `application_credentials`, not a revival of `developer_api_keys`
-   (`packages/api/src/db/schema/developerApiKeys.ts`, already unreferenced by any
-   route or service — its own header says so).
+   `type` on `application_credentials`, never a new table.
+
+   As of workstream 2.3 this is a statement about the schema and not only an
+   intention: **both other key tables are gone.** `developer_api_keys` was dropped
+   by `packages/api/drizzle/0047_retire_developer_api_keys.sql` and
+   `account_credentials` by `0048_retire_account_credentials.sql`, each after a
+   production row count confirmed it empty (0 rows, beside controls — a bare zero
+   from a query is not evidence that the thing is absent).
+
+   `account_credentials` is worth naming explicitly, because it was **not** on any
+   checklist and was found only by auditing against this invariant rather than
+   against the task list. It was a `service` credential for `bot`-kind accounts
+   with a complete public mint/rotate/revoke surface, a `secret_hash` and scope
+   validation — and nothing authenticated against it: its only resolver had zero
+   callers. A key table that grants nothing is still a second key table, and a
+   customer performing a revocation on one is being told something untrue. The
+   lesson generalises past this ADR: **the thing this invariant forbids is a second
+   key TABLE, not a second working credential**, so "it authenticates nothing"
+   argues for removal and never for an exemption.
+
+   There is deliberately no exemption list here. If a future account-owned or
+   device-owned principal genuinely needs its own credential store, that is an
+   amendment to this ADR with its reason stated, not a table that quietly appears
+   beside `application_credentials`.
 4. **One billing account, balance and ledger: Oxy Billing.** Forbids a data-plane
    balance, quota counter or credit column that a customer could ever be shown.
    Relay may count tokens; it may not decide whether the customer can afford
@@ -129,10 +150,13 @@ what it cannot attribute.
 - The `/v1` mount changes meaning. It stops being an Alia proxy and becomes the
   Oxy public inference edge (ADR 0010), which is a customer-visible behaviour
   change, not a refactor.
-- `developer_api_keys` and `api_key_usage_events.api_key_id` are on the removal
-  path, gated on confirming the table is empty in production — its own schema
-  header already records it as a deletion candidate that could not be checked
-  from inside the repo.
+- `developer_api_keys`, `api_key_usage_events.api_key_id` and
+  `account_credentials` are **removed** (`0047`, `0048`), each after a production
+  row count confirmed it empty. The gate was always the row count rather than a
+  grep, because "no code references it" and "no rows exist" are different claims
+  and only the second one licenses a `DROP`. `api_key_usage_events` itself
+  survives: it is general API telemetry with two live readers, and only its stale
+  key reference went.
 - Any Relay-side design document that names a customer, an organization, a key
   or a balance is a boundary violation and is reviewed as one, regardless of how
   the field is spelled.

@@ -35,9 +35,7 @@
  */
 
 import { and, asc, eq, inArray, ne, or, sql } from 'drizzle-orm';
-import crypto from 'crypto';
 import { getDb, type Database } from '../config/postgres';
-import { accountCredentials } from '../db/schema/accountCredentials';
 import { accountMembers } from '../db/schema/accountMembers';
 import { userAncestors, MAX_ACCOUNT_DEPTH } from '../db/schema/userAncestors';
 import { users } from '../db/schema/users';
@@ -61,7 +59,6 @@ import {
   type AccountPermission,
   type AccountRole,
 } from '../utils/accountRoles';
-import { isCredentialUsable } from '../utils/credentialUsability';
 import {
   BadRequestError,
   ConflictError,
@@ -71,7 +68,6 @@ import {
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxyhq/core';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
-import type { ApplicationScope } from '../utils/applicationScopes';
 
 /**
  * The permission that authorises assuming an account's identity — what
@@ -84,16 +80,6 @@ import type { ApplicationScope } from '../utils/applicationScopes';
  * ever held this".
  */
 const ACT_AS_PERMISSION: AccountPermission = 'account:act_as';
-
-const CREDENTIAL_PUBLIC_KEY_PREFIX = 'oxy_dk_';
-const PUBLIC_KEY_RANDOM_BYTES = 24;
-const SECRET_RANDOM_BYTES = 32;
-
-/**
- * Grace window during which a rotated-away credential keeps working (7 days),
- * matching the Application credential rotation semantics.
- */
-const CREDENTIAL_ROTATION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Reject a name half that the display-name policy would not allow.
@@ -122,9 +108,6 @@ export type AccountRelationship = 'self' | 'owner' | 'member';
 
 /** An `account_members` row. */
 export type AccountMemberRow = typeof accountMembers.$inferSelect;
-
-/** An `account_credentials` row. */
-export type AccountCredentialRow = typeof accountCredentials.$inferSelect;
 
 /**
  * A `users` row, read as an ACCOUNT rather than as a profile — WITHOUT the
@@ -1439,177 +1422,6 @@ export class AccountService {
   }
 
   // -------------------------------------------------------------------------
-  // Service credentials (bot accounts)
-  // -------------------------------------------------------------------------
-
-  /** List an account's credentials (never includes secret material). */
-  async listCredentials(accountId: string): Promise<Omit<AccountCredentialRow, 'secretHash'>[]> {
-    const { secretHash: _secretHash, ...columns } = getTableColumnsOf();
-    return getDb()
-      .select(columns)
-      .from(accountCredentials)
-      .where(eq(accountCredentials.accountId, accountId))
-      .orderBy(sql`${accountCredentials.createdAt} desc`);
-  }
-
-  /**
-   * Create a service credential for a `bot`-kind account. The plaintext secret
-   * is returned EXACTLY ONCE.
-   */
-  async createCredential(
-    accountId: string,
-    callerUserId: string,
-    input: {
-      name: string;
-      environment: AccountCredentialRow['environment'];
-      scopes?: ApplicationScope[];
-    }
-  ): Promise<{ credential: AccountCredentialRow; secret: string }> {
-    const db = getDb();
-    const [account] = await db
-      .select({ kind: users.kind })
-      .from(users)
-      .where(eq(users.id, accountId))
-      .limit(1);
-    if (!account) {
-      throw new NotFoundError('Account not found');
-    }
-    if (account.kind !== 'bot') {
-      throw new BadRequestError('Service credentials are only available to bot accounts');
-    }
-
-    const { publicKey, secret, secretHash } = this.generateCredentialMaterial();
-    const [credential] = await db
-      .insert(accountCredentials)
-      .values({
-        accountId,
-        name: input.name,
-        publicKey,
-        secretHash,
-        type: 'service',
-        environment: input.environment,
-        scopes: input.scopes ?? [],
-        status: 'active',
-        createdByUserId: callerUserId,
-      })
-      .returning();
-
-    logger.info('Account credential created', {
-      accountId,
-      credentialId: credential.id,
-      by: callerUserId,
-    });
-
-    return { credential, secret };
-  }
-
-  /**
-   * Rotate a credential — zero-downtime. Mints a replacement (fresh keys) then
-   * deprecates the previous one with a 7-day grace `expiresAt`.
-   *
-   * One transaction: a mint whose deprecation failed leaves TWO active
-   * credentials with no record of which supersedes which.
-   */
-  async rotateCredential(
-    accountId: string,
-    credentialId: string,
-    callerUserId: string
-  ): Promise<{
-    credential: AccountCredentialRow;
-    secret: string;
-    rotatedFrom: string;
-    graceExpiresAt: Date;
-  }> {
-    const db = getDb();
-    const [previous] = await db
-      .select()
-      .from(accountCredentials)
-      .where(
-        and(
-          eq(accountCredentials.id, credentialId),
-          eq(accountCredentials.accountId, accountId),
-          ne(accountCredentials.status, 'revoked')
-        )
-      )
-      .limit(1);
-    if (!previous) {
-      throw new NotFoundError('Credential not found');
-    }
-
-    const { publicKey, secret, secretHash } = this.generateCredentialMaterial();
-    const graceExpiresAt = new Date(Date.now() + CREDENTIAL_ROTATION_GRACE_MS);
-
-    const rotated = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(accountCredentials)
-        .values({
-          accountId: previous.accountId,
-          name: previous.name,
-          publicKey,
-          secretHash,
-          type: previous.type,
-          environment: previous.environment,
-          scopes: previous.scopes,
-          status: 'active',
-          rotatedFromCredentialId: previous.id,
-          createdByUserId: callerUserId,
-        })
-        .returning();
-
-      await tx
-        .update(accountCredentials)
-        .set({ status: 'deprecated', expiresAt: graceExpiresAt })
-        .where(eq(accountCredentials.id, previous.id));
-
-      return created;
-    });
-
-    logger.info('Account credential rotated', {
-      accountId,
-      previousCredentialId: previous.id,
-      newCredentialId: rotated.id,
-      by: callerUserId,
-    });
-
-    return { credential: rotated, secret, rotatedFrom: previous.id, graceExpiresAt };
-  }
-
-  /** Revoke a credential — it can no longer authenticate (no grace). */
-  async revokeCredential(accountId: string, credentialId: string): Promise<void> {
-    const revoked = await getDb()
-      .update(accountCredentials)
-      .set({ status: 'revoked' })
-      .where(
-        and(
-          eq(accountCredentials.id, credentialId),
-          eq(accountCredentials.accountId, accountId)
-        )
-      )
-      .returning({ id: accountCredentials.id });
-    if (revoked.length === 0) {
-      throw new NotFoundError('Credential not found');
-    }
-
-    logger.info('Account credential revoked', { accountId, credentialId });
-  }
-
-  /**
-   * Resolve a usable (active or within-grace) service credential by its public
-   * key. Shared predicate with the Application credential resolution sites.
-   */
-  async resolveUsableCredential(publicKey: string): Promise<AccountCredentialRow | null> {
-    const [credential] = await getDb()
-      .select()
-      .from(accountCredentials)
-      .where(eq(accountCredentials.publicKey, publicKey))
-      .limit(1);
-    if (!credential || !isCredentialUsable(credential)) {
-      return null;
-    }
-    return credential;
-  }
-
-  // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
 
@@ -1681,37 +1493,6 @@ export class AccountService {
     }
     throw new ConflictError('Could not allocate a unique username');
   }
-
-  /** Generate a fresh credential public key + plaintext secret + its hash. */
-  private generateCredentialMaterial(): {
-    publicKey: string;
-    secret: string;
-    secretHash: string;
-  } {
-    const publicKey =
-      CREDENTIAL_PUBLIC_KEY_PREFIX + crypto.randomBytes(PUBLIC_KEY_RANDOM_BYTES).toString('hex');
-    const secret = crypto.randomBytes(SECRET_RANDOM_BYTES).toString('hex');
-    const secretHash = crypto.createHash('sha256').update(secret).digest('hex');
-    return { publicKey, secret, secretHash };
-  }
-}
-
-/**
- * The credential columns, so `listCredentials` can drop `secret_hash` by NAME.
- *
- * Mongo's `.select('-secretHash')` was an exclusion; drizzle enumerates, so the
- * omission is expressed as a destructure and the compiler carries it into the
- * return type — a serializer that reads `secretHash` off the result fails `tsc`.
- */
-function getTableColumnsOf() {
-  const {
-    id, accountId, name, publicKey, secretHash, type, environment, scopes, status,
-    rotatedFromCredentialId, createdByUserId, lastUsedAt, expiresAt, createdAt, updatedAt,
-  } = accountCredentials;
-  return {
-    id, accountId, name, publicKey, secretHash, type, environment, scopes, status,
-    rotatedFromCredentialId, createdByUserId, lastUsedAt, expiresAt, createdAt, updatedAt,
-  };
 }
 
 export const accountService = new AccountService();

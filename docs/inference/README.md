@@ -28,10 +28,10 @@ Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
 
 Oxy is the **control plane**: accounts, applications, credentials, scopes,
 attribution, the model catalogue, routing policy, BYOK metadata, the financial
-ledger, the usage API and the Console. A separate data plane (working name
-**Relay**, name not final — see
-[ADR 0011](../adr/0011-inference-data-plane-name.md)) will own provider
-adapters, routing execution, streaming and upstream cost measurement. **The
+ledger, the usage API and the Console. A separate data plane, **Relay** — the
+production name, settled by [ADR 0011](../adr/0011-inference-data-plane-name.md) —
+will own provider adapters, routing execution, streaming and upstream cost
+measurement. **The
 control-plane half is now largely built and reachable. The data plane does not
 exist**, so the edge that joins them authenticates you, prices your request,
 reserves the money, finds nothing to forward to, releases the hold and answers

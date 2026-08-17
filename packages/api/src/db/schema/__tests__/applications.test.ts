@@ -19,12 +19,6 @@ import { sqlColumnName } from '@oxyhq/db';
 import { sweepExpiredRows } from '@oxyhq/db/expiry';
 import { EXPIRY_SWEEP_TARGETS } from '../../expiry';
 import { IDENTITY_APPROVAL_CAPABILITY } from '../../../utils/applicationCapabilities';
-import {
-  ACCOUNT_CREDENTIAL_ENVIRONMENTS,
-  ACCOUNT_CREDENTIAL_STATUSES,
-  ACCOUNT_CREDENTIAL_TYPES,
-  accountCredentials,
-} from '../accountCredentials';
 import { ACCOUNT_MEMBER_STATUSES, accountMembers } from '../accountMembers';
 import { apiKeyUsageEvents } from '../apiKeyUsageEvents';
 import { appAffinityEdges } from '../appAffinityEdges';
@@ -400,31 +394,6 @@ describe('credentials — the application-scope vocabulary', () => {
     ).resolves.toBeDefined();
   });
 
-  it('refuses a retired scope on an account credential, and accepts its successor', async () => {
-    const accountId = await account();
-
-    const error = await rejection(
-      getDb().execute(sql`
-        insert into account_credentials
-          (id, account_id, name, public_key, environment, scopes)
-        values (${randomUUID()}, ${accountId}, 'Retired', ${`oxy_dk_${randomUUID()}`},
-                'production', array['models:read']::text[])
-      `)
-    );
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-
-    await expect(
-      getDb()
-        .insert(accountCredentials)
-        .values({
-          accountId,
-          name: 'Successor',
-          publicKey: `oxy_dk_${randomUUID()}`,
-          environment: 'production',
-          scopes: ['inference:models:read'],
-        })
-    ).resolves.toBeDefined();
-  });
 });
 
 describe('credentials — the self-referencing rotation chain', () => {
@@ -484,60 +453,6 @@ describe('credentials — the self-referencing rotation chain', () => {
         insert into application_credentials
           (id, application_id, name, public_key, type, environment, rotated_from_credential_id)
         values (${id}, ${applicationId}, 'Self', ${randomUUID()}, 'service', 'production', ${id})
-      `)
-    );
-    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
-  });
-
-  it('runs the same chain on account credentials', async () => {
-    const accountId = await account();
-    const [previous] = await getDb()
-      .insert(accountCredentials)
-      .values({
-        accountId,
-        name: 'Old bot key',
-        publicKey: `oxy_dk_${randomUUID()}`,
-        environment: 'production',
-        status: 'deprecated',
-      })
-      .returning({ id: accountCredentials.id });
-
-    const [current] = await getDb()
-      .insert(accountCredentials)
-      .values({
-        accountId,
-        name: 'New bot key',
-        publicKey: `oxy_dk_${randomUUID()}`,
-        environment: 'production',
-        rotatedFromCredentialId: previous.id,
-      })
-      .returning({ id: accountCredentials.id, type: accountCredentials.type });
-
-    // `type` defaults to the only value an account credential may hold.
-    expect(current.type).toBe('service');
-
-    await getDb().delete(accountCredentials).where(eq(accountCredentials.id, previous.id));
-
-    const rows = await getDb()
-      .select({
-        id: accountCredentials.id,
-        rotatedFromCredentialId: accountCredentials.rotatedFromCredentialId,
-      })
-      .from(accountCredentials)
-      .where(eq(accountCredentials.id, current.id));
-
-    // Row count first, for the same reason as the sibling table above.
-    expect(rows.map((row) => row.id)).toEqual([current.id]);
-    expect(rows[0].rotatedFromCredentialId).toBeNull();
-  });
-
-  it('rejects an application credential type on an ACCOUNT credential', async () => {
-    // A one-value CHECK earns its keep here: `confidential` is meaningful on the
-    // sibling table, so this is the mistake a backfill actually makes.
-    const error = await rejection(
-      getDb().execute(sql`
-        insert into account_credentials (id, account_id, name, public_key, type, environment)
-        values (${randomUUID()}, ${await account()}, 'Bad', ${randomUUID()}, 'confidential', 'production')
       `)
     );
     expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);

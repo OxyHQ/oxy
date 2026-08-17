@@ -4,7 +4,6 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { applicationCredentials } from '../db/schema/applicationCredentials';
 import { applications } from '../db/schema/applications';
-import { authMiddleware } from '../middleware/auth';
 import { extractTokenFromRequest } from '../middleware/authUtils';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -277,26 +276,55 @@ router.post('/chat/completions', requireFirstPartyInferenceCaller, async (req: R
 });
 
 /**
- * The two voice routes below STILL carry only `authMiddleware`, and that is a
- * scoping decision rather than an oversight (issue #981).
+ * The two voice routes below now carry the SAME gate as `/chat/completions`
+ * (#972 workstream 2.3, closing the exemption #981 left open).
  *
- * They share this file's shape — one static `ALIA_API_KEY`, a caller-supplied
- * body forwarded verbatim, no reservation and no metering — so the same class of
- * exposure exists on them. What differs is the blast radius and the cost of
- * closing it: neither offers generic chat inference (one mints a LiveKit session,
- * one transcribes an utterance), and both are reached today by signed-in users of
- * Oxy's own voice surfaces, which hold no service credential. Gating them the
- * same way would take those features away with no metered replacement to move
- * them to.
+ * ## Why they were exempt, and why that reason turned out to be false
  *
- * They are named in the PR for #981 and belong to the same replacement: the
- * metered public edge of #972 workstream 4.
+ * #981 gated chat and deliberately left these two behind, on the stated grounds
+ * that "both are reached today by signed-in users of Oxy's own voice surfaces,
+ * which hold no service credential" — so gating them would remove a working
+ * feature with no metered replacement to move it to. That was the right trade to
+ * make on the information available, and the information was wrong.
+ *
+ * A read-only census across every repository under `~/Oxy` found **no caller of
+ * these two routes anywhere**, and in particular not the voice surface the old
+ * comment on `/voice/token` named:
+ *
+ * - Inbox's voice feature is `VoiceSession` from `@alia.onl/sdk`, and the
+ *   INSTALLED package (5.1.0, not the sibling source tree) builds
+ *   `/v1/voice/token` and `/v1/voice/transcribe` against `https://api.alia.onl`.
+ *   It names no Oxy host at all, so it never traverses this proxy. Inbox's only
+ *   Oxy-routed Alia call is `/alia/chat/completions`.
+ * - Alia's own `alia-chat` hooks and `integrations` client target
+ *   `EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl'` and Alia's own API port
+ *   respectively — Alia has its OWN `/v1/voice/*` routes, which is what those
+ *   call.
+ * - No `@oxyhq/services` / `@oxyhq/core` surface exposes a voice method, and no
+ *   INSTALLED copy of either in fourteen consumer repositories references the
+ *   paths.
+ * - Mention's LiveKit usage is its own rooms feature against `livekit.oxy.so`,
+ *   minted by its own backend.
+ *
+ * So the exemption was protecting nothing, while leaving the exposure open: one
+ * static `ALIA_API_KEY`, a caller-supplied body forwarded verbatim, `max_tokens`
+ * and the audio the caller's to choose, and no reservation or metering — which
+ * means a request limiter bounds the COUNT of requests and never their cost, and
+ * the cost lands on one shared Oxy budget with no per-account attribution.
+ *
+ * ## What this does NOT change
+ *
+ * These are still Alia PRODUCT endpoints on a shared key, not part of the metered
+ * edge. Retiring them is #972 workstream 14 / ADR 0010. Gating closes the door;
+ * it does not build the new one — the same thing #981 said about chat.
  */
-/** POST /v1/voice/token — LiveKit session mint for Alia voice (inbox, etc.). */
-router.post('/voice/token', authMiddleware, (req, res) => proxyAliaJson(req, res, '/voice/token'));
+/** POST /v1/voice/token — LiveKit session mint for Alia voice. */
+router.post('/voice/token', requireFirstPartyInferenceCaller, (req, res) =>
+  proxyAliaJson(req, res, '/voice/token'),
+);
 
 /** POST /v1/voice/transcribe — speech-to-text for Alia chat input. */
-router.post('/voice/transcribe', authMiddleware, (req, res) =>
+router.post('/voice/transcribe', requireFirstPartyInferenceCaller, (req, res) =>
   proxyAliaJson(req, res, '/voice/transcribe'),
 );
 

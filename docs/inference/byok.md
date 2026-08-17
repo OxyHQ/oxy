@@ -140,11 +140,17 @@ alone".
 
 ### 2. A member may not put a privileged scope on a new credential
 
-The same filter runs on `POST /applications/:appId/credentials` and
-`POST /accounts/:id/credentials`. Without it, an application legitimately holding
-a staff-granted scope was a scope any member with `credentials:create` could mint
-themselves a credential for — and the `developer` role holds
-`credentials:create` while holding no BYOK write at all.
+The filter runs on `POST /applications/:appId/credentials`. Without it, an
+application legitimately holding a staff-granted scope was a scope any member with
+`credentials:create` could mint themselves a credential for — and the `developer`
+role holds `credentials:create` while holding no BYOK write at all.
+
+It used to run on `POST /accounts/:id/credentials` too. That route is **gone**:
+`account_credentials` was retired by #972 workstream 2.3
+(`packages/api/drizzle/0048_retire_account_credentials.sql`) because nothing ever
+authenticated against it. `POST /applications/:appId/credentials` is now the only
+place a customer credential is minted, which is the point of ADR 0005
+invariant 3 — one filter, because there is one lifecycle to filter.
 
 ### 3. A credential's scopes can never exceed its application's
 

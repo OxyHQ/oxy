@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { accountCategoriesSchema, createAccountRequestSchema } from '@oxyhq/contracts';
 import { ACCOUNT_PERMISSIONS, ACCOUNT_ROLES } from '../utils/accountRoles';
-import { ACCOUNT_CREDENTIAL_ENVIRONMENTS } from '../db/schema/accountCredentials';
-import { APPLICATION_SCOPES } from '../utils/applicationScopes';
 
 /** Route params with :id (the account id). */
 export const accountIdRouteParams = z.object({
@@ -13,12 +11,6 @@ export const accountIdRouteParams = z.object({
 export const accountMemberParams = z.object({
   id: z.string().trim().min(1),
   memberId: z.string().trim().min(1),
-});
-
-/** Route params with :id and :credId. */
-export const accountCredentialParams = z.object({
-  id: z.string().trim().min(1),
-  credId: z.string().trim().min(1),
 });
 
 /** GET /accounts — optional `?tree=true` to request a nested forest. */
@@ -156,16 +148,6 @@ export const updateAccountMemberSchema = z
 /** POST /accounts/:id/transfer-ownership. */
 export const transferAccountOwnershipSchema = z.object({
   userId: z.string().trim().min(1),
-});
-
-/**
- * POST /accounts/:id/credentials — create a service credential (bot accounts).
- * `scopes` is constrained to the application-scope enum.
- */
-export const createAccountCredentialSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  environment: z.enum(ACCOUNT_CREDENTIAL_ENVIRONMENTS),
-  scopes: z.array(z.enum(APPLICATION_SCOPES)).optional(),
 });
 
 // ===========================================================================

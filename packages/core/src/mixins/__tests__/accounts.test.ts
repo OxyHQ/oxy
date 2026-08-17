@@ -17,9 +17,6 @@ import type { User } from '../../models/interfaces';
 import type {
   AccountNode,
   AccountMember,
-  AccountCredential,
-  AccountCredentialWithSecret,
-  RotateAccountCredentialResult,
   Application,
   ApplicationCredential,
   ApplicationCredentialWithSecret,
@@ -60,20 +57,6 @@ const accountNodeFixture: AccountNode = {
   relationship: 'owner',
   callerMembership: { ...memberFixture, role: 'owner', source: 'direct' },
   childCount: 2,
-};
-
-const credentialFixture: AccountCredential = {
-  _id: 'cred1',
-  accountId: 'acc1',
-  name: 'bot-prod',
-  publicKey: 'oxy_dk_abc',
-  type: 'service',
-  environment: 'production',
-  scopes: ['user:read'],
-  status: 'active',
-  createdByUserId: 'u1',
-  createdAt: '2026-06-29T00:00:00.000Z',
-  updatedAt: '2026-06-29T00:00:00.000Z',
 };
 
 const appFixture: Application = {
@@ -473,91 +456,6 @@ describe('OxyServices.accounts', () => {
     it('returns an empty array when `applications` is absent', async () => {
       makeRequestSpy.mockResolvedValue({});
       expect(await oxy.listAccountApps('acc1')).toEqual([]);
-    });
-  });
-
-  describe('listAccountCredentials', () => {
-    it('unwraps the `credentials` array and caches the read', async () => {
-      makeRequestSpy.mockResolvedValue({ credentials: [credentialFixture] });
-
-      const result = await oxy.listAccountCredentials('acc1');
-
-      expect(result).toEqual([credentialFixture]);
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'GET',
-        '/accounts/acc1/credentials',
-        undefined,
-        expect.objectContaining({ cache: true }),
-      );
-    });
-
-    it('returns an empty array when `credentials` is absent', async () => {
-      makeRequestSpy.mockResolvedValue({});
-      expect(await oxy.listAccountCredentials('acc1')).toEqual([]);
-    });
-  });
-
-  describe('createAccountCredential', () => {
-    it('posts the config, returns the secret result, and busts the credentials cache', async () => {
-      const created: AccountCredentialWithSecret = {
-        credential: credentialFixture,
-        secret: 'sk_once',
-      };
-      makeRequestSpy.mockResolvedValue(created);
-
-      const result = await oxy.createAccountCredential('acc1', {
-        name: 'bot-prod',
-        environment: 'production',
-      });
-
-      expect(result).toEqual(created);
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'POST',
-        '/accounts/acc1/credentials',
-        { name: 'bot-prod', environment: 'production' },
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/credentials');
-    });
-  });
-
-  describe('rotateAccountCredential', () => {
-    it('posts to /rotate, encodes ids, returns the audit result, and busts credentials', async () => {
-      const rotated: RotateAccountCredentialResult = {
-        credential: { ...credentialFixture, _id: 'cred2' },
-        secret: 'sk_new',
-        rotatedFrom: 'cred1',
-        graceExpiresAt: '2026-07-06T00:00:00.000Z',
-      };
-      makeRequestSpy.mockResolvedValue(rotated);
-
-      const result = await oxy.rotateAccountCredential('acc1', 'cred 1');
-
-      expect(result).toEqual(rotated);
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'POST',
-        '/accounts/acc1/credentials/cred%201/rotate',
-        undefined,
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/credentials');
-    });
-  });
-
-  describe('revokeAccountCredential', () => {
-    it('deletes the credential and busts the credentials cache', async () => {
-      makeRequestSpy.mockResolvedValue({ success: true });
-
-      const result = await oxy.revokeAccountCredential('acc1', 'cred1');
-
-      expect(result).toEqual({ success: true });
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'DELETE',
-        '/accounts/acc1/credentials/cred1',
-        undefined,
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/credentials');
     });
   });
 
