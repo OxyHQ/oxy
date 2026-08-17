@@ -94,6 +94,7 @@ export * from './inferenceRoutingProfileCandidates';
 export * from './inferenceRoutingProfiles';
 export * from './inferenceSlug';
 export * from './inferenceSpendAnomalies';
+export * from './inferenceTokenAnomalies';
 export * from './inferenceUsageDailyRollups';
 export * from './inferenceUsageEvents';
 export * from './internalCostCenters';
