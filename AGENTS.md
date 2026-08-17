@@ -39,6 +39,12 @@ bun run validate:agents-md
 - **Pack with `bun pm pack`, never `npm pack`** — `npm` ships the literal string
   `catalog:`, which no consumer can resolve. `scripts/assert-bun-publish.mjs` is
   what makes the catalog safe for published packages.
+- **`npm publish <tgz>` and `bun publish <tgz>` run ZERO lifecycle scripts** —
+  measured, so `prepublishOnly` (typecheck, test, build, packer assertion) never
+  fires and `services@30.0.0` shipped with no `lib/` at all. Never publish a
+  tarball you did not build in the SAME command; `postbuild` is what runs
+  `packages/services/scripts/verify-package.mjs`, and only a build runs it. Table
+  of every pack/publish path: `docs/engineering/package-rules.md`.
 - **`bun install` refuses to RESOLVE a dependency published in the last week**
   (`minimumReleaseAge`). Anything that re-resolves must opt out — that is why
   `scripts/check-lockfile-sync.mjs` passes `--minimum-release-age=0`.

@@ -482,6 +482,14 @@ jobs:
           bun run --filter @oxyhq/core build
       - run: bun run test
         working-directory: ./packages/services
+      # `postbuild` runs scripts/verify-package.mjs, which packs the tarball and
+      # asserts every `exports` target is really in it. The auth, commons and
+      # accounts jobs happen to build services too, but a packaging gate that
+      # only runs as a side effect of an unrelated job is one edit away from
+      # running nowhere, and no job name would say so.
+      - name: Build and verify the publishable package
+        run: bun run build
+        working-directory: ./packages/services
 
   # Auth IdP tests (bun test — NOT jest)
   auth-test:
