@@ -1,24 +1,36 @@
 # Runbook — rotating the Oxy→Relay edge signing key
 
-> **PENDING ADR 0015.** The edge signing key is a decision being recorded in
-> ADR 0015 (issue #972, the Oxy→Relay boundary), which had not landed on `main`
-> when this file was written. **Nothing described here is implemented**, and this
-> runbook is written against the scheme ADR 0015 states — signed edge requests
-> with **multiple key ids so that rotation is additive** — so that the day a key
-> exists is not the day the procedure is invented. **Reconcile this file against
-> ADR 0015 when it merges**, and correct any name, path or step it contradicts:
-> the ADR is the authority, this is not.
+> **ADR 0015 has landed and the scheme is implemented.** This file was written
+> against the scheme the ADR *stated*, before it merged; it has since been
+> reconciled against what actually shipped, and the concrete names, paths and
+> bounds below are the implementation's own. [ADR
+> 0015](../adr/0015-oxy-relay-envelope-signing.md) remains the authority for
+> *why*; this file is the authority for *how*.
 
-## What exists today, and what to do instead
+## What exists today
 
-**There is no data plane and no edge signing key.** `packages/api/src/services/relayClient.ts`
-declares the SHAPE of the call the edge makes and nothing else: the router is
-constructed with no client, every invoke resolves to
-`DataPlaneNotConfiguredError`, and the edge answers a typed `service_unavailable`.
-There is no repository, no deployment and no endpoint on the other side.
+**The scheme is implemented; no key is configured in any deployment yet.** Those
+are two different facts and the difference decides what you do:
 
-So today there is no key to rotate, and the containment levers for anything going
-wrong at this boundary are the **rollout flags**, not key material:
+- `packages/api/src/services/httpRelayClient.ts` signs each inference envelope
+  with Ed25519 and forwards it to `POST <RELAY_BASE_URL>/internal/v1/inference`.
+  `packages/api/src/config/relayDataPlane.ts` resolves the key.
+- The data plane exists — [`OxyHQ/Relay`](https://github.com/OxyHQ/Relay), a
+  public Go repository — and holds only PUBLIC keys, so it cannot construct an
+  envelope it would itself accept.
+- **A deployment that has not set all three of `RELAY_BASE_URL`,
+  `RELAY_EDGE_SIGNING_KEY_ID` and `RELAY_EDGE_SIGNING_PRIVATE_KEY` has no data
+  plane**: every invoke resolves to `DataPlaneNotConfiguredError` and the edge
+  answers a typed `service_unavailable`. That is every deployment today, so
+  **there is currently no key to rotate** — but the procedure below is real, not
+  hypothetical, and applies the moment one is set.
+- **All three or none.** A partial configuration resolves to the same
+  no-data-plane state and is reported once at `error` level as
+  `inference.relay.config_unreadable`, naming the variable and never its value.
+  It never forwards unsigned.
+
+If the boundary is the problem and no key is yet configured, the containment
+levers are the **rollout flags**, not key material:
 
 | Flag | Default | Effect |
 |---|---|---|
@@ -35,10 +47,37 @@ stopping the flow — clear `INFERENCE_CHARGING_AUTHORIZED` before
 `INFERENCE_EDGE_AUDIENCE` — and the full rollback procedure are in
 [docs/inference/rollout.md](../inference/rollout.md).
 
-**If the boundary is the problem and no key is involved, close the audience.** That
-is available now, needs no key custody, and is verifiable through the readout.
+**If the boundary is the problem, close the audience.** That is available now,
+needs no key custody, and is verifiable through the readout.
 
-## Trigger (once ADR 0015 is implemented)
+## Where the key material lives
+
+| | Value | Secret? |
+|---|---|---|
+| Oxy | `RELAY_EDGE_SIGNING_PRIVATE_KEY` — Ed25519 private key, PEM or base64-of-PEM | **yes**, SSM `/oxy/oxy-api/RELAY_EDGE_SIGNING_PRIVATE_KEY` |
+| Oxy | `RELAY_EDGE_SIGNING_KEY_ID` — the `kid` the signature names | no; it is in every request header |
+| Oxy | `RELAY_BASE_URL` | no; it names a deployment |
+| Relay | `RELAY_EDGE_PUBLIC_KEYS` — `kid:base64,kid:base64,…` | no; a public key is not a secret |
+
+Generate a pair with `openssl genpkey -algorithm ed25519`. Oxy holds the private
+half and never logs or serializes it — it is kept as a Node `KeyObject`, so an
+accidental interpolation yields `[object Object]` rather than a PEM.
+
+**The private key is not yet wired into the deploy.** Adding it means editing BOTH
+hand-maintained allowlists in `.github/workflows/deploy-aws.yml` — the
+`SYNC_<NAME>` env block and the `API_SECRETS` list — in the same change;
+`scripts/check-deploy-secrets-sync.mjs` fails the build if the two disagree. A
+name in one list and not the other syncs nothing, silently, and surfaces later as
+`ResourceInitializationError: unable to pull secrets` at task launch.
+
+**Oxy prints the PUBLIC half at startup**, once, as
+`inference.relay.configured` with `baseUrl`, `keyId` and `publicKey` — the
+base64 of the raw 32 bytes, exactly the second half of the `kid:base64` entry
+Relay takes. That log line is how you obtain the value to give Relay, and it is
+the read-back for step 2 below. It is safe by construction: a public key is not a
+secret, and Relay's own `edgeauth` package says so in as many words.
+
+## Trigger
 
 - **A signing key is suspected compromised.** Anything holding Oxy's edge signing
   key can forge a request that Relay will execute as if Oxy authorised it, and
@@ -49,47 +88,86 @@ is available now, needs no key custody, and is verifiable through the readout.
   scheduled rotation costs nothing: publish, cut over, retire. If rotation is ever
   expensive, something has diverged from ADR 0015 and that is the bug.
 - **A Relay-side operator with the verification material leaves**, or the
-  verification set was distributed further than intended.
+  verification set was distributed further than intended. Note this is a
+  *hygiene* trigger, not an exposure one: what Relay holds is a public key, and
+  losing control of a public key forges nothing. Rotate anyway if the departure
+  suggests the private half may also have been reachable.
 
-## Procedure (the additive shape ADR 0015 states)
+## Procedure — the additive shape ADR 0015 decides
 
 The order is the point. Each step is separately verifiable, and no step makes
 anything weaker while it is in progress:
 
-1. **Add the new key id to the set the verifier trusts, and do not sign with it.**
-   Relay now accepts both `kid`s. Nothing is signed under the new one yet, so
-   nothing has changed behaviourally — which is what makes this step safe to do at
-   any time, including before an incident.
+0. **Generate the new pair** (`openssl genpkey -algorithm ed25519`) and choose a
+   new key id. Give it a dated name — `oxy-edge-2026-09` — so a request header
+   says when its key was minted. It must contain **no colon, comma, whitespace or
+   line break**: Relay parses its key set as `kid:base64,kid:base64`, so a key id
+   carrying either separator is one Relay could never be configured with. Oxy
+   refuses such a value at resolution rather than emitting a signature nothing can
+   verify.
+1. **Add the new PUBLIC key to `RELAY_EDGE_PUBLIC_KEYS`, keeping the old entry,
+   and do not sign with it.** Relay's key set is a map from key id to public key
+   and more than one entry is the normal state during a rotation. Nothing is
+   signed under the new one yet, so nothing has changed behaviourally — which is
+   what makes this step safe to do at any time, including before an incident.
 2. **Verify that Relay really has it** before signing anything with it. This is
    where a rotation goes wrong: signing with a `kid` the verifier does not know
    yet refuses every request, and the symptom (a valid signature rejected) reads
-   like a signing bug rather than a distribution one.
-3. **Start signing with the new key id.** Requests in flight signed under the old
-   `kid` still verify, because the verifier selects by the `kid` the request names
-   rather than trying keys in turn. There is no dual authority: one authoritative
-   key set that happens to contain two keys.
-4. **Retire the old key id** — remove it from the verifier's set — no sooner than
-   the maximum lifetime of anything signed under it. For a request signature that
-   is the signature's own validity window, not a token TTL, so bound it by the
-   window ADR 0015 defines and never by a calendar guess.
+   like a signing bug rather than a distribution one. Relay exposes
+   `edgeauth.Verifier.KeyIDs()` precisely so an operator can confirm which keys a
+   RUNNING process trusts without being shown key material — read the running
+   process, not the change that was supposed to configure it.
+3. **Start signing with the new key id**: set `RELAY_EDGE_SIGNING_KEY_ID` and
+   `RELAY_EDGE_SIGNING_PRIVATE_KEY` together and restart. They are read ONCE, at
+   router construction, not per request — so a key change takes effect on restart
+   and only on restart. That is deliberate: Relay must be told the matching public
+   key out of band, so a key picked up without a restart would be a key Relay has
+   never heard of.
+
+   Requests in flight signed under the old `kid` still verify, because the
+   verifier selects by the `kid` the request names rather than trying keys in
+   turn. There is no dual authority: one authoritative key set that happens to
+   contain two keys.
+4. **Retire the old key id** — remove its entry from `RELAY_EDGE_PUBLIC_KEYS` —
+   no sooner than the maximum lifetime of anything signed under it. **For this
+   scheme that is the signature's own skew window: 5 minutes**, both directions,
+   which is the only replay bound ADR 0015 defines (Relay keeps no nonce cache;
+   the edge owns idempotency and reservation). It is NOT a token TTL and NOT a
+   calendar guess — five minutes after the last request signed with the old key,
+   no signature under it can still be inside its window.
 5. Retirement is a **separate, verified change**, not a line deleted in the commit
    that added the new key.
+
+**Never remove the last entry.** Relay refuses to start with an empty key set
+rather than starting and rejecting everything, because a total outage that presents
+as a wave of authentication failures is expensive to place — but do not rely on
+that to catch a mistake you can avoid by ordering the steps as above.
 
 ## How to verify it took
 
 - **After step 1:** the verifier's trusted set contains both key ids. Read it back
   from Relay's own configuration surface — not from the change that was supposed
   to write it. A write to a config store can exit 0 and change nothing.
-- **After step 3:** a request Oxy signs now carries the NEW `kid` in its header,
-  and Relay accepts it. Both halves: an accepted request whose header still names
-  the old `kid` means the signer did not pick up the new key.
+- **After step 3:** Oxy's restart logs `inference.relay.configured` with the NEW
+  `keyId` and the NEW `publicKey` — compare that `publicKey` against the entry you
+  added to `RELAY_EDGE_PUBLIC_KEYS` in step 1, character for character. Both
+  halves matter: an accepted request whose header still names the old `kid` means
+  the signer did not pick up the new key, and a `configured` line naming the new
+  `kid` with an unexpected `publicKey` means the two variables were set from
+  different pairs — which verifies nowhere and is the mistake this read-back
+  exists to catch.
 - **After step 4:** a request signed with the OLD key is now REFUSED. Until you
   have observed that refusal, the old key is still live regardless of what the
   configuration says — this is the negative control, and it is the only evidence
   that retirement took effect.
 - **Throughout:** the edge's own refusal rate. A rotation that has broken
-  verification presents as `service_unavailable` or an upstream auth failure on
-  every request, which the edge reports with a `requestId` and no payload.
+  verification presents to the CUSTOMER as `internal_error`, not
+  `authentication_failed` — deliberately: a `4xx` from Relay means Oxy's own
+  signature or envelope was refused, and telling a customer `authentication_failed`
+  would point them at their own API key for a fault in Oxy's signing key. The real
+  upstream status is in the log as `inference.relay.rejected_envelope`, with
+  `status`, the upstream `code`, and Relay's own request id so the two sides' logs
+  join. That event going from zero to every-request IS the signal.
 
 ## Rollback
 
