@@ -340,7 +340,12 @@ describe('POST /reputation/moderation/effects/reverse', () => {
       points: 9999,
     });
     expect(res.status).toBe(200);
-    expect(mockReverse).toHaveBeenCalledWith('dec_1', 1, 'Appeal accepted');
+    expect(mockReverse).toHaveBeenCalledWith(
+      'dec_1',
+      1,
+      'Appeal accepted',
+      '64bbbbbbbbbbbbbbbbbbbbbb'
+    );
   });
 
   it('requires a reason — a reversal without one is unexplainable', async () => {
