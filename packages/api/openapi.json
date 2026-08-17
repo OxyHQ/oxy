@@ -24364,6 +24364,59 @@
         }
       }
     },
+    "/v1/audio/speech": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /v1/audio/speech` — text to audio (#972, the later modalities).",
+        "description": "Ceiling: `characters` = `input.length`. EXACT, declared, and the unit every\nreal TTS provider bills. Deliberately no `audio_output_milliseconds` — see\n`speechRequestSchema`. A duration-priced route fails to quote and is refused\nthrough the existing `no_route_available` path rather than a new branch.\n\nNothing serves this today: the catalogue is empty and no data plane is\nconfigured, so every call answers `service_unavailable`. The point of landing\nit now is that the CEILING is sound before the route exists — the alternative\nis somebody adding this endpoint later under delivery pressure and reaching\nfor a duration guess.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "machineCredentialAuth": []
+          },
+          {
+            "serviceTokenAuth": []
+          }
+        ]
+      }
+    },
     "/v1/chat/completions": {
       "post": {
         "tags": [
@@ -24422,8 +24475,8 @@
         "tags": [
           "Inference"
         ],
-        "summary": "`GET /v1/generations/:id` — the usage and cost receipt.",
-        "description": "`:id` is the `requestId` from `X-Oxy-Request-Id`, or the `generationId`.\nA caller without `inference:usage:read`, or one whose application did not\nmake the request, is told the receipt does not exist — the entitlement\nanswer and the existence answer are deliberately the same, so this endpoint\ncannot be used to probe another application's spend.\n\nThe refusal carries `model_not_found`, which is a compromise worth naming:\n`INFERENCE_ERROR_CODES` is a CLOSED set with no generic \"not found\" member,\nand it is the only code in it that maps to a 404 — which is the status a\ncustomer's HTTP client needs for a GET that resolved nothing. The message\nsays what was actually not found. Widening the enum is a contract change\nwith a version bump, and it belongs to whoever next has a second reason for\none rather than to this route alone.",
+        "summary": "GET /v1/generations/{id}",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceEdge.ts` to fill in summary, description, request/response examples.",
         "parameters": [
           {
             "name": "id",
@@ -24460,6 +24513,59 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "machineCredentialAuth": []
+          },
+          {
+            "serviceTokenAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/images/generations": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /v1/images/generations` — text to image (#972, the later modalities).",
+        "description": "Ceiling: `images` = `n ?? 1`. EXACT and declared; the prompt adds\n`input_tokens` on the usual character bound. `size` and `quality` are\nforwarded and do NOT widen the hold, which rests on one route per\nsize/quality class in the catalogue — see `imageGenerationsRequestSchema` for\nwhy that is a catalogue decision rather than a contracts one.\n\nAs with speech, nothing serves this today; the value is a sound ceiling\nbefore the endpoint exists.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Authentication required",
             "content": {
               "application/json": {
                 "schema": {

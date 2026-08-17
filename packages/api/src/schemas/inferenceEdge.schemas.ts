@@ -269,6 +269,86 @@ export type ChatCompletionsRequest = z.infer<typeof chatCompletionsRequestSchema
  * SNAPSHOT, so the arithmetic is checkable without the price version still
  * existing — and states its attribution as the three ids the row actually holds.
  */
+/* -------------------------------------------------------------------------- */
+/*  Later modalities — speech and images                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `POST /v1/audio/speech` — text to audio, in the shape a stock OpenAI client
+ * sends.
+ *
+ * ## Only a `characters`-priced route can serve this, and that is enforced by
+ * ## arithmetic rather than by a check
+ *
+ * The ceiling is `input.length` — EXACT, declared, and the unit every real TTS
+ * provider actually bills. What this endpoint deliberately does NOT compute is
+ * `audio_output_milliseconds`: output duration is characters ÷ speaking rate, and
+ * `modelCapabilitiesSchema` declares no speaking rate, so a duration figure would
+ * be a guess dressed as a bound. A route priced in duration therefore fails to
+ * quote (`quoteUnits` refuses a unit the ceiling omits) and is refused as
+ * `no_route_available`. That refusal is the existing code path, not a new branch.
+ *
+ * `speed` and `voice` are accepted and forwarded because a provider needs them.
+ * Neither participates in the ceiling, which is exactly why the ceiling stays
+ * sound: `characters` does not vary with either.
+ */
+export const speechRequestSchema = z
+  .object({
+    model: modelReferenceSchema,
+    /**
+     * The text to speak. Bounded so the ceiling cannot be driven arbitrarily high
+     * by one request; the edge's own `MAX_REQUEST_BYTES` is the outer bound and
+     * this is the per-field one.
+     */
+    input: z.string().min(1).max(100_000),
+    voice: z.string().min(1).max(64),
+    response_format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
+    speed: z.number().min(0.25).max(4).optional(),
+    user: z.string().min(1).max(64).optional(),
+  })
+  .strict();
+
+export type SpeechRequest = z.infer<typeof speechRequestSchema>;
+
+/**
+ * `POST /v1/images/generations` — text to image.
+ *
+ * ## One route per size/quality class, and why that is a catalogue decision
+ *
+ * The ceiling is `images` = `n`, exact and declared. The open question is not the
+ * count but the PRICE: `unitPriceSchema` prices a *unit*, not a
+ * `(unit, size, quality)` tuple, so one `images` price per version would make a
+ * 1024×1024 standard image and a 1792×1024 HD image cost the same — false for
+ * every real provider, by roughly 4x.
+ *
+ * The resolution needs no contract change, because a price version is scoped to
+ * `(modelReference, provider)`: each size/quality class is its own model
+ * reference in the catalogue. The route then resolves per class and the ceiling
+ * stays exact. The alternative — one route holding at the most expensive class it
+ * permits — over-holds AND needs a route field naming the permitted classes,
+ * which would be a contracts change.
+ *
+ * So `size` and `quality` are accepted and forwarded, and they do NOT widen the
+ * hold. If a deployment publishes one route serving several classes, that is a
+ * catalogue error rather than a ceiling error, and it is recorded here because it
+ * is invisible from the endpoint.
+ */
+export const imageGenerationsRequestSchema = z
+  .object({
+    model: modelReferenceSchema,
+    prompt: z.string().min(1).max(32_000),
+    /** OpenAI caps this at 10. Exact, declared, and the whole ceiling. */
+    n: z.number().int().min(1).max(10).optional(),
+    size: z.string().min(1).max(32).optional(),
+    quality: z.string().min(1).max(32).optional(),
+    style: z.string().min(1).max(32).optional(),
+    response_format: z.enum(['url', 'b64_json']).optional(),
+    user: z.string().min(1).max(64).optional(),
+  })
+  .strict();
+
+export type ImageGenerationsRequest = z.infer<typeof imageGenerationsRequestSchema>;
+
 export const generationReceiptSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -513,4 +593,47 @@ function normalizeOpenAiResponseFormat(
     };
   }
   return { type: format.type };
+}
+
+/**
+ * `POST /v1/audio/speech`, read into the normalized shape.
+ *
+ * `characters` is `input.length` — the count taken from the SAME string that goes
+ * into the envelope, in one expression, so the figure the hold is sized from and
+ * the text the provider bills for cannot diverge. Reading the count from anywhere
+ * else (a header, a re-parse, a trimmed copy) is how a ceiling stops bounding the
+ * thing it names.
+ */
+export function normalizeSpeechRequest(request: SpeechRequest): NormalizedEdgeRequest {
+  return defined({
+    operation: { kind: 'speech' as const, characters: request.input.length },
+    target: { kind: 'model' as const, modelReference: request.model },
+    input: { format: 'text' as const, text: request.input },
+    stream: false,
+    sampling: {},
+    tools: [],
+    delegatedUserId: request.user,
+  });
+}
+
+/**
+ * `POST /v1/images/generations`, read into the normalized shape.
+ *
+ * `images` is `n ?? 1` — OpenAI's own default. Exact rather than a bound, because
+ * the caller declared it and the provider cannot return more than it was asked
+ * for. The prompt still contributes `input_tokens` on the usual character
+ * argument, so a long prompt is held for even though the image count dominates.
+ */
+export function normalizeImageGenerationsRequest(
+  request: ImageGenerationsRequest
+): NormalizedEdgeRequest {
+  return defined({
+    operation: { kind: 'images' as const, images: request.n ?? 1 },
+    target: { kind: 'model' as const, modelReference: request.model },
+    input: { format: 'text' as const, text: request.prompt },
+    stream: false,
+    sampling: {},
+    tools: [],
+    delegatedUserId: request.user,
+  });
 }

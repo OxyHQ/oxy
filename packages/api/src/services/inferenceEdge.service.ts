@@ -2148,7 +2148,7 @@ function outputTokenBudget(operation: EdgeOperation, resolved: number): number {
  *    bytes, and `bytes ÷ an assumed rate` is precisely the reasoning that makes a
  *    transcription hold unsound.
  */
-function ceilingForOperation(
+export function ceilingForOperation(
   operation: EdgeOperation,
   estimatedInputTokens: number,
   maxOutputTokens: number
