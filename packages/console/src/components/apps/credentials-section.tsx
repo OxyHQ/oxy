@@ -43,6 +43,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  credentialAuditAttribution,
+  credentialAuditVariant,
+  humaniseAuditToken,
+} from '@/lib/credential-audit';
+import {
   availablePaymentsScopes,
   isUntrustedThirdPartyApp,
   PAYMENTS_SCOPES,
@@ -50,6 +55,7 @@ import {
 import {
   useApplicationCredentials,
   useCreateCredential,
+  useCredentialAudit,
   useRevokeCredential,
   useRotateCredential,
 } from '@/hooks/use-applications';
@@ -136,6 +142,8 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
   const [environment, setEnvironment] = useState<ApplicationEnvironment>('development');
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [revealed, setRevealed] = useState<RevealedSecret | null>(null);
+  /** Which credential's trail is expanded, if any. One at a time. */
+  const [trailFor, setTrailFor] = useState<string | null>(null);
   const [credentialToRotate, setCredentialToRotate] = useState<ApplicationCredential | null>(null);
   const [credentialToRevoke, setCredentialToRevoke] = useState<ApplicationCredential | null>(null);
 
@@ -394,7 +402,8 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
       ) : (
         <div className="divide-y divide-border rounded-lg border border-border">
           {credentials.map((credential) => (
-            <div key={credential._id} className="flex items-center justify-between gap-4 px-4 py-3">
+            <div key={credential._id}>
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-foreground truncate">{credential.name}</p>
@@ -450,7 +459,23 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                     <HugeiconsIcon icon={Delete02Icon} size={16} className="text-destructive" />
                   </Button>
                 )}
+                {/* Gated on the same `credentials:read` the endpoint enforces, so
+                    the affordance and the server agree. A revoked credential keeps
+                    its trail: the revocation is the part worth reading. */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setTrailFor(trailFor === credential._id ? null : credential._id)
+                  }
+                >
+                  {trailFor === credential._id ? 'Hide trail' : 'Trail'}
+                </Button>
               </div>
+              </div>
+              {trailFor === credential._id && (
+                <CredentialTrail appId={appId} credentialId={credential._id} />
+              )}
             </div>
           ))}
         </div>
@@ -648,6 +673,83 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/**
+ * One credential's audit trail: created, rotated, revoked, and every refused
+ * validation.
+ *
+ * Unlike the BYOK trail beside it, nothing is projected away here — the server's
+ * wire type has no `metadata` property at all, so there is no blob to drop. See
+ * `useCredentialAudit`.
+ *
+ * `reason` and a null `actorUserId` are TWO CORRELATED STATES rather than four
+ * independent ones: a `validation_failed` row is the only kind with a reason, and
+ * the only kind with no actor — because nobody performed it, a refused request
+ * did. So the attribution is rendered off `eventType`, not off the nullness of
+ * `actorUserId`, which would read "by a service credential" for a refusal that
+ * had no actor at all.
+ */
+function CredentialTrail({ appId, credentialId }: { appId: string; credentialId: string }) {
+  const { data: events = [], isLoading, isError } = useCredentialAudit(appId, credentialId);
+
+  if (isLoading) {
+    return (
+      <div className="border-t border-border px-4 py-3">
+        <Skeleton.Box width="100%" height={60} borderRadius={10} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
+        The trail could not be loaded.
+      </p>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
+        No recorded activity.
+      </p>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-border border-t border-border">
+      {events.map((event) => (
+        <div
+          key={`${event.eventType}-${event.reason ?? 'none'}-${event.createdAt}`}
+          className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={credentialAuditVariant(event)} className="text-xs">
+              {humaniseAuditToken(event.eventType)}
+            </Badge>
+            {event.reason !== null && (
+              <Badge variant="ghost" className="text-xs">
+                {humaniseAuditToken(event.reason)}
+              </Badge>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {event.environment ?? 'no environment'} · {credentialAuditAttribution(event)}
+            </span>
+            {/* A rotation grace deadline, when the event set one. */}
+            {event.effectiveUntil !== null && (
+              <span className="text-xs text-muted-foreground">
+                until {new Date(event.effectiveUntil).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {new Date(event.createdAt).toLocaleString()}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
