@@ -87,7 +87,12 @@ import { inferenceRoutingPolicyVersions } from '../../db/schema/inferenceRouting
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import routingPolicyRouter from '../inferenceRoutingPolicies';
-import type { AccountRole } from '../../utils/accountRoles';
+import {
+  appPermissionsForAccountAccess,
+  permissionsForAccountRole,
+  resolveEffectivePermissions,
+  type AccountRole,
+} from '../../utils/accountRoles';
 
 let server: http.Server;
 let currentUserId = '';
@@ -646,7 +651,7 @@ describe('a service token’s scopes gate the verb, independently of ownership',
 /* -------------------------------------------------------------------------- */
 
 describe('a user bearer is authorised through the account graph', () => {
-  it('lets a viewer READ an application policy and refuses the WRITE, which an editor makes', async () => {
+  it('lets a viewer READ an application policy and refuses the WRITE, which an admin makes', async () => {
     const tenant = await seedTenant();
     await createApplicationPolicy(tenant);
 
@@ -663,13 +668,14 @@ describe('a user bearer is authorised through the account graph', () => {
     expect(refused.status).toBe(403);
     expect(refused.body).toMatchObject({
       error: 'FORBIDDEN',
-      message: 'This action requires the app:update permission',
+      message: 'This action requires the inference:routing:write permission',
     });
 
-    // CONTROL: same body, same URL, a member whose role confers `app:update`.
-    const editor = await seedAccount();
-    await seedMember(tenant.accountId, editor, 'editor');
-    currentUserId = editor;
+    // CONTROL: same body, same URL, a member whose role confers
+    // `inference:routing:write`.
+    const admin = await seedAccount();
+    await seedMember(tenant.accountId, admin, 'admin');
+    currentUserId = admin;
     const accepted = await request('POST', `${MOUNT}/${await policyIdOf(tenant)}/versions`, {
       body: controls({ optimiseFor: 'price' }),
     });
@@ -677,6 +683,53 @@ describe('a user bearer is authorised through the account graph', () => {
     // A WRITE answers with the policy itself; a READ answers with the stored
     // row that wraps it. The version counter moved, so this appended.
     expect((accepted.body.data as { policyVersion: number }).policyVersion).toBe(2);
+  });
+
+  it('refuses an EDITOR the write it used to make, which is the separation (#972 §3)', async () => {
+    // The narrowing, stated as its own case rather than left implicit in the
+    // control above. `app:update` used to confer "publish an OTA update", "change
+    // the webhook URL" AND "repoint where inference is served from" as one
+    // string, and an `editor` holds it. So an account that wanted an editor who
+    // could edit an application but not touch its routing had no way to say so.
+    const tenant = await seedTenant();
+    const policyId = await createApplicationPolicy(tenant);
+
+    const editor = await seedAccount();
+    await seedMember(tenant.accountId, editor, 'editor');
+    currentUserId = editor;
+
+    const refused = await request('POST', `${MOUNT}/${policyId}/versions`, { body: controls() });
+    expect(refused.status).toBe(403);
+    expect(refused.body).toMatchObject({
+      message: 'This action requires the inference:routing:write permission',
+    });
+
+    // CONTROL: the editor still edits the APPLICATION side of the same tenant,
+    // so the 403 is the split and not a member row that failed to resolve. The
+    // read this route offers them still works too.
+    expect(
+      appPermissionsForAccountAccess({
+        role: 'editor',
+        permissions: permissionsForAccountRole('editor'),
+      })
+    ).toContain('app:update');
+    expect((await request('GET', `${MOUNT}/${policyId}`)).status).toBe(200);
+
+    // CONTROL: a per-member GRANT restores it, which is the point of naming the
+    // power — the narrowing is expressible, not a wall.
+    const granted = await seedAccount();
+    await getDb().insert(accountMembers).values({
+      accountId: tenant.accountId,
+      memberUserId: granted,
+      role: 'editor',
+      inherit: true,
+      status: 'active',
+      permissionGrants: ['inference:routing:write'],
+    });
+    currentUserId = granted;
+    expect(
+      (await request('POST', `${MOUNT}/${policyId}/versions`, { body: controls() })).status
+    ).toBe(201);
   });
 
   it('lets a viewer READ the account policy and refuses the WRITE, which the owner makes', async () => {
@@ -693,7 +746,7 @@ describe('a user bearer is authorised through the account graph', () => {
     });
     expect(refused.status).toBe(403);
     expect(refused.body).toMatchObject({
-      message: 'This action requires the account:update permission',
+      message: 'This action requires the inference:routing:write permission',
     });
 
     currentUserId = tenant.ownerUserId;
@@ -728,25 +781,25 @@ describe('a user bearer is authorised through the account graph', () => {
     expect(allowed.status).toBe(200);
   });
 
-  it('honours a per-member REVOKE of apps:update, which the same member’s role would confer', async () => {
+  it('honours a per-member REVOKE of inference:routing:write, which the role would confer', async () => {
     const tenant = await seedTenant();
     const policyId = await createApplicationPolicy(tenant);
 
-    const editor = await seedAccount();
+    const admin = await seedAccount();
     await getDb().insert(accountMembers).values({
       accountId: tenant.accountId,
-      memberUserId: editor,
-      role: 'editor',
+      memberUserId: admin,
+      role: 'admin',
       inherit: true,
       status: 'active',
-      permissionRevokes: ['apps:update'],
+      permissionRevokes: ['inference:routing:write'],
     });
 
-    currentUserId = editor;
+    currentUserId = admin;
     const refused = await request('POST', `${MOUNT}/${policyId}/versions`, { body: controls() });
     expect(refused.status).toBe(403);
     expect(refused.body).toMatchObject({
-      message: 'This action requires the app:update permission',
+      message: 'This action requires the inference:routing:write permission',
     });
 
     // CONTROL: the read the revoke does NOT touch still works, so the 403 is
@@ -754,10 +807,19 @@ describe('a user bearer is authorised through the account graph', () => {
     const read = await request('GET', `${MOUNT}/${policyId}`);
     expect(read.status).toBe(200);
 
-    // CONTROL: an unrevoked editor writes the identical body.
-    const plainEditor = await seedAccount();
-    await seedMember(tenant.accountId, plainEditor, 'editor');
-    currentUserId = plainEditor;
+    // CONTROL: `apps:update` survives the revoke, so the withdrawal was surgical
+    // — routing is no longer a facet of updating the application.
+    expect(
+      appPermissionsForAccountAccess({
+        role: 'admin',
+        permissions: resolveEffectivePermissions('admin', [], ['inference:routing:write']),
+      })
+    ).toContain('app:update');
+
+    // CONTROL: an unrevoked admin writes the identical body.
+    const plainAdmin = await seedAccount();
+    await seedMember(tenant.accountId, plainAdmin, 'admin');
+    currentUserId = plainAdmin;
     const accepted = await request('POST', `${MOUNT}/${policyId}/versions`, { body: controls() });
     expect(accepted.status).toBe(201);
   });
@@ -815,10 +877,10 @@ describe('a written version is attributed to the principal that authored it', ()
 
   it('attributes a user’s write to that user', async () => {
     const tenant = await seedTenant();
-    const editor = await seedAccount();
-    await seedMember(tenant.accountId, editor, 'editor');
+    const admin = await seedAccount();
+    await seedMember(tenant.accountId, admin, 'admin');
 
-    currentUserId = editor;
+    currentUserId = admin;
     const created = await request('POST', `${MOUNT}/applications/${tenant.applicationId}`, {
       body: controls(),
     });
@@ -830,7 +892,7 @@ describe('a written version is attributed to the principal that authored it', ()
       .from(inferenceRoutingPolicyVersions)
       .where(eq(inferenceRoutingPolicyVersions.routingPolicyId, policyId));
 
-    expect(version.createdByUserId).toBe(editor);
+    expect(version.createdByUserId).toBe(admin);
     expect(version.createdByUserId).not.toBe(tenant.accountId);
   });
 });

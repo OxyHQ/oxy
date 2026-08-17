@@ -11,12 +11,21 @@
  * a service credential, and the two are authorised differently:
  *
  *  - **A user bearer** is authorised through the account graph, by
- *    `resolveCallerApplicationAccess` / `resolveCallerAccountAccess`. An
- *    application policy needs `app:read` to read and `app:update` to write; an
- *    account policy needs `account:read` / `account:update`. Inheritance,
- *    per-member revokes and the archived-account refusal all come from
+ *    `resolveCallerApplicationAccess` / `resolveCallerAccountAccess`. Reading a
+ *    policy needs `inference:routing:read` and writing one needs
+ *    `inference:routing:write`, on BOTH lanes. Inheritance, per-member revokes
+ *    and the archived-account refusal all come from
  *    `accountService.resolveEffectiveAccess`, so this cannot come to a different
  *    answer about a person than the applications routes do.
+ *
+ *    Those two permissions replaced `app:read`/`app:update` and
+ *    `account:read`/`account:update` (issue #972 §3). `app:update` conferred
+ *    "publish an OTA update", "change the webhook URL" AND "repoint where
+ *    inference is served from" as one string, so an account that wanted an editor
+ *    who could edit an app but not touch routing could not say so. The narrowing
+ *    is real and intended: an `editor` no longer writes a routing policy, and a
+ *    `billing` member no longer reads one. Either is restorable per member
+ *    through `permission_grants` — which is the point of naming the power.
  *
  *  - **A service token** is authorised by the scope family the vocabulary
  *    already defines: `inference:routing:read` to read,
@@ -25,6 +34,13 @@
  *    application's policy or its owner account's — a service token is not a
  *    way around the account graph, and the ownership check below is what makes
  *    that true rather than a claim.
+ *
+ *    The permission and the scope are now spelled identically, which is
+ *    deliberate (see `utils/accountRoles.ts`'s header) and is NOT the two lanes
+ *    collapsing into one. A scope is read off `principal.service.scopes` and a
+ *    permission off `access.accountPermissions`; the calls below pass both
+ *    because a request arrives on exactly one lane and is answered by that lane's
+ *    check alone.
  *
  * The two lanes are dispatched by {@link routingPolicyPrincipal}, which composes
  * the package's two existing verifiers and defines no third one. A bearer that
@@ -327,7 +343,12 @@ router.get(
   validate({ params: routingPolicyAccountParams }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { accountId } = routingPolicyAccountParams.parse(req.params);
-    await authorizeAccount(principalOf(req), accountId, 'account:read', 'inference:routing:read');
+    await authorizeAccount(
+      principalOf(req),
+      accountId,
+      'inference:routing:read',
+      'inference:routing:read'
+    );
 
     const policies = await listRoutingPoliciesForAccount(accountId);
     res.json({ data: policies, count: policies.length });
@@ -347,7 +368,12 @@ router.post(
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { accountId } = routingPolicyAccountParams.parse(req.params);
     const principal = principalOf(req);
-    await authorizeAccount(principal, accountId, 'account:update', 'inference:routing:write');
+    await authorizeAccount(
+      principal,
+      accountId,
+      'inference:routing:write',
+      'inference:routing:write'
+    );
 
     const controls = routingPolicyControlsBody.parse(req.body);
     const result = await createRoutingPolicy({
@@ -375,7 +401,7 @@ router.get(
     await authorizeApplication(
       principalOf(req),
       applicationId,
-      'app:read',
+      'inference:routing:read',
       'inference:routing:read'
     );
 
@@ -407,7 +433,7 @@ router.post(
     await authorizeApplication(
       principal,
       applicationId,
-      'app:update',
+      'inference:routing:write',
       'inference:routing:write'
     );
 
@@ -451,7 +477,7 @@ router.get(
     await authorizeApplication(
       principalOf(req),
       applicationId,
-      'usage:read',
+      'inference:routing:read',
       'inference:routing:read'
     );
 
@@ -476,7 +502,7 @@ router.get(
     await authorizePolicy(
       principalOf(req),
       policyId,
-      { application: 'app:read', account: 'account:read' },
+      { application: 'inference:routing:read', account: 'inference:routing:read' },
       'inference:routing:read'
     );
 
@@ -502,7 +528,7 @@ router.post(
     await authorizePolicy(
       principal,
       policyId,
-      { application: 'app:update', account: 'account:update' },
+      { application: 'inference:routing:write', account: 'inference:routing:write' },
       'inference:routing:write'
     );
 
@@ -531,7 +557,7 @@ router.get(
     await authorizePolicy(
       principalOf(req),
       policyId,
-      { application: 'app:read', account: 'account:read' },
+      { application: 'inference:routing:read', account: 'inference:routing:read' },
       'inference:routing:read'
     );
 
@@ -557,7 +583,7 @@ router.post(
     await authorizePolicy(
       principalOf(req),
       policyId,
-      { application: 'app:update', account: 'account:update' },
+      { application: 'inference:routing:write', account: 'inference:routing:write' },
       'inference:routing:write'
     );
 
@@ -587,7 +613,7 @@ router.get(
     const stored = await authorizePolicy(
       principalOf(req),
       policyId,
-      { application: 'app:read', account: 'account:read' },
+      { application: 'inference:routing:read', account: 'inference:routing:read' },
       'inference:routing:read'
     );
     res.json({ data: stored });

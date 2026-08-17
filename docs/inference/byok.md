@@ -117,18 +117,106 @@ Mounted at `/inference/provider-connections`.
 | `POST /:connectionId/validation` | works — it RECORDS a verdict, it does not perform one |
 | `GET /:connectionId/audit` | works |
 
-Two principals, the same arrangement the routing policies use: a **user bearer**
-through the account graph (`app:read`/`app:update`, `account:read`/`account:update`),
-or a **service token** carrying `inference:providers:read` /
-`inference:providers:write`, and only ever for its own application or that
-application's owner account.
+---
 
-`inference:providers:write` is **staff-granted**, deliberately: it is the scope
-whose misuse redirects other people's requests and the secrets used to serve
-them. `inference:providers:read` is not.
+## BYOK management is a high-privilege operation, and here is where that is enforced
+
+Five independent things hold it, on both lanes. None of them is the whole answer;
+listing them together is the point, because each one alone has a way around it.
+
+### 1. The scope is staff-granted, not self-grantable
+
+`inference:providers:write` is in `PRIVILEGED_APPLICATION_SCOPES`
+(`packages/api/src/utils/applicationScopes.ts`): it is the one scope whose misuse
+redirects other people's requests **and** the secrets used to serve them.
+`inference:providers:read` is deliberately not — describing where a request would
+go is not deciding it.
+
+`authorizeRequestedScopes` in `packages/api/src/routes/applications.ts` enforces
+that on application create and `PATCH /:appId`, and it is SYMMETRIC: a non-staff
+caller can neither add a privileged scope nor silently drop one, because revoking
+a privileged scope is a staff mutation too and an omission is treated as "leave it
+alone".
+
+### 2. A member may not put a privileged scope on a new credential
+
+The same filter runs on `POST /applications/:appId/credentials` and
+`POST /accounts/:id/credentials`. Without it, an application legitimately holding
+a staff-granted scope was a scope any member with `credentials:create` could mint
+themselves a credential for — and the `developer` role holds
+`credentials:create` while holding no BYOK write at all.
+
+### 3. A credential's scopes can never exceed its application's
+
+Checked as a subset at create, and intersected again at every service-token mint
+(`intersectScopes`). So a credential is bounded by the application, and the
+application is bounded by staff.
+
+### 4. A service credential may not write here AT ALL
+
+This is the load-bearing one, and it is the same answer
+`packages/api/src/routes/accountBilling.ts` gives on the financially equivalent
+surface. Registering, rotating or destroying a provider credential is a decision a
+person makes; a machine credential that could make it would put an account's
+provider configuration behind a key that lives in a deployment environment.
+
+It has to be a refusal of the LANE rather than a stronger check at mint time,
+because the first three are not sufficient on their own:
+`POST /applications/:appId/credentials/:credId/rotate` copies the previous
+credential's scopes forward verbatim and returns a fresh secret exactly once, and
+`credentials:rotate` is a `developer` permission. So one staff-granted credential
+was enough for a member without `inference:providers:write` to obtain a working
+token that carried it. Requiring the *minting* member to hold the permission would
+not have closed it either — a credential outlives the membership.
+
+The reads are untouched: the same credential still lists connections, resolves the
+one in force for its application, and reads the audit trail.
+
+### 5. On the user lane, BYOK is its own permission
+
+`inference:providers:read` / `inference:providers:write` on the account lane and
+`inference:byok:read` / `inference:byok:write` on the application lane
+(`packages/api/src/utils/accountRoles.ts`). These replaced
+`account:read`/`account:update` and `app:read`/`app:update`, and the change is a
+narrowing on purpose:
+
+| Role | Before | Now |
+|---|---|---|
+| `owner`, `admin` | read + write | read + write |
+| `editor` | read + **write** (via `app:update`) | read only |
+| `developer` | read | read |
+| `billing` | read (via `account:read`) | neither |
+| `viewer` | read (via `account:read`) | neither |
+
+`app:update` used to confer "publish an OTA update", "change the webhook URL" AND
+"rotate the provider secret" as one string, so an account that wanted an editor
+who could edit an application but not touch its BYOK had no way to say so. And
+BYOK read was inherited from `account:read`, which **every** role holds — no
+credential material is ever returned, but the provider, the key prefix, the
+fingerprint and the validation failures are, which is security configuration
+rather than an app description.
+
+Every one of those withdrawals is restorable for an individual member through
+`permission_grants`. That is the point of naming the power rather than borrowing
+somebody else's.
+
+### The one thing this forecloses
+
+`POST /:connectionId/validation` is inside the refusal, so **the data plane
+cannot report a verdict today**. That is deliberate rather than overlooked: an
+`invalid` verdict also disables the connection, so leaving the lane open for it
+would have left a disable-equivalent open to exactly the credential the refusal
+exists to stop. Nothing calls the route today, and no connection can exist at all
+while create and rotate are hard-`503`. When the data plane does need to report
+one it needs a principal designed for it — an internal lane, not a
+customer-mintable service token.
+
+---
 
 **Another account's connection answers 404, never 403.** Distinguishing them
-would make the id space an existence oracle for other tenants' BYOK setup.
+would make the id space an existence oracle for other tenants' BYOK setup. The
+service-lane write refusal is a 403 for every id alike, existing or not, so it
+adds no oracle of its own.
 
 ### Validation is recorded here, never performed here
 
