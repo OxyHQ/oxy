@@ -106,6 +106,21 @@ const GATED_SEVERITIES = new Set(['high', 'critical']);
  */
 const ACKNOWLEDGED_PACKAGES = [
   {
+    package: 'deepmerge-ts',
+    reachedBy: 'html-to-text -> mailparser -> @oxyhq/api (inbound email parsing)',
+    reason:
+      'GHSA-ggr8-5vv4-36mx is stack exhaustion while MERGING a recursive object graph, and '
+      + 'nothing attacker-controlled is ever merged. mailparser calls '
+      + '`htmlToText(node.textContent)` with the HTML string and NO options argument '
+      + '(mailparser/lib/mail-parser.js:788), so html-to-text merges its own '
+      + '`defaultOptions` with `{}` — the two arguments deepmerge-ts ever receives here are '
+      + 'a fixed library literal and an empty object. The email body reaches html-to-text as '
+      + 'CONTENT, which deepmerge-ts never sees. Patched in deepmerge-ts 8.0.0, which cannot '
+      + 'be reached from here: html-to-text 10.0.0 is the latest release and requires ^7.1.5, '
+      + 'so raising it needs a semver-major override forced into a transitive dependency. '
+      + 'mailparser additionally wraps the call in try/catch and emits "Failed to parse HTML".',
+  },
+  {
     package: 'basic-ftp',
     reachedBy: 'get-uri -> pac-proxy-agent -> proxy-agent -> release-it (dev)',
     reason:
