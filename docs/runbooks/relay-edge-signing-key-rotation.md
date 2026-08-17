@@ -63,9 +63,37 @@ Generate a pair with `openssl genpkey -algorithm ed25519`. Oxy holds the private
 half and never logs or serializes it — it is kept as a Node `KeyObject`, so an
 accidental interpolation yields `[object Object]` rather than a PEM.
 
-**The private key is not yet wired into the deploy.** Adding it means editing BOTH
-hand-maintained allowlists in `.github/workflows/deploy-aws.yml` — the
-`SYNC_<NAME>` env block and the `API_SECRETS` list — in the same change;
+**The first key pair exists. It is not wired into the deploy, and that is
+deliberate — see the ordering hazard below.**
+
+| | Value |
+|---|---|
+| `kid` | `oxy-edge-2026-08-17` |
+| public half, as Relay's `RELAY_EDGE_PUBLIC_KEYS` entry | `oxy-edge-2026-08-17:jQBxDX3B/Z0ULOHPbQz3gfFinKpl7Qv5MVBTfRYSd34=` |
+| private half | GitHub Actions repo secret `RELAY_EDGE_SIGNING_PRIVATE_KEY`, set 2026-08-17. Not in this repository, not in any file. |
+
+Generated with `openssl genpkey -algorithm ed25519`, and verified before storage
+by signing Relay's exact signing input — `oxy-relay-envelope:v1\n<kid>\n<unix
+millis>\n<lowercase hex sha256 of the body>` — and verifying the signature with
+the public half **rebuilt from the base64 above**, so the value in this table is
+demonstrably the one that matches the stored private key rather than a
+transcription of it. Negative control: the same signature over a body with one
+byte appended does not verify. The local private half was shredded once the
+secret was stored.
+
+**Do not add it to the deploy on its own.** `resolveRelayDataPlane` treats all
+three variables as all-or-nothing: with none set it returns `absent` and is
+silent, which is today's behaviour on every deployment. With only the private key
+injected it returns `unreadable(RELAY_BASE_URL)` and logs
+`inference.relay.config_unreadable` at **error** level on every boot — a
+production error line asserting the configuration is broken when nothing is
+broken. That is how a log people should read becomes a log people skip. So the
+private key stays available-but-unwired until there is a `RELAY_BASE_URL` to set
+beside it, and all three land together.
+
+**When that moment comes**, adding it means editing BOTH hand-maintained
+allowlists in `.github/workflows/deploy-aws.yml` — the `SYNC_<NAME>` env block
+and the `API_SECRETS` list — in the same change;
 `scripts/check-deploy-secrets-sync.mjs` fails the build if the two disagree. A
 name in one list and not the other syncs nothing, silently, and surfaces later as
 `ResourceInitializationError: unable to pull secrets` at task launch.
