@@ -370,6 +370,12 @@ function fakeRelay(units: { input: number; output: number }, provider: string): 
         },
       };
     },
+    // No rollout case streams, and a throw is what makes one that starts to fail
+    // loudly rather than silently taking an unwritten path. The streaming lane has
+    // its own suite: `__tests__/relayStreaming.test.ts`.
+    stream: () => {
+      throw new Error('this fake serves only non-streaming requests');
+    },
   };
 }
 

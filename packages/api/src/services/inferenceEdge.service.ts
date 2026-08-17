@@ -27,15 +27,44 @@
  * reservation standing would take a customer's money out of circulation until
  * the sweeper expired it, for a request that never ran.
  *
- * ## There is no data plane, so every invoke refuses
+ * Steps 1 to 6 are {@link admitRequest}, and both entry points below call it.
+ * That is the ONE admission path ADR 0010 asks for: a streaming request and a
+ * non-streaming one are authorized, routed, limited and reserved by the same
+ * code, so a constraint cannot be enforced on one and forgotten on the other.
  *
- * `services/relayClient.ts` declares the boundary and has no production
- * implementation. The edge therefore answers a typed `service_unavailable` with
- * a `requestId`, having reserved and released the hold. It never falls back to
- * the Alia proxy and never fabricates a completion. See
- * `__tests__/inferenceEdge.test.ts` — the refusal is asserted together with the
- * balance being whole afterwards, because a refusal that silently keeps the
- * money is the failure that looks like it worked.
+ * ## Two entry points, because a stream is not a value
+ *
+ *  - {@link executeInferenceRequest} returns one completion.
+ *  - {@link streamInferenceRequest} is an async generator of
+ *    {@link EdgeStreamFrame}, so the route writes and flushes each frame as it
+ *    arrives and NOTHING is buffered. Its `finally` settles the hold whatever
+ *    ends the iteration — a terminal event, a transport failure, or a route that
+ *    stopped consuming because its own client went away. Abandoning a
+ *    `for await` runs that cleanup, which is what makes "the customer left"
+ *    propagate all the way to the provider without any caller remembering to say
+ *    so.
+ *
+ * ## A deployment with no data plane refuses, exactly as it did before
+ *
+ * `services/httpRelayClient.ts` is the production implementation, but a
+ * deployment that has not configured one (`config/relayDataPlane.ts`) is
+ * constructed with no client: the edge answers a typed `service_unavailable` with
+ * a `requestId`, having reserved and released the hold, and `stream: true` is
+ * refused with a typed `invalid_request`. It never falls back to the Alia proxy
+ * and never fabricates a completion. See `__tests__/inferenceEdge.test.ts` — the
+ * refusal is asserted together with the balance being whole afterwards, because a
+ * refusal that silently keeps the money is the failure that looks like it worked.
+ *
+ * ## Settlement is one function, and it never depends on a completion
+ *
+ * {@link settleMeasured} takes the units, the source and the outcome, and every
+ * path reaches it: a clean completion, a stream that ended in an error, a client
+ * disconnect, and a request that produced output nobody could measure. The last
+ * of those settles ZERO units with `usageSource: 'estimated'`, which the ledger
+ * records as the refund reason `usage_unavailable` — the conservative answer, and
+ * a deliberately reconcilable one. What Oxy SHOULD charge when a provider reports
+ * no usage is an open policy question that belongs with the estimation and
+ * reconciliation work, not here.
  *
  * ## Prompts never enter this module's logs
  *
@@ -60,8 +89,10 @@ import {
   type InferenceMessage,
   type InferenceRequest,
   type InferenceScope,
+  type InferenceStreamEvent,
   type NormalizedUsageReport,
   type RoutingPolicyReference,
+  type UsageSource,
   type UsageUnit,
 } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
@@ -96,8 +127,12 @@ import { resolveEffectiveRoutingPolicy } from './inferenceRoutingPolicy.service'
 import { recordInferenceUsage } from './inferenceTelemetry.service';
 import {
   DataPlaneNotConfiguredError,
+  RelayEnvelopeRejectedError,
+  RelayIncompleteError,
+  RelayProtocolError,
   type RelayClient,
   type RelayCompletion,
+  type RelayUsageEvidence,
 } from './relayClient';
 import { intersectScopes, type ApplicationScope } from '../utils/applicationScopes';
 import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
@@ -351,7 +386,10 @@ export interface EdgeExecutionContext {
   readonly endpoint: string;
   /** Aborted when the client disconnects. */
   readonly signal: AbortSignal;
-  /** Absent in every deployment today — see `services/relayClient.ts`. */
+  /**
+   * The data plane. Absent when this deployment configured none — see
+   * `config/relayDataPlane.ts` — in which case every invoke refuses.
+   */
   readonly relayClient?: RelayClient;
 }
 
@@ -370,23 +408,89 @@ export type EdgeExecution =
   | { readonly status: 'completed'; readonly completion: EdgeCompletion }
   | { readonly status: 'refused'; readonly error: InferenceError };
 
+/** The customer-visible frames one streamed request produces. */
+export type EdgeStreamFrame =
+  /**
+   * The first thing a streaming route learns, yielded when the data plane's own
+   * first frame arrives rather than at admission. That timing is what lets a
+   * refusal Relay makes at the ENVELOPE layer still be an HTTP status: nothing is
+   * committed to the response until something real is about to be written to it.
+   */
+  | { readonly kind: 'open'; readonly head: EdgeStreamHead }
+  | { readonly kind: 'event'; readonly event: InferenceStreamEvent }
+  /** Terminal. Before an `open` it is an HTTP error; after one, a stream event. */
+  | { readonly kind: 'error'; readonly error: InferenceError };
+
+/** What a route needs before it writes the first byte of a stream. */
+export interface EdgeStreamHead {
+  readonly requestId: string;
+  readonly resolvedModelReference: string;
+  readonly servingProvider: string;
+  readonly routingPolicy: RoutingPolicyReference;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Steps 4-6: admission, shared by both entry points                         */
+/* -------------------------------------------------------------------------- */
+
+/** Everything admission resolved, and the hold it took. */
+interface AdmittedRequest {
+  readonly route: EdgeRoute;
+  readonly requestedModelReference: string;
+  readonly maxOutputTokens: number;
+  readonly routingPolicy: RoutingPolicyReference;
+  readonly routingPolicyVersionId: string | undefined;
+  readonly ledgerKey: string;
+  readonly ledgerAttribution: LedgerAttribution;
+  /** Absent while shadow metering: nothing is held because nothing is charged. */
+  readonly hold: ReservationView | undefined;
+}
+
+type Admission =
+  | { readonly status: 'admitted'; readonly admitted: AdmittedRequest }
+  | { readonly status: 'refused'; readonly error: InferenceError };
+
+/** Log a refusal and build the customer's error. One origin for both. */
+function refuseRequest(
+  context: EdgeExecutionContext,
+  code: InferenceErrorCode,
+  message: string,
+  options: { param?: string; reason?: string } = {}
+): InferenceError {
+  const { principal } = context;
+  logger.warn('inference.edge.refused', {
+    requestId: context.requestId,
+    code,
+    applicationId: principal.applicationId,
+    credentialId: principal.credentialId,
+    lane: principal.lane,
+    ...(options.reason === undefined ? {} : { reason: options.reason }),
+  });
+  return buildInferenceError({
+    code,
+    message,
+    requestId: context.requestId,
+    ...(options.param === undefined ? {} : { param: options.param }),
+  });
+}
+
 /**
- * Admit, reserve, forward and settle one non-streaming inference request.
+ * Authorize, limit, route and reserve — ADR 0010's steps 4 to 6, for both a
+ * streaming request and a non-streaming one.
  *
- * Returns a refusal rather than throwing for every outcome a caller can be told
- * about, so the two route handlers have exactly one branch each and cannot
- * disagree about which failures are 4xx.
+ * Nothing is forwarded before this returns `admitted`, and when it returns
+ * `refused` nothing has been reserved on any arm except the one that says so.
  *
- * ## Charging is a flag, and until it is armed this SHADOW METERS
+ * ## Charging is a flag, and until it is armed the edge SHADOW METERS
  *
  * `INFERENCE_CHARGING_AUTHORIZED` (`config/rolloutFlags.ts`) is unset by default,
- * and while it is, steps 6c and 8 are replaced by one priced log line: the
- * request is admitted, routed, forwarded and metered exactly as it would be, the
- * exact amount it WOULD have been billed is computed from the same price version
- * with the same `quoteUnits` arithmetic `settle` bills with, and no reservation,
- * receipt, refund, ledger entry or balance movement is written. So a shadow
- * period leaves nothing to reconcile away when charging is armed, which is the
- * property that makes it worth running at all.
+ * and while it is, the reservation here and the settlement later are replaced by
+ * one priced log line: the request is admitted, routed, forwarded and metered
+ * exactly as it would be, the exact amount it WOULD have been billed is computed
+ * from the same price version with the same `quoteUnits` arithmetic `settle` bills
+ * with, and no reservation, receipt, refund, ledger entry or balance movement is
+ * written. So a shadow period leaves nothing to reconcile away when charging is
+ * armed, which is the property that makes it worth running at all.
  *
  * What is NOT enforced while shadow metering, stated rather than discovered: an
  * account with no billing profile is served, an empty balance is served, and a
@@ -395,13 +499,12 @@ export type EdgeExecution =
  * return for such a request either, and a repeated `Idempotency-Key` binds to no
  * reservation and so is not refused.
  *
- * The flag is read ONCE per request, not per step. Read twice, a flip between
- * steps 6c and 8 would either settle against a hold that was never taken or take
- * a hold nothing ever settles.
+ * The flag is read ONCE per request, here and nowhere else. Read twice, a flip
+ * between the reservation and the settlement would either settle against a hold
+ * that was never taken or take a hold nothing ever settles — which is why
+ * `hold === undefined` is the single thing every later step branches on.
  */
-export async function executeInferenceRequest(
-  context: EdgeExecutionContext
-): Promise<EdgeExecution> {
+async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   const { requestId, principal, request } = context;
   const charging = isChargingAuthorized();
 
@@ -409,25 +512,10 @@ export async function executeInferenceRequest(
     code: InferenceErrorCode,
     message: string,
     options: { param?: string; reason?: string } = {}
-  ): EdgeExecution => {
-    logger.warn('inference.edge.refused', {
-      requestId,
-      code,
-      applicationId: principal.applicationId,
-      credentialId: principal.credentialId,
-      lane: principal.lane,
-      ...(options.reason === undefined ? {} : { reason: options.reason }),
-    });
-    return {
-      status: 'refused',
-      error: buildInferenceError({
-        code,
-        message,
-        requestId,
-        ...(options.param === undefined ? {} : { param: options.param }),
-      }),
-    };
-  };
+  ): Admission => ({
+    status: 'refused',
+    error: refuseRequest(context, code, message, options),
+  });
 
   // 4. Authorize. `inference:invoke` spends the OWNING ACCOUNT's balance, which
   //    is why it is checked before anything is resolved or reserved.
@@ -438,7 +526,11 @@ export async function executeInferenceRequest(
     );
   }
 
-  if (request.stream) {
+  // A deployment with no data plane cannot stream, and says so with the same
+  // typed refusal it always has. Checked here, before anything is reserved, and
+  // after the scope check so an unauthorized caller is still told about their
+  // scope rather than about a capability they could not have used either way.
+  if (request.stream && context.relayClient === undefined) {
     return refuse(
       'invalid_request',
       'Streaming responses are not served by this edge yet. Send stream: false.',
@@ -499,10 +591,11 @@ export async function executeInferenceRequest(
 
   if (target.kind !== 'model') {
     // A routing profile names a SET of candidates and choosing among them is
-    // routing EXECUTION, which is the data plane's (ADR 0006) — and there is no
-    // data plane. Refusing is the honest answer; picking a candidate here would
-    // be the control plane inventing a routing decision, and doing it with no
-    // way to test the choice.
+    // routing EXECUTION, which is the data plane's (ADR 0006) — and the envelope
+    // carries a routing policy REFERENCE rather than the candidate list, so no
+    // data plane can resolve one either. Refusing is the honest answer; picking a
+    // candidate here would be the control plane inventing a routing decision, and
+    // doing it with no way to test the choice.
     return refuse(
       'no_route_available',
       'Routing profiles are not yet served by this edge. Name a concrete model.',
@@ -681,8 +774,50 @@ export async function executeInferenceRequest(
     hold = held.reservation;
   }
 
+  return {
+    status: 'admitted',
+    admitted: {
+      route,
+      requestedModelReference,
+      maxOutputTokens,
+      routingPolicy,
+      routingPolicyVersionId,
+      ledgerKey,
+      ledgerAttribution,
+      hold,
+    },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Steps 7-8, non-streaming                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Admit, reserve, forward and settle one NON-streaming inference request.
+ *
+ * Returns a refusal rather than throwing for every outcome a caller can be told
+ * about, so the two route handlers have exactly one branch each and cannot
+ * disagree about which failures are 4xx.
+ *
+ * A `stream: true` request never reaches here — the router dispatches it to
+ * {@link streamInferenceRequest} — and if one somehow did, {@link admitRequest}
+ * would refuse rather than quietly answer it non-streamed.
+ */
+export async function executeInferenceRequest(
+  context: EdgeExecutionContext
+): Promise<EdgeExecution> {
+  const { requestId, principal } = context;
+
+  const admission = await admitRequest(context);
+  if (admission.status === 'refused') {
+    return { status: 'refused', error: admission.error };
+  }
+  const { admitted } = admission;
+  const { route, hold } = admitted;
+
   // 7. Build and forward the versioned internal envelope.
-  const envelope = buildEnvelope(context, route, maxOutputTokens, routingPolicy);
+  const envelope = buildEnvelope(context, admitted, false);
 
   let completion: RelayCompletion;
   try {
@@ -692,25 +827,27 @@ export async function executeInferenceRequest(
     completion = await context.relayClient.execute(envelope, { signal: context.signal });
   } catch (error) {
     const failure = classifyForwardFailure(error, context.signal);
-    if (hold !== undefined) {
-      await settleFailure(
-        context,
-        route,
-        hold,
-        ledgerKey,
-        failure.outcome,
-        routingPolicyVersionId
-      );
-    }
+    // Whatever the data plane DID measure before it stopped — `RelayIncompleteError`
+    // carries it — is what this settles against. A full refund on a request that
+    // produced two hundred tokens would be Oxy absorbing a cost it can account
+    // for, which is the mirror of the over-charge the reservation prevents.
+    await settleMeasured(
+      context,
+      admitted,
+      settlementFrom(usageEvidenceOf(error), failure.outcome)
+    );
     await recordEdgeTelemetry(context, {
-      requestedModelReference,
+      requestedModelReference: admitted.requestedModelReference,
       statusCode: inferenceErrorStatus(failure.code),
       units: {},
       resolvedModelReference: route.modelReference,
       servingProvider: route.provider,
       outcome: failure.outcome,
     });
-    return refuse(failure.code, failure.message, { reason: failure.reason });
+    return {
+      status: 'refused',
+      error: refuseRequest(context, failure.code, failure.message, { reason: failure.reason }),
+    };
   }
 
   // The data plane answering about a different request, or serving a model the
@@ -719,32 +856,48 @@ export async function executeInferenceRequest(
   // a substitution nobody permitted.
   const mismatch = validateCompletion(completion, requestId, route);
   if (mismatch !== undefined) {
-    if (hold !== undefined) {
-      await settleFailure(context, route, hold, ledgerKey, 'failed', routingPolicyVersionId);
-    }
+    await settleMeasured(context, admitted, settlementFrom(undefined, 'failed'));
     await recordEdgeTelemetry(context, {
-      requestedModelReference,
+      requestedModelReference: admitted.requestedModelReference,
       statusCode: inferenceErrorStatus(mismatch.code),
       units: {},
       resolvedModelReference: route.modelReference,
       servingProvider: route.provider,
       outcome: 'failed',
     });
-    return refuse(mismatch.code, mismatch.message, { reason: mismatch.reason });
+    return {
+      status: 'refused',
+      error: refuseRequest(context, mismatch.code, mismatch.message, {
+        reason: mismatch.reason,
+      }),
+    };
   }
 
   // 8. Settle against the exact usage, releasing the rest of the hold in the
   //    same transaction — or, while shadow metering, price the same usage and
   //    record what it would have cost without writing a financial record.
+  //
+  //    NOT `settleMeasured`: on this one path a settlement that fails is
+  //    reportable, because the customer's response has not been sent yet. Every
+  //    other path has either already answered with an error or already streamed
+  //    the whole response, and refusing after the fact would turn a ledger
+  //    discrepancy into a second failure the customer sees.
   const units = unitsFromReport(completion.usage);
 
   if (hold === undefined) {
-    await recordShadowMetering(context, route, units, completion, routingPolicyVersionId);
+    await recordShadowMetering(context, route, units, {
+      outcome: completion.usage.outcome,
+      usageSource: completion.usage.usageSource,
+      ...(completion.generationId === undefined
+        ? {}
+        : { generationId: completion.generationId }),
+      routingPolicyVersionId: admitted.routingPolicyVersionId,
+    });
   } else {
     const settlement = await settle({
-      idempotencyKey: ledgerKey,
+      idempotencyKey: admitted.ledgerKey,
       reservationId: hold.reservationId,
-      attribution: ledgerAttribution,
+      attribution: admitted.ledgerAttribution,
       ...(completion.generationId === undefined
         ? {}
         : { generationId: completion.generationId }),
@@ -754,7 +907,9 @@ export async function executeInferenceRequest(
       resolvedModelReference: route.modelReference,
       servingProvider: route.provider,
       priceVersionId: route.priceVersionId,
-      ...(routingPolicyVersionId === undefined ? {} : { routingPolicyVersionId }),
+      ...(admitted.routingPolicyVersionId === undefined
+        ? {}
+        : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
     });
 
     if (settlement.status !== 'settled' && settlement.status !== 'already-settled') {
@@ -772,14 +927,20 @@ export async function executeInferenceRequest(
           settlementStatus: settlement.status,
         }
       );
-      return refuse('internal_error', 'The request completed but could not be settled.', {
-        reason: settlement.status,
-      });
+      return {
+        status: 'refused',
+        error: refuseRequest(
+          context,
+          'internal_error',
+          'The request completed but could not be settled.',
+          { reason: settlement.status }
+        ),
+      };
     }
   }
 
   await recordEdgeTelemetry(context, {
-    requestedModelReference,
+    requestedModelReference: admitted.requestedModelReference,
     statusCode: 200,
     units,
     resolvedModelReference: route.modelReference,
@@ -810,9 +971,206 @@ export async function executeInferenceRequest(
       finishReason: completion.finishReason,
       output: completion.output,
       units,
-      routingPolicy,
+      routingPolicy: admitted.routingPolicy,
     },
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Steps 7-8, streaming                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Admit, reserve, forward and settle one STREAMING inference request, yielding
+ * each frame as the data plane produces it.
+ *
+ * ## Nothing is buffered, and that is structural rather than careful
+ *
+ * The route's `for await` is the only consumer, and it writes and flushes inside
+ * the loop. There is no array of events anywhere in this function: an event is
+ * read from the data plane, yielded, and forgotten. The two things that ARE kept
+ * are the last usage measurement and the terminal error, both of which are single
+ * values and both of which the settlement needs.
+ *
+ * ## The `finally` is the whole cancellation and settlement story
+ *
+ * It runs on every exit — the stream ending, a transport failure, and a consumer
+ * that stopped consuming — because abandoning a `for await` resumes an async
+ * generator with a return completion, which runs its `finally`. So:
+ *
+ *  - the hold is settled exactly once, whatever happened, and
+ *  - `RelayClient.stream`'s own `finally` aborts the upstream hop, which is what
+ *    propagates a client disconnect to Relay and from there to the provider.
+ *
+ * A cancelled request is a SETTLEMENT case (ADR 0009), never a discarded one: the
+ * units measured before the cut are charged and the rest of the hold is released,
+ * so a customer who cancels pays for what they received.
+ *
+ * ## Where the usage comes from, in order of authority
+ *
+ *  1. the terminal `usage_report` frame — the full normalized report;
+ *  2. the last in-stream `usage` event, when the report never arrived, which is
+ *     the ordinary case for a client disconnect: Relay still produces a report
+ *     but can no longer deliver the frame to a connection that is gone;
+ *  3. nothing, when neither arrived — settled as ZERO units marked `estimated`,
+ *     which the ledger records as the refund reason `usage_unavailable`.
+ *
+ * (3) is the conservative answer to an open policy question — what Oxy should
+ * charge for output it cannot measure — and it is deliberately the reconcilable
+ * one: a receipt exists, it says the usage was unavailable, and a later
+ * estimation policy can correct it with a compensating entry. It is NOT an
+ * estimator, and this is not the place for one.
+ */
+export async function* streamInferenceRequest(
+  context: EdgeExecutionContext
+): AsyncGenerator<EdgeStreamFrame> {
+  const admission = await admitRequest(context);
+  if (admission.status === 'refused') {
+    yield { kind: 'error', error: admission.error };
+    return;
+  }
+  const { admitted } = admission;
+  const { route } = admitted;
+
+  const relayClient = context.relayClient;
+  if (relayClient === undefined) {
+    // Unreachable: `admitRequest` refuses a streaming request with no data plane
+    // before reserving anything. Handled rather than asserted because the
+    // alternative is a non-null assertion, and because a future edit to that
+    // order would otherwise release nothing.
+    await settleMeasured(context, admitted, settlementFrom(undefined, 'failed'));
+    yield {
+      kind: 'error',
+      error: refuseRequest(
+        context,
+        'invalid_request',
+        'Streaming responses are not served by this edge yet. Send stream: false.',
+        { param: 'stream', reason: 'no_data_plane' }
+      ),
+    };
+    return;
+  }
+
+  const envelope = buildEnvelope(context, admitted, true);
+
+  let report: NormalizedUsageReport | undefined;
+  let partial: RelayUsageEvidence | undefined;
+  let terminal: InferenceError | undefined;
+  let forwardFailure: ForwardFailure | undefined;
+  let opened = false;
+  let sawOutput = false;
+
+  try {
+    for await (const frame of relayClient.stream(envelope, { signal: context.signal })) {
+      if (frame.kind === 'usage') {
+        report = frame.usage;
+        // Never forwarded as a customer event: it is the technical record
+        // settlement runs against, and the contract's stream union has no member
+        // for it.
+        continue;
+      }
+
+      const event = frame.event;
+      if (!opened) {
+        opened = true;
+        yield {
+          kind: 'open',
+          head: {
+            requestId: context.requestId,
+            resolvedModelReference: route.modelReference,
+            servingProvider: route.provider,
+            routingPolicy: admitted.routingPolicy,
+          },
+        };
+      }
+
+      if (event.type === 'usage') {
+        partial = { kind: 'partial', units: event.units, usageSource: event.usageSource };
+      } else if (event.type === 'delta' && event.text.length > 0) {
+        sawOutput = true;
+      } else if (event.type === 'error') {
+        terminal = event.error;
+      }
+
+      yield { kind: 'event', event };
+    }
+  } catch (error) {
+    forwardFailure = classifyForwardFailure(error, context.signal);
+  } finally {
+    // A report that answers a different request, or names a model this edge did
+    // not admit, is DISCARDED rather than settled: it is the input to a charge and
+    // it crosses a service boundary. Unlike the non-streaming path this cannot
+    // also refuse the response — the customer already has it — so the request
+    // settles as unmeasured and the discrepancy is loud in the log.
+    const usable = report === undefined ? undefined : validateUsageReport(report, context.requestId, route);
+    if (report !== undefined && usable === undefined) {
+      logger.error(
+        'inference.edge.stream_usage_report_rejected',
+        new Error('the streamed usage report does not answer the request that was admitted'),
+        {
+          requestId: context.requestId,
+          resolvedModelReference: route.modelReference,
+          accountId: context.principal.ownerAccountId,
+        }
+      );
+    }
+
+    const evidence: RelayUsageEvidence | undefined =
+      usable !== undefined ? { kind: 'report', report: usable } : partial;
+    const outcome = streamOutcome(context, { terminal, sawOutput });
+    const settlement = settlementFrom(evidence, outcome);
+
+    await settleMeasured(context, admitted, settlement);
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: admitted.requestedModelReference,
+      // A stream that produced any frame answered 200 and cannot un-answer it.
+      statusCode: opened
+        ? 200
+        : inferenceErrorStatus(forwardFailure?.code ?? terminal?.code ?? 'internal_error'),
+      units: settlement.units,
+      resolvedModelReference: route.modelReference,
+      servingProvider: route.provider,
+      outcome: settlement.outcome,
+      usageSource: settlement.usageSource,
+      ...(usable === undefined ? {} : { routeSwitches: usable.routeSwitches }),
+      ...(usable?.timeToFirstTokenMs === undefined
+        ? {}
+        : { timeToFirstTokenMs: usable.timeToFirstTokenMs }),
+      ...(settlement.generationId === undefined
+        ? {}
+        : { generationId: settlement.generationId }),
+    });
+  }
+
+  // A transport or protocol failure produced no terminal event, so the customer
+  // has not been told the stream ended. Relay's OWN terminal error was already
+  // forwarded verbatim as an event, which is why there is nothing to add for it.
+  if (forwardFailure !== undefined) {
+    yield {
+      kind: 'error',
+      error: refuseRequest(context, forwardFailure.code, forwardFailure.message, {
+        reason: forwardFailure.reason,
+      }),
+    };
+  }
+}
+
+/**
+ * What a stream that did not end in a usage report should be recorded as.
+ *
+ * `cancelled` is decided from the CLIENT's signal rather than from the absence of
+ * a terminal event, because those are different facts: a client that disconnected
+ * and an upstream that died both end the stream without one, and only the first is
+ * the customer's own doing. `partial` needs output to have been seen — a stream
+ * that failed before its first token is `failed`, not a partial delivery.
+ */
+function streamOutcome(
+  context: EdgeExecutionContext,
+  observed: { terminal: InferenceError | undefined; sawOutput: boolean }
+): 'failed' | 'cancelled' | 'partial' {
+  if (context.signal.aborted) return 'cancelled';
+  if (observed.terminal?.code === 'cancelled') return 'cancelled';
+  return observed.sawOutput ? 'partial' : 'failed';
 }
 
 /* -------------------------------------------------------------------------- */
@@ -931,16 +1289,20 @@ async function recordShadowMetering(
   context: EdgeExecutionContext,
   route: EdgeRoute,
   units: Partial<Record<UsageUnit, number>>,
-  completion: RelayCompletion,
-  routingPolicyVersionId: string | undefined
+  measured: {
+    readonly outcome: NormalizedUsageReport['outcome'];
+    readonly usageSource: UsageSource;
+    readonly generationId?: string;
+    readonly routingPolicyVersionId: string | undefined;
+  }
 ): Promise<void> {
   const quote = await quoteUnits(route.priceVersionId, units);
 
   const attribution = {
     requestId: context.requestId,
-    ...(completion.generationId === undefined
+    ...(measured.generationId === undefined
       ? {}
-      : { generationId: completion.generationId }),
+      : { generationId: measured.generationId }),
     accountId: context.principal.ownerAccountId,
     applicationId: context.principal.applicationId,
     credentialId: context.principal.credentialId,
@@ -948,7 +1310,9 @@ async function recordShadowMetering(
     resolvedModelReference: route.modelReference,
     servingProvider: route.provider,
     priceVersionId: route.priceVersionId,
-    ...(routingPolicyVersionId === undefined ? {} : { routingPolicyVersionId }),
+    ...(measured.routingPolicyVersionId === undefined
+      ? {}
+      : { routingPolicyVersionId: measured.routingPolicyVersionId }),
   };
 
   if (quote.status !== 'quoted') {
@@ -962,8 +1326,8 @@ async function recordShadowMetering(
 
   logger.info(SHADOW_METERING_EVENT, {
     ...attribution,
-    outcome: completion.usage.outcome,
-    usageSource: completion.usage.usageSource,
+    outcome: measured.outcome,
+    usageSource: measured.usageSource,
     units,
     // Named for what it is. `billedAmount` would read as a charge in every
     // dashboard that picked it up, which is the one thing this number is not.
@@ -972,62 +1336,142 @@ async function recordShadowMetering(
   });
 }
 
+/** One settlement, however the units for it were arrived at. */
+interface MeasuredSettlement {
+  readonly units: Partial<Record<UsageUnit, number>>;
+  readonly usageSource: UsageSource;
+  readonly outcome: NormalizedUsageReport['outcome'];
+  readonly generationId: string | undefined;
+}
+
 /**
- * Release a hold for a request that produced nothing.
+ * Turn whatever the data plane measured into the one shape a settlement takes.
  *
- * A zero-unit settlement rather than a bare release, because ADR 0009 has one
- * terminal write for a hold and `usage_receipts` legitimately carries a
- * zero-unit, zero-amount receipt for an upstream failure. The customer then has
- * a `GET /v1/generations/:id` record saying the request failed and cost nothing,
- * which a silent release would not give them.
+ * Three arms, and only the first can be exact:
  *
- * A failure to settle is logged and swallowed: the caller is already returning
- * an error, and the sweeper releases the hold at its deadline regardless.
+ *  - a full report: its own units, source and outcome, because it is the record
+ *    the contract designed for this;
+ *  - the units of an in-stream `usage` event: exact units, but the outcome comes
+ *    from the edge, which is the only party that knows whether the client
+ *    cancelled;
+ *  - nothing: ZERO units marked `estimated`. The ledger maps that to the refund
+ *    reason `usage_unavailable`, so the receipt says "usage was never measured"
+ *    rather than "usage was zero" — a distinction a later reconciliation depends
+ *    on, and the reason this is not simply a release.
+ *
+ * The third arm is the conservative side of a genuinely open question: what a
+ * customer should be charged for output nobody measured. Refunding the unknown is
+ * chosen because the alternative — estimating — invents the number a bill is
+ * computed from, and an estimator belongs with the reconciliation work rather than
+ * inside a settlement path.
  */
-async function settleFailure(
+function settlementFrom(
+  evidence: RelayUsageEvidence | undefined,
+  fallbackOutcome: 'failed' | 'cancelled' | 'partial'
+): MeasuredSettlement {
+  if (evidence === undefined) {
+    return {
+      units: {},
+      usageSource: 'estimated',
+      outcome: fallbackOutcome,
+      generationId: undefined,
+    };
+  }
+  if (evidence.kind === 'report') {
+    return {
+      units: unitsFromReport(evidence.report),
+      usageSource: evidence.report.usageSource,
+      outcome: evidence.report.outcome,
+      generationId: evidence.report.generationId,
+    };
+  }
+  return {
+    units: unitsFromQuantities(evidence.units),
+    usageSource: evidence.usageSource,
+    outcome: fallbackOutcome,
+    generationId: undefined,
+  };
+}
+
+/** The usage evidence a data-plane failure carried, when it carried any. */
+function usageEvidenceOf(error: unknown): RelayUsageEvidence | undefined {
+  return error instanceof RelayIncompleteError ? error.usage : undefined;
+}
+
+/**
+ * Write the terminal ledger record for a request whose response is already
+ * decided — an error the caller is about to return, or a stream the customer has
+ * already received.
+ *
+ * A settlement rather than a bare release, because ADR 0009 has one terminal
+ * write for a hold and `usage_receipts` legitimately carries a zero-unit,
+ * zero-amount receipt. The customer then has a `GET /v1/generations/:id` record
+ * saying what happened and what it cost, which a silent release would not give
+ * them.
+ *
+ * A failure to settle is logged and swallowed. That is not indifference: there is
+ * no response left to turn into an error, and the expiry sweeper releases the hold
+ * at its deadline regardless — so the customer's money comes back on its own while
+ * the discrepancy stays visible in the log.
+ *
+ * While shadow metering (`hold === undefined`) this prices the same units and
+ * records what they WOULD have cost, so a shadow period's records cover the
+ * failure paths too rather than only the happy one.
+ */
+async function settleMeasured(
   context: EdgeExecutionContext,
-  route: EdgeRoute,
-  reservation: ReservationView,
-  ledgerKey: string,
-  outcome: 'failed' | 'cancelled',
-  routingPolicyVersionId: string | undefined
+  admitted: AdmittedRequest,
+  settlement: MeasuredSettlement
 ): Promise<void> {
+  const { route, hold } = admitted;
+
+  if (hold === undefined) {
+    await recordShadowMetering(context, route, settlement.units, {
+      outcome: settlement.outcome,
+      usageSource: settlement.usageSource,
+      ...(settlement.generationId === undefined
+        ? {}
+        : { generationId: settlement.generationId }),
+      routingPolicyVersionId: admitted.routingPolicyVersionId,
+    });
+    return;
+  }
+
   try {
     const result = await settle({
-      idempotencyKey: ledgerKey,
-      reservationId: reservation.reservationId,
-      attribution: {
-        accountId: context.principal.ownerAccountId,
-        applicationId: context.principal.applicationId,
-        applicationCredentialId: context.principal.credentialId,
-        ...(context.delegatedUserId === undefined
-          ? {}
-          : { delegatedUserId: context.delegatedUserId }),
-        requestId: context.requestId,
-        environment: context.principal.environment,
-      },
-      outcome,
-      usageSource: 'oxy_measured',
-      units: {},
+      idempotencyKey: admitted.ledgerKey,
+      reservationId: hold.reservationId,
+      attribution: admitted.ledgerAttribution,
+      ...(settlement.generationId === undefined
+        ? {}
+        : { generationId: settlement.generationId }),
+      outcome: settlement.outcome,
+      usageSource: settlement.usageSource,
+      units: settlement.units,
       resolvedModelReference: route.modelReference,
       servingProvider: route.provider,
       priceVersionId: route.priceVersionId,
-      ...(routingPolicyVersionId === undefined
+      ...(admitted.routingPolicyVersionId === undefined
         ? {}
-        : { routingPolicyVersionId }),
+        : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
     });
     if (result.status !== 'settled' && result.status !== 'already-settled') {
       logger.error(
         'inference.edge.release_failed',
-        new Error(`zero settlement returned ${result.status}`),
-        { requestId: context.requestId, reservationId: reservation.reservationId }
+        new Error(`settlement returned ${result.status}`),
+        {
+          requestId: context.requestId,
+          reservationId: hold.reservationId,
+          outcome: settlement.outcome,
+          usageSource: settlement.usageSource,
+        }
       );
     }
   } catch (error) {
     logger.error(
       'inference.edge.release_threw',
       error instanceof Error ? error : new Error(String(error)),
-      { requestId: context.requestId, reservationId: reservation.reservationId }
+      { requestId: context.requestId, reservationId: hold.reservationId }
     );
   }
 }
@@ -1042,8 +1486,26 @@ interface ForwardFailure {
 /**
  * What a failed forward means to the customer.
  *
- * The no-data-plane case is `service_unavailable` and NOT retryable: an
- * unconfigured deployment is fixed by an operator, and telling every SDK to
+ * ## The data plane's own code is used; its retryability is not
+ *
+ * A terminal `error` event carries a code from the contract's closed set, and
+ * that code is what the customer gets — passed through `buildInferenceError`,
+ * which re-derives `retryable` from the edge's own total map. So there is ONE
+ * authority for "should a client retry this" rather than two that can disagree,
+ * and a data plane cannot teach every SDK to retry something the edge knows is
+ * hopeless. The message is passed through too, and the contract's own
+ * `safeErrorTextSchema` refuses it if it ever carries credential-shaped material.
+ *
+ * ## A 4xx from the data plane is never the customer's fault
+ *
+ * `RelayEnvelopeRejectedError` means Oxy's signature, envelope version or body
+ * was refused. Surfacing Relay's code would tell a customer their API key is bad
+ * when it is Oxy's signing key that is, so it becomes `internal_error` and the
+ * real status goes to the log.
+ *
+ * ## The no-data-plane case is `service_unavailable` and NOT retryable
+ *
+ * An unconfigured deployment is fixed by an operator, and telling every SDK to
  * retry would turn one misconfiguration into a retry storm.
  */
 function classifyForwardFailure(error: unknown, signal: AbortSignal): ForwardFailure {
@@ -1061,6 +1523,46 @@ function classifyForwardFailure(error: unknown, signal: AbortSignal): ForwardFai
       message: 'The client closed the connection before the request completed.',
       reason: 'client_disconnected',
       outcome: 'cancelled',
+    };
+  }
+  if (error instanceof RelayIncompleteError) {
+    if (error.reason === 'terminal_error' && error.failure !== undefined) {
+      return {
+        code: error.failure.code,
+        message: error.failure.message,
+        reason: `relay_error:${error.failure.code}`,
+        outcome: error.failure.code === 'cancelled' ? 'cancelled' : 'failed',
+      };
+    }
+    if (error.reason === 'usage_missing') {
+      return {
+        code: 'internal_error',
+        message: 'The request ran and Oxy could not read the usage it produced.',
+        reason: 'relay_usage_missing',
+        outcome: 'failed',
+      };
+    }
+    return {
+      code: 'provider_error',
+      message: 'The inference data plane stopped responding before the request completed.',
+      reason: 'relay_stream_truncated',
+      outcome: 'failed',
+    };
+  }
+  if (error instanceof RelayEnvelopeRejectedError) {
+    return {
+      code: 'internal_error',
+      message: 'The request could not be forwarded to the inference data plane.',
+      reason: `relay_rejected_envelope:${error.status}`,
+      outcome: 'failed',
+    };
+  }
+  if (error instanceof RelayProtocolError) {
+    return {
+      code: 'internal_error',
+      message: 'The inference data plane answered in a form Oxy could not read.',
+      reason: 'relay_protocol',
+      outcome: 'failed',
     };
   }
   return {
@@ -1112,23 +1614,54 @@ function validateCompletion(
   return undefined;
 }
 
+/**
+ * The report, when it answers the request that was admitted; `undefined` when it
+ * does not.
+ *
+ * The same two checks {@link validateCompletion} makes, in the form the streaming
+ * path needs: there the response is already delivered, so a bad report can only
+ * be discarded rather than turned into a refusal.
+ */
+function validateUsageReport(
+  report: NormalizedUsageReport,
+  requestId: string,
+  route: EdgeRoute
+): NormalizedUsageReport | undefined {
+  if (report.requestId !== requestId) return undefined;
+  if (report.resolvedModelReference !== route.modelReference) return undefined;
+  return report;
+}
+
 /** The contract's unit array as the `{ unit: quantity }` map the ledger takes. */
 function unitsFromReport(report: NormalizedUsageReport): Partial<Record<UsageUnit, number>> {
+  return unitsFromQuantities(report.units);
+}
+
+function unitsFromQuantities(
+  quantities: readonly { unit: UsageUnit; quantity: number }[]
+): Partial<Record<UsageUnit, number>> {
   const units: Partial<Record<UsageUnit, number>> = {};
-  for (const quantity of report.units) {
+  for (const quantity of quantities) {
     units[quantity.unit] = quantity.quantity;
   }
   return units;
 }
 
-/** Build and VALIDATE the versioned envelope the data plane receives. */
+/**
+ * Build and VALIDATE the versioned envelope the data plane receives.
+ *
+ * `stream` is passed rather than read off `context.request`, because it is the
+ * EDGE's decision by the time this runs: a request that asked to stream and was
+ * admitted by a deployment with a data plane streams, and there is exactly one
+ * call site for each value.
+ */
 function buildEnvelope(
   context: EdgeExecutionContext,
-  route: EdgeRoute,
-  maxOutputTokens: number,
-  routingPolicy: RoutingPolicyReference
+  admitted: AdmittedRequest,
+  stream: boolean
 ): InferenceRequest {
   const { principal, request } = context;
+  const { route, maxOutputTokens, routingPolicy } = admitted;
 
   return inferenceRequestSchema.parse({
     schemaVersion: 1,
@@ -1151,7 +1684,7 @@ function buildEnvelope(
     target: { kind: 'model', modelReference: route.modelReference },
     modality: 'text',
     input: request.input,
-    stream: false,
+    stream,
     maxOutputTokens,
     sampling: request.sampling,
     tools: request.tools,

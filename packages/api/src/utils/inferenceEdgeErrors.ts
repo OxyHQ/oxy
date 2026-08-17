@@ -268,6 +268,27 @@ export function sendInferenceError(res: Response, error: InferenceError): void {
 }
 
 /**
+ * The error body a stock OpenAI client parses.
+ *
+ * Exported because the compatibility surface needs it in two places that must
+ * not diverge: as the body of a non-streaming refusal, and as an SSE `data:`
+ * frame when a stream fails after `200` — which is the only way to report a
+ * mid-stream failure on a surface whose status code has already been sent.
+ */
+export function openAiErrorBody(error: InferenceError): {
+  error: { message: string; type: string; param: string | null; code: string };
+} {
+  return {
+    error: {
+      message: error.message,
+      type: OPENAI_ERROR_TYPE[error.code],
+      param: error.param ?? null,
+      code: error.code,
+    },
+  };
+}
+
+/**
  * Send the same error in the OpenAI idiom, for `/v1/chat/completions`.
  *
  * The body stays exactly what a stock client parses — `{ error: { message,
@@ -281,12 +302,5 @@ export function sendOpenAiError(res: Response, error: InferenceError): void {
   }
   res.setHeader('X-Oxy-Error-Code', error.code);
   res.setHeader('X-Oxy-Error-Retryable', String(error.retryable));
-  res.status(inferenceErrorStatus(error.code)).json({
-    error: {
-      message: error.message,
-      type: OPENAI_ERROR_TYPE[error.code],
-      param: error.param ?? null,
-      code: error.code,
-    },
-  });
+  res.status(inferenceErrorStatus(error.code)).json(openAiErrorBody(error));
 }
