@@ -318,7 +318,52 @@ export type GenerationReceipt = z.infer<typeof generationReceiptSchema>;
  * written against this and never against either public schema, so the two
  * dialects cannot drift into two admission paths.
  */
+/**
+ * Which endpoint's arithmetic applies to this request.
+ *
+ * A DISCRIMINATED UNION and not a string, because each arm carries the counts its
+ * own ceiling is computed from, and because a total `switch` is what forces a new
+ * endpoint to declare a bound. `ceilingForOperation` switches on `kind` with no
+ * default arm, so adding a member fails `tsc` until somebody writes down what the
+ * request can consume — which is the one thing that must never be guessed, since
+ * an under-sized hold is how a balance goes negative.
+ *
+ * Every count here is derived from the request BODY, never from a header or a
+ * byte length: `Content-Length` bounds bytes, and no modality on this list is
+ * priced in bytes.
+ */
+export type EdgeOperation =
+  /** Text in, text out. `input_tokens` bounded by characters, `output_tokens` by the cap. */
+  | { readonly kind: 'completion' }
+  /**
+   * `POST /v1/embeddings`. `embeddings` is EXACT — the caller says how many inputs
+   * they sent — and `input_tokens` is character-bounded, or exact when the caller
+   * pre-tokenized.
+   */
+  | { readonly kind: 'embeddings'; readonly embeddings: number }
+  /**
+   * `POST /v1/rerank`. `input_tokens` bounded by `chars(query) + Σ chars(documents)`.
+   * No output-token arm: a rerank returns indices and scores, not generated text.
+   */
+  | { readonly kind: 'rerank' }
+  /**
+   * `POST /v1/audio/speech`. `characters` is EXACT (`input.length`). Deliberately
+   * carries NO `audio_output_milliseconds`: duration is characters ÷ speaking rate,
+   * and no route field declares a speaking rate, so any duration figure would be a
+   * guess. A duration-priced route therefore fails to quote and is refused, which
+   * is the intended outcome rather than an oversight.
+   */
+  | { readonly kind: 'speech'; readonly characters: number }
+  /**
+   * `POST /v1/images/generations`. `images` is EXACT (`n`). Assumes one route per
+   * size/quality class, because a price version prices a UNIT and not a
+   * `(unit, size, quality)` tuple.
+   */
+  | { readonly kind: 'images'; readonly images: number };
+
 export interface NormalizedEdgeRequest {
+  /** Which endpoint's ceiling arithmetic applies. */
+  readonly operation: EdgeOperation;
   /** Absent when the caller named none and the routing policy's default applies. */
   readonly target?: RoutingTarget;
   readonly input: InferenceInput;
@@ -358,6 +403,7 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
         : undefined;
 
   return defined({
+    operation: { kind: 'completion' as const },
     target,
     input: { format: 'messages' as const, messages },
     stream: request.stream ?? false,
@@ -417,6 +463,7 @@ export function normalizeChatCompletionsRequest(
         : request.stop;
 
   return defined({
+    operation: { kind: 'completion' as const },
     target: { kind: 'model' as const, modelReference: request.model },
     input: { format: 'messages' as const, messages },
     stream: request.stream ?? false,

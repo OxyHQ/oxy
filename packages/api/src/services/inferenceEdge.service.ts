@@ -145,6 +145,7 @@ import {
   TEXT_COMPLETION_MODALITY,
   UNCONSTRAINED_ROUTING,
   type CatalogueViewer,
+  type EdgeModalityRequirement,
   type EdgeRoute,
 } from './inferenceCatalogue.service';
 import {
@@ -174,6 +175,7 @@ import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdg
 import { logger } from '../utils/logger';
 import {
   generationReceiptSchema,
+  type EdgeOperation,
   type GenerationReceipt,
   type NormalizedEdgeRequest,
 } from '../schemas/inferenceEdge.schemas';
@@ -662,7 +664,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     viewerForPrincipal(principal),
     requestedModelReference,
     routingConstraints,
-    TEXT_COMPLETION_MODALITY
+    modalityForOperation(request.operation)
   );
   if (resolution.status === 'unknown-model') {
     // A model that does not exist and one this credential may not see are
@@ -741,7 +743,13 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       { param: 'max_output_tokens' }
     );
   }
-  const maxOutputTokens = requestedOutput ?? route.maxOutputTokens;
+  // Zero for every operation that does not generate a token stream. The context
+  // check below then bounds the INPUT alone for those, which is the right
+  // question: an embeddings request still has to fit the model's context.
+  const maxOutputTokens = outputTokenBudget(
+    request.operation,
+    requestedOutput ?? route.maxOutputTokens
+  );
   const estimatedInputTokens = estimateInputTokens(request);
   if (estimatedInputTokens + maxOutputTokens > route.maxContextTokens) {
     return refuse(
@@ -764,10 +772,11 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   //     charged MORE for a cached or reasoning token than for its parent would
   //     produce a settlement above its own hold — refused, loudly, as
   //     `settlement-exceeds-reservation`, after the request has already run.
-  const ceilingUnits: Partial<Record<UsageUnit, number>> = {
-    input_tokens: estimatedInputTokens,
-    output_tokens: maxOutputTokens,
-  };
+  const ceilingUnits: Partial<Record<UsageUnit, number>> = ceilingForOperation(
+    request.operation,
+    estimatedInputTokens,
+    maxOutputTokens
+  );
   const quote = await quoteUnits(route.priceVersionId, ceilingUnits);
   if (quote.status !== 'quoted') {
     logger.error(
@@ -2081,6 +2090,89 @@ function isInferenceScope(scope: ApplicationScope): scope is ApplicationScope & 
  * a ceiling precisely because non-text parts, whose token cost has no character
  * bound, are refused before this runs.
  */
+/**
+ * Which route capability an operation needs, before any route is resolved.
+ *
+ * Total over {@link EdgeOperation} with no default arm, so a new endpoint cannot
+ * reach the router without declaring what it needs a model to do.
+ */
+export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequirement {
+  switch (operation.kind) {
+    case 'completion':
+      return TEXT_COMPLETION_MODALITY;
+    case 'embeddings':
+      return { input: 'text', output: 'embedding' };
+    case 'rerank':
+      // Input only. `INFERENCE_MODALITIES` has no member for a ranking, and
+      // claiming `text` output would assert something false about the model.
+      return { input: 'text' };
+    case 'speech':
+      return { input: 'text', output: 'audio' };
+    case 'images':
+      return { input: 'text', output: 'image' };
+  }
+}
+
+/**
+ * Output tokens an operation may generate, which is what the context check and
+ * the hold both size against.
+ *
+ * Only a completion generates them. An embedding, a ranking, an audio clip and an
+ * image are not token streams, and including `output_tokens: 0` in a ceiling would
+ * be worse than omitting it: `quoteUnits` refuses a unit the route does not price,
+ * so a zero would make every route that sensibly omits an `output_tokens` price
+ * fail to quote.
+ */
+function outputTokenBudget(operation: EdgeOperation, resolved: number): number {
+  return operation.kind === 'completion' ? resolved : 0;
+}
+
+/**
+ * The CEILING — a provable upper bound, per priced unit, on what this request can
+ * consume, derivable from the request body plus the route.
+ *
+ * Total over {@link EdgeOperation} with no default arm. That is the point: adding
+ * a modality fails `tsc` here until its bound is written down, and an unsound
+ * bound is the one defect in this file that costs money rather than availability.
+ *
+ * The soundness argument differs per arm and is recorded per arm, because "it
+ * looked like the other ones" is how a guess enters:
+ *
+ *  - `input_tokens` is bounded by CHARACTERS for every arm, on the one argument
+ *    that generalises: every BPE token consumes at least one character of its
+ *    input, so a character count is a token ceiling. It is not a tight bound and
+ *    does not need to be.
+ *  - `embeddings`, `characters` and `images` are EXACT — the caller declared them.
+ *    An exact figure is a valid ceiling.
+ *  - Nothing here is derived from a byte length. No unit on this list is priced in
+ *    bytes, and `bytes ÷ an assumed rate` is precisely the reasoning that makes a
+ *    transcription hold unsound.
+ */
+function ceilingForOperation(
+  operation: EdgeOperation,
+  estimatedInputTokens: number,
+  maxOutputTokens: number
+): Partial<Record<UsageUnit, number>> {
+  switch (operation.kind) {
+    case 'completion':
+      return { input_tokens: estimatedInputTokens, output_tokens: maxOutputTokens };
+    case 'embeddings':
+      return { input_tokens: estimatedInputTokens, embeddings: operation.embeddings };
+    case 'rerank':
+      // `requests` is deliberately NOT included. A route priced only on tokens is
+      // the common case, and adding a unit the route does not price would make
+      // `quoteUnits` refuse it — turning a pricing convention into an outage.
+      return { input_tokens: estimatedInputTokens };
+    case 'speech':
+      // `characters` alone. See the `speech` arm of `EdgeOperation` for why no
+      // duration figure appears: a duration-priced route fails to quote and is
+      // refused, which is the sound outcome.
+      return { characters: operation.characters };
+    case 'images':
+      return { input_tokens: estimatedInputTokens, images: operation.images };
+  }
+}
+
 export function estimateInputTokens(request: NormalizedEdgeRequest): number {
   let characters = 0;
   let messages = 0;
