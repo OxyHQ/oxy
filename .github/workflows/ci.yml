@@ -403,6 +403,45 @@ jobs:
       - run: bun scripts/test-check-permission-vocabulary.mjs
       - run: bun scripts/check-permission-vocabulary.mjs
 
+  # No source in this monorepo reads a raw client IP, and nothing reads one inside
+  # a rate limiter's options at all (see scripts/check-no-raw-ip-keys.mjs).
+  #
+  # Oxy persists no user IP in any form; anonymous rate-limit keys are the one
+  # transient exception and must go through `hashedIpKey`. `packages/api/src/routes/store.ts`
+  # broke that without touching the invariant's own code: an account-keyed
+  # limiter mounted BEFORE `authMiddleware`, so its `?? req.ip` fallback was the
+  # only branch that ever ran and every store write minted a Redis key holding a
+  # raw address. Nothing in the limiter's own source says so — the bug is the
+  # order of two arguments two hundred lines away — which is why this is a census
+  # of the flat fact (is there a raw IP anywhere?) rather than a review.
+  #
+  # Its own job rather than a step inside `api-test` so the check has a NAME in the
+  # required set: `check-ci-complete.mjs` then refuses a run where it is not a
+  # dependency of `CI complete`. `bun install` is for `typescript`, which reads the
+  # source with the real parser instead of a regex — necessary because most textual
+  # `req.ip` hits on this tree are comments. Nothing needs building.
+  raw-ip-keys:
+    name: Raw Client IP Guard
+    runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install
+      # The gate's own fixture cases, run before the gate — the original store.ts
+      # keyGenerator verbatim, every banned member and header, both directions of
+      # allow-list drift, the vacuity floors, and a file naming every banned
+      # spelling only in comments, which is what a regex census cannot survive.
+      - run: bun scripts/test-check-no-raw-ip-keys.mjs
+      - run: bun scripts/check-no-raw-ip-keys.mjs
+
   # Two questions about the same journal, both answerable with no database:
   # whether each migration says which side of a deploy it belongs on, and whether
   # the order it is listed in can apply at all.
@@ -829,6 +868,7 @@ jobs:
       - secret-scan
       - schema-policy
       - permission-vocabulary
+      - raw-ip-keys
       - migration-phases
       - db-test
       - contracts-test
