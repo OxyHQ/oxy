@@ -1704,6 +1704,29 @@ function buildEnvelope(
     ...(context.idempotencyKey === undefined
       ? {}
       : { idempotencyKey: context.idempotencyKey }),
+    // A policy REFERENCE — `{routingPolicyId, policyVersion}` — because that is
+    // what `inferenceRequestSchema` publishes. The data plane therefore holds no
+    // policy VALUES.
+    //
+    // What that costs, stated plainly rather than left to be discovered: Oxy has
+    // already filtered every candidate route against this policy and resolved the
+    // primary one (see `resolveEdgeRoute` above, issue #1011), so the route this
+    // envelope is served on IS policy-compliant. But if the data plane fails over
+    // to a DIFFERENT deployment after that route fails, it has no provider
+    // allowlist, no region residency, no zero-retention requirement and no price
+    // ceiling to check the replacement against — so a data-plane-initiated route
+    // switch is unconstrained by the customer's policy today. It is bounded only
+    // by the data plane's own refusal to substitute the MODEL, which is
+    // structural there rather than policy-derived.
+    //
+    // The fix is DECIDED and is a follow-up, not an open question: the envelope
+    // will carry an ordered list of pre-authorized routes that Oxy filtered, plus
+    // an explicit cross-model authorization flag, so failover becomes "take the
+    // next entry" and needs no policy semantics in the data plane at all. That is
+    // a published-contract change with matching ADR 0006/0010 amendments and a
+    // data-plane change, landing on top of this. Until it does, do NOT add a
+    // snapshot field here: a second, unpublished shape on this hop is exactly the
+    // divergence the contract package exists to prevent.
     routingPolicy,
   });
 }

@@ -3,12 +3,23 @@
  * ADR 0010, ADR 0015).
  *
  * This module declares the SHAPE of the call the edge makes.
- * `services/httpRelayClient.ts` is the production implementation, against
- * `OxyHQ/Relay` — a real, deployed Go service. A deployment that has not
- * configured one (`config/relayDataPlane.ts`) still has NO data plane: every
- * invoke resolves to {@link DataPlaneNotConfiguredError} and the edge answers a
- * typed `service_unavailable`. It never falls through to the Alia proxy and never
+ * `services/httpRelayClient.ts` is the production implementation of it.
+ *
+ * ## What is built, and what is configured, are two different facts
+ *
+ * The data plane EXISTS: `OxyHQ/Relay` is a public Go repository with a build, a
+ * test suite and a CI contract-drift gate. **No deployment of it is configured
+ * here**, and that — not the absence of an implementation — is why every invoke
+ * still refuses today. A deployment that has not set the three variables in
+ * `config/relayDataPlane.ts` has NO data plane: every invoke resolves to
+ * {@link DataPlaneNotConfiguredError} and the edge answers a typed
+ * `service_unavailable`. It never falls through to the Alia proxy and never
  * pretends to serve.
+ *
+ * The distinction matters because this header is what a reader consults to
+ * understand a refusal. "Nothing is built" and "nothing is configured" have
+ * different fixes — the first is a project, the second is three environment
+ * variables and a public key handed to Relay.
  *
  * ## What crosses the boundary
  *

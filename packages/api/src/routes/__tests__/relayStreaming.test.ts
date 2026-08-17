@@ -1363,6 +1363,19 @@ describe('POST /v1/responses with stream: true', () => {
     });
   });
 
+  /**
+   * REPORTED, and nothing more — do not upgrade this assertion.
+   *
+   * The epic requires a customer-visible receipt when an allowed route switch
+   * occurs, and that is exactly what this asserts. It deliberately does NOT
+   * assert the switch respected the customer's routing policy, because it cannot:
+   * the envelope carries a policy REFERENCE rather than the values, so a
+   * data-plane-initiated switch has nothing to check a replacement route against
+   * (see the forwarding site in `inferenceEdge.service.ts`). When the decided
+   * follow-up lands — an ordered list of pre-authorized routes on the envelope —
+   * the guarantee will come from that list, not from this frame, so the assertion
+   * to add then belongs where the list is built.
+   */
   it('surfaces a route switch to the customer, in stream', async () => {
     const fixture = await makeFixture();
 
@@ -1524,6 +1537,7 @@ describe('POST /v1/chat/completions with stream: true', () => {
     expect(Number(receipts[0].billedAmount)).toBeCloseTo(EXPECTED_CHARGE, 9);
   });
 
+  /** Reported only, for the reason given on the `/v1/responses` case above. */
   it('surfaces a route switch on a chunk a stock client can still parse', async () => {
     const fixture = await makeFixture();
 
