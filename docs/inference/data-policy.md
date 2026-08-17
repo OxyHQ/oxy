@@ -31,6 +31,44 @@ positive control proving the logger was called at all.
 that is explicit, time-limited, encrypted and audited; none of those four is
 built, so there is no way — for you or for Oxy — to turn payload retention on.
 
+### The absence is enforced, and this is where the gate is
+
+[ADR 0016](../adr/0016-no-inference-payload-persistence.md) turns that state from
+a fact about today's code into a decision with a lock on it: **the four properties
+are PRECONDITIONS on introducing capture, not work to do afterwards** — and the
+third of them, a key Oxy does not hold in PostgreSQL, needs the same managed
+secret backend that [ADR 0013](../adr/0013-byok-secret-custody.md) records as
+absent. So capture cannot honestly land today, and the decision cannot be
+revisited until that backend exists.
+
+`scripts/check-no-payload-persistence.mjs` is what makes the refusal survive the
+next person who has a reason. It is a census over the drizzle schema barrel — the
+same module `drizzle.config.ts` generates migrations from, so a table it cannot
+see gets no migration — and it fails a pull request on either of two things:
+
+- a column whose NAME says it holds a payload (`prompt`, `completion`, `payload`,
+  `messageBody`, `toolArguments`, `rawResponse`, `modelOutput`, `debugCapture`
+  and the rest), among columns whose type could actually hold one. The type filter
+  is structural, which is why the real `supports_prompt_caching` and
+  `retains_payloads` BOOLEANS need no exception;
+- any `jsonb`, `json` or `bytea` column — array forms included — that does not
+  declare what it holds. That is the half a name ban cannot do: a payload column
+  called `capture` or `d` matches no pattern, and an open shape is the one type
+  that can hold an entire request without anyone deciding it should. All 32
+  open-shaped or payload-named columns in the schema carry a written purpose, and
+  an entry naming a column that no longer exists fails too, so the list cannot
+  drift.
+
+It runs as the `Schema Payload Policy` job, which `CI complete` — the one status
+check `main` requires — must depend on. Its own fixture test plants a payload
+column per banned pattern and requires the census to flag each one, so a clean
+result is a real absence rather than a census that read nothing.
+
+**The named residue:** a `text` column with an innocuous name could hold a prompt,
+and no static census sees that. What is guaranteed is that payload persistence
+cannot arrive by accident or by increment — it takes a name that says what it is,
+or a new open-shaped column, and both are refused until someone edits the guard.
+
 ### Error text is filtered, in both directions
 
 An upstream provider's error message routinely echoes the request that caused

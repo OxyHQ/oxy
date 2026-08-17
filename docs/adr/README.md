@@ -26,6 +26,7 @@ becoming a decided one). Otherwise it is superseded by a later ADR that names it
 | [0012](0012-service-token-signing-key-model.md) | #972, #987 | Service tokens move to asymmetric (Ed25519) signing verified against a published JWKS; the shared HMAC secret is retired, because a symmetric verification key is also a mint key and after ADR 0007 that forges spend attribution. |
 | [0013](0013-byok-secret-custody.md) | #972 | Oxy stores a partitioned `secret_ref` into managed secret storage and never a customer's provider credential; with no secret backend wired, BYOK writes refuse with a typed 503 before the credential is read, rather than falling back to PostgreSQL. |
 | [0014](0014-account-billing-and-entitlements.md) | #972 | A child account shares its nearest ancestor's balance and is bounded by budgets rather than allocated funds; Stripe is attached by one reference row that is also the second webhook idempotency guard; a plan allowance is an integer count and money is an exact decimal, and nothing sums them. |
+| [0016](0016-no-inference-payload-persistence.md) | #972 | Oxy persists no prompt, completion, chat message body or tool argument, and the four properties #972 asks of a debug capture — explicit opt-in, time-limited, encrypted with a key Oxy does not hold in PostgreSQL, audited and PII-redacted — are preconditions on building one rather than follow-up work; a schema census enforces the refusal. |
 
 ## Related
 

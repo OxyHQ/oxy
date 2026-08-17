@@ -296,6 +296,79 @@ jobs:
       - run: bun scripts/test-check-deploy-secrets-sync.mjs
       - run: bun scripts/check-deploy-secrets-sync.mjs
 
+  # No issued credential material in tracked source (see scripts/check-secret-scan.mjs).
+  #
+  # Nothing scanned source for secrets before #972 workstream 12: no gitleaks, no
+  # trufflehog, no detect-secrets, no CodeQL config, no pre-commit hook — while
+  # `packages/api/.env` was once committed with live JWT secrets in it.
+  #
+  # Deliberately not gitleaks: the maintained action is licensed per organisation
+  # for private repositories, a pinned release binary adds a network dependency and
+  # a checksum to a job whose value is determinism, and a `.gitleaks.toml`
+  # allow-list cannot carry the exact-count assertion this repository's gate
+  # convention requires. The scanner's own header states what it therefore does NOT
+  # cover, measured on this tree.
+  #
+  # No install: the gate reads `git ls-files` and file bytes and shells out to
+  # nothing, which its fixture test asserts by running against trees that have no
+  # node_modules at any level.
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      # The gate's own fixture tests, run before the gate — one planted-secret case
+      # per rule, built from the rule set the gate itself emits, plus the cases
+      # proving it does NOT fire on this tree's deliberate placeholder credentials.
+      - run: bun scripts/test-check-secret-scan.mjs
+      - run: bun scripts/check-secret-scan.mjs
+
+  # No column in the persisted schema can hold a prompt, a completion, a chat
+  # message body or a tool argument (see scripts/check-no-payload-persistence.mjs
+  # and docs/adr/0016-no-inference-payload-persistence.md).
+  #
+  # ADR 0016's decision is a REFUSAL, and a refusal with nothing enforcing it is a
+  # sentence in a document. The census reads the drizzle schema barrel — the same
+  # module `drizzle.config.ts` generates migrations from, so a table it misses gets
+  # no migration — and requires every open-shaped column to declare what it holds.
+  #
+  # Its own job rather than a step inside `api-test` so the check has a NAME in the
+  # required set: `check-ci-complete.mjs` then refuses a run where it is not a
+  # dependency of `CI complete`. It needs `@oxyhq/contracts` and `@oxyhq/db` built
+  # because the schema modules import them; nothing else.
+  schema-policy:
+    name: Schema Payload Policy
+    runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install
+      - run: |
+          bun run --filter @oxyhq/contracts build
+          bun run --filter @oxyhq/db build
+      # The guard's own fixture schemas — a planted payload column per banned
+      # pattern, and the narrowness cases proving it does not fire on the boolean
+      # capability flags or on the product's own free-text columns.
+      - run: bun scripts/test-check-no-payload-persistence.mjs
+      - run: bun scripts/check-no-payload-persistence.mjs
+
   # Two questions about the same journal, both answerable with no database:
   # whether each migration says which side of a deploy it belongs on, and whether
   # the order it is listed in can apply at all.
@@ -599,22 +672,48 @@ jobs:
         run: bun run test
         working-directory: ./packages/console
 
-  # Security audit
+  # Dependency advisories (see scripts/check-dependency-audit.mjs).
+  #
+  # This job used to run `npm audit --audit-level=high || true`. Ask the standard
+  # question — what would that report if a high-severity advisory were present?
+  # Exactly what it reported with none, because `|| true` made it unconditionally
+  # green, and `ci-complete` counted it as satisfied whatever it found. It also ran
+  # `npm` against a repository that has no package-lock.json.
+  #
+  # A hard fail is not the replacement, and the number says why: `bun audit` reports
+  # 152 advisories here, 76 of them high or critical, essentially all transitive
+  # through eslint, expo, metro, vite and release-it, whose version floors cannot be
+  # raised from this repository. That gate is red on arrival and blocks every
+  # unrelated pull request, which is how `|| true` came to be appended in the first
+  # place.
+  #
+  # So: a ratchet. An advisory in a package nobody has acknowledged fails, every
+  # CRITICAL must be named individually, and an acknowledgement that no longer
+  # matches fails too — which is also the positive control, since a non-empty list
+  # plus an audit that returned nothing is red rather than green.
+  #
+  # No install: verified that `bun audit` needs only bun.lock and the workspace
+  # manifests by running it against a tree holding exactly those.
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
+    # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
+    # flagged the absent default; scoped here rather than at workflow level,
+    # because a workflow-wide block would silently re-scope the token of every
+    # other job in this file, including the coverage upload.
+    permissions:
+      contents: read
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: '22.x'
-
-      - name: Run npm audit
-        run: npm audit --audit-level=high || true
+          bun-version: 1.3.14
+      # The gate's own fixture tests, offline: every failing branch is driven from a
+      # synthesised audit payload, because the live audit on this tree only ever
+      # exercises the passing path.
+      - run: bun scripts/test-check-dependency-audit.mjs
+      - run: bun scripts/check-dependency-audit.mjs
 
   # THE one status check `main` requires. Everything above it reports here.
   #
@@ -638,6 +737,8 @@ jobs:
       - api-build
       - lockfile-sync
       - deploy-secrets-sync
+      - secret-scan
+      - schema-policy
       - migration-phases
       - db-test
       - contracts-test
