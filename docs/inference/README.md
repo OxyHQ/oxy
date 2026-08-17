@@ -202,13 +202,26 @@ public launch on it.
 **There is no metrics library in this repository, deliberately.** Every metric
 #972 names is a property of a row this platform already writes durably —
 `inference_usage_events` and its daily rollups, the reservations and the
-receipts — and the edge now fills the three columns that existed and that nothing
-wrote (`latency_ms`, `time_to_first_token_ms`, `route_switches`). What is missing
-is a scrape or query target, alert routing and a Console audit surface, and the
-first two belong to `~/Oxy/oxy-infra` rather than here.
-[observability.md](./observability.md) has the derivation for each metric, the
-two places the audit trail's actor is thinner than it looks, and why `isStaff` is
-still one undifferentiated tier.
+receipts — and the edge fills the three columns that existed and that nothing
+wrote (`latency_ms`, `time_to_first_token_ms`, `route_switches`).
+
+**All nine of those metrics are now SERVED**, from the durable record rather than
+from a process registry: `GET /inference/admin/metrics` (staff-gated). Two of them
+report `state: 'pending'` with a reason instead of a number, because they are
+structurally unmeasurable here — time to first token needs a streaming data plane,
+and fallback needs a data plane that switches a route — and a zero would be
+indistinguishable from a correct measurement. Reconciliation drift became a stream
+rather than a staff-triggered pass, with a window claim that keeps N ECS tasks from
+multiplying it.
+
+What is still missing is a scrape or export target, alert routing and a Console
+audit surface. The first two belong to `~/Oxy/oxy-infra`, which today holds 58
+Terraform files with zero alarms, zero SNS topics and zero dashboards; the third is
+workstream 9's. [observability.md](./observability.md) has the derivation for each
+metric, the concrete shape the export half would take, why no alarm is being added
+before a destination exists, the reported-vs-admitted provider gap that would make
+a per-provider rate wrong, the two places the audit trail's actor is thinner than it
+looks, and why `isStaff` is still one undifferentiated tier.
 
 ### Alia integration — workstream 14
 

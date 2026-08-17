@@ -46,6 +46,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from '../db/expiry';
 import { RESERVATION_EXPIRY_SWEEP_INTERVAL_MS } from '../db/schema/usageReservations';
+import {
+  RECONCILIATION_LEASE_MS,
+  RECONCILIATION_PERIOD_MS,
+  RECONCILIATION_SWEEP_INTERVAL_MS,
+} from '../db/schema/billingReconciliation';
 
 const SERVER_PATH = join(__dirname, '..', 'server.ts');
 const SERVER_SOURCE = readFileSync(SERVER_PATH, 'utf8');
@@ -83,7 +88,15 @@ describe('the entrypoint this suite reads', () => {
     // "comments are gone" is also what a stripper that ate the whole file
     // reports; without the second, one that stripped nothing looks identical to
     // one that worked.
-    expect(SERVER_CODE.length).toBeGreaterThan(SERVER_SOURCE.length / 2);
+    //
+    // "Code survived" is asserted DIRECTLY — an absolute floor plus a line of
+    // real code — and not as a fraction of the source. A `> SOURCE.length / 2`
+    // floor was the original form and it erodes as the registrations get better
+    // commented: it went red on a well-documented sweep whose code was entirely
+    // intact, which is a floor measuring comment density rather than the
+    // stripper.
+    expect(SERVER_CODE.length).toBeGreaterThan(10_000);
+    expect(SERVER_CODE).toContain('export async function bootstrap(');
     expect(SERVER_SOURCE).toContain('// Release holds whose deadline has passed');
     expect(SERVER_CODE).not.toContain('// Release holds whose deadline has passed');
   });
@@ -139,4 +152,36 @@ describe('the retention sweep is registered', () => {
     // is a scheduled no-op, and would satisfy every assertion above.
     expect(EXPIRY_SWEEP_TARGETS.length).toBeGreaterThan(10);
   });
+});
+
+describe('the reconciliation sweep is registered', () => {
+  it('schedules runScheduledReconciliation on its own interval', () => {
+    // Without this registration reconciliation drift has no series behind it:
+    // every pass would be one a staff member remembered to start, which is the
+    // exact "green and inert" shape this file exists for.
+    expect(SERVER_CODE).toContain("from './services/billingReconciliation.service'");
+    expect(SERVER_CODE).toContain('runScheduledReconciliation()');
+    expect(SERVER_CODE).toContain('RECONCILIATION_SWEEP_INTERVAL_MS');
+    expect(SERVER_CODE).toContain('reconciliationSweep.unref()');
+  });
+
+  it('ticks more often than the window it reconciles', () => {
+    // Equal or longer and a restart across a period boundary loses that window
+    // for a whole further period. The claim makes the extra ticks free.
+    expect(RECONCILIATION_SWEEP_INTERVAL_MS).toBeLessThan(RECONCILIATION_PERIOD_MS);
+    expect(RECONCILIATION_SWEEP_INTERVAL_MS).toBeGreaterThan(0);
+  });
+
+  it('believes a running pass for longer than a pass can take', () => {
+    // The lease reclaims a window from a task that died. Shorter than a real
+    // pass and it would reclaim a LIVE one, producing exactly the duplicate work
+    // the claim exists to prevent — so it errs long.
+    expect(RECONCILIATION_LEASE_MS).toBeGreaterThanOrEqual(RECONCILIATION_SWEEP_INTERVAL_MS);
+  });
+
+  // The window arithmetic itself, and the claim that makes N tasks safe, are
+  // covered against a real Postgres in
+  // `services/__tests__/billingReconciliation.service.test.ts` — importing the
+  // service here would drag the Stripe adapter's graph into a file whose subject
+  // is one `setInterval`.
 });

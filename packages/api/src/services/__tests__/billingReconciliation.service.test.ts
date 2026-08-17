@@ -22,13 +22,17 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { billingReconciliationRuns } from '../../db/schema/billingReconciliation';
+import {
+  billingReconciliationRuns,
+  RECONCILIATION_LEASE_MS,
+} from '../../db/schema/billingReconciliation';
 import { userCredits } from '../../db/schema/userCredits';
 import { users } from '../../db/schema/users';
 import {
   reconcilePayments,
+  runScheduledReconciliation,
   type PaymentProcessorLedger,
   type ProcessorLedgerQuery,
   type ProcessorPayment,
@@ -371,5 +375,201 @@ describe('reconciliation repairs nothing', () => {
     ]);
     // Still missing. A pass that had "helpfully" recorded it would report clean.
     expect(secondPass.discrepancies.map((entry) => entry.kind)).toEqual(['missing_in_ledger']);
+  });
+});
+
+/* ==========================================================================
+ * The scheduled pass (issue #972 workstream 16)
+ * ========================================================================== */
+
+/**
+ * ## The test this block exists for
+ *
+ * `oxy-api` runs N ECS tasks and every one registers every sweep. A pass that
+ * simply fired on each would write N run rows per window, make N Stripe scans and
+ * record N copies of every finding — so the drift metric would read N× reality,
+ * which is worse than not having it at all. Nothing about that failure is visible
+ * from one task's logs.
+ *
+ * So every assertion below is about the CLAIM, and each is paired with the case
+ * that must still proceed: a completed window is skipped **and** a failed one is
+ * retried, a fresh `running` row is respected **and** a stale one is reclaimed.
+ * Without those pairs, "it skipped" would also be what a claim that skips
+ * everything reports, and a permanently-blocked window is the exact hole in the
+ * drift series the schedule exists to prevent.
+ *
+ * The window is pinned years in the past, so it holds no `billing_external_payments`
+ * row from any sibling suite and this block's run rows are the only ones that can
+ * exist for it. That is what makes a platform-wide pass — which is what the
+ * scheduler actually performs — assertable on a shared database.
+ */
+describe('the scheduled pass', () => {
+  /** 2021-03-04T14:20Z, so the due window is a specific ancient hour. */
+  const FIXED_NOW = new Date('2021-03-04T14:20:33.512Z');
+  const DUE_WINDOW_START = new Date('2021-03-04T12:00:00.000Z');
+  const DUE_WINDOW_END = new Date('2021-03-04T13:00:00.000Z');
+
+  /** Every platform-wide run row for the pinned window, newest first. */
+  async function scheduledRuns() {
+    return getDb()
+      .select()
+      .from(billingReconciliationRuns)
+      .where(
+        and(
+          isNull(billingReconciliationRuns.accountId),
+          eq(billingReconciliationRuns.periodStart, DUE_WINDOW_START),
+          eq(billingReconciliationRuns.periodEnd, DUE_WINDOW_END)
+        )
+      )
+      .orderBy(desc(billingReconciliationRuns.startedAt));
+  }
+
+  function runDue(now = FIXED_NOW) {
+    return runScheduledReconciliation({ now, ledger: fakeLedger([]) });
+  }
+
+  beforeEach(async () => {
+    // The window is this block's alone, so clearing it keeps each case
+    // independent without touching any other suite's rows.
+    await getDb()
+      .delete(billingReconciliationRuns)
+      .where(
+        and(
+          isNull(billingReconciliationRuns.accountId),
+          eq(billingReconciliationRuns.periodStart, DUE_WINDOW_START)
+        )
+      );
+  });
+
+  it('reconciles the complete window that ended one settlement lag ago', async () => {
+    const result = await runDue();
+
+    expect(result.status).toBe('ran');
+    if (result.status !== 'ran') return;
+    expect(result.outcome).toMatchObject({ reconciled: 1, skipped: 0, failed: 0 });
+    // Not "an hour ago": at 14:20 with an hour of lag the due window is
+    // 12:00–13:00, quantized to the period, never 13:20–14:20.
+    expect(result.outcome.periodStart).toBe(DUE_WINDOW_START.toISOString());
+    expect(result.outcome.periodEnd).toBe(DUE_WINDOW_END.toISOString());
+
+    const runs = await scheduledRuns();
+    expect(runs).toHaveLength(1);
+    expect(runs[0].status).toBe('completed');
+    // Platform-wide, so a staff member investigating one customer neither
+    // consumes this window nor is blocked by it.
+    expect(runs[0].accountId).toBeNull();
+  });
+
+  it('writes exactly ONE run row when two tasks tick at the same moment', async () => {
+    const [first, second] = await Promise.all([runDue(), runDue()]);
+
+    const outcomes = [first, second].map((result) =>
+      result.status === 'ran' ? result.outcome : undefined
+    );
+    // One task did the work; the other found the window taken and wrote nothing.
+    expect(outcomes.filter((outcome) => outcome?.reconciled === 1)).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome?.skipped === 1)).toHaveLength(1);
+
+    // The assertion the whole interlock exists for. Two rows here means the
+    // drift metric double-counts on every window, on every deploy, forever.
+    expect(await scheduledRuns()).toHaveLength(1);
+  });
+
+  it('does not re-run a window it already completed', async () => {
+    await runDue();
+    const again = await runDue();
+
+    expect(again.status).toBe('ran');
+    if (again.status !== 'ran') return;
+    expect(again.outcome).toMatchObject({ reconciled: 0, skipped: 1 });
+    expect(await scheduledRuns()).toHaveLength(1);
+  });
+
+  it('RETRIES a window whose pass failed, because its drift is unknown', async () => {
+    const failed = await runScheduledReconciliation({
+      now: FIXED_NOW,
+      ledger: failingLedger(),
+    });
+    expect(failed.status).toBe('ran');
+    if (failed.status !== 'ran') return;
+    expect(failed.outcome).toMatchObject({ reconciled: 0, failed: 1 });
+
+    const afterFailure = await scheduledRuns();
+    expect(afterFailure).toHaveLength(1);
+    expect(afterFailure[0].status).toBe('failed');
+
+    // The pair to "does not re-run a completed window". A failed pass read
+    // nothing, so reporting no drift for that window would be the "cron that
+    // hides drift" this module refuses — it has to be retried.
+    const retry = await runDue();
+    expect(retry.status).toBe('ran');
+    if (retry.status !== 'ran') return;
+    expect(retry.outcome).toMatchObject({ reconciled: 1, skipped: 0 });
+
+    const runs = await scheduledRuns();
+    expect(runs).toHaveLength(2);
+    expect(runs.map((run) => run.status).sort()).toEqual(['completed', 'failed']);
+  });
+
+  it('respects a fresh running row and RECLAIMS a stale one', async () => {
+    // A pass in flight on another task. Inserted directly, because the only way
+    // to hold a `running` row open through the real path is to stall the fake
+    // ledger, and that would make this test about a promise rather than a lease.
+    const [inFlight] = await getDb()
+      .insert(billingReconciliationRuns)
+      .values({
+        provider: 'stripe',
+        currency: 'USD',
+        periodStart: DUE_WINDOW_START,
+        periodEnd: DUE_WINDOW_END,
+        status: 'running',
+        startedAt: new Date(FIXED_NOW.getTime() - 1000),
+      })
+      .returning({ id: billingReconciliationRuns.id });
+
+    const blocked = await runDue();
+    expect(blocked.status).toBe('ran');
+    if (blocked.status !== 'ran') return;
+    expect(blocked.outcome).toMatchObject({ reconciled: 0, skipped: 1 });
+    expect(await scheduledRuns()).toHaveLength(1);
+
+    // Now age the same row past its lease: the task that started it is gone, and
+    // a window blocked forever by a dead task is the stranded claim the lease
+    // exists to undo. Without this half, the assertion above is satisfied by a
+    // claim that never proceeds at all.
+    await getDb()
+      .update(billingReconciliationRuns)
+      .set({ startedAt: new Date(FIXED_NOW.getTime() - RECONCILIATION_LEASE_MS - 1000) })
+      .where(eq(billingReconciliationRuns.id, inFlight.id));
+
+    const reclaimed = await runDue();
+    expect(reclaimed.status).toBe('ran');
+    if (reclaimed.status !== 'ran') return;
+    expect(reclaimed.outcome).toMatchObject({ reconciled: 1, skipped: 0 });
+
+    const runs = await scheduledRuns();
+    expect(runs).toHaveLength(2);
+    // The stranded row is marked `failed`, not left `running` — the CHECK ties
+    // `completed_at` to leaving `running`, so a reclaim that forgot it would
+    // violate the constraint rather than pass quietly.
+    const stale = runs.find((run) => run.id === inFlight.id);
+    expect(stale?.status).toBe('failed');
+    expect(stale?.completedAt).not.toBeNull();
+  });
+
+  it('does nothing at all with no processor configured', async () => {
+    const original = process.env.STRIPE_SECRET_KEY;
+    delete process.env.STRIPE_SECRET_KEY;
+    try {
+      // No injected ledger: this is the path `server.ts` takes.
+      const result = await runScheduledReconciliation({ now: FIXED_NOW });
+      expect(result).toEqual({ status: 'processor-unconfigured' });
+      // And it claimed nothing, so a deployment that later configures Stripe
+      // still reconciles this window rather than finding it marked done.
+      expect(await scheduledRuns()).toHaveLength(0);
+    } finally {
+      if (original === undefined) delete process.env.STRIPE_SECRET_KEY;
+      else process.env.STRIPE_SECRET_KEY = original;
+    }
   });
 });

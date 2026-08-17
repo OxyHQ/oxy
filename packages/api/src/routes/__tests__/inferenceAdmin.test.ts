@@ -341,6 +341,10 @@ describe('every route on this mount is staff-gated', () => {
   it.each([
     ['GET', `${ADMIN}/deployments`, undefined],
     ['GET', `${ADMIN}/rollout`, undefined],
+    // A window in the distant past, so this case needs no fixture and cannot see
+    // another suite's rows. Request counts per application are customer data, so
+    // this surface needs the same gate as the rest of the mount.
+    ['GET', `${ADMIN}/metrics?from=2020-01-01&to=2020-01-02`, undefined],
     ['POST', `${ADMIN}/deployments/DEPLOYMENT/legal-review`, { status: 'approved', evidenceRef: 'x' }],
     ['POST', `${ADMIN}/deployments/DEPLOYMENT/approve`, {}],
   ] as const)('refuses %s %s to a non-staff user, and serves it to staff', async (method, template, body) => {
@@ -747,5 +751,109 @@ describe('GET /inference/admin/rollout answers "what is on here"', () => {
     expect(report.edge).toMatchObject({ open: false, closedReason: 'not_configured' });
     expect(report.machineCredentialAuth).toMatchObject({ enabled: false });
     expect(report.charging).toMatchObject({ authorized: false, shadowMetering: true });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  7. The workstream-16 operational metrics                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The values themselves are covered against real rows in
+ * `services/__tests__/inferenceMetrics.service.test.ts`, including the positive
+ * control that flips time-to-first-token from `pending` to `measured`. What is
+ * asserted HERE is what the ENDPOINT does: the window it accepts, the window it
+ * refuses, and — the load-bearing part — that the two structurally-pending
+ * metrics reach the wire as a STATE and not as a zero. A number that survives the
+ * service and is flattened to `0` by a serializer is the same lie.
+ */
+describe('GET /inference/admin/metrics', () => {
+  const WINDOW = 'from=2020-01-01&to=2020-01-02';
+
+  it('reports the pending metrics as a state, never as a zero', async () => {
+    const response = await request('GET', `${ADMIN}/metrics?${WINDOW}`);
+
+    expect(response.status).toBe(200);
+    const data = response.body.data as Record<string, unknown>;
+
+    expect(data).toMatchObject({ schemaVersion: 1, consistency: 'eventually-consistent' });
+    expect(data.window).toEqual({ from: '2020-01-01', to: '2020-01-02' });
+
+    // The two metrics this edge structurally cannot produce. `pending` plus a
+    // reason, and NO percentile field at all — because a consumer that found
+    // `p50Ms: 0` beside `state: 'pending'` would plot the zero.
+    expect(data.timeToFirstTokenMs).toMatchObject({ state: 'pending' });
+    expect(data.timeToFirstTokenMs).not.toHaveProperty('p50Ms');
+    expect(data.fallback).toMatchObject({ state: 'pending' });
+    expect(data.fallback).not.toHaveProperty('totalSwitches');
+
+    // And the same for a rate over no traffic: undefined, not zero.
+    expect(data.requests).toMatchObject({ state: 'pending', requestCount: 0 });
+    expect(data.requests).not.toHaveProperty('errorRateBps');
+
+    // The scanner's control: `0` does appear in this payload — the pending arms
+    // carry row counts — so "no zeros anywhere" is not what was asserted above.
+    expect(JSON.stringify(data)).toContain('"rowsCarryingValue":0');
+  });
+
+  it('answers every metric workstream 16 names, by name', async () => {
+    const response = await request('GET', `${ADMIN}/metrics?${WINDOW}`);
+    const data = response.body.data as Record<string, unknown>;
+
+    // A checklist against the epic's own two lines, so a metric quietly dropped
+    // from the payload is a red rather than a field nobody notices is gone.
+    for (const metric of [
+      'requests',
+      'totalLatencyMs',
+      'timeToFirstTokenMs',
+      'fallback',
+      'reserveFailures',
+      'settlementLagMs',
+      'reconciliationDrift',
+    ]) {
+      expect(data).toHaveProperty(metric);
+    }
+  });
+
+  it('refuses a window it cannot answer instead of truncating it', async () => {
+    // Wider than `inference_usage_events`' ninety-day retention: a longer window
+    // cannot yield more latency samples, so answering it would be a quiet lie
+    // about the range the numbers cover.
+    const tooWide = await request('GET', `${ADMIN}/metrics?from=2020-01-01&to=2021-01-01`);
+    expect(tooWide.status).toBe(400);
+
+    const backwards = await request('GET', `${ADMIN}/metrics?from=2020-02-01&to=2020-01-01`);
+    expect(backwards.status).toBe(400);
+
+    const notADay = await request('GET', `${ADMIN}/metrics?from=2020-1-1&to=2020-01-02`);
+    expect(notADay.status).toBe(400);
+
+    // A lexically well-formed day that does not exist. `Date.parse` yields NaN,
+    // and the span check then fails closed rather than comparing against it.
+    const impossible = await request('GET', `${ADMIN}/metrics?from=2026-02-31&to=2026-03-01`);
+    expect(impossible.status).toBe(400);
+
+    // The control for all four: the same route with a window it can answer.
+    expect((await request('GET', `${ADMIN}/metrics?${WINDOW}`)).status).toBe(200);
+  });
+
+  it('refuses a query field it does not know', async () => {
+    // `.strict()`, so a mistyped filter is a 400 rather than a report silently
+    // covering every tenant when the caller believed it named one.
+    const response = await request('GET', `${ADMIN}/metrics?${WINDOW}&accountid=someone`);
+    expect(response.status).toBe(400);
+  });
+
+  it('never exposes a wholesale cost, unlike the deployment listing on this mount', async () => {
+    const fixture = await insertPendingDeployment();
+
+    // The control, in the same currency as the measurement: this mount DOES serve
+    // the wholesale cost, on the route that is meant to.
+    const listing = await request('GET', `${ADMIN}/deployments`);
+    expect(listing.raw).toContain(fixture.wholesaleAmount);
+
+    const metrics = await request('GET', `${ADMIN}/metrics?${WINDOW}`);
+    expect(metrics.raw).not.toContain(fixture.wholesaleAmount);
+    expect(metrics.raw).not.toContain('wholesale');
   });
 });
