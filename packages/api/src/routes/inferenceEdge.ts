@@ -60,7 +60,9 @@
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import type { z } from 'zod';
 import type {
+  InferenceContentSource,
   InferenceError,
   InferenceFinishReason,
   InferenceMessage,
@@ -93,9 +95,13 @@ import { createHttpRelayClient } from '../services/httpRelayClient';
 import type { RelayClient } from '../services/relayClient';
 import {
   chatCompletionsRequestSchema,
+  imageGenerationsRequestSchema,
   normalizeChatCompletionsRequest,
+  normalizeImageGenerationsRequest,
   normalizeResponsesRequest,
+  normalizeSpeechRequest,
   responsesRequestSchema,
+  speechRequestSchema,
   type NormalizedEdgeRequest,
 } from '../schemas/inferenceEdge.schemas';
 import {
@@ -362,6 +368,57 @@ function openAiUsage(units: EdgeCompletion['units']): {
 }
 
 /** The text of an assistant message, as the OpenAI shape carries it. */
+/** The dialect-agnostic zod failure, rendered as the edge's typed error. */
+function parseFailure(error: z.ZodError, requestId: string): InferenceError {
+  const issue = error.issues[0];
+  return buildInferenceError({
+    code: 'invalid_request',
+    message: issue?.message ?? 'The request could not be parsed.',
+    requestId,
+    ...(issue?.path.length ? { param: issue.path.join('.') } : {}),
+  });
+}
+
+/** The one refusal an over-long idempotency key produces. */
+function idempotencyKeyTooLong(requestId: string): InferenceError {
+  return buildInferenceError({
+    code: 'invalid_request',
+    message: `Idempotency-Key must be at most ${MAX_IDEMPOTENCY_KEY_LENGTH} characters.`,
+    requestId,
+    param: 'Idempotency-Key',
+  });
+}
+
+/**
+ * The first content part of a given type across every output message.
+ *
+ * Written as a search rather than an index because the number and order of output
+ * messages is the data plane's choice, not this endpoint's: assuming
+ * `output[0].content[0]` would be a claim about a shape the wire never promised.
+ */
+function firstPartOfType(
+  output: readonly InferenceMessage[],
+  type: 'audio' | 'image'
+): InferenceMessage['content'][number] | undefined {
+  for (const message of output) {
+    for (const part of message.content) {
+      if (part.type === type) return part;
+    }
+  }
+  return undefined;
+}
+
+/** Every image source in the output, in the order the data plane produced them. */
+function imageParts(output: readonly InferenceMessage[]): InferenceContentSource[] {
+  const sources: InferenceContentSource[] = [];
+  for (const message of output) {
+    for (const part of message.content) {
+      if (part.type === 'image') sources.push(part.source);
+    }
+  }
+  return sources;
+}
+
 function messageText(message: InferenceMessage): string {
   return message.content
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
@@ -904,6 +961,249 @@ export function createInferenceEdgeRouter(
    * with a version bump, and it belongs to whoever next has a second reason for
    * one rather than to this route alone.
    */
+  /* ------------------------------------------------------------------------ */
+  /*  The two modalities that have NO ROUTE, and why                          */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * `POST /v1/audio/transcriptions` and `POST /v1/batches` are ABSENT from this
+   * router deliberately. The reason lives here, beside the routes that do exist,
+   * because the next person to reach for either will be reading this file — and
+   * both have a plausible-looking implementation that is financially unsound.
+   *
+   * ## Transcriptions: no sound ceiling exists in the request
+   *
+   * Providers bill audio by DURATION, and duration is a property of the uploaded
+   * bytes rather than a declared field. `Content-Length` bounds bytes only, and
+   * `duration = bytes ÷ bitrate` needs a bitrate the request never states: 25 MB
+   * is roughly thirty minutes of 112 kbps MP3 or four minutes of 48 kHz 16-bit
+   * stereo WAV, a ~7x spread that widens across the formats such an endpoint
+   * accepts. A byte-derived hold sized for the worst case over-holds by an order
+   * of magnitude on every ordinary request; sized for the typical case it
+   * UNDER-holds, and an under-sized hold is how a balance goes negative.
+   * `output_tokens` inherits the same unsoundness, because transcript length is a
+   * function of duration.
+   *
+   * **Do not reach for `bytes / 4`.** Two things would make this sound, and both
+   * are decisions rather than code: probe the container server-side before
+   * reserving (a new dependency, a parsing attack surface on untrusted bytes, and
+   * a rule for a container that lies about its own duration), or have the
+   * catalogue declare a per-route maximum duration and hold at
+   * `min(byte-derived worst case, route max)` — which needs an additive field on
+   * `modelCapabilitiesSchema` and is therefore a two-repo release, since Relay
+   * derives its contract from the published package and gates on drift.
+   *
+   * It is also blocked upstream of the ceiling: the request is
+   * `multipart/form-data` with a file, this edge is JSON-only behind
+   * `express.json`, and the internal envelope's input union has no audio-reference
+   * arm.
+   *
+   * ## Batches: the ledger protocol does not fit, which is the disqualifying half
+   *
+   * Two independent failures. The ceiling is a sum over N sub-requests of each
+   * one's own ceiling — computable only by parsing the uploaded file, and no
+   * sounder than the weakest modality it contains, so a batch of transcriptions
+   * inherits everything above.
+   *
+   * The second is the one that cannot be engineered around here: `reserve` →
+   * `settle` assumes ONE hold per HTTP request, settled inside
+   * `RESERVATION_TTL_SECONDS`. OpenAI's `completion_window` is twenty-four hours.
+   * A day-long hold against a fifteen-minute TTL means `expireReservations`
+   * releases it mid-batch and the work later settles against a reservation that no
+   * longer stands. **Raising the TTL is not the fix** — a day-long hold on a shared
+   * balance is a different financial product, and ADR 0009's terminal-write model
+   * has exactly one settlement per hold. What batches actually need is a hold per
+   * sub-request taken at dispatch, or a new long-lived reservation class with its
+   * own expiry and partial-settlement semantics. That is an amendment to ADR 0009,
+   * not an endpoint.
+   *
+   * Until then a caller of either path gets a 404 from the router, which is the
+   * honest answer: the endpoint does not exist. It is deliberately NOT a route
+   * that refuses, because a registered route implies a surface Oxy intends to
+   * serve, and `inferenceEdgeGateCoverage.test.ts` would then have to carry two
+   * entries that can never pass their own gate.
+   */
+
+  /**
+   * `POST /v1/audio/speech` — text to audio (#972, the later modalities).
+   *
+   * Ceiling: `characters` = `input.length`. EXACT, declared, and the unit every
+   * real TTS provider bills. Deliberately no `audio_output_milliseconds` — see
+   * `speechRequestSchema`. A duration-priced route fails to quote and is refused
+   * through the existing `no_route_available` path rather than a new branch.
+   *
+   * Nothing serves this today: the catalogue is empty and no data plane is
+   * configured, so every call answers `service_unavailable`. The point of landing
+   * it now is that the CEILING is sound before the route exists — the alternative
+   * is somebody adding this endpoint later under delivery pressure and reaching
+   * for a duration guess.
+   */
+  router.post(
+    '/audio/speech',
+    edgeGate(sendInferenceError),
+    machineCredentialLimiter,
+    machineApplicationLimiter,
+    inferenceEdgeLimiter,
+    async (req: EdgeRequest, res: Response) => {
+      const edge = req.edge;
+      if (edge === undefined) return;
+
+      const parsed = speechRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        sendInferenceError(res, parseFailure(parsed.error, edge.requestId));
+        return;
+      }
+
+      const key = idempotencyKey(req);
+      if (!key.ok) {
+        sendInferenceError(res, idempotencyKeyTooLong(edge.requestId));
+        return;
+      }
+
+      const normalized: NormalizedEdgeRequest = normalizeSpeechRequest(parsed.data);
+      const execution = await executeInferenceRequest({
+        requestId: edge.requestId,
+        receivedAt: edge.receivedAt,
+        principal: edge.principal,
+        request: normalized,
+        ...(delegatedUserId(req, parsed.data.user) === undefined
+          ? {}
+          : { delegatedUserId: delegatedUserId(req, parsed.data.user) }),
+        ...(key.key === undefined ? {} : { idempotencyKey: key.key }),
+        apiFormat: 'audio_speech',
+        endpoint: '/v1/audio/speech',
+        signal: connectionSignal(res),
+        ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
+      });
+
+      if (execution.status === 'refused') {
+        sendInferenceError(res, execution.error);
+        return;
+      }
+
+      const { completion } = execution;
+      applyInferenceHeaders(res, completion.requestId);
+      applyUsageHeaders(res, completion);
+
+      // The output arrives from the data plane, so its SHAPE is a claim the wire
+      // may not honour — a declared type is not an enforcement of it. A data plane
+      // that answered a speech request with text is a data-plane fault, and it must
+      // surface as a typed error rather than as a crash or as silence.
+      const audio = firstPartOfType(completion.output, 'audio');
+      if (audio === undefined || audio.type !== 'audio') {
+        sendInferenceError(
+          res,
+          buildInferenceError({
+            code: 'provider_error',
+            message: 'The data plane returned no audio for a speech request.',
+            requestId: completion.requestId,
+          })
+        );
+        return;
+      }
+      if (audio.source.kind !== 'inline') {
+        // OpenAI's speech endpoint answers with bytes and has no URL form, so a
+        // URL here cannot be rendered in this dialect. Refusing beats redirecting
+        // a caller that is reading a response body.
+        sendInferenceError(
+          res,
+          buildInferenceError({
+            code: 'provider_error',
+            message: 'The data plane returned audio by reference, which this endpoint cannot render.',
+            requestId: completion.requestId,
+          })
+        );
+        return;
+      }
+      res.status(200);
+      res.type(audio.source.mediaType);
+      res.send(Buffer.from(audio.source.data, 'base64'));
+    }
+  );
+
+  /**
+   * `POST /v1/images/generations` — text to image (#972, the later modalities).
+   *
+   * Ceiling: `images` = `n ?? 1`. EXACT and declared; the prompt adds
+   * `input_tokens` on the usual character bound. `size` and `quality` are
+   * forwarded and do NOT widen the hold, which rests on one route per
+   * size/quality class in the catalogue — see `imageGenerationsRequestSchema` for
+   * why that is a catalogue decision rather than a contracts one.
+   *
+   * As with speech, nothing serves this today; the value is a sound ceiling
+   * before the endpoint exists.
+   */
+  router.post(
+    '/images/generations',
+    edgeGate(sendInferenceError),
+    machineCredentialLimiter,
+    machineApplicationLimiter,
+    inferenceEdgeLimiter,
+    async (req: EdgeRequest, res: Response) => {
+      const edge = req.edge;
+      if (edge === undefined) return;
+
+      const parsed = imageGenerationsRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        sendInferenceError(res, parseFailure(parsed.error, edge.requestId));
+        return;
+      }
+
+      const key = idempotencyKey(req);
+      if (!key.ok) {
+        sendInferenceError(res, idempotencyKeyTooLong(edge.requestId));
+        return;
+      }
+
+      const normalized: NormalizedEdgeRequest = normalizeImageGenerationsRequest(parsed.data);
+      const execution = await executeInferenceRequest({
+        requestId: edge.requestId,
+        receivedAt: edge.receivedAt,
+        principal: edge.principal,
+        request: normalized,
+        ...(delegatedUserId(req, parsed.data.user) === undefined
+          ? {}
+          : { delegatedUserId: delegatedUserId(req, parsed.data.user) }),
+        ...(key.key === undefined ? {} : { idempotencyKey: key.key }),
+        apiFormat: 'images_generations',
+        endpoint: '/v1/images/generations',
+        signal: connectionSignal(res),
+        ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
+      });
+
+      if (execution.status === 'refused') {
+        sendInferenceError(res, execution.error);
+        return;
+      }
+
+      const { completion } = execution;
+      applyInferenceHeaders(res, completion.requestId);
+      applyUsageHeaders(res, completion);
+
+      // Same wire-claim caution as speech. An empty list is a data-plane fault and
+      // is reported as one, rather than answered as a successful zero-image
+      // generation the customer has already been held for.
+      const images = imageParts(completion.output);
+      if (images.length === 0) {
+        sendInferenceError(
+          res,
+          buildInferenceError({
+            code: 'provider_error',
+            message: 'The data plane returned no image for an image-generation request.',
+            requestId: completion.requestId,
+          })
+        );
+        return;
+      }
+      res.status(200).json({
+        created: Math.floor(Date.now() / 1000),
+        data: images.map((source) =>
+          source.kind === 'url' ? { url: source.url } : { b64_json: source.data }
+        ),
+      });
+    }
+  );
+
   router.get(
     '/generations/:id',
     edgeGate(sendInferenceError),

@@ -269,6 +269,86 @@ export type ChatCompletionsRequest = z.infer<typeof chatCompletionsRequestSchema
  * SNAPSHOT, so the arithmetic is checkable without the price version still
  * existing — and states its attribution as the three ids the row actually holds.
  */
+/* -------------------------------------------------------------------------- */
+/*  Later modalities — speech and images                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `POST /v1/audio/speech` — text to audio, in the shape a stock OpenAI client
+ * sends.
+ *
+ * ## Only a `characters`-priced route can serve this, and that is enforced by
+ * ## arithmetic rather than by a check
+ *
+ * The ceiling is `input.length` — EXACT, declared, and the unit every real TTS
+ * provider actually bills. What this endpoint deliberately does NOT compute is
+ * `audio_output_milliseconds`: output duration is characters ÷ speaking rate, and
+ * `modelCapabilitiesSchema` declares no speaking rate, so a duration figure would
+ * be a guess dressed as a bound. A route priced in duration therefore fails to
+ * quote (`quoteUnits` refuses a unit the ceiling omits) and is refused as
+ * `no_route_available`. That refusal is the existing code path, not a new branch.
+ *
+ * `speed` and `voice` are accepted and forwarded because a provider needs them.
+ * Neither participates in the ceiling, which is exactly why the ceiling stays
+ * sound: `characters` does not vary with either.
+ */
+export const speechRequestSchema = z
+  .object({
+    model: modelReferenceSchema,
+    /**
+     * The text to speak. Bounded so the ceiling cannot be driven arbitrarily high
+     * by one request; the edge's own `MAX_REQUEST_BYTES` is the outer bound and
+     * this is the per-field one.
+     */
+    input: z.string().min(1).max(100_000),
+    voice: z.string().min(1).max(64),
+    response_format: z.enum(['mp3', 'opus', 'aac', 'flac', 'wav', 'pcm']).optional(),
+    speed: z.number().min(0.25).max(4).optional(),
+    user: z.string().min(1).max(64).optional(),
+  })
+  .strict();
+
+export type SpeechRequest = z.infer<typeof speechRequestSchema>;
+
+/**
+ * `POST /v1/images/generations` — text to image.
+ *
+ * ## One route per size/quality class, and why that is a catalogue decision
+ *
+ * The ceiling is `images` = `n`, exact and declared. The open question is not the
+ * count but the PRICE: `unitPriceSchema` prices a *unit*, not a
+ * `(unit, size, quality)` tuple, so one `images` price per version would make a
+ * 1024×1024 standard image and a 1792×1024 HD image cost the same — false for
+ * every real provider, by roughly 4x.
+ *
+ * The resolution needs no contract change, because a price version is scoped to
+ * `(modelReference, provider)`: each size/quality class is its own model
+ * reference in the catalogue. The route then resolves per class and the ceiling
+ * stays exact. The alternative — one route holding at the most expensive class it
+ * permits — over-holds AND needs a route field naming the permitted classes,
+ * which would be a contracts change.
+ *
+ * So `size` and `quality` are accepted and forwarded, and they do NOT widen the
+ * hold. If a deployment publishes one route serving several classes, that is a
+ * catalogue error rather than a ceiling error, and it is recorded here because it
+ * is invisible from the endpoint.
+ */
+export const imageGenerationsRequestSchema = z
+  .object({
+    model: modelReferenceSchema,
+    prompt: z.string().min(1).max(32_000),
+    /** OpenAI caps this at 10. Exact, declared, and the whole ceiling. */
+    n: z.number().int().min(1).max(10).optional(),
+    size: z.string().min(1).max(32).optional(),
+    quality: z.string().min(1).max(32).optional(),
+    style: z.string().min(1).max(32).optional(),
+    response_format: z.enum(['url', 'b64_json']).optional(),
+    user: z.string().min(1).max(64).optional(),
+  })
+  .strict();
+
+export type ImageGenerationsRequest = z.infer<typeof imageGenerationsRequestSchema>;
+
 export const generationReceiptSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -318,7 +398,52 @@ export type GenerationReceipt = z.infer<typeof generationReceiptSchema>;
  * written against this and never against either public schema, so the two
  * dialects cannot drift into two admission paths.
  */
+/**
+ * Which endpoint's arithmetic applies to this request.
+ *
+ * A DISCRIMINATED UNION and not a string, because each arm carries the counts its
+ * own ceiling is computed from, and because a total `switch` is what forces a new
+ * endpoint to declare a bound. `ceilingForOperation` switches on `kind` with no
+ * default arm, so adding a member fails `tsc` until somebody writes down what the
+ * request can consume — which is the one thing that must never be guessed, since
+ * an under-sized hold is how a balance goes negative.
+ *
+ * Every count here is derived from the request BODY, never from a header or a
+ * byte length: `Content-Length` bounds bytes, and no modality on this list is
+ * priced in bytes.
+ */
+export type EdgeOperation =
+  /** Text in, text out. `input_tokens` bounded by characters, `output_tokens` by the cap. */
+  | { readonly kind: 'completion' }
+  /**
+   * `POST /v1/embeddings`. `embeddings` is EXACT — the caller says how many inputs
+   * they sent — and `input_tokens` is character-bounded, or exact when the caller
+   * pre-tokenized.
+   */
+  | { readonly kind: 'embeddings'; readonly embeddings: number }
+  /**
+   * `POST /v1/rerank`. `input_tokens` bounded by `chars(query) + Σ chars(documents)`.
+   * No output-token arm: a rerank returns indices and scores, not generated text.
+   */
+  | { readonly kind: 'rerank' }
+  /**
+   * `POST /v1/audio/speech`. `characters` is EXACT (`input.length`). Deliberately
+   * carries NO `audio_output_milliseconds`: duration is characters ÷ speaking rate,
+   * and no route field declares a speaking rate, so any duration figure would be a
+   * guess. A duration-priced route therefore fails to quote and is refused, which
+   * is the intended outcome rather than an oversight.
+   */
+  | { readonly kind: 'speech'; readonly characters: number }
+  /**
+   * `POST /v1/images/generations`. `images` is EXACT (`n`). Assumes one route per
+   * size/quality class, because a price version prices a UNIT and not a
+   * `(unit, size, quality)` tuple.
+   */
+  | { readonly kind: 'images'; readonly images: number };
+
 export interface NormalizedEdgeRequest {
+  /** Which endpoint's ceiling arithmetic applies. */
+  readonly operation: EdgeOperation;
   /** Absent when the caller named none and the routing policy's default applies. */
   readonly target?: RoutingTarget;
   readonly input: InferenceInput;
@@ -358,6 +483,7 @@ export function normalizeResponsesRequest(request: ResponsesRequest): Normalized
         : undefined;
 
   return defined({
+    operation: { kind: 'completion' as const },
     target,
     input: { format: 'messages' as const, messages },
     stream: request.stream ?? false,
@@ -417,6 +543,7 @@ export function normalizeChatCompletionsRequest(
         : request.stop;
 
   return defined({
+    operation: { kind: 'completion' as const },
     target: { kind: 'model' as const, modelReference: request.model },
     input: { format: 'messages' as const, messages },
     stream: request.stream ?? false,
@@ -466,4 +593,47 @@ function normalizeOpenAiResponseFormat(
     };
   }
   return { type: format.type };
+}
+
+/**
+ * `POST /v1/audio/speech`, read into the normalized shape.
+ *
+ * `characters` is `input.length` — the count taken from the SAME string that goes
+ * into the envelope, in one expression, so the figure the hold is sized from and
+ * the text the provider bills for cannot diverge. Reading the count from anywhere
+ * else (a header, a re-parse, a trimmed copy) is how a ceiling stops bounding the
+ * thing it names.
+ */
+export function normalizeSpeechRequest(request: SpeechRequest): NormalizedEdgeRequest {
+  return defined({
+    operation: { kind: 'speech' as const, characters: request.input.length },
+    target: { kind: 'model' as const, modelReference: request.model },
+    input: { format: 'text' as const, text: request.input },
+    stream: false,
+    sampling: {},
+    tools: [],
+    delegatedUserId: request.user,
+  });
+}
+
+/**
+ * `POST /v1/images/generations`, read into the normalized shape.
+ *
+ * `images` is `n ?? 1` — OpenAI's own default. Exact rather than a bound, because
+ * the caller declared it and the provider cannot return more than it was asked
+ * for. The prompt still contributes `input_tokens` on the usual character
+ * argument, so a long prompt is held for even though the image count dominates.
+ */
+export function normalizeImageGenerationsRequest(
+  request: ImageGenerationsRequest
+): NormalizedEdgeRequest {
+  return defined({
+    operation: { kind: 'images' as const, images: request.n ?? 1 },
+    target: { kind: 'model' as const, modelReference: request.model },
+    input: { format: 'text' as const, text: request.prompt },
+    stream: false,
+    sampling: {},
+    tools: [],
+    delegatedUserId: request.user,
+  });
 }

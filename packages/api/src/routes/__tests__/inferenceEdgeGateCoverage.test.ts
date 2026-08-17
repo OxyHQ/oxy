@@ -116,6 +116,13 @@ function discoverRoutes(router: Router): DiscoveredRoute[] {
 const EXPECTED_ROUTES = [
   'POST /responses',
   'POST /chat/completions',
+  // The later modalities (#972). Both admit and hold on an EXACT ceiling
+  // (`characters` = `input.length`; `images` = `n`) and both answer
+  // `service_unavailable` until a data plane is configured. They are listed here
+  // because the gate and all three limiters apply to them identically — a
+  // modality endpoint is not a special case of the edge, it is another route on it.
+  'POST /audio/speech',
+  'POST /images/generations',
   'GET /generations/:id',
 ] as const;
 
