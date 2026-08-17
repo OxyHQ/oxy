@@ -3,6 +3,7 @@ import type {
   ProviderConnectionScope,
   ProviderConnectionStatus,
 } from '@oxyhq/contracts';
+import type { ProviderConnectionAuditEvent } from '@/hooks/use-provider-connections';
 
 /**
  * The Console's view of a BYOK provider connection — the contract's shape with
@@ -129,4 +130,52 @@ export function connectionStatusVariant(
  */
 export function shortFingerprint(fingerprint: string): string {
   return fingerprint.slice(0, 12);
+}
+
+/**
+ * Who or what caused an audit event, in words — read from `actorKind`, never
+ * inferred from the nullness of `actorUserId`.
+ *
+ * ## The bug this replaces, and why it was the common case
+ *
+ * The vocabulary has THREE kinds and only one of them carries a user id:
+ *
+ *     ('user',     <id>)   a member of the account did this
+ *     ('service',  null)   the customer's own service credential did this
+ *     ('platform', null)   Oxy's own machinery did it, with no principal at all
+ *
+ * So `actorUserId === null` does not identify a service credential — it says
+ * only "not a person", which is two different actors. The screen used to read
+ * it as "by a service credential", and `recordProviderConnectionUse` writes
+ * EVERY `used` event as `platform`. On a connection that is actually serving
+ * traffic, `used` is the most numerous row in the trail, so the wrong label was
+ * the dominant one rather than an edge case.
+ *
+ * Deleting `actor_kind` from the database would not have changed that screen by
+ * a pixel: the column was written, CHECK-constrained and returned by the API,
+ * and discarded one layer before use. A test that renders a `user` row cannot
+ * see any of this — it passes with the fix reverted — which is why
+ * `__tests__/provider-connection.test.ts` drives the `platform` case.
+ *
+ * The same shape, keyed off the field that actually distinguishes the states,
+ * is what `lib/credential-audit.ts` does for the credential trail.
+ */
+export function providerConnectionAuditAttribution(
+  event: Pick<ProviderConnectionAuditEvent, 'actorKind' | 'actorUserId'>
+): string {
+  if (event.actorKind === null) {
+    // Rows written before `0049` added the column. The weaker inference is all
+    // there is for those, and it is correct for the only two kinds that existed
+    // then; a `platform` row from that era is indistinguishable and rare.
+    return event.actorUserId === null ? 'by a service credential' : 'by a member';
+  }
+
+  switch (event.actorKind) {
+    case 'user':
+      return 'by a member';
+    case 'service':
+      return 'by a service credential';
+    case 'platform':
+      return 'by the platform';
+  }
 }

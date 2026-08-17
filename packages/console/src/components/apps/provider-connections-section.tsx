@@ -51,6 +51,7 @@ import {
   connectionAppliesToApplication,
   connectionStatusVariant,
   isSecretStoreUnavailable,
+  providerConnectionAuditAttribution,
   providerConnectionScopeLabel,
   shortFingerprint,
 } from '@/lib/provider-connection';
@@ -625,7 +626,7 @@ function ConnectionTrail({ connectionId }: { connectionId: string }) {
           <div className="flex items-center gap-2">
             <Badge variant="outline">{event.eventType}</Badge>
             <span className="text-xs text-muted-foreground">
-              {event.environment} · {event.actorUserId === null ? 'by a service credential' : 'by a member'}
+              {event.environment} · {providerConnectionAuditAttribution(event)}
             </span>
           </div>
           <span className="text-xs text-muted-foreground">
