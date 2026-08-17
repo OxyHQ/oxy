@@ -284,7 +284,20 @@ if (anonymous.length > 0) {
   );
 }
 
-run('bun', [GENERATOR], { stdio: ['ignore', 'ignore', 'inherit'] });
+// The generator refuses to write a partial document and explains why on stderr —
+// including the exact build sequence it needs, which is the usual cause. Catching
+// here keeps that explanation as the last thing in the log instead of burying it
+// under an `execFileSync` stack trace from this file.
+try {
+  run('bun', [GENERATOR], { stdio: ['ignore', 'ignore', 'inherit'] });
+} catch {
+  console.error(
+    `\n${GENERATOR} exited non-zero, so freshness could not be judged. Its own output\n` +
+      'is above; a partial document is never written, so the committed contract is\n' +
+      'unchanged.\n',
+  );
+  process.exit(1);
+}
 
 if (!documentIsDirty()) {
   console.log(
