@@ -197,3 +197,26 @@ export const provisionChannelMemberSchema = z
     inherit: z.boolean().optional(),
   })
   .strict();
+
+/**
+ * `GET /accounts/:id/audit` — the account-scoped audit union's query.
+ *
+ * PARSES ITS OWN OUTPUT, which is a requirement rather than a nicety here:
+ * `middleware/validate.ts` writes the parsed query back onto `req.query` and the
+ * handler parses it again, so a schema that cannot read what it produced raises
+ * `invalid_type` in the handler — outside any validation boundary, i.e. a 500 on
+ * a read. `z.coerce.number()` is idempotent on a number and `cursor` is carried
+ * through unchanged, so this shape survives the second pass;
+ * `__tests__/account.schemas.test.ts` asserts it rather than assuming it.
+ *
+ * The cursor is opaque and deliberately unvalidated beyond being a string: the
+ * service refuses one it did not issue and reads from the start, which is what
+ * passing nothing does. Rejecting a malformed cursor here would turn a stale
+ * bookmark into an error page.
+ */
+export const accountAuditQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    cursor: z.string().min(1).optional(),
+  })
+  .strict();

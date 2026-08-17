@@ -30,6 +30,7 @@ import { getDb } from '../config/postgres';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { users } from '../db/schema/users';
 import sessionService from '../services/session.service';
+import { listAccountAuditTrail } from '../services/accountAuditTrail.service';
 import deviceSessionService from '../services/deviceSession.service';
 import { broadcastDeviceState } from '../utils/socket';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
@@ -45,6 +46,7 @@ import {
   type AccountRole,
 } from '../utils/accountRoles';
 import {
+  accountAuditQuerySchema,
   accountIdRouteParams,
   accountMemberParams,
   listAccountsQuerySchema,
@@ -784,6 +786,46 @@ router.get(
     }
     const childCount = await countChildren(account.id);
     res.json({ account: serializeAccountNode(accountNodeFromAccess(account, access, childCount)) });
+  })
+);
+
+/**
+ * `GET /accounts/:id/audit` — what changed on this account, and who did it.
+ *
+ * The union of the two audit event tables, newest first, cursor-paginated. It
+ * exists because both underlying reads are PER-ENTITY, so a Console page
+ * answering "what happened on this account" would otherwise be one request per
+ * credential per application plus one per connection — an unbounded fan-out
+ * assembling an aggregate the API never computed.
+ *
+ * ## Both permissions, and a refusal rather than a partial list
+ *
+ * The union spans two sources that are separately gated: a credential's trail
+ * needs `credentials:read` and a connection's needs `inference:providers:read`.
+ * This route requires BOTH, so a caller holding one gets 403 rather than a list
+ * that silently omits the other half.
+ *
+ * That is deliberate for an AUDIT surface specifically. Everywhere else in this
+ * API, narrowing a result to what the caller may see is the right answer; here it
+ * would produce a trail that reads as complete and is not, which is the one
+ * failure an audit view must not have. `account:read` alone would be worse
+ * still — it is baseline for every role, so a `viewer` would read credential
+ * history they are refused per credential.
+ */
+router.get(
+  '/:id/audit',
+  readLimiter,
+  validate({ params: accountIdRouteParams, query: accountAuditQuerySchema }),
+  requireAccountPermission('credentials:read'),
+  requireAccountPermission('inference:providers:read'),
+  asyncHandler(async (req: AccountContextRequest, res) => {
+    const account = req.account;
+    if (!account) {
+      throw new NotFoundError('Account not found');
+    }
+    const { limit, cursor } = accountAuditQuerySchema.parse(req.query);
+    const page = await listAccountAuditTrail(account.id, { limit, cursor: cursor ?? null });
+    res.json({ data: page.entries, count: page.entries.length, nextCursor: page.nextCursor });
   })
 );
 
