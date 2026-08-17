@@ -7,6 +7,12 @@
   never carried. The envelope description below is now the shape in
   `packages/contracts/src/inference/request.ts`, and the enforcement split it
   implies is stated rather than left to be inferred from two ADRs at once.
+- Superseded in part: [ADR 0017](0017-authorized-routes-in-the-envelope.md)
+  (2026-08-17) — the envelope now also carries `authorizedRoutes`, the ordered
+  list of routes the customer's policy authorized. The 2026-08-16 amendment
+  assigns the data plane "failover within the destinations the policy authorized"
+  and the envelope named none of them; ADR 0017 names them, and states the edge
+  step and envelope lines it replaces.
 - Issue: #972
 
 ## Context

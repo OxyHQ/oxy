@@ -140,7 +140,13 @@ export const inferenceRequestOutcomeSchema = z.enum([
 ]);
 
 /**
- * The data plane's technical account of one request.
+ * The data plane's technical account of one request, and the ONLY shape a
+ * settlement is written from.
+ *
+ * `inferenceStreamUsageEventSchema` is not a narrower version of this one that
+ * could be widened into it — see that event's own comment. Its units are exact
+ * and settleable; the record around them is not inferable, so an edge settling
+ * from a stream event supplies the outcome itself and never promotes the event.
  *
  * No money and no price: the data plane measures units and names the route it
  * used, and the control plane decides what that costs. Keeping the two apart is
@@ -156,6 +162,24 @@ export const inferenceRequestOutcomeSchema = z.enum([
  * nested `prompt_tokens`/`completion_tokens` verbatim charges the cached and
  * reasoning tokens twice, so subtracting the children out is part of what
  * "normalized" means in this shape's name.
+ *
+ * **A `completed` report carries at least one unit, and the other outcomes need
+ * not.** `completed` is the one outcome that asserts the customer received the
+ * whole answer, so "delivered in full, consumed nothing measurable" is a
+ * contradiction — and it is one that BILLS NOTHING: settlement prices every
+ * reported unit and sums, so an empty list is a free request produced by a
+ * provider that simply omitted its usage block. The refinement makes that shape
+ * unparseable, and the policy behind it is refuse-and-release: the report is
+ * rejected and the hold is released, never estimated and charged.
+ *
+ * The three other outcomes legitimately carry none, which is why the rule is
+ * conditional rather than a `.min(1)` on the field. In the reference data plane
+ * `failed` is DERIVED from having no units — `outcomeFor` in
+ * `internal/relay/executor.go` returns `partial` when units exist and `failed`
+ * when they do not — and `cancelled` is reported for a client that stopped
+ * before anything was measured. An unconditional minimum would refuse those
+ * reports, and a refused report is a request that ran, cost money upstream and
+ * can never be settled or refunded.
  */
 export const normalizedUsageReportSchema = z
   .object({
@@ -192,6 +216,14 @@ export const normalizedUsageReportSchema = z
         code: z.ZodIssueCode.custom,
         path: ['units'],
         message: 'each unit is reported once, as a total',
+      });
+    }
+
+    if (report.outcome === 'completed' && report.units.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['units'],
+        message: 'a completed request consumed something; report at least one unit',
       });
     }
   });

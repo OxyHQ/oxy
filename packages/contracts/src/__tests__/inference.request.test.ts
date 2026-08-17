@@ -1,4 +1,5 @@
 import {
+  authorizedRouteSchema,
   clientRequestMetadataSchema,
   inferenceInputSchema,
   inferenceMessageSchema,
@@ -199,6 +200,55 @@ describe('inferenceInputSchema', () => {
     );
   });
 
+  it('carries a refusal as its own part, never as answer text', () => {
+    const parsed = inferenceInputSchema.parse({
+      format: 'messages',
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'do the forbidden thing' }] },
+        {
+          role: 'assistant',
+          content: [{ type: 'refusal', text: 'I cannot help with that.' }],
+        },
+      ],
+    });
+
+    // A distinct `type`, so no renderer can present the decline as the answer.
+    expect(parsed.format).toBe('messages');
+    if (parsed.format === 'messages') {
+      expect(parsed.messages[1].content[0].type).toBe('refusal');
+    }
+  });
+
+  it('has no member for reasoning, so private working cannot ride as content', () => {
+    // The asymmetry with `refusal` above: OpenAI has its own field for a refusal
+    // in both of its shapes and none at all for reasoning, and a `text` part
+    // would render the model's private working as its answer.
+    expect(
+      inferenceMessageSchema.safeParse({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'first I should check whether…' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('lets only an assistant message carry a refusal', () => {
+    for (const role of ['user', 'system', 'developer']) {
+      expect(
+        inferenceMessageSchema.safeParse({
+          role,
+          content: [{ type: 'refusal', text: 'I cannot help with that.' }],
+        }).success,
+      ).toBe(false);
+    }
+
+    expect(
+      inferenceMessageSchema.safeParse({
+        role: 'assistant',
+        content: [{ type: 'refusal', text: 'I cannot help with that.' }],
+      }).success,
+    ).toBe(true);
+  });
+
   it('parses multimodal content parts from either source', () => {
     const parsed = inferenceInputSchema.parse({
       format: 'messages',
@@ -217,5 +267,219 @@ describe('inferenceInputSchema', () => {
       ],
     });
     expect(parsed.format).toBe('messages');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Pre-authorized routes                                                     */
+/* -------------------------------------------------------------------------- */
+
+const primaryRoute = {
+  substitution: 'same_model' as const,
+  deploymentId: 'dep_openai_usw2_gpt5',
+  modelReference: 'openai/gpt-5@2026-06-01',
+  provider: 'openai',
+  regions: ['us-west-2'],
+};
+
+const sameModelFailover = {
+  substitution: 'same_model' as const,
+  deploymentId: 'dep_azure_use1_gpt5',
+  modelReference: 'openai/gpt-5@2026-06-01',
+  provider: 'azure',
+  regions: ['us-east-1'],
+};
+
+const crossModelSubstitute = {
+  substitution: 'cross_model' as const,
+  deploymentId: 'dep_anthropic_usw2_opus5',
+  modelReference: 'anthropic/claude-opus-5@2026-05-01',
+  provider: 'anthropic',
+  regions: ['us-west-2'],
+  authorizedByPolicy: true as const,
+};
+
+describe('authorizedRouteSchema', () => {
+  it('carries what a route needs to be EXECUTED and nothing to re-derive policy from', () => {
+    const parsed = authorizedRouteSchema.parse(primaryRoute);
+    expect(parsed).toEqual(primaryRoute);
+
+    // No price, no retention flag, no licence id, no availability scope. The
+    // arms are strict, so a producer that attaches one fails here rather than
+    // shipping a value the data plane could rank on.
+    for (const smuggled of [
+      { maxPricePerRequest: { amount: '5.000000000000', currency: 'USD' } },
+      { priceVersionId: 'pv_2026_08' },
+      { retainsPayloads: false },
+      { licenseId: 'LicenseRef-Provider-Commercial' },
+      { availabilityScope: 'public_payg' },
+      { upstreamWholesaleCostAmount: '0.500000000000' },
+    ]) {
+      expect(authorizedRouteSchema.safeParse({ ...primaryRoute, ...smuggled }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it('pins an immutable revision, because the entry names the weights to serve', () => {
+    expect(
+      authorizedRouteSchema.safeParse({ ...primaryRoute, modelReference: 'openai/gpt-5' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('cannot express a cross-model route without authorizing it', () => {
+    expect(authorizedRouteSchema.safeParse(crossModelSubstitute).success).toBe(true);
+
+    // `authorizedByPolicy` is a literal `true`. Neither omitting it nor setting
+    // it to false produces a parseable cross-model entry, so an unauthorized
+    // substitution is not a thing this contract can say.
+    const { authorizedByPolicy, ...withoutAuthorization } = crossModelSubstitute;
+    expect(authorizedByPolicy).toBe(true);
+    expect(authorizedRouteSchema.safeParse(withoutAuthorization).success).toBe(false);
+    expect(
+      authorizedRouteSchema.safeParse({ ...crossModelSubstitute, authorizedByPolicy: false })
+        .success,
+    ).toBe(false);
+
+    // And the same-model arm has no such field to set, so a substitution cannot
+    // be laundered through the kind that needs no authorization.
+    expect(
+      authorizedRouteSchema.safeParse({ ...primaryRoute, authorizedByPolicy: true }).success,
+    ).toBe(false);
+  });
+
+  it('requires at least one region, matching the deployment descriptor', () => {
+    expect(authorizedRouteSchema.safeParse({ ...primaryRoute, regions: [] }).success).toBe(false);
+  });
+});
+
+describe('inferenceRequestSchema authorizedRoutes', () => {
+  it('accepts a request with no list at all, meaning no failover is authorized', () => {
+    const parsed = inferenceRequestSchema.parse(request);
+    expect(parsed.authorizedRoutes).toBeUndefined();
+  });
+
+  it('refuses an EMPTY list rather than reading it as "no failover"', () => {
+    // `[]` would be "permission granted, destination unnamed". Absence is how
+    // "no failover" is said; an empty grant is not a state this shape has.
+    expect(
+      inferenceRequestSchema.safeParse({ ...request, authorizedRoutes: [] }).success,
+    ).toBe(false);
+  });
+
+  it('parses the primary, a same-model failover and an authorized substitute in order', () => {
+    const parsed = inferenceRequestSchema.parse({
+      ...request,
+      authorizedRoutes: [primaryRoute, sameModelFailover, crossModelSubstitute],
+    });
+
+    // Order IS preference: the data plane fails over by taking the next entry.
+    expect(parsed.authorizedRoutes?.map((route) => route.deploymentId)).toEqual([
+      'dep_openai_usw2_gpt5',
+      'dep_azure_use1_gpt5',
+      'dep_anthropic_usw2_opus5',
+    ]);
+  });
+
+  it('refuses a list whose first entry claims to be a substitution', () => {
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        target: { kind: 'model', modelReference: 'anthropic/claude-opus-5' },
+        authorizedRoutes: [crossModelSubstitute, primaryRoute],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('refuses a primary that does not serve the model the request named', () => {
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        authorizedRoutes: [
+          { ...primaryRoute, modelReference: 'anthropic/claude-opus-5@2026-05-01' },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('refuses a different model line labelled as same-model failover', () => {
+    // The load-bearing negative: a substitution wearing the label that needs no
+    // authorization is the one way an unauthorized switch could have travelled.
+    const { authorizedByPolicy, ...substituteFields } = crossModelSubstitute;
+    expect(authorizedByPolicy).toBe(true);
+
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        authorizedRoutes: [
+          primaryRoute,
+          { ...substituteFields, substitution: 'same_model' },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('refuses the same model line labelled as a cross-model substitute', () => {
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        authorizedRoutes: [
+          primaryRoute,
+          { ...sameModelFailover, substitution: 'cross_model', authorizedByPolicy: true },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('authorizes no substitute at all for a request that pinned a revision', () => {
+    const pinned = {
+      ...request,
+      target: { kind: 'model' as const, modelReference: 'openai/gpt-5@2026-06-01' },
+    };
+
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...pinned,
+        authorizedRoutes: [primaryRoute, sameModelFailover],
+      }).success,
+    ).toBe(true);
+
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...pinned,
+        authorizedRoutes: [primaryRoute, crossModelSubstitute],
+      }).success,
+    ).toBe(false);
+
+    // And a pinned request is served on exactly the revision it pinned.
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...pinned,
+        authorizedRoutes: [{ ...primaryRoute, modelReference: 'openai/gpt-5@2026-04-11' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('refuses a list that would fail over to the deployment it just left', () => {
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        authorizedRoutes: [primaryRoute, { ...sameModelFailover, deploymentId: primaryRoute.deploymentId }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('lets a routing-profile target authorize routes across model lines', () => {
+    // The customer named no model, so nothing here is a substitution FOR
+    // anything they asked for — but the destinations still have to be named and
+    // authorized, one entry each.
+    expect(
+      inferenceRequestSchema.safeParse({
+        ...request,
+        target: { kind: 'routing_profile', routingProfile: 'auto' },
+        authorizedRoutes: [primaryRoute, crossModelSubstitute],
+      }).success,
+    ).toBe(true);
   });
 });

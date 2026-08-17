@@ -2,6 +2,12 @@
 
 - Status: accepted
 - Date: 2026-08-15
+- Superseded in part: [ADR 0017](0017-authorized-routes-in-the-envelope.md)
+  (2026-08-17) — the responsibility-matrix row and the "What crosses the
+  boundary" bullet that say the data plane consumes a *versioned policy snapshot*
+  and a *reservation ceiling*. It consumes neither: a policy REFERENCE as
+  provenance, plus an ordered list of the ROUTES that policy authorized. The
+  boundary itself is unchanged; ADR 0017 says exactly what it replaces.
 - Issue: #972
 
 ## Context
