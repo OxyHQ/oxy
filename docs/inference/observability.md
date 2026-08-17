@@ -12,6 +12,11 @@ answers, which it answers only after infrastructure work that belongs to
 `~/Oxy/oxy-infra`, and which it cannot answer at all yet because there is no data
 plane.
 
+**Those numbers are now SERVED, not merely queryable.**
+`GET /inference/admin/metrics` (staff-gated, `routes/inferenceAdmin.ts`) answers
+all nine of the metrics workstream 16 names, from the durable record. See
+[What is served, and what is still only a query](#what-is-served-and-what-is-still-only-a-query).
+
 ---
 
 ## The correlation column: one `requestId`, five places
@@ -91,11 +96,13 @@ metric surface that is correctly zero. The edge now fills them:
   control plane is answerable for.
 - **`time_to_first_token_ms`** — forwarded from the data plane's usage report
   when it reports one, and left NULL when it does not. Never imputed: the first
-  token is produced upstream, this edge does not stream, and a fabricated number
-  here would enter every dashboard as a fact. It is NULL on every row today, and
-  will stay NULL until a streaming data plane exists.
-- **`route_switches`** — forwarded from the same report. This is the fallback
-  metric; it is `0` on every row today for the same reason.
+  token is produced upstream, and a fabricated number here would enter every
+  dashboard as a fact. It is NULL on every row today because **no deployment
+  configures a data plane**, not because the edge cannot stream — it can, on both
+  public dialects, since the signed relay hop landed.
+- **`route_switches`** — forwarded from the same report, and surfaced as a
+  `route_switch` frame on both dialects. This is the fallback metric; it is `0` on
+  every row today for the same reason.
 
 ### What each named metric is derivable from, today
 
@@ -105,28 +112,223 @@ metric surface that is correctly zero. The edge now fills them:
 | Error rate | `.error_count` (status ≥ 400), or `inference_usage_events.status_code` | Yes |
 | Cancellation | `outcome = 'cancelled'` on the event and the rollup | Yes |
 | Total latency | `inference_usage_events.latency_ms` | Yes, per event — the rollup carries no latency column, and adding one is a migration |
-| Time to first token | `inference_usage_events.time_to_first_token_ms` | Column ready; NULL until a streaming data plane reports one |
-| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready; `0` until a data plane switches a route |
+| Time to first token | `inference_usage_events.time_to_first_token_ms` | Column ready, edge streams; NULL until a data plane is CONFIGURED and reports one |
+| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready, edge forwards it; `0` until a configured data plane switches a route. **The `serving_provider` column is NOT updated alongside it** — see below |
 | Reserve failures | `inference_usage_events` rows with `status_code = 402` (`insufficient_balance`, `spending_limit_exceeded`), plus the `inference.edge.reservation_refused` log line | Yes |
 | Settlement lag | `usage_receipts.settled_at − usage_reservations.created_at`, joined on `usage_receipts.reservation_id` | Yes |
-| Reconciliation drift | `POST /billing/accounts/:accountId/reconciliation` publishes each pass; `GET .../reconciliation` lists them | Yes, on demand — it is a staff-run pass, not a stream |
+| Reconciliation drift | `billing_reconciliation_runs` / `_discrepancies`, filled by the scheduled pass | Yes — see [Reconciliation drift is a stream](#reconciliation-drift-is-a-stream-not-a-staff-triggered-pass) |
+
+## What is served, and what is still only a query
+
+`GET /inference/admin/metrics?from=&to=[&accountId=][&applicationId=]` —
+`routes/inferenceAdmin.ts`, behind `authMiddleware` + `requireStaff`, reading
+`services/inferenceMetrics.service.ts`. Nine metrics, one window, one payload.
+
+**Why it is not on `GET /metrics`.** That endpoint is process-local: an in-memory
+ring buffer keyed by `METHOD /path`, one instance's view, discarded on every
+deploy. Everything on the new route is a query over the durable record, so the
+answer is identical from any instance and survives a deploy. Those are two
+different kinds of number, and putting them under one key would invite a reader to
+compare them. The new route lives on the existing staff mount rather than getting
+one of its own, for the reason `GET /inference/admin/rollout` does: a second staff
+surface is a second gate to keep correct.
+
+**Staff-only, and why that is not incidental.** Request counts per application are
+customer data; a settlement-lag distribution is Oxy's own operational figure. No
+query behind the route reads `upstream_wholesale_cost_*` or any price column, so
+Oxy's commercial position cannot appear on a metric. No field is derived from a
+user IP, and none can be — the columns do not exist.
+
+**Counts come from the rollups; money never does.** `inference_usage_daily_rollups`
+has no cost, credit or amount column at all — the units/money split is enforced by
+the schema rather than by a convention — and its grain is a UTC `date`. So request,
+error and cancellation counts are read from it, and every money figure on this route
+comes from the financial tables: settlement lag from `usage_receipts.settled_at`
+against `usage_reservations.created_at`, and the reconciliation totals from
+`billing_reconciliation_runs`. A spend figure has one source, `usage_receipts`
+(`billed_amount`, `settled_at`, with `usage_receipts_account_id_settled_at_idx` for
+exactly that shape) — and no metric here derives one from a telemetry sum.
+
+| Metric | Served as | Source |
+|---|---|---|
+| Request rate | `requests.requestCount` | `inference_usage_daily_rollups.request_count` |
+| Error rate | `requests.errorCount` + `errorRateBps` | `.error_count` (status ≥ 400) |
+| Cancellation | `requests.cancelledCount` + `cancellationRateBps` | rollup rows with `outcome = 'cancelled'` |
+| Total latency | `totalLatencyMs` — p50/p95/p99/max | `inference_usage_events.latency_ms` |
+| Time to first token | `timeToFirstTokenMs` — **`state: 'pending'`** | `.time_to_first_token_ms` |
+| Fallback | `fallback` — **`state: 'pending'`** | `.route_switches` |
+| Reserve failures | `reserveFailures.refusedRequests` | events with `status_code = 402` |
+| Settlement lag | `settlementLagMs` — p50/p95/p99/max | `usage_receipts.settled_at − usage_reservations.created_at` |
+| Reconciliation drift | `reconciliationDrift` | `billing_reconciliation_runs` / `_discrepancies` |
+
+### Two metrics have NO DATA YET, and say so rather than reporting zero
+
+`timeToFirstTokenMs` and `fallback` come back as
+`{ state: 'pending', reason, observedRows, rowsCarryingValue }` — never `0`. A
+metric that reads zero when it means "unmeasurable" is indistinguishable from one
+that is correctly zero, and the second reading is the one a dashboard takes.
+
+- **`time_to_first_token_ms` is NULL on every row.**
+  `reason: 'no_first_token_time_reported'`.
+- **`route_switches` is `0` on every row.** `reason: 'no_route_switch_reported'`.
+  The column is `NOT NULL DEFAULT 0`, so "reported no switch" and "reported
+  nothing" are the same stored value — which is why the predicate is
+  `route_switches > 0` and not `is not null`.
+
+**The reason is not that the edge cannot produce them, and this page used to say it
+was.** That claim was true and stopped being true: since the signed relay hop
+landed the edge streams both public dialects, forwards the data plane's own
+`timeToFirstTokenMs` and `routeSwitches` when a usage report carries them, and
+surfaces `route_switch` frames on both dialects. What is absent is a **data
+plane**. `resolveRelayDataPlane()` answers `absent` unless `RELAY_BASE_URL`,
+`RELAY_EDGE_SIGNING_KEY_ID` and `RELAY_EDGE_SIGNING_PRIVATE_KEY` are all set, and
+no deployment sets them — so nothing has ever streamed and no route has ever
+switched.
+
+That distinction gets a **field, not a comment**, because it is the one that will
+matter the day Relay is deployed: `dataPlane` on the payload reports
+`configured | absent | unreadable` straight from the resolver. With `absent`, a
+pending first-token time needs no investigation. With `configured`, the same
+pending means the data plane is not reporting what it should — a bug, and one that
+would otherwise look identical. `unreadable` is reported rather than folded into
+`absent`, because a deployment that believes it configured a data plane and has not
+is the most confusing of the three.
+
+Both discriminators are **derived**: `rowsCarryingValue` is a `count()` over the
+column and `dataPlane` is read from the environment resolver, so neither arm is
+hardcoded and both stop being pending by themselves.
+`services/__tests__/inferenceMetrics.service.test.ts` carries the positive control
+that proves it — a row with a first-token time surfaces as `measured` with real
+percentiles — and a mutation counting NULLs as samples makes the pending case
+report `state: 'measured', p50Ms: 0`, which the same test rejects.
+
+`pending` additionally distinguishes `observedRows: 0` (nothing happened) from
+`observedRows: 12, rowsCarryingValue: 0` (things happened; none carried the value).
+Both are asserted.
+
+One number this metric is NOT: `inference_route_switch_events` is the
+customer-visible record of a switch and has its own writer. `fallback` counts the
+telemetry column instead, so the two are different figures and are deliberately not
+compared here.
+
+### There is no latency column on the rollup, deliberately
+
+A rollup row is counters folded by `ON CONFLICT DO UPDATE`. The only latency
+figures that survive that fold are a sum and a count — a MEAN, the one latency
+statistic that hides the tail that p95 and p99 exist to show. Percentiles are not
+foldable: `p95(a ∪ b)` is not derivable from `p95(a)` and `p95(b)`. So no migration
+was taken. The honest limitation is that a latency percentile is unanswerable for a
+window older than the ninety days `inference_usage_events` keeps, which a mean
+column would have answered wrongly rather than not at all. The window is bounded at
+ninety days for the same reason: a wider one cannot yield more samples, so
+answering it would misstate the range the numbers cover.
+
+### The provider dimension is absent, and that is a known gap
+
+No metric on this route is broken down by serving provider. The edge writes
+`route.provider` — the provider it ADMITTED — at all nine of its telemetry,
+receipt and rollup sites, and never reads `completion.usage.servingProvider`, the
+provider the data plane REPORTS. A same-model failover would therefore be billed
+and recorded against the original provider, so a per-provider error rate served
+here would be confidently wrong for exactly the traffic it exists to explain.
+Because `inference_usage_daily_rollups`' primary key includes `serving_provider`,
+that traffic also folds into the wrong rollup bucket permanently. A follow-up fixes
+the write side; this surface declines to publish the dimension until then rather
+than publish it misattributed. `inferenceReporting.service.ts` still groups the
+customer's own usage by provider and inherits the same gap.
+
+### Reconciliation drift is a stream, not a staff-triggered pass
+
+`POST /billing/accounts/:accountId/reconciliation` remains, unchanged, for
+investigating one account over an arbitrary window. A drift *metric* needs a
+series, so the same comparison also runs on a timer:
+`runScheduledReconciliation` in `services/billingReconciliation.service.ts`,
+registered in `server.ts` beside the reservation-expiry and auto-recharge sweeps.
+It reconciles one complete hour at a time, one hour behind the clock so a late
+`payment_intent.succeeded` webhook is not reported as `missing_in_ledger`.
+
+**`oxy-api` runs N ECS tasks and every one of them registers every sweep.** A job
+that simply fired on each would write N run rows per window, make N Stripe scans
+and record N copies of every finding — the drift metric would then read N× reality,
+which is worse than not having it. The interlock is the auto-recharge sweeper's,
+transferred: **claim the window before calling the processor, and do nothing at all
+if you did not win it.** The claim is the `running` run row this module already
+writes first, taken under a transaction-scoped `pg_try_advisory_xact_lock`:
+
+- the lock makes the read-then-insert atomic across tasks, so two cannot both
+  insert. `try`, never a blocking wait — a loser has nothing to do;
+- a `completed` row for the window means it is done; skip;
+- a `running` row inside its lease means another task is mid-pass; skip;
+- a `running` row OLDER than the lease is a crashed pass: it is marked `failed`
+  and the window reclaimed. This is where the design differs from auto-recharge,
+  and why it is not a copy. A lost auto-recharge window costs nothing because the
+  next one retries the same account; a reconciliation window is a distinct FACT, so
+  a claim stranded by a dead task would leave a permanent hole in the series;
+- a `failed` row means the window's drift is UNKNOWN, not zero, so it is retried.
+  (Auto-recharge deliberately keeps a declined claim — a declined card declines
+  again. Nothing about a Stripe outage says the next attempt fails, and reporting
+  no drift for an unread window is the "cron that hides drift" this module
+  refuses.)
+
+The advisory lock is released when the claim transaction commits, before the
+processor is called: after that the `running` row IS the claim, and holding a
+database lock across a third-party HTTP call would tie a Postgres connection to
+Stripe's latency.
+
+With no `STRIPE_SECRET_KEY` the sweep returns `processor-unconfigured` and claims
+nothing, exactly as `runAutoRechargeSweep` does — so a development deployment logs
+nothing per interval and a deployment that later configures Stripe still reconciles
+the windows it skipped.
+
+Two reporting consequences worth stating, because both are ways this metric could
+be read wrongly:
+
+- **`reconciliationDrift.latest` is the newest completed pass, never a sum.**
+  Scheduled windows can overlap after a reclaim, and an unresolved discrepancy is
+  re-reported by every pass that sees it — that is how this module expresses
+  resolution. Summing across runs counts one problem several times.
+- **Discrepancy counts by kind are `observationsByKind`, not distinct findings**,
+  for the same reason. The field name says so.
+- **A quiet platform still produces a run row.** The pass always runs in
+  `DEFAULT_LEDGER_CURRENCY` even when the window holds no payments, so a completed
+  run with both totals zero says "the pass ran and found nothing" — which is what
+  distinguishes it from a dead scheduler, whose signature is no run row at all.
 
 ### What the scrape side waits on, and who owns it
 
-Turning those queries into dashboards and alerts is `~/Oxy/oxy-infra`'s, not this
-repository's. Specifically:
+Serving the numbers is this repository's and is done. Turning them into
+dashboards and alerts is `~/Oxy/oxy-infra`'s. Specifically:
 
 1. **A scrape or export target.** The API runs on ECS Fargate behind one ALB, and
    there is no Prometheus, no OTLP collector and no managed APM pointed at it.
-   The one endpoint that exists, `GET /metrics`, is the staff-gated JSON
-   described above rather than an exposition format, and turning it into one is
-   also an authorization decision: request counts per application are customer
-   data, and the gate is `requireStaff` — an exposition format scraped by a
+   Neither `GET /metrics` nor `GET /inference/admin/metrics` is an exposition
+   format, and turning either into one is also an authorization decision: request
+   counts per application are customer data and both gates are `requireStaff` — a
    collector would need a credential that is not a staff user's session bearer,
    which is a decision, not a detail.
 2. **A query surface over Postgres.** Everything in the table above is SQL. The
    cheapest first step is a scheduled query, not an instrumentation library.
 3. **Alert routing.** Named below as explicitly out of scope.
+
+**Measured, so nobody re-checks it:** `~/Oxy/oxy-infra` holds 58 Terraform files
+with zero `aws_cloudwatch_metric_alarm`, zero `aws_sns_topic` and zero
+`aws_cloudwatch_dashboard`. CloudWatch appears there only as log groups
+(`terraform/ecs.tf`, group `/oxy/ecs`). The concrete shape the export half would
+take, when somebody takes it:
+
+- an `aws_sns_topic` plus an `aws_cloudwatch_metric_alarm` over a metric filter on
+  the `/oxy/ecs` log group — the `inference.edge.reservation_refused` and
+  `billing.reconciliation.drift` lines are already structured for it; **or**
+- a scheduled query against Postgres calling
+  `GET /inference/admin/metrics`, which is why that route reports a `state` per
+  metric rather than a bare number: a scheduled query has to be able to tell "no
+  data yet" from "zero" without a human reading it.
+
+Neither is being added here. **There is no alert manager, no on-call rotation and
+no paging policy in either repository**, so an alarm added today would fire into
+nothing — and an alert that fires into nothing is worse than none, because it reads
+as coverage. The alarm is an `oxy-infra` PR that has to land *after* a destination
+exists, not before.
 
 Whatever form it takes, one rule is not negotiable: **no metric label may be
 derived from a user IP** — raw, hashed or geo-derived. An account id or an
@@ -144,15 +346,30 @@ rather than assuming an oversight.
 - **Alerts for ledger imbalance and duplicate event ids** — an alert needs a
   destination. There is no alert manager, no on-call route and no paging policy
   in this repository, and an alert that fires into nothing is worse than none
-  because it reads as coverage.
+  because it reads as coverage. The invariants themselves are enforced
+  structurally instead — duplicate event ids by
+  `ON CONFLICT … DO NOTHING RETURNING`, imbalance by a `reserved_balance >= 0`
+  check plus balance-row serialization — so what is missing is the notification,
+  not the guarantee. Shape and owner: above.
 - **Alerts for provider error and cost spikes** — the same, and additionally
-  blocked on a provider existing to have an error rate.
+  blocked twice over: on a provider existing to have an error rate, and on the
+  reported-vs-admitted provider gap described above, which would make a
+  per-provider rate wrong before anyone alerted on it.
 - **Audit dashboards for credential and billing changes** — the tables and their
   read functions exist (`listCredentialAuditEvents`, the provider-connection
   audit read); no Console surface renders them yet, which is workstream 9's
-  "Webhooks/audit events where applicable".
+  "Webhooks/audit events where applicable". This is a Console task, not an
+  observability one.
 - **Status-page signals from customer-safe model availability** — the catalogue
   is empty and no deployment has health, so every signal would be a constant.
+  What it waits on is specific and is not Oxy's to build: a **deployment-health
+  source the data plane owns** — per-deployment reachability and error rate, on the
+  side that actually talks to a provider. Oxy can serve the customer-safe
+  projection of it (`inference_deployments.status` and the catalogue's own
+  availability scope are already customer-safe), but a status page needs the
+  liveness half, and this control plane has no way to observe it. Until then every
+  signal would read "operational" whatever was happening upstream, which is worse
+  than an absent status page.
 
 ---
 

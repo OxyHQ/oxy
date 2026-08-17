@@ -28,9 +28,10 @@
  * `services/inferenceCatalogueAdmin.service.ts`.
  *
  * Also here, and not a catalogue operation at all: `GET /rollout`, the one place
- * this deployment's rollout flags are readable. It lives on this router because
- * it needs the same staff gate and nothing weaker, and giving it a mount of its
- * own would be a second staff surface to keep gated correctly.
+ * this deployment's rollout flags are readable, and `GET /metrics`, the
+ * workstream-16 operational metrics. Both live on this router because they need
+ * the same staff gate and nothing weaker, and giving either a mount of its own
+ * would be a second staff surface to keep gated correctly.
  */
 
 import { Router, type Response } from 'express';
@@ -56,6 +57,7 @@ import {
   DeploymentPermissionRefused,
   recordLegalReview,
 } from '../services/inferenceCatalogueAdmin.service';
+import { readInferenceOperationalMetrics } from '../services/inferenceMetrics.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/error';
 
@@ -85,6 +87,59 @@ router.use(adminLimiter, authMiddleware, requireStaff);
 const requireCataloguePublish = requireStaffCapability('inference:catalogue:publish');
 
 const deploymentParams = z.object({ deploymentId: z.string().min(1).max(128) });
+
+/**
+ * The widest window a metrics read may ask for.
+ *
+ * Ninety days is `inference_usage_events`' own retention, so a longer window
+ * cannot produce a longer latency series — it would only widen the scan while
+ * returning the same samples. Bounding it here makes that a refusal instead of a
+ * quietly truncated answer.
+ */
+const METRICS_MAX_WINDOW_DAYS = 90;
+
+/**
+ * A UTC calendar day that EXISTS, the unit both the rollup and the window are
+ * keyed in.
+ *
+ * The shape check alone is not enough. `Date.parse` accepts `2026-02-31` and
+ * rolls it into March, so the ROUND TRIP is what rejects a day that does not
+ * exist — the same check `config/rolloutFlags.ts` makes of a charging
+ * authorization, and for the same reason. Without it a lexically valid impossible
+ * date reaches Postgres as `'2026-02-31'::date`, which refuses it and turns the
+ * caller's malformed query into a 500.
+ */
+const isoDay = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'expected a YYYY-MM-DD UTC day')
+  .refine((value) => {
+    const parsed = Date.parse(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(parsed) && new Date(parsed).toISOString().slice(0, 10) === value;
+  }, 'expected a UTC day that exists');
+
+/** Midnight UTC on a day already validated by {@link isoDay}. */
+function dayStart(day: string): number {
+  return Date.parse(`${day}T00:00:00.000Z`);
+}
+
+const metricsQuery = z
+  .object({
+    from: isoDay,
+    to: isoDay,
+    accountId: z.string().min(1).max(128).optional(),
+    applicationId: z.string().min(1).max(128).optional(),
+  })
+  .strict()
+  .refine((value) => value.from <= value.to, {
+    message: 'from must not be after to',
+    path: ['from'],
+  })
+  .refine(
+    (value) =>
+      (dayStart(value.to) - dayStart(value.from)) / (24 * 60 * 60 * 1000) <
+      METRICS_MAX_WINDOW_DAYS,
+    { message: `the window may span at most ${METRICS_MAX_WINDOW_DAYS} days`, path: ['to'] }
+  );
 
 /**
  * The action is a PATH segment from a closed set, not a body field.
@@ -214,6 +269,55 @@ router.get(
       .limit(limit);
 
     res.json({ data: rows, count: rows.length });
+  })
+);
+
+/**
+ * `GET /inference/admin/metrics?from=&to=[&accountId=][&applicationId=]`
+ *
+ * The workstream-16 operational metrics: request rate, error rate, cancellation,
+ * total latency, time to first token, fallback, reserve failures, settlement lag
+ * and reconciliation drift.
+ *
+ * ## Not `GET /metrics`, and the difference is the reason it is here
+ *
+ * `server.ts`'s `GET /metrics` is a PROCESS-LOCAL registry — an in-memory ring
+ * buffer keyed by `METHOD /path`, one instance's view, discarded on every deploy.
+ * Everything on this route is a QUERY over the durable record, so the answer is
+ * identical from any instance and survives a deploy. Overloading the older
+ * endpoint would put two different kinds of number under one key and invite a
+ * reader to compare them.
+ *
+ * ## Two of the metrics report a PENDING state rather than a zero
+ *
+ * `timeToFirstTokenMs` and `fallback` come back as
+ * `{ state: 'pending', reason, observedRows, rowsCarryingValue }` while no row
+ * carries a value. A `0` there would be indistinguishable from a correctly-zero
+ * measurement, and the second reading is the one a dashboard takes. The state is
+ * derived from the rows, so it flips to `measured` on its own the moment one
+ * arrives.
+ *
+ * The reason names the MEASURED absence, not a cause — the edge streams both
+ * dialects and forwards both figures when a report carries them. `dataPlane` on the
+ * payload is what supplies the cause: `absent` means nothing can have streamed, so
+ * the pending needs no investigation, while the same pending with `configured`
+ * means the data plane is not reporting what it should.
+ *
+ * Staff-only, like everything on this router: request counts per application are
+ * customer data, and a settlement-lag distribution is Oxy's own operational
+ * figure. No wholesale cost or price column is read by any query behind it.
+ */
+router.get(
+  '/metrics',
+  validate({ query: metricsQuery }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const query = metricsQuery.parse(req.query);
+    const metrics = await readInferenceOperationalMetrics({
+      window: { from: query.from, to: query.to },
+      ...(query.accountId === undefined ? {} : { accountId: query.accountId }),
+      ...(query.applicationId === undefined ? {} : { applicationId: query.applicationId }),
+    });
+    res.json({ data: metrics });
   })
 );
 

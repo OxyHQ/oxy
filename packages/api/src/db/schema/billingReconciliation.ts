@@ -69,6 +69,44 @@ export type ReconciliationRunStatusValue = (typeof RECONCILIATION_RUN_STATUS_VAL
 export type ReconciliationDiscrepancyKindValue =
   (typeof RECONCILIATION_DISCREPANCY_KIND_VALUES)[number];
 
+/* -------------------------------------------------------------------------- */
+/*  The scheduled pass's four durations                                       */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * They live beside the table rather than in the service, for the reason
+ * `AUTO_RECHARGE_SWEEP_INTERVAL_MS` lives beside
+ * `billing_auto_recharge_attempts`: `server.ts` and the registration gate in
+ * `src/__tests__/scheduledSweeps.test.ts` both need them, and importing them from
+ * the service would drag the Stripe adapter's whole graph into a test whose
+ * subject is one `setInterval`. `services/billingReconciliation.service.ts`
+ * argues WHY each value is what it is; these are the values.
+ */
+
+/** The window one scheduled pass covers. */
+export const RECONCILIATION_PERIOD_MS = 60 * 60 * 1000;
+
+/**
+ * How far behind the clock a window is reconciled, so a late
+ * `payment_intent.succeeded` webhook is not reported as `missing_in_ledger`.
+ */
+export const RECONCILIATION_SETTLEMENT_LAG_MS = 60 * 60 * 1000;
+
+/**
+ * How long a `running` row is believed before it is treated as a crashed pass
+ * and its window reclaimed. Longer than any pass can legitimately take.
+ */
+export const RECONCILIATION_LEASE_MS = 15 * 60 * 1000;
+
+/**
+ * How often the sweep looks for a window to claim.
+ *
+ * Shorter than {@link RECONCILIATION_PERIOD_MS}, so a restart across a period
+ * boundary does not lose that window for a whole further period. The claim makes
+ * the extra ticks free.
+ */
+export const RECONCILIATION_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+
 export const billingReconciliationRuns = pgTable(
   'billing_reconciliation_runs',
   {

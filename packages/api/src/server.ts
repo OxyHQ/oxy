@@ -79,6 +79,8 @@ import { sweepNodeLiveness } from './services/nodeRegistry.service';
 import { expireDueFollows } from './services/followCommand.service';
 import { runAutoRechargeSweep } from './services/stripeAccountBilling.service';
 import { expireReservations } from './services/inferenceLedger.service';
+import { runScheduledReconciliation } from './services/billingReconciliation.service';
+import { RECONCILIATION_SWEEP_INTERVAL_MS } from './db/schema/billingReconciliation';
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { EXPIRY_SWEEP_INTERVAL_MS, EXPIRY_SWEEP_TARGETS } from './db/expiry';
 import { AUTO_RECHARGE_SWEEP_INTERVAL_MS } from './db/schema/billingAutoRechargeAttempts';
@@ -1206,6 +1208,30 @@ export async function bootstrap(
       );
   }, SPEND_ANOMALY_SWEEP_INTERVAL_MS);
   spendAnomalySweep.unref();
+  // Reconcile Oxy's record of processor payments against the processor's, one
+  // window at a time (issue #972 workstream 16). Without THIS registration
+  // "reconciliation drift" is a metric with no series behind it: every pass
+  // would be one a staff member remembered to start.
+  //
+  // Safe on the N ECS tasks that all register it. `runScheduledReconciliation`
+  // CLAIMS the window under an advisory lock before calling Stripe, so exactly
+  // one task compares each window and the rest write nothing; a pass whose task
+  // died is reclaimed after its lease, and a failed one is retried. The full
+  // argument, including why this differs from the auto-recharge claim, is on the
+  // function. With no `STRIPE_SECRET_KEY` it claims nothing and returns
+  // `processor-unconfigured`. Unref'd + failures logged, like the sweeps above.
+  const reconciliationSweep = setInterval(() => {
+    runScheduledReconciliation()
+      .then((result) => {
+        if (result.status === 'ran' && result.outcome.reconciled > 0) {
+          logger.info('Reconciled a payment window', { ...result.outcome });
+        }
+      })
+      .catch((err) =>
+        logger.error('Reconciliation sweep failed', err instanceof Error ? err : new Error(String(err))),
+      );
+  }, RECONCILIATION_SWEEP_INTERVAL_MS);
+  reconciliationSweep.unref();
 
   // Start SMTP inbound server if enabled
   if (getEnvBoolean('SMTP_ENABLED', false)) {
