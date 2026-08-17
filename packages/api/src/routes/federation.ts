@@ -1,6 +1,5 @@
 import { Router, type Response } from 'express';
 import { and, eq } from 'drizzle-orm';
-import { canonicalFederationHost } from '@oxyhq/federation';
 import { serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
@@ -75,7 +74,7 @@ async function loadAllowedDomains(appId: string): Promise<string[]> {
   const hosts = new Set<string>();
   for (const uri of app.redirectUris) {
     try {
-      hosts.add(canonicalFederationHost(new URL(uri).hostname));
+      hosts.add(new URL(uri).hostname.toLowerCase());
     } catch {
       // A malformed redirect URI contributes no authorisation. `NOT NULL` on a
       // `text[]` constrains the array, not its elements, so a NULL element is
@@ -150,7 +149,7 @@ router.get(
     const { domain } = req.query as unknown as PublicKeyQuery;
 
     const allowed = await getAllowedDomainsForRequest(req);
-    if (!allowed.has(canonicalFederationHost(domain))) {
+    if (!allowed.has(domain.trim().toLowerCase())) {
       logger.warn('federation/public-key: domain not authorised for credential', {
         appId: req.serviceApp?.appId,
         credentialId: req.serviceApp?.credentialId,
@@ -195,7 +194,7 @@ router.post(
     // is unambiguous.
     let keyIdHost: string;
     try {
-      keyIdHost = canonicalFederationHost(new URL(keyId).hostname);
+      keyIdHost = new URL(keyId).hostname.toLowerCase();
     } catch {
       throw new ForbiddenError('keyId host is not authorised for this application');
     }

@@ -384,7 +384,7 @@ describe('PUT /users/resolve — actor-URI host binding', () => {
     expect(await storedByActorUri(actorUri)).toBeUndefined();
   });
 
-  it('accepts an actor on the www host of the asserted domain without a WebFinger probe', async () => {
+  it('rejects an actor on the www sibling of the asserted domain without a WebFinger binding', async () => {
     const handle = `alice${token()}`;
     const actorUri = `https://www.mastodon.social/users/${handle}`;
 
@@ -395,15 +395,12 @@ describe('PUT /users/resolve — actor-URI host binding', () => {
       domain: 'mastodon.social',
     });
 
-    expect(res.status).toBe(200);
-    expect(mockSafeFetch).not.toHaveBeenCalled();
-    const stored = await storedByActorUri(actorUri);
-    // The canonical handle is kept — the www host does not become the domain.
-    expect(stored.username).toBe(`${handle}@mastodon.social`);
-    expect(stored.federationDomain).toBe('mastodon.social');
+    expect(res.status).toBe(400);
+    expect(mockSafeFetch).toHaveBeenCalled();
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
   });
 
-  it('accepts the SAME pair with www. on the domain side instead of the actor side', async () => {
+  it('rejects the reverse bare/www sibling pair without a WebFinger binding', async () => {
     const handle = `alice${token()}`;
     const actorUri = `https://mastodon.social/users/${handle}`;
 
@@ -414,16 +411,9 @@ describe('PUT /users/resolve — actor-URI host binding', () => {
       domain: 'www.mastodon.social',
     });
 
-    // The binding is a comparison, so it has to answer the same regardless of
-    // which side carries the `www.`. A rule applied to only one side (the shape
-    // this route shipped with) rejects this pair while accepting the mirrored
-    // one above — so the two cases have to be asserted together or the
-    // asymmetry reads as passing.
-    expect(res.status).toBe(200);
-    expect(mockSafeFetch).not.toHaveBeenCalled();
-    const stored = await storedByActorUri(actorUri);
-    expect(stored.username).toBe(`${handle}@mastodon.social`);
-    expect(stored.federationDomain).toBe('mastodon.social');
+    expect(res.status).toBe(400);
+    expect(mockSafeFetch).toHaveBeenCalled();
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
   });
 
   it('accepts a foreign actor host when WebFinger loops the handle back to it', async () => {

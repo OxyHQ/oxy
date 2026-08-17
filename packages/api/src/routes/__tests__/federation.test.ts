@@ -477,7 +477,7 @@ describe('POST /federation/sign', () => {
     expect(mockSignWithKeyId).not.toHaveBeenCalled();
   });
 
-  it('accepts a www. keyId host when the credential is registered for the bare domain', async () => {
+  it('rejects a www. keyId host when the credential is registered for the bare domain', async () => {
     const keyId = `https://www.${MENTION_DOMAIN}/ap/users/bob#main-key`;
 
     const res = await requestJson('POST', '/federation/sign', {
@@ -485,8 +485,8 @@ describe('POST /federation/sign', () => {
       signingString: SIGNING_STRING,
     });
 
-    expect(res.status).toBe(200);
-    expect(mockSignWithKeyId).toHaveBeenCalledWith(keyId, SIGNING_STRING);
+    expect(res.status).toBe(403);
+    expect(mockSignWithKeyId).not.toHaveBeenCalled();
   });
 });
 
@@ -527,13 +527,13 @@ describe('GET /federation/public-key/:username', () => {
     expect(mockGetUserPublicKey).not.toHaveBeenCalled();
   });
 
-  it('accepts a www. domain query when the credential is registered for the bare domain', async () => {
+  it('rejects a www. domain query when the credential is registered for the bare domain', async () => {
     const res = await requestJson(
       'GET',
       `/federation/public-key/bob?domain=www.${MENTION_DOMAIN}`,
     );
 
-    expect(res.status).toBe(200);
-    expect(mockGetUserPublicKey).toHaveBeenCalledWith('bob', `www.${MENTION_DOMAIN}`);
+    expect(res.status).toBe(403);
+    expect(mockGetUserPublicKey).not.toHaveBeenCalled();
   });
 });
