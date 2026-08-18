@@ -85,6 +85,38 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..');
  */
 const schemaImportFailures: Array<{ filename: string; error: unknown }> = [];
 
+/**
+ * Zod type names `zodToOpenApi` has no case for.
+ *
+ * Same refusal as `schemaImportFailures`, one layer down, and for a sharper
+ * reason: an unhandled type does not produce a missing schema, it produces `{}` —
+ * which is a VALID OpenAPI schema meaning "any value is acceptable". A consumer
+ * cannot tell it apart from a deliberate `z.unknown()`, so the document reads as
+ * a considered decision to accept anything.
+ *
+ * Measured on `main`: `ZodDiscriminatedUnion` (20 instances reachable from the
+ * api's schema modules) and `ZodBranded` (5) both hit the default arm. Eleven of
+ * those unions are the inference request surface, so the published contract
+ * described a chat message's content parts, a routing target, a response format
+ * and a stream event as unconstrained.
+ */
+const unconvertibleZodTypes: string[] = [];
+
+/**
+ * Schema identifiers a route names but whose module could not be resolved.
+ *
+ * Third member of the same family. A `validate({ body: createFooSchema })` whose
+ * identifier cannot be resolved used to mean the operation was published with NO
+ * `requestBody` at all — a contract saying the endpoint takes an empty body, from
+ * a route that rejects one. Recorded and refused for the same reason as the two
+ * above: the document that would be written looks finished.
+ */
+const unresolvedSchemaReferences: Array<{
+  filename: string;
+  identifier: string;
+  reason: string;
+}> = [];
+
 const BASE_YAML = path.join(PACKAGE_ROOT, 'openapi.base.yaml');
 const OUTPUT_JSON = path.join(PACKAGE_ROOT, 'openapi.json');
 const ROUTES_DIR = path.join(PACKAGE_ROOT, 'src', 'routes');
@@ -254,7 +286,7 @@ export function parseYaml(input: string): OpenApiDocument {
  * boolean, array, enum, union, literal, optional, nullable, default, record,
  * and `superRefine` (treated as the underlying object schema).
  */
-function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
+export function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
   if (!schema || typeof (schema as { _def?: unknown })._def !== 'object') {
     return { type: 'string' };
   }
@@ -265,9 +297,18 @@ function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
     case 'ZodString': {
       const out: Record<string, unknown> = { type: 'string' };
       const checks = (def.checks ?? []) as Array<{ kind: string; value?: number; regex?: RegExp; message?: string }>;
+      // A chain can carry SEVERAL length checks, and the published bound must be
+      // the tightest of them rather than the last one seen — see the number case
+      // below for the measured consequence of taking the last.
+      let minLength: number | undefined;
+      let maxLength: number | undefined;
       for (const c of checks) {
-        if (c.kind === 'min' && typeof c.value === 'number') out.minLength = c.value;
-        if (c.kind === 'max' && typeof c.value === 'number') out.maxLength = c.value;
+        if (c.kind === 'min' && typeof c.value === 'number') {
+          minLength = minLength === undefined ? c.value : Math.max(minLength, c.value);
+        }
+        if (c.kind === 'max' && typeof c.value === 'number') {
+          maxLength = maxLength === undefined ? c.value : Math.min(maxLength, c.value);
+        }
         if (c.kind === 'email') out.format = 'email';
         if (c.kind === 'url') out.format = 'uri';
         if (c.kind === 'uuid') out.format = 'uuid';
@@ -275,25 +316,65 @@ function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
         if (c.kind === 'datetime') out.format = 'date-time';
         if (c.kind === 'regex' && c.regex instanceof RegExp) out.pattern = c.regex.source;
         if (c.kind === 'length' && typeof c.value === 'number') {
-          out.minLength = c.value;
-          out.maxLength = c.value;
+          minLength = minLength === undefined ? c.value : Math.max(minLength, c.value);
+          maxLength = maxLength === undefined ? c.value : Math.min(maxLength, c.value);
         }
       }
+      if (minLength !== undefined) out.minLength = minLength;
+      if (maxLength !== undefined) out.maxLength = maxLength;
       return out;
     }
     case 'ZodNumber': {
-      const out: Record<string, unknown> = { type: 'number' };
       const checks = (def.checks ?? []) as Array<{ kind: string; value?: number; inclusive?: boolean }>;
+      let type = 'number';
+      // The TIGHTEST bound of each direction, not the last one written down.
+      //
+      // `.positive().safe()` produces two `min` checks — `0` exclusive, then
+      // `-Number.MAX_SAFE_INTEGER` inclusive — and overwriting on each one
+      // published the LOOSEST. Measured: `policyVersion` on
+      // `GET /inference/routing-policies/{policyId}/versions/{policyVersion}` is
+      // `z.coerce.number().int().positive().safe()` and the contract said it
+      // accepts -9007199254740991. Losing a bound is the same class of defect as
+      // publishing `{}`: the document states something the server refuses.
+      let minimum: { value: number; exclusive: boolean } | undefined;
+      let maximum: { value: number; exclusive: boolean } | undefined;
       for (const c of checks) {
-        if (c.kind === 'int') out.type = 'integer';
+        if (c.kind === 'int') type = 'integer';
         if (c.kind === 'min' && typeof c.value === 'number') {
-          out.minimum = c.value;
-          if (c.inclusive === false) out.exclusiveMinimum = true;
+          const candidate = { value: c.value, exclusive: c.inclusive === false };
+          if (
+            minimum === undefined ||
+            candidate.value > minimum.value ||
+            (candidate.value === minimum.value && candidate.exclusive)
+          ) {
+            minimum = candidate;
+          }
         }
         if (c.kind === 'max' && typeof c.value === 'number') {
-          out.maximum = c.value;
-          if (c.inclusive === false) out.exclusiveMaximum = true;
+          const candidate = { value: c.value, exclusive: c.inclusive === false };
+          if (
+            maximum === undefined ||
+            candidate.value < maximum.value ||
+            (candidate.value === maximum.value && candidate.exclusive)
+          ) {
+            maximum = candidate;
+          }
         }
+      }
+      const out: Record<string, unknown> = { type };
+      // OpenAPI 3.1 is JSON Schema 2020-12, where `exclusiveMinimum` is the BOUND
+      // ITSELF and not a boolean modifier on `minimum`. This document declares
+      // 3.1.0 (`openapi.base.yaml:1`), so the 3.0 spelling `minimum: 0,
+      // exclusiveMinimum: true` is not merely stylistic — `true` is the wrong TYPE
+      // there, so a strict consumer either rejects the schema or ignores the
+      // keyword and admits the excluded value.
+      if (minimum !== undefined) {
+        if (minimum.exclusive) out.exclusiveMinimum = minimum.value;
+        else out.minimum = minimum.value;
+      }
+      if (maximum !== undefined) {
+        if (maximum.exclusive) out.exclusiveMaximum = maximum.value;
+        else out.maximum = maximum.value;
       }
       return out;
     }
@@ -352,7 +433,25 @@ function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
     }
     case 'ZodNullable': {
       const inner = zodToOpenApi((def as { innerType: ZodTypeAny }).innerType);
-      return { ...inner, nullable: true };
+      // `nullable: true` is the OpenAPI 3.0 spelling and 3.1 REMOVED it. In a 3.1
+      // document — which this one declares itself to be — it is an unknown keyword
+      // that every conforming consumer ignores, so a nullable field was published
+      // as NOT nullable and a generated client typed it non-optional. 3.1 spells it
+      // as a union with the `null` type.
+      const nullType = { type: 'null' };
+      if (Array.isArray(inner.oneOf)) {
+        return { ...inner, oneOf: [...(inner.oneOf as unknown[]), nullType] };
+      }
+      if (typeof inner.type === 'string') {
+        const widened: Record<string, unknown> = { ...inner, type: [inner.type, 'null'] };
+        // An `enum` constrains the value set as well as the type, so `null` has to
+        // be admitted there too or the widened type admits nothing new.
+        if (Array.isArray(inner.enum)) widened.enum = [...(inner.enum as unknown[]), null];
+        return widened;
+      }
+      // No `type` and no `oneOf` — an unconstrained inner schema (`z.any()`,
+      // `z.unknown()`) already admits null.
+      return inner;
     }
     case 'ZodDefault': {
       const innerSchema = zodToOpenApi((def as { innerType: ZodTypeAny }).innerType);
@@ -375,34 +474,97 @@ function zodToOpenApi(schema: ZodTypeAny): Record<string, unknown> {
     case 'ZodPipeline': {
       return zodToOpenApi((def as { out: ZodTypeAny }).out);
     }
+    case 'ZodDiscriminatedUnion': {
+      // The highest-value case in this function, and the one whose absence was
+      // invisible. A discriminated union used to fall through to the `default`
+      // arm below and be published as `{}` — which in OpenAPI does not mean
+      // "shape unknown", it means ANY VALUE IS VALID. Measured on `main`: eleven
+      // discriminated unions in `@oxyhq/contracts`' inference namespace alone
+      // were published as unconstrained, `inferenceContentPartSchema` among them
+      // — so the published contract said a chat message's content array accepts
+      // anything at all, and a generated client typed it `Any`.
+      //
+      // `discriminator` is emitted beside `oneOf` rather than instead of it: a
+      // consumer that understands the keyword gets the fast, unambiguous
+      // dispatch, and one that ignores it still validates against the branches.
+      const discriminator = (def as { discriminator: string }).discriminator;
+      const options = (def as { options: ZodTypeAny[] }).options.map((option) => zodToOpenApi(option));
+      return { oneOf: options, discriminator: { propertyName: discriminator } };
+    }
+    case 'ZodBranded': {
+      // A brand is a compile-time-only distinction; the wire shape is the inner
+      // schema's. Reached from `@oxyhq/contracts` identifier types.
+      return zodToOpenApi((def as { type: ZodTypeAny }).type);
+    }
     case 'ZodAny':
     case 'ZodUnknown':
+      // The only two types for which an empty schema is the TRUTH: both really do
+      // accept any value. Every other unhandled type reaching the arm below would
+      // publish the same bytes while meaning something else entirely, which is why
+      // that arm records rather than returns.
       return {};
     default:
+      // A zod type this converter does not know produces the same `{}` as
+      // `ZodAny` — indistinguishable on the wire, and a lie about every schema
+      // that is not genuinely unconstrained. So it is RECORDED and the run
+      // refuses to write, in the same way an unimportable schema module does.
+      // Before this arm existed, `ZodDiscriminatedUnion` and `ZodBranded` both
+      // landed here and nothing anywhere said so.
+      if (!unconvertibleZodTypes.includes(typeName)) unconvertibleZodTypes.push(typeName);
       return {};
   }
 }
 
 /**
- * Load a schema module from `src/schemas/<file>.schemas.ts`. The schemas are
- * already plain Zod objects so we can import them at generation time and
- * convert. Returns `{}` if the file can't be loaded so the generator continues
- * with a stub.
+ * Load one module a schema reference resolves through, memoized.
+ *
+ * `specifier` is what the route file wrote — `../schemas/email.schemas` or
+ * `@oxyhq/contracts` — narrowed by `schemaModuleSpecifier` before it gets here,
+ * so nothing with side effects is ever imported.
  */
-async function loadSchemaModule(filename: string): Promise<Record<string, ZodTypeAny>> {
-  const full = path.join(SCHEMAS_DIR, filename);
-  if (!existsSync(full)) return {};
+const loadedSchemaModules = new Map<string, Record<string, unknown>>();
+
+async function loadSchemaModule(specifier: string): Promise<Record<string, unknown>> {
+  const cached = loadedSchemaModules.get(specifier);
+  if (cached !== undefined) return cached;
+
+  const target = specifier.startsWith('../schemas/')
+    ? path.join(SCHEMAS_DIR, `${specifier.slice('../schemas/'.length)}.ts`)
+    : specifier;
+
+  if (target !== specifier && !existsSync(target)) {
+    // A relative specifier naming a file that is not there is the `models-stats.ts`
+    // failure one layer down: it looks exactly like a module that exports nothing.
+    schemaImportFailures.push({
+      filename: specifier,
+      error: new Error(`no such file: ${path.relative(PACKAGE_ROOT, target)}`),
+    });
+    loadedSchemaModules.set(specifier, {});
+    return {};
+  }
+
   try {
-    const mod = await import(full);
-    return mod as Record<string, ZodTypeAny>;
+    const mod = (await import(target)) as Record<string, unknown>;
+    loadedSchemaModules.set(specifier, mod);
+    return mod;
   } catch (err) {
     // Recorded rather than swallowed. Continuing past a failed import is
     // deliberate — one run should name EVERY unimportable module rather than
     // stopping at the first — but the run must not then write a document, and
     // `schemaImportFailures` is what makes that impossible to forget.
-    schemaImportFailures.push({ filename, error: err });
+    schemaImportFailures.push({ filename: specifier, error: err });
+    loadedSchemaModules.set(specifier, {});
     return {};
   }
+}
+
+/** Whether a resolved export is a Zod schema rather than, say, a type or a helper. */
+function isZodSchema(value: unknown): value is ZodTypeAny {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { _def?: unknown })._def === 'object'
+  );
 }
 
 /* ----------------------- route walker (stub gen) --------------------- */
@@ -411,6 +573,20 @@ interface ValidateCall {
   body?: string;
   params?: string;
   query?: string;
+}
+
+/**
+ * One `@response` line from a route's leading JSDoc.
+ *
+ * See {@link parseResponseTags} for the syntax and for why the success response
+ * is DECLARED at the route rather than inferred from the handler.
+ */
+interface ResponseTag {
+  status: string;
+  mediaType: string;
+  /** A Zod schema identifier, or `binary` for a byte body. */
+  schemaRef: string;
+  description: string;
 }
 
 interface RouteEntry {
@@ -422,6 +598,14 @@ interface RouteEntry {
   jsdoc?: string;
   /** Inline `validate({...})` schema identifiers. */
   validate?: ValidateCall;
+  /** `@response` declarations from the leading JSDoc. */
+  responseTags: ResponseTag[];
+  /** `@requestBody` declaration from the leading JSDoc, for routes that validate inline. */
+  requestBodyTag?: string;
+  /** Identifier → module specifier, from the route file's own imports. */
+  imports: Record<string, string>;
+  /** Top-level `const` names the route file declares itself. */
+  localConsts: string[];
   /** Middleware tokens applied between the path and handler. */
   middlewares: string[];
 }
@@ -546,31 +730,74 @@ const TAG_GROUPS: Record<string, string> = {
 };
 
 /**
- * Map a route file basename to the schemas module that the file imports.
- * Mirrors the `import { ... } from '../schemas/...'` lines in each route file.
+ * Identifier → module specifier, read from the file's OWN import statements.
+ *
+ * This replaces a hand-maintained `SCHEMA_MODULE_MAP` (route basename → one
+ * schemas file), and the reason is the standing rule that a gate which skips what
+ * a hand-maintained map omits is not a gate. Measured on `main`: that map named
+ * 20 route files, while 13 MOUNTED route files used `validate({ … })` and were
+ * absent from it — including every inference route file. A schema reference from
+ * an unmapped file resolved to `undefined`, and `buildOperation` then emitted the
+ * operation with no `requestBody` and no query parameters, in silence. The whole
+ * `/v1` surface was published as taking an empty body.
+ *
+ * A map also could not express the second half of the truth: a route may validate
+ * against a schema from `@oxyhq/contracts` rather than from `src/schemas/`, and 20
+ * `validate()` references do exactly that. One entry per file cannot name two
+ * modules.
+ *
+ * Read from the comment-blanked copy, for the same reason every other scan here
+ * is: an import line quoted inside prose is not an import.
  */
-const SCHEMA_MODULE_MAP: Record<string, string> = {
-  'auth.ts': 'auth.schemas.ts',
-  'authLinking.ts': 'authLinking.schemas.ts',
-  'assets.ts': 'assets.schemas.ts',
-  'contacts.ts': 'contacts.schemas.ts',
-  'credits.ts': 'credits.schemas.ts',
-  'applications.ts': 'application.schemas.ts',
-  'devices.ts': 'devices.schemas.ts',
-  'email.ts': 'email.schemas.ts',
-  'reputation.routes.ts': 'reputation.schemas.ts',
-  'notifications.routes.ts': 'notifications.schemas.ts',
-  'privacy.ts': 'privacy.schemas.ts',
-  'profiles.ts': 'profiles.schemas.ts',
-  'search.ts': 'search.schemas.ts',
-  'security.ts': 'security.schemas.ts',
-  'session.ts': 'session.schemas.ts',
-  'socialAuth.ts': 'socialAuth.schemas.ts',
-  'subscription.routes.ts': 'subscription.schemas.ts',
-  'users.ts': 'users.schemas.ts',
-  'wallet.routes.ts': 'wallet.schemas.ts',
-  'billing.ts': 'billing.schemas.ts',
-};
+export function parseImportBindings(source: string): Record<string, string> {
+  const bindings: Record<string, string> = {};
+  const importRe = /import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRe.exec(source)) !== null) {
+    const specifier = match[2];
+    if (specifier === undefined) continue;
+    for (const raw of (match[1] ?? '').split(',')) {
+      const clause = raw.trim().replace(/^type\s+/, '');
+      if (clause.length === 0) continue;
+      // `a as b` binds the LOCAL name, which is what a route body references.
+      const local = clause.includes(' as ') ? clause.split(' as ').pop()?.trim() : clause;
+      if (local !== undefined && local.length > 0) bindings[local] = specifier;
+    }
+  }
+  return bindings;
+}
+
+/**
+ * Top-level `const` names the file declares itself.
+ *
+ * Not resolvable — importing a route module would execute it, and these files
+ * build routers, rate limiters and clients at module scope. Recorded separately
+ * from "unknown identifier" only so the failure message can say what to do about
+ * it, which is to move the schema into `src/schemas/` and import it.
+ */
+export function parseLocalConstNames(source: string): string[] {
+  return [...source.matchAll(/^\s*(?:export\s+)?const\s+([A-Za-z0-9_]+)\s*=/gm)]
+    .map((match) => match[1])
+    .filter((name): name is string => name !== undefined);
+}
+
+/**
+ * The module specifiers a schema reference may be resolved through.
+ *
+ * A closed list rather than "try importing whatever it says". A route imports
+ * express, its own services, its middleware and its models, and importing any of
+ * those to look for a Zod schema would execute code with side effects for no
+ * possible gain. Everything else is an unresolved reference, which the run then
+ * refuses to write over.
+ */
+function schemaModuleSpecifier(specifier: string): string | undefined {
+  // `.js` suffixes appear on a few NodeNext-style relative imports and name the
+  // same TypeScript source.
+  const bare = specifier.replace(/\.js$/, '');
+  if (bare.startsWith('../schemas/')) return bare;
+  if (bare === '@oxyhq/contracts') return bare;
+  return undefined;
+}
 
 const VERB_RE = /^(get|post|put|delete|patch)$/i;
 
@@ -790,6 +1017,201 @@ function routerLevelGates(source: string): Array<{ from: number; middlewares: st
 }
 
 /**
+ * The `@requestBody` declaration in a route's leading JSDoc, if it has one.
+ *
+ * ## Why a tag rather than moving the routes onto `validate({ body })`
+ *
+ * The generator reads request bodies out of `validate({ body })` middleware, and
+ * the five `/v1` edge routes do not use it: they call
+ * `<schema>.safeParse(req.body)` inside the handler (`routes/inferenceEdge.ts`),
+ * so all five were published as taking an empty body. Two ways to close that, and
+ * the choice is not stylistic.
+ *
+ * Moving them onto the middleware would CHANGE THE ERROR BODY of every validation
+ * failure on the public edge, and measurably so. `middleware/validate` throws
+ * `BadRequestError('Validation failed', { issues })`, which the global handler
+ * serialises as the platform envelope. The edge answers something else on purpose:
+ * `/v1/chat/completions` returns `{ error: { message, type, param, code } }`, which
+ * is what a stock OpenAI client parses — asserted by
+ * `routes/__tests__/inferenceEdge.test.ts:868` — and `/v1/responses` returns the
+ * structured contract error carrying `requestId` and `retryable`, asserted at
+ * `:1811`. Neither survives the move, and `requestId` on every error is one of the
+ * three rules ADR 0010 fixes. Making the middleware reproduce both would mean
+ * duplicating the edge's error mapper inside it, per route, which is more
+ * behaviour change than the defect being fixed.
+ *
+ * So the generator is taught to read the schema instead. The tag names the same
+ * identifier the handler calls `safeParse` on, resolved through the route file's
+ * own imports, and an unresolvable one refuses the run — so the tag cannot rot
+ * into naming a schema that no longer exists.
+ *
+ *     @requestBody chatCompletionsRequestSchema
+ */
+export function parseRequestBodyTag(jsdoc: string): string | undefined {
+  for (const line of jsdoc.split(/\r?\n/)) {
+    const match = /^\s*@requestBody\s+(\S+)\s*$/.exec(line);
+    if (match?.[1] !== undefined) return match[1];
+  }
+  return undefined;
+}
+
+/**
+ * The TOP-LEVEL entries of the first object literal in `source`, as raw text.
+ *
+ * The previous reader was `/validate\(\s*\{\s*([^}]+)\}\s*\)/` followed by
+ * `body\s*:\s*([a-zA-Z0-9_]+)` per key, and both halves are wrong on real code.
+ * `[^}]+` stops at the FIRST `}`, so
+ * `validate({ params: routingPolicyParams, body: z.object({}).strict() })`
+ * (`routes/inferenceRoutingPolicies.ts:580`) truncated to
+ * `params: routingPolicyParams, body: z.object({`, and the identifier regex then
+ * read the body schema's name as `z`. A depth-aware scan reads the whole entry
+ * and hands back `z.object({}).strict()`, which `resolveRouteSchema` can then
+ * refuse BY NAME instead of chasing a schema called `z`.
+ *
+ * Values are returned verbatim rather than as identifiers so an inline expression
+ * stays visible: it is a schema the document would otherwise omit in silence, and
+ * the refusal is the whole point.
+ */
+export function parseObjectLiteralEntries(source: string): Record<string, string> {
+  const entries: Record<string, string> = {};
+  const open = source.indexOf('{');
+  if (open === -1) return entries;
+
+  let i = open + 1;
+  let depth = 0;
+  let inStr: string | null = null;
+  let key: string | undefined;
+  let valueStart = -1;
+
+  const commit = (end: number): void => {
+    if (key !== undefined) {
+      // A shorthand entry (`{ body }`) has no colon, and its value is its key.
+      const text = valueStart === -1 ? key : source.slice(valueStart, end).trim();
+      if (text.length > 0) entries[key] = text;
+    }
+    key = undefined;
+    valueStart = -1;
+  };
+
+  while (i < source.length) {
+    const ch = source[i];
+    if (inStr !== null) {
+      if (ch === '\\') {
+        i += 2;
+        continue;
+      }
+      if (ch === inStr) inStr = null;
+      i += 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      inStr = ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '(' || ch === '[' || ch === '{') {
+      depth += 1;
+      i += 1;
+      continue;
+    }
+    if (ch === ')' || ch === ']') {
+      depth -= 1;
+      i += 1;
+      continue;
+    }
+    if (ch === '}') {
+      if (depth === 0) {
+        commit(i);
+        break;
+      }
+      depth -= 1;
+      i += 1;
+      continue;
+    }
+    if (depth === 0 && ch === ':' && valueStart === -1) {
+      valueStart = i + 1;
+      i += 1;
+      continue;
+    }
+    if (depth === 0 && ch === ',') {
+      commit(i);
+      i += 1;
+      continue;
+    }
+    if (depth === 0 && valueStart === -1) {
+      const identifier = /^[A-Za-z0-9_$]+/.exec(source.slice(i));
+      if (identifier !== null && identifier[0] !== undefined) {
+        key = identifier[0];
+        i += identifier[0].length;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return entries;
+}
+
+/**
+ * Read the `@response` declarations out of a route's leading JSDoc.
+ *
+ * ## Why the success response is declared and not inferred
+ *
+ * Every machine-derived operation in this document used to carry exactly
+ * `responses['200'] = { description: 'Success' }` — 352 of 390 operations with no
+ * success schema at all, while the 38 that had one all came from hand-written
+ * `@openapi` blocks. A generated client therefore returned `Any` from every
+ * endpoint the generator produced.
+ *
+ * Inferring the shape from the handler is not available: the bodies are built
+ * inline at `res.json(...)` call sites, behind service calls, spreads and
+ * conditionals, and a regex that guessed at them would publish a plausible
+ * fiction. So the shape is DECLARED, in one line, beside the route — and bound to
+ * the handler by the TYPE SYSTEM rather than by this comment: the handlers
+ * annotate the body they send with the schema's own `z.infer` type, so a handler
+ * that drifts from its declared schema fails `tsc`. A property enforced by the
+ * type system needs its gate in the type system; this tag only carries the name
+ * across to the document.
+ *
+ * ## Syntax
+ *
+ *     @response 200 responsesResponseSchema The completed generation.
+ *     @response 200 application/octet-stream binary The audio bytes.
+ *
+ * Two forms, told apart by whether the second token is a media type (contains a
+ * `/`; a Zod identifier cannot). Media type defaults to `application/json`.
+ * `binary` in the schema position emits `{ type: 'string', format: 'binary' }`,
+ * which is how OpenAPI 3.1 spells a byte body.
+ *
+ * The identifier is resolved through the route file's OWN imports, exactly like a
+ * `validate({ body })` reference, and an unresolvable one refuses the run rather
+ * than dropping the response.
+ */
+export function parseResponseTags(jsdoc: string): ResponseTag[] {
+  const tags: ResponseTag[] = [];
+  for (const line of jsdoc.split(/\r?\n/)) {
+    const match = /^\s*@response\s+(\S+)\s+(\S+)(?:\s+(.*))?$/.exec(line);
+    if (!match) continue;
+    const status = match[1];
+    const second = match[2];
+    if (status === undefined || second === undefined) continue;
+    const rest = (match[3] ?? '').trim();
+    if (second.includes('/')) {
+      const [schemaRef, ...descriptionWords] = rest.split(/\s+/);
+      if (schemaRef === undefined || schemaRef.length === 0) continue;
+      tags.push({
+        status,
+        mediaType: second,
+        schemaRef,
+        description: descriptionWords.join(' '),
+      });
+      continue;
+    }
+    tags.push({ status, mediaType: 'application/json', schemaRef: second, description: rest });
+  }
+  return tags;
+}
+
+/**
  * Parse all `router.<verb>(...)` calls in a single file. We use a regex to
  * find the call start and then a balanced-parentheses walker to capture the
  * full argument list, since handler arguments can include function
@@ -801,6 +1223,8 @@ export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mou
   // are identical between the two by construction.
   const code = blankComments(source);
   const gates = routerLevelGates(code);
+  const imports = parseImportBindings(code);
+  const localConsts = parseLocalConstNames(code);
   const callRe = /router\.([a-zA-Z]+)\s*\(/g;
   let match: RegExpExecArray | null;
   while ((match = callRe.exec(code)) !== null) {
@@ -814,19 +1238,17 @@ export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mou
     if (!pathMatch || !pathMatch[1]) continue;
     const pathSuffix = pathMatch[1];
 
-    // Identify validate({ body, params, query }) middleware. Use a non-greedy
-    // capture of the call inside.
+    // Identify validate({ body, params, query }) middleware.
     let validate: ValidateCall | undefined;
-    const validateMatch = args.match(/validate\(\s*\{\s*([^}]+)\}\s*\)/);
-    if (validateMatch && validateMatch[1]) {
-      const inner = validateMatch[1];
-      const bodyRef = inner.match(/body\s*:\s*([a-zA-Z0-9_]+)/);
-      const paramsRef = inner.match(/params\s*:\s*([a-zA-Z0-9_]+)/);
-      const queryRef = inner.match(/query\s*:\s*([a-zA-Z0-9_]+)/);
+    const validateIdx = args.indexOf('validate(');
+    if (validateIdx !== -1) {
+      const entries = parseObjectLiteralEntries(
+        readCallArgs(args, validateIdx + 'validate('.length)
+      );
       validate = {
-        body: bodyRef?.[1],
-        params: paramsRef?.[1],
-        query: queryRef?.[1],
+        body: entries.body,
+        params: entries.params,
+        query: entries.query,
       };
     }
 
@@ -848,7 +1270,17 @@ export function parseRoutesFromFile(source: string): Array<Omit<RouteEntry, 'mou
     const jsdoc = findLeadingComment(source, callStart);
     const jsdocClean = jsdoc && !jsdoc.includes('@openapi') ? jsdoc : undefined;
 
-    out.push({ verb, pathSuffix, jsdoc: jsdocClean, validate, middlewares });
+    out.push({
+      verb,
+      pathSuffix,
+      jsdoc: jsdocClean,
+      validate,
+      responseTags: jsdoc === undefined ? [] : parseResponseTags(jsdoc),
+      requestBodyTag: jsdoc === undefined ? undefined : parseRequestBodyTag(jsdoc),
+      imports,
+      localConsts,
+      middlewares,
+    });
   }
   return out;
 }
@@ -967,9 +1399,71 @@ function splitJsdoc(jsdoc: string): { summary: string; description: string } {
   };
 }
 
+/**
+ * Resolve a schema identifier a route named, through that route's own imports.
+ *
+ * Every failure mode is RECORDED rather than returned as `undefined`-and-carry-on,
+ * because carry-on is what published `/v1/chat/completions` as an endpoint taking
+ * no body. The three reasons are distinguished so the message can say what to do:
+ * an unimported identifier is a typo, a locally-declared one has to move into
+ * `src/schemas/`, and a non-Zod export means the wrong name was written down.
+ */
+function resolveRouteSchema(route: RouteEntry, reference: string): ZodTypeAny | undefined {
+  if (!/^[A-Za-z0-9_$]+$/.test(reference)) {
+    // An inline expression — `body: z.object({}).strict()`. Recorded rather than
+    // ignored: it is a real schema the operation would otherwise be published
+    // without, and naming it in src/schemas/ is a one-line move.
+    unresolvedSchemaReferences.push({
+      filename: route.filename,
+      identifier: reference,
+      reason:
+        'is an inline schema expression rather than a named import, so it cannot be resolved '
+        + 'without executing the router. Name it in src/schemas/<name>.schemas.ts and import it.',
+    });
+    return undefined;
+  }
+  const identifier = reference;
+  const specifier = route.imports[identifier];
+  if (specifier === undefined) {
+    unresolvedSchemaReferences.push({
+      filename: route.filename,
+      identifier,
+      reason: route.localConsts.includes(identifier)
+        ? 'declared locally in the route file, so it cannot be imported without executing the '
+          + 'router. Move it into src/schemas/<name>.schemas.ts and import it.'
+        : 'not imported by this route file.',
+    });
+    return undefined;
+  }
+
+  const moduleSpecifier = schemaModuleSpecifier(specifier);
+  if (moduleSpecifier === undefined) {
+    unresolvedSchemaReferences.push({
+      filename: route.filename,
+      identifier,
+      reason: `imported from "${specifier}", which this generator will not import. Schemas must `
+        + 'come from ../schemas/* or @oxyhq/contracts.',
+    });
+    return undefined;
+  }
+
+  const value = loadedSchemaModules.get(moduleSpecifier)?.[identifier];
+  if (!isZodSchema(value)) {
+    unresolvedSchemaReferences.push({
+      filename: route.filename,
+      identifier,
+      reason:
+        value === undefined
+          ? `not exported by "${specifier}".`
+          : `exported by "${specifier}" but is not a Zod schema.`,
+    });
+    return undefined;
+  }
+  return value;
+}
+
 interface BuildOperationInput {
   route: RouteEntry;
-  schemaModule: Record<string, ZodTypeAny>;
   openApiPath: string;
 }
 
@@ -978,7 +1472,7 @@ interface BuildOperationInput {
  * descriptions, request body, parameters, and responses with sensible
  * defaults based on the route's middleware and validate calls.
  */
-function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInput): OpenApiOperation {
+function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOperation {
   const tag = TAG_GROUPS[route.mountPrefix] ?? 'Misc';
   const { jsdoc, validate, middlewares, verb } = route;
 
@@ -1001,7 +1495,7 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
   const pathParamNames = pathParamsFromExpress(joinPath(route.mountPrefix, route.pathSuffix));
   const parameters: Record<string, unknown>[] = [];
 
-  const paramsSchema = validate?.params ? schemaModule[validate.params] : undefined;
+  const paramsSchema = validate?.params ? resolveRouteSchema(route, validate.params) : undefined;
   const paramsOpenApi = paramsSchema ? zodToOpenApi(paramsSchema) : undefined;
   const paramsProps = (paramsOpenApi?.properties ?? {}) as Record<string, Record<string, unknown>>;
   const paramsRequired = new Set<string>(((paramsOpenApi?.required ?? []) as string[]) ?? []);
@@ -1017,7 +1511,7 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
   }
 
   // Query parameters come from the query Zod schema if present.
-  const querySchema = validate?.query ? schemaModule[validate.query] : undefined;
+  const querySchema = validate?.query ? resolveRouteSchema(route, validate.query) : undefined;
   if (querySchema) {
     const queryOpenApi = zodToOpenApi(querySchema);
     const queryProps = (queryOpenApi.properties ?? {}) as Record<string, Record<string, unknown>>;
@@ -1032,10 +1526,24 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
     }
   }
 
-  // Body Zod schema.
+  // Body Zod schema, from the `validate({ body })` middleware or from an
+  // `@requestBody` tag on a route that validates inside its handler instead.
   let requestBody: Record<string, unknown> | undefined;
-  if (validate?.body) {
-    const bodySchema = schemaModule[validate.body];
+  if (validate?.body !== undefined && route.requestBodyTag !== undefined) {
+    // Two authorities for one fact. Refused rather than silently preferring one,
+    // because whichever this picked would be right until somebody edited the other.
+    unresolvedSchemaReferences.push({
+      filename: route.filename,
+      identifier: route.requestBodyTag,
+      reason:
+        `${route.verb.toUpperCase()} ${openApiPath} declares an @requestBody tag AND a `
+        + 'validate({ body }) middleware. Keep the middleware and delete the tag — the tag is '
+        + 'only for routes that validate inside the handler.',
+    });
+  }
+  const bodyReference = validate?.body ?? route.requestBodyTag;
+  if (bodyReference !== undefined) {
+    const bodySchema = resolveRouteSchema(route, bodyReference);
     if (bodySchema) {
       requestBody = {
         required: true,
@@ -1096,9 +1604,37 @@ function buildOperation({ route, schemaModule, openApiPath }: BuildOperationInpu
   // policy globally.
 
   // Responses.
-  const responses: Record<string, unknown> = {
-    '200': { description: 'Success' },
-  };
+  //
+  // The success entry comes from the route's own `@response` declarations when it
+  // has any. Without them the operation falls back to a bare `{ description }`,
+  // which is what EVERY machine-derived operation carried before this: 352 of 390
+  // operations published with no success schema, so a generated client returned
+  // `Any` from all of them. The fallback still exists because 300-odd operations
+  // are not going to be annotated in one change — but the fallback now says so in
+  // words a reader of the contract can act on, instead of the word "Success".
+  const responses: Record<string, unknown> = {};
+  const successTags = route.responseTags.filter((tag) => tag.status.startsWith('2'));
+  for (const tag of successTags) {
+    const schema =
+      tag.schemaRef === 'binary'
+        ? { type: 'string', format: 'binary' }
+        : (() => {
+            const resolved = resolveRouteSchema(route, tag.schemaRef);
+            return resolved === undefined ? {} : zodToOpenApi(resolved);
+          })();
+    responses[tag.status] = {
+      description: tag.description.length > 0 ? tag.description : 'Success',
+      content: { [tag.mediaType]: { schema } },
+    };
+  }
+  if (successTags.length === 0) {
+    responses['200'] = {
+      description:
+        'Success. The response body is not described — add an `@response <code> <schemaIdentifier>` '
+        + `line to the JSDoc above this route in \`src/routes/${route.filename}\`, naming a Zod `
+        + 'schema the file imports.',
+    };
+  }
   if (requestBody || parameters.some((p) => p.in === 'path' || p.in === 'query')) {
     responses['400'] = {
       description: 'Validation failed',
@@ -1176,18 +1712,35 @@ async function main(): Promise<void> {
 
   const documented = jsdocSpec.paths ?? {};
 
-  // Pre-load every schema module up front so we can do sync lookups while
-  // emitting operations.
-  const schemaCache: Record<string, Record<string, ZodTypeAny>> = {};
-  for (const [routeFile, schemaFile] of Object.entries(SCHEMA_MODULE_MAP)) {
-    if (!schemaCache[routeFile]) {
-      // eslint-disable-next-line no-await-in-loop
-      schemaCache[routeFile] = await loadSchemaModule(schemaFile);
-    }
-  }
-
   // Walk the routers to find any endpoint that the JSDoc scan missed.
   const routes = await extractRoutes();
+
+  // Pre-load exactly the modules the routes' own schema references reach, so the
+  // per-operation lookups below can be synchronous. Narrowed to referenced
+  // identifiers rather than "every ../schemas/* import": a route file imports its
+  // services and middleware too, and importing those to look for a Zod schema
+  // would execute code for no possible gain.
+  const neededSpecifiers = new Set<string>();
+  for (const route of routes) {
+    const identifiers = [
+      route.validate?.body,
+      route.validate?.params,
+      route.validate?.query,
+      route.requestBodyTag,
+      ...route.responseTags.map((tag) => tag.schemaRef),
+    ];
+    for (const identifier of identifiers) {
+      if (identifier === undefined || identifier === 'binary') continue;
+      const specifier = route.imports[identifier];
+      if (specifier === undefined) continue;
+      const moduleSpecifier = schemaModuleSpecifier(specifier);
+      if (moduleSpecifier !== undefined) neededSpecifiers.add(moduleSpecifier);
+    }
+  }
+  for (const specifier of [...neededSpecifiers].sort()) {
+    // eslint-disable-next-line no-await-in-loop
+    await loadSchemaModule(specifier);
+  }
   const seen = new Set<string>();
   for (const [pathKey, methods] of Object.entries(documented)) {
     for (const method of Object.keys(methods)) {
@@ -1200,11 +1753,57 @@ async function main(): Promise<void> {
     const openApiPath = expressPathToOpenApi(fullExpressPath);
     const key = `${route.verb.toUpperCase()} ${openApiPath}`;
     if (seen.has(key)) continue;
-    const schemaModule = schemaCache[route.filename] ?? {};
-    const op = buildOperation({ route, schemaModule, openApiPath });
+    const op = buildOperation({ route, openApiPath });
     if (!documented[openApiPath]) documented[openApiPath] = {};
     documented[openApiPath][route.verb.toLowerCase()] = op;
     seen.add(key);
+  }
+
+  // An `operationId` for every operation that does not already declare one.
+  //
+  // This is how a generator NAMES the function it emits. With none — 0 of 390
+  // before this — every mainstream generator falls back to inventing one from the
+  // verb and path, and each invents a different one, so the client's API changes
+  // shape when the generator is upgraded. The value is derived deterministically
+  // from `<verb> <path>` and is therefore stable across runs, but it is written
+  // into the document so that stability is a promise the contract makes rather
+  // than a property of whichever tool read it.
+  //
+  // Hand-written `@openapi` blocks win: a curated id is a deliberate name for a
+  // published function, and overwriting it would rename somebody's client method.
+  const operationIds = new Map<string, string>();
+  for (const [pathKey, methods] of Object.entries(documented)) {
+    for (const [verb, operation] of Object.entries(methods)) {
+      // A path item may legitimately hold non-operation keys (`parameters`,
+      // `summary`), and one of those is not an operation to name.
+      if (!VERB_RE.test(verb)) continue;
+      const existing = operation.operationId;
+      const operationId =
+        typeof existing === 'string' && existing.length > 0
+          ? existing
+          : `${verb.toLowerCase()}${pathKey
+              .split(/[^A-Za-z0-9]+/)
+              .filter((segment) => segment.length > 0)
+              .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+              .join('')}`;
+      const collision = operationIds.get(operationId);
+      if (collision !== undefined) {
+        // A duplicate `operationId` is invalid OpenAPI and makes a generator emit
+        // two methods with one name — one of which silently wins. Asserted rather
+        // than deduplicated with a suffix, because a suffix would move the
+        // ambiguity into the client's method names instead of removing it.
+        console.error(
+          `\n[generate-openapi] REFUSING TO WRITE: operationId "${operationId}" is claimed by both `
+          + `${collision} and ${verb.toUpperCase()} ${pathKey}.\n\n`
+          + '  Two operations with one id is invalid OpenAPI, and a generated client would emit\n'
+          + '  two methods with the same name. Give one of them an explicit `operationId` in an\n'
+          + '  `@openapi` block.\n'
+        );
+        process.exit(1);
+      }
+      operationIds.set(operationId, `${verb.toUpperCase()} ${pathKey}`);
+      operation.operationId = operationId;
+    }
   }
 
   // Paths sorted, so the output is DETERMINISTIC. They were previously emitted
@@ -1257,6 +1856,44 @@ async function main(): Promise<void> {
       + `  ${OUTPUT_JSON} is UNCHANGED. The previous document is still the committed\n`
       + '  contract, which is the correct outcome: a stale document is recoverable,\n'
       + '  a silently truncated one that ships to consumers is not.\n',
+    );
+    process.exit(1);
+  }
+
+  // Same refusal, for a Zod type the converter has no case for. It would have
+  // been published as `{}` — "any value is acceptable" — which is a claim, not a
+  // gap, and one no consumer can tell apart from a deliberate `z.unknown()`.
+  if (unconvertibleZodTypes.length > 0) {
+    console.error(
+      `\n[generate-openapi] REFUSING TO WRITE: ${unconvertibleZodTypes.length} Zod type(s) have no `
+      + 'case in `zodToOpenApi`, so their schemas would be published as `{}`:\n'
+      + `${unconvertibleZodTypes.map((name) => `  - ${name}`).join('\n')}\n\n`
+      + '  `{}` is a VALID OpenAPI schema meaning "any value is acceptable", so the document\n'
+      + '  would read as a considered decision to accept anything. Add a case to\n'
+      + '  `zodToOpenApi` in this file. `ZodAny` and `ZodUnknown` are the only two types for\n'
+      + `  which \`{}\` is the truth.\n\n  ${OUTPUT_JSON} is UNCHANGED.\n`,
+    );
+    process.exit(1);
+  }
+
+  // Same refusal, for a schema a route names but that could not be resolved. The
+  // operation would have been published with no request body and no query
+  // parameters — a contract saying the endpoint takes nothing, from a route that
+  // validates and rejects.
+  if (unresolvedSchemaReferences.length > 0) {
+    console.error(
+      `\n[generate-openapi] REFUSING TO WRITE: ${unresolvedSchemaReferences.length} schema `
+      + 'reference(s) could not be resolved, so their operations would be published as taking\n'
+      + 'no body and no parameters:\n',
+    );
+    for (const { filename, identifier, reason } of unresolvedSchemaReferences) {
+      console.error(`  src/routes/${filename} → ${identifier}\n    ${reason}\n`);
+    }
+    console.error(
+      '  Schemas are resolved through the route file\'s OWN import statements, from\n'
+      + '  ../schemas/* or @oxyhq/contracts. Nothing else is imported, because a route file\n'
+      + '  also imports its services and middleware.\n\n'
+      + `  ${OUTPUT_JSON} is UNCHANGED.\n`,
     );
     process.exit(1);
   }

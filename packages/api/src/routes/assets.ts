@@ -22,6 +22,8 @@ import {
   batchAccessSchema,
   assetsByIdsBodySchema,
   assetsBySha256BodySchema,
+  linkFileSchema,
+  unlinkFileSchema,
 } from '../schemas/assets.schemas';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import { buildCdnUrl, stripPublicPrefix, isPublicKey, CDN_REDIRECT_MAX_AGE_SECONDS } from '../config/cdn';
@@ -147,21 +149,6 @@ const completeUploadSchema = z.object({
   mime: z.string().min(1, 'MIME type is required'),
   visibility: z.enum(['private', 'public', 'unlisted']).optional(),
   metadata: z.record(z.any()).optional()
-});
-
-const linkFileSchema = z.object({
-  app: z.string().min(1, 'App name is required'),
-  entityType: z.string().min(1, 'Entity type is required'),
-  entityId: z.string().min(1, 'Entity ID is required'),
-  visibility: z.enum(['private', 'public', 'unlisted']).optional()
-  ,
-  webhookUrl: z.string().url().optional()
-});
-
-const unlinkFileSchema = z.object({
-  app: z.string().min(1, 'App name is required'),
-  entityType: z.string().min(1, 'Entity type is required'),
-  entityId: z.string().min(1, 'Entity ID is required')
 });
 
 /**
@@ -1416,8 +1403,7 @@ router.get('/:id', authMiddleware, validate({ params: assetIdParams }), asyncHan
  *                   type: string
  *                   format: uri
  *                 variant:
- *                   type: string
- *                   nullable: true
+ *                   type: [string, "null"]
  *                 expiresIn:
  *                   type: integer
  *       401:

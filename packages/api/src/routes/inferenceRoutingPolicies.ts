@@ -59,12 +59,12 @@
  */
 
 import { Router, type Response } from 'express';
-import { z } from 'zod';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
 import {
+  emptyBodySchema,
   routeSwitchQuery,
   routingPolicyAccountParams,
   routingPolicyApplicationParams,
@@ -577,7 +577,7 @@ router.get(
 router.post(
   '/:policyId/archive',
   routingWriteLimiter,
-  validate({ params: routingPolicyParams, body: z.object({}).strict() }),
+  validate({ params: routingPolicyParams, body: emptyBodySchema }),
   asyncHandler(async (req: RoutingRequest, res: Response) => {
     const { policyId } = routingPolicyParams.parse(req.params);
     await authorizePolicy(

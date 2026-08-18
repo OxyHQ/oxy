@@ -61,6 +61,7 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import type { z } from 'zod';
+import { USAGE_UNITS } from '@oxyhq/contracts';
 import type {
   InferenceContentSource,
   InferenceError,
@@ -94,13 +95,17 @@ import {
 import { createHttpRelayClient } from '../services/httpRelayClient';
 import type { RelayClient } from '../services/relayClient';
 import {
+  chatCompletionResponseSchema,
   chatCompletionsRequestSchema,
+  generationReceiptResponseSchema,
   imageGenerationsRequestSchema,
+  imageGenerationsResponseSchema,
   normalizeChatCompletionsRequest,
   normalizeImageGenerationsRequest,
   normalizeResponsesRequest,
   normalizeSpeechRequest,
   responsesRequestSchema,
+  responsesResponseSchema,
   speechRequestSchema,
   type NormalizedEdgeRequest,
 } from '../schemas/inferenceEdge.schemas';
@@ -758,6 +763,15 @@ export function createInferenceEdgeRouter(
    * covers DNS, TLS, both network legs and its own parse. `X-Oxy-Latency-Ms`
    * carries the same number on both surfaces. A streamed request reports none:
    * its headers are written before the first frame arrives.
+   *
+   * A `stream: true` request answers `text/event-stream` instead, and that
+   * variant is deliberately not described: no mainstream OpenAPI generator models
+   * an SSE frame sequence usefully, so the alternative to omitting it is a
+   * fiction. `inferenceStreamEventSchema` in `@oxyhq/contracts` is the authority
+   * on the frames.
+   *
+   * @requestBody responsesRequestSchema
+   * @response 200 responsesResponseSchema The completed generation, with usage, the resolved model and Oxy's own latency.
    */
   router.post(
     '/responses',
@@ -832,7 +846,7 @@ export function createInferenceEdgeRouter(
       const { completion } = execution;
       applyInferenceHeaders(res, completion.requestId);
       applyUsageHeaders(res, completion);
-      res.status(200).json({
+      const body: z.infer<typeof responsesResponseSchema> = {
         schemaVersion: 1,
         requestId: completion.requestId,
         ...(completion.generationId === undefined
@@ -841,14 +855,21 @@ export function createInferenceEdgeRouter(
         model: completion.resolvedModelReference,
         servingProvider: completion.servingProvider,
         finishReason: completion.finishReason,
-        output: completion.output,
-        usage: Object.entries(completion.units).map(([unit, quantity]) => ({
-          unit,
-          quantity,
-        })),
+        output: [...completion.output],
+        // Walked over the CLOSED unit list rather than `Object.entries(units)`,
+        // which types its keys as `string` and would need an assertion to satisfy
+        // the published schema. The set of entries is identical — `units` is a
+        // `Partial<Record<UsageUnit, number>>` — and the order becomes stable,
+        // where before it followed whatever order the data plane happened to
+        // report its units in.
+        usage: USAGE_UNITS.flatMap((unit) => {
+          const quantity = completion.units[unit];
+          return quantity === undefined ? [] : [{ unit, quantity }];
+        }),
         routingPolicy: completion.routingPolicy,
         latencyMs: completion.latencyMs,
-      });
+      };
+      res.status(200).json(body);
     }
   );
 
@@ -859,6 +880,12 @@ export function createInferenceEdgeRouter(
    * Everything Oxy-specific — the request id, the resolved model, the routing
    * policy, the error code and its retryability — rides in headers, which is the
    * rule that keeps it compatible rather than merely similar.
+   *
+   * As on `/v1/responses`, the `stream: true` variant answers `text/event-stream`
+   * and is deliberately not described.
+   *
+   * @requestBody chatCompletionsRequestSchema
+   * @response 200 chatCompletionResponseSchema The completion, in the shape a stock OpenAI client parses.
    */
   router.post(
     '/chat/completions',
@@ -934,7 +961,7 @@ export function createInferenceEdgeRouter(
       applyUsageHeaders(res, completion);
       res.setHeader('X-Oxy-Finish-Reason', completion.finishReason);
 
-      res.status(200).json({
+      const body: z.infer<typeof chatCompletionResponseSchema> = {
         id: `chatcmpl-${completion.requestId}`,
         object: 'chat.completion',
         created: Math.floor(Date.now() / 1000),
@@ -949,7 +976,7 @@ export function createInferenceEdgeRouter(
               : {
                   tool_calls: message.toolCalls.map((call) => ({
                     id: call.id,
-                    type: 'function',
+                    type: 'function' as const,
                     function: { name: call.name, arguments: call.arguments },
                   })),
                 }),
@@ -957,7 +984,8 @@ export function createInferenceEdgeRouter(
           finish_reason: openAiFinishReason(completion.finishReason),
         })),
         usage: openAiUsage(completion.units),
-      });
+      };
+      res.status(200).json(body);
     }
   );
 
@@ -974,6 +1002,16 @@ export function createInferenceEdgeRouter(
    * it now is that the CEILING is sound before the route exists — the alternative
    * is somebody adding this endpoint later under delivery pressure and reaching
    * for a duration guess.
+   *
+   * The success body is BYTES, and the `Content-Type` is the media type the data
+   * plane reported — which follows `response_format` and is therefore not fixed at
+   * one value. It is published as `application/octet-stream` with a binary schema
+   * rather than as an enumeration of concrete audio types, because the enumeration
+   * would be a claim about what a provider returns, while the bytes are the part
+   * this endpoint actually promises.
+   *
+   * @requestBody speechRequestSchema
+   * @response 200 application/octet-stream binary The audio, in the format `response_format` asked for. The real `Content-Type` is the provider's audio media type.
    */
   router.post(
     '/audio/speech',
@@ -1069,6 +1107,9 @@ export function createInferenceEdgeRouter(
    *
    * As with speech, nothing serves this today; the value is a sound ceiling
    * before the endpoint exists.
+   *
+   * @requestBody imageGenerationsRequestSchema
+   * @response 200 imageGenerationsResponseSchema The generated images, each as a URL or inline base64.
    */
   router.post(
     '/images/generations',
@@ -1132,12 +1173,13 @@ export function createInferenceEdgeRouter(
         );
         return;
       }
-      res.status(200).json({
+      const body: z.infer<typeof imageGenerationsResponseSchema> = {
         created: Math.floor(Date.now() / 1000),
         data: images.map((source) =>
           source.kind === 'url' ? { url: source.url } : { b64_json: source.data }
         ),
-      });
+      };
+      res.status(200).json(body);
     }
   );
 
@@ -1157,6 +1199,8 @@ export function createInferenceEdgeRouter(
    * says what was actually not found. Widening the enum is a contract change
    * with a version bump, and it belongs to whoever next has a second reason for
    * one rather than to this route alone.
+   *
+   * @response 200 generationReceiptResponseSchema The settled receipt, including the price snapshot the charge was computed from.
    */
   router.get(
     '/generations/:id',
@@ -1183,7 +1227,8 @@ export function createInferenceEdgeRouter(
         }
 
         applyInferenceHeaders(res, edge.requestId);
-        res.status(200).json({ data: lookup.receipt });
+        const body: z.infer<typeof generationReceiptResponseSchema> = { data: lookup.receipt };
+        res.status(200).json(body);
       } catch (error) {
         logger.error(
           'inference.edge.receipt_failed',

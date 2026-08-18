@@ -46,6 +46,8 @@ const FIXTURE_ROUTES = {
   'inferenceEdge.ts': [
     ['post', '/responses'],
     ['post', '/chat/completions'],
+    ['post', '/audio/speech'],
+    ['post', '/images/generations'],
     ['get', '/generations/{id}'],
   ],
   'inferenceCatalogue.ts': [
@@ -53,6 +55,7 @@ const FIXTURE_ROUTES = {
     ['get', '/stats'],
     ['get', '/routing-profiles'],
     ['get', '/{publisher}/{model}'],
+    ['get', '/{publisher}/{model}/documentation'],
   ],
   'inferenceAdmin.ts': [['get', '/rollout']],
   'inferenceRoutingPolicies.ts': [['get', '/accounts/{accountId}']],
@@ -85,29 +88,83 @@ function runCommand(command, args, cwd, extraEnvironment = {}) {
 
 /**
  * A stub generator carrying its own mount map, so the gate can be shown what it
- * does when the map loses an entry. `securityOverrides` lets a fixture publish an
- * operation as anonymous without hand-writing a whole document.
+ * does when the map loses an entry.
+ *
+ * `securityOverrides` lets a fixture publish an operation as anonymous, and
+ * `payloadOverrides` lets one publish an operation with a missing or empty payload
+ * schema — the state every `/v1` operation on `main` was in — without hand-writing
+ * a whole document. Each override value is merged over the generated operation, and
+ * `null` deletes the key, which is how a fixture drops a `requestBody` or an
+ * `operationId`.
+ *
+ * The generated payload schemas are deliberately NESTED and repetitive: the gate's
+ * empty-schema walk carries a floor on how many schema nodes it visits, and a
+ * fixture whose bodies were one flat property each would fail that floor rather
+ * than the thing under test.
  */
-function generatorSource(mountMap, securityOverrides) {
+function generatorSource(mountMap, securityOverrides, payloadOverrides) {
   return `import { writeFileSync } from 'node:fs';
 
 const MOUNT_MAP = ${JSON.stringify(mountMap, null, 2)};
 const ROUTES = ${JSON.stringify(FIXTURE_ROUTES, null, 2)};
 const SECURITY_OVERRIDES = ${JSON.stringify(securityOverrides, null, 2)};
+const PAYLOAD_OVERRIDES = ${JSON.stringify(payloadOverrides, null, 2)};
 const CREDENTIALLED = [{ bearerAuth: [] }];
 const ANONYMOUS = [{}];
+
+/** A schema with enough nodes to clear the walk's vacuity floor. */
+function fixtureSchema(seed) {
+  const properties = { [seed]: { type: 'string' } };
+  for (let index = 0; index < 6; index += 1) {
+    properties['field' + index] = {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        parts: { type: 'array', items: { type: 'object', properties: { text: { type: 'string' } } } },
+      },
+    };
+  }
+  return { type: 'object', properties, required: [seed] };
+}
+
+function operationId(verb, full) {
+  return verb + full.split(/[^A-Za-z0-9]+/).filter(Boolean)
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('');
+}
 
 const paths = {};
 for (const [file, prefixes] of Object.entries(MOUNT_MAP)) {
   for (const prefix of prefixes) {
     for (const [verb, suffix] of ROUTES[file] ?? []) {
       const full = (suffix === '/' ? prefix : prefix + suffix).replace(/\\/+/g, '/');
+      const key = full + ' ' + verb;
       const isCatalogue = full === '/models' || full === '/v1/models' ||
         full.startsWith('/models/') || full.startsWith('/v1/models/');
-      const security = Object.hasOwn(SECURITY_OVERRIDES, full + ' ' + verb)
-        ? SECURITY_OVERRIDES[full + ' ' + verb]
+      const security = Object.hasOwn(SECURITY_OVERRIDES, key)
+        ? SECURITY_OVERRIDES[key]
         : isCatalogue ? ANONYMOUS : CREDENTIALLED;
-      paths[full] = { ...(paths[full] ?? {}), [verb]: security === null ? {} : { security } };
+      if (security === null) {
+        paths[full] = { ...(paths[full] ?? {}), [verb]: {} };
+        continue;
+      }
+      const operation = {
+        operationId: operationId(verb, full),
+        security,
+        responses: {
+          200: { description: 'ok', content: { 'application/json': { schema: fixtureSchema('result') } } },
+        },
+      };
+      if (verb === 'post') {
+        operation.requestBody = {
+          required: true,
+          content: { 'application/json': { schema: fixtureSchema('input') } },
+        };
+      }
+      for (const [field, value] of Object.entries(PAYLOAD_OVERRIDES[key] ?? {})) {
+        if (value === null) delete operation[field];
+        else operation[field] = value;
+      }
+      paths[full] = { ...(paths[full] ?? {}), [verb]: operation };
     }
   }
 }
@@ -124,13 +181,17 @@ writeFileSync(
  * the state a CI checkout starts from: a committed artifact and the generator
  * that produced it.
  */
-function createFixture({ mountMap = FIXTURE_MAP, securityOverrides = {} } = {}) {
+function createFixture({
+  mountMap = FIXTURE_MAP,
+  securityOverrides = {},
+  payloadOverrides = {},
+} = {}) {
   const root = mkdtempSync(fixturePrefix);
   createdFixtures.push(root);
   mkdirSync(join(root, 'packages', 'api', 'scripts'), { recursive: true });
   writeFileSync(
     join(root, 'packages', 'api', 'scripts', 'generate-openapi.ts'),
-    generatorSource(mountMap, securityOverrides),
+    generatorSource(mountMap, securityOverrides, payloadOverrides),
   );
 
   const generate = runCommand('bun', ['packages/api/scripts/generate-openapi.ts'], root);
@@ -219,11 +280,182 @@ expectVerdict(
   'POST /v1/responses publishes no `security` at all',
 );
 
+// POSITIVE CONTROLS FOR THE PAYLOAD LAYER. Each of these is the exact state every
+// `/v1` operation on `main` was in, and layers 1 and 2 are GREEN in all of them:
+// the path is described, by name, and it claims the right credential. Only the
+// payload layer can see them, and if it is ever removed these four cases pass.
+expectVerdict(
+  'request-body-dropped',
+  createFixture({ payloadOverrides: { '/v1/chat/completions post': { requestBody: null } } }),
+  1,
+  'POST /v1/chat/completions publishes no constrained `application/json` request body',
+);
+
+// A body that IS published but constrains nothing — what a request schema became
+// when the generator had no `ZodDiscriminatedUnion` case.
+expectVerdict(
+  'request-body-empty-schema',
+  createFixture({
+    payloadOverrides: {
+      '/v1/responses post': {
+        requestBody: { required: true, content: { 'application/json': { schema: {} } } },
+      },
+    },
+  }),
+  1,
+  'POST /v1/responses publishes no constrained `application/json` request body',
+);
+
+// A body every field of which is optional: `{}` satisfies it, so a generated
+// client can send an empty object and believe it made a valid request.
+expectVerdict(
+  'request-body-nothing-required',
+  createFixture({
+    payloadOverrides: {
+      '/v1/audio/speech post': {
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', properties: { model: { type: 'string' } } } } },
+        },
+      },
+    },
+  }),
+  1,
+  'POST /v1/audio/speech publishes a request body with no required field',
+);
+
+// THE VACUITY TRAP, as a test. This operation keeps the `Error` envelope on 401 and
+// 5XX and drops only its 2xx body — the shape that makes a census of "operations
+// with a response schema" answer 363 of 390 while the success count is 38.
+expectVerdict(
+  'success-schema-dropped-error-envelope-kept',
+  createFixture({
+    payloadOverrides: {
+      '/v1/models get': {
+        responses: {
+          401: { description: 'unauthorized', content: { 'application/json': { schema: { type: 'object' } } } },
+          '5XX': { description: 'server error', content: { 'application/json': { schema: { type: 'object' } } } },
+        },
+      },
+    },
+  }),
+  1,
+  'GET /v1/models declares no 2xx response with a constrained schema',
+);
+
+// A nested `{}` inside an otherwise complete success schema. This is the
+// discriminated-union defect exactly: `oneOf` branches present, one of them empty.
+expectVerdict(
+  'success-schema-empty-branch',
+  createFixture({
+    payloadOverrides: {
+      '/v1/generations/{id} get': {
+        responses: {
+          200: {
+            description: 'ok',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { data: { type: 'array', items: {} } },
+                  required: ['data'],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }),
+  1,
+  'response 200 (application/json) has an EMPTY schema at `.properties.data.items`',
+);
+
+// POSITIVE CONTROLS FOR THE DIALECT LAYER.
+expectVerdict(
+  'operation-id-missing',
+  createFixture({ payloadOverrides: { '/v1/responses post': { operationId: null } } }),
+  1,
+  'POST /v1/responses has no `operationId`',
+);
+
+expectVerdict(
+  'operation-id-duplicated',
+  createFixture({ payloadOverrides: { '/v1/responses post': { operationId: 'postV1ChatCompletions' } } }),
+  1,
+  'is claimed by both',
+);
+
+// The 3.0 spelling of nullability, reintroduced. A conforming 3.1 consumer ignores
+// it, so the field is published as NOT nullable and the document reads as if it
+// were — which is why this cannot be left to review.
+expectVerdict(
+  'thirty-nullable-reintroduced',
+  createFixture({
+    payloadOverrides: {
+      '/v1/models/stats get': {
+        responses: {
+          200: {
+            description: 'ok',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { timestamp: { type: 'string', nullable: true } },
+                  required: ['timestamp'],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }),
+  1,
+  '.nullable is the OpenAPI 3.0 spelling',
+);
+
+// The 3.0 spelling of an exclusive bound: a BOOLEAN where 3.1 wants the bound.
+expectVerdict(
+  'thirty-exclusive-bound-reintroduced',
+  createFixture({
+    payloadOverrides: {
+      '/v1/models/routing-profiles get': {
+        responses: {
+          200: {
+            description: 'ok',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { count: { type: 'integer', minimum: 0, exclusiveMinimum: true } },
+                  required: ['count'],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  }),
+  1,
+  '.exclusiveMinimum is the OpenAPI 3.0 spelling',
+);
+
 // A route added without regenerating: complete and correctly gated, but not what
 // the generator now produces.
 const staleFixture = createFixture();
 const staleDocument = JSON.parse(readFileSync(join(staleFixture, 'packages/api/openapi.json'), 'utf8'));
-staleDocument.paths['/unrelated'] = { get: { security: [{}] } };
+// Layer-4-clean on purpose: this case must reach the FRESHNESS layer, and an
+// operation missing its `operationId` would be stopped by the dialect layer first
+// — a green freshness check for the wrong reason.
+staleDocument.paths['/unrelated'] = {
+  get: {
+    operationId: 'getUnrelated',
+    security: [{}],
+    responses: { 200: { description: 'ok', content: { 'application/json': { schema: { type: 'object' } } } } },
+  },
+};
 writeFileSync(
   join(staleFixture, 'packages/api/openapi.json'),
   `${JSON.stringify(staleDocument, null, 2)}\n`,
@@ -240,25 +472,45 @@ writeFileSync(
 );
 expectVerdict('dirty-document', dirtyFixture, 1, 'already has uncommitted changes');
 
-// MUTATION TEST of the vacuity floor. Layer 1 guarantees the credential rule
-// always examines at least its floor, so the only way to watch a floor fail is to
-// weaken the gate itself — which is also the change a future edit would make.
-const mutatedScript = join(mkdtempSync(fixturePrefix), 'check-openapi-fresh.mjs');
-createdFixtures.push(dirname(mutatedScript));
+// MUTATION TESTS of the vacuity floors. Every layer here guarantees its own
+// floor is cleared by a correct document, so the only way to watch a floor fail is
+// to weaken the gate itself — which is also the change a future edit would make.
+//
+// Each mutation is verified to have APPLIED before its verdict is trusted: a
+// replacement whose pattern no longer matches is a silent no-op, and a case built
+// on one passes for the wrong reason.
 const gateSource = readFileSync(checkScript, 'utf8');
-const mutatedSource = gateSource.replace("  '/v1/responses',\n", '');
-if (mutatedSource === gateSource) {
-  failures.push('expected-list-shrunk: the mutation did not apply, so the case would prove nothing.');
-} else {
-  writeFileSync(mutatedScript, mutatedSource);
-  expectVerdict(
-    'expected-list-shrunk',
-    createFixture(),
-    1,
-    'below the floor of 11',
-    mutatedScript,
-  );
+
+function withMutatedGate(caseName, from, to, expectedFragment) {
+  const mutated = gateSource.replace(from, to);
+  if (mutated === gateSource) {
+    failures.push(`${caseName}: the mutation did not apply, so the case would prove nothing.`);
+    return;
+  }
+  const scriptPath = join(mkdtempSync(fixturePrefix), 'check-openapi-fresh.mjs');
+  createdFixtures.push(dirname(scriptPath));
+  writeFileSync(scriptPath, mutated);
+  expectVerdict(caseName, createFixture(), 1, expectedFragment, scriptPath);
 }
+
+withMutatedGate('expected-list-shrunk', "  '/v1/responses',\n", '', 'below the floor of 11');
+
+withMutatedGate(
+  'payload-list-shrunk',
+  "  { method: 'post', path: '/v1/responses', requestBody: true },\n",
+  '',
+  'below the floor of 10',
+);
+
+// The empty-schema walk going INERT, which is the one failure its own findings
+// cannot report: a walk that visits nothing reports no empty schema, exactly like a
+// walk over a correct document.
+withMutatedGate(
+  'schema-walk-counts-nothing',
+  '      visited += 1;\n',
+  '',
+  'below its floor of 100',
+);
 
 for (const fixture of createdFixtures) {
   if (fixture.startsWith(fixturePrefix)) rmSync(fixture, { recursive: true, force: true });

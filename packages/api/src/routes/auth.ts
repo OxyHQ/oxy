@@ -980,12 +980,11 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
  *                 sessionToken:
  *                   type: string
  *                 application:
- *                   nullable: true
  *                   description: >
  *                     Sanitized public metadata of the registered Application
  *                     bound to this session, for the consent UI. Null only if
  *                     the app was hard-deleted after the session was created.
- *                   type: object
+ *                   type: [object, "null"]
  *                   properties:
  *                     id:
  *                       type: string
@@ -1015,29 +1014,24 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
  *                   type: string
  *                   format: date-time
  *                 pushSentAt:
- *                   type: string
+ *                   type: [string, "null"]
  *                   format: date-time
- *                   nullable: true
  *                   description: >
  *                     Delivery progress, not a status: when the pending request
  *                     was pushed to the approving identity's capable installs.
  *                     Null when no push was delivered.
  *                 openedAt:
- *                   type: string
+ *                   type: [string, "null"]
  *                   format: date-time
- *                   nullable: true
  *                   description: >
  *                     Delivery progress, not a status: when the approval surface
  *                     first opened the request. Written at most once.
  *                 sessionId:
- *                   type: string
- *                   nullable: true
+ *                   type: [string, "null"]
  *                 publicKey:
- *                   type: string
- *                   nullable: true
+ *                   type: [string, "null"]
  *                 userId:
- *                   type: string
- *                   nullable: true
+ *                   type: [string, "null"]
  *             examples:
  *               pending:
  *                 value:
