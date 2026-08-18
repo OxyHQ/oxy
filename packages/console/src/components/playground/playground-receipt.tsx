@@ -24,8 +24,9 @@ import { formatCount, formatMoney } from '@/lib/money';
  * the OpenAI-compat surface whose body deliberately carries none of these
  * fields.)
  *
- * The one number NOT from the server is the round trip — see `Fact` for
- * "latency", which the server measures and exposes nowhere.
+ * The one number NOT from the server is the round trip, which is rendered BESIDE
+ * the server's own latency rather than instead of it — see the comment on the two
+ * `Fact`s below for why neither one substitutes for the other.
  */
 
 /** The presentation idiom the Models page uses, so the two read alike. */
@@ -92,17 +93,36 @@ export function PlaygroundRunReceipt({
         />
         <Fact label="Finish reason" value={run.finishReason.replace(/_/g, ' ')} />
         {/*
-          NOT the server's latency. The server measures one from a monotonic clock
-          at admission — deliberately covering authentication and admission — and
-          stores it on `inference_usage_events`, but no response body or reporting
-          endpoint exposes it, so no client can read it. This figure additionally
-          includes DNS, TLS, the network both ways and JSON parsing, so calling it
-          "latency" would attribute the network to the model.
+          TWO latencies, side by side and labelled, because they measure different
+          things and neither one is the other's approximation.
+
+          `latencyMs` is the server's: the edge starts a monotonic clock when it
+          receives the request, before authentication, and stops it after the hold
+          is settled. It contains no network. `roundTripMs` is this browser's
+          stopwatch around the `fetch`, so it additionally contains DNS, TLS, both
+          network legs and the JSON parse — and it is the only one that describes
+          what the person who pressed Run actually waited for.
+
+          Collapsing them into one figure would destroy the only number that
+          measures Oxy; showing the server's alone would hide the wait the user
+          experienced. Their difference is not rendered either: it would be a
+          third number neither clock took.
+
+          The server's is conditional because the field is additive — a Console
+          deployed ahead of the API reads `undefined`, and `NaN ms` is worse than
+          a missing row.
         */}
+        {run.latencyMs !== undefined && (
+          <Fact
+            label="Server latency"
+            value={`${run.latencyMs} ms`}
+            hint="measured by Oxy, admission to settlement"
+          />
+        )}
         <Fact
           label="Round trip"
           value={`${Math.round(run.roundTripMs)} ms`}
-          hint="measured in your browser"
+          hint="measured in your browser, network included"
         />
         {run.generationId !== undefined && (
           <Fact label="Generation" value={run.generationId} />

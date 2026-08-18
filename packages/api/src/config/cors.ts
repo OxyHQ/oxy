@@ -94,6 +94,10 @@ export const EXPOSED_HEADERS = [
   'X-Oxy-Provider',
   'X-Oxy-Routing-Policy',
   'X-Oxy-Routing-Policy-Version',
+  // Oxy's own handling time. `/v1/responses` also puts it in the body, but the
+  // compat body is stock OpenAI and cannot carry it, so this header is the only
+  // way a browser on that surface reads it at all.
+  'X-Oxy-Latency-Ms',
   // Four token headers, not two: the contract's units PARTITION a request, so
   // the cached-input and reasoning counts are what make the charge add up.
   'X-Oxy-Usage-Input-Tokens',

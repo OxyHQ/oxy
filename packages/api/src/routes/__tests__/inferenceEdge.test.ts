@@ -491,7 +491,10 @@ function policyControls(
  * the Ed25519 signature, in `__tests__/relayStreaming.test.ts`.
  */
 function fakeRelay(
-  build: (envelope: InferenceRequest) => RelayCompletion,
+  // A promise is accepted as well as a value so a case can make the data plane
+  // take REAL time — which is the only way to test a clock without asserting
+  // something a stopped clock would also satisfy.
+  build: (envelope: InferenceRequest) => RelayCompletion | Promise<RelayCompletion>,
   seen?: InferenceRequest[]
 ): RelayClient {
   return {
@@ -1018,6 +1021,60 @@ describe('a served request', () => {
     expect(receipt.inputTokens).toBe(12);
     expect(receipt.outputTokens).toBe(2000);
     expect(receipt.delegatedUserId).toBe('end-user-42');
+  });
+
+  it('reports its own latency on the body, on the header and on the usage row — ONE reading', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    // The data plane takes real, measurable time. Against an instantaneous fake
+    // every assertion below is also satisfied by an edge that returns a hardcoded
+    // `0` and never reads a clock, which is the failure this case exists to
+    // exclude.
+    const RELAY_DELAY_MS = 60;
+
+    await withServer(
+      fakeRelay(async (envelope) => {
+        await new Promise((resolve) => setTimeout(resolve, RELAY_DELAY_MS));
+        return completionFor(envelope, { input: 5, output: 5, provider: fixture.provider });
+      }),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+
+        expect(response.status).toBe(200);
+        const body = json(response);
+
+        // The clock RAN: the delay the fake data plane took is inside the
+        // interval, because the interval spans the forward to it.
+        expect(body.latencyMs).toBeGreaterThanOrEqual(RELAY_DELAY_MS);
+        // An UPPER bound as well, because the realistic way this field goes wrong
+        // is not a small error but a wrong quantity: a `Date.now()` epoch reading
+        // where an elapsed interval belongs reads as ~1.7e12 and satisfies every
+        // lower bound anybody would write.
+        expect(body.latencyMs).toBeLessThan(30_000);
+        // Whole milliseconds — the usage column is an integer, and a float here
+        // would mean the two sides are storing and reporting different values.
+        expect(Number.isInteger(body.latencyMs)).toBe(true);
+
+        // The header states the same number, so the compatibility surface — whose
+        // body carries no Oxy field at all — is not reporting something else.
+        expect(response.headers['x-oxy-latency-ms']).toBe(String(body.latencyMs));
+
+        // And it is ONE reading, not two clocks a few hundred microseconds apart:
+        // the row the usage dashboard reads and the number the customer was
+        // handed are byte-for-byte the same. A second `performance.now()` at the
+        // point the completion is built would pass every assertion above and fail
+        // this one.
+        const [event] = await getDb()
+          .select({ latencyMs: inferenceUsageEvents.latencyMs })
+          .from(inferenceUsageEvents)
+          .where(eq(inferenceUsageEvents.requestId, String(body.requestId)));
+        expect(event.latencyMs).toBe(body.latencyMs);
+      }
+    );
   });
 
   it('renders the OpenAI shape on the compatibility surface', async () => {

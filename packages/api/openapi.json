@@ -25317,7 +25317,7 @@
           "Inference"
         ],
         "summary": "`POST /v1/responses` — the preferred endpoint.",
-        "description": "Errors are the structured contract shape at the top level rather than the\nplatform's `{ error, message }` envelope: that envelope carries neither\n`requestId` nor `retryable`, and both are load-bearing here.",
+        "description": "Errors are the structured contract shape at the top level rather than the\nplatform's `{ error, message }` envelope: that envelope carries neither\n`requestId` nor `retryable`, and both are load-bearing here.\n\nThe success body also carries `latencyMs`: Oxy's own measurement of this\nrequest, from the moment the edge received it through authentication,\nadmission, routing, the reservation, the upstream call and the settlement of\nthe hold. Most of that interval is the upstream generating tokens, and it is\nnot the round trip a caller measures — a client stopwatch additionally\ncovers DNS, TLS, both network legs and its own parse. `X-Oxy-Latency-Ms`\ncarries the same number on both surfaces. A streamed request reports none:\nits headers are written before the first frame arrives.",
         "parameters": [],
         "responses": {
           "200": {

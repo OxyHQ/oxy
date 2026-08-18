@@ -33,6 +33,7 @@ const EDGE_RESPONSE_HEADERS = [
   'X-Oxy-Provider',
   'X-Oxy-Routing-Policy',
   'X-Oxy-Routing-Policy-Version',
+  'X-Oxy-Latency-Ms',
   'X-Oxy-Usage-Input-Tokens',
   'X-Oxy-Usage-Cached-Input-Tokens',
   'X-Oxy-Usage-Output-Tokens',
@@ -56,7 +57,7 @@ describe('EXPOSED_HEADERS', () => {
   it('has exactly the entries reviewed here, so neither a deletion nor an addition passes', () => {
     // VACUITY FLOOR. A membership test alone is satisfied by an EMPTY list, and
     // an empty `Access-Control-Expose-Headers` is precisely the silent breakage
-    // this file exists to catch. Nine pre-existing entries + the edge's thirteen.
+    // this file exists to catch. Nine pre-existing entries + the edge's fourteen.
     expect(EXPOSED_HEADERS).toHaveLength(9 + EDGE_RESPONSE_HEADERS.length);
   });
 

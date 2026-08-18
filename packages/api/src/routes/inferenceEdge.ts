@@ -330,6 +330,13 @@ function applyUsageHeaders(res: Response, completion: EdgeCompletion): void {
   res.setHeader('X-Oxy-Usage-Reasoning-Tokens', String(completion.units.reasoning_tokens ?? 0));
   res.setHeader('X-Oxy-Routing-Policy', completion.routingPolicy.routingPolicyId);
   res.setHeader('X-Oxy-Routing-Policy-Version', String(completion.routingPolicy.policyVersion));
+  // Set here rather than only in the `/v1/responses` body because the
+  // compatibility surface's body is stock OpenAI and carries no Oxy field at
+  // all: a header is the only place that surface can state it. See
+  // {@link EdgeCompletion.latencyMs} for what the interval covers — it is Oxy's
+  // measurement of its own handling, not the caller's round trip, and the two
+  // are never the same number.
+  res.setHeader('X-Oxy-Latency-Ms', String(completion.latencyMs));
 }
 
 /**
@@ -742,6 +749,15 @@ export function createInferenceEdgeRouter(
    * Errors are the structured contract shape at the top level rather than the
    * platform's `{ error, message }` envelope: that envelope carries neither
    * `requestId` nor `retryable`, and both are load-bearing here.
+   *
+   * The success body also carries `latencyMs`: Oxy's own measurement of this
+   * request, from the moment the edge received it through authentication,
+   * admission, routing, the reservation, the upstream call and the settlement of
+   * the hold. Most of that interval is the upstream generating tokens, and it is
+   * not the round trip a caller measures — a client stopwatch additionally
+   * covers DNS, TLS, both network legs and its own parse. `X-Oxy-Latency-Ms`
+   * carries the same number on both surfaces. A streamed request reports none:
+   * its headers are written before the first frame arrives.
    */
   router.post(
     '/responses',
@@ -831,6 +847,7 @@ export function createInferenceEdgeRouter(
           quantity,
         })),
         routingPolicy: completion.routingPolicy,
+        latencyMs: completion.latencyMs,
       });
     }
   );

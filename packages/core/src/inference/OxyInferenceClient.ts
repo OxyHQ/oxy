@@ -184,6 +184,25 @@ export interface OxyInferenceResponse {
     readonly usage: readonly UsageQuantity[];
     /** The exact policy version this request was admitted under. */
     readonly routingPolicy: RoutingPolicyReference;
+    /**
+     * How long Oxy took over this request, in whole milliseconds — also on
+     * `X-Oxy-Latency-Ms`.
+     *
+     * Measured from the moment the edge received the request through
+     * authentication, admission, routing, the reservation, the call to the
+     * inference data plane and the settlement of the hold. Most of it is the
+     * upstream generating tokens; it does not separate the two.
+     *
+     * It is NOT the round trip you can measure yourself, which additionally
+     * covers DNS, TLS, both network legs and your own parse. Report them side by
+     * side rather than picking one — this figure has no network in it and yours
+     * cannot be attributed to the model.
+     *
+     * Optional because it is additive: an Oxy deployment older than the field
+     * omits it, and a streamed request never carries it (the head is written
+     * before the first frame arrives, so the number does not exist yet).
+     */
+    readonly latencyMs?: number;
 }
 
 /**

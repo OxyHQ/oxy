@@ -94,6 +94,15 @@ metric surface that is correctly zero. The edge now fills them:
   `completedAt - startedAt`: that measures the upstream and would call it the
   platform's, and the difference between the two is exactly the overhead a
   control plane is answerable for.
+
+  The same reading is returned to the caller — `latencyMs` on the
+  `/v1/responses` body and `X-Oxy-Latency-Ms` on both public surfaces — rather
+  than measured a second time at the point the response is built, so a customer's
+  response and their usage dashboard cannot quote two numbers for one request.
+  `recordEdgeTelemetry` returns what it wrote and the completion carries it. A
+  STREAM reports none: its head is written before the first frame arrives, so
+  there is no instant in a streamed request at which the figure both exists and
+  can still be sent.
 - **`time_to_first_token_ms`** — forwarded from the data plane's usage report
   when it reports one, and left NULL when it does not. Never imputed: the first
   token is produced upstream, and a fabricated number here would enter every

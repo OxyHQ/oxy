@@ -85,7 +85,23 @@ answer.model;              // always revision-pinned, even if you named only the
 answer.servingProvider;
 answer.usage;              // metered quantities — never money
 answer.routingPolicy;      // the exact policy version this request was admitted under
+answer.latencyMs;          // Oxy's handling time — NOT your round trip; see below
 ```
+
+`latencyMs` is optional and every served response sets it; it is optional because
+it is additive, so an older Oxy deployment omits it and a streamed request never
+carries one at all.
+
+It measures what Oxy can observe about ITSELF: the clock starts when the edge
+receives the request, before authentication, and stops once the hold is settled,
+so it spans authentication, admission, routing, the reservation, the call to the
+inference data plane and the settlement. Most of that interval is the upstream
+generating tokens, and this number does not separate the two.
+
+It is not the round trip you can time around your own call, which additionally
+contains DNS, TLS, both network legs and your own parse. Report them side by
+side: this one has no network in it, and yours cannot be attributed to the model.
+Their difference is not a fourth measurement — neither clock took it.
 
 Nothing on this page names a model Oxy serves, because
 [the catalogue is empty](./catalogue.md). `listModels()` answers `[]`, and that
@@ -180,6 +196,7 @@ On a successful invoke, additionally:
 | `X-Oxy-Provider` | the serving provider |
 | `X-Oxy-Usage-Input-Tokens`, `X-Oxy-Usage-Output-Tokens` | metered units |
 | `X-Oxy-Routing-Policy`, `X-Oxy-Routing-Policy-Version` | the policy version the request was admitted under |
+| `X-Oxy-Latency-Ms` | Oxy's own handling time in whole milliseconds, as `latencyMs` above — the only place `/v1/chat/completions` can state it, since that body is stock OpenAI |
 | `X-Oxy-Finish-Reason` | `/v1/chat/completions` only — the true reason, including `cancelled`, which OpenAI's `finish_reason` cannot express |
 
 On a refusal of `/v1/chat/completions`, additionally `X-Oxy-Error-Code` and

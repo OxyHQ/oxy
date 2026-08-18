@@ -470,6 +470,36 @@ export interface EdgeCompletion {
   readonly output: readonly InferenceMessage[];
   readonly units: Partial<Record<UsageUnit, number>>;
   readonly routingPolicy: RoutingPolicyReference;
+  /**
+   * How long Oxy took over this request, in whole milliseconds.
+   *
+   * **The clock starts** at {@link EdgeExecutionContext.receivedAt} — the
+   * monotonic reading `edgeGate` takes beside the request id, before
+   * authentication — and **stops** at the telemetry write that follows
+   * settlement. It therefore spans authentication, admission, scope
+   * authorization, routing, the reservation, the forward to the data plane, and
+   * the settlement of the hold: everything between the first byte this process
+   * saw of the request and the last thing it did before rendering the answer.
+   *
+   * **Most of that interval is UPSTREAM.** The data plane generating tokens
+   * dominates it, and this number does not separate the two — the part Oxy is
+   * answerable for is the DIFFERENCE between this and the data plane's own
+   * `completedAt - startedAt`, which is exactly why
+   * {@link recordEdgeTelemetry} refuses to report the latter as the platform's.
+   * It is also not the figure a caller measures: a client's own stopwatch
+   * additionally covers DNS, TLS, both network legs and its own parse, so the
+   * two are shown side by side and labelled rather than reconciled into one.
+   *
+   * It is the SAME reading `inference_usage_events.latency_ms` stores rather
+   * than a second `performance.now()` taken here, so the number a customer reads
+   * off their response and the number their usage dashboard reports cannot
+   * disagree by the few hundred microseconds between the two statements.
+   *
+   * A STREAM has no equivalent and deliberately reports none: its head is
+   * written before the first frame arrives, so there is no moment in a streamed
+   * request at which this number both exists and can still be sent.
+   */
+  readonly latencyMs: number;
 }
 
 export type EdgeExecution =
@@ -1179,7 +1209,9 @@ export async function executeInferenceRequest(
     await recordEdgeRouteSwitch(context, admitted, event);
   }
 
-  await recordEdgeTelemetry(context, {
+  // The one reading of the clock this request gets. The telemetry row and the
+  // customer's response both quote it — see {@link EdgeCompletion.latencyMs}.
+  const latencyMs = await recordEdgeTelemetry(context, {
     requestedModelReference: admitted.requestedModelReference,
     statusCode: 200,
     units,
@@ -1212,6 +1244,7 @@ export async function executeInferenceRequest(
       output: completion.output,
       units,
       routingPolicy: admitted.routingPolicy,
+      latencyMs,
     },
   };
 }
@@ -2373,11 +2406,20 @@ interface EdgeTelemetryInput {
  * `completedAt - startedAt`: that would measure the upstream and call it the
  * platform's, and the difference between the two is exactly the overhead a
  * control plane is answerable for.
+ *
+ * ## Why it RETURNS the number it recorded
+ *
+ * {@link EdgeCompletion.latencyMs} reports the same figure to the customer, and
+ * taking a second `performance.now()` at the point the completion is built would
+ * make the response and the usage dashboard disagree by however long this write
+ * took. One reading, reported twice. It is returned even when the write below
+ * fails, because a failed telemetry insert makes the measurement unstored, not
+ * untrue — and the response is already owed an answer.
  */
 async function recordEdgeTelemetry(
   context: EdgeExecutionContext,
   input: EdgeTelemetryInput
-): Promise<void> {
+): Promise<number> {
   // Rounded to a whole millisecond: the column is an integer, and drizzle would
   // otherwise hand Postgres a float for a `bigint` column.
   const latencyMs = Math.round(performance.now() - context.receivedAt);
@@ -2418,6 +2460,8 @@ async function recordEdgeTelemetry(
       { requestId: context.requestId }
     );
   }
+
+  return latencyMs;
 }
 
 /** Allocate the id every response, error and ledger record correlates on. */
