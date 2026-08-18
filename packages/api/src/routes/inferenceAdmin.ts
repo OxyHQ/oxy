@@ -34,9 +34,13 @@
  * would be a second staff surface to keep gated correctly.
  */
 
-import { Router, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
+import {
+  modelGpaiDocumentationSchema,
+  modelReleaseIngestionRequestSchema,
+} from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { describeRolloutFlags } from '../config/rolloutFlags';
 import {
@@ -58,9 +62,15 @@ import {
   DeploymentPermissionRefused,
   recordLegalReview,
 } from '../services/inferenceCatalogueAdmin.service';
+import {
+  ingestModelRelease,
+  ModelReleaseRefused,
+  ModelRevisionNotFound,
+  recordRevisionGpaiDocumentation,
+} from '../services/inferenceModelDocumentation.service';
 import { readInferenceOperationalMetrics } from '../services/inferenceMetrics.service';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ConflictError, NotFoundError, UnauthorizedError } from '../utils/error';
+import { BadRequestError, ConflictError, NotFoundError, UnauthorizedError } from '../utils/error';
 
 const router = Router();
 
@@ -88,6 +98,35 @@ router.use(adminLimiter, authMiddleware, requireStaff);
 const requireCataloguePublish = requireStaffCapability('inference:catalogue:publish');
 
 const deploymentParams = z.object({ deploymentId: z.string().min(1).max(128) });
+
+const revisionParams = z.object({ revisionId: z.string().min(1).max(128) });
+
+/**
+ * The release manifest of the in-flight request, EXACTLY as it arrived.
+ *
+ * A `WeakMap` keyed on the request, rather than a property on `req`: adding one
+ * would mean widening Express's `Request` type for a value that lives for the
+ * duration of one handler, and a widened type is a place any other middleware can
+ * write to.
+ *
+ * It has to be captured BEFORE `validate`, which replaces `req.body` with the
+ * PARSED value. That distinction is the whole point. A release signature covers
+ * the canonical serialization of the manifest, and canonicalization is invariant
+ * to whitespace and key order but NOT to a key SET — zod's `.default([])` members
+ * alone would add `evaluations` and `knownLimitations` keys the signer never
+ * wrote, so a verifier fed the parsed document would compute different bytes and
+ * report a valid signature as invalid.
+ */
+const rawManifests = new WeakMap<Request, string>();
+
+/** Stash the manifest as received. See {@link rawManifests}. */
+function captureRawManifest(req: Request, _res: Response, next: NextFunction): void {
+  const body: unknown = req.body;
+  if (typeof body === 'object' && body !== null && 'manifest' in body) {
+    rawManifests.set(req, JSON.stringify(body.manifest));
+  }
+  next();
+}
 
 /**
  * The widest window a metrics read may ask for.
@@ -443,15 +482,115 @@ router.post(
 );
 
 /**
+ * `POST /inference/admin/model-releases`
+ *
+ * Ingest a signed Alia model release manifest, the capability sheet the manifest
+ * cannot carry, and the EU AI Act / GPAI documentation record for the revision it
+ * releases (#972 §12).
+ *
+ * ## Graded on the SAME capability as approving a route, deliberately
+ *
+ * `inference:catalogue:publish` already means "publishing, restricting or
+ * retiring a model route in the inference catalogue", and this writes the model
+ * and revision IDENTITIES that a route is later attached to — under `alia/*`,
+ * where the namespace itself is a provenance claim. A second capability whose
+ * grant list would be exactly the same people would lengthen the list in
+ * `users.staff_capabilities` without making any state unreachable, and
+ * `STAFF_CAPABILITIES`' own header says a grant list nobody reads is the failure
+ * mode.
+ *
+ * ## Ingesting is not publishing
+ *
+ * The revision lands with `is_current = false` and no deployment, so nothing here
+ * becomes servable or listed. See the service module's header for why that is the
+ * containment that makes an unverifiable signature acceptable at this stage.
+ */
+router.post(
+  '/model-releases',
+  requireCataloguePublish,
+  captureRawManifest,
+  validate({ body: modelReleaseIngestionRequestSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const body = modelReleaseIngestionRequestSchema.parse(req.body);
+    const manifestJson = rawManifests.get(req);
+
+    if (manifestJson === undefined) {
+      // Unreachable behind `captureRawManifest` + `validate`, which together
+      // guarantee a `manifest` member was present. Stated rather than asserted
+      // away, because the alternative is storing bytes that are not the ones that
+      // arrived — and that is the one failure this whole record exists to avoid.
+      throw new BadRequestError('The release manifest could not be read as received');
+    }
+
+    try {
+      const result = await ingestModelRelease({
+        manifest: body.manifest,
+        gpaiDocumentation: body.gpaiDocumentation,
+        model: body.model,
+        manifestJson,
+        staffUserId: staffUserId(req),
+      });
+      res.status(result.outcome === 'ingested' ? 201 : 200).json({ data: result });
+    } catch (error) {
+      throw translate(error);
+    }
+  })
+);
+
+/**
+ * `PUT /inference/admin/revisions/:revisionId/gpai-documentation`
+ *
+ * Restate the documentation record for a revision that already exists.
+ *
+ * A PUT and not a PATCH: the Article 53(2) and Article 51(2) conditionals are
+ * about the record AS A WHOLE, so a partial update could satisfy them against
+ * fields the caller never saw. Replacing means whoever writes it has read all of
+ * it.
+ *
+ * It exists because Article 51(1)(b) lets the Commission designate a model as
+ * carrying systemic risk AFTER release, which turns a complete record into an
+ * incomplete one through no act of Oxy's — and the alternative, re-releasing
+ * identical weights under a new revision, is exactly what the revision
+ * immutability trigger is right to refuse.
+ */
+router.put(
+  '/revisions/:revisionId/gpai-documentation',
+  requireCataloguePublish,
+  validate({ params: revisionParams, body: modelGpaiDocumentationSchema }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const params = revisionParams.parse(req.params);
+    const documentation = modelGpaiDocumentationSchema.parse(req.body);
+    try {
+      const result = await recordRevisionGpaiDocumentation({
+        modelRevisionId: params.revisionId,
+        documentation,
+        staffUserId: staffUserId(req),
+      });
+      res.json({ data: result });
+    } catch (error) {
+      throw translate(error);
+    }
+  })
+);
+
+/**
  * Turn the service's own refusals into the HTTP answers they mean.
  *
  * Anything else is re-thrown untouched, so a constraint violation still reaches
  * the global error handler as a 500 rather than being flattened into a 409 that
  * implies somebody's request was at fault.
+ *
+ * `ModelReleaseRefused` answers 409 rather than 400 for the same reason
+ * `DeploymentPermissionRefused` does: the request was well formed, and what
+ * refused it is the state of the catalogue — a revision label already taken, a
+ * manifest disagreeing with the licence on record, an unreserved publisher
+ * namespace.
  */
 function translate(error: unknown): unknown {
   if (error instanceof DeploymentNotFoundError) return new NotFoundError(error.message);
   if (error instanceof DeploymentPermissionRefused) return new ConflictError(error.message);
+  if (error instanceof ModelReleaseRefused) return new ConflictError(error.message);
+  if (error instanceof ModelRevisionNotFound) return new NotFoundError(error.message);
   return error;
 }
 

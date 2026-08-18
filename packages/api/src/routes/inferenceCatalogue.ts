@@ -54,6 +54,8 @@
 
 import { Router, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
+import { modelRevisionLabelSchema } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { isCataloguePublished, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema';
@@ -61,6 +63,8 @@ import { extractTokenFromRequest } from '../middleware/authUtils';
 import { resolveMachineCredential } from '../middleware/machineCredential';
 import { rateLimit } from '../middleware/rateLimiter';
 import { verifyServiceToken } from '../middleware/serviceToken';
+import { validate } from '../middleware/validate';
+import { getRevisionDocumentation } from '../services/inferenceModelDocumentation.service';
 import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 import {
   type CatalogueViewer,
@@ -245,6 +249,69 @@ router.get(
     const access = await catalogueAccess(req);
     const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
     res.json({ data: models, count: models.length });
+  })
+);
+
+/**
+ * The revision a documentation read may name.
+ *
+ * `modelRevisionLabelSchema` and nothing looser: the label is interpolated into
+ * an equality predicate, and the contract's own grammar is what says which
+ * strings can be one.
+ */
+const documentationQuery = z.object({ revision: modelRevisionLabelSchema.optional() }).strict();
+
+/**
+ * `GET /models/:publisher/:model/documentation[?revision=]`
+ *
+ * The customer-safe documentation of ONE revision (#972 §12: "store/publicize the
+ * customer-safe documentation needed by downstream developers").
+ *
+ * ## Why this is not part of `GET /models/:publisher/:model`
+ *
+ * A catalogue entry documents whichever revision is CURRENT. The catalogue also
+ * invites a customer to pin `<publisher>/<model>@<revision>` — that is what
+ * `available_revisions` is for, and what the revision immutability trigger
+ * exists to make meaningful — and until this endpoint the model card,
+ * evaluations, safety metadata and artifact digest of the revision a customer was
+ * ACTUALLY calling were unreadable. A model card that only ever describes the
+ * newest weights is the exact conflation ADR 0008 separates revisions to prevent.
+ *
+ * Omitting `?revision=` answers for the CURRENT revision, not the newest: that is
+ * what a bare model id resolves to, so anything else would document weights the
+ * customer's own request would not reach.
+ *
+ * Audience-scoped like every other read here, and by the same predicate — the
+ * service asks `getCatalogueEntryForViewer` first, so a model this viewer may not
+ * see is a 404 identical to one that does not exist. A retired revision DOES
+ * answer: its documentation is what a developer needs in order to migrate off it,
+ * and `retiredAt` says plainly that it is retired.
+ *
+ * Registered BEFORE `/:publisher/:model` for readability only — a two-segment
+ * route cannot match a three-segment path either way.
+ */
+router.get(
+  '/:publisher/:model/documentation',
+  catalogueReadLimiter,
+  validate({ query: documentationQuery }),
+  asyncHandler(async (req: Request, res: Response) => {
+    const query = documentationQuery.parse(req.query);
+    const access = await catalogueAccess(req);
+    const modelId = `${req.params.publisher}/${req.params.model}`;
+    const documentation = access.served
+      ? await getRevisionDocumentation(access.viewer, modelId, query.revision)
+      : undefined;
+
+    if (documentation === undefined) {
+      logger.debug(`Documentation for ${modelId} is not available to this viewer`);
+      throw new NotFoundError(
+        query.revision === undefined
+          ? `No documentation for ${modelId} is available to you`
+          : `No documentation for ${modelId}@${query.revision} is available to you`
+      );
+    }
+
+    res.json({ data: documentation });
   })
 );
 

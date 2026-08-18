@@ -66,6 +66,10 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import { authSessions } from './authSessions';
 import { federationKeyPairs } from './federationKeyPairs';
 import { inferenceDeployments } from './inferenceDeployments';
+import {
+  GPAI_DOCUMENTATION_INTERNAL_COLUMNS,
+  inferenceModelGpaiDocumentation,
+} from './inferenceModelGpaiDocumentation';
 import { messages } from './messages';
 import { sessions } from './sessions';
 import { users } from './users';
@@ -179,6 +183,30 @@ export const INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS = [
 ] as const;
 
 /**
+ * `inference_model_gpai_documentation` columns that are documentation for an
+ * AUTHORITY rather than for a downstream developer.
+ *
+ * The EU AI Act itself draws this line, which is why the split is a registry
+ * entry and not a preference. Annex XI is technical documentation a provider
+ * keeps and provides to the AI Office and national competent authorities on
+ * request; Annex XII is information a provider MAKES AVAILABLE to downstream
+ * providers. The four columns below are Annex XI Section 2 and Article 55(1)(a);
+ * everything else on that table is Annex XII or Article 53(1)(c)/(d), which are
+ * public by their own terms.
+ *
+ * The set is imported from the table module rather than restated, so a column
+ * added to the internal group has one place to be added and cannot become
+ * customer-visible by being forgotten here.
+ *
+ * As on `inference_deployments`, this registry is the BACKSTOP: the customer
+ * projection is `modelDownstreamDocumentationSchema`, which is `.strict()` and
+ * therefore default-DENY. What the registry adds is the implicit-whole-row-read
+ * scan over `src/`, which a projection cannot give.
+ */
+export const INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS =
+  GPAI_DOCUMENTATION_INTERNAL_COLUMNS;
+
+/**
  * The registry, keyed by SQL table name. Declared `as const` and passed
  * straight through to `@oxyhq/db/assert`'s `publicColumns` at every call
  * site — that is what keeps the type-level guarantee (see that function's
@@ -191,6 +219,7 @@ export const PROTECTED_COLUMNS_BY_TABLE = {
   federation_key_pairs: FEDERATION_KEY_PAIRS_PROTECTED_COLUMNS,
   messages: MESSAGES_PROTECTED_COLUMNS,
   inference_deployments: INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS,
+  inference_model_gpai_documentation: INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS,
 } as const;
 
 /** A protected column, with the reason it is one. */
@@ -366,5 +395,35 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
     reason:
       'The denominator of the wholesale rate. Protected with the rest of the ' +
       'group so no subset of it can be reassembled from a default read.',
+  },
+  {
+    table: inferenceModelGpaiDocumentation,
+    column: inferenceModelGpaiDocumentation.trainingComputeFlops,
+    reason:
+      'Annex XI Section 2(b) of the EU AI Act — documentation for the AI Office ' +
+      'and national competent authorities, not the Annex XII set a downstream ' +
+      'provider is entitled to. It is also the figure Article 51(2) reads.',
+  },
+  {
+    table: inferenceModelGpaiDocumentation,
+    column: inferenceModelGpaiDocumentation.trainingTimeHours,
+    reason:
+      'Annex XI Section 2(b), beside the compute figure and disclosing the same ' +
+      'thing about how a release was produced.',
+  },
+  {
+    table: inferenceModelGpaiDocumentation,
+    column: inferenceModelGpaiDocumentation.energyConsumptionMwh,
+    reason:
+      'Annex XI Section 2(c). Protected with the rest of the Section 2 group so ' +
+      'no subset of it reaches a default read.',
+  },
+  {
+    table: inferenceModelGpaiDocumentation,
+    column: inferenceModelGpaiDocumentation.adversarialTestingReportUrl,
+    reason:
+      "Article 55(1)(a): the systemic-risk model evaluation, including " +
+      'adversarial testing. A red-team report is a map of what a model can be ' +
+      'made to do, and the Act asks for it as documentation for an authority.',
   },
 ];

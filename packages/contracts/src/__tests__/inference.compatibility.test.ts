@@ -40,6 +40,7 @@ import * as catalogue from '../inference/catalogue';
 import * as entitlement from '../inference/entitlement';
 import * as errors from '../inference/errors';
 import * as identifiers from '../inference/identifiers';
+import * as modelDocumentation from '../inference/modelDocumentation';
 import * as money from '../inference/money';
 import * as priceVersion from '../inference/priceVersion';
 import * as providerConnection from '../inference/providerConnection';
@@ -62,6 +63,7 @@ const INFERENCE_MODULES: Record<string, Record<string, unknown>> = {
   entitlement,
   errors,
   identifiers,
+  modelDocumentation,
   money,
   priceVersion,
   providerConnection,
@@ -172,8 +174,13 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   costCenterSchema: 1,
   costCenterSpendSchema: 1,
   productEntitlementSchema: 1,
-  // Alia model release manifest (§12) — schema only; no ingestion endpoint
+  // Alia model release manifest (§12), and the request that ingests one beside
+  // Oxy's own GPAI documentation record for the revision it releases
   aliaModelReleaseManifestSchema: 1,
+  modelReleaseIngestionRequestSchema: 1,
+  modelReleaseIngestionResultSchema: 1,
+  // The revision-scoped documentation a downstream developer reads (§12)
+  modelDocumentationSchema: 1,
   // Errors
   inferenceErrorSchema: 1,
 };
@@ -200,8 +207,11 @@ const FROZEN_EMBEDDED_SHAPES: string[] = [
   'inferenceToolCallSchema',
   'modelCapabilitiesSchema',
   'modelDeprecationSchema',
+  'modelDownstreamDocumentationSchema',
   'modelEvaluationResultSchema',
+  'modelGpaiDocumentationSchema',
   'modelLicenseSchema',
+  'modelLineDeclarationSchema',
   'modelProvenanceSchema',
   'modelSafetyMetadataSchema',
   'externalPaymentSchema',
@@ -299,12 +309,117 @@ const LICENSE = {
   requiresAttribution: false,
 };
 
+/**
+ * A first-party release's GPAI documentation record.
+ *
+ * Deliberately the NON-exempt shape — not free-and-open-source, and past
+ * Article 51(2)'s 10^25 FLOP threshold — because that is the state in which every
+ * conditional field of `modelGpaiDocumentationSchema` is required. A
+ * free-and-open-source fixture would parse with five fields missing and prove
+ * nothing about them.
+ */
+const GPAI_DOCUMENTATION = {
+  intendedTasks:
+    'General-purpose text generation, summarisation and tool-calling, for integration into assistant and agent systems.',
+  distributionMethods: ['oxy_api'],
+  architecture: 'Decoder-only transformer with sparse mixture-of-experts routing',
+  parameterCount: 70_000_000_000,
+  trainingDataSummaryUrl: 'https://alia.onl/models/alia-2/training-data-summary',
+  copyrightPolicyUrl: 'https://alia.onl/legal/copyright-policy',
+  systemicRisk: 'presumed_by_training_compute',
+  freeAndOpenSourceRelease: false,
+  trainingComputeFlops: '4.2e25',
+  trainingTimeHours: 41_600,
+  energyConsumptionMwh: 3_820,
+  adversarialTestingReportUrl: 'https://alia.onl/models/alia-2/red-team-report',
+};
+
+/**
+ * The capability sheet a release does not carry, and Oxy therefore states.
+ *
+ * See `modelLineDeclarationSchema`: a signed manifest has no `maxContextTokens`
+ * and no modalities, and those columns are `NOT NULL` on `inference_models`.
+ */
+const MODEL_LINE = {
+  displayName: 'Alia 2',
+  description: 'Alia\u2019s second-generation general-purpose model.',
+  capabilities: CAPABILITIES,
+  knowledgeCutoff: '2026-03-31',
+  releasedOn: '2026-08-16',
+};
+
 const PRICE_SNAPSHOT = {
   priceVersionId: 'pv_2026_08',
   currency: 'USD',
   unitPrices: [
     { unit: 'input_tokens', amount: '3.00', per: 1000000, currency: 'USD' },
     { unit: 'output_tokens', amount: '15.00', per: 1000000, currency: 'USD' },
+  ],
+};
+
+/**
+ * One signed Alia release manifest, shared by the manifest's own fixture and the
+ * ingestion request's.
+ *
+ * Shared rather than duplicated because the two are the same document: a copy
+ * that drifted would let the manifest round-trip while the request that carries
+ * it did not, and the failure would name the wrong schema.
+ */
+const ALIA_RELEASE_MANIFEST = {
+  schemaVersion: 1,
+  releaseId: 'arel_01H8ZA1000',
+  issuedAt: '2026-08-16T12:00:00.000Z',
+  revision: {
+    schemaVersion: 1,
+    revisionId: 'rev_alia_v2_20260801',
+    modelId: 'alia/alia-2',
+    revision: '2026-08-01',
+    reference: 'alia/alia-2@2026-08-01',
+    releasedAt: '2026-08-16T12:00:00.000Z',
+    artifactDigest: `sha256:${'b'.repeat(64)}`,
+    modelCardUrl: 'https://alia.onl/models/alia-2/card',
+    evaluations: [{ suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' }],
+    safety: {
+      safetyCardUrl: 'https://alia.onl/models/alia-2/safety',
+      contentFilteringDefault: 'strict',
+      knownLimitations: ['Weaker on languages outside its training mix.'],
+      provenanceMarking: 'c2pa',
+    },
+  },
+  provenance: {
+    releaseKind: 'first_party_derived',
+    baseModelId: 'meta/llama-3.1-70b',
+    trainingOrganization: 'Alia',
+  },
+  license: {
+    licenseId: 'LicenseRef-Alia-Community-1.0',
+    displayName: 'Alia community licence 1.0',
+    url: 'https://alia.onl/licence',
+    commercialUseAllowed: true,
+    requiresAttribution: true,
+  },
+  artifacts: [
+    {
+      path: 'model-00001-of-00002.safetensors',
+      digest: `sha256:${'b'.repeat(64)}`,
+      sizeBytes: 9_876_543_210,
+      mediaType: 'application/octet-stream',
+    },
+    {
+      path: 'tokenizer.json',
+      digest: `sha256:${'c'.repeat(64)}`,
+      sizeBytes: 1_842_311,
+      mediaType: 'application/json',
+    },
+  ],
+  signatures: [
+    {
+      algorithm: 'ed25519',
+      canonicalization: 'jcs',
+      keyId: 'alia-release-2026-08',
+      signature: 'A'.repeat(86),
+      signedAt: '2026-08-16T12:00:05.000Z',
+    },
   ],
 };
 
@@ -911,32 +1026,37 @@ const FIXTURES: Record<string, unknown> = {
     requestId: 'req_01H8Z9T6NB',
   },
 
-  aliaModelReleaseManifestSchema: {
+  aliaModelReleaseManifestSchema: ALIA_RELEASE_MANIFEST,
+
+  modelReleaseIngestionRequestSchema: {
+    schemaVersion: 1,
+    manifest: ALIA_RELEASE_MANIFEST,
+    gpaiDocumentation: GPAI_DOCUMENTATION,
+    model: MODEL_LINE,
+  },
+
+  modelReleaseIngestionResultSchema: {
     schemaVersion: 1,
     releaseId: 'arel_01H8ZA1000',
-    issuedAt: '2026-08-16T12:00:00.000Z',
-    revision: {
-      schemaVersion: 1,
-      revisionId: 'rev_alia_v2_20260801',
-      modelId: 'alia/alia-2',
-      revision: '2026-08-01',
-      reference: 'alia/alia-2@2026-08-01',
-      releasedAt: '2026-08-16T12:00:00.000Z',
-      artifactDigest: `sha256:${'b'.repeat(64)}`,
-      modelCardUrl: 'https://alia.onl/models/alia-2/card',
-      evaluations: [{ suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' }],
-      safety: {
-        safetyCardUrl: 'https://alia.onl/models/alia-2/safety',
-        contentFilteringDefault: 'strict',
-        knownLimitations: ['Weaker on languages outside its training mix.'],
-        provenanceMarking: 'c2pa',
-      },
-    },
-    provenance: {
-      releaseKind: 'first_party_derived',
-      baseModelId: 'meta/llama-3.1-70b',
-      trainingOrganization: 'Alia',
-    },
+    modelId: 'alia/alia-2',
+    revision: '2026-08-01',
+    reference: 'alia/alia-2@2026-08-01',
+    outcome: 'ingested',
+    artifactCount: 2,
+    signatureCount: 1,
+    evaluationCount: 1,
+    ingestedAt: '2026-08-17T08:15:00.000Z',
+  },
+
+  modelDocumentationSchema: {
+    schemaVersion: 1,
+    modelId: 'alia/alia-2',
+    revision: '2026-08-01',
+    reference: 'alia/alia-2@2026-08-01',
+    isCurrentRevision: true,
+    releasedAt: '2026-08-16T12:00:00.000Z',
+    modelCardUrl: 'https://alia.onl/models/alia-2/card',
+    artifactDigest: `sha256:${'b'.repeat(64)}`,
     license: {
       licenseId: 'LicenseRef-Alia-Community-1.0',
       displayName: 'Alia community licence 1.0',
@@ -944,29 +1064,33 @@ const FIXTURES: Record<string, unknown> = {
       commercialUseAllowed: true,
       requiresAttribution: true,
     },
-    artifacts: [
-      {
-        path: 'model-00001-of-00002.safetensors',
-        digest: `sha256:${'b'.repeat(64)}`,
-        sizeBytes: 9_876_543_210,
-        mediaType: 'application/octet-stream',
-      },
-      {
-        path: 'tokenizer.json',
-        digest: `sha256:${'c'.repeat(64)}`,
-        sizeBytes: 1_842_311,
-        mediaType: 'application/json',
-      },
-    ],
-    signatures: [
-      {
-        algorithm: 'ed25519',
-        canonicalization: 'jcs',
-        keyId: 'alia-release-2026-08',
-        signature: 'A'.repeat(86),
-        signedAt: '2026-08-16T12:00:05.000Z',
-      },
-    ],
+    provenance: {
+      releaseKind: 'first_party_derived',
+      baseModelId: 'meta/llama-3.1-70b',
+      trainingOrganization: 'Alia',
+    },
+    evaluations: [{ suite: 'mmlu-pro', metric: 'accuracy', score: '71.2%' }],
+    safety: {
+      safetyCardUrl: 'https://alia.onl/models/alia-2/safety',
+      contentFilteringDefault: 'strict',
+      knownLimitations: ['Weaker on languages outside its training mix.'],
+      provenanceMarking: 'c2pa',
+    },
+    // The Annex XII half only. Training compute, training time, energy and the
+    // adversarial-testing report are Annex XI Section 2 / Article 55(1)(a) and
+    // are absent from this projection BY CONSTRUCTION — `.strict()` on
+    // `modelDownstreamDocumentationSchema` is what makes that a parse failure
+    // rather than a review comment.
+    gpai: {
+      intendedTasks: GPAI_DOCUMENTATION.intendedTasks,
+      distributionMethods: GPAI_DOCUMENTATION.distributionMethods,
+      architecture: GPAI_DOCUMENTATION.architecture,
+      parameterCount: GPAI_DOCUMENTATION.parameterCount,
+      trainingDataSummaryUrl: GPAI_DOCUMENTATION.trainingDataSummaryUrl,
+      copyrightPolicyUrl: GPAI_DOCUMENTATION.copyrightPolicyUrl,
+      systemicRisk: GPAI_DOCUMENTATION.systemicRisk,
+      freeAndOpenSourceRelease: GPAI_DOCUMENTATION.freeAndOpenSourceRelease,
+    },
   },
 };
 
@@ -974,11 +1098,11 @@ const FIXTURES: Record<string, unknown> = {
 
 describe('inference contract versioning', () => {
   it('exposes the contract-set version the two planes handshake on', () => {
-    // MINOR since 1.1.0: one shape added (the Alia release manifest), one
-    // optional field added (`authorizedRoutes`), and one refinement tightened
-    // (a `completed` usage report needs a unit). No shape's own `schemaVersion`
-    // moved, so this is not MAJOR.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.2.0');
+    // MINOR since 1.2.0: three shapes added (the release-ingestion request and
+    // result, and the revision-scoped documentation view) plus the two embedded
+    // documentation records they carry. No existing shape's `schemaVersion`
+    // moved and no existing field changed, so this is not MAJOR.
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.3.0');
   });
 
   it('matches the frozen schema version map exactly', () => {

@@ -35,14 +35,22 @@
  * bounded: ingestion is a release-time operation an operator retries once Oxy
  * takes the newer contract, not a served request that becomes unsettleable.
  *
- * ## What is deliberately NOT here
+ * ## The ingestion path, which this file used to say did not exist
  *
- * **No HTTP write path.** The catalogue's emptiness is currently a safety
- * property — `scripts/seed-inference-catalogue.ts` refuses to invent a licence
- * or a retention flag because "a plausible invented value in a catalogue is
- * worse than an absent one" — and a staff write path into it with nothing to
- * ingest is an unexercised hazard. The schema lands; the endpoint waits for a
- * real manifest to ingest.
+ * It does now: `POST /inference/admin/model-releases`, defined by
+ * `modelReleaseIngestionRequestSchema` in `modelDocumentation.ts`. This shape is
+ * unchanged — the request COMPOSES it, alongside two records that are Oxy's own
+ * rather than the signer's (the GPAI documentation and the capability sheet a
+ * manifest does not carry), precisely so the bytes a signature covers stay
+ * exactly the bytes described here.
+ *
+ * The earlier objection was that a staff write path into an empty catalogue is
+ * an unexercised hazard. What answers it is containment rather than emptiness: an
+ * ingested revision lands with `is_current = false` and no deployment, so nothing
+ * it creates is servable or listed, and a route still needs an approved
+ * contract/legal review before any customer can select it.
+ *
+ * ## What is deliberately NOT here
  *
  * **No `payloadDigest` field.** The signature is over the canonical
  * serialization of this manifest with `signatures` removed, and a verifier
@@ -64,7 +72,11 @@
  * custody, rotation and revocation consequences. So `keyId` is an OPAQUE
  * identifier and this file names no registry that resolves it: either answer
  * fits, and neither is presupposed. Until it is answered a manifest can be
- * parsed and cannot be verified, which is the second reason no endpoint ships.
+ * parsed and cannot be VERIFIED, so the ingestion path records no verification
+ * finding at all: it stores the signatures and the manifest as received, and the
+ * authority for the ingest is the staff member who performed it. A nullable
+ * `verified` column nothing ever writes would read, to whoever scanned the table
+ * later, as a check that ran.
  *
  * Decided in: docs/adr/0008-catalogue-concept-separation.md,
  * docs/adr/0017-authorized-routes-in-the-envelope.md, issue #972 §12.
