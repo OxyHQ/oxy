@@ -88,11 +88,9 @@ const router = express.Router();
  *                         type: object
  *                         additionalProperties: true
  *                       userAgent:
- *                         type: string
- *                         nullable: true
+ *                         type: [string, "null"]
  *                       deviceId:
- *                         type: string
- *                         nullable: true
+ *                         type: [string, "null"]
  *                       timestamp:
  *                         type: string
  *                         format: date-time

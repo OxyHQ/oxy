@@ -128,3 +128,14 @@ export const routingPolicyVersionParams = z
 export const routeSwitchQuery = z
   .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
   .strict();
+
+/**
+ * `POST /inference/routing-policies/:policyId/archive` takes no fields.
+ *
+ * Named rather than written inline as `z.object({}).strict()`, because the
+ * OpenAPI generator resolves a request body through the route file's own imports
+ * and an inline expression is one it must refuse: the published operation would
+ * otherwise say the endpoint accepts ANY body, when `.strict()` means it accepts
+ * only an empty one.
+ */
+export const emptyBodySchema = z.object({}).strict();

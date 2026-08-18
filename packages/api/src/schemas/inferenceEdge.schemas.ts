@@ -34,12 +34,15 @@
 import { z } from 'zod';
 import {
   inferenceContentPartSchema,
+  inferenceFinishReasonSchema,
   inferenceMessageSchema,
   modelReferenceSchema,
   responseFormatSchema,
+  routingPolicyReferenceSchema,
   routingProfileSlugSchema,
   toolChoiceSchema,
   toolDefinitionSchema,
+  usageQuantitySchema,
   type InferenceInput,
   type InferenceMessage,
   type ResponseFormat,
@@ -386,6 +389,152 @@ export const generationReceiptSchema = z
   .strict();
 
 export type GenerationReceipt = z.infer<typeof generationReceiptSchema>;
+
+/** `GET /v1/generations/{id}` — the receipt in the platform's read envelope. */
+export const generationReceiptResponseSchema = z
+  .object({ data: generationReceiptSchema })
+  .strict();
+
+/* -------------------------------------------------------------------------- */
+/*  Responses — what each dialect sends back                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The SUCCESS bodies of the edge, written down.
+ *
+ * Until these existed, every operation the OpenAPI generator produced carried
+ * `responses: { '200': { description: 'Success' } }` and nothing else — so the
+ * published contract described `POST /v1/chat/completions` as returning an
+ * undescribed 200, and a generated client typed the return `Any`. A caller could
+ * not learn from the contract that a completion comes back in `choices[0].message`.
+ *
+ * ## Bound to the handlers by the TYPE SYSTEM, not by these comments
+ *
+ * `routes/inferenceEdge.ts` annotates each body it passes to `res.json` with the
+ * matching `z.infer<typeof …>`, so a handler that adds, drops or retypes a field
+ * fails `tsc` — which `api-build` already runs. A schema beside a handler that
+ * merely resembles it is a claim nobody checks; this one is checked by the
+ * compiler. The `@response` tag above each route carries the identifier across to
+ * the document.
+ *
+ * ## Streaming is deliberately NOT described
+ *
+ * `stream: true` on either dialect answers `text/event-stream` with a frame
+ * sequence, and no mainstream OpenAPI generator models an SSE stream usefully —
+ * the honest options are an undescribed `text/event-stream` or a fiction. Each
+ * schema below describes the NON-STREAMING body only, which is the one a
+ * generated client can actually parse. `inferenceStreamEventSchema` in
+ * `@oxyhq/contracts` remains the authority on the frames themselves.
+ */
+
+/**
+ * `POST /v1/responses` — Oxy's own dialect.
+ *
+ * `.strict()` for the same reason the requests are: a field appearing here that
+ * the schema does not name is a change to a published response, and it should
+ * fail this package's own tests rather than reach a customer's parser.
+ */
+export const responsesResponseSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    requestId: z.string().min(1),
+    /** Absent when the data plane reported no generation id for the request. */
+    generationId: z.string().min(1).optional(),
+    /** The revision that actually served this request, which may differ from the ask. */
+    model: z.string().min(1),
+    servingProvider: z.string().min(1),
+    finishReason: inferenceFinishReasonSchema,
+    output: z.array(inferenceMessageSchema),
+    usage: z.array(usageQuantitySchema),
+    routingPolicy: routingPolicyReferenceSchema,
+    /**
+     * Oxy's own measurement of this request, in whole milliseconds. Not the round
+     * trip a caller measures — see the route's own comment. A streamed request
+     * reports none, and a streamed request does not use this schema.
+     */
+    latencyMs: z.number().int().nonnegative(),
+  })
+  .strict();
+
+/**
+ * `POST /v1/chat/completions` — the OpenAI-compatible dialect.
+ *
+ * Every field is one a stock OpenAI client reads, spelled the way it spells it.
+ * Nothing Oxy-specific appears in the body: the request id, the resolved model,
+ * the routing policy and the true finish reason ride in headers, which is the
+ * rule that keeps this surface compatible rather than merely similar.
+ */
+export const chatCompletionResponseSchema = z
+  .object({
+    id: z.string().min(1),
+    object: z.literal('chat.completion'),
+    /** Unix seconds, as OpenAI's own field is. */
+    created: z.number().int().nonnegative(),
+    model: z.string().min(1),
+    choices: z.array(
+      z
+        .object({
+          index: z.number().int().nonnegative(),
+          message: z
+            .object({
+              role: z.literal('assistant'),
+              content: z.string(),
+              tool_calls: z
+                .array(
+                  z
+                    .object({
+                      id: z.string().min(1),
+                      type: z.literal('function'),
+                      function: z
+                        .object({ name: z.string().min(1), arguments: z.string() })
+                        .strict(),
+                    })
+                    .strict()
+                )
+                .optional(),
+            })
+            .strict(),
+          /**
+           * OpenAI's enum, which has neither a `cancelled` nor a `refusal` member.
+           * Both are reported as `stop` here and truthfully in
+           * `X-Oxy-Finish-Reason` — see `openAiFinishReason`.
+           */
+          finish_reason: z.string().min(1),
+        })
+        .strict()
+    ),
+    usage: z
+      .object({
+        prompt_tokens: z.number().int().nonnegative(),
+        completion_tokens: z.number().int().nonnegative(),
+        total_tokens: z.number().int().nonnegative(),
+        prompt_tokens_details: z.object({ cached_tokens: z.number().int().nonnegative() }).strict(),
+        completion_tokens_details: z
+          .object({ reasoning_tokens: z.number().int().nonnegative() })
+          .strict(),
+      })
+      .strict(),
+  })
+  .strict();
+
+/**
+ * `POST /v1/images/generations` — OpenAI's images shape.
+ *
+ * A union per element rather than two optional fields: the endpoint returns a URL
+ * or inline base64 and never both, and two optionals would publish a body where
+ * neither is present as valid.
+ */
+export const imageGenerationsResponseSchema = z
+  .object({
+    created: z.number().int().nonnegative(),
+    data: z.array(
+      z.union([
+        z.object({ url: z.string().min(1) }).strict(),
+        z.object({ b64_json: z.string().min(1) }).strict(),
+      ])
+    ),
+  })
+  .strict();
 
 /* -------------------------------------------------------------------------- */
 /*  Normalization — both dialects into one shape                              */

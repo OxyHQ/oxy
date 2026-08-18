@@ -55,7 +55,6 @@
 import { Router, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { modelRevisionLabelSchema } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { isCataloguePublished, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
 import { applications } from '../db/schema';
@@ -64,6 +63,14 @@ import { resolveMachineCredential } from '../middleware/machineCredential';
 import { rateLimit } from '../middleware/rateLimiter';
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { validate } from '../middleware/validate';
+import {
+  catalogueEntryResponse,
+  catalogueListResponse,
+  catalogueStatsResponse,
+  documentationQuery,
+  modelDocumentationResponse,
+  routingProfileListResponse,
+} from '../schemas/inferenceCatalogue.schemas';
 import { getRevisionDocumentation } from '../services/inferenceModelDocumentation.service';
 import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 import {
@@ -211,6 +218,8 @@ async function applicationForBearer(token: string): Promise<string | undefined> 
  * as a publisher segment. Profiles are a separate collection with a separate
  * identifier space — a profile slug can never contain `/`, which is what keeps
  * "did I ask for a concrete model or for Oxy to choose one" decidable.
+ *
+ * @response 200 routingProfileListResponse The routing profiles this viewer may target.
  */
 router.get(
   '/routing-profiles',
@@ -218,7 +227,8 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
     const profiles = access.served ? await listRoutingProfiles() : [];
-    res.json({ data: profiles, count: profiles.length });
+    const body: z.infer<typeof routingProfileListResponse> = { data: profiles, count: profiles.length };
+    res.json(body);
   })
 );
 
@@ -228,6 +238,8 @@ router.get(
  * Real catalogue data in the envelope Console already parses. See this module's
  * header for why the URL survives and why the fabricated per-model statistics
  * do not.
+ *
+ * @response 200 catalogueStatsResponse The catalogue, in Console's envelope.
  */
 router.get(
   '/stats',
@@ -235,12 +247,19 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
     const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
-    res.json({ models, count: models.length, timestamp: new Date().toISOString() });
+    const body: z.infer<typeof catalogueStatsResponse> = {
+      models,
+      count: models.length,
+      timestamp: new Date().toISOString(),
+    };
+    res.json(body);
   })
 );
 
 /**
  * `GET /models` — the customer-safe catalogue.
+ *
+ * @response 200 catalogueListResponse The models this viewer may call, with a count.
  */
 router.get(
   '/',
@@ -248,18 +267,10 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const access = await catalogueAccess(req);
     const models = access.served ? await listCatalogueForViewer(access.viewer) : [];
-    res.json({ data: models, count: models.length });
+    const body: z.infer<typeof catalogueListResponse> = { data: models, count: models.length };
+    res.json(body);
   })
 );
-
-/**
- * The revision a documentation read may name.
- *
- * `modelRevisionLabelSchema` and nothing looser: the label is interpolated into
- * an equality predicate, and the contract's own grammar is what says which
- * strings can be one.
- */
-const documentationQuery = z.object({ revision: modelRevisionLabelSchema.optional() }).strict();
 
 /**
  * `GET /models/:publisher/:model/documentation[?revision=]`
@@ -289,6 +300,8 @@ const documentationQuery = z.object({ revision: modelRevisionLabelSchema.optiona
  *
  * Registered BEFORE `/:publisher/:model` for readability only — a two-segment
  * route cannot match a three-segment path either way.
+ *
+ * @response 200 modelDocumentationResponse The model card of the resolved revision.
  */
 router.get(
   '/:publisher/:model/documentation',
@@ -311,7 +324,8 @@ router.get(
       );
     }
 
-    res.json({ data: documentation });
+    const body: z.infer<typeof modelDocumentationResponse> = { data: documentation };
+    res.json(body);
   })
 );
 
@@ -325,6 +339,8 @@ router.get(
  * exist. Distinguishing them would make this endpoint an existence oracle for
  * the internal catalogue — and an unpublished catalogue answers the same 404 for
  * the same reason.
+ *
+ * @response 200 catalogueEntryResponse The catalogue entry for this canonical model id.
  */
 router.get(
   '/:publisher/:model',
@@ -341,7 +357,8 @@ router.get(
       throw new NotFoundError(`No model ${modelId} is available to you`);
     }
 
-    res.json({ data: entry });
+    const body: z.infer<typeof catalogueEntryResponse> = { data: entry };
+    res.json(body);
   })
 );
 
