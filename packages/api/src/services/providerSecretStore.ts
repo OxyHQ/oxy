@@ -54,6 +54,7 @@
  */
 
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { PROVIDER_SECRET_REFERENCE_NAMESPACE } from '@oxyhq/contracts';
 import { PROVIDER_SECRET_STORE_NAMES } from '../db/schema/inferenceProviderConnections';
 import type { ProviderSecretStoreName } from '../db/schema/inferenceProviderConnections';
 
@@ -149,12 +150,18 @@ export interface ProviderSecretPartition {
  * stored value to end with exactly this suffix. Two things follow: a row can
  * never name another account's or another environment's secret, and a store-side
  * policy can be written per partition without Oxy having to be trusted to filter.
+ *
+ * This is the ONLY producer of the field, and the shape it builds is no longer
+ * merely a convention it keeps: `providerSecretReferenceSchema` admits this
+ * grammar and nothing else, and `providerConnectionSchema` requires the value to
+ * equal what this function would build for that connection. So a drift here does
+ * not ship a differently-shaped reference — it fails every create at the parse.
  */
 export function providerSecretReference(
   storeName: ProviderSecretStoreName,
   partition: ProviderSecretPartition
 ): string {
-  return `${storeName}:oxy/inference/byok/${partition.environment}/${partition.ownerAccountId}/${partition.connectionId}`;
+  return `${storeName}:${PROVIDER_SECRET_REFERENCE_NAMESPACE}/${partition.environment}/${partition.ownerAccountId}/${partition.connectionId}`;
 }
 
 /**

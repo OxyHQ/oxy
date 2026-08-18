@@ -828,7 +828,7 @@ const FIXTURES: Record<string, unknown> = {
     },
     environment: 'production',
     status: 'active',
-    secretRef: 'kms:oxy/byok/acc_01H8Z9QK7M/openai/pcx_01H8Z9W2DD',
+    secretRef: 'kms:oxy/inference/byok/production/acc_01H8Z9QK7M/pcx_01H8Z9W2DD',
     keyPrefix: 'sk-proj-4f',
     fingerprint: 'a'.repeat(64),
     validation: { state: 'valid', lastValidatedAt: '2026-08-15T08:00:00.000Z' },

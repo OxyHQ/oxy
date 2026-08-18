@@ -141,9 +141,9 @@ What must be true:
   `UPDATE` trigger refuses edits (`0042_inference_provider_connection_immutability.sql`).
   A missing event means the write did not happen, not that the trail was tidied.
 
-`secret_ref` must be unchanged by a rotate and must still match
-`^(vault|kms|ssm|secretsmanager):[A-Za-z0-9/_.:@-]+$`, ending with
-`/<environment>/<owner_account_id>/<id>`. Both are database CHECKs, so a value
+`secret_ref` must be unchanged by a rotate and must still be exactly
+`<store>:oxy/inference/byok/<environment>/<owner_account_id>/<id>` for one of the
+four stores. Both the grammar and the partition are database CHECKs, so a value
 that fails them cannot have been written — but reading the reference back is how
 you confirm you are looking at the connection you think you are.
 
