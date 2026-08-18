@@ -59,6 +59,18 @@ resolving to an identity was relying on the vulnerability.
   mutation of the shared `req` that was visible to every handler downstream of
   the limiter, not just to the bucket calculation.
 
+- A cursor-paginated page now survives the response unwrap. `{ data, …,
+  nextCursor }` was reduced to `data` — the convenience unwrap preserved only the
+  offset-paginated `{ data, pagination }` envelope and silently discarded every
+  other sibling key — so a caller received a bare array, read `undefined` for its
+  next cursor, and pagination was dead past the first page with nothing at the
+  call site to show it. Measured on `GET /accounts/:id/audit` and `GET
+  /accounts/:id/billing/audit`. The rule is deliberately narrow: `data` beside
+  `pagination` or `nextCursor` is a page and travels whole; `{ data, count }`,
+  `{ data, source }` and the other sibling shapes still unwrap, because a dozen
+  Console call sites type those as the bare payload. Linked clients get the fix
+  too — they are `HttpService` instances.
+
 ## 20.0.0
 
 ### Licence: AGPL-3.0-only becomes Apache-2.0

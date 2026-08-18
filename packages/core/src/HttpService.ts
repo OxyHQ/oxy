@@ -914,6 +914,19 @@ export class HttpService {
   private static readonly CACHE_IDENTITY_DELIM = ' id=';
 
   /**
+   * The keys whose presence beside `data` makes a body a PAGE rather than a
+   * payload — see {@link unwrapResponse} for why this list is narrow.
+   *
+   *  - `pagination` — the offset-paginated house envelope (`sendPaginated`).
+   *  - `nextCursor` — the keyset-paginated one (the account audit trails).
+   *
+   * Membership is decided by key PRESENCE, never by value: the last page sends
+   * `nextCursor: null`, and an envelope that collapsed into a bare payload
+   * exactly when the stream ended would be a worse bug than the one this fixes.
+   */
+  private static readonly PAGE_ENVELOPE_KEYS: readonly string[] = ['pagination', 'nextCursor'];
+
+  /**
    * Derive a stable, non-sensitive identity discriminator for cache scoping.
    *
    * Thin instance wrapper over the pure {@link computeIdentityTag} helper —
@@ -1212,21 +1225,48 @@ export class HttpService {
   }
 
   /**
-   * Unwrap standardized API response format
+   * Unwrap the standardized API response envelope — EXCEPT when the envelope is
+   * a page, in which case it travels whole.
+   *
+   * `{ data: <payload> }` is the house success envelope (`sendSuccess`), and
+   * reducing it to `<payload>` is what every call site in the SDK expects. But
+   * the reduction DISCARDS every sibling key, silently, and a page's siblings
+   * are the only thing that says where the next page starts. That is how
+   * `GET /accounts/:id/audit` lost its `nextCursor`: the caller received a bare
+   * array, `getNextPageParam` read `undefined`, and pagination was dead past the
+   * first page with nothing to show that it was.
+   *
+   * ## Why the rule is narrow, and not "any sibling key survives"
+   *
+   * "An object carrying `data` plus anything else is not an envelope" is the
+   * tempting general rule, and it is wrong here: this API already answers
+   * `{ data, count }` on ~15 routes, plus `{ data, source }`, `{ data, reason }`
+   * and `{ data, secretDestroyed }`, and a dozen measured Console call sites
+   * type those as the bare payload (`Array<ProviderConnection>`,
+   * `AccountBillingState | null`, …). Preserving those envelopes would hand every
+   * one of them an object where it expects its payload — at runtime only, since
+   * the response type is a call-site assertion. So the rule names PAGINATION
+   * specifically: `data` beside {@link PAGE_ENVELOPE_KEYS} is a page.
+   *
+   * A route whose sibling key genuinely matters to its caller belongs in that
+   * list, or should not be a sibling of `data` at all — the cursor-paginated
+   * surfaces already in the SDK (`{ follows, nextCursor }`,
+   * `{ records, nextCursor }`) sidestep this by never using `data`.
    */
   private unwrapResponse(responseData: unknown): unknown {
-    // Handle paginated responses: { data: [...], pagination: {...} }
-    if (responseData && typeof responseData === 'object' && 'data' in responseData && 'pagination' in responseData) {
+    if (!responseData || typeof responseData !== 'object' || !('data' in responseData)) {
+      // Not the success envelope (or not an object at all) — as-is.
       return responseData;
     }
-    
-    // Handle regular success responses: { data: ... }
-    if (responseData && typeof responseData === 'object' && 'data' in responseData && !Array.isArray(responseData)) {
-      return responseData.data;
+
+    // A page travels whole: its cursor/pagination sibling is unrecoverable
+    // information, not decoration.
+    if (HttpService.PAGE_ENVELOPE_KEYS.some((key) => key in responseData)) {
+      return responseData;
     }
-    
-    // Return as-is for responses that don't use sendSuccess wrapper
-    return responseData;
+
+    // Regular success envelope: `{ data: ... }` -> the payload.
+    return Array.isArray(responseData) ? responseData : responseData.data;
   }
 
   /**
