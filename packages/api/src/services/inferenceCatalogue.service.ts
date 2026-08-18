@@ -47,8 +47,11 @@ import type {
   PriceSnapshot,
   RoutingPolicy,
   RoutingProfile,
+  UnitPrice,
+  UsageUnit,
 } from '@oxyhq/contracts';
 import {
+  INFERENCE_MONEY_SCALE,
   modelCatalogueEntrySchema,
   priceSnapshotSchema,
   routingProfileSchema,
@@ -253,6 +256,8 @@ export type RoutingConstraints = Pick<
   | 'oxyHostedOnly'
   | 'byokPreference'
   | 'dedicatedCapacity'
+  | 'maxPricePerUnit'
+  | 'maxPricePerRequest'
 >;
 
 /**
@@ -274,6 +279,13 @@ export type RoutingConstraint = keyof RoutingConstraints;
  * {@link INTERNAL_DEPLOYMENT_COLUMNS} below. Silence is what let three controls
  * be stored, versioned, pinned onto a receipt and never read (issue #1011); a
  * control named here is one somebody decided about.
+ *
+ * Being named here is not a resting place. `maxPricePerUnit` and
+ * `maxPricePerRequest` sat here as INERT — honestly, with a reason — until the
+ * price comparison in {@link violatedConstraints} landed, and the entries left
+ * with it, in the same change. A control that is enforced while still named here
+ * is worse than either state on its own, because the next reader trusts the
+ * list.
  */
 export const UNFILTERED_ROUTING_CONTROLS = {
   schemaVersion: 'The wire shape’s version, not a customer control.',
@@ -287,10 +299,6 @@ export const UNFILTERED_ROUTING_CONTROLS = {
     'ENFORCED, in `inferenceRoutingPolicy.service.ts`’s `recordRouteSwitch`: a substitution is refused unless the destination is named in the version’s authorisation rows. It governs a SWITCH between routes, not the qualification of one, so it cannot be expressed as a predicate over a single candidate.',
   optimiseFor:
     'A RANKING among the routes that already qualify, which is routing EXECUTION and therefore the data plane’s (ADR 0006). It can never exclude a candidate, so enforcing it here would mean inventing a routing decision the control plane has no way to test.',
-  maxPricePerUnit:
-    'INERT, and it needs a different mechanism: the price of a candidate lives on `price_version_unit_prices`, which the LEDGER owns, and comparing exact decimals is arithmetic this repo does exclusively in SQL (`inferenceLedger.service.ts`’s `computeCharge`). A ceiling also has to decide what an unpriced route and a foreign-currency ceiling mean. Issue #1011 reports it rather than half-enforcing it.',
-  maxPricePerRequest:
-    'INERT, and it cannot be a candidate filter at all: what a REQUEST costs is only known once the request’s own unit ceiling has been estimated, which happens after a route is chosen and priced. Its home is the edge, beside `quoteUnits`.',
 } as const satisfies Readonly<Partial<Record<keyof RoutingPolicy, string>>>;
 
 /** A control of `routingPolicySchema` that is in neither list. */
@@ -333,6 +341,14 @@ export const EVERY_ROUTING_CONTROL_IS_CLASSIFIED: [UnclassifiedRoutingControl] e
  * `byok_only` is in {@link UNGRANTABLE_SCOPES}, and a deployment with
  * `dedicated_capacity` holds capacity reserved for ONE enterprise account, which
  * an application with no policy of its own was never entitled to.
+ *
+ * `maxPricePerRequest` is written out as an explicit `undefined` even though the
+ * contract makes it OPTIONAL. It is the only control `tsc` would let a writer
+ * omit here silently, and "no ceiling on the whole request" is exactly the kind
+ * of permission that must be stated rather than inherited from a missing key.
+ * The runtime half of that gate is `__tests__`, which reads the enforced control
+ * set off `Object.keys(UNCONSTRAINED_ROUTING)` — a key absent here would drop
+ * out of that census too.
  */
 export const UNCONSTRAINED_ROUTING: RoutingConstraints = {
   requireZeroDataRetention: false,
@@ -346,6 +362,8 @@ export const UNCONSTRAINED_ROUTING: RoutingConstraints = {
   oxyHostedOnly: false,
   byokPreference: 'disabled',
   dedicatedCapacity: 'disabled',
+  maxPricePerUnit: [],
+  maxPricePerRequest: undefined,
 };
 
 /**
@@ -368,6 +386,8 @@ export function routingConstraintsOf(policy: RoutingPolicy): RoutingConstraints 
     oxyHostedOnly: policy.oxyHostedOnly,
     byokPreference: policy.byokPreference,
     dedicatedCapacity: policy.dedicatedCapacity,
+    maxPricePerUnit: policy.maxPricePerUnit,
+    maxPricePerRequest: policy.maxPricePerRequest,
   };
 }
 
@@ -384,6 +404,16 @@ export interface ConstrainedCandidate {
   /** From `inference_models`: a licence is a property of the model, not the route. */
   readonly licenseId: string;
   readonly commercialUseAllowed: boolean;
+  /**
+   * The price version this route is quoted, held and settled at — `null` when
+   * Oxy has published no price for it at all.
+   *
+   * A KEY, not a price: {@link applyRoutingConstraints} resolves it to the
+   * published amounts once for the whole candidate set, because a price lives in
+   * a child table of another table and cannot ride along as a column without
+   * multiplying the candidate rows.
+   */
+  readonly priceVersionId: string | null;
 }
 
 /**
@@ -405,7 +435,235 @@ const CONSTRAINT_COLUMNS = {
   dedicatedCapacity: inferenceDeployments.dedicatedCapacity,
   licenseId: inferenceModels.licenseId,
   commercialUseAllowed: inferenceModels.commercialUseAllowed,
+  // The price CEILINGS are evaluated against the version this route is actually
+  // charged at, so the key belongs in the shared selection like every other
+  // constraint input. It stays out of `CUSTOMER_SAFE_DEPLOYMENT_COLUMNS`: what a
+  // customer is shown is the price snapshot it resolves to, never the key.
+  priceVersionId: inferenceDeployments.priceVersionId,
 } as const;
+
+/**
+ * One unit's price, exactly as a published price version quotes it: `amount` per
+ * `per` units.
+ *
+ * `amount` is the exact decimal STRING the `numeric(30, 12)` column holds. It is
+ * never parsed into a JS `number` anywhere below — see {@link exceedsRate}.
+ */
+export interface CandidateUnitPrice {
+  readonly unit: UsageUnit;
+  readonly amount: string;
+  /** How many units `amount` buys. Positive, by the table's own CHECK. */
+  readonly per: number;
+}
+
+/**
+ * What one candidate route charges, read from the price version its deployment
+ * row names.
+ *
+ * A unit ABSENT from `unitPrices` is not an unknown price: a published version is
+ * a complete statement of what the route charges for, so an absent unit is a unit
+ * the route does not charge for. What is unknown is a route with no version at
+ * all, and that is carried by the ABSENCE of a whole {@link CandidatePrice} —
+ * which {@link violatedConstraints} treats as a ceiling it cannot satisfy.
+ */
+export interface CandidatePrice {
+  readonly currency: string;
+  /** Ordered by unit, so a price is read the same way twice. */
+  readonly unitPrices: readonly CandidateUnitPrice[];
+}
+
+/**
+ * The published prices of a set of price versions, keyed by version id.
+ *
+ * ONE query for the whole set, with a LEFT JOIN rather than an inner one: a
+ * version with no unit-price rows must still resolve — to its currency and an
+ * EMPTY price list — because "this route publishes a price and charges for
+ * nothing" and "this route publishes no price" are different facts and only the
+ * second one defeats a ceiling.
+ *
+ * No `status` filter, deliberately. Settlement prices a receipt with whatever
+ * version it is handed (`inferenceLedger.service.ts`'s `computeCharge`), so a
+ * ceiling has to be compared against the same row — filtering to `active` here
+ * would compare against a price the request will not be charged at, which is a
+ * ceiling that passes while the customer is billed more.
+ */
+async function loadCandidatePrices(
+  priceVersionIds: readonly string[]
+): Promise<ReadonlyMap<string, CandidatePrice>> {
+  if (priceVersionIds.length === 0) return new Map();
+
+  const rows = await getDb()
+    .select({
+      priceVersionId: priceVersions.id,
+      currency: priceVersions.currency,
+      unit: priceVersionUnitPrices.unit,
+      amount: priceVersionUnitPrices.amount,
+      per: priceVersionUnitPrices.per,
+    })
+    .from(priceVersions)
+    .leftJoin(
+      priceVersionUnitPrices,
+      eq(priceVersionUnitPrices.priceVersionId, priceVersions.id)
+    )
+    .where(inArray(priceVersions.id, [...priceVersionIds]))
+    .orderBy(asc(priceVersions.id), asc(priceVersionUnitPrices.unit));
+
+  const prices = new Map<string, { currency: string; unitPrices: CandidateUnitPrice[] }>();
+  for (const row of rows) {
+    const price = prices.get(row.priceVersionId) ?? {
+      currency: row.currency,
+      unitPrices: [],
+    };
+    // The LEFT JOIN's absent side. Narrowed on all three columns rather than on
+    // `unit` alone, so the entry pushed below is complete by construction and
+    // needs no assertion.
+    if (row.unit !== null && row.amount !== null && row.per !== null) {
+      price.unitPrices.push({ unit: row.unit, amount: row.amount, per: row.per });
+    }
+    prices.set(row.priceVersionId, price);
+  }
+
+  return prices;
+}
+
+/**
+ * An exact decimal amount as an INTEGER scaled by {@link INFERENCE_MONEY_SCALE}.
+ *
+ * A shift of the decimal point, expressed as a digit-string concatenation — the
+ * same technique `utils/minorUnits.ts` uses, and for the same reason: `Number`
+ * cannot hold these values and a float amount is wrong by construction. A
+ * `bigint` is an exact integer of unbounded width, so a product of two of them
+ * loses nothing. (No `bigint` LITERAL appears anywhere here: this package
+ * compiles at `target: es6`, where a literal is a compile error while `BigInt(…)`
+ * and bigint arithmetic are not — measured, not assumed.)
+ *
+ * Throws rather than admitting a malformed amount. Every value reaching this
+ * comes from a `numeric(_, INFERENCE_MONEY_SCALE)` column with a `>= 0` CHECK, or
+ * from `exactDecimalSchema`, so a failure means the ledger's own schema disagrees
+ * with the money contract — the same stance `loadPriceSnapshots` takes on a
+ * malformed snapshot, and for the same reason: the alternatives are to admit a
+ * route whose price is unreadable or to exclude one whose price is fine, and both
+ * are silent.
+ */
+function scaledAmount(amount: string): bigint {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(amount);
+  if (match === null) {
+    throw new Error(`not an exact non-negative decimal amount: ${amount}`);
+  }
+  const [, integerDigits, fractionDigits = ''] = match;
+  if (fractionDigits.length > INFERENCE_MONEY_SCALE) {
+    throw new Error(
+      `amount ${amount} carries more than ${INFERENCE_MONEY_SCALE} fractional digits`
+    );
+  }
+  return BigInt(integerDigits + fractionDigits.padEnd(INFERENCE_MONEY_SCALE, '0'));
+}
+
+/**
+ * Whether `rate` is strictly more expensive than `ceiling`, both quoted as an
+ * exact `amount` per `per` units.
+ *
+ * CROSS-MULTIPLIED, never divided: `amount / per` is a repeating decimal for most
+ * `per` (a price of `1` per `3` units is `0.333…`), so any comparison that
+ * divides first has to round, and a rounded comparison admits a route that is
+ * over the ceiling by less than the rounding. Two exact integer products have no
+ * such boundary.
+ *
+ * STRICTLY greater, so a price exactly AT the ceiling is admitted — a ceiling the
+ * customer wrote as "at most X" that refused X would be a ceiling nobody could
+ * set on the price they actually see quoted.
+ */
+function exceedsRate(
+  rate: { readonly amount: string; readonly per: number },
+  ceiling: { readonly amount: string; readonly per: number }
+): boolean {
+  return (
+    scaledAmount(rate.amount) * BigInt(ceiling.per) >
+    scaledAmount(ceiling.amount) * BigInt(rate.per)
+  );
+}
+
+/**
+ * Whether a candidate's price breaks ONE per-unit ceiling.
+ *
+ * The three answers, in the order they are decided and for reasons that differ:
+ *
+ *  1. **No published price at all ⇒ EXCLUDED.** A ceiling is a promise about what
+ *     the customer will be charged, and a route that publishes no price cannot be
+ *     shown to keep it. This is the direction that matters: admitting it would
+ *     turn every ceiling off for exactly the routes Oxy has described least. A
+ *     customer with a ceiling therefore hears `policy_violation` naming their own
+ *     control for an unpriced route, where a customer without one hears
+ *     `unpriced-route` — see {@link resolveEdgeRoute}.
+ *  2. **The version does not price this unit ⇒ ADMITTED.** Checked BEFORE the
+ *     currency, because there is nothing to compare and therefore no currency
+ *     question. A published version is a complete statement of what a route
+ *     charges for, so an absent unit means the customer is never billed for it and
+ *     the ceiling is trivially kept. Reading it as "unknown, refuse" would give
+ *     the control a second, unstated meaning — "this unit MUST be priced" — and
+ *     would exclude every text route for a customer who defensively capped
+ *     `video_milliseconds`. The genuinely dangerous case, a unit that IS metered
+ *     with no price to charge it at, belongs to settlement and is already refused
+ *     there rather than undercharged (`computeCharge`'s `unpricedUnits`).
+ *  3. **A different currency ⇒ EXCLUDED, never converted.** There is no
+ *     exchange-rate authority anywhere in this system, so a EUR price and a USD
+ *     ceiling are not comparable and coercing them would produce a number that is
+ *     not money. The ceilings cannot disagree among THEMSELVES — one currency
+ *     column on the version row carries all of them — so this can only ever be a
+ *     route priced in a currency the customer's policy does not speak.
+ */
+function exceedsUnitCeiling(ceiling: UnitPrice, price: CandidatePrice | undefined): boolean {
+  if (price === undefined) return true;
+
+  const priced = price.unitPrices.find((unitPrice) => unitPrice.unit === ceiling.unit);
+  if (priced === undefined) return false;
+
+  if (price.currency !== ceiling.currency) return true;
+
+  return exceedsRate(priced, ceiling);
+}
+
+/**
+ * Whether a candidate's UNAVOIDABLE per-request fee alone breaks the ceiling on a
+ * whole request.
+ *
+ * ## What is enforced here, and what is not
+ *
+ * A request's total cost depends on the request's own metered quantities, which do
+ * not exist yet when a route is chosen — so the whole of `maxPricePerRequest`
+ * cannot be a predicate over a candidate. What CAN be: the `requests` unit is a
+ * FLAT fee charged once per request whatever the quantities turn out to be, so a
+ * route whose flat fee already exceeds the ceiling can never serve a request
+ * within it, for any request. That is a sound exclusion and it is the half
+ * enforced here.
+ *
+ * The other half — comparing the ESTIMATED cost of this request, sized from its
+ * own input and its output ceiling, against the same limit — belongs at the edge
+ * beside the quote (`inferenceEdge.service.ts`), because that is where a request's
+ * quantities are known. **It is not implemented.** So a per-request ceiling is not
+ * yet a complete spend control, and what bounds spend remains the reservation, the
+ * balance and the spending limits. Saying which half is live is the point: the
+ * alternative is a control that looks total and is partial, which is the failure
+ * this whole change is a correction of.
+ *
+ * Otherwise the same three answers, in the same order and for the same reasons,
+ * as {@link exceedsUnitCeiling} — including "no published price at all" excluding
+ * the route. The ceiling is a rate of `amount` per ONE request, which is what
+ * makes it comparable to the flat fee at all.
+ */
+function exceedsRequestCeiling(
+  ceiling: { readonly amount: string; readonly currency: string },
+  price: CandidatePrice | undefined
+): boolean {
+  if (price === undefined) return true;
+
+  const perRequest = price.unitPrices.find((unitPrice) => unitPrice.unit === 'requests');
+  if (perRequest === undefined) return false;
+
+  if (price.currency !== ceiling.currency) return true;
+
+  return exceedsRate(perRequest, { amount: ceiling.amount, per: 1 });
+}
 
 /**
  * Which of a policy's constraints this candidate fails — ALL of them, in the
@@ -415,10 +673,20 @@ const CONSTRAINT_COLUMNS = {
  * containment test: `[].includes(x)` is false for every `x`, so an empty
  * allow-list written as plain membership would exclude every candidate, which is
  * the opposite of the contract's "empty means no allowlist".
+ *
+ * `price` is a REQUIRED third argument, `undefined` meaning "this route publishes
+ * no price at all" — the same discipline `constraints` itself is held to on the
+ * resolvers. It is a value the caller must state, because the two price ceilings
+ * cannot be read off a deployment column: a price lives in a child table of
+ * `price_versions`, and {@link applyRoutingConstraints} resolves it for the whole
+ * candidate set before calling this. An OPTIONAL parameter would let a caller
+ * omit the price and get "every ceiling refuses everything", which is the same
+ * class of silence as the value-available-and-not-passed shape issue #1011 was.
  */
 export function violatedConstraints(
   constraints: RoutingConstraints,
-  candidate: ConstrainedCandidate
+  candidate: ConstrainedCandidate,
+  price: CandidatePrice | undefined
 ): RoutingConstraint[] {
   const violated: RoutingConstraint[] = [];
 
@@ -504,6 +772,29 @@ export function violatedConstraints(
     violated.push('dedicatedCapacity');
   }
 
+  // The two price ceilings, last because they are the only controls that read
+  // something other than the candidate's own columns. Both compare against the
+  // price version the ROUTE names — the one a hold is sized against and the
+  // receipt is settled at (`EdgeRoute.priceVersionId`) — and never against
+  // whichever version is `active` for this model and provider right now: that is
+  // a second resolution, and a ceiling compared against a price the request will
+  // not be charged at is a ceiling that passes while the customer is billed more.
+  //
+  // `.some` over an EMPTY list is `false`, which is precisely the contract's "no
+  // ceiling". That is the opposite of the allow-list trap above, where an empty
+  // list must not be read as membership — worth stating, because the two empty
+  // arrays look identical and mean opposite things.
+  if (constraints.maxPricePerUnit.some((ceiling) => exceedsUnitCeiling(ceiling, price))) {
+    violated.push('maxPricePerUnit');
+  }
+
+  if (
+    constraints.maxPricePerRequest !== undefined &&
+    exceedsRequestCeiling(constraints.maxPricePerRequest, price)
+  ) {
+    violated.push('maxPricePerRequest');
+  }
+
   return violated;
 }
 
@@ -519,15 +810,43 @@ interface ConstrainedCandidates<T> {
   readonly excludedBy: readonly RoutingConstraint[];
 }
 
-function applyRoutingConstraints<T extends ConstrainedCandidate>(
+/**
+ * Apply a policy to a candidate set, resolving each candidate's published price
+ * first.
+ *
+ * The price load is UNCONDITIONAL — one query, whether or not the policy sets a
+ * ceiling — and that is the point: a "skip the query when there are no ceilings"
+ * branch would be a second behaviour whose correctness rests on nothing below
+ * reading a price it was not given, which is a property that rots the first time
+ * somebody adds a control. Both resolvers go through here, so neither can
+ * disagree with the other about which version a route is priced at, for the same
+ * reason {@link CONSTRAINT_COLUMNS} exists.
+ */
+async function applyRoutingConstraints<T extends ConstrainedCandidate>(
   constraints: RoutingConstraints,
   candidates: readonly T[]
-): ConstrainedCandidates<T> {
+): Promise<ConstrainedCandidates<T>> {
+  const prices = await loadCandidatePrices([
+    ...new Set(
+      candidates.flatMap((candidate) =>
+        candidate.priceVersionId === null ? [] : [candidate.priceVersionId]
+      )
+    ),
+  ]);
+
   const kept: T[] = [];
   const excludedBy: RoutingConstraint[] = [];
 
   for (const candidate of candidates) {
-    const violated = violatedConstraints(constraints, candidate);
+    // `undefined` on both arms that mean "no published price": the route names no
+    // version, and the version it names could not be read. The second is not
+    // reachable through an ordinary write — `price_version_id` is a foreign key
+    // `ON DELETE RESTRICT` — but the two are the same fact for a ceiling, and
+    // resolving them to the same value is what stops the unreachable arm from
+    // becoming the permissive one if it ever is reached.
+    const price =
+      candidate.priceVersionId === null ? undefined : prices.get(candidate.priceVersionId);
+    const violated = violatedConstraints(constraints, candidate, price);
     if (violated.length === 0) {
       kept.push(candidate);
       continue;
@@ -740,61 +1059,33 @@ function dataPolicyOf(deployment: CustomerSafeDeploymentRow) {
 }
 
 /**
- * The published price for every price version named by a set of routes, keyed by
- * version id.
+ * The published price for every price version named by a set of routes, as the
+ * CUSTOMER-FACING snapshot, keyed by version id.
  *
- * TWO queries for the whole listing, never one per entry: `GET /models` is
- * uncached per request, so a per-entry lookup would make the catalogue's cost
- * grow with the number of models it serves.
+ * Reads through {@link loadCandidatePrices} rather than querying the price tables
+ * a second time, so the price a customer is quoted and the price their routing
+ * ceilings are compared against come from ONE read of ONE pair of tables. One
+ * query for the whole listing, never one per entry: `GET /models` is uncached per
+ * request, so a per-entry lookup would make the catalogue's cost grow with the
+ * number of models it serves.
  *
- * A version with no unit-price rows resolves to NOTHING rather than to an empty
- * snapshot. `priceSnapshotSchema` requires at least one unit price, so an empty
- * one cannot be published at all — and the honest reading of a priced route
- * whose prices are missing is "we cannot quote this", which is what an absent
- * `pricing` says. The alternative, a snapshot with an empty `unitPrices`, would
- * fail the parse and take the whole listing down for every customer.
+ * A version with no unit-price rows resolves to NOTHING here, which is the one
+ * place this projection deliberately differs from the constraint filter's.
+ * `priceSnapshotSchema` requires at least one unit price, so an empty snapshot
+ * cannot be published at all — and the honest reading of a priced route whose
+ * prices are missing is "we cannot quote this", which is what an absent `pricing`
+ * says. The alternative, a snapshot with an empty `unitPrices`, would fail the
+ * parse and take the whole listing down for every customer. A ceiling needs the
+ * opposite treatment of the same row, and gets it: see {@link CandidatePrice}.
  */
 async function loadPriceSnapshots(
   priceVersionIds: readonly string[]
 ): Promise<ReadonlyMap<string, PriceSnapshot>> {
-  if (priceVersionIds.length === 0) return new Map();
-
-  const db = getDb();
-
-  const versionRows = await db
-    .select({ id: priceVersions.id, currency: priceVersions.currency })
-    .from(priceVersions)
-    .where(inArray(priceVersions.id, [...priceVersionIds]));
-
-  if (versionRows.length === 0) return new Map();
-
-  const unitPriceRows = await db
-    .select({
-      priceVersionId: priceVersionUnitPrices.priceVersionId,
-      unit: priceVersionUnitPrices.unit,
-      amount: priceVersionUnitPrices.amount,
-      per: priceVersionUnitPrices.per,
-    })
-    .from(priceVersionUnitPrices)
-    .where(inArray(priceVersionUnitPrices.priceVersionId, versionRows.map((row) => row.id)))
-    .orderBy(asc(priceVersionUnitPrices.unit));
+  const prices = await loadCandidatePrices(priceVersionIds);
 
   const snapshots = new Map<string, PriceSnapshot>();
-  for (const version of versionRows) {
-    const unitPrices = unitPriceRows
-      .filter((row) => row.priceVersionId === version.id)
-      // The same construction as the settled receipt's
-      // (`inferenceEdge.service.ts`' `readGenerationReceipt`): each unit price
-      // carries the PARENT version's currency, which the table's own check
-      // constrains it to. Copied rather than re-derived so a customer's quote and
-      // the receipt that later prices them cannot disagree in shape.
-      .map((row) => ({
-        unit: row.unit,
-        amount: row.amount,
-        per: row.per,
-        currency: version.currency,
-      }));
-    if (unitPrices.length === 0) continue;
+  for (const [priceVersionId, price] of prices) {
+    if (price.unitPrices.length === 0) continue;
     // Parsed rather than cast. `exactDecimalSchema` is BRANDED precisely so an
     // unchecked `string` off a database row cannot become an amount, and its own
     // docs name `.parse()` as how a producer constructs one. It cannot fail on
@@ -803,11 +1094,21 @@ async function loadPriceSnapshots(
     // here means the ledger's own schema disagrees with the money contract, which
     // is worth hearing about loudly rather than serving a price around.
     snapshots.set(
-      version.id,
+      priceVersionId,
       priceSnapshotSchema.parse({
-        priceVersionId: version.id,
-        currency: version.currency,
-        unitPrices,
+        priceVersionId,
+        currency: price.currency,
+        // The same construction as the settled receipt's
+        // (`inferenceEdge.service.ts`' `readGenerationReceipt`): each unit price
+        // carries the PARENT version's currency, which the table's own check
+        // constrains it to. Copied rather than re-derived so a customer's quote and
+        // the receipt that later prices them cannot disagree in shape.
+        unitPrices: price.unitPrices.map((unitPrice) => ({
+          unit: unitPrice.unit,
+          amount: unitPrice.amount,
+          per: unitPrice.per,
+          currency: price.currency,
+        })),
       })
     );
   }
@@ -1232,7 +1533,7 @@ export async function selectRouteForViewer(
     return pinnedRevision === undefined ? row.isCurrent : row.revision === pinnedRevision;
   });
 
-  const chosen = applyRoutingConstraints(constraints, candidates).kept[0];
+  const chosen = (await applyRoutingConstraints(constraints, candidates)).kept[0];
   if (chosen === undefined || chosen.resolvedModelId === null) return undefined;
 
   return {
@@ -1381,6 +1682,14 @@ export type EdgeRouteResolution =
  * candidate set rather than to `candidates[0]`, so a conforming route ranked
  * second is served rather than refused.
  *
+ * That ordering also decides which answer an UNPRICED route gets, and the two are
+ * both correct for their own customer. With no price ceiling in force the route is
+ * `unpriced-route`, an Oxy configuration gap. With one, the ceiling excludes it
+ * first — a promise about what a request will cost cannot be kept by a route that
+ * publishes no price — so the customer hears `policy-excluded` naming their own
+ * control, which is the one of the two they can act on. See
+ * {@link violatedConstraints}.
+ *
  * ## `constraints` is required, and the shape that made it required
  *
  * Issue #1011 was not a wrong filter. It was that this function took two
@@ -1417,7 +1726,6 @@ export async function resolveEdgeRoute(
   const rows = await getDb()
     .select({
       ...CONSTRAINT_COLUMNS,
-      priceVersionId: inferenceDeployments.priceVersionId,
       revision: inferenceModelRevisions.revision,
       isCurrent: inferenceModelRevisions.isCurrent,
       retiredAt: inferenceModelRevisions.retiredAt,
@@ -1469,7 +1777,7 @@ export async function resolveEdgeRoute(
     };
   }
 
-  const permitted = applyRoutingConstraints(constraints, capable);
+  const permitted = await applyRoutingConstraints(constraints, capable);
   if (permitted.kept.length === 0) {
     // Refuse, and say what refused. Never widen back to a candidate the policy
     // excluded, and never answer as though the request had been unconstrained —
