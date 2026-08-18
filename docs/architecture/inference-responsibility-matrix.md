@@ -39,8 +39,8 @@
   reconciliation row was left for the workstream holding the ledger service. Census
   for this pass: **302 data rows before the edit, 111 carrying exactly `planned`**,
   with the same positive control (`/v1/responses` reads `exists`) and negative
-  control (`/v1/zzz-nope` matches nothing). Fourteen `planned` rows remain, and they
-  are the honest ones: the five later-modality endpoints, normalized rate-limit
+  control (`/v1/zzz-nope` matches nothing). **Nine `planned` rows remain** after the
+  same-day follow-up below, and they are the honest ones: normalized rate-limit
   headers, the three `api_key_usage_events` columns, the static Alia proxy's removal
   (a row whose `planned` means it is still LIVE), the Python SDK, alerts firing into
   a destination that does not exist, status-page signals, and §7's reconciliation
@@ -68,6 +68,17 @@
   `/v1/chat/completions` when it posts to `/v1/responses`; and §2's RBAC row was
   written before the inference-specific permission vocabulary landed, which it now
   has.
+- **2026-08-18, same day: §3's five later-modality rows re-judged, and the rule
+  added above had already been broken.** #1055 shipped `/v1/audio/speech` and
+  `/v1/images/generations` without editing their rows, so both were stale within
+  hours of the pass above — which is the argument FOR that rule rather than an
+  embarrassment to it. Measured against `origin/main`: `inferenceEdge.ts` registers
+  `/audio/speech` and `/images/generations`, and none of the other four. Those four
+  were carrying `planned`, and `planned` was the wrong reading for every one of
+  them — they are DECLINED, with reasons already recorded in the code — so the
+  `blocked` value was added to the legend and each row now names its own blocker: a
+  missing contract output arm plus a data-plane gap for embeddings and rerank, a
+  measurement for transcriptions, an ADR 0009 mismatch for batches.
 - Governing decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md),
   [ADR 0006](../adr/0006-oxy-relay-boundary.md),
   [ADR 0007](../adr/0007-canonical-request-attribution.md),
@@ -107,6 +118,15 @@ are spelled out after the list, because getting them wrong made rows in this fil
   feature, `planned` would claim an absent one, and the state that actually
   misleads is a schema field a reviewer reads as evidence of the behaviour it
   describes. Each occurrence names what has to write the field.
+- `blocked` — not built, and NOT merely unbuilt: something identifiable has to
+  change first, and the row names it. Added 2026-08-18 for the four endpoints
+  §3 had carried as `planned`, which is the reading that misleads — a reader
+  correctly takes `planned` to mean "nobody has got to it yet", and reaches for
+  it. Two of those four are blocked on a two-repo contract release, one is
+  refused on a MEASUREMENT (no sound ceiling exists in the request), and one
+  needs an ADR amendment. A row using this value states the blocker, and states
+  it in enough detail that somebody can tell whether their change removes it —
+  where two blockers are independent, say so, because fixing one ships nothing.
 - `partial` — one clause of the row shipped and another did not. **The status text
   MUST say which**, or the value is a hedge: "some of this is done" is not a
   finding anybody can act on. Added 2026-08-18, when 21 rows turned out to need
@@ -269,11 +289,11 @@ appears beside `application_credentials`.
 | `POST /v1/responses` (preferred endpoint) | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts` | exists — asserted served by the edge in `routes/__tests__/inferenceEdgeMount.test.ts` |
 | `GET /v1/models`, `GET /v1/models/:id` | Oxy | OxyHQServices `packages/api/src/routes/inferenceCatalogue.ts`, mounted `server.ts:694` | exists |
 | `GET /v1/generations/:id` (receipt lookup) | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts` | exists — asserted served by the edge in `routes/__tests__/inferenceEdgeMount.test.ts` |
-| `POST /v1/embeddings` | Oxy | OxyHQServices `packages/api/src/routes` | planned |
-| `POST /v1/images/generations` | Oxy | OxyHQServices `packages/api/src/routes` | planned |
-| `POST /v1/audio/transcriptions`, `POST /v1/audio/speech` | Oxy | OxyHQServices `packages/api/src/routes` | planned |
-| `POST /v1/rerank` | Oxy | OxyHQServices `packages/api/src/routes` | planned |
-| `POST /v1/batches` | Oxy | OxyHQServices `packages/api/src/routes` | planned |
+| `POST /v1/embeddings` | Oxy | OxyHQServices `packages/api/src/schemas/inferenceEdge.schemas.ts:418-421` (the ceiling) — no route | blocked — TWO independent blockers, and fixing either alone ships nothing. (1) The response shape `number[][]` has no arm in the contract. Both need an additive OUTPUT arm in `@oxyhq/contracts`, then a Relay pin bump and a descriptor regeneration or its `contract drift` job goes red — a release decision, not an endpoint. (2) #1055's audit measured ZERO `modality` hits in Relay's `adapter.go` and `executor.go`, so an `embedding` envelope would validate and then be handed to a chat adapter — evidence gathered outside this repository, per rule 1. The CEILING is built and asserted (`embeddings` is exact, the caller says how many inputs they sent), so whoever adds the output shape inherits a reviewed bound |
+| `POST /v1/images/generations` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:1137` | exists — shipped by #1055. `images` = `n ?? 1`, exact and declared, so the hold is not an estimate. This row read `planned` for several hours after that PR merged, because the PR did not edit it — the maintenance rule at the foot of this file exists for exactly that |
+| `POST /v1/audio/transcriptions`, `POST /v1/audio/speech` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:1042` (speech) — transcriptions has no route, and the reason is recorded at `:1242-1268` | partial — **speech shipped, transcriptions did not**, and the halves are different kinds of not-built. Speech: `characters` = `input.length`, exact, and it deliberately carries NO duration, so a duration-priced route fails to quote and is refused rather than guessed at. Transcriptions is REFUSED on a measurement: providers bill by duration, duration is a property of the uploaded bytes, and `bytes ÷ bitrate` spans about 7x across the formats such an endpoint accepts — so no byte-derived ceiling is both safe and useful, and an under-sized hold is how a balance goes negative |
+| `POST /v1/rerank` | Oxy | OxyHQServices `packages/api/src/schemas/inferenceEdge.schemas.ts:425-428` (the ceiling), `services/inferenceCatalogue.service.ts:1303-1317` (the modality gap) — no route | blocked — the response shape `{index, relevanceScore}[]` has no arm in the contract, and `INFERENCE_MODALITIES` (text, image, audio, video, embedding) cannot express a RANKING either, so rerank constrains its input and leaves its output unconstrained rather than claiming a modality that would be false. Both need an additive OUTPUT arm in `@oxyhq/contracts`, then a Relay pin bump and a descriptor regeneration or its `contract drift` job goes red — a release decision, not an endpoint. The ceiling is built and asserted (`chars(query)` plus the sum over the documents, and no output-token arm) |
+| `POST /v1/batches` | Oxy | OxyHQServices `packages/api/src/routes/inferenceEdge.ts:1272-1288` (the reason, beside the routes that do exist) — no route | blocked — and the disqualifying half is the LEDGER, not the ceiling. `reserve` → `settle` assumes one hold per HTTP request settled inside `RESERVATION_TTL_SECONDS`, while a batch's completion window is twenty-four hours: `expireReservations` would release the hold mid-batch and the work would settle against a reservation that no longer stands. Raising the TTL is not the fix — a day-long hold on a shared balance is a different financial product. What batches need is an amendment to ADR 0009 (a hold per sub-request at dispatch, or a long-lived reservation class with partial settlement) |
 | `GET /models/stats` (static catalogue; retired by ADR 0008) | Oxy | `routes/models-stats.ts` was DELETED with the catalogue landing (#982); `/models` is now served by `routes/inferenceCatalogue.ts` (`server.ts:715`) | removed |
 | Edge attribution resolution before forwarding | Oxy | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts:310` (`resolveCredentialAttributionById`) | exists |
 | Edge scope authorization before forwarding | Oxy | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts:520-525` (`inference:invoke`) | exists |
@@ -820,6 +840,15 @@ workstreams 0–12 may block on it.
   of an Oxy/Relay item: whichever half a reader has in mind, the single word is
   wrong about the other. Rows 393 and 399 were split for this reason on
   2026-08-18.
-- **Re-verify against the CURRENT remote tip, not the base you started from.**
-  This pass initially reported no Console credential-audit surface; #1053 had
-  landed one between the audit and the edit, and a rebase is what caught it.
+- **Re-measure a status immediately before WRITING it. An audit's finding has a
+  shelf life, and the gap between measuring and writing is where the staleness
+  enters this file.** Not a theoretical hazard: the 2026-08-18 pass measured "no
+  Console credential-audit surface, census zero", which was TRUE when measured
+  and FALSE by the time it was written, because #1053 landed in between — a
+  rebase caught it, and writing the document from the audit notes would have
+  shipped an already-wrong claim into the very file whose defect is stale
+  statuses. Then it happened again in the other direction within hours: #1055
+  shipped `/v1/audio/speech` and `/v1/images/generations` and edited neither row,
+  so two rows this file had just re-verified went stale the same day. Rebase onto
+  the current remote tip and re-run the specific check for every row you are
+  about to touch — not the whole audit, just the rows in the diff.
