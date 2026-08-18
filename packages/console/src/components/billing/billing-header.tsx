@@ -4,13 +4,14 @@ import {
   Clock01Icon,
   Coins01Icon,
   Money01Icon,
+  Note01Icon,
   Target01Icon,
   Wallet01Icon,
 } from '@hugeicons/core-free-icons';
 import { cn } from '@/lib/utils';
 
 /** The billing sections, in the order a customer needs them. */
-export type BillingSection = 'overview' | 'spend' | 'charges' | 'budgets' | 'plans';
+export type BillingSection = 'overview' | 'spend' | 'charges' | 'budgets' | 'plans' | 'audit';
 
 /**
  * Shared header for the billing pages: what account this is, and the sections.
@@ -79,13 +80,30 @@ export function BillingHeader({
           label="Plans and credits"
           isActive={active === 'plans'}
         />
+        {/*
+          Changes to the balance, as opposed to movements within one. Last
+          because it is the section a customer reaches for after reading the
+          others — "why is this figure what it is".
+        */}
+        <SectionTab
+          to="/billing/audit"
+          icon={Note01Icon}
+          label="Change history"
+          isActive={active === 'audit'}
+        />
       </nav>
     </div>
   );
 }
 
 interface SectionTabProps {
-  to: '/billing' | '/billing/spend' | '/billing/charges' | '/billing/budgets' | '/billing/plans';
+  to:
+    | '/billing'
+    | '/billing/spend'
+    | '/billing/charges'
+    | '/billing/budgets'
+    | '/billing/plans'
+    | '/billing/audit';
   icon: typeof Wallet01Icon;
   label: string;
   isActive: boolean;
