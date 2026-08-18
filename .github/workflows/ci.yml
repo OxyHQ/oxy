@@ -25,7 +25,24 @@ jobs:
   api-test:
     name: API Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A BACKSTOP, not a budget: the two steps that can actually run long carry
+    # their own caps (15m for the ffmpeg install, 30m for the suite), and this
+    # is their sum plus the ~5m the fixed steps cost at their observed maxima
+    # (containers 35s, checkout/bun/node/node-gyp 19s, install 30s, guards 10s,
+    # build 50s, lint 20s, coverage upload 8s). So a step cap always fires
+    # first, and this can only catch a runner wedged OUTSIDE a step.
+    #
+    # That ordering is the point. A job-level timeout reports `cancelled`,
+    # indistinguishable from a genuine supersession without comparing
+    # `completed_at - started_at` against the cap. Three runs hit the old cap on
+    # 2026-08-17 — two cut mid-suite, one that never reached a test at all — and
+    # all three read as "superseded, ignore". A step-level timeout instead
+    # reports `failure` against a named step.
+    #
+    # Measured over 118 recent runs (109 passing): p50 20m57s, p95 23m44s, max
+    # on a passing run 26m29s, sd 2m23s. The old 30m cap sat 1.13x that max, so
+    # the ffmpeg step's heavy tail alone was enough to blow it.
+    timeout-minutes: 50
 
     services:
       # Postgres target of the Mongo->Postgres port. Mirrors
@@ -81,16 +98,51 @@ jobs:
           npm install -g node-gyp@11.5.0
           echo "npm_config_node_gyp=$(npm root -g)/node-gyp/bin/node-gyp.js" >> "$GITHUB_ENV"
 
-      # The video-poster variant tests decode a real clip, so ffmpeg/ffprobe must
-      # be present. The runner image happens to ship them today, but the API
-      # image installs them explicitly (`apk add ffmpeg` in the Dockerfile) and
-      # the tests depend on them just as explicitly — leaving it to the runner's
-      # incidental contents is how a suite starts failing on an image bump for a
-      # reason nobody can place.
+      # ONE test file decodes a real clip and therefore needs a real ffmpeg on
+      # PATH: `routes/__tests__/cdnVideoImageVariant.test.ts`, whose fixture
+      # builder shells out to a bare `ffmpeg` to synthesise the H.264 sample. The
+      # API image installs it explicitly (`apk add ffmpeg` in the Dockerfile) and
+      # that test depends on it just as explicitly.
+      #
+      # The runner image does NOT ship ffmpeg — it is absent from the
+      # ubuntu-24.04 apt manifest — so this genuinely installs it every run, and
+      # that install is the job's single most volatile step. Over 54 recent
+      # successful runs: p50 24s, p90 2m01s, p95 5m22s, max 6m54s. On run
+      # 32072687979 it hung for 29m44s and the job's own timeout cancelled it
+      # with every later step skipped — 6,000+ tests never ran, and the job
+      # reported `cancelled`, which reads as "superseded, ignore".
+      #
+      # Three nested bounds, innermost first:
+      #   * apt's own per-connection timeout and retries. This is the surgical
+      #     one: it abandons a DEAD mirror connection after 15s while leaving a
+      #     slow-but-progressing transfer alone, which is exactly the difference
+      #     between the 29m44s hang and the legitimate 6m54s run.
+      #   * an outer `timeout` per attempt, retried once. 420s covers the slowest
+      #     install observed on a passing run, so the retry only ever fires for
+      #     something already anomalous.
+      #   * `timeout-minutes` as the backstop. 2 x 420s + 5s backoff = 14m05s, so
+      #     the cap below can only fire if the loop itself wedges.
+      #
+      # The point of all three is that a bad mirror now costs one bounded retry
+      # and the suite still runs — and if it does fail, it fails as `failure` on
+      # a named step rather than as an ambiguous job-level `cancelled`.
       - name: Install ffmpeg (video variant tests)
+        timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
+          set -eu
+          apt_opts='-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15'
+          for attempt in 1 2; do
+            if timeout 420s sudo bash -c \
+              "apt-get update $apt_opts && apt-get install -y --no-install-recommends $apt_opts ffmpeg"; then
+              break
+            fi
+            if [ "$attempt" = 2 ]; then
+              echo "::error::apt-get could not install ffmpeg after 2 attempts"
+              exit 1
+            fi
+            echo "apt-get attempt $attempt failed or timed out; retrying once"
+            sleep 5
+          done
           ffmpeg -version | head -1
           ffprobe -version | head -1
 
@@ -164,7 +216,14 @@ jobs:
           node -e "const os=require('node:os');console.log('cpus=%d totalmem=%s GiB maxWorkers=%d',os.cpus().length,(os.totalmem()/1073741824).toFixed(1),require('./jest.config.js').maxWorkers)"
         working-directory: ./packages/api
 
+      # The suite itself is the well-behaved half of this job: over 54 recent
+      # passing runs it is p50 18m47s, p95 19m42s, max 20m57s, sd 2m00s — the
+      # job's variance lives in the ffmpeg step above, not here. 30m is 1.43x
+      # that max, so it leaves the ~390 suites room to keep growing while still
+      # turning a genuinely hung test into a `failure` naming THIS step instead
+      # of a job-level `cancelled` that reads as a supersession.
       - name: Run tests with coverage
+        timeout-minutes: 30
         run: bun run test:coverage
         working-directory: ./packages/api
         env:
@@ -487,6 +546,10 @@ jobs:
   db-test:
     name: DB Tests
     runs-on: ubuntu-latest
+    # The other Postgres job, and by far the smaller one: p50 1m37s, max 1m57s,
+    # sd 6s over the same 118 runs. It had no cap at all, so a wedge here would
+    # have burned GitHub's 6-hour default. 15m is ~7.7x its worst observed run.
+    timeout-minutes: 15
     services:
       # PostGIS, matching api-test: this package's live suites build their own
       # throwaway schemas (never PostGIS types), but the image is pinned the
