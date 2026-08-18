@@ -1,4 +1,8 @@
-import { accountAuditQuerySchema } from '../account.schemas';
+import {
+  BILLING_AUDIT_DEFAULT_LIMIT,
+  BILLING_AUDIT_MAX_LIMIT,
+} from '../../services/accountBillingAudit.service';
+import { accountAuditQuerySchema, accountBillingAuditQuerySchema } from '../account.schemas';
 
 /**
  * `accountAuditQuerySchema`, and the one property a query schema in this API
@@ -51,6 +55,63 @@ describe('accountAuditQuerySchema', () => {
     // The service refuses a cursor it did not issue and reads from the start.
     // Validating the shape here would turn a stale bookmark into an error page.
     expect(accountAuditQuerySchema.parse({ cursor: 'not-a-real-cursor' }).cursor).toBe(
+      'not-a-real-cursor'
+    );
+  });
+});
+
+/**
+ * `accountBillingAuditQuerySchema` — the same self-parsing property, plus the
+ * one thing a second copy of a schema needs that the first did not.
+ *
+ * The bounds here are written as literals while the service clamps with its own
+ * `BILLING_AUDIT_MAX_LIMIT` / `BILLING_AUDIT_DEFAULT_LIMIT`, because a schema
+ * module importing a service would invert this package's layering. Two numbers
+ * that must agree and are written in two places need an assertion that they do:
+ * without it the schema could admit a limit the service silently clamps, which
+ * is a page size that is not the one the caller asked for and says so nowhere.
+ */
+describe('accountBillingAuditQuerySchema', () => {
+  it('parses its own output, in every position', () => {
+    for (const input of [
+      {},
+      { limit: '1' },
+      { limit: '200' },
+      { cursor: 'abc' },
+      { limit: '25', cursor: 'abc' },
+    ] as const) {
+      const once = accountBillingAuditQuerySchema.parse(input);
+      expect(accountBillingAuditQuerySchema.parse(once)).toEqual(once);
+    }
+  });
+
+  it('agrees with the bounds the service actually enforces', () => {
+    // The drift gate. `Math.min(Math.max(limit, 1), MAX)` in the service means a
+    // schema admitting more than MAX produces a shorter page than requested,
+    // silently — and one defaulting differently makes the documented default a
+    // lie.
+    expect(accountBillingAuditQuerySchema.parse({}).limit).toBe(BILLING_AUDIT_DEFAULT_LIMIT);
+    expect(accountBillingAuditQuerySchema.parse({ limit: String(BILLING_AUDIT_MAX_LIMIT) }).limit).toBe(
+      BILLING_AUDIT_MAX_LIMIT
+    );
+    expect(
+      accountBillingAuditQuerySchema.safeParse({ limit: String(BILLING_AUDIT_MAX_LIMIT + 1) }).success
+    ).toBe(false);
+  });
+
+  it('refuses a limit outside those bounds, and accepts the boundaries themselves', () => {
+    for (const limit of ['0', '-1', '201', 'lots']) {
+      expect(accountBillingAuditQuerySchema.safeParse({ limit }).success).toBe(false);
+    }
+    // POSITIVE CONTROL: without these two, a schema that rejected everything
+    // would satisfy the loop above.
+    expect(accountBillingAuditQuerySchema.parse({ limit: '1' }).limit).toBe(1);
+    expect(accountBillingAuditQuerySchema.parse({ limit: '200' }).limit).toBe(200);
+  });
+
+  it('refuses an unknown parameter, and carries the cursor through opaquely', () => {
+    expect(accountBillingAuditQuerySchema.safeParse({ cursur: 'abc' }).success).toBe(false);
+    expect(accountBillingAuditQuerySchema.parse({ cursor: 'not-a-real-cursor' }).cursor).toBe(
       'not-a-real-cursor'
     );
   });

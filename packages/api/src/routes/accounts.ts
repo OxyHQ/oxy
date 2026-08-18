@@ -31,6 +31,7 @@ import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { users } from '../db/schema/users';
 import sessionService from '../services/session.service';
 import { listAccountAuditTrail } from '../services/accountAuditTrail.service';
+import { listAccountBillingAudit } from '../services/accountBillingAudit.service';
 import deviceSessionService from '../services/deviceSession.service';
 import { broadcastDeviceState } from '../utils/socket';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
@@ -47,6 +48,7 @@ import {
 } from '../utils/accountRoles';
 import {
   accountAuditQuerySchema,
+  accountBillingAuditQuerySchema,
   accountIdRouteParams,
   accountMemberParams,
   listAccountsQuerySchema,
@@ -825,6 +827,43 @@ router.get(
     }
     const { limit, cursor } = accountAuditQuerySchema.parse(req.query);
     const page = await listAccountAuditTrail(account.id, { limit, cursor: cursor ?? null });
+    res.json({ data: page.entries, count: page.entries.length, nextCursor: page.nextCursor });
+  })
+);
+
+/**
+ * `GET /accounts/:id/billing/audit` — what changed about this account's money.
+ *
+ * The customer-facing projection of `billing_ledger_entries`, newest first,
+ * cursor-paginated: top-ups, promotional grants, reversals of settled charges
+ * and invoice payments. Things the customer did, or that were done to them.
+ *
+ * The other five entry kinds are withheld, and the internal chart of accounts,
+ * the postings' amounts and the id of the staff member behind a grant are never
+ * projected at all — `services/accountBillingAudit.service.ts` argues each of
+ * those decisions where it is implemented.
+ *
+ * ## `billing:read`, and only that
+ *
+ * One source, one permission — unlike `/:id/audit`, which spans two separately
+ * gated tables and therefore demands both. `billing:read` is the permission the
+ * rest of this API already uses for every money read (`utils/accountRoles.ts`),
+ * and it is deliberately narrower than `account:read`: `account:read` is
+ * baseline for every role, so gating on it would hand a `viewer` the account's
+ * funding history.
+ */
+router.get(
+  '/:id/billing/audit',
+  readLimiter,
+  validate({ params: accountIdRouteParams, query: accountBillingAuditQuerySchema }),
+  requireAccountPermission('billing:read'),
+  asyncHandler(async (req: AccountContextRequest, res) => {
+    const account = req.account;
+    if (!account) {
+      throw new NotFoundError('Account not found');
+    }
+    const { limit, cursor } = accountBillingAuditQuerySchema.parse(req.query);
+    const page = await listAccountBillingAudit(account.id, { limit, cursor: cursor ?? null });
     res.json({ data: page.entries, count: page.entries.length, nextCursor: page.nextCursor });
   })
 );
