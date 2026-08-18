@@ -220,10 +220,19 @@ The managed endpoint is `${MANAGED_NODE_BASE_URL}/u/${userId}`.
 
 | Path | Method | Auth | Rate limit | Purpose |
 |---|---|---|---|---|
-| `/nodes/me` | GET | bearer | 120/min | caller's node + live status (`{ node \| null }`) |
-| `/nodes/me` | DELETE | bearer | 20/min | revoke registration (`status: revoked`) |
-| `/nodes/managed` | POST | bearer | 10/min | provision the OXY-custodial managed vault |
+| `/nodes/me` | GET | bearer | 120/min per user | caller's node + live status (`{ node \| null }`) |
+| `/nodes/me` | DELETE | bearer | 20/min per user | revoke registration (`status: revoked`) |
+| `/nodes/managed` | POST | bearer | 10/min per user | provision the OXY-custodial managed vault |
 | `/nodes/ingest/notify/:userId` | POST | none (hint) | 30/min per IP | fire-and-forget ingest hint; always 202 |
+
+The three per-user budgets are keyed on the account and each limiter is mounted
+AFTER `authMiddleware` — the ordering is the mechanism, not a detail. All three
+used to sit BEFORE it, so `req.user` was never set when the key was computed and
+every caller fell to the limiter's hashed-IP fallback: one shared bucket per NAT
+egress, and the per-user ceiling in this column was unreachable. There is no IP
+arm left; a request with no resolved account is skipped and bounded instead by the
+global `rl:general:` limiter. `routes/__tests__/nodeLimiterOrdering.test.ts` fails
+if the ordering is restored.
 
 Node **registration** itself goes through `POST /identity/records` (a signed
 record), not a `/nodes` endpoint. Owner ids are always resolved server-side from

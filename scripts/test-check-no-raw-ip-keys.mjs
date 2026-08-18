@@ -168,7 +168,7 @@ function limiterSource(keyGeneratorBody) {
  * the case plants. `omitAllowed` drops one allow-listed entry, which is how the
  * list's exactness in the other direction is exercised.
  */
-function createFixture({ files = {}, omitAllowed = null, limiter = 'hashedIpKey' } = {}) {
+function createFixture({ files = {}, omitAllowed = null, limiter = 'hashedIpKey', limiterFile = null } = {}) {
   const root = mkdtempSync(fixturePrefix);
   createdFixtures.push(root);
 
@@ -181,7 +181,10 @@ function createFixture({ files = {}, omitAllowed = null, limiter = 'hashedIpKey'
   for (const [file, entries] of groupAllowedByFile(kept)) {
     write(root, file, allowedSource(entries));
   }
-  write(root, 'packages/fixture/src/limiter.ts', limiterSource(limiter));
+  // `limiterFile` REPLACES the standard limiter rather than adding to it, because
+  // a case about how limiter options are COUNTED cannot have a second limiter
+  // meeting the floor for it.
+  write(root, 'packages/fixture/src/limiter.ts', limiterFile ?? limiterSource(limiter));
   for (const [path, contents] of Object.entries(files)) {
     write(root, path, contents);
   }
@@ -437,6 +440,27 @@ expectVerdict(
   1,
   ['is below the', 'floor'],
   { RAW_IP_KEYS_FIXTURE_FLOORS: '0' },
+);
+
+// The `keyGenerator` floor is what stops half 2 from inspecting zero limiter
+// options and reporting clean, so it has to count every spelling of that property
+// the tree actually uses. A limiter that spreads a helper returning its generator
+// — `...userScopedKeying(scope)` in `packages/api/src/routes/nodes.ts` — writes it
+// SHORTHAND, a different AST node. This fixture's ONLY limiter is written that
+// way, so the tree holds one `keyGenerator` and the floor is met; counting only
+// the long form, it holds zero and the case goes red on its own vacuity floor,
+// which is how this asserts the shorthand is seen rather than assuming it.
+expectVerdict(
+  'keygenerator-written-in-shorthand-still-counts',
+  createFixture({
+    limiterFile:
+      'declare function rateLimit(options: unknown): unknown;\n'
+      + 'declare function hashedIpKey(req: unknown): string;\n'
+      + 'const keyGenerator = hashedIpKey;\n'
+      + "export const limiter = rateLimit({ prefix: 'rl:fixture:', windowMs: 60000, max: 20, keyGenerator });\n",
+  }),
+  0,
+  ['Raw-client-IP guard passed'],
 );
 
 // A file that does not parse contributes no hits, which is indistinguishable
