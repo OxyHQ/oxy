@@ -612,7 +612,16 @@ describe('reconciliation drift', () => {
       currency: 'USD',
     });
 
-    const metrics = await readInferenceOperationalMetrics(scopeOf(f));
+    // The window is filtered on `started_at`, and the older run starts ~58
+    // minutes before `now` — so between 00:00 and 01:00 UTC `today()` excludes
+    // it and this measures ONE run instead of two. Derive the window from the
+    // rows actually inserted rather than from the wall clock, so the assertion
+    // is about the newest-pass logic and not about what time the suite ran.
+    const window = {
+      from: new Date(now.getTime() - 3_500_000).toISOString().slice(0, 10),
+      to: new Date(now.getTime()).toISOString().slice(0, 10),
+    };
+    const metrics = await readInferenceOperationalMetrics({ window, accountId: f.accountId });
     expect(metrics.reconciliationDrift).toMatchObject({
       state: 'measured',
       runCount: 2,
