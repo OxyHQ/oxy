@@ -70,7 +70,13 @@ jobs:
           TOKEN = os.environ["CF_TOKEN"].strip()
           if not TOKEN:
               sys.exit("CLOUDFLARE_API_TOKEN is empty")
-          print(f"token: {len(TOKEN)} chars, starts {TOKEN[:4]!r}")
+          # Length only. The Allo workflow this is modelled on prints the
+          # first four characters, which is harmless in a private repository
+          # and is not here: this file lives in a PUBLIC repo, so its Actions
+          # logs are world-readable and a prefix of a live token is a real if
+          # small disclosure. The length alone still separates "empty secret"
+          # from "wrong secret", which is the only thing this line was for.
+          print(f"token: {len(TOKEN)} chars")
           APPLY = os.environ["ACTION"] == "apply"
           ZONE_NAME = "oxy.so"
 
