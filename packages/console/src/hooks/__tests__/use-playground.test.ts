@@ -52,6 +52,10 @@ const COMPLETION_BODY = {
   output: [{ role: 'assistant', content: [{ type: 'text', text: 'hello' }] }],
   usage: [{ unit: 'input_tokens', quantity: 12 }],
   routingPolicy: { routingPolicyId: 'rp_default', policyVersion: 3 },
+  // Deliberately a large, implausible-as-a-stopwatch-reading number: the run
+  // below asserts it is NOT the browser's round trip, and a value the local
+  // `fetch` stub could plausibly have produced would make that assertion vacuous.
+  latencyMs: 4321,
 };
 
 /**
@@ -160,6 +164,39 @@ describe('the playground run', () => {
     expect(result.run.usage).toEqual([{ unit: 'input_tokens', quantity: 12 }]);
     expect(typeof result.run.roundTripMs).toBe('number');
     expect(result.run.roundTripMs).toBeGreaterThanOrEqual(0);
+
+    // TWO latencies, and the point of the pair is that they are not the same
+    // number. The server's is read verbatim off the body; the browser's is
+    // measured around this `fetch`, which resolves from a local stub in
+    // microseconds, so a `roundTripMs` that had somehow been overwritten with the
+    // server's figure would fail here rather than looking like a plausible
+    // reading.
+    expect(result.run.latencyMs).toBe(4321);
+    expect(result.run.roundTripMs).not.toBe(result.run.latencyMs);
+  });
+
+  it('completes without a server latency, for an API deployed before the field', async () => {
+    // `latencyMs` is ADDITIVE: a Console ahead of the API it is pointed at gets a
+    // body without it, and that is a run to render, not a failure. Asserted
+    // because the alternative — a required read — degrades into `NaN ms` on the
+    // screen rather than into an error anybody would notice.
+    const { latencyMs, ...withoutLatency } = COMPLETION_BODY;
+    expect(latencyMs).toBe(4321); // positive control: the field was really removed
+    stubFetch(200, withoutLatency);
+
+    const result = await runPlayground({
+      apiKey: API_KEY,
+      model: 'anthropic/claude-sonnet',
+      input: 'hi',
+    });
+    if (result.status !== 'completed') {
+      throw new Error(`expected a completed run, got ${result.status}`);
+    }
+
+    expect(result.run.latencyMs).toBeUndefined();
+    // The rest of the run is unaffected — this is a missing field, not a broken body.
+    expect(result.run.requestId).toBe('req_01HZY');
+    expect(typeof result.run.roundTripMs).toBe('number');
   });
 
   it('RESOLVES a refusal instead of throwing it away', async () => {

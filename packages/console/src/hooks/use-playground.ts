@@ -36,11 +36,12 @@ import config from '@/lib/config';
  * fields it does own — `InferenceMessage`, `InferenceError` — are imported rather
  * than restated, so the half that is contracted cannot drift.
  *
- * There is deliberately no `latencyMs`. The server measures one (deliberately
- * including admission) and stores it on `inference_usage_events`, but neither
- * `EdgeCompletion` nor any reporting endpoint exposes it, so this response cannot
- * carry it. See {@link PlaygroundRun.roundTripMs}, which is a different number
- * and is labelled as one.
+ * `latencyMs` is OPTIONAL here for one reason and not the other: the field is
+ * additive, so a Console build newer than the API deployment it is talking to
+ * reads `undefined` and must render the run without it rather than showing
+ * `NaN ms`. It is NOT optional because the number is unreliable — every served
+ * `POST /v1/responses` sets it. See {@link PlaygroundRun.roundTripMs}, which is a
+ * DIFFERENT number, is measured somewhere else, and is labelled as such.
  */
 interface EdgeResponseBody {
   readonly schemaVersion: 1;
@@ -56,6 +57,20 @@ interface EdgeResponseBody {
     readonly routingPolicyId: string;
     readonly policyVersion: number;
   };
+  /**
+   * Oxy's own handling time, in whole milliseconds — the server's answer to
+   * "how long did this take", as distinct from the browser's.
+   *
+   * The edge starts this clock when it receives the request, before
+   * authentication, and stops it after the hold is settled, so it covers
+   * authentication, admission, routing, the reservation, the call to the
+   * inference data plane and the settlement. Most of that is the UPSTREAM
+   * generating tokens; the server does not claim otherwise and neither does this
+   * screen. What it contains no part of is the network between here and Oxy,
+   * which is the whole reason it is rendered beside
+   * {@link PlaygroundRun.roundTripMs} instead of replacing it.
+   */
+  readonly latencyMs?: number;
 }
 
 /** A completed run, plus the one measurement the client can honestly make. */
@@ -64,13 +79,17 @@ export interface PlaygroundRun extends EdgeResponseBody {
    * Wall-clock time from just before the `fetch` to just after the body was
    * read, measured in the BROWSER.
    *
-   * This is NOT the server's `latencyMs`. That figure is measured from the
-   * monotonic clock at admission and covers authentication, admission and the
-   * upstream call; this one additionally covers DNS, TLS, the network in both
-   * directions and JSON parsing, and it is the only latency any client can
-   * observe today. It is labelled as a browser round trip everywhere it is
-   * rendered, because presenting it as "latency" would attribute the network to
-   * the model.
+   * This is NOT {@link EdgeResponseBody.latencyMs}. That figure is measured from
+   * the monotonic clock at admission and covers authentication, admission, the
+   * upstream call and the settlement, and it contains no network at all; this one
+   * additionally covers DNS, TLS, the network in both directions and JSON
+   * parsing, and it is the only number that describes what the person pressing
+   * Run actually waited for.
+   *
+   * The two are rendered side by side and labelled, never collapsed. Showing only
+   * the server's would hide the wait the user experienced; showing only this one
+   * would attribute the network to the model; subtracting them would invent a
+   * third figure neither side measured.
    */
   readonly roundTripMs: number;
 }
