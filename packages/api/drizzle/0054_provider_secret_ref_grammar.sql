@@ -1,0 +1,52 @@
+-- oxy:deploy-phase=pre
+--
+-- Close the `secret_ref` grammar on `inference_provider_connections` (#972
+-- workstream 10).
+--
+-- WHAT WAS WRONG
+--
+-- The old CHECK read `^(vault|kms|ssm|secretsmanager):[A-Za-z0-9/_.:@-]+$`, under
+-- a comment — here and on `providerSecretReferenceSchema` in `@oxyhq/contracts` —
+-- claiming a producer could not pass a raw key through the field and have it look
+-- like a reference. It could. Splicing a credential in after the store name,
+--
+--     vault:sk-ant-api03-…/oxy/inference/byok/production/<account>/<connection>
+--
+-- satisfies that pattern, still ENDS with the partition suffix so
+-- `…_secret_ref_partition` passes too, and parses cleanly on the way back out.
+-- Measured against a real Postgres before this migration was written: the row was
+-- written and read back, credential and all.
+--
+-- Both mechanisms constrained the SHAPE of the locator; neither constrained what
+-- could be put in FRONT of it.
+--
+-- WHAT REPLACES IT
+--
+-- The full canonical grammar `services/providerSecretStore.ts` has always
+-- produced: one store, one namespace, one environment, two bounded id segments,
+-- and nothing else. No prefix, no suffix, no extra segment — so the only spans a
+-- producer chooses the contents of are the two ids, and `…_secret_ref_partition`
+-- already pins those to the row's own owner account and id. Together the two
+-- CHECKs admit exactly one value per row and per store.
+--
+-- The `length(secret_ref) <= 512` conjunct goes with it: the old pattern was
+-- unbounded because Postgres rejects a repetition bound above 255, so the length
+-- lived in a second condition. The new segment bounds are under that ceiling and
+-- cap the whole string at 239 characters, so the separate assertion had nothing
+-- left to assert.
+--
+-- SAFE AS `pre`, AND WHAT HAPPENS TO EXISTING ROWS
+--
+-- `ADD CONSTRAINT` validates every existing row. `inference_provider_connections`
+-- holds 0 rows in production: no managed secret store is wired in this deployment
+-- (`PROVIDER_SECRET_STORE_BACKENDS` is empty), so every create path refuses
+-- before it reads a credential and no connection has ever been written. Nothing
+-- can fail validation.
+--
+-- `pre` rather than `post` because the image still serving cannot violate it
+-- either: the old `providerSecretReference` built exactly this shape, character
+-- for character. The tightening is of what the column ACCEPTS, not of what any
+-- shipped code writes.
+
+ALTER TABLE "inference_provider_connections" DROP CONSTRAINT "inference_provider_connections_secret_ref_format";--> statement-breakpoint
+ALTER TABLE "inference_provider_connections" ADD CONSTRAINT "inference_provider_connections_secret_ref_format" CHECK ("inference_provider_connections"."secret_ref" ~ '^(?:vault|kms|ssm|secretsmanager):oxy/inference/byok/(?:development|staging|production)/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,128}$');

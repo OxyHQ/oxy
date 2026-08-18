@@ -2,6 +2,14 @@
 
 - Status: accepted (the refusal is the decision; the backend is deferred)
 - Date: 2026-08-16
+- Amended: 2026-08-18 — the reference GRAMMAR was open where this ADR read as
+  though it were closed. `providerSecretReferenceSchema` admitted
+  `<store>:<anything from a wide charset>`, so a credential spliced in after the
+  store name satisfied it AND still ended with the partition suffix; measured
+  against a real Postgres, such a row was written and read back. Migration `0054`
+  closes the grammar to the canonical path and the contract now requires the
+  reference to name its own connection. The partition bullet below states both
+  halves.
 - Issue: #972 (workstream 10)
 
 ## Context
@@ -59,15 +67,24 @@ Four things follow, and each is enforced rather than documented:
   so it is not in a stack trace or an error report either. Authorisation comes
   first so an unauthorised caller gets 403 and never learns what this deployment
   is configured with.
-- **The reference is partitioned by account and environment.**
-  `providerSecretReference` builds
-  `<store>:oxy/inference/byok/<environment>/<accountId>/<connectionId>`, and
+- **The reference is partitioned by account and environment, and the rest of it
+  is fixed.** `providerSecretReference` builds
+  `<store>:oxy/inference/byok/<environment>/<accountId>/<connectionId>`;
   `inference_provider_connections_secret_ref_partition` requires the stored value
-  to END with `/<environment>/<owner_account_id>/<id>`. A row naming another
+  to END with `/<environment>/<owner_account_id>/<id>`, and
+  `inference_provider_connections_secret_ref_format` (migration `0054`) requires
+  the whole string to be that grammar and nothing else. A row naming another
   account's or another environment's locator cannot be written — refused by the
   database, not filtered by a query somebody must remember. The partition being
   IN THE PATH is also what makes a per-partition IAM or Vault policy expressible
   at the store, so Oxy does not have to be trusted to filter.
+
+  The two CHECKs are not redundant, and one alone was not enough: the partition
+  rule pins only the END of the string, so until the format was closed a
+  credential could be spliced in at the FRONT and satisfy both it and the old
+  regex. `providerConnectionSchema` now carries the same pair on the wire — the
+  closed grammar, plus a refinement requiring the reference to name that
+  connection's own environment, account and id.
 - **Nothing can read a secret back.** The `ProviderSecretStore` interface has
   `put` and `destroy` and deliberately no `get`. Re-validating a credential
   therefore cannot be done by fetching it into this process; the component that

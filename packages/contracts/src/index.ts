@@ -993,6 +993,7 @@ export type {
 
 export {
     // BYOK connection metadata that structurally cannot carry a secret.
+    PROVIDER_SECRET_REFERENCE_NAMESPACE,
     providerConnectionScopeSchema,
     providerSecretReferenceSchema,
     providerConnectionValidationSchema,

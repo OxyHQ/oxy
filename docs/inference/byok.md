@@ -74,7 +74,7 @@ existed upstream of the parse, in a log line or an error report.
 
 | Field | Is |
 |---|---|
-| `secretRef` | `<store>:<locator>` — a pointer into managed secret storage, never material |
+| `secretRef` | `<store>:oxy/inference/byok/<environment>/<accountId>/<connectionId>` — a pointer into managed secret storage, never material. The grammar is closed and the reference must name this connection, so there is no free-form span a credential could be spliced into (migration `0054`) |
 | `keyPrefix` | the leading characters, capped at **12** — long enough to tell two keys apart, far too short to be one |
 | `fingerprint` | SHA-256 of the credential, so a rotation is verifiable without the key |
 | `scope` | `account`, `project` or `application` |

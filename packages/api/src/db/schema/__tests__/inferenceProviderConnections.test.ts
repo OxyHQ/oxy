@@ -75,6 +75,20 @@ function pgErrorCode(error: unknown): string | undefined {
 }
 
 /**
+ * WHICH constraint refused the write, from the same wrapped error.
+ *
+ * The table carries thirteen CHECKs and every one answers with SQLSTATE 23514, so a
+ * case that meant to exercise one and actually tripped another reads as a pass.
+ */
+function pgErrorConstraint(error: unknown): string | undefined {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    const name: unknown = Reflect.get(current, 'constraint_name');
+    if (typeof name === 'string') return name;
+  }
+  return undefined;
+}
+
+/**
  * Assert a write is refused with a SPECIFIC SQLSTATE.
  *
  * Not `rejects.toThrow()`: every one of these cases has a shape that would also
@@ -211,11 +225,114 @@ describe('the closed vocabularies match the contract', () => {
 
   it('every store name the CHECK admits is one the contract admits', () => {
     for (const store of PROVIDER_SECRET_STORE_NAMES) {
-      expect(providerSecretReferenceSchema.safeParse(`${store}:oxy/x`).success).toBe(true);
+      expect(
+        providerSecretReferenceSchema.safeParse(
+          `${store}:oxy/inference/byok/production/acc_1/pcx_1`
+        ).success
+      ).toBe(true);
     }
     // …and the converse, so the tuple cannot silently grow past the contract.
-    expect(providerSecretReferenceSchema.safeParse('s3:oxy/x').success).toBe(false);
+    expect(
+      providerSecretReferenceSchema.safeParse('s3:oxy/inference/byok/production/acc_1/pcx_1')
+        .success
+    ).toBe(false);
   });
+});
+
+/**
+ * The reference grammar, run through the CONTRACT and the CHECK as one table.
+ *
+ * `PROVIDER_SECRET_REFERENCE_PATTERN` is a restatement of
+ * `providerSecretReferenceSchema` in a different regex dialect — deliberately, for
+ * the reason `inferenceSlug.ts` gives — and a restatement is a fork the moment
+ * nothing compares the two. This is what compares them: one table, both verdicts,
+ * asserted equal case by case.
+ *
+ * Every case keeps the partition suffix `/<environment>/<account>/<id>` intact, so
+ * a refusal can only come from the format CHECK. That is asserted by NAME: a case
+ * that fell foul of the partition rule instead would prove nothing about the
+ * grammar, and the two are indistinguishable from the SQLSTATE alone.
+ */
+describe('the reference grammar is the same one on the wire and in the column', () => {
+  /** A credential shaped like the real thing — this is the value being smuggled. */
+  const CREDENTIAL = 'sk-ant-api03-9f2Ab_cD3e-Fg4Hi5Jk6Lm7No8Pq9Rs0Tu1Vw2Xy3Za4Bc5De6Fg7Hi8Jk9Lm0AA';
+
+  const CASES: ReadonlyArray<{
+    readonly name: string;
+    readonly accepted: boolean;
+    readonly build: (account: string, id: string) => string;
+  }> = [
+    ...PROVIDER_SECRET_STORE_NAMES.map((store) => ({
+      name: `the canonical reference in ${store}`,
+      accepted: true,
+      build: (account: string, id: string) =>
+        `${store}:oxy/inference/byok/production/${account}/${id}`,
+    })),
+    {
+      // THE CASE THE GRAMMAR WAS TIGHTENED FOR. Before migration 0054 this was
+      // written, stored and read back with the credential in it.
+      name: 'a credential spliced in after the store name',
+      accepted: false,
+      build: (account, id) =>
+        `vault:${CREDENTIAL}/oxy/inference/byok/production/${account}/${id}`,
+    },
+    {
+      name: 'a store nothing in this system can resolve',
+      accepted: false,
+      build: (account, id) => `s3:oxy/inference/byok/production/${account}/${id}`,
+    },
+    {
+      name: 'a namespace no store-side policy is scoped to',
+      accepted: false,
+      build: (account, id) => `vault:oxy/byok/production/${account}/${id}`,
+    },
+    {
+      name: 'whitespace inside the namespace',
+      accepted: false,
+      build: (account, id) => `vault:oxy/inference byok/production/${account}/${id}`,
+    },
+    {
+      name: 'an extra segment before the partition',
+      accepted: false,
+      build: (account, id) => `vault:oxy/inference/byok/extra/production/${account}/${id}`,
+    },
+  ];
+
+  for (const { name, accepted, build } of CASES) {
+    it(`${accepted ? 'accepts' : 'refuses'} ${name}, on the wire and in the column`, async () => {
+      const account = await insertAccount();
+      const provider = await insertProvider();
+      const values = connectionValues(provider, account, { environment: 'production' });
+      const secretRef = build(account, values.id);
+
+      // Every case is a well-formed member of its own partition, so nothing here
+      // is refused for naming another account's or another environment's secret.
+      expect(secretRef.endsWith(`/production/${account}/${values.id}`)).toBe(true);
+      expect(providerSecretReferenceSchema.safeParse(secretRef).success).toBe(accepted);
+
+      const write = getDb()
+        .insert(inferenceProviderConnections)
+        .values({ ...values, secretRef })
+        .returning({ secretRef: inferenceProviderConnections.secretRef });
+
+      if (accepted) {
+        const [row] = await write;
+        expect(row.secretRef).toBe(secretRef);
+        return;
+      }
+
+      try {
+        await write;
+      } catch (error) {
+        expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
+        expect(pgErrorConstraint(error)).toBe(
+          'inference_provider_connections_secret_ref_format'
+        );
+        return;
+      }
+      throw new Error(`expected the format CHECK to refuse ${secretRef}`);
+    });
+  }
 });
 
 describe('a secret cannot be stored in this table', () => {

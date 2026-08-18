@@ -98,6 +98,7 @@ import {
   unique,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { PROVIDER_SECRET_REFERENCE_NAMESPACE } from '@oxyhq/contracts';
 import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
 import { applications } from './applications';
 import { inferenceProviders } from './inferenceProviders';
@@ -164,27 +165,37 @@ export const PROVIDER_SECRET_STORE_NAMES = ['vault', 'kms', 'ssm', 'secretsmanag
 export type ProviderSecretStoreName = (typeof PROVIDER_SECRET_STORE_NAMES)[number];
 
 /**
- * The reference grammar, as close to the contract's regex as Postgres allows.
+ * The reference grammar, restated for Postgres — the same closed grammar
+ * `providerSecretReferenceSchema` admits, segment for segment.
  *
  * Restated as a CHECK rather than left to the zod parse because the parse
- * protects the WIRE and this protects the TABLE — a seed script, a backfill or a
- * future service that skipped the contract still cannot put credential material
- * in this column and have it look like a locator. Whitespace is excluded for
- * exactly that reason.
+ * protects the WIRE and this protects the TABLE: a seed script, a backfill or a
+ * future service that skipped the contract cannot put credential material in
+ * this column and have it look like a locator. Together with the partition CHECK
+ * below — which pins the two id segments to this row's own owner account and id
+ * — the column admits exactly one string per row, per store.
  *
- * The contract writes the tail as `{1,480}`. **Postgres cannot: its regex engine
- * rejects any bound above 255 outright** (`invalid repetition count(s)`, at
- * CREATE TABLE time), so the tail is `+` here and the length is asserted by
- * {@link PROVIDER_SECRET_REFERENCE_MAX_LENGTH} beside it. Two constraints
- * expressing what the contract expresses in one — the accepted set is
- * identical, because the contract also caps the whole string at 512.
+ * **That was not true until migration `0054`.** The tail used to be
+ * `[A-Za-z0-9/_.:@-]+`, which accepts a credential spliced in after the store
+ * name (`vault:sk-ant-api03-…/oxy/inference/byok/<env>/<account>/<id>`); it still
+ * ends with the partition suffix, so the partition CHECK passed as well. Measured
+ * against a real Postgres, the row was written and read back credential and all —
+ * see the note on `providerSecretReferenceSchema` and the case in
+ * `services/__tests__/providerSecretLeak.test.ts`.
+ *
+ * The restatement is deliberate rather than a shared string, for the reason
+ * `inferenceSlug.ts` gives: a zod regex is a JavaScript `RegExp` and a CHECK is a
+ * POSIX ARE, so there is no one literal both can use. `__tests__/inferenceProviderConnections.test.ts`
+ * runs the same table of references through both and is what holds them equal.
+ * Postgres rejects any repetition bound above 255, which the segment bounds here
+ * stay under; the grammar itself now caps the whole string, so no separate length
+ * assertion is left to drift.
  */
-export const PROVIDER_SECRET_REFERENCE_PATTERN = `'^(${PROVIDER_SECRET_STORE_NAMES.join(
+export const PROVIDER_SECRET_REFERENCE_PATTERN = `'^(?:${PROVIDER_SECRET_STORE_NAMES.join(
   '|'
-)}):[A-Za-z0-9/_.:@-]+$'`;
-
-/** `providerSecretReferenceSchema`'s own `.max(512)`, where the row is written. */
-export const PROVIDER_SECRET_REFERENCE_MAX_LENGTH = 512;
+)}):${PROVIDER_SECRET_REFERENCE_NAMESPACE}/(?:${PROVIDER_CONNECTION_ENVIRONMENTS.join(
+  '|'
+)})/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9_-]{1,128}$'`;
 
 export const inferenceProviderConnections = pgTable(
   'inference_provider_connections',
@@ -403,12 +414,14 @@ export const inferenceProviderConnections = pgTable(
     ),
 
     /**
-     * The reference is a `<store>:<locator>` pointer and nothing else. Refuses
-     * whitespace, so a pasted credential cannot masquerade as one.
+     * The reference is `<store>:oxy/inference/byok/<environment>/<id>/<id>` and
+     * nothing else — no prefix, no suffix, no extra segment. Whitespace and a
+     * pasted credential are both outside the grammar rather than merely unlikely
+     * to be mistaken for a locator.
      */
     check(
       'inference_provider_connections_secret_ref_format',
-      sql`${t.secretRef} ~ ${sql.raw(PROVIDER_SECRET_REFERENCE_PATTERN)} and length(${t.secretRef}) <= ${sql.raw(String(PROVIDER_SECRET_REFERENCE_MAX_LENGTH))}`
+      sql`${t.secretRef} ~ ${sql.raw(PROVIDER_SECRET_REFERENCE_PATTERN)}`
     ),
 
     /**
@@ -419,6 +432,11 @@ export const inferenceProviderConnections = pgTable(
      * `right(...)` rather than `like`, deliberately — `like` would read `_` and
      * `%` in an id as wildcards, and a constraint that is ALMOST exact is worse
      * than none because it reads as exact.
+     *
+     * On its own this pins only the END of the string, which is why it did not
+     * stop a credential spliced in at the FRONT; the format CHECK above now fixes
+     * every other span, so the two together admit exactly one value per row and
+     * per store.
      */
     check(
       'inference_provider_connections_secret_ref_partition',

@@ -4,6 +4,9 @@ import {
   safeParseContract,
 } from '../index';
 
+/** A credential shaped like the real thing, for the splicing cases below. */
+const CREDENTIAL = 'sk-ant-api03-9f2Ab_cD3e-Fg4Hi5Jk6Lm7No8Pq9Rs0Tu1Vw2Xy3Za4Bc5De6Fg7Hi8Jk9Lm0AA';
+
 const connection = {
   schemaVersion: 1 as const,
   connectionId: 'pcx_1',
@@ -12,7 +15,7 @@ const connection = {
   scope: { kind: 'application' as const, accountId: 'acc_1', applicationId: 'app_1' },
   environment: 'production' as const,
   status: 'active' as const,
-  secretRef: 'vault:oxy/byok/acc_1/openai/pcx_1',
+  secretRef: 'vault:oxy/inference/byok/production/acc_1/pcx_1',
   keyPrefix: 'sk-proj-4f',
   fingerprint: 'b'.repeat(64),
   validation: { state: 'valid' as const, lastValidatedAt: '2026-08-15T08:00:00.000Z' },
@@ -54,10 +57,10 @@ describe('providerConnectionSchema', () => {
 
   it('takes a store locator, not a key, as the secret reference', () => {
     for (const reference of [
-      'vault:oxy/byok/acc_1/openai/pcx_1',
-      'kms:alias/oxy-byok/pcx_1',
-      'ssm:/oxy/byok/acc_1/openai',
-      'secretsmanager:oxy/byok/pcx_1',
+      'vault:oxy/inference/byok/production/acc_1/pcx_1',
+      'kms:oxy/inference/byok/staging/acc_1/pcx_1',
+      'ssm:oxy/inference/byok/development/acc_1/pcx_1',
+      'secretsmanager:oxy/inference/byok/production/acc_1/pcx_1',
     ]) {
       expect(providerSecretReferenceSchema.safeParse(reference).success).toBe(true);
     }
@@ -67,8 +70,79 @@ describe('providerConnectionSchema', () => {
       'Bearer sk-live-4f9c2a7b1e6d8f3a5c0b',
       'https://example.test/secret',
       'vault: oxy/byok',
+      // Right namespace, wrong store.
+      's3:oxy/inference/byok/production/acc_1/pcx_1',
+      // Right store, a namespace no Oxy policy is scoped to.
+      'vault:oxy/byok/acc_1/pcx_1',
+      // An environment outside the closed set.
+      'vault:oxy/inference/byok/prod/acc_1/pcx_1',
+      // One segment too few, and one too many.
+      'vault:oxy/inference/byok/production/acc_1',
+      'vault:oxy/inference/byok/production/acc_1/pcx_1/extra',
     ]) {
       expect(providerSecretReferenceSchema.safeParse(notAReference).success).toBe(false);
+    }
+  });
+
+  /**
+   * THE CASE THIS GRAMMAR EXISTS FOR.
+   *
+   * The previous grammar was `<store>:<anything from a wide charset>`, and its
+   * comment claimed a producer could not pass a raw key through the field and
+   * have it look like a reference. Measured, it could: splicing the credential in
+   * after the store name left a string that matched, and one that still ENDED
+   * with `/<environment>/<account>/<connection>`, so `packages/api`'s partition
+   * CHECK passed as well and the row was written.
+   *
+   * Both halves are asserted — that the spliced value still satisfies the
+   * partition rule, and that it is nonetheless refused. Without the first, this
+   * case would pass against a grammar that merely rejected some arbitrary string,
+   * which is not what went wrong.
+   */
+  it('refuses a credential spliced into an otherwise well-formed reference', () => {
+    const spliced = `vault:${CREDENTIAL}/oxy/inference/byok/production/acc_1/pcx_1`;
+
+    expect(spliced.endsWith('/production/acc_1/pcx_1')).toBe(true);
+    expect(providerSecretReferenceSchema.safeParse(spliced).success).toBe(false);
+    expect(providerConnectionSchema.safeParse({ ...connection, secretRef: spliced }).success).toBe(
+      false,
+    );
+  });
+
+  /**
+   * The one span the grammar alone cannot judge: a credential occupying an id
+   * segment is still a well-formed reference to SOME connection. What refuses it
+   * is that the reference must name THIS one — the contract's half of the rule
+   * `inference_provider_connections_secret_ref_partition` keeps on the row.
+   */
+  it('requires the reference to name this connection, not merely to be well-formed', () => {
+    const asAccount = `vault:oxy/inference/byok/production/${CREDENTIAL.slice(0, 64)}/pcx_1`;
+    const asConnection = `vault:oxy/inference/byok/production/acc_1/${CREDENTIAL}`;
+
+    // Well-formed on their own: the grammar has nothing left to object to.
+    expect(providerSecretReferenceSchema.safeParse(asAccount).success).toBe(true);
+    expect(providerSecretReferenceSchema.safeParse(asConnection).success).toBe(true);
+
+    for (const secretRef of [asAccount, asConnection]) {
+      const result = providerConnectionSchema.safeParse({ ...connection, secretRef });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((issue) => issue.path.join('.'))).toContain('secretRef');
+      }
+    }
+
+    // …and the same fields with the RIGHT reference parse, so the refusals above
+    // are about the reference and not about a fixture the contract never accepted.
+    expect(providerConnectionSchema.safeParse(connection).success).toBe(true);
+  });
+
+  it('refuses a reference to another account, another environment or another connection', () => {
+    for (const secretRef of [
+      'vault:oxy/inference/byok/production/acc_2/pcx_1',
+      'vault:oxy/inference/byok/staging/acc_1/pcx_1',
+      'vault:oxy/inference/byok/production/acc_1/pcx_2',
+    ]) {
+      expect(providerConnectionSchema.safeParse({ ...connection, secretRef }).success).toBe(false);
     }
   });
 

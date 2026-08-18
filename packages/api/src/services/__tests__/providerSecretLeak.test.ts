@@ -24,6 +24,12 @@
  *
  *  1. The checks go RED on a real leak — three of them, one per surface the
  *     sibling covers (the DTO, the DTO serialized, the stored row, the trail).
+ *     One of those leaks can no longer be PLANTED in the database: `secret_ref`
+ *     used to accept a spliced credential and migration `0054` closed the
+ *     grammar, so that case now asserts the two refusals AND hands the walk the
+ *     same row in memory. A check whose situation became unbuildable still has to
+ *     be shown to work, or "no leak found" and "this walk finds nothing" go back
+ *     to looking identical.
  *  2. Two of the most obvious serializer leaks never reach a check at all: the
  *     contract REFUSES them. Asserting the refusal is what stops a later reader
  *     relaxing the 12-character `keyPrefix` cap or the `.strict()` as tidying.
@@ -142,6 +148,30 @@ async function seedConnection(): Promise<Fixture> {
   };
 }
 
+/**
+ * Assert a write is refused by a NAMED constraint.
+ *
+ * The table carries thirteen CHECKs and they all answer with SQLSTATE 23514, so
+ * "it threw" would be satisfied by tripping the partition rule, a typo in a
+ * column, or a missing fixture. Drizzle wraps the driver error, so the fields
+ * live on the `cause` — the same walk `db/schema/__tests__` does.
+ */
+async function expectRefusedBy(work: Promise<unknown>, constraint: string): Promise<void> {
+  try {
+    await work;
+  } catch (error) {
+    for (let current: unknown = error; current instanceof Error; current = current.cause) {
+      const name: unknown = Reflect.get(current, 'constraint_name');
+      if (typeof name === 'string') {
+        expect(name).toBe(constraint);
+        return;
+      }
+    }
+    throw error;
+  }
+  throw new Error(`expected ${constraint} to refuse the write, but it succeeded`);
+}
+
 async function readRow(connectionId: string) {
   const [row] = await getDb()
     .select()
@@ -154,40 +184,59 @@ async function readRow(connectionId: string) {
 
 describe('the leak assertions go red on a serializer that leaks', () => {
   /**
-   * The one leak the row's own constraints do not stop.
+   * The leak `secret_ref` used to allow, and the two things that now refuse it.
    *
-   * `secret_ref` is copied to the DTO verbatim, and both things that guard it —
-   * the format regex and the partition CHECK — constrain the SHAPE of the
-   * locator, not its contents: a credential spliced in after the store name
-   * satisfies `^(vault|kms|ssm|secretsmanager):[A-Za-z0-9/_.:@-]+$` and still ends
-   * with `/<environment>/<account>/<id>`. `providerSecretReferenceSchema`'s own
-   * comment says "a producer cannot pass a raw key through this field and have it
-   * look like a reference"; measured, it can. The database accepts the write, the
-   * contract accepts the parse, and the assertion is the only thing that refuses.
+   * `secret_ref` is the only column copied to the DTO verbatim, and it USED to be
+   * the one place a credential could sit in a stored row: both guards constrained
+   * the SHAPE of the locator and neither constrained what could be put in front of
+   * it, so a credential spliced in after the store name satisfied
+   * `^(vault|kms|ssm|secretsmanager):[A-Za-z0-9/_.:@-]+$` AND still ended with
+   * `/<environment>/<account>/<id>`. Measured against a real Postgres: the write
+   * landed, the parse succeeded, and this assertion was the only thing that
+   * refused. `providerSecretReferenceSchema` claimed otherwise in a comment.
+   *
+   * Migration `0054` closed the grammar and the contract now requires the
+   * reference to name this connection, so the leak is refused twice before any
+   * check runs. Both refusals are asserted here, in the order a producer would
+   * meet them — and then the walk is handed the same row IN MEMORY, so "the check
+   * would catch it" stays a measurement rather than becoming an inference from a
+   * situation that can no longer be built.
    */
-  it('catches a credential the serializer copies out of the stored row', async () => {
+  it('is refused by the column and by the contract, and would be caught by the walk', async () => {
     const { plaintext, connectionId } = await seedConnection();
     const clean = await readRow(connectionId);
 
     const colon = clean.secretRef.indexOf(':');
     const leakingRef = `${clean.secretRef.slice(0, colon + 1)}${plaintext}/${clean.secretRef.slice(colon + 1)}`;
-    await getDb()
-      .update(inferenceProviderConnections)
-      .set({ secretRef: leakingRef })
-      .where(eq(inferenceProviderConnections.id, connectionId));
+    // Still inside its own partition: what refuses it below is the grammar, not
+    // the partition rule, which this value satisfies exactly as it always did.
+    expect(leakingRef.endsWith(`/production/${clean.ownerAccountId}/${connectionId}`)).toBe(true);
 
-    const leaking = await readRow(connectionId);
-    // The write really landed — a mutation that never applied is indistinguishable
-    // from one the checks survived.
-    expect(leaking.secretRef).toBe(leakingRef);
+    await expectRefusedBy(
+      getDb()
+        .update(inferenceProviderConnections)
+        .set({ secretRef: leakingRef })
+        .where(eq(inferenceProviderConnections.id, connectionId)),
+      'inference_provider_connections_secret_ref_format'
+    );
 
-    // Assertion 4 of the sibling suite: the stored ROW, every column.
+    // The refusal is the database's, not a silent no-op: the row still holds the
+    // reference the service wrote.
+    expect((await readRow(connectionId)).secretRef).toBe(clean.secretRef);
+
+    // …and a row carrying it, however it were obtained, cannot become a DTO.
+    const leaking = { ...clean, secretRef: leakingRef };
+    expect(() => toProviderConnection(leaking)).toThrow(ZodError);
+
+    // Assertions 1, 2 and 4 of the sibling suite, over the same walk and the same
+    // shapes: they go red on this row, which is why they are not decorative.
     expect(containsDeep(leaking, plaintext)).toBe(true);
-
-    const dto = toProviderConnection(leaking);
-    // Assertions 1 and 2: the returned DTO, and the DTO as a route writes it.
-    expect(containsDeep(dto, plaintext)).toBe(true);
-    expect(JSON.stringify(dto)).toContain(plaintext);
+    expect(containsDeep({ ...toProviderConnection(clean), secretRef: leakingRef }, plaintext)).toBe(
+      true
+    );
+    expect(
+      JSON.stringify({ ...toProviderConnection(clean), secretRef: leakingRef })
+    ).toContain(plaintext);
   });
 
   /**

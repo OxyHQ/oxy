@@ -19,11 +19,15 @@ import {
  * That is the point of the test: a field the contract adds appears here without
  * anybody editing the fixture, so the "no secretRef reaches the view" assertion
  * below is made against the real shape and not against a copy that stopped
- * matching it. `secretRef` is also branded through the schema's regex, so the
- * fixture cannot accidentally carry a plausible-looking non-reference.
+ * matching it.
+ *
+ * `secretRef` is DERIVED from the environment, owner account and connection id
+ * rather than written out, because the contract requires it to name this
+ * connection — a fixture that overrides the owner and leaves the reference behind
+ * fails the parse, which is the rule working rather than a fixture to patch.
  */
 function connection(overrides: Record<string, unknown> = {}): ProviderConnection {
-  return providerConnectionSchema.parse({
+  const fields = {
     schemaVersion: 1,
     connectionId: 'conn_1',
     provider: 'example-provider',
@@ -31,13 +35,19 @@ function connection(overrides: Record<string, unknown> = {}): ProviderConnection
     scope: { kind: 'application', accountId: 'acct_1', applicationId: 'app_1' },
     environment: 'production',
     status: 'active',
-    secretRef: 'vault:oxy/byok/acct_1/conn_1',
     keyPrefix: 'sk-live-abc',
     fingerprint: 'a'.repeat(64),
     validation: { state: 'valid', lastValidatedAt: '2026-08-01T00:00:00.000Z' },
     upstreamBillsCustomerDirectly: true,
     createdAt: '2026-07-01T00:00:00.000Z',
     ...overrides,
+  };
+
+  return providerConnectionSchema.parse({
+    secretRef:
+      `vault:oxy/inference/byok/${String(fields.environment)}/` +
+      `${String(fields.ownerAccountId)}/${String(fields.connectionId)}`,
+    ...fields,
   });
 }
 
