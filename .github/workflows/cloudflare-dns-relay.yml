@@ -1,0 +1,161 @@
+# The DNS `relay.oxy.so` needs, in the oxy.so zone.
+#
+# WHY THIS LIVES IN A PUBLIC REPOSITORY AND NOT IN oxy-infra, WHERE IT BELONGS.
+# The OxyHQ org is on the GitHub Free plan, where an organisation Actions
+# secret cannot reach a PRIVATE repository — it arrives as an empty string
+# with no error. oxy-infra is private, so the identical workflow there read
+# CLOUDFLARE_API_TOKEN as "" and exited. Measured, not assumed: the run failed
+# on `CLOUDFLARE_API_TOKEN is empty` while `gh secret list --org OxyHQ` shows
+# the secret present with visibility ALL. Both local token files are dead
+# (documented 2026-08-08, both answer 9109), so the org secret is the only
+# working credential and a public repository is the only place it resolves.
+#
+# Move this back to oxy-infra the day that repo can read the secret — either a
+# paid plan or a repository-level copy of the token.
+#
+# Two records, and they are not the same kind of thing:
+#
+#   - the ACM validation CNAME, which MUST be DNS-only. Cloudflare's proxy
+#     answers with its own addresses, so a proxied validation record breaks
+#     issuance outright. This is the same reason the Allo Matrix workflow
+#     states beside its four.
+#   - `relay.oxy.so` itself, pointing at Relay's OWN load balancer — not the
+#     shared one. Relay has a dedicated ALB because its listener carries only
+#     its certificate and its idle timeout is chosen for streaming.
+#
+# `check` reads and writes nothing, and is also how you find out whether the
+# token can edit this zone at all: CLOUDFLARE_API_TOKEN is shared with the
+# Pages deployments and may be scoped to them.
+name: Cloudflare DNS (Relay)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'check reads only. apply creates the missing records.'
+        type: choice
+        options: [check, apply]
+        default: check
+        required: true
+      validation_name:
+        description: 'ACM validation CNAME name (from describe-certificate).'
+        type: string
+        required: false
+      validation_value:
+        description: 'ACM validation CNAME value.'
+        type: string
+        required: false
+      alb_dns:
+        description: "Relay ALB DNS name. Empty skips the relay.oxy.so record."
+        type: string
+        required: false
+
+jobs:
+  dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACTION: ${{ inputs.action }}
+          VAL_NAME: ${{ inputs.validation_name }}
+          VAL_VALUE: ${{ inputs.validation_value }}
+          ALB_DNS: ${{ inputs.alb_dns }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request, urllib.error
+
+          # A secret pasted with a trailing newline produces code 6111, which
+          # reads like a scope problem and is not one.
+          TOKEN = os.environ["CF_TOKEN"].strip()
+          if not TOKEN:
+              sys.exit("CLOUDFLARE_API_TOKEN is empty")
+          print(f"token: {len(TOKEN)} chars, starts {TOKEN[:4]!r}")
+          APPLY = os.environ["ACTION"] == "apply"
+          ZONE_NAME = "oxy.so"
+
+          def call(method, path, body=None):
+              req = urllib.request.Request(
+                  f"https://api.cloudflare.com/client/v4{path}",
+                  method=method,
+                  data=json.dumps(body).encode() if body else None,
+                  headers={"Authorization": f"Bearer {TOKEN}",
+                           "Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as e:
+                  return json.load(e)
+
+          z = call("GET", f"/zones?name={ZONE_NAME}")
+          if not z.get("success") or not z["result"]:
+              sys.exit(f"cannot read zone {ZONE_NAME}: {z.get('errors')}")
+          zid = z["result"][0]["id"]
+          print(f"zone {ZONE_NAME} -> {zid}")
+
+          wanted = []
+          if os.environ.get("VAL_NAME") and os.environ.get("VAL_VALUE"):
+              wanted.append((os.environ["VAL_NAME"].rstrip("."),
+                             os.environ["VAL_VALUE"].rstrip("."), False))
+          if os.environ.get("ALB_DNS"):
+              # PROXIED, deliberately, and this is the one record here that is.
+              #
+              # Relay verifies an Ed25519 signature only AFTER reading the whole
+              # body — up to 16 MiB — so by the time it can refuse, it has
+              # already paid the memory and the bandwidth. A rate limit inside
+              # Relay arrives too late by construction, which makes Cloudflare
+              # the only place one can work at all. DNS-only here resolves fine,
+              # terminates TLS at the ALB and looks entirely correct while
+              # silently having no rate limit, no DDoS absorption and a public
+              # ALB hostname.
+              #
+              # The cost is real and was accepted with its trigger written down:
+              # the proxy abandons a request whose origin has not responded in
+              # 125s below Enterprise. Relay serves Cerebras, which sells fast
+              # inference, so that ceiling does not bite today. BEFORE ADDING A
+              # PROVIDER WITH A LONG TIME-TO-FIRST-TOKEN THIS IS DECIDED AGAIN.
+              #
+              # Requires the zone's SSL mode to be Full (strict): the ALB holds
+              # a real certificate for this name, and Flexible would re-originate
+              # in the clear.
+              wanted.append(("relay.oxy.so", os.environ["ALB_DNS"].rstrip("."), True))
+          if not wanted:
+              sys.exit("nothing to do: pass validation_name+validation_value and/or alb_dns")
+
+          failed = False
+          for name, value, proxied in wanted:
+              got = call("GET", f"/zones/{zid}/dns_records?name={name}")
+              existing = got.get("result") or []
+              if existing:
+                  cur = existing[0]
+                  if cur["content"].rstrip(".") == value:
+                      print(f"OK      {name} already correct")
+                  else:
+                      # Refuse rather than overwrite: a record whose value
+                      # disagrees is someone else's decision, not drift.
+                      print(f"CONFLICT {name} is {cur['content']!r}, wanted {value!r} — NOT touched")
+                      failed = True
+                  continue
+              if not APPLY:
+                  print(f"MISSING {name} -> {value} (check only)")
+                  continue
+              res = call("POST", f"/zones/{zid}/dns_records",
+                         {"type": "CNAME", "name": name, "content": value,
+                          "ttl": 120, "proxied": proxied})
+              if res.get("success"):
+                  print(f"CREATED {name} -> {value}")
+              else:
+                  print(f"FAILED  {name}: {res.get('errors')}")
+                  failed = True
+
+          # Read every record back, so a silent no-op cannot pass as success.
+          print("--- read-back ---")
+          for name, value, _ in wanted:
+              got = call("GET", f"/zones/{zid}/dns_records?name={name}")
+              rows = got.get("result") or []
+              print(f"{name}: {[r['content'] for r in rows] or 'ABSENT'}")
+              if APPLY and not rows:
+                  failed = True
+
+          sys.exit(1 if failed else 0)
+          PY
