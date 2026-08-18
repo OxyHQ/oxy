@@ -986,6 +986,85 @@
         ]
       }
     },
+    "/accounts/{id}/billing/audit": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "`GET /accounts/:id/billing/audit` — what changed about this account's money.",
+        "description": "The customer-facing projection of `billing_ledger_entries`, newest first,\ncursor-paginated: top-ups, promotional grants, reversals of settled charges\nand invoice payments. Things the customer did, or that were done to them.\n\nThe other five entry kinds are withheld, and the internal chart of accounts,\nthe postings' amounts and the id of the staff member behind a grant are never\nprojected at all — `services/accountBillingAudit.service.ts` argues each of\nthose decisions where it is implemented.\n\n## `billing:read`, and only that\n\nOne source, one permission — unlike `/:id/audit`, which spans two separately\ngated tables and therefore demands both. `billing:read` is the permission the\nrest of this API already uses for every money read (`utils/accountRoles.ts`),\nand it is deliberately narrower than `account:read`: `account:read` is\nbaseline for every role, so gating on it would hand a `viewer` the account's\nfunding history.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/accounts/{id}/children": {
       "get": {
         "tags": [

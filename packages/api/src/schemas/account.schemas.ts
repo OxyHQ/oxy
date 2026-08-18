@@ -220,3 +220,27 @@ export const accountAuditQuerySchema = z
     cursor: z.string().min(1).optional(),
   })
   .strict();
+
+/**
+ * `GET /accounts/:id/billing/audit` — the customer-facing ledger trail's query.
+ *
+ * Same shape and the same self-parsing requirement as
+ * {@link accountAuditQuerySchema}, and deliberately a SEPARATE schema rather
+ * than a reuse of it: the two endpoints read different tables with different row
+ * volumes, and sharing one object would make a page-size change on either of
+ * them a silent change to the other.
+ *
+ * The bounds restate `BILLING_AUDIT_MAX_LIMIT` and `BILLING_AUDIT_DEFAULT_LIMIT`
+ * from `services/accountBillingAudit.service.ts` — importing a service into a
+ * schema module would invert this package's layering, so
+ * `__tests__/account.schemas.test.ts` asserts the two agree instead. Without
+ * that assertion the schema could admit a limit the service silently clamps,
+ * which is a page size that is not the one the caller asked for and says so
+ * nowhere.
+ */
+export const accountBillingAuditQuerySchema = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    cursor: z.string().min(1).optional(),
+  })
+  .strict();
