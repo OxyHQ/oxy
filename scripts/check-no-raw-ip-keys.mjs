@@ -77,9 +77,10 @@
  * Every `packages/<pkg>/src` that exists, discovered by reading `packages/`. Not
  * a hand-written list of the two packages that obviously have servers: written
  * that way, this gate would have missed
- * `packages/protocol/src/node/rateLimit.ts`, which keys a rate limiter on a raw
- * `req.ip` and is a real hit (see its entry below). A map a gate SKIPS what is
- * absent from is not a gate.
+ * `packages/protocol/src/node/rateLimit.ts`, which keyed a rate limiter on a raw
+ * `req.ip` and is a real hit (see its entry below — the raw key is now hashed,
+ * and the entry is what found it). A map a gate SKIPS what is absent from is not
+ * a gate.
  *
  * The residue, named: packages laid out without a `src/` — the Expo apps, whose
  * code is a client and has no `req` — and anything outside `packages/`. Verified
@@ -193,14 +194,17 @@ const ALLOWED_IP_SOURCES = [
     expression: 'req.ip',
     count: 1,
     why:
-      'A KNOWN GAP, listed rather than sanctioned. `createRateLimiter` (used by `nodeApp`, the '
-      + 'self-hosted / managed node server) keys its in-process window Map on a raw '
-      + '`req.ip ?? \'unknown\'`, with no hasher. In memory with a window TTL rather than in a '
-      + 'store, so it is the mildest form of the problem — but it is the form, and a heap dump '
-      + 'is a surface. Closing it means adding a hasher to a PUBLISHED package and deciding '
-      + 'which salt a node operator supplies, which is a change with a republish and a config '
-      + 'dimension rather than a line edit. It is written down here so it cannot be lost, and '
-      + 'this entry is what a future fix deletes.',
+      "protocol's own hasher, and the one line that reads an address to feed it. "
+      + '`clientRateLimitKey` HMACs it under a per-process salt drawn from `randomBytes(32)` at '
+      + 'module load, so `createRateLimiter` (used by `nodeApp`, the self-hosted / managed node '
+      + 'server) keys its in-process window Map on a digest rather than on the address. This '
+      + 'entry used to read A KNOWN GAP: the Map was keyed on a raw `req.ip ?? \'unknown\'` with '
+      + 'no hasher — in memory with a window TTL rather than in a store, the mildest form of the '
+      + 'problem but the form nonetheless. It stayed open because closing it meant touching a '
+      + 'PUBLISHED package and deciding which salt a node operator supplies; the answer was that '
+      + 'a node operator supplies none, because a process-local window needs no key that outlives '
+      + 'the process. The entry survives the fix rather than being deleted by it — a hasher still '
+      + 'has to read the address it hashes, exactly as `utils/ipKey.ts` does above.',
   },
 ];
 
@@ -337,10 +341,20 @@ for (const file of files) {
       }
     }
 
+    // Both spellings. A limiter that spreads a helper returning its generator —
+    // `...userScopedKeying(scope)` in `packages/api/src/routes/nodes.ts`, whose
+    // point is that the `keyGenerator` and its paired `skip` are built together —
+    // writes the property SHORTHAND, which is a different AST node. Measured on
+    // this tree: three limiters moved to that helper, the long-form count dropped
+    // by three and the shorthand the helper introduced counted for none of them.
+    // The floor still had headroom, which is exactly why this is worth fixing now
+    // — a census that cannot see the spelling the tree is moving toward drifts
+    // toward its own limit while the code looks unchanged.
     if (
-      ts.isPropertyAssignment(node)
-      && (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name))
-      && node.name.text === 'keyGenerator'
+      (ts.isPropertyAssignment(node)
+        && (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name))
+        && node.name.text === 'keyGenerator')
+      || (ts.isShorthandPropertyAssignment(node) && node.name.text === 'keyGenerator')
     ) {
       keyGenerators += 1;
     }

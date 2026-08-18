@@ -8,8 +8,10 @@
  * pin CPU on crypto. It is intentionally process-local (a single node serves one
  * owner's repo); there is no shared store to coordinate.
  *
- * Fixed-window counting keyed on `req.ip`: each key gets `max` requests per
- * `windowMs`; the window resets lazily on the first request after it elapses.
+ * Fixed-window counting, one budget per client: each key gets `max` requests per
+ * `windowMs`, and the window resets lazily on the first request after it elapses.
+ * The key is a SALTED HASH of the client address, never the address itself — see
+ * {@link clientRateLimitKey}.
  *
  * Bounded memory (defence against a key-rotation DoS — spoofed IPs / many DIDs
  * growing the map without limit → memory exhaustion):
@@ -23,6 +25,7 @@
  *    backstop against a burst that arrives between sweeps.
  */
 
+import { createHmac, randomBytes } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 
 // The package's `lib` includes `DOM` (the isomorphic root code uses Web Crypto),
@@ -39,6 +42,76 @@ function nodeSetInterval(handler: () => void, ms: number): NodeJS.Timeout {
 function nodeClearInterval(timer: NodeJS.Timeout): void {
   const clear: (timer: NodeJS.Timeout) => void = globalThis.clearInterval;
   clear(timer);
+}
+
+/**
+ * The HMAC key under which client addresses are hashed into rate-limit keys.
+ * 256 CSPRNG bits, minted once when this module is first loaded and held only in
+ * memory — never read from a config, never written anywhere, never sent.
+ *
+ * ## Why the salt is deliberately EPHEMERAL, and what a stable one would cost
+ *
+ * A rate-limit window is short-lived (`windowMs`, seconds to a minute) and this
+ * limiter is process-local by design — a node serves one owner's repo and there
+ * is no shared store to coordinate. So nothing here needs a key to mean the same
+ * thing after a restart, or to mean the same thing on another node. That makes a
+ * per-process salt not merely sufficient but BETTER than a configured one:
+ *
+ *   - there is no value to distribute, so there is nothing for a node operator to
+ *     get wrong, nothing to rotate, and nothing to leak from an env file, a
+ *     process listing or a container image;
+ *   - the mapping dies with the process, so the same address hashes to a
+ *     different key after every restart and the keys correlate to nothing once
+ *     the process exits.
+ *
+ * A stable salt (an env var, a file) would buy exactly one thing this limiter
+ * does not want — a client identifier that survives a restart and can be compared
+ * across nodes — in exchange for a config burden and a secret at rest. That is
+ * the trade, and it is why this is not configurable.
+ *
+ * ## What the hash does and does not buy, stated honestly
+ *
+ * It removes the raw address from the process's data structures: the limiter's
+ * Map holds digests, so an address is no longer sitting in memory as a key for
+ * the lifetime of a window, and nothing downstream can casually read one back
+ * out. What it does NOT claim is secrecy against an attacker who already has the
+ * live process — the salt is in the same heap, and with it the IPv4 space is
+ * enumerable. That is the general reason hashing is not an acceptable AT-REST
+ * form for an address anywhere in Oxy; this value is never at rest.
+ */
+const CLIENT_KEY_SALT = randomBytes(32);
+
+/**
+ * The rate-limit key for a request: a salted hash of the client address, or the
+ * `'unknown'` sentinel when Express resolved no address at all (a request whose
+ * address is unknown cannot be budgeted individually, so all of them share one
+ * bucket — the same behaviour this limiter has always had).
+ *
+ * Truncated to 96 bits, which keeps a tracked entry to a short string beside its
+ * two numbers (the memory-bounding rationale on {@link RateLimitConfig.maxEntries}
+ * assumes exactly that). At the 10 000-entry cap a collision — two clients
+ * sharing one budget — has probability around 10⁸/2⁹⁷, i.e. never.
+ *
+ * Residue, named rather than left implicit: the address is hashed VERBATIM, so an
+ * IPv6 client that rotates through its /64 still mints a fresh key per address,
+ * exactly as it did before this was hashed. oxy-api's `hashedIpKey` buckets IPv6
+ * to /56 first to close that; doing the same here is a rate-limiting change with
+ * its own reasoning (it makes a whole prefix share one budget) and is deliberately
+ * not folded into a privacy fix.
+ *
+ * Exported for {@link createRateLimiter}'s own tests, not part of
+ * `@oxyhq/protocol/node`'s public surface — it is not re-exported by the barrel.
+ */
+export function clientRateLimitKey(req: Request): string {
+  const ip = req.ip;
+  if (!ip) {
+    return 'unknown';
+  }
+  // Single-purpose salt: it derives this key and nothing else, so there is no
+  // second derivation to namespace against (oxy-api's `hashedIpKey` prefixes
+  // `rl|` because its salt is shared with deviceId derivation). A future second
+  // use of this salt would need a namespace, or its own salt.
+  return createHmac('sha256', CLIENT_KEY_SALT).update(ip).digest('hex').slice(0, 24);
 }
 
 /** A request-rate budget: at most `max` requests per `windowMs`. */
@@ -89,9 +162,10 @@ export interface RateLimiter {
 }
 
 /**
- * Build an Express middleware enforcing a fixed-window per-IP rate limit.
+ * Build an Express middleware enforcing a fixed-window per-client rate limit.
  * Exceeding the budget responds `429 { error: 'rate_limited' }` and does not call
- * `next`. The `key` is `req.ip` (Express's resolved client IP).
+ * `next`. The key is {@link clientRateLimitKey} — a salted hash of Express's
+ * resolved client IP, so no address is held in the tracked map.
  *
  * The returned middleware owns a background sweep timer; call {@link RateLimiter.stop}
  * to release it (e.g. on app shutdown).
@@ -120,7 +194,7 @@ export function createRateLimiter(config: RateLimitConfig): RateLimiter {
 
   function rateLimit(req: Request, res: Response, next: NextFunction): void {
     const now = Date.now();
-    const key = req.ip ?? 'unknown';
+    const key = clientRateLimitKey(req);
     const counter = windows.get(key);
 
     if (!counter || now - counter.start >= config.windowMs) {

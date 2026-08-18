@@ -9,11 +9,14 @@
  *    map past `maxEntries`,
  *  - the active sweep: expired windows are reclaimed on the timer even when their
  *    keys are never touched again,
- *  - `stop()` clears the sweep timer.
+ *  - `stop()` clears the sweep timer,
+ *  - the tracked key is a salted hash of the client address rather than the
+ *    address itself, on an ephemeral per-process salt — and the limiter actually
+ *    goes through that hasher.
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { createRateLimiter, type RateLimiter } from '../node/rateLimit';
+import { clientRateLimitKey, createRateLimiter, type RateLimiter } from '../node/rateLimit';
 
 /** A minimal `Response` double capturing the status/headers/body the limiter sets. */
 interface ResponseSpy {
@@ -43,8 +46,12 @@ function makeResponseSpy(): ResponseSpy {
   return spy;
 }
 
-/** Drive one request through the limiter for `ip`; returns whether `next()` ran. */
-function call(limiter: RateLimiter, ip: string): { passed: boolean; response: ResponseSpy } {
+/**
+ * Drive one request through the limiter for `ip`; returns whether `next()` ran.
+ * `ip` is optional so a request Express resolved no address for — the sentinel
+ * path — can be driven through the same helper.
+ */
+function call(limiter: RateLimiter, ip?: string): { passed: boolean; response: ResponseSpy } {
   const req = { ip } as Request;
   const response = makeResponseSpy();
   let passed = false;
@@ -149,6 +156,95 @@ describe('createRateLimiter', () => {
     } finally {
       limiter.stop();
     }
+  });
+
+  /**
+   * The limiter's Map used to be keyed on `req.ip ?? 'unknown'` — a raw client
+   * address, in memory, for the life of a window. Oxy persists no user IP in any
+   * form and the invariant has no in-memory exemption, so the key is now a salted
+   * hash. These cases are what makes that statement checkable rather than a
+   * comment: reverting the key to the address turns the first of them red.
+   */
+  describe('the tracked key is a salted hash of the address, never the address', () => {
+    const ADDRESS = '203.0.113.7';
+
+    it('never yields the address itself', () => {
+      const key = clientRateLimitKey({ ip: ADDRESS } as Request);
+
+      expect(key).not.toBe(ADDRESS);
+      // A hex digest cannot contain a dotted quad or a colonned v6 literal, so
+      // this holds for any salt rather than for the one this process happened to
+      // draw. (A digest CAN contain '203' — hence the whole literal, not a piece.)
+      expect(key).not.toContain(ADDRESS);
+      expect(clientRateLimitKey({ ip: '2001:db8::1' } as Request)).not.toContain('2001:db8::1');
+      expect(key).toMatch(/^[0-9a-f]{24}$/);
+    });
+
+    it('is stable for one address and distinct across addresses', () => {
+      // The CONTROL for the ephemerality case below: a key that changed per call
+      // would satisfy "a different key after a reload" while making the limiter
+      // count nothing, and a key that collapsed every address into one constant
+      // would satisfy "not the address" while budgeting the whole internet as one
+      // client.
+      expect(clientRateLimitKey({ ip: ADDRESS } as Request)).toBe(
+        clientRateLimitKey({ ip: ADDRESS } as Request),
+      );
+      expect(clientRateLimitKey({ ip: '203.0.113.8' } as Request)).not.toBe(
+        clientRateLimitKey({ ip: ADDRESS } as Request),
+      );
+    });
+
+    it('draws a fresh salt per process, so the same address hashes differently after a restart', async () => {
+      const before = clientRateLimitKey({ ip: ADDRESS } as Request);
+
+      // A fresh module registry re-runs module initialisation, which is where the
+      // salt is minted — the closest thing in-process to a restarted node. A
+      // hard-coded or configured salt passes every other case in this block and
+      // fails here, which is the point: the salt is deliberately ephemeral, so
+      // nothing correlates a key across processes. `isolateModulesAsync` rather
+      // than a bare `resetModules`, so the isolation ends with this case and no
+      // later test in the file inherits a reset registry.
+      let afterRestart = '';
+      let stableAfterRestart = false;
+      await jest.isolateModulesAsync(async () => {
+        const reloaded = await import('../node/rateLimit');
+        afterRestart = reloaded.clientRateLimitKey({ ip: ADDRESS } as Request);
+        stableAfterRestart = reloaded.clientRateLimitKey({ ip: ADDRESS } as Request) === afterRestart;
+      });
+
+      expect(afterRestart).not.toBe(before);
+      // The reloaded instance is internally consistent too — a key that simply
+      // changed on every call would satisfy the line above while counting nothing.
+      expect(stableAfterRestart).toBe(true);
+    });
+
+    it('answers the `unknown` sentinel when Express resolved no address', () => {
+      expect(clientRateLimitKey({} as Request)).toBe('unknown');
+    });
+
+    it('is what the LIMITER keys on, not merely available beside it', () => {
+      // A hasher can be correct, exported, fully tested and never called — the
+      // revert this guards against is one line in the middleware body. So: drive a
+      // real request through the real limiter and require that the hash happened.
+      const crypto = require('node:crypto') as typeof import('node:crypto');
+      const hmac = jest.spyOn(crypto, 'createHmac');
+      const limiter = createRateLimiter({ windowMs: 60_000, max: 5 });
+
+      try {
+        expect(call(limiter, '198.51.100.4').passed).toBe(true);
+        expect(hmac).toHaveBeenCalledTimes(1);
+
+        // CONTROL: the sentinel path hashes NOTHING, so the count above is this
+        // limiter's own work rather than a spy that reports a call no matter what
+        // the request was.
+        hmac.mockClear();
+        expect(call(limiter).passed).toBe(true);
+        expect(hmac).not.toHaveBeenCalled();
+      } finally {
+        limiter.stop();
+        hmac.mockRestore();
+      }
+    });
   });
 
   it('stop() halts the sweep timer and is idempotent', () => {
