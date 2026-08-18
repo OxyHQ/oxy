@@ -871,8 +871,22 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       // all (`reserve` carries exactly one currency). The request is served on
       // the primary either way — an authorization list that is shorter can only
       // reduce what may be served.
-      if (alternateQuote.status !== 'quoted') continue;
-      if (alternateQuote.currency !== quote.currency) continue;
+      //
+      // Logged, and not silently: a warning is what makes an Oxy pricing gap
+      // discoverable, because a list that is short because a price is missing
+      // and a list that is short because the catalogue holds one deployment
+      // look identical from outside. Ids only — never a quantity a prompt could
+      // be reconstructed from.
+      if (alternateQuote.status !== 'quoted' || alternateQuote.currency !== quote.currency) {
+        logger.warn('inference.edge.unauthorizable_alternate', {
+          requestId,
+          deploymentId: alternate.deploymentId,
+          priceVersionId: alternate.priceVersionId,
+          reason:
+            alternateQuote.status === 'quoted' ? 'currency_mismatch' : alternateQuote.status,
+        });
+        continue;
+      }
 
       authorizedRoutes.push(alternate);
       if (exceedsAmount(alternateQuote.amount, maxAmount)) {

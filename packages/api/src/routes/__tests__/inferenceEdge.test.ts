@@ -2358,6 +2358,18 @@ describe('the envelope’s authorized routes', () => {
 
     expect(routes).toHaveLength(1);
     expect(routes?.map((route) => route.deploymentId)).not.toContain(foreign.deploymentId);
+
+    // And it is not dropped SILENTLY. A list that is short because a price is
+    // missing and a list that is short because the catalogue holds one
+    // deployment look identical from outside, so the gap has to be logged for
+    // anyone to find it.
+    expect(mockedLogger.warn).toHaveBeenCalledWith(
+      'inference.edge.unauthorizable_alternate',
+      expect.objectContaining({
+        deploymentId: foreign.deploymentId,
+        reason: 'currency_mismatch',
+      })
+    );
   });
 });
 
