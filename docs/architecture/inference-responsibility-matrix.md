@@ -516,10 +516,21 @@ destinations, so `resolveEdgeRoute` computed the ordered survivor set
 `authorizedRoutes` — the survivors, in preference order, each naming a deployment,
 a revision-pinned model, a provider and its regions, with cross-model
 substitution expressible only through an entry carrying
-`authorizedByPolicy: true`. **The field is OPTIONAL and the edge does not populate
-it yet**, so the two fallback rows below are `contract only`: absent means no
-failover is authorized, which is the behaviour the data plane already has. The
-populating change is a follow-up in `inferenceEdge.service.ts`.
+`authorizedByPolicy: true`.
+
+**Re-verified 2026-08-18.** The field is OPTIONAL and `inferenceEdge.service.ts`
+now POPULATES it, for the `same_model` half. `resolveEdgeRoute` returns
+`permitted.kept[0]` as the route and the rest as `alternates`; `buildEnvelope`
+sends `[primary, ...alternates]` as `authorizedRoutes` when the customer's
+`fallback` controls authorize failover among them, and `[primary]` alone when they
+do not — always as an explicit list, never by omitting the field, so absence keeps
+exactly one meaning (an envelope built before ADR 0017). Two consequences worth
+reading as rows in their own right: `fallback.sameModelDeployment` acquired its
+FIRST enforcement point here (`recordRouteSwitch` reads only `fallbackDisabled`
+for a deployment-scope switch), and the hold is now sized at the dearest
+AUTHORIZED route rather than at the admitted one, which is what makes ADR 0017's
+"no failover among them can exceed the hold" true of the code. The `cross_model`
+half is still unpopulated.
 
 Every control of `routingPolicySchema` is either enforced by
 `violatedConstraints` or named with its reason in `UNFILTERED_ROUTING_CONTROLS`;
@@ -538,9 +549,9 @@ the contract.
 | Oxy-hosted-only option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Licence / usage-right constraints | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts` | exists |
 | Fallback-disabled option | Oxy (policy + enforcement) | OxyHQServices `packages/api/src/services/inferenceRoutingPolicy.service.ts` | exists |
-| The ordered list of PRE-AUTHORIZED ROUTES the envelope carries — the candidates that survived the policy, in preference order (ADR 0017) | Oxy (authorization), Relay (execution: take the next entry) | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`authorizedRouteSchema`) + `request.ts` | contract only — the shape exists and is OPTIONAL; `inferenceEdge.service.ts` does not populate it yet, and absent means no failover is authorized |
-| Same-model deployment fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | contract only — expressible as a `same_model` entry since ADR 0017; unpopulated, so still no failover in practice |
-| Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | contract only — expressible ONLY as a `cross_model` entry carrying `authorizedByPolicy: true`, and never for a request that pinned a revision; unpopulated |
+| The ordered list of PRE-AUTHORIZED ROUTES the envelope carries — the candidates that survived the policy, in preference order (ADR 0017) | Oxy (authorization), Relay (execution: take the next entry) | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`authorizedRouteSchema`) + `request.ts` + `packages/api/src/services/inferenceCatalogue.service.ts` (`EdgeRouteResolution.alternates`) + `inferenceEdge.service.ts` (`buildEnvelope`) | exists on Oxy's side for `same_model`, verified 2026-08-18 — every envelope carries an explicit non-empty list, driven against a real Postgres by `routes/__tests__/inferenceEdge.test.ts`. Relay's half (take the next entry) is `unverified`: it is not deployed and cannot honour the list yet, so the mechanism is DARK rather than absent |
+| Same-model deployment fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices `packages/api/src/services/inferenceEdge.service.ts` + OxyHQ/Relay | exists on Oxy's side — a policy permitting it puts every other surviving deployment in `authorizedRoutes` as a `same_model` entry, and one refusing it puts none there. This is the control's FIRST enforcement point: `recordRouteSwitch` reads only `fallbackDisabled` for a deployment-scope switch, so `sameModelDeployment: false` was enforced nowhere before. An application on the platform default authorizes none, because there is no policy version a switch could be recorded against (`PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER`) |
+| Explicitly authorized cross-model fallback option | Oxy (policy + authorization), Relay (execution) | OxyHQServices + OxyHQ/Relay | contract only — expressible ONLY as a `cross_model` entry carrying `authorizedByPolicy: true`, and never for a request that pinned a revision; the edge emits no such entry, so no envelope it builds can express a cross-model substitution. Populating it needs each `inference_routing_policy_fallbacks` destination resolved to concrete deployments and re-filtered |
 | Dedicated endpoint / capacity for enterprise accounts | Oxy (entitlement + candidate filter), Relay (capacity) | OxyHQServices `packages/api/src/services/inferenceCatalogue.service.ts:254,347,369` + OxyHQ/Relay | exists — `dedicated_capacity` is a real candidate FILTER, not merely a stored preference. The capacity itself is Relay's and is `unverified` from here |
 | Routing-policy versioning; the request envelope and the receipt record a REFERENCE to the exact policy revision used, as provenance rather than as instructions | Oxy | OxyHQServices `packages/contracts/src/inference/routingPolicy.ts` (`routingPolicyReferenceSchema`) + `packages/api/src/db/schema/inferenceRoutingPolicyVersions.ts` + `usageReceipts.ts:181` (`routing_policy_version_id`) | exists |
 | Customer-visible route-switch event/receipt | Oxy (emission to customer), Relay (source) | OxyHQServices `packages/api/src/db/schema/inferenceRouteSwitchEvents.ts` + `services/inferenceEdge.service.ts:157,1042` + OxyHQ/Relay | partial — the event is RECORDED: the table exists and the edge writes it. No customer-visible surface renders it yet, and the switch itself is the data plane's to report |

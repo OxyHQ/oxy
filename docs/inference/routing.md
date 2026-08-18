@@ -136,9 +136,21 @@ Three rules hold above the configuration:
    model-scope switch, and the server LOOKS THE AUTHORISATION UP against the
    policy version's own authorisation rows rather than accepting the producer's
    claim — a claim a caller makes about its own permission is not a permission
-   check. That is where `fallback` is enforced: it governs a SWITCH between
-   routes rather than the qualification of one, so it is not a predicate over a
-   single candidate and does not appear in the filter below.
+   check.
+
+`fallback` governs a SWITCH between routes rather than the qualification of one,
+so it is not a predicate over a single candidate and does not appear in the
+filter below. It is enforced in two places instead:
+
+- **Before the request is forwarded.** The request Oxy sends its data plane
+  enumerates the routes it is authorized to be served on, in preference order — a
+  destination that is not in that list cannot be failed over to, whatever the data
+  plane decides. `fallback.sameModelDeployment` is what puts the other
+  deployments of your model in it; `fallback.disabled` is what leaves it holding
+  only the route your request was admitted on. **An application with no routing
+  policy at all authorizes no failover**, because there is no policy version a
+  switch could be recorded against.
+- **When the switch is recorded**, as rule 3 describes.
 
 ---
 
@@ -166,6 +178,11 @@ This is the part to read twice.
   supplied — which is exactly how the data-handling controls came to be stored,
   versioned and never read.
 - **Write-time validation**, as listed above.
+- **`fallback.disabled` and `fallback.sameModelDeployment`**, by deciding which
+  routes the forwarded request authorizes — see "Fallback: two features, two
+  switches" above. A hold is sized against the most expensive route in that list,
+  so failing over to a dearer deployment can never cost more than the request was
+  admitted for.
 - **A routing-profile target is refused** at the edge, with `no_route_available`
   and `param: routingProfile`. Choosing among a profile's candidates is routing
   EXECUTION, which belongs to the data plane; the control plane picking one

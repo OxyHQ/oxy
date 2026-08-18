@@ -171,6 +171,10 @@ interface Fixture {
   readonly modelId: string;
   readonly priceVersionId: string;
   readonly provider: string;
+  /** The one deployment `makeFixture` publishes. See {@link addDeployment}. */
+  readonly deploymentId: string;
+  /** For {@link addDeployment}: a second route serves the SAME weights. */
+  readonly revisionId: string;
 }
 
 const suffix = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
@@ -291,23 +295,26 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     { priceVersionId: priceVersion.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
   ]);
 
-  await db.insert(inferenceDeployments).values({
-    modelRevisionId: revisionRow.id,
-    providerSlug,
-    regions: ['us-west-2'],
-    retainsPayloads: options.retainsAndTrains === true,
-    retentionDays: options.retainsAndTrains === true ? 30 : 0,
-    trainsOnCustomerData: options.retainsAndTrains === true,
-    zeroDataRetentionAvailable: options.retainsAndTrains !== true,
-    availabilityScope: 'public_payg',
-    commercialPermission: 'public_resale_approved',
-    status: 'active',
-    legalReviewStatus: 'approved',
-    legalReviewedAt: new Date(),
-    legalReviewEvidenceRef: `contract-register/${tag}`,
-    permissionState: 'approved',
-    ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
-  });
+  const [deployment] = await db
+    .insert(inferenceDeployments)
+    .values({
+      modelRevisionId: revisionRow.id,
+      providerSlug,
+      regions: ['us-west-2'],
+      retainsPayloads: options.retainsAndTrains === true,
+      retentionDays: options.retainsAndTrains === true ? 30 : 0,
+      trainsOnCustomerData: options.retainsAndTrains === true,
+      zeroDataRetentionAvailable: options.retainsAndTrains !== true,
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+      status: 'active',
+      legalReviewStatus: 'approved',
+      legalReviewedAt: new Date(),
+      legalReviewEvidenceRef: `contract-register/${tag}`,
+      permissionState: 'approved',
+      ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
+    })
+    .returning({ id: inferenceDeployments.id });
 
   await provisionBillingProfile({ accountId: account.id });
   if (options.fund !== undefined) {
@@ -330,7 +337,97 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     modelId: model.modelId ?? '',
     priceVersionId: priceVersion.id,
     provider: providerSlug,
+    deploymentId: deployment.id,
+    revisionId: revisionRow.id,
   };
+}
+
+/**
+ * A SECOND deployment of the fixture's model — the same weights, another
+ * provider.
+ *
+ * What makes an `authorizedRoutes` list testable at all: with one deployment the
+ * list can only ever hold one entry, so every assertion about failover
+ * destinations would pass against an edge that computes none.
+ *
+ * `rank` decides the provider slug's first character and therefore the ORDER,
+ * because candidates are ordered by provider slug and that order IS preference
+ * order. A test that wants this route to be the failover destination passes a
+ * rank that sorts after the primary's.
+ */
+async function addDeployment(
+  fixture: Fixture,
+  options: {
+    readonly rank: string;
+    /** Per-million output-token price. The primary's is `15`. */
+    readonly outputPricePerMillion?: string;
+    readonly currency?: string;
+    readonly trainsOnCustomerData?: boolean;
+    readonly regions?: string[];
+  }
+): Promise<{ providerSlug: string; deploymentId: string; priceVersionId: string }> {
+  const db = getDb();
+  const tag = suffix();
+  const providerSlug = `${options.rank}prv${tag}`;
+
+  await db.insert(inferenceProviders).values({
+    slug: providerSlug,
+    displayName: `Provider ${tag}`,
+    kind: 'third_party',
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+  });
+
+  const [priceVersion] = await db
+    .insert(priceVersions)
+    .values({
+      modelReference: `${fixture.modelReference}@2026-01-01`,
+      provider: providerSlug,
+      status: 'active',
+      currency: options.currency ?? 'USD',
+      effectiveFrom: new Date(Date.now() - 60_000),
+    })
+    .returning({ id: priceVersions.id });
+
+  await db.insert(priceVersionUnitPrices).values([
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'input_tokens',
+      amount: '3.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'output_tokens',
+      amount: options.outputPricePerMillion ?? '15.000000000000',
+      per: 1_000_000,
+    },
+  ]);
+
+  const [deployment] = await db
+    .insert(inferenceDeployments)
+    .values({
+      modelRevisionId: fixture.revisionId,
+      providerSlug,
+      regions: options.regions ?? ['eu-central-1'],
+      retainsPayloads: options.trainsOnCustomerData === true,
+      retentionDays: options.trainsOnCustomerData === true ? 30 : 0,
+      trainsOnCustomerData: options.trainsOnCustomerData === true,
+      zeroDataRetentionAvailable: options.trainsOnCustomerData !== true,
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+      status: 'active',
+      legalReviewStatus: 'approved',
+      legalReviewedAt: new Date(),
+      legalReviewEvidenceRef: `contract-register/${tag}`,
+      permissionState: 'approved',
+      priceVersionId: priceVersion.id,
+    })
+    .returning({ id: inferenceDeployments.id });
+
+  return { providerSlug, deploymentId: deployment.id, priceVersionId: priceVersion.id };
 }
 
 async function balanceOf(accountId: string): Promise<{
@@ -2067,5 +2164,330 @@ describe('logging', () => {
     // by the same JSON.stringify pass, so a marker's absence is a real absence
     // and not an unreadable haystack.
     expect(serialized).toContain('inference.edge.refused');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The pre-authorized routes the envelope carries (ADR 0017)                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `authorizedRoutes` — the ordered set of routes Oxy has already authorized for
+ * one request, so the data plane can fail over by taking the next entry and needs
+ * no policy semantics of its own.
+ *
+ * ## The invariant these cases exist to keep falsifiable
+ *
+ * **An ABSENT list means NO failover is authorized — never "choose freely."** Oxy
+ * cannot test what a data plane does with an absent list; what it can test, and
+ * what every case below turns on, is that **this edge never uses ABSENCE to say
+ * anything.** A request whose policy authorizes no failover gets an explicit
+ * one-entry list naming the route it was admitted on, not an omitted field. So
+ * absence remains exactly one fact — "built by an Oxy that predates ADR 0017" —
+ * and is never a sentence a reader has to interpret. Delete the population and
+ * every case here goes red; make the edge omit the field when there is no
+ * failover, and the `toBeDefined()` cases go red on their own.
+ *
+ * ## Why every case plants a SECOND deployment
+ *
+ * With one deployment the list can only ever hold one entry, so an assertion that
+ * failover destinations are carried would pass against an edge that computes
+ * none. Every case here publishes two deployments of the SAME revision and turns
+ * exactly one control, so the difference between a one-entry and a two-entry list
+ * is the control and nothing else.
+ */
+describe('the envelope’s authorized routes', () => {
+  /** The `authorizedRoutes` of the one envelope a served request forwards. */
+  async function envelopeRoutesFor(
+    fixture: Fixture
+  ): Promise<InferenceRequest['authorizedRoutes']> {
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeRelay(
+        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(seen).toHaveLength(1);
+    return seen[0].authorizedRoutes;
+  }
+
+  /** A policy on the fixture's application, with exactly these controls. */
+  async function givenPolicy(
+    fixture: Fixture,
+    overrides: Partial<RoutingPolicyControls>
+  ): Promise<void> {
+    const created = await createRoutingPolicy({
+      target: {
+        kind: 'application',
+        accountId: fixture.accountId,
+        applicationId: fixture.applicationId,
+      },
+      controls: policyControls(overrides),
+      createdByUserId: fixture.accountId,
+    });
+    expect(created.status).toBe('written');
+  }
+
+  it('carries every surviving deployment, in preference order, when the policy permits same-model failover', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    // `z…` sorts after the fixture's `prov…`, so this is the FAILOVER
+    // destination and never the primary — the order is the assertion.
+    const failover = await addDeployment(fixture, { rank: 'z' });
+    await givenPolicy(fixture, {});
+
+    const routes = await envelopeRoutesFor(fixture);
+
+    expect(routes).toBeDefined();
+    expect(routes).toHaveLength(2);
+    expect(routes?.map((route) => route.deploymentId)).toEqual([
+      fixture.deploymentId,
+      failover.deploymentId,
+    ]);
+    expect(routes?.map((route) => route.provider)).toEqual([
+      fixture.provider,
+      failover.providerSlug,
+    ]);
+    // Every entry is same-model: this edge populates that half only, so a
+    // substitution across model lines is not a sentence its envelopes can say.
+    expect(routes?.map((route) => route.substitution)).toEqual(['same_model', 'same_model']);
+    // Revision-pinned and identical, because both routes serve the same weights —
+    // which is exactly why the deployment id above is what distinguishes them.
+    expect(routes?.map((route) => route.modelReference)).toEqual([
+      `${fixture.modelReference}@2026-01-01`,
+      `${fixture.modelReference}@2026-01-01`,
+    ]);
+    // Plural, and the deployment's own set: Oxy checked the WHOLE set against
+    // the customer's residency controls, so choosing among them cannot escape.
+    expect(routes?.map((route) => route.regions)).toEqual([['us-west-2'], ['eu-central-1']]);
+  });
+
+  it('states "no failover" as a one-entry list rather than by omitting the field', async () => {
+    // THE case. A policy that turned fallback off authorizes exactly the route
+    // the request was admitted on — and Oxy says so POSITIVELY. An omitted field
+    // would be Oxy relying on a reader to interpret absence the narrow way, and
+    // absence is precisely the state whose meaning ADR 0017 had to fix in prose
+    // because the wire cannot carry it.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const failover = await addDeployment(fixture, { rank: 'z' });
+    await givenPolicy(fixture, {
+      fallback: { disabled: true, sameModelDeployment: false, authorizedCrossModel: [] },
+    });
+
+    const routes = await envelopeRoutesFor(fixture);
+
+    expect(routes).toBeDefined();
+    expect(routes).toHaveLength(1);
+    expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
+    // The route exists, is servable and was deliberately not authorized — the
+    // case above serves it from the same fixture with one control changed.
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(failover.deploymentId);
+  });
+
+  it('does not authorize same-model failover the customer switched off', async () => {
+    // `fallback.sameModelDeployment: false` with fallback otherwise ENABLED. Until
+    // the envelope carried a list this control was enforced nowhere at all:
+    // the edge sent one route, and `recordRouteSwitch` reads only
+    // `fallbackDisabled` for a deployment-scope switch. Deleting the
+    // `sameModelDeployment` term from the edge's authorization test leaves the
+    // case above green and turns this one red.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const failover = await addDeployment(fixture, { rank: 'z' });
+    await givenPolicy(fixture, {
+      fallback: { disabled: false, sameModelDeployment: false, authorizedCrossModel: [] },
+    });
+
+    const routes = await envelopeRoutesFor(fixture);
+
+    expect(routes).toHaveLength(1);
+    expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(failover.deploymentId);
+  });
+
+  it('authorizes exactly the admitted route for an application with no policy at all', async () => {
+    // `PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER`. Nobody set
+    // `sameModelDeployment`, and a switch made under the platform default could
+    // not be recorded — `routing_policy_version_id` is NOT NULL and there is no
+    // version row — so the default authorizes nothing. Seeding a real
+    // platform-default policy version is what changes this, and this case is
+    // where that change becomes visible.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    await addDeployment(fixture, { rank: 'z' });
+
+    const routes = await envelopeRoutesFor(fixture);
+
+    expect(routes).toBeDefined();
+    expect(routes).toHaveLength(1);
+    expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
+  });
+
+  it('never authorizes a route the customer’s own policy excluded', async () => {
+    // The property the whole mechanism exists for: a failover destination that
+    // the policy refused would be a policy violation the customer never sees,
+    // because the switch happens after Oxy has answered. Same fallback setting as
+    // the two-entry case, one differing column on the second route.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const excluded = await addDeployment(fixture, { rank: 'z', trainsOnCustomerData: true });
+    await givenPolicy(fixture, { prohibitTrainingOnCustomerData: true });
+
+    const routes = await envelopeRoutesFor(fixture);
+
+    expect(routes).toHaveLength(1);
+    expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(excluded.deploymentId);
+  });
+
+  it('does not authorize a route quoted in another currency', async () => {
+    // One hold carries one currency, so a route quoted in another cannot be
+    // settled against it. Dropped rather than refused: narrowing an authorization
+    // list can only ever reduce what may be served.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const foreign = await addDeployment(fixture, { rank: 'z', currency: 'EUR' });
+    await givenPolicy(fixture, {});
+
+    const routes = await envelopeRoutesFor(fixture);
+
+    expect(routes).toHaveLength(1);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(foreign.deploymentId);
+
+    // And it is not dropped SILENTLY. A list that is short because a price is
+    // missing and a list that is short because the catalogue holds one
+    // deployment look identical from outside, so the gap has to be logged for
+    // anyone to find it.
+    expect(mockedLogger.warn).toHaveBeenCalledWith(
+      'inference.edge.unauthorizable_alternate',
+      expect.objectContaining({
+        deploymentId: foreign.deploymentId,
+        reason: 'currency_mismatch',
+      })
+    );
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The hold covers every route the envelope authorizes                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `usage_reservations.ceiling_price_version_id` is documented as "the price
+ * version of the most expensive route the policy permits", and until the envelope
+ * carried failover destinations that could only ever be the single route the
+ * request was admitted on. With a list in the envelope it has to be COMPUTED, or
+ * a failover to a dearer route settles above its own hold and is refused as
+ * `settlement-exceeds-reservation` — after the customer has already been served.
+ *
+ * ADR 0017 declines to put a per-route price in the envelope precisely because
+ * this is enforced here instead. These two cases are what make that true rather
+ * than assumed.
+ */
+describe('the hold an authorized list is sized against', () => {
+  async function reservationFor(accountId: string): Promise<{
+    reservedAmount: string;
+    ceilingPriceVersionId: string;
+  }> {
+    const [row] = await getDb()
+      .select({
+        reservedAmount: usageReservations.reservedAmount,
+        ceilingPriceVersionId: usageReservations.ceilingPriceVersionId,
+      })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, accountId));
+    return row;
+  }
+
+  it('sizes the hold at the DEAREST authorized route, not at the admitted one', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    // Four times the primary's output price, and it sorts second, so it is a
+    // failover destination the request will not be served on.
+    const dearer = await addDeployment(fixture, {
+      rank: 'z',
+      outputPricePerMillion: '60.000000000000',
+    });
+    const created = await createRoutingPolicy({
+      target: {
+        kind: 'application',
+        accountId: fixture.accountId,
+        applicationId: fixture.applicationId,
+      },
+      controls: policyControls(),
+      createdByUserId: fixture.accountId,
+    });
+    expect(created.status).toBe('written');
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeRelay(
+        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 1000 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    // Both routes are authorized, so both have to fit under the hold.
+    expect(seen[0].authorizedRoutes).toHaveLength(2);
+
+    const reservation = await reservationFor(fixture.accountId);
+    expect(reservation.ceilingPriceVersionId).toBe(dearer.priceVersionId);
+    // $60/M × 1000 output tokens = $0.06 on their own. The admitted route's own
+    // ceiling is $15/M × 1000 = $0.015 plus a few input tokens, so a hold sized
+    // from it cannot reach this floor — which is what makes the identity
+    // assertion above falsifiable by a number rather than only by an id.
+    expect(Number(reservation.reservedAmount)).toBeGreaterThanOrEqual(0.06);
+  });
+
+  it('keeps the admitted route’s price version when every alternate is cheaper', async () => {
+    // The control for the case above: the ceiling is a MAXIMUM, not "whichever
+    // route was looked at last". An implementation that always took the alternate
+    // would pass the first case and fail this one.
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    await addDeployment(fixture, { rank: 'z', outputPricePerMillion: '5.000000000000' });
+    const created = await createRoutingPolicy({
+      target: {
+        kind: 'application',
+        accountId: fixture.accountId,
+        applicationId: fixture.applicationId,
+      },
+      controls: policyControls(),
+      createdByUserId: fixture.accountId,
+    });
+    expect(created.status).toBe('written');
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeRelay(
+        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 1000 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen[0].authorizedRoutes).toHaveLength(2);
+    const reservation = await reservationFor(fixture.accountId);
+    expect(reservation.ceilingPriceVersionId).toBe(fixture.priceVersionId);
   });
 });
