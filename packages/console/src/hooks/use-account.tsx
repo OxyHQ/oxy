@@ -15,6 +15,7 @@ import type {
   CreateAccountInput,
   UpdateAccountInput,
 } from '@oxyhq/core';
+import { hasImplicitOwnership } from '@/lib/account-access';
 
 // ===========================================================================
 // Types — re-exported from @oxyhq/core so the Console shares the single
@@ -89,7 +90,8 @@ interface AccountContextValue {
   updateAccount: (accountId: string, data: UpdateAccountInput) => Promise<AccountNode>;
   archiveAccount: (accountId: string) => Promise<AccountSuccessResult>;
 
-  // Permissions — derived from the node's embedded `callerMembership`.
+  // Permissions — the node's embedded `callerMembership`, plus the implicit
+  // ownership of one's own personal account (which carries no membership row).
   canReadAccount: (account: AccountNode) => boolean;
   canEditAccount: (account: AccountNode) => boolean;
   canManageMembers: (account: AccountNode) => boolean;
@@ -151,8 +153,20 @@ export function accountLabel(node: AccountNode): string {
   return node.account.name?.displayName ?? getNormalizedUserHandle(node.account) ?? 'Account';
 }
 
-/** An account permission check that reads the embedded `callerMembership`. */
+/**
+ * An account permission check that reads the embedded `callerMembership`.
+ *
+ * The caller's OWN personal account has no membership row — ownership there is
+ * implicit and the API says so with `relationship: 'self'` beside a null
+ * `callerMembership`, while granting every owner permission. Reading only the
+ * membership therefore refused the owner of a personal account everything, which
+ * is the account the Console defaults to; `hasImplicitOwnership` is the client's
+ * half of the server's own short-circuit. See `lib/account-access.ts`.
+ */
 function hasPermission(account: AccountNode, permissions: Array<AccountPermission>): boolean {
+  if (hasImplicitOwnership(account)) {
+    return true;
+  }
   const granted = account.callerMembership?.permissions;
   if (!granted) {
     return false;

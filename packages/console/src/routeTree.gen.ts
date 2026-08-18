@@ -19,6 +19,7 @@ import { Route as LayoutDashboardRouteImport } from './routes/_layout/dashboard'
 import { Route as LayoutDocumentationIndexRouteImport } from './routes/_layout/documentation/index'
 import { Route as LayoutBillingIndexRouteImport } from './routes/_layout/billing/index'
 import { Route as LayoutAppsIndexRouteImport } from './routes/_layout/apps/index'
+import { Route as LayoutSettingsAuditRouteImport } from './routes/_layout/settings/audit'
 import { Route as LayoutSettingsAccountRouteImport } from './routes/_layout/settings/account'
 import { Route as LayoutDocumentationSdksRouteImport } from './routes/_layout/documentation/sdks'
 import { Route as LayoutDocumentationQuickstartRouteImport } from './routes/_layout/documentation/quickstart'
@@ -29,6 +30,7 @@ import { Route as LayoutBillingSpendRouteImport } from './routes/_layout/billing
 import { Route as LayoutBillingPlansRouteImport } from './routes/_layout/billing/plans'
 import { Route as LayoutBillingChargesRouteImport } from './routes/_layout/billing/charges'
 import { Route as LayoutBillingBudgetsRouteImport } from './routes/_layout/billing/budgets'
+import { Route as LayoutBillingAuditRouteImport } from './routes/_layout/billing/audit'
 import { Route as LayoutAppsAppIdIndexRouteImport } from './routes/_layout/apps/$appId/index'
 import { Route as LayoutAppsAppIdUpdatesRouteImport } from './routes/_layout/apps/$appId/updates'
 import { Route as LayoutAppsAppIdStoreRouteImport } from './routes/_layout/apps/$appId/store'
@@ -85,6 +87,11 @@ const LayoutAppsIndexRoute = LayoutAppsIndexRouteImport.update({
   path: '/apps/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSettingsAuditRoute = LayoutSettingsAuditRouteImport.update({
+  id: '/settings/audit',
+  path: '/settings/audit',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsAccountRoute = LayoutSettingsAccountRouteImport.update({
   id: '/settings/account',
   path: '/settings/account',
@@ -139,6 +146,11 @@ const LayoutBillingBudgetsRoute = LayoutBillingBudgetsRouteImport.update({
   path: '/billing/budgets',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutBillingAuditRoute = LayoutBillingAuditRouteImport.update({
+  id: '/billing/audit',
+  path: '/billing/audit',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutAppsAppIdIndexRoute = LayoutAppsAppIdIndexRouteImport.update({
   id: '/apps/$appId/',
   path: '/apps/$appId/',
@@ -173,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/models': typeof LayoutModelsRoute
   '/playground': typeof LayoutPlaygroundRoute
   '/usage': typeof LayoutUsageRoute
+  '/billing/audit': typeof LayoutBillingAuditRoute
   '/billing/budgets': typeof LayoutBillingBudgetsRoute
   '/billing/charges': typeof LayoutBillingChargesRoute
   '/billing/plans': typeof LayoutBillingPlansRoute
@@ -183,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/documentation/sdks': typeof LayoutDocumentationSdksRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
+  '/settings/audit': typeof LayoutSettingsAuditRoute
   '/apps/': typeof LayoutAppsIndexRoute
   '/billing/': typeof LayoutBillingIndexRoute
   '/documentation/': typeof LayoutDocumentationIndexRoute
@@ -199,6 +213,7 @@ export interface FileRoutesByTo {
   '/models': typeof LayoutModelsRoute
   '/playground': typeof LayoutPlaygroundRoute
   '/usage': typeof LayoutUsageRoute
+  '/billing/audit': typeof LayoutBillingAuditRoute
   '/billing/budgets': typeof LayoutBillingBudgetsRoute
   '/billing/charges': typeof LayoutBillingChargesRoute
   '/billing/plans': typeof LayoutBillingPlansRoute
@@ -209,6 +224,7 @@ export interface FileRoutesByTo {
   '/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/documentation/sdks': typeof LayoutDocumentationSdksRoute
   '/settings/account': typeof LayoutSettingsAccountRoute
+  '/settings/audit': typeof LayoutSettingsAuditRoute
   '/apps': typeof LayoutAppsIndexRoute
   '/billing': typeof LayoutBillingIndexRoute
   '/documentation': typeof LayoutDocumentationIndexRoute
@@ -227,6 +243,7 @@ export interface FileRoutesById {
   '/_layout/models': typeof LayoutModelsRoute
   '/_layout/playground': typeof LayoutPlaygroundRoute
   '/_layout/usage': typeof LayoutUsageRoute
+  '/_layout/billing/audit': typeof LayoutBillingAuditRoute
   '/_layout/billing/budgets': typeof LayoutBillingBudgetsRoute
   '/_layout/billing/charges': typeof LayoutBillingChargesRoute
   '/_layout/billing/plans': typeof LayoutBillingPlansRoute
@@ -237,6 +254,7 @@ export interface FileRoutesById {
   '/_layout/documentation/quickstart': typeof LayoutDocumentationQuickstartRoute
   '/_layout/documentation/sdks': typeof LayoutDocumentationSdksRoute
   '/_layout/settings/account': typeof LayoutSettingsAccountRoute
+  '/_layout/settings/audit': typeof LayoutSettingsAuditRoute
   '/_layout/apps/': typeof LayoutAppsIndexRoute
   '/_layout/billing/': typeof LayoutBillingIndexRoute
   '/_layout/documentation/': typeof LayoutDocumentationIndexRoute
@@ -255,6 +273,7 @@ export interface FileRouteTypes {
     | '/models'
     | '/playground'
     | '/usage'
+    | '/billing/audit'
     | '/billing/budgets'
     | '/billing/charges'
     | '/billing/plans'
@@ -265,6 +284,7 @@ export interface FileRouteTypes {
     | '/documentation/quickstart'
     | '/documentation/sdks'
     | '/settings/account'
+    | '/settings/audit'
     | '/apps/'
     | '/billing/'
     | '/documentation/'
@@ -281,6 +301,7 @@ export interface FileRouteTypes {
     | '/models'
     | '/playground'
     | '/usage'
+    | '/billing/audit'
     | '/billing/budgets'
     | '/billing/charges'
     | '/billing/plans'
@@ -291,6 +312,7 @@ export interface FileRouteTypes {
     | '/documentation/quickstart'
     | '/documentation/sdks'
     | '/settings/account'
+    | '/settings/audit'
     | '/apps'
     | '/billing'
     | '/documentation'
@@ -308,6 +330,7 @@ export interface FileRouteTypes {
     | '/_layout/models'
     | '/_layout/playground'
     | '/_layout/usage'
+    | '/_layout/billing/audit'
     | '/_layout/billing/budgets'
     | '/_layout/billing/charges'
     | '/_layout/billing/plans'
@@ -318,6 +341,7 @@ export interface FileRouteTypes {
     | '/_layout/documentation/quickstart'
     | '/_layout/documentation/sdks'
     | '/_layout/settings/account'
+    | '/_layout/settings/audit'
     | '/_layout/apps/'
     | '/_layout/billing/'
     | '/_layout/documentation/'
@@ -405,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutAppsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/settings/audit': {
+      id: '/_layout/settings/audit'
+      path: '/settings/audit'
+      fullPath: '/settings/audit'
+      preLoaderRoute: typeof LayoutSettingsAuditRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings/account': {
       id: '/_layout/settings/account'
       path: '/settings/account'
@@ -475,6 +506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutBillingBudgetsRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/billing/audit': {
+      id: '/_layout/billing/audit'
+      path: '/billing/audit'
+      fullPath: '/billing/audit'
+      preLoaderRoute: typeof LayoutBillingAuditRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/apps/$appId/': {
       id: '/_layout/apps/$appId/'
       path: '/apps/$appId'
@@ -519,6 +557,7 @@ interface LayoutRouteChildren {
   LayoutModelsRoute: typeof LayoutModelsRoute
   LayoutPlaygroundRoute: typeof LayoutPlaygroundRoute
   LayoutUsageRoute: typeof LayoutUsageRoute
+  LayoutBillingAuditRoute: typeof LayoutBillingAuditRoute
   LayoutBillingBudgetsRoute: typeof LayoutBillingBudgetsRoute
   LayoutBillingChargesRoute: typeof LayoutBillingChargesRoute
   LayoutBillingPlansRoute: typeof LayoutBillingPlansRoute
@@ -529,6 +568,7 @@ interface LayoutRouteChildren {
   LayoutDocumentationQuickstartRoute: typeof LayoutDocumentationQuickstartRoute
   LayoutDocumentationSdksRoute: typeof LayoutDocumentationSdksRoute
   LayoutSettingsAccountRoute: typeof LayoutSettingsAccountRoute
+  LayoutSettingsAuditRoute: typeof LayoutSettingsAuditRoute
   LayoutAppsIndexRoute: typeof LayoutAppsIndexRoute
   LayoutBillingIndexRoute: typeof LayoutBillingIndexRoute
   LayoutDocumentationIndexRoute: typeof LayoutDocumentationIndexRoute
@@ -545,6 +585,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutModelsRoute: LayoutModelsRoute,
   LayoutPlaygroundRoute: LayoutPlaygroundRoute,
   LayoutUsageRoute: LayoutUsageRoute,
+  LayoutBillingAuditRoute: LayoutBillingAuditRoute,
   LayoutBillingBudgetsRoute: LayoutBillingBudgetsRoute,
   LayoutBillingChargesRoute: LayoutBillingChargesRoute,
   LayoutBillingPlansRoute: LayoutBillingPlansRoute,
@@ -557,6 +598,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutDocumentationQuickstartRoute: LayoutDocumentationQuickstartRoute,
   LayoutDocumentationSdksRoute: LayoutDocumentationSdksRoute,
   LayoutSettingsAccountRoute: LayoutSettingsAccountRoute,
+  LayoutSettingsAuditRoute: LayoutSettingsAuditRoute,
   LayoutAppsIndexRoute: LayoutAppsIndexRoute,
   LayoutBillingIndexRoute: LayoutBillingIndexRoute,
   LayoutDocumentationIndexRoute: LayoutDocumentationIndexRoute,

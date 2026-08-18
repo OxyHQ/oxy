@@ -70,6 +70,7 @@ const mainNavItems = [
       { title: 'Holds and charges', url: '/billing/charges' },
       { title: 'Budgets', url: '/billing/budgets' },
       { title: 'Plans and credits', url: '/billing/plans' },
+      { title: 'Change history', url: '/billing/audit' },
     ],
   },
 ];
@@ -121,6 +122,14 @@ const settingsNavItems = [
       // Members are managed at the account level, on the same screen — the epic
       // names "Members/account settings" as one item, and it is one page.
       { title: 'Account and members', url: '/settings/account' },
+      /*
+       * The audit log sits under Settings rather than beside Applications
+       * because it is account-wide: it spans every application's credentials
+       * AND the account's provider connections, which no single application
+       * page can show. Money changes have their own trail under Billing, on the
+       * same principle that keeps units and money on different screens.
+       */
+      { title: 'Audit log', url: '/settings/audit' },
     ],
   },
 ];
