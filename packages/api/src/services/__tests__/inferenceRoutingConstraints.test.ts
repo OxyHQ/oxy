@@ -239,7 +239,7 @@ const PERMISSION_FOR_SCOPE = {
 async function insertDeployment(
   model: ModelFixture,
   options: DeploymentOptions
-): Promise<{ providerSlug: string }> {
+): Promise<{ providerSlug: string; deploymentId: string }> {
   const db = getDb();
   const providerSlug = `${options.rank}prv${suffix()}`;
   const scope = options.availabilityScope ?? 'public_payg';
@@ -276,26 +276,29 @@ async function insertDeployment(
     );
   }
 
-  await db.insert(inferenceDeployments).values({
-    modelRevisionId: model.revisionId,
-    providerSlug,
-    regions: options.regions ?? ['us-west-2'],
-    retainsPayloads: options.retainsPayloads ?? false,
-    retentionDays: options.retentionDays ?? 0,
-    trainsOnCustomerData: options.trainsOnCustomerData ?? false,
-    zeroDataRetentionAvailable: options.zeroDataRetentionAvailable ?? true,
-    availabilityScope: scope,
-    commercialPermission: PERMISSION_FOR_SCOPE[scope],
-    dedicatedCapacity: options.dedicatedCapacity ?? false,
-    status: 'active',
-    legalReviewStatus: 'approved',
-    legalReviewedAt: new Date(),
-    legalReviewEvidenceRef: `contract-register/${suffix()}`,
-    permissionState: 'approved',
-    ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
-  });
+  const [deployment] = await db
+    .insert(inferenceDeployments)
+    .values({
+      modelRevisionId: model.revisionId,
+      providerSlug,
+      regions: options.regions ?? ['us-west-2'],
+      retainsPayloads: options.retainsPayloads ?? false,
+      retentionDays: options.retentionDays ?? 0,
+      trainsOnCustomerData: options.trainsOnCustomerData ?? false,
+      zeroDataRetentionAvailable: options.zeroDataRetentionAvailable ?? true,
+      availabilityScope: scope,
+      commercialPermission: PERMISSION_FOR_SCOPE[scope],
+      dedicatedCapacity: options.dedicatedCapacity ?? false,
+      status: 'active',
+      legalReviewStatus: 'approved',
+      legalReviewedAt: new Date(),
+      legalReviewEvidenceRef: `contract-register/${suffix()}`,
+      permissionState: 'approved',
+      ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
+    })
+    .returning({ id: inferenceDeployments.id });
 
-  return { providerSlug };
+  return { providerSlug, deploymentId: deployment.id };
 }
 
 /** The constraints a policy with exactly these controls set would impose. */
@@ -1070,7 +1073,70 @@ describe('a request that cannot be served under its own policy is refused', () =
         provider: conforming.providerSlug,
         modelReference: model.modelReference,
       }),
+      // And the route the policy EXCLUDED is not an authorized alternate. This
+      // is the same widening the primary assertion forbids, one step later: a
+      // failover destination the policy refused is a policy violation the
+      // customer would never see, because the switch happens after Oxy has
+      // answered. `[]` here is falsifiable — the sibling case below plants two
+      // CONFORMING routes and asserts the second arrives.
+      alternates: [],
     });
+  });
+
+  it('carries every OTHER surviving route as an alternate, in preference order', async () => {
+    // The positive control for the `[]` above: two routes that both conform, so
+    // an implementation that dropped the survivors — which is what the edge did
+    // before ADR 0017 — goes red here while still passing every refusal case.
+    const model = await insertModel();
+    const first = await insertDeployment(model, { rank: 'a' });
+    const second = await insertDeployment(model, { rank: 'z' });
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    expect(resolution.status).toBe('resolved');
+    if (resolution.status !== 'resolved') return;
+
+    // Ordered by provider slug, which IS preference order — so `a…` is the
+    // primary and `z…` is the failover destination, never the reverse.
+    expect(resolution.route.provider).toBe(first.providerSlug);
+    expect(resolution.alternates.map((alternate) => alternate.provider)).toEqual([
+      second.providerSlug,
+    ]);
+
+    // An entry carries what EXECUTING the route needs, and the deployment id is
+    // the half `target` alone cannot express: two deployments of one model share
+    // a revision-pinned reference and differ only here.
+    expect(resolution.alternates[0].deploymentId).toBe(second.deploymentId);
+    expect(resolution.alternates[0].deploymentId).not.toBe(resolution.route.deploymentId);
+    expect(resolution.alternates[0].modelReference).toBe(model.modelReference);
+    expect(resolution.alternates[0].regions).toEqual(['us-west-2']);
+  });
+
+  it('does not authorize a survivor Oxy publishes no price for', async () => {
+    // An unpriced PRIMARY refuses the whole request (`unpriced-route`); an
+    // unpriced ALTERNATE is simply not authorized. The asymmetry is the point: a
+    // route that cannot be charged cannot be a failover destination, because the
+    // hold it would settle against could not be sized.
+    const model = await insertModel();
+    const priced = await insertDeployment(model, { rank: 'a' });
+    await insertDeployment(model, { rank: 'z', unpriced: true });
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    expect(resolution.status).toBe('resolved');
+    if (resolution.status !== 'resolved') return;
+    expect(resolution.route.provider).toBe(priced.providerSlug);
+    expect(resolution.alternates).toEqual([]);
   });
 });
 

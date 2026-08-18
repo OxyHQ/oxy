@@ -296,7 +296,7 @@ export const UNFILTERED_ROUTING_CONTROLS = {
   defaultTarget:
     'ENFORCED, but at the edge rather than here: it decides WHICH model reference is resolved when the caller named none (`inferenceEdge.service.ts`), so it is an input to this resolution and never a filter over its candidates.',
   fallback:
-    'ENFORCED, in `inferenceRoutingPolicy.service.ts`’s `recordRouteSwitch`: a substitution is refused unless the destination is named in the version’s authorisation rows. It governs a SWITCH between routes, not the qualification of one, so it cannot be expressed as a predicate over a single candidate.',
+    'ENFORCED, in two places and never here: `inferenceEdge.service.ts` decides from `fallback.disabled`/`sameModelDeployment` whether the envelope’s `authorizedRoutes` carries any failover destination at all (ADR 0017), and `inferenceRoutingPolicy.service.ts`’s `recordRouteSwitch` refuses to record a substitution whose destination is not named in the version’s authorisation rows. It governs a SWITCH between routes, not the qualification of one, so it cannot be expressed as a predicate over a single candidate — which is why `resolveEdgeRoute` returns every survivor and the edge, not this filter, applies it.',
   optimiseFor:
     'A RANKING among the routes that already qualify, which is routing EXECUTION and therefore the data plane’s (ADR 0006). It can never exclude a candidate, so enforcing it here would mean inventing a routing decision the control plane has no way to test.',
 } as const satisfies Readonly<Partial<Record<keyof RoutingPolicy, string>>>;
@@ -581,6 +581,24 @@ function exceedsRate(
     scaledAmount(rate.amount) * BigInt(ceiling.per) >
     scaledAmount(ceiling.amount) * BigInt(rate.per)
   );
+}
+
+/**
+ * Whether `amount` is strictly greater than `other`, both exact decimals at
+ * `INFERENCE_MONEY_SCALE`.
+ *
+ * Exported, and living here beside {@link exceedsRate} rather than where it is
+ * used: it is the same comparison over the same scale and the same
+ * {@link scaledAmount}, and a second implementation of "which of these two exact
+ * decimals is larger" would be a second place the money scale can be got wrong —
+ * silently, because both answers look plausible.
+ *
+ * The caller is the edge, sizing one hold against the most expensive route it
+ * authorizes (ADR 0017). A `number` comparison would be the failure this whole
+ * file avoids: `numeric(30, 12)` does not survive an IEEE double.
+ */
+export function exceedsAmount(amount: string, other: string): boolean {
+  return scaledAmount(amount) > scaledAmount(other);
 }
 
 /**
@@ -1563,13 +1581,31 @@ export async function selectRouteForViewer(
  *    the upstream provider happens to enforce is how a customer is billed for a
  *    request that was never going to succeed.
  *
+ * `deploymentId` and `regions` are here for a different reason: they are what an
+ * entry of the envelope's `authorizedRoutes` list requires (ADR 0017,
+ * `authorizedRouteSchema`). Neither is customer-facing — the deployment id is the
+ * data plane's own key, opaque to customers — and neither takes part in admission.
+ *
  * It goes through {@link selectableDeploymentWhere} like every other read, so an
  * admission can never reach a route the catalogue would not offer.
  */
 export interface EdgeRoute {
+  /**
+   * `inference_deployments.id` — which concrete endpoint. Opaque to customers
+   * and never in a customer projection; it crosses only to the data plane, which
+   * resolves it against its own inventory.
+   */
+  readonly deploymentId: string;
   /** `<publisher>/<model>@<revision>` — always revision-pinned. */
   readonly modelReference: string;
   readonly provider: string;
+  /**
+   * Every region this deployment MAY serve from, plural because
+   * `modelDeploymentSchema.regions` is. Oxy checked the whole set against the
+   * customer's residency controls as a SUBSET, so choosing among them cannot
+   * escape the policy and the choice stays routing execution (ADR 0006).
+   */
+  readonly regions: readonly string[];
   readonly availabilityScope: AvailabilityScope;
   /** The price version a hold is sized against and a receipt is settled at. */
   readonly priceVersionId: string;
@@ -1648,7 +1684,36 @@ export const TEXT_COMPLETION_MODALITY: EdgeModalityRequirement = {
  * that was never there (issue #1011).
  */
 export type EdgeRouteResolution =
-  | { readonly status: 'resolved'; readonly route: EdgeRoute }
+  | {
+      readonly status: 'resolved';
+      readonly route: EdgeRoute;
+      /**
+       * The OTHER routes that survived the same policy, in the same preference
+       * order — the same-model failover destinations, and the set ADR 0017's
+       * `authorizedRoutes` is built from.
+       *
+       * Every entry serves the SAME model line and the same revision as `route`,
+       * by construction: candidates are gathered for one `model_id` and then
+       * narrowed to one revision (the pinned one, or the single current one that
+       * `inference_model_revisions_one_current_per_model` permits). So the
+       * envelope's `substitution` for each is `same_model`, never a cross-model
+       * substitute.
+       *
+       * A survivor with no published price or no resolvable model id is dropped
+       * rather than returned. The asymmetry with `route` is deliberate: the
+       * PRIMARY must be servable, so an unpriced one refuses the whole request
+       * as `unpriced-route`; an alternate that could not be charged simply is not
+       * authorized, and narrowing an authorization list can only ever reduce what
+       * may be served.
+       *
+       * Whether the customer's policy actually AUTHORIZES failover among these is
+       * not decided here. `fallback` is not a {@link RoutingConstraint} — it
+       * governs a switch between routes rather than the qualification of one — so
+       * this returns the set and the edge applies `fallback` to it. See
+       * {@link UNFILTERED_ROUTING_CONTROLS}.
+       */
+      readonly alternates: readonly EdgeRoute[];
+    }
   | { readonly status: 'unknown-model'; readonly modelReference: string }
   | { readonly status: 'unpriced-route'; readonly modelReference: string }
   | {
@@ -1726,6 +1791,9 @@ export async function resolveEdgeRoute(
   const rows = await getDb()
     .select({
       ...CONSTRAINT_COLUMNS,
+      // Not a constraint input: the id is what an `authorizedRoutes` entry names
+      // so the data plane can execute the route without resolving it again.
+      deploymentId: inferenceDeployments.id,
       revision: inferenceModelRevisions.revision,
       isCurrent: inferenceModelRevisions.isCurrent,
       retiredAt: inferenceModelRevisions.retiredAt,
@@ -1786,6 +1854,28 @@ export async function resolveEdgeRoute(
     return { status: 'policy-excluded', modelReference, constraints: permitted.excludedBy };
   }
 
+  // One mapper for the primary and the alternates, so the two cannot describe
+  // the same row differently — the reason `CONSTRAINT_COLUMNS` is shared, one
+  // level up. `resolvedModelId` and `priceVersionId` are parameters rather than
+  // read off the row because each caller has already narrowed them from
+  // `string | null`, in the way its own arm requires.
+  const edgeRouteOf = (
+    row: (typeof capable)[number],
+    resolvedModelId: string,
+    priceVersionId: string
+  ): EdgeRoute => ({
+    deploymentId: row.deploymentId,
+    modelReference: composeModelReference(resolvedModelId, row.revision),
+    provider: row.providerSlug,
+    regions: row.regions,
+    availabilityScope: row.availabilityScope as AvailabilityScope,
+    priceVersionId,
+    maxContextTokens: row.maxContextTokens,
+    maxOutputTokens: row.maxOutputTokens,
+    inputModalities: row.inputModalities,
+    outputModalities: row.outputModalities,
+  });
+
   const chosen = permitted.kept[0];
   if (chosen.resolvedModelId === null) {
     return { status: 'unknown-model', modelReference };
@@ -1797,16 +1887,15 @@ export async function resolveEdgeRoute(
 
   return {
     status: 'resolved',
-    route: {
-      modelReference: composeModelReference(chosen.resolvedModelId, chosen.revision),
-      provider: chosen.providerSlug,
-      availabilityScope: chosen.availabilityScope as AvailabilityScope,
-      priceVersionId: chosen.priceVersionId,
-      maxContextTokens: chosen.maxContextTokens,
-      maxOutputTokens: chosen.maxOutputTokens,
-      inputModalities: chosen.inputModalities,
-      outputModalities: chosen.outputModalities,
-    },
+    route: edgeRouteOf(chosen, chosen.resolvedModelId, chosen.priceVersionId),
+    // The survivors this resolver used to compute and discard. Order is already
+    // preference order — the same `orderBy` the primary was taken from — so the
+    // list needs no ranking of its own.
+    alternates: permitted.kept.slice(1).flatMap((survivor) => {
+      const { resolvedModelId, priceVersionId } = survivor;
+      if (resolvedModelId === null || priceVersionId === null) return [];
+      return [edgeRouteOf(survivor, resolvedModelId, priceVersionId)];
+    }),
   };
 }
 

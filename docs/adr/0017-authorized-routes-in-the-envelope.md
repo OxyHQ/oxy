@@ -124,11 +124,16 @@ widens it.
 An EMPTY list is refused rather than treated as that state, because `[]` says "no
 route is authorized at all", which contradicts an envelope built to be served.
 
-The cost is stated plainly: until the edge populates the list, an envelope
+The cost was stated plainly: until the edge populates the list, an envelope
 carries none, and the data plane's failover stays off. That is not a regression —
-it is today's behaviour — but it does mean this ADR is not self-executing. The
-populating change is a follow-up in `inferenceEdge.service.ts`, where
-`resolveEdgeRoute` already computes `permitted.kept`.
+it was the behaviour of the day this was written — but it did mean this ADR was
+not self-executing. **The populating change landed on 2026-08-18** in
+`inferenceEdge.service.ts`, for the `same_model` half: `resolveEdgeRoute` now
+returns `permitted.kept[0]` as the route and the rest as `alternates`, and
+`buildEnvelope` sends them as `authorizedRoutes` whenever the customer's
+`fallback` controls authorize failover among them. The `cross_model` half is not
+built: it needs each destination in `inference_routing_policy_fallbacks` resolved
+to concrete deployments and re-filtered, and it remains a follow-up.
 
 ### No per-route price
 
@@ -180,10 +185,24 @@ means.
   can adopt this.** The data plane pins the published version and its contract
   drift gate goes red until it takes 0.30.0. Publishing is the control-plane
   side's move and comes first.
-- **The edge does not populate the list yet**, so nothing behaves differently on
-  merge. The follow-up PR maps `permitted.kept` onto `authorizedRoutes` in
-  `inferenceEdge.service.ts`; until it lands, `resolveEdgeRoute` still discards
-  the survivors it computed.
+- **The edge populates the `same_model` half since 2026-08-18.** Nothing behaved
+  differently on the merge of this ADR; the follow-up mapped `permitted.kept` onto
+  `authorizedRoutes` in `inferenceEdge.service.ts`. Two things that ADR states as
+  properties had to be MADE true by that change rather than merely relied on:
+  - `fallback` is read at the edge. Authorization is gated on
+    `fallback.disabled`/`sameModelDeployment`, so a policy that turned failover off
+    gets a one-entry list — stated positively, never by omitting the field, so
+    absence keeps exactly one meaning.
+  - "the ceiling is already enforced, before forwarding" was NOT true of the code.
+    `usage_reservations.ceiling_price_version_id` is documented as the most
+    expensive route the policy permits, and the edge passed the ADMITTED route's
+    price version — sound only while the envelope carried one route. The hold is
+    now sized at the dearest authorized route, and an alternate whose ceiling
+    cannot be quoted, or is quoted in another currency, is not authorized.
+- **`cross_model` is not populated.** Every entry this edge emits is `same_model`,
+  so an envelope it builds cannot express a substitution across model lines. The
+  cross-model half needs each destination in `inference_routing_policy_fallbacks`
+  resolved to concrete deployments and re-filtered, and is a follow-up.
 - **A deployment id now crosses the boundary in the Oxy→data-plane direction.**
   `deploymentIdSchema` already documents the id as opaque to CUSTOMERS, and it is
   the data plane's own key rather than Oxy's, so this direction of exchange is the

@@ -139,6 +139,7 @@ import {
 import { verifyServiceToken } from '../middleware/serviceToken';
 import { resolveCredentialAttributionById } from './attribution.service';
 import {
+  exceedsAmount,
   resolveCatalogueViewer,
   resolveEdgeRoute,
   routingConstraintsOf,
@@ -242,6 +243,30 @@ export const PLATFORM_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {
   routingPolicyId: 'platform-default',
   policyVersion: 1,
 };
+
+/**
+ * Whether an application served under {@link PLATFORM_DEFAULT_ROUTING_POLICY}
+ * authorizes same-model failover in its envelope — `false`, deliberately.
+ *
+ * A NAMED constant for the same reason {@link UNCONSTRAINED_ROUTING} is one: "the
+ * platform default grants no failover" has to be a sentence somebody wrote, not a
+ * branch somebody forgot. Two reasons, and the second is the one that decides it:
+ *
+ *  - Same-model failover is a CUSTOMER control (`fallback.sameModelDeployment`),
+ *    and under the platform default nobody set it. Withholding it withholds
+ *    nothing that is served today, because no envelope authorized any failover
+ *    before ADR 0017 — the same test `UNCONSTRAINED_ROUTING` applies to the
+ *    prohibitive neutral value of its two enums.
+ *  - A switch made under the platform default cannot be RECORDED.
+ *    `inference_route_switch_events.routing_policy_version_id` is `NOT NULL` and
+ *    there is no version row to name, so {@link recordEdgeRouteSwitch} skips the
+ *    notice. Authorizing a failover Oxy could not account for would put a silent
+ *    hole in the route-switch history of the platform's most common
+ *    configuration. Closing this needs a real platform-default policy version
+ *    somebody decides to seed — the same fix `recordEdgeRouteSwitch` already
+ *    names — after which this constant is what should be revisited.
+ */
+export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = false;
 
 /* -------------------------------------------------------------------------- */
 /*  Authentication                                                            */
@@ -490,6 +515,20 @@ export interface EdgeStreamHead {
 /** Everything admission resolved, and the hold it took. */
 interface AdmittedRequest {
   readonly route: EdgeRoute;
+  /**
+   * Every route this request is authorized to be served on, in preference
+   * order — `route` first, then the same-model failover destinations the
+   * customer's `fallback` controls permit. What {@link buildEnvelope} sends as
+   * `authorizedRoutes` (ADR 0017).
+   *
+   * NON-EMPTY, always: element 0 is `route`. A list of exactly one says "serve
+   * this, no failover", which is what a policy with fallback off authorizes and
+   * what an application on {@link PLATFORM_DEFAULT_ROUTING_POLICY} gets.
+   *
+   * The hold was sized against the most expensive entry, so no failover within
+   * this list can settle above it — see {@link admitRequest}.
+   */
+  readonly authorizedRoutes: readonly EdgeRoute[];
   readonly requestedModelReference: string;
   readonly maxOutputTokens: number;
   readonly routingPolicy: RoutingPolicyReference;
@@ -645,11 +684,14 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
 
   if (target.kind !== 'model') {
     // A routing profile names a SET of candidates and choosing among them is
-    // routing EXECUTION, which is the data plane's (ADR 0006) — and the envelope
-    // carries a routing policy REFERENCE rather than the candidate list, so no
-    // data plane can resolve one either. Refusing is the honest answer; picking a
-    // candidate here would be the control plane inventing a routing decision, and
-    // doing it with no way to test the choice.
+    // routing EXECUTION, which is the data plane's (ADR 0006). The SHAPE is no
+    // longer the blocker: `authorizedRoutes` can enumerate a profile's
+    // destinations without any data plane resolving the profile (ADR 0017). What
+    // is missing is here — this edge resolves ONE model reference, and a profile
+    // needs each of its candidates resolved to concrete deployments, re-filtered,
+    // and ranked into one order. Refusing is the honest answer until that exists;
+    // picking a candidate here would be the control plane inventing a routing
+    // decision, and doing it with no way to test the choice.
     return refuse(
       'no_route_available',
       'Routing profiles are not yet served by this edge. Name a concrete model.',
@@ -791,6 +833,55 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     );
   }
 
+  // 6b-ii. Which of the surviving routes this request is AUTHORIZED to be served
+  //        on, and what that costs the hold (ADR 0017).
+  //
+  //        `fallback` is the customer's own control and it is read here rather
+  //        than inside the route resolver, because it governs a SWITCH between
+  //        routes and not the qualification of one — so it cannot be a predicate
+  //        over a single candidate (`UNFILTERED_ROUTING_CONTROLS`). Turning it off
+  //        does not refuse the request: it authorizes exactly the primary, which
+  //        is "serve this or fail", the behaviour `fallback.disabled` describes.
+  //
+  //        Until this existed, `sameModelDeployment` was enforced NOWHERE — the
+  //        edge sent one route and `recordRouteSwitch` reads only
+  //        `fallbackDisabled` for a deployment-scope switch. This is the control's
+  //        first preventive enforcement point.
+  const authorizesSameModelFailover =
+    policy.status === 'resolved'
+      ? !policy.stored.policy.fallback.disabled &&
+        policy.stored.policy.fallback.sameModelDeployment
+      : PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER;
+
+  const authorizedRoutes: EdgeRoute[] = [route];
+  // The price version the hold is sized against — `usage_reservations`' own
+  // definition of it is "the most expensive route the policy permits", which
+  // until now could only ever be the single route the envelope carried. With
+  // failover destinations in the envelope it has to be computed, or a switch to a
+  // dearer route would settle above its own hold.
+  let ceilingPriceVersionId = route.priceVersionId;
+  let maxAmount = quote.amount;
+
+  if (authorizesSameModelFailover) {
+    for (const alternate of resolution.alternates) {
+      const alternateQuote = await quoteUnits(alternate.priceVersionId, ceilingUnits);
+      // Two ways an alternate is dropped rather than refused, both narrowing:
+      // a route whose ceiling cannot be quoted has no bound to hold against, and
+      // one quoted in another currency cannot be settled against this hold at
+      // all (`reserve` carries exactly one currency). The request is served on
+      // the primary either way — an authorization list that is shorter can only
+      // reduce what may be served.
+      if (alternateQuote.status !== 'quoted') continue;
+      if (alternateQuote.currency !== quote.currency) continue;
+
+      authorizedRoutes.push(alternate);
+      if (exceedsAmount(alternateQuote.amount, maxAmount)) {
+        ceilingPriceVersionId = alternate.priceVersionId;
+        maxAmount = alternateQuote.amount;
+      }
+    }
+  }
+
   const ledgerKey = ledgerIdempotencyKey(context);
 
   // Idempotency is a CHARGE guarantee, not response replay: prompts and
@@ -828,8 +919,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       attribution: ledgerAttribution,
       knownUnits: { input_tokens: estimatedInputTokens },
       maxOutputTokens,
-      ceilingPriceVersionId: route.priceVersionId,
-      maxAmount: quote.amount,
+      ceilingPriceVersionId,
+      maxAmount,
       currency: quote.currency,
       expiresInSeconds: RESERVATION_TTL_SECONDS,
     });
@@ -862,6 +953,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     status: 'admitted',
     admitted: {
       route,
+      authorizedRoutes,
       requestedModelReference,
       maxOutputTokens,
       routingPolicy,
@@ -1351,21 +1443,20 @@ function streamOutcome(
  * authorisation rows, because `recordRouteSwitch` looks that up and refuses to
  * write a row it cannot find one for.
  *
- * It does NOT claim the switch respected the customer's routing policy. The
- * envelope this edge sends carries a policy REFERENCE and nothing more (see
- * {@link buildEnvelope}), so the data plane holds no provider allowlist, no
- * region residency requirement, no zero-retention requirement and no price
- * ceiling to check a replacement against; those were checked once, for the route
- * the request was ADMITTED on. **Do not upgrade this to a compliance assertion.**
+ * It does NOT claim the switch respected the customer's routing policy, and that
+ * is unchanged now that {@link buildEnvelope} sends `authorizedRoutes` (ADR 0017).
+ * What the list changes is where the guarantee comes from: a data plane that
+ * takes the next ENTRY cannot leave the set Oxy filtered, because every entry
+ * survived the customer's controls before it was sent. What it cannot do is prove
+ * the data plane took an entry. A row here still records what the data plane
+ * REPORTED, and a report is not evidence about the reporter.
+ * **Do not upgrade this to a compliance assertion.**
  *
- * The contract half of the fix has LANDED — `inferenceRequestSchema` now accepts
- * an optional ordered `authorizedRoutes` list — and this edge does not populate it
- * yet, which is the whole of what keeps the claim narrow. The condition to watch
- * for is therefore concrete rather than pending: once {@link buildEnvelope} sends
- * that list, "a switch happened" starts to imply "to a route Oxy authorized" and
- * this comment is what should be revisited. Until then the row is a NOTICE, and
- * reading it as an approval would be reading a fact about the past as a
- * permission.
+ * That is also why a deployment-scope switch is still WRITTEN when the customer's
+ * `fallback.sameModelDeployment` is off. Under this edge such a switch is
+ * unauthorized by construction — the envelope named exactly one route — so the
+ * row is evidence that something served a route it was not given, and refusing to
+ * record it would destroy exactly the evidence worth keeping.
  *
  * ## Failing to write one never fails the request
  *
@@ -1997,7 +2088,7 @@ function buildEnvelope(
   stream: boolean
 ): InferenceRequest {
   const { principal, request } = context;
-  const { route, maxOutputTokens, routingPolicy } = admitted;
+  const { route, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
 
   return inferenceRequestSchema.parse({
     schemaVersion: 1,
@@ -2040,31 +2131,34 @@ function buildEnvelope(
     ...(context.idempotencyKey === undefined
       ? {}
       : { idempotencyKey: context.idempotencyKey }),
-    // A policy REFERENCE — `{routingPolicyId, policyVersion}` — because that is
-    // what `inferenceRequestSchema` publishes. The data plane therefore holds no
-    // policy VALUES.
+    // The routes Oxy has authorized for this request, in preference order, and a
+    // policy REFERENCE beside them (ADR 0017). The reference is provenance only —
+    // it lets a receipt name the exact configuration that produced the charge —
+    // and the data plane still holds no policy VALUE: no provider allowlist, no
+    // region residency, no zero-retention requirement, no price ceiling. It does
+    // not need one. Every entry here already survived all of them, so failing over
+    // is "take the next entry" and a switch outside the customer's policy is
+    // impossible BY CONSTRUCTION rather than by two enforcement engines, in two
+    // languages, agreeing.
     //
-    // What that costs, stated plainly rather than left to be discovered: Oxy has
-    // already filtered every candidate route against this policy and resolved the
-    // primary one (see `resolveEdgeRoute` above, issue #1011), so the route this
-    // envelope is served on IS policy-compliant. But if the data plane fails over
-    // to a DIFFERENT deployment after that route fails, it has no provider
-    // allowlist, no region residency, no zero-retention requirement and no price
-    // ceiling to check the replacement against — so a data-plane-initiated route
-    // switch is unconstrained by the customer's policy today. It is bounded only
-    // by the data plane's own refusal to substitute the MODEL, which is
-    // structural there rather than policy-derived.
+    // A one-entry list is not a degenerate case: it is what a policy with fallback
+    // off, and what the platform default, authorize — serve this route or fail.
+    // The list is never empty (`authorizedRoutes[0]` is the admitted route) and
+    // never carries a `cross_model` entry: this edge populates the same-model half
+    // only, so a substitution across model lines remains something no envelope it
+    // builds can express.
     //
-    // The CONTRACT half of the fix has since landed (ADR 0017, #1041):
-    // `inferenceRequestSchema` now accepts an optional ordered `authorizedRoutes`
-    // list — routes Oxy filtered, each carrying its own substitution kind — so
-    // failover becomes "take the next entry" and needs no policy semantics in the
-    // data plane at all. This edge has NOT adopted it, which is why the paragraph
-    // above still describes today accurately; populating it is the api half of that
-    // workstream, plus a matching data-plane change. When it lands, `authorizedRoutes`
-    // is the field to add — and do NOT invent a snapshot field beside it, because a
-    // second, unpublished shape on this hop is exactly the divergence the contract
-    // package exists to prevent.
+    // Do NOT add a policy snapshot field beside this. A second, unpublished shape
+    // on this hop is exactly the divergence the contract package exists to
+    // prevent, and it would put the eleven filtered controls back on the data
+    // plane's side of the boundary.
+    authorizedRoutes: authorizedRoutes.map((authorized) => ({
+      substitution: 'same_model',
+      deploymentId: authorized.deploymentId,
+      modelReference: authorized.modelReference,
+      provider: authorized.provider,
+      regions: authorized.regions,
+    })),
     routingPolicy,
   });
 }
