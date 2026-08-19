@@ -5,9 +5,11 @@
  * (the graph LOGIC outcomes are covered by
  * `services/__tests__/user.service.getViewerGraph.test.ts`).
  *
- *  - the viewer is taken from `resolveViewerId(req)` (server-derived from the
- *    auth token) and passed to the service — there is no `:userId` param and a
- *    client-supplied `?viewerId=` query is IGNORED (anti-IDOR / anti-impersonation)
+ *  - the viewer is taken from `resolveViewerId(req)` for user sessions and
+ *    passed to the service — there is no `:userId` param and a client-supplied
+ *    `?viewerId=` query is IGNORED (anti-IDOR / anti-impersonation)
+ *  - service-token delegation returns the empty graph even when a delegated
+ *    viewer resolves, because blocks and restrictions are private data
  *  - an anonymous caller (resolveViewerId → undefined) is NOT rejected: it returns
  *    the empty graph WITHOUT invoking the service or touching the cache
  *  - a cache HIT returns the cached graph and never recomputes from the service
@@ -32,6 +34,7 @@ const mockGraphCacheSet = jest.fn();
 // Mutable viewer the stubbed `resolveViewerId` returns — set per test to model
 // an authenticated viewer vs. an anonymous caller.
 let currentViewerId: string | undefined;
+let currentServiceApp: { appId: string; scopes: string[] } | undefined;
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -42,7 +45,14 @@ jest.mock('../../middleware/auth', () => ({
 // stubbed `resolveViewerId` (server-side derivation), never from the request
 // query/body.
 jest.mock('../../middleware/optionalAuth', () => ({
-  optionalUserOrServiceAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
+  optionalUserOrServiceAuth: (
+    req: { serviceApp?: typeof currentServiceApp },
+    _res: unknown,
+    next: () => void
+  ) => {
+    req.serviceApp = currentServiceApp;
+    next();
+  },
   resolveViewerId: () => currentViewerId,
 }));
 
@@ -144,6 +154,7 @@ afterAll((done) => {
 beforeEach(() => {
   jest.clearAllMocks();
   currentViewerId = undefined;
+  currentServiceApp = undefined;
   mockGetViewerGraph.mockReset();
   mockGraphCacheGet.mockReset();
   mockGraphCacheSet.mockReset();
@@ -201,7 +212,30 @@ describe('GET /users/me/graph', () => {
     const res = await getJson(server, '/users/me/graph');
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ followingIds: [], mutualIds: [], blockedIds: [], restrictedIds: [] });
+    expect(res.body.data).toEqual({
+      followingIds: [],
+      mutualIds: [],
+      blockedIds: [],
+      restrictedIds: [],
+    });
+    expect(mockGraphCacheGet).not.toHaveBeenCalled();
+    expect(mockGetViewerGraph).not.toHaveBeenCalled();
+    expect(mockGraphCacheSet).not.toHaveBeenCalled();
+  });
+
+  it('does not expose a delegated user graph to a service token', async () => {
+    currentViewerId = VIEWER;
+    currentServiceApp = { appId: 'mention', scopes: ['user:read'] };
+
+    const res = await getJson(server, '/users/me/graph');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({
+      followingIds: [],
+      mutualIds: [],
+      blockedIds: [],
+      restrictedIds: [],
+    });
     expect(mockGraphCacheGet).not.toHaveBeenCalled();
     expect(mockGetViewerGraph).not.toHaveBeenCalled();
     expect(mockGraphCacheSet).not.toHaveBeenCalled();
