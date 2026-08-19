@@ -708,26 +708,16 @@ export class AccountService {
     userId: string,
     accountId: string
   ): Promise<EffectiveAccess | null> {
-    if (userId === accountId) {
-      // A user is the implicit owner of their own (personal) account.
-      return {
-        role: 'owner',
-        permissions: permissionsForAccountRole('owner'),
-        source: 'self',
-        membership: null,
-      };
-    }
-
     const db = getDb();
     const [account] = await db
-      .select({ id: users.id, accountStatus: users.accountStatus })
+      .select({ id: users.id, kind: users.kind, accountStatus: users.accountStatus })
       .from(users)
       .where(eq(users.id, accountId))
       .limit(1);
     if (!account || account.accountStatus === 'archived') {
       return null;
     }
-    return this.effectiveAccessForAccount(userId, { id: account.id });
+    return this.effectiveAccessForAccount(userId, account);
   }
 
   /**
@@ -739,7 +729,7 @@ export class AccountService {
    */
   async effectiveAccessForAccount(
     userId: string,
-    account: { id?: unknown; _id?: unknown }
+    account: { id?: unknown; _id?: unknown; kind?: unknown }
   ): Promise<EffectiveAccess | null> {
     const raw = account.id ?? account._id;
     const accountId = typeof raw === 'string' ? raw : String(raw ?? '');
@@ -747,7 +737,7 @@ export class AccountService {
       return null;
     }
 
-    if (accountId === userId) {
+    if (accountId === userId && account.kind === 'personal') {
       return {
         role: 'owner',
         permissions: permissionsForAccountRole('owner'),
