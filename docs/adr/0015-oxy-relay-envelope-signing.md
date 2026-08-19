@@ -194,6 +194,49 @@ refusing legitimate traffic. The property it would buy is one the edge already
 provides where it matters (no duplicate charge), so it would be paid for on every
 request to strengthen a guarantee that is not the customer's exposure.
 
+### A valid signature is not a permission, so the scope is checked twice
+
+**A signature says the envelope came from Oxy. It says nothing about whether Oxy
+authorized the operation inside it.** Those are different claims, and collapsing
+them is the failure this section exists to prevent: an attacker is not the only
+way a signed envelope can carry something it should not, because a defect in the
+edge's own admission produces a perfectly signed envelope too.
+
+So the scope travels IN the envelope
+(`attribution.principal.inferenceScopes`), and both ends enforce it:
+
+- **The edge decides whether this principal may invoke at all.** Step 4 of
+  `admitRequest` refuses a credential without `inference:invoke` before anything
+  is resolved or reserved. That decision needs the credential row, the
+  application, and the deployment's rollout audience — none of which the data
+  plane holds or should.
+- **The data plane refuses to execute an envelope that does not carry the
+  scope**, without assuming its issuer already checked. Measured against
+  production on 2026-08-19: an otherwise valid, correctly signed envelope with
+  `inferenceScopes: []` is answered
+  `{"code":"insufficient_scope","message":"the envelope does not carry
+  inference:invoke"}` as the stream's terminal event, and **no `usage_report`
+  frame is emitted at all** — the refusal happens before execution, so it costs
+  no provider call.
+
+**This is not redundancy, and it must not be deleted as such.** The two checks
+answer different questions with different inputs, and the second is the last gate
+before third-party spend. Deleting it would mean the data plane executes whatever
+a correctly signed envelope asks for, which makes every future edge bug a billing
+incident rather than a refusal — precisely the property the signature is
+sometimes mistaken for providing.
+
+The asymmetry is deliberate too: the edge can refuse for reasons the data plane
+cannot see, but the data plane cannot refuse for reasons the edge would consider
+valid, because the only thing it checks is a claim the envelope makes about
+itself. That keeps the authorization decision in one place while still denying
+the data plane the ability to act on an unwarranted request.
+
+Empty is consequently a state that no executed request reaches: anything the edge
+admits carries `inference:invoke`, so `inferenceScopes` is never `[]` in a usage
+report. That makes the data plane's check defensive by construction — which is
+the point, and also why it cannot be verified from a production trace.
+
 ## Alternatives rejected
 
 **A shared secret (option 1).** Rejected on ADR 0012's argument: verifying and
