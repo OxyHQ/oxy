@@ -169,15 +169,18 @@ describe('OxySignInButton', () => {
     errorSpy.mockRestore();
   });
 
-  it('falls back to the dialog when the application cannot be resolved', async () => {
+  it('fails closed when the application cannot be resolved', async () => {
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
     getPublicApplication.mockRejectedValue(new Error('network'));
 
     render(<OxySignInButton oauthRedirectUri="https://rp.example/callback" />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(openAccountDialog).toHaveBeenCalledWith('signin'));
+    await waitFor(() => expect(warnSpy).toHaveBeenCalled());
+    expect(openAccountDialog).not.toHaveBeenCalled();
+    expect(startWebOAuthSignIn).not.toHaveBeenCalled();
     expect(redirectToAuthorizeMock).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledTimes(1);
 
     warnSpy.mockRestore();
   });

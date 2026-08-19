@@ -303,10 +303,11 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
     );
 
     // Resolve the Application once, then route: third-party → OAuth; first-party
-    // / official / unresolved → the in-app dialog. Resolution failure NEVER
-    // breaks an official app's sign-in — it falls back to the dialog. Every path
-    // that does NOT reach the OAuth lane closes the pre-opened popup, so a
-    // mis-routed press can never leave an empty window on screen.
+    // / official → the in-app dialog. An unresolved client must fail closed:
+    // opening the privileged device-session dialog without a known first-party
+    // classification could downgrade a third-party OAuth + PKCE flow. Every path
+    // that does NOT reach the OAuth lane closes the pre-opened popup, so an
+    // aborted press can never leave an empty window on screen.
     const routeSignIn = useCallback(
         async (popup: OAuthPopupHandle | null): Promise<void> => {
             if (routingRef.current) {
@@ -327,11 +328,11 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                 } catch (error) {
                     closeOAuthPopup(popup);
                     logger.warn(
-                        'OxySignInButton: could not resolve the application; opening the sign-in dialog',
+                        'OxySignInButton: could not resolve the application; sign-in aborted',
                         { component: 'OxySignInButton', clientId },
                         error,
                     );
-                    startOfficialSignIn();
+                    notifyFailed();
                     return;
                 }
                 if (app.type === 'third_party' && !app.isOfficial) {
