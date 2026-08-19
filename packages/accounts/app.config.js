@@ -105,10 +105,10 @@ module.exports = {
       'expo-sharing',
       'expo-status-bar',
       'expo-web-browser',
-      // Adds android:sharedUserId="so.oxy.shared" so this app shares the same
-      // Android keychain namespace as every other Oxy app signed with the
-      // shared ecosystem cert — enables sign-in-once-use-everywhere.
-      './plugins/withSharedUserId',
+      // Production joins the shared Android UID for sign-in-once-use-everywhere.
+      // Development builds must stay outside that UID so a lower-trust build
+      // cannot access production apps' private data or identity credentials.
+      ...(!IS_DEV_VARIANT ? ['./plugins/withSharedUserId'] : []),
       // Requests the signature-level READ_IDENTITY permission + provider queries
       // so this app can READ the shared identity Commons hosts (the native
       // module now ships inside @oxyhq/services). Reader-only: it never hosts
