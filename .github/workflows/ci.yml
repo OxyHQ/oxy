@@ -26,7 +26,7 @@ jobs:
     name: API Tests
     runs-on: ubuntu-latest
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
-    # their own caps (15m for the ffmpeg install, 30m for the suite), and this
+    # their own caps (16m for the ffmpeg install, 30m for the suite), and this
     # is their sum plus the ~5m the fixed steps cost at their observed maxima
     # (containers 35s, checkout/bun/node/node-gyp 19s, install 30s, guards 10s,
     # build 50s, lint 20s, coverage upload 8s). So a step cap always fires
@@ -42,7 +42,7 @@ jobs:
     # Measured over 118 recent runs (109 passing): p50 20m57s, p95 23m44s, max
     # on a passing run 26m29s, sd 2m23s. The old 30m cap sat 1.13x that max, so
     # the ffmpeg step's heavy tail alone was enough to blow it.
-    timeout-minutes: 50
+    timeout-minutes: 51
 
     services:
       # Postgres target of the Mongo->Postgres port. Mirrors
@@ -104,6 +104,12 @@ jobs:
       # API image installs it explicitly (`apk add ffmpeg` in the Dockerfile) and
       # that test depends on it just as explicitly.
       #
+      # `ffmpeg-static` is a dependency of packages/api and does NOT make this
+      # redundant: it fetches its binary from a postinstall script, bun runs no
+      # postinstall for a package outside `trustedDependencies`, and it is not in
+      # that list — so `node_modules/ffmpeg-static` holds no binary and
+      # `variantService`'s `which ffmpeg` fallback is the path taken here.
+      #
       # The runner image does NOT ship ffmpeg — it is absent from the
       # ubuntu-24.04 apt manifest — so this genuinely installs it every run, and
       # that install is the job's single most volatile step. Over 54 recent
@@ -112,39 +118,85 @@ jobs:
       # with every later step skipped — 6,000+ tests never ran, and the job
       # reported `cancelled`, which reads as "superseded, ignore".
       #
-      # Three nested bounds, innermost first:
+      # `sudo timeout`, NOT `timeout sudo`, and that ordering is the whole fix for
+      # run 32302745954, which took main red and blocked every open PR. Attempt 1
+      # held /var/lib/apt/lists/lock and stalled mid-download; `timeout` then
+      # killed the unprivileged half of the pipeline — `sudo` and `bash` — and
+      # could not touch `apt-get`, because an unprivileged process may not signal
+      # a root one and sudo does not relay a signal raised inside the command's
+      # own process group. The orphaned root apt-get kept the lock, so the retry
+      # five seconds later failed instantly against its OWN predecessor:
+      # `Could not get lock /var/lib/apt/lists/lock. It is held by process 2659
+      # (apt-get)`. Measured in an ubuntu:24.04 container against a forked child:
+      # with `timeout` outside `sudo` the root child is still running after the
+      # timeout fires; with `sudo timeout` nothing survives — so the lock is free
+      # by the time the retry runs, whoever held it.
+      #
+      # `DPkg::Lock::Timeout` is on the install and deliberately NOT on the
+      # update. Measured on apt 2.8.3 (noble, the runner's own version) and on
+      # 3.0.3: it makes apt wait for /var/lib/dpkg/lock-frontend, and it is inert
+      # for /var/lib/apt/lists/lock and /var/cache/apt/archives/lock, which both
+      # still fail in under a second with the option set. It is not the fix for
+      # the lock this step actually lost — the retry is — and putting it on the
+      # update would read as protection it does not provide.
+      #
+      # Four nested bounds, innermost first:
       #   * apt's own per-connection timeout and retries. This is the surgical
       #     one: it abandons a DEAD mirror connection after 15s while leaving a
       #     slow-but-progressing transfer alone, which is exactly the difference
       #     between the 29m44s hang and the legitimate 6m54s run.
+      #   * `DPkg::Lock::Timeout` for the one lock apt will wait on.
       #   * an outer `timeout` per attempt, retried once. 420s covers the slowest
       #     install observed on a passing run, so the retry only ever fires for
-      #     something already anomalous.
-      #   * `timeout-minutes` as the backstop. 2 x 420s + 5s backoff = 14m05s, so
-      #     the cap below can only fire if the loop itself wedges.
+      #     something already anomalous, and `-k 15s` guarantees the locks are
+      #     released rather than merely asked for.
+      #   * `timeout-minutes` as the backstop. 2 x (420s + 15s) + 30s backoff =
+      #     15m00s, so the 16m cap below can only fire if the loop itself wedges.
       #
-      # The point of all three is that a bad mirror now costs one bounded retry
-      # and the suite still runs — and if it does fail, it fails as `failure` on
-      # a named step rather than as an ambiguous job-level `cancelled`.
+      # The point of all four is that a bad mirror costs one bounded retry that
+      # can actually succeed, and the suite still runs — and if it does fail, it
+      # fails as `failure` on a named step rather than as an ambiguous job-level
+      # `cancelled`.
       - name: Install ffmpeg (video variant tests)
-        timeout-minutes: 15
+        timeout-minutes: 16
         run: |
           set -eu
           apt_opts='-o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15'
           for attempt in 1 2; do
-            if timeout 420s sudo bash -c \
-              "apt-get update $apt_opts && apt-get install -y --no-install-recommends $apt_opts ffmpeg"; then
+            if sudo timeout -k 15s 420s bash -c \
+              "apt-get update $apt_opts && apt-get install -y --no-install-recommends $apt_opts -o DPkg::Lock::Timeout=120 ffmpeg"; then
               break
             fi
             if [ "$attempt" = 2 ]; then
               echo "::error::apt-get could not install ffmpeg after 2 attempts"
               exit 1
             fi
-            echo "apt-get attempt $attempt failed or timed out; retrying once"
-            sleep 5
+            # Names the lock holder in the log, so the next failure of this step
+            # says whether it was our own attempt or something the runner boots.
+            echo "apt-get attempt $attempt failed or timed out; retrying once. apt/dpkg processes still alive:"
+            ps -eo pid,user,etimes,stat,args | grep -E '[a]pt-get|[d]pkg|[u]nattended' || echo "  (none)"
+            sleep 30
           done
           ffmpeg -version | head -1
           ffprobe -version | head -1
+          # The positive control, and the reason the two lines above are not one:
+          # without `pipefail` a pipeline reports `head`'s status, so `ffmpeg
+          # -version | head -1` exits 0 even when the binary is missing entirely —
+          # this step could go green having installed nothing. Encoding one frame
+          # the way the fixture builder does (`-f lavfi testsrc`, `-c:v libx264`)
+          # is the cheapest assertion that what apt installed can do the one thing
+          # the suite needs, and it fails loudly if it cannot.
+          probe_dir=$(mktemp -d)
+          ffmpeg -hide_banner -loglevel error -f lavfi \
+            -i testsrc=size=64x64:rate=10:duration=1 \
+            -c:v libx264 -pix_fmt yuv420p -movflags +faststart -y "$probe_dir/probe.mp4"
+          codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$probe_dir/probe.mp4")
+          rm -rf "$probe_dir"
+          if [ "$codec" != h264 ]; then
+            echo "::error::ffmpeg is on PATH but encoded '$codec', not h264 — the video variant fixture cannot be built"
+            exit 1
+          fi
+          echo "ffmpeg encodes h264 via lavfi: the video variant fixture can be built"
 
       - name: Install dependencies
         run: bun install
