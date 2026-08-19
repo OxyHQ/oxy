@@ -40,5 +40,6 @@ export interface PresignedUrlOptions {
    * SignatureDoesNotMatch. Used for immutable content-addressed assets.
    */
   cacheControl?: string;
+  /** Base64 SHA-256 checksum that S3 must validate before accepting the PUT. */
+  checksumSHA256?: string;
 }
-
