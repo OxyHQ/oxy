@@ -813,11 +813,17 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
 
   // The browser Origin the session was created from (null for native callers).
   // For OAuth-bound requests the relying-party redirect origin is what the
-  // approver must see — the IdP shell's Origin (auth.oxy.so) is not the RP.
+  // approver must see — the IdP shell's Origin (auth.oxy.so) is not the RP. A
+  // custom-scheme redirect URI has no origin to show, so it falls through to the
+  // request's own header exactly as a malformed one always has.
   const requestOriginHeader = requestOrigin(req);
   const boundOrigin = oauthContext
     ? originFromRedirectUri(oauthContext.redirectUri) ?? requestOriginHeader
     : requestOriginHeader;
+
+  // Built once and read by both the gate below and the `originVerified` signal
+  // under it, which must agree about what this application's redirect URIs prove.
+  const registeredOrigins = registeredOriginsOf(resolvedApp);
 
   // Public OAuth client IDs are routing identifiers, not authenticators. For
   // trusted first-party/internal app identities, a browser caller must prove it
@@ -836,9 +842,12 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
     // allowed to START the QR flow for a trusted app even though they are not
     // registered redirect origins — otherwise no local dev server could sign in.
     // This is only a gate to begin the flow; `originVerified` below stays false
-    // for loopback (it keys off applicationAllowsOrigin ONLY), so the Commons
+    // for loopback (it keys off matchesRegisteredOrigin ONLY), so the Commons
     // approval UI still shows its anti-phishing warning for an unverified origin.
-    if (!boundOrigin || (!applicationAllowsOrigin(resolvedApp, boundOrigin) && !isLoopbackOrigin(boundOrigin))) {
+    if (
+      !boundOrigin ||
+      (!matchesRegisteredOrigin(registeredOrigins, boundOrigin) && !isLoopbackOrigin(boundOrigin))
+    ) {
       throw new ForbiddenError('Application origin is not allowed');
     }
   }
@@ -853,7 +862,7 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
   const originVerified =
     isTrustedApplication(resolvedApp) &&
     !!boundOrigin &&
-    applicationAllowsOrigin(resolvedApp, boundOrigin);
+    matchesRegisteredOrigin(registeredOrigins, boundOrigin);
 
   // COARSE requester descriptor for the approval screen ("Chrome on Windows"),
   // so the approver can see WHERE the request came from. It is derived
@@ -2236,13 +2245,51 @@ async function userExists(userId: string): Promise<boolean> {
   return Boolean(row);
 }
 
-/** Parse the origin of a registered redirect URI, or null when malformed. */
-function originFromRedirectUri(redirectUri: string): string | null {
+/**
+ * The URL standard's serialization of an OPAQUE origin: the literal string
+ * `"null"`, which `new URL(x).origin` returns for every scheme it does not make
+ * special — `commons:`, `oxycommons:`, `exp:`, `capacitor:`, and also `file:`,
+ * `data:` and `about:`.
+ *
+ * This value is why an origin allowlist may never store it and why an incoming
+ * `Origin` may never be matched against it. Every such scheme serializes to the
+ * SAME `"null"`, and a browser sends a literal `Origin: null` from every opaque
+ * browsing context (a sandboxed iframe, a `data:`/`file:` document, a
+ * cross-origin redirect), so equality on it is not an origin proof — it is the
+ * absence of one, compared against the absence of one.
+ *
+ * Commons is the application this bites: it is native-only and registers
+ * `commons://` + `oxycommons://` as its whole redirect surface
+ * (`scripts/seedOxyApplicationsSpecs.ts`), both of which derive to `"null"`.
+ *
+ * Mirrors `OPAQUE_ORIGIN` in `@oxyhq/core`'s `server/cors.ts`, which refuses the
+ * same value on both sides of the CORS allowlist for the same reason.
+ */
+const OPAQUE_ORIGIN = 'null';
+
+/**
+ * The web origin a registered redirect URI proves, or null when it proves none —
+ * the DERIVE-SIDE half of the opaque-origin guard.
+ *
+ * Returns null for a malformed URI and for one whose origin is opaque, so a
+ * custom-scheme deep link never enters an origin comparison at all. Without this
+ * an app registered with `commons://` derived the origin `"null"`, which a
+ * caller sending `Origin: null` then matched exactly.
+ *
+ * Exported for `__tests__/authSessionAppIdentity.test.ts`. The two halves are
+ * separately exported because they are separately testable only that way: with
+ * this half in place the match-side half is unreachable through the route, so a
+ * test driving the route alone would measure this function twice and the other
+ * one never.
+ */
+export function originFromRedirectUri(redirectUri: string): string | null {
+  let origin: string;
   try {
-    return new URL(redirectUri).origin;
+    origin = new URL(redirectUri).origin;
   } catch {
     return null;
   }
+  return origin === OPAQUE_ORIGIN ? null : origin;
 }
 
 /** First (or only) value of a possibly-array header, trimmed to a string. */
@@ -2268,9 +2315,32 @@ function hasBrowserContext(req: express.Request): boolean {
   return Boolean(requestOrigin(req) || firstHeaderValue(req.headers.referer));
 }
 
-/** True when `origin` is the origin of one of the app's registered redirect URIs. */
-function applicationAllowsOrigin(app: Pick<ApplicationRow, 'redirectUris'>, origin: string): boolean {
-  return (app.redirectUris ?? []).some((redirectUri) => originFromRedirectUri(redirectUri) === origin);
+/**
+ * Whether a caller's `origin` is one of an Application's registered redirect
+ * origins — the MATCH-SIDE half of the opaque-origin guard.
+ *
+ * The refusal here is what makes the property hold regardless of how
+ * `registeredOrigins` was built: a set that somehow contains `"null"` still
+ * matches nothing, because no incoming origin ever gets past this line.
+ * {@link originFromRedirectUri} is what stops such a set existing today; this is
+ * what stops it mattering. Exported for the same reason as that function.
+ */
+export function matchesRegisteredOrigin(
+  registeredOrigins: ReadonlySet<string>,
+  origin: string
+): boolean {
+  if (origin === OPAQUE_ORIGIN) return false;
+  return registeredOrigins.has(origin);
+}
+
+/** The set of web origins an Application's registered redirect URIs prove. */
+function registeredOriginsOf(app: Pick<ApplicationRow, 'redirectUris'>): Set<string> {
+  const origins = new Set<string>();
+  for (const redirectUri of app.redirectUris ?? []) {
+    const origin = originFromRedirectUri(redirectUri);
+    if (origin !== null) origins.add(origin);
+  }
+  return origins;
 }
 
 /**
