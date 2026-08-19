@@ -81,7 +81,7 @@ import { applications } from '../../db/schema/applications';
 import { authSessions } from '../../db/schema/authSessions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import authRouter from '../auth';
+import authRouter, { matchesRegisteredOrigin, originFromRedirectUri } from '../auth';
 
 interface JsonResponse {
   status: number;
@@ -406,6 +406,57 @@ describe('POST /auth/session/create — browser origin gate', () => {
     expect(row.originVerified).toBe(false);
   });
 
+  // Commons' REAL registered redirect surface. It is native-only, so these two
+  // custom-scheme deep links are its whole `redirectUris` list
+  // (`scripts/seedOxyApplicationsSpecs.ts`), and both serialize to the opaque
+  // origin. The `registered` https fixture the rest of this describe uses cannot
+  // reach the defect at all, which is why these two tests carry their own.
+  const commonsRedirectUris = ['commons://', 'oxycommons://'];
+
+  it('refuses a literal Origin: null against custom-scheme redirect URIs', async () => {
+    const app = await application({ type: 'first_party', redirectUris: commonsRedirectUris });
+    const sessionToken = token();
+
+    const res = await request('POST', '/auth/session/create', {
+      body: { sessionToken, applicationId: app.id },
+      headers: { origin: 'null' },
+    });
+
+    // `new URL('commons://').origin` is the literal string "null", which is also
+    // what a browser sends as `Origin` from every opaque browsing context. The
+    // two used to compare equal, opening the gate and setting `originVerified`.
+    expect(res.status).toBe(403);
+    expect(await storedSession(sessionToken)).toBeUndefined();
+  });
+
+  it('binds an OAuth request on a custom-scheme redirect URI to NO origin', async () => {
+    const app = await application({ type: 'first_party', redirectUris: commonsRedirectUris });
+    const clientId = await credential(app.id);
+    const sessionToken = token();
+
+    const res = await request('POST', '/auth/session/create', {
+      body: {
+        sessionToken,
+        clientId,
+        oauth: {
+          redirectUri: 'commons://',
+          codeChallenge: 'a'.repeat(43),
+          codeChallengeMethod: 'S256',
+        },
+      },
+    });
+
+    // A registered redirect URI is exact-matched before this, so the request is
+    // legitimate — but `commons://` proves no origin, and the approver must not
+    // be shown a verified one. The row records the absence rather than the
+    // literal string "null", which also kept `origin=null` out of the QR payload.
+    expect(res.status).toBe(200);
+    const row = await storedSession(sessionToken);
+    expect(row.boundOrigin).toBeNull();
+    expect(row.originVerified).toBe(false);
+    expect((res.body.data as Record<string, string>).qrPayload).not.toContain('origin=null');
+  });
+
   it('does NOT treat https://localhost as loopback', async () => {
     const app = await application({
       isOfficial: true,
@@ -420,6 +471,36 @@ describe('POST /auth/session/create — browser origin gate', () => {
 
     expect(res.status).toBe(403);
     expect(await storedSession(sessionToken)).toBeUndefined();
+  });
+});
+
+/**
+ * The opaque-origin guard's two halves, each driven where the other cannot reach
+ * it. With the derive side in place nothing ever hands the match side a `"null"`
+ * to refuse, so a test driving only the route would measure the derive side
+ * twice and the match side never — and deleting the match side would stay green.
+ */
+describe('the opaque-origin guard', () => {
+  it('derives NO origin from a custom-scheme redirect URI', () => {
+    expect(originFromRedirectUri('commons://')).toBeNull();
+    expect(originFromRedirectUri('oxycommons://')).toBeNull();
+    // Same serialization, same refusal: every scheme the URL standard leaves
+    // non-special collapses to the one opaque origin.
+    expect(originFromRedirectUri('exp://localhost:8081')).toBeNull();
+    expect(originFromRedirectUri('file:///index.html')).toBeNull();
+    // Positive control: a real web origin still derives, or the assertions above
+    // would also pass against a function that returned null unconditionally.
+    expect(originFromRedirectUri('https://rp.example/callback')).toBe('https://rp.example');
+  });
+
+  it('matches nothing against the opaque origin, however the set was built', () => {
+    // A set that CONTAINS the opaque origin — the shape the derive side no
+    // longer produces, and the reason this half exists.
+    expect(matchesRegisteredOrigin(new Set(['null']), 'null')).toBe(false);
+    expect(matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'null')).toBe(false);
+    // Positive control: an ordinary origin in that same set still matches.
+    expect(matchesRegisteredOrigin(new Set(['https://rp.example', 'null']), 'https://rp.example'))
+      .toBe(true);
   });
 });
 

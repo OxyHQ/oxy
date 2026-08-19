@@ -14,7 +14,7 @@
  * - **`redirect_uris`** is ORDER-SENSITIVE and read whole. `resolveRedirectUris`
  *   (`routes/applications.ts:145`) de-duplicates while preserving the author's
  *   order, and every consumer reads the entire list and matches in application
- *   code (`applicationAllowsOrigin`, `routes/auth.ts:1980`; the origin registry,
+ *   code (`matchesRegisteredOrigin`, `routes/auth.ts:2328`; the origin registry,
  *   `config/dynamicOriginRegistry.ts:216`). No query filters by element. A child
  *   table would add a join to every OAuth authorize and force an explicit
  *   ordinal to preserve what the array gives for free.
