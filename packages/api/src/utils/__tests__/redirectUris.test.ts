@@ -20,7 +20,7 @@ describe('unionRedirectUris', () => {
 });
 
 describe('computeOfficialRedirectUriRepair', () => {
-  it('returns null when the website origin is already registered', () => {
+  it('does not modify an existing allowlist when the website origin is registered', () => {
     expect(
       computeOfficialRedirectUriRepair(
         ['https://oxy.so', 'https://fairco.in'],
@@ -29,13 +29,25 @@ describe('computeOfficialRedirectUriRepair', () => {
     ).toBeNull();
   });
 
-  it('UNIONs the website origin instead of replacing the allowlist', () => {
+  it('does not broaden an existing allowlist with the website origin', () => {
     expect(
       computeOfficialRedirectUriRepair(
         ['https://fairco.in'],
         'https://oxy.so',
       ),
-    ).toEqual(['https://fairco.in', 'https://oxy.so']);
+    ).toBeNull();
+  });
+
+  it('preserves path-specific callbacks instead of adding their bare origin', () => {
+    expect(
+      computeOfficialRedirectUriRepair(
+        [
+          'https://app.example.com/oauth/callback',
+          'https://staging.example.com/oauth/callback',
+        ],
+        'https://app.example.com',
+      ),
+    ).toBeNull();
   });
 
   it('seeds the origin when redirectUris is empty', () => {
