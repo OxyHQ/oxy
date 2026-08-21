@@ -616,6 +616,20 @@ class SessionService {
             sessionId: sessions.sessionId,
             deviceId: sessions.deviceId,
             deviceName: sessions.deviceName,
+            // The binding this session ALREADY carries, and the refresh token a
+            // reuse is about to replace. Read here because the reuse branch
+            // below has to answer "what does the caller say nothing about?" —
+            // without these columns it cannot, and the mint silently asserted
+            // NULL for every one of them (see the effective binding below).
+            // `refresh_token` is protected and named explicitly, which is the
+            // opt-in shape `schema/__tests__/protectedColumns.test.ts` asks for.
+            operatedByUserId: sessions.operatedByUserId,
+            applicationId: sessions.applicationId,
+            clientId: sessions.clientId,
+            scopes: sessions.scopes,
+            deviceSessionId: sessions.deviceSessionId,
+            deviceContextId: sessions.deviceContextId,
+            refreshToken: sessions.refreshToken,
           })
           .from(sessions)
           .where(
@@ -668,19 +682,50 @@ class SessionService {
         const sessionId = existingSession.sessionId;
         const expiresAt = new Date(Date.now() + SESSION_EXPIRES_IN);
         const now = new Date();
+        // The binding this reuse leaves the session with: the caller's value
+        // for each half it supplied, the reused row's existing value for every
+        // half it said nothing about. Computed ONCE and fed to BOTH the mint
+        // below and the row update, because a mint that says nothing about a
+        // binding is not asserting NULL — it is saying nothing, and the row
+        // remains the authority.
+        //
+        // The two drifting apart is not a degraded session but a dead one:
+        // `checkAccessTokenBinding` refuses a token against its own row on
+        // every later request (`device_session_mismatch`, `actor_mismatch`,
+        // `client_mismatch`). The reaching caller is the device-flow approve
+        // route, `POST /auth/session/authorize/:sessionToken`, which passes a
+        // deviceId and a label and nothing else onto a device whose own
+        // session the login lane bound to a device context afterwards
+        // (`deviceSessionService.bindSessionToContext`).
+        const reusedBinding = {
+          operatedByUserId: operatedByUserId ?? existingSession.operatedByUserId,
+          applicationId: application ? application.applicationId : existingSession.applicationId,
+          clientId: application ? application.clientId : existingSession.clientId,
+          // Re-applied from the grant whenever one is supplied, because a later
+          // grant can widen or narrow what the client was given — a supplied
+          // value REPLACES the row's, it never merges with it.
+          scopes: application ? application.scopes : existingSession.scopes,
+          deviceSessionId: deviceContext
+            ? deviceContext.deviceSessionId
+            : existingSession.deviceSessionId,
+          deviceContextId: deviceContext
+            ? deviceContext.deviceContextId
+            : existingSession.deviceContextId,
+        };
+
         // Tokens are re-minted with the ATTRIBUTION deviceId (the explicit
         // central id when supplied), so the reused access token's `deviceId`
         // claim addresses the caller's real device — the room the client's
         // SessionClient joins and where cross-domain broadcasts land.
         const { accessToken, refreshToken } = generateSessionTokens({
           subjectAccountId: userId,
-          principalUserId: operatedByUserId ?? userId,
+          principalUserId: reusedBinding.operatedByUserId ?? userId,
           sessionId,
           deviceId: deviceInfo.deviceId,
-          deviceSessionId: deviceContext?.deviceSessionId ?? null,
-          deviceContextId: deviceContext?.deviceContextId ?? null,
-          clientId: application?.clientId ?? null,
-          scopes: application?.scopes ?? [],
+          deviceSessionId: reusedBinding.deviceSessionId,
+          deviceContextId: reusedBinding.deviceContextId,
+          clientId: reusedBinding.clientId,
+          scopes: reusedBinding.scopes,
         });
 
         // Migrate a reused session onto the caller's central device when an
@@ -700,33 +745,33 @@ class SessionService {
           .set({
             accessToken,
             refreshToken,
+            // A reuse re-mint REPLACES the refresh token, so it owes the same
+            // grace record a rotation does. Whoever read this session before the
+            // re-mint still holds the replaced token — including another task's
+            // `sessionCache`, whose local tier no invalidation from here reaches
+            // — and without these two columns that holder is dead instantly
+            // rather than for the 30s `TOKEN_ROTATION_GRACE_PERIOD_MS` window
+            // `refreshTokens` grants its own callers.
+            previousRefreshToken: existingSession.refreshToken,
+            tokenRotatedAt: now,
             expiresAt,
             lastRefresh: now,
             ...(migrateToDeviceId ? { deviceId: migrateToDeviceId } : {}),
             lastActiveAt: now,
             deviceName: deviceName || existingSession.deviceName,
             userAgent: deviceInfo.userAgent,
-            // Bind the reused session to the CURRENT operator when this is an
-            // account switch (keeps the act_as re-check pointed at whoever just
-            // switched in); leave it untouched for ordinary sessions.
-            ...(operatedByUserId ? { operatedByUserId } : {}),
-            // The token minted just above already asserts these, so the row has
-            // to agree or the very next request fails its own binding check.
-            // Scopes are re-applied on every reuse because a later grant can
-            // widen or narrow them.
-            ...(application
-              ? {
-                  applicationId: application.applicationId,
-                  clientId: application.clientId,
-                  scopes: application.scopes,
-                }
-              : {}),
-            ...(deviceContext
-              ? {
-                  deviceSessionId: deviceContext.deviceSessionId,
-                  deviceContextId: deviceContext.deviceContextId,
-                }
-              : {}),
+            // The token minted just above asserts exactly these, so the row is
+            // written from the SAME expression rather than a second one that
+            // can disagree with it. Unconditional on purpose: a conditional
+            // write is what let the token assert NULL while the row kept its
+            // value. Where the caller supplied nothing these re-write the
+            // value the row already held, which is a no-op by construction.
+            operatedByUserId: reusedBinding.operatedByUserId,
+            applicationId: reusedBinding.applicationId,
+            clientId: reusedBinding.clientId,
+            scopes: reusedBinding.scopes,
+            deviceSessionId: reusedBinding.deviceSessionId,
+            deviceContextId: reusedBinding.deviceContextId,
           })
           .where(eq(sessions.id, existingSession.id))
           .returning(SESSION_COLUMNS);
@@ -775,15 +820,32 @@ class SessionService {
       const sessionId = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + SESSION_EXPIRES_IN);
       const now = new Date();
-      const { accessToken, refreshToken } = generateSessionTokens({
-        subjectAccountId: userId,
-        principalUserId: operatedByUserId ?? userId,
-        sessionId,
-        deviceId: deviceInfo.deviceId,
-        deviceSessionId: deviceContext?.deviceSessionId ?? null,
-        deviceContextId: deviceContext?.deviceContextId ?? null,
+      // A fresh session has no prior binding to preserve, so the caller's
+      // options ARE the binding — but it goes through one expression per field
+      // for the same reason the reuse branch does: the mint and the row are
+      // written from the SAME value, never from two copies of it.
+      //
+      // NULL, not a placeholder: NULL means "not one application's session",
+      // "not a delegated session" and "no device context yet" — all first-class
+      // states, not missing data, and the `account:act_as` re-check keys off
+      // the operator being NULL.
+      const newBinding = {
+        operatedByUserId: operatedByUserId || null,
+        applicationId: application?.applicationId ?? null,
         clientId: application?.clientId ?? null,
         scopes: application?.scopes ?? [],
+        deviceSessionId: deviceContext?.deviceSessionId ?? null,
+        deviceContextId: deviceContext?.deviceContextId ?? null,
+      };
+      const { accessToken, refreshToken } = generateSessionTokens({
+        subjectAccountId: userId,
+        principalUserId: newBinding.operatedByUserId ?? userId,
+        sessionId,
+        deviceId: deviceInfo.deviceId,
+        deviceSessionId: newBinding.deviceSessionId,
+        deviceContextId: newBinding.deviceContextId,
+        clientId: newBinding.clientId,
+        scopes: newBinding.scopes,
       });
 
       // `deviceInfo` was a nested subdocument in Mongo; the eight fields are
@@ -804,16 +866,12 @@ class SessionService {
           lastActiveAt: now,
           accessToken,
           refreshToken,
-          // NULL, not a placeholder: NULL here means "not a delegated session",
-          // and that is what the `account:act_as` re-check keys off.
-          operatedByUserId: operatedByUserId || null,
-          // NULL likewise means "not one application's session" and "no device
-          // context yet" — both first-class states, not missing data.
-          applicationId: application?.applicationId ?? null,
-          clientId: application?.clientId ?? null,
-          scopes: application?.scopes ?? [],
-          deviceSessionId: deviceContext?.deviceSessionId ?? null,
-          deviceContextId: deviceContext?.deviceContextId ?? null,
+          operatedByUserId: newBinding.operatedByUserId,
+          applicationId: newBinding.applicationId,
+          clientId: newBinding.clientId,
+          scopes: newBinding.scopes,
+          deviceSessionId: newBinding.deviceSessionId,
+          deviceContextId: newBinding.deviceContextId,
           isActive: true,
           expiresAt,
           lastRefresh: now,
@@ -1168,8 +1226,40 @@ class SessionService {
    */
   async getAccessToken(sessionId: string): Promise<{ accessToken: string; expiresAt: Date } | null> {
     try {
-      const session = await this.getSession(sessionId, true);
+      // The ROW, never a cached copy — the same rule `refreshTokens` states for
+      // itself, and for the same reason: this is the seam that hands out a
+      // CREDENTIAL, so it may only ever serve what the row currently says.
+      //
+      // `sessionCache` checks its per-process local tier BEFORE Redis and holds
+      // an entry for its 5-minute TTL, so a Redis `invalidate` from another ECS
+      // task does not reach it. A cached copy of a session another task has
+      // since re-minted therefore carries a superseded token PAIR: the access
+      // token no longer describes the row, and the refresh token it would fall
+      // back to has been out of the 30s rotation grace for most of those five
+      // minutes — so the fallback resolves to nothing and a valid session mints
+      // no token at all. That is the `invalid_grant` on `POST
+      // /auth/session/claim`; it "healed" on its own only when the entry aged
+      // out. Two callers reach here, both mint paths (the device-flow claim and
+      // the per-account device token), so this costs one indexed read per mint.
+      const session = await this.getSession(sessionId, false);
       if (!session) {
+        return null;
+      }
+
+      // A managed-account session re-proves the operator's `account:act_as`
+      // HERE too, and with `force` — a mint is rarer than a request, so it
+      // never rides the validate path's throttle.
+      //
+      // This branch used to be reached only BY ACCIDENT. `POST
+      // /auth/session/claim` carries no auth middleware and mints straight off
+      // `getAccessToken`, and the only reason a revoked operator was refused
+      // there is that the stored token disagreed with its row (`actor_mismatch`,
+      // the very defect above), which pushed the claim into `refreshTokens` —
+      // where the check lives. Making the token agree with the row removes that
+      // accident, so the check has to be stated at the seam that hands out the
+      // credential. Free for an ordinary session: no `operated_by_user_id`
+      // returns true before any lookup.
+      if (!(await this.ensureManagedSessionAuthorized(session, { force: true }))) {
         return null;
       }
 
