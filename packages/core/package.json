@@ -152,7 +152,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
-    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@types/express": "catalog:",
     "@types/invariant": "^2.2.34",
     "@types/node": "^20.19.43",
