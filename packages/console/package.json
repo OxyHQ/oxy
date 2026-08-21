@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 8106",
-    "build": "bun ../core/scripts/writePagesHeaders.ts public && vite build",
+    "build": "vite build && bun ../core/scripts/writePagesHeaders.ts dist",
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint",

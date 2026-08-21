@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "RCT_METRO_PORT=8102 expo start",
-    "build": "bun ../core/scripts/writePagesHeaders.ts public && node scripts/export-web.js",
+    "build": "node scripts/export-web.js && bun ../core/scripts/writePagesHeaders.ts dist",
     "web": "RCT_METRO_PORT=8102 expo start --web",
     "android": "RCT_METRO_PORT=8102 expo run:android",
     "ios": "RCT_METRO_PORT=8102 expo run:ios",
@@ -12,7 +12,8 @@
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "reset-project": "node ./scripts/reset-project.js"
+    "reset-project": "node ./scripts/reset-project.js",
+    "smoke:csp": "bun run scripts/smoke-csp.ts"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
