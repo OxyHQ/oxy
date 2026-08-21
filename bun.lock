@@ -114,7 +114,7 @@
         "@oxyhq/protocol": "workspace:*",
         "@simplewebauthn/server": "13.3.2",
         "@socket.io/redis-adapter": "^8.3.0",
-        "@types/cheerio": "^0.22.35",
+        "@types/cheerio": "^1.0.0",
         "@types/compression": "^1.8.1",
         "@types/cookie-parser": "^1.4.10",
         "@types/elliptic": "catalog:",
@@ -2177,7 +2177,7 @@
 
     "@types/chai": ["@types/chai@5.2.3", "", { "dependencies": { "@types/deep-eql": "*", "assertion-error": "^2.0.1" } }, ""],
 
-    "@types/cheerio": ["@types/cheerio@0.22.35", "", { "dependencies": { "@types/node": "*" } }, ""],
+    "@types/cheerio": ["@types/cheerio@1.0.0", "", { "dependencies": { "cheerio": "*" } }, "sha512-zAaImHWoh5RY2CLgU2mvg3bl2k3F65B0N5yphuII3ythFLPmJhL7sj1RDu6gSxcgqHlETbr/lhA2OBY+WF1fXQ=="],
 
     "@types/color": ["@types/color@4.2.1", "", { "dependencies": { "@types/color-convert": "2" } }, "sha512-ResWeDLy1vozIMbD6JLRKuNBbIcIlBkjTIxVHHd5Cqtm77T+ahH3BWE/PWv1OhFd1HAwcn8no4ig2uTaRXpYQQ=="],
 
@@ -5723,8 +5723,6 @@
 
     "@types/body-parser/@types/node": ["@types/node@25.2.0", "", { "dependencies": { "undici-types": "~7.16.0" } }, ""],
 
-    "@types/cheerio/@types/node": ["@types/node@25.2.0", "", { "dependencies": { "undici-types": "~7.16.0" } }, ""],
-
     "@types/compression/@types/node": ["@types/node@25.2.0", "", { "dependencies": { "undici-types": "~7.16.0" } }, ""],
 
     "@types/connect/@types/node": ["@types/node@25.2.0", "", { "dependencies": { "undici-types": "~7.16.0" } }, ""],
@@ -7192,8 +7190,6 @@
     "@types/bn.js/@types/node/undici-types": ["undici-types@7.16.0", "", {}, ""],
 
     "@types/body-parser/@types/node/undici-types": ["undici-types@7.16.0", "", {}, ""],
-
-    "@types/cheerio/@types/node/undici-types": ["undici-types@7.16.0", "", {}, ""],
 
     "@types/compression/@types/node/undici-types": ["undici-types@7.16.0", "", {}, ""],
 
