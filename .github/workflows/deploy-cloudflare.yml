@@ -150,6 +150,34 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: bunx wrangler@4 pages deploy packages/accounts/dist --project-name=oxy-accounts --branch=main
+      # Post-deploy CSP gate. The static Expo export emits an inline hydration
+      # script, and `writePagesHeaders` derives its hash into `dist/_headers`
+      # during the build above. Derivation only makes those two agree INSIDE
+      # `dist`: a deploy that drops `_headers`, a build that runs the generator
+      # before the export again, or an edge rule that replaces the header all
+      # put them back out of sync. None of those break the app visibly — Expo
+      # falls back from `hydrateRoot` to a full client render and the only
+      # symptom is a console error — so assert it against the LIVE host.
+      # Retries briefly to let the Pages deploy propagate.
+      - name: Post-deploy CSP smoke gate
+        working-directory: packages/accounts
+        env:
+          SMOKE_TARGET: https://accounts.oxy.so
+        run: |
+          for attempt in 1 2 3 4 5; do
+            echo "::group::CSP smoke attempt ${attempt}/5"
+            if bun run smoke:csp; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            if [ "${attempt}" -lt 5 ]; then
+              echo "Smoke gate failed (edge may still be propagating); retrying in 15s..."
+              sleep 15
+            fi
+          done
+          echo "::error::accounts.oxy.so is serving a CSP that blocks its own inline script"
+          exit 1
 
   # deploy-inbox is GONE: the app moved to OxyHQ/Inbox, which now owns the
   # `oxy-inbox` Pages project and inbox.oxy.so.

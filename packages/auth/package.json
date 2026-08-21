@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port 8105",
     "dev:pages": "wrangler pages dev dist",
-    "build": "bun ../core/scripts/writePagesHeaders.ts public && vite build",
+    "build": "vite build && bun ../core/scripts/writePagesHeaders.ts dist",
     "test": "bun test lib/__tests__ components/__tests__ hub/__tests__",
     "smoke:idp": "bun run scripts/smoke-idp.ts",
     "lint": "eslint"

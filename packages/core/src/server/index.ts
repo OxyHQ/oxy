@@ -71,11 +71,18 @@ export type { OxyCorsOptions } from './cors';
 
 // Shared Helmet + Content-Security-Policy baseline (Cloudflare Insights beacon,
 // Oxy API/CDN origins) with additive, per-app extensions.
+//
+// `extractInlineScripts` / `inlineScriptCspHash` are exported so a post-deploy
+// gate can ask the SERVED document the same question `buildOxyPagesHeaders`
+// asked the built one. A gate that re-implemented the scan would be testing its
+// own copy, and would agree with a broken original.
 export {
   buildOxyCspDirectives,
   buildOxyPagesHeaders,
   createOxySecurityHeaders,
+  extractInlineScripts,
   formatOxyCspPolicy,
+  inlineScriptCspHash,
   OXY_CSP_BASELINE,
 } from './securityHeaders';
 export type {
