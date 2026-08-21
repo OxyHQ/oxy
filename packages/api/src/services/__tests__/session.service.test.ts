@@ -839,3 +839,259 @@ describe('access token v2 binding', () => {
     expect(typeof claims?.device_session_id).toBe('string');
   });
 });
+
+/**
+ * Reuse must never NARROW the binding a session already carries.
+ *
+ * `createSession`'s reuse branch re-mints the token pair from the caller's
+ * options while the row keeps everything the caller said nothing about. When
+ * those two disagree the session is dead, not degraded: `checkAccessTokenBinding`
+ * refuses the token against its own row on every later request, and each re-mint
+ * reproduces the same disagreement, so nothing recovers it.
+ *
+ * The device-flow approve route is the caller that reaches this in production —
+ * `POST /auth/session/authorize/:sessionToken` passes a deviceId and a label and
+ * nothing else, onto the device whose own session the login lane bound to a
+ * device context. Every case below asserts through `validateSession`, the real
+ * consumer of the binding check, rather than re-deriving the row shape here.
+ */
+describe('createSession reuse preserves the binding the row already carries', () => {
+  it('keeps the device context when the caller supplies none', async () => {
+    const user = await account();
+    const device = deviceId();
+    const created = await sessionService.createSession(user, request(), { deviceId: device });
+    // The login lane's ordering: the context row exists only after the session,
+    // so the binding is written afterwards.
+    await deviceSessionService.addAccount(device, { accountId: user, sessionId: created.sessionId });
+    await deviceSessionService.bindSessionToContext(device, created.sessionId);
+    const before = await storedSession(created.sessionId);
+    expect(before.deviceSessionId).not.toBeNull();
+    expect(before.deviceContextId).not.toBeNull();
+
+    // The approve route's exact call.
+    const reused = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      deviceName: 'Acme App',
+    });
+    expect(reused.sessionId).toBe(created.sessionId);
+
+    const claims = validateAccessToken(reused.accessToken).payload;
+    expect(claims?.device_session_id).toBe(before.deviceSessionId);
+    expect(claims?.device_context_id).toBe(before.deviceContextId);
+
+    const after = await storedSession(created.sessionId);
+    expect(after.deviceSessionId).toBe(before.deviceSessionId);
+    expect(after.deviceContextId).toBe(before.deviceContextId);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).not.toBeNull();
+  });
+
+  it('keeps the application binding when the caller supplies none', async () => {
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read'] },
+    });
+
+    const reused = await sessionService.createSession(user, request(), { deviceId: device });
+    expect(reused.sessionId).toBe(created.sessionId);
+
+    const claims = validateAccessToken(reused.accessToken).payload;
+    expect(claims?.azp).toBe(app.clientId);
+    expect(claims?.scope).toBe('profile:read');
+
+    const after = await storedSession(created.sessionId);
+    expect(after.applicationId).toBe(app.id);
+    expect(after.clientId).toBe(app.clientId);
+    expect(after.scopes).toEqual(['profile:read']);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).not.toBeNull();
+  });
+
+  it('keeps the operator when the caller supplies none', async () => {
+    // The reuse lookup deliberately lets an operator-less mint reuse a
+    // DELEGATED row, so the actor half of the binding takes the same route as
+    // the other two. `operated_by_user_id` is a PRIVILEGE field rather than an
+    // address, so this case is spelled out rather than lumped in with the
+    // device and application halves.
+    //
+    // THE SHAPE BELOW IS REACHABLE, and it is worth stating how, because the
+    // reuse lookup filters on `user_id` and a delegated row's `user_id` is the
+    // MANAGED account — which reads as though an operator-less mint could never
+    // find one. It can: the bearer of a managed session resolves `req.user._id`
+    // to that same managed account (`validateSession` loads the user by
+    // `session.userId`; `middleware/auth.ts` pins `req.user`), so while switched
+    // into an organization the authenticated identity IS the organization.
+    // `POST /accounts/:id/switch` then puts the delegated row on the OPERATOR's
+    // central deviceId, and `POST /auth/session/authorize/:sessionToken` mints
+    // `createSession(<that organization>, { deviceId: <that same device> })`
+    // with no operator at all.
+    //
+    // Preserving is what the design asks for, not merely what keeps the binding
+    // consistent: writing NULL here would mint the operator-less organization
+    // session that the `account:act_as` re-check exists to make impossible. The
+    // sibling case below is what keeps that safe.
+    const operator = await account();
+    const managed = await account({ kind: 'organization' });
+    const device = deviceId();
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: device,
+      operatedByUserId: operator,
+    });
+
+    const reused = await sessionService.createSession(managed, request(), { deviceId: device });
+    expect(reused.sessionId).toBe(created.sessionId);
+    expect(validateAccessToken(reused.accessToken).payload?.act?.sub).toBe(operator);
+    expect((await storedSession(created.sessionId)).operatedByUserId).toBe(operator);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).not.toBeNull();
+  });
+
+  it('mints NO token for a preserved operator who has lost act_as', async () => {
+    // The other half of preserving a PRIVILEGE field: the preserved operator
+    // must still have to prove the privilege. `createSession` itself never
+    // re-checks `account:act_as`, so the seam that has to is the one handing
+    // out the credential — `getAccessToken`, which `POST /auth/session/claim`
+    // reaches with no auth middleware in front of it.
+    //
+    // Until the binding was fixed this passed BY ACCIDENT: the reuse mint left
+    // the token disagreeing with its row, every claim fell into `refreshTokens`
+    // to be re-minted, and the check lives there. Making the token agree
+    // removed that accident, which is why the check is now stated at the mint.
+    const operator = await account();
+    const managed = await account({ kind: 'organization' });
+    const device = deviceId();
+    mockVerifyActingAs.mockResolvedValue('admin');
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: device,
+      operatedByUserId: operator,
+    });
+    // The approve route's operator-less mint, which preserves the operator.
+    const reused = await sessionService.createSession(managed, request(), { deviceId: device });
+    expect(reused.sessionId).toBe(created.sessionId);
+    expect((await storedSession(created.sessionId)).operatedByUserId).toBe(operator);
+
+    // POSITIVE CONTROL, and the vacuity floor. The SAME call on the SAME
+    // session, with the membership intact, mints — so "returns null" below is
+    // an answer this lane computed and not a lane that never ran. And the
+    // membership oracle is provably consulted with this operator and this
+    // account, which is what makes the revocation below meaningful.
+    mockVerifyActingAs.mockClear();
+    expect(await sessionService.getAccessToken(created.sessionId)).not.toBeNull();
+    expect(mockVerifyActingAs).toHaveBeenCalledWith(operator, managed);
+
+    // The membership is withdrawn.
+    mockVerifyActingAs.mockResolvedValue(null);
+
+    // The claim lane mints nothing...
+    expect(await sessionService.getAccessToken(created.sessionId)).toBeNull();
+    // ...and the refusal is a REVOCATION, not a withholding: the session is
+    // deactivated, so the token handed out before the withdrawal dies on its
+    // next request rather than living out its 15 minutes.
+    expect((await storedSession(created.sessionId)).isActive).toBe(false);
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).toBeNull();
+  });
+
+  it('never asks the membership oracle for an ordinary session', async () => {
+    // The performance half of the mint-path re-check, pinned rather than left
+    // to the comment on it. `ensureManagedSessionAuthorized` returns before any
+    // lookup when `operated_by_user_id` is NULL, so the overwhelmingly common
+    // session pays nothing for a guarantee only delegated sessions need.
+    //
+    // Not a vacuous assertion: the sibling case above proves this same mock IS
+    // reached, with these same arguments, when the session carries an operator.
+    const user = await account();
+    const session = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    expect((await storedSession(session.sessionId)).operatedByUserId).toBeNull();
+
+    mockVerifyActingAs.mockClear();
+    expect(await sessionService.getAccessToken(session.sessionId)).not.toBeNull();
+    expect(mockVerifyActingAs).not.toHaveBeenCalled();
+  });
+
+  it('still lets the caller REPOINT a binding it does supply', async () => {
+    // The other half: "absent means keep" must not become "supplied is
+    // ignored". A later exchange can widen or narrow what the client was
+    // granted, and the grant is the authority — so a supplied value replaces
+    // the row's outright, it does not merge with it.
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read', 'mail:read'] },
+    });
+    const regranted = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read'] },
+    });
+
+    expect(regranted.sessionId).toBe(created.sessionId);
+    expect(validateAccessToken(regranted.accessToken).payload?.scope).toBe('profile:read');
+    expect((await storedSession(created.sessionId)).scopes).toEqual(['profile:read']);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(regranted.accessToken)).not.toBeNull();
+  });
+
+  it('leaves the refresh token it replaces usable for the grace window', async () => {
+    // A reuse re-mint is a rotation, so it owes the same grace record: the
+    // replaced token is held by whoever read this session before the re-mint,
+    // including another process's cache, and no invalidation from here reaches
+    // them.
+    const user = await account();
+    const device = deviceId();
+    const first = await sessionService.createSession(user, request(), { deviceId: device });
+    const second = await sessionService.createSession(user, request(), { deviceId: device });
+    expect(second.sessionId).toBe(first.sessionId);
+    expect(second.refreshToken).not.toBe(first.refreshToken);
+
+    const stored = await storedSession(first.sessionId);
+    expect(stored.previousRefreshToken).toBe(first.refreshToken);
+    expect(stored.tokenRotatedAt).not.toBeNull();
+
+    const graced = await sessionService.refreshTokens(first.refreshToken);
+    expect(graced).not.toBeNull();
+    expect(graced?.accessToken).toBe(second.accessToken);
+  });
+});
+
+describe('getAccessToken mints from the ROW, never from a stale cached copy', () => {
+  it('re-reads the session when the cached token no longer describes it', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const beforeRotation = await storedSession(created.sessionId);
+
+    // Another process rotates this session. Its `sessionCache.invalidate` reaches
+    // only its OWN local tier, so this one keeps the superseded pair...
+    expect(await sessionService.refreshTokens(created.refreshToken)).not.toBeNull();
+    // ...and once the rotation grace has passed, the superseded refresh token
+    // resolves to nothing at all.
+    await getDb()
+      .update(sessions)
+      .set({ tokenRotatedAt: new Date(Date.now() - 10 * 60 * 1000) })
+      .where(eq(sessions.sessionId, created.sessionId));
+
+    // The cached copy as it looks 15 minutes on: the row it describes is gone
+    // and its access token has expired, which is what sends `getAccessToken`
+    // down the rotate path.
+    const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
+    const claims = jwt.decode(beforeRotation.accessToken) as Record<string, unknown>;
+    delete claims.iat;
+    delete claims.exp;
+    sessionCache.set(created.sessionId, {
+      ...beforeRotation,
+      accessToken: jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '-1s' }),
+    });
+
+    const minted = await sessionService.getAccessToken(created.sessionId);
+    expect(minted).not.toBeNull();
+    expect(await sessionService.validateSession(minted?.accessToken ?? '')).not.toBeNull();
+  });
+});
