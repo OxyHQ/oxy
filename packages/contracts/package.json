@@ -75,7 +75,7 @@
     }
   },
   "dependencies": {
-    "zod": "^3.25.64"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
