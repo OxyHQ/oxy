@@ -42,6 +42,25 @@ COPY packages/db/package.json packages/db/
 # Install dependencies (no lockfile — workspace subset doesn't match the full monorepo lock)
 RUN bun install
 
+# The install above is UNPINNED, so this asserts the one property the lockfile
+# would otherwise have guaranteed: that the express types resolve to exactly one
+# copy. `@types/express-slow-down` and `@types/express-rate-limit` both request
+# `@types/express: "*"`, which resolves to `latest` (v5) here and lands BESIDE
+# the v4 the runtime actually uses; tsc then sees two express type identities
+# and fails 200 lines later in `routes/assets.ts`, `routes/email.ts` and
+# `server.ts` — files nobody touched — which reads like an application bug and
+# is not one. The root `overrides` entry is what holds it to v4; this fails the
+# build AT the cause if that entry is ever dropped or defeated.
+RUN set -eu; \
+    found=$(ls -d node_modules/.bun/@types+express@* 2>/dev/null | wc -l); \
+    if [ "$found" -ne 1 ]; then \
+      echo "FATAL: expected exactly 1 @types/express resolution in the image, found ${found}:" >&2; \
+      ls -d node_modules/.bun/@types+express@* 2>/dev/null >&2 || true; \
+      echo "The root package.json 'overrides' entry pinning @types/express to ^4 is missing or defeated." >&2; \
+      exit 1; \
+    fi; \
+    echo "express types: exactly one resolution ($(ls -d node_modules/.bun/@types+express@*))"
+
 # Copy source code
 COPY packages/core/ packages/core/
 COPY packages/protocol/ packages/protocol/
