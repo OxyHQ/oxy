@@ -21,7 +21,7 @@
  *   SMOKE_TARGET=https://accounts.oxy.so bun run packages/accounts/scripts/smoke-csp.ts
  */
 
-import { extractInlineScripts, inlineScriptCspHash } from '@oxyhq/core/server';
+import { cspSourcesFor, extractInlineScripts, inlineScriptCspHash } from '@oxyhq/core/server';
 
 const TARGET = (process.env.SMOKE_TARGET || 'https://accounts.oxy.so').replace(/\/+$/, '');
 const REQUEST_TIMEOUT_MS = 15000;
@@ -33,15 +33,6 @@ function record(name: string, ok: boolean, detail: string): void {
   if (!ok) failed = true;
   const line = `  [${ok ? 'PASS' : 'FAIL'}] ${name}${detail ? ` — ${detail}` : ''}\n`;
   (ok ? process.stdout : process.stderr).write(line);
-}
-
-/** The sources of one directive, parsed out of the served policy. */
-function policySources(policy: string, directive: string): string[] {
-  const segment = policy
-    .split(';')
-    .map((entry) => entry.trim())
-    .find((entry) => entry === directive || entry.startsWith(`${directive} `));
-  return segment === undefined ? [] : segment.split(/\s+/).slice(1);
 }
 
 process.stdout.write(`Accounts CSP smoke gate → ${TARGET}\n`);
@@ -59,9 +50,8 @@ record('serves a Content-Security-Policy', policy.length > 0, policy ? '' : 'hea
 // `script-src-elem` is what the browser reports for an inline <script> element;
 // it is undefined in this policy, so enforcement falls back to `script-src`.
 // Read both, in that order, rather than assuming which one the policy defines.
-const scriptSources = policySources(policy, 'script-src-elem').length
-  ? policySources(policy, 'script-src-elem')
-  : policySources(policy, 'script-src');
+const elemSources = cspSourcesFor(policy, 'script-src-elem');
+const scriptSources = elemSources.length > 0 ? elemSources : cspSourcesFor(policy, 'script-src');
 
 const inlineScripts = extractInlineScripts(html);
 
@@ -77,10 +67,11 @@ record(
 
 for (const [index, source] of inlineScripts.entries()) {
   const hash = inlineScriptCspHash(source);
+  const allowed = scriptSources.includes(hash);
   record(
     `inline script #${index + 1} is allowed by hash`,
-    scriptSources.includes(hash),
-    `${hash} ${scriptSources.includes(hash) ? 'present in' : 'MISSING from'} script-src`,
+    allowed,
+    `${hash} ${allowed ? 'present in' : 'MISSING from'} script-src`,
   );
 }
 

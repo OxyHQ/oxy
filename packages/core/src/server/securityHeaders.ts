@@ -241,6 +241,28 @@ export function formatOxyCspPolicy(directives: Record<string, string[]>): string
 }
 
 /**
+ * The source list one directive carries in a serialized policy, or `[]` when
+ * the policy does not name that directive. The inverse of
+ * {@link formatOxyCspPolicy}, and the reason it lives here rather than beside
+ * either caller: the post-deploy gate parses the policy the ORIGIN serves while
+ * the unit test parses the one the middleware renders, so a copy in each would
+ * let the header shape change with the test still green and the gate reading
+ * `[]` — reporting every script blocked, which reads as a broken app rather
+ * than as a broken parser.
+ *
+ * A directive present with no sources (`upgrade-insecure-requests`) and a
+ * directive absent entirely both answer `[]`. Callers that need to tell those
+ * apart are asking a different question than "what is allowed here".
+ */
+export function cspSourcesFor(policy: string, directive: string): string[] {
+  const segment = policy
+    .split(';')
+    .map((entry) => entry.trim())
+    .find((entry) => entry === directive || entry.startsWith(`${directive} `));
+  return segment === undefined ? [] : segment.split(/\s+/).slice(1);
+}
+
+/**
  * Index of the `>` that closes a tag whose attribute region starts at `from`,
  * or `-1` if the document ends first. Quote-aware: a `>` inside an attribute
  * VALUE does not close the tag.

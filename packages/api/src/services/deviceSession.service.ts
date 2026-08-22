@@ -856,16 +856,18 @@ class DeviceSessionService {
   /**
    * The access token of ONE session, or null when it is no longer live.
    *
-   * Re-validates before minting: for a managed-account session this re-checks
-   * the operator's `account:act_as` membership (`ensureManagedSessionAuthorized`)
-   * and deactivates+rejects a revoked session instead of handing out a token for
-   * an account the caller no longer has authority over.
+   * `getAccessToken` IS the re-validation. It reads the row (never a cached
+   * copy) under the same `is_active` + `expires_at > now()` predicate, and for
+   * a managed-account session it re-checks the operator's `account:act_as`
+   * membership with `force`, deactivating+rejecting a revoked session rather
+   * than handing out a token for an account the caller no longer has authority
+   * over. A `validateSessionById` call ahead of it asked strictly less — a
+   * CACHED read and the 60s-throttled membership check — so it could only ever
+   * duplicate the answer this one is about to give.
    */
   private async resolveTokenForSession(
     sessionId: string
   ): Promise<{ accessToken: string; expiresAt: string } | null> {
-    const validated = await sessionService.validateSessionById(sessionId, false);
-    if (!validated) return null;
     const token = await sessionService.getAccessToken(sessionId);
     if (!token) return null;
     return { accessToken: token.accessToken, expiresAt: token.expiresAt.toISOString() };

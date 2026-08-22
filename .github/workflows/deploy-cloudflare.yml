@@ -101,21 +101,11 @@ jobs:
         working-directory: packages/auth
         env:
           SMOKE_TARGET: https://auth.oxy.so
-        run: |
-          for attempt in 1 2 3 4 5; do
-            echo "::group::IdP smoke attempt ${attempt}/5"
-            if bun run smoke:idp; then
-              echo "::endgroup::"
-              exit 0
-            fi
-            echo "::endgroup::"
-            if [ "${attempt}" -lt 5 ]; then
-              echo "Smoke gate failed (edge may still be propagating); retrying in 15s..."
-              sleep 15
-            fi
-          done
-          echo "::error::IdP post-deploy smoke gate failed — auth.oxy.so is serving a broken build"
-          exit 1
+        run: >
+          "$GITHUB_WORKSPACE/.github/scripts/retry-smoke.sh"
+          smoke:idp
+          'IdP smoke'
+          'IdP post-deploy smoke gate failed — auth.oxy.so is serving a broken build'
 
   deploy-accounts:
     needs: detect-changes
@@ -163,21 +153,11 @@ jobs:
         working-directory: packages/accounts
         env:
           SMOKE_TARGET: https://accounts.oxy.so
-        run: |
-          for attempt in 1 2 3 4 5; do
-            echo "::group::CSP smoke attempt ${attempt}/5"
-            if bun run smoke:csp; then
-              echo "::endgroup::"
-              exit 0
-            fi
-            echo "::endgroup::"
-            if [ "${attempt}" -lt 5 ]; then
-              echo "Smoke gate failed (edge may still be propagating); retrying in 15s..."
-              sleep 15
-            fi
-          done
-          echo "::error::accounts.oxy.so is serving a CSP that blocks its own inline script"
-          exit 1
+        run: >
+          "$GITHUB_WORKSPACE/.github/scripts/retry-smoke.sh"
+          smoke:csp
+          'CSP smoke'
+          'accounts.oxy.so is serving a CSP that blocks its own inline script'
 
   # deploy-inbox is GONE: the app moved to OxyHQ/Inbox, which now owns the
   # `oxy-inbox` Pages project and inbox.oxy.so.
