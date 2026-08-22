@@ -18,9 +18,8 @@
 
 import express from 'express';
 import type { Request } from 'express';
-import http from 'http';
-import type { AddressInfo } from 'net';
 import { randomUUID } from 'node:crypto';
+import request from 'supertest';
 
 /*
  * `jest.setup.cjs` mocks `jsonwebtoken` to a constant string. The whole subject
@@ -93,44 +92,27 @@ import deviceSessionService from '../../services/deviceSession.service';
 import sessionService from '../../services/session.service';
 import authRouter from '../auth';
 
-interface JsonResponse {
-  status: number;
-  body: Record<string, unknown>;
-}
+let app: express.Express;
 
-let server: http.Server;
+/**
+ * Sent on every request because `extractDeviceInfo` derives the browser, OS and
+ * device type it records on the session row from it. A default agent string
+ * would quietly change what the reused row stores.
+ */
+const USER_AGENT =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36';
 
-function post(path: string, body: unknown = {}): Promise<JsonResponse> {
-  const address = server.address() as AddressInfo;
-  const payload = JSON.stringify(body);
-  return new Promise((resolve, reject) => {
-    const req = http.request(
-      {
-        method: 'POST',
-        host: '127.0.0.1',
-        port: address.port,
-        path,
-        headers: {
-          'content-type': 'application/json',
-          'content-length': Buffer.byteLength(payload),
-          'user-agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
-        },
-      },
-      (res) => {
-        let raw = '';
-        res.on('data', (chunk) => {
-          raw += chunk;
-        });
-        res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
-        );
-      },
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
+const post = (path: string, body: unknown = {}) =>
+  request(app).post(path).set('user-agent', USER_AGENT).send(body);
+
+/** The stored session row, read straight from Postgres (not through the service). */
+async function storedSession(sessionId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(sessions)
+    .where(eq(sessions.sessionId, sessionId))
+    .limit(1);
+  return row;
 }
 
 /**
@@ -184,19 +166,13 @@ beforeAll(async () => {
   process.env.ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
   process.env.REFRESH_TOKEN_SECRET = `refresh-${randomUUID()}`;
   process.env.DEVICE_ID_SALT = 'x'.repeat(48);
-  const app = express();
+  app = express();
   app.use(express.json());
   app.use('/auth', authRouter);
   app.use(errorHandler);
-  await new Promise<void>((resolve) => {
-    server = app.listen(0, '127.0.0.1', resolve);
-  });
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
   await closePostgres();
 });
 
@@ -212,9 +188,7 @@ beforeEach(() => {
 describe('approve then claim, on a device that is already signed in', () => {
   it('claims the approved session and hands back a token that authenticates', async () => {
     const { userId, deviceId, sessionId } = await signedInOnDevice();
-    const boundBefore = (
-      await getDb().select().from(sessions).where(eq(sessions.sessionId, sessionId)).limit(1)
-    )[0];
+    const boundBefore = await storedSession(sessionId);
     expect(boundBefore.deviceSessionId).not.toBeNull();
 
     authenticatedUser = { _id: userId, username: 'someone' };
@@ -230,11 +204,7 @@ describe('approve then claim, on a device that is already signed in', () => {
     // is a shipped credential, not an intermediate: `buildSessionAuthResponse`
     // hands `session.accessToken` straight to the client on the webauthn and
     // public-key sign-in lanes, which reuse through this same branch.
-    const [afterApprove] = await getDb()
-      .select()
-      .from(sessions)
-      .where(eq(sessions.sessionId, sessionId))
-      .limit(1);
+    const afterApprove = await storedSession(sessionId);
     expect(afterApprove.deviceSessionId).toBe(boundBefore.deviceSessionId);
     sessionCache.clear();
     expect(await sessionService.validateSession(afterApprove.accessToken)).not.toBeNull();
@@ -258,11 +228,7 @@ describe('approve then claim, on a device that is already signed in', () => {
     // pre-approve copy of the row. Seeded here with an EXPIRED access token,
     // which is the state a cached copy reaches 15 minutes in.
     const { userId, deviceId, sessionId } = await signedInOnDevice();
-    const [staleCopy] = await getDb()
-      .select()
-      .from(sessions)
-      .where(eq(sessions.sessionId, sessionId))
-      .limit(1);
+    const staleCopy = await storedSession(sessionId);
 
     authenticatedUser = { _id: userId, username: 'someone' };
     const sessionToken = await pendingRequest(deviceId);

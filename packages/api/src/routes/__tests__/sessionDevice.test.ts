@@ -344,7 +344,10 @@ describe('POST /session/device/token — the public deviceSecret mint', () => {
   it('401 no_active_session WITHOUT rotating when the secret is valid but the session is dead', async () => {
     const { deviceId, secret } = await deviceWithSecret();
     const before = await storedDevice(deviceId);
-    mockValidateSessionById.mockResolvedValue(null);
+    // A session that cannot mint IS the dead session: `getAccessToken` re-reads
+    // the row and re-checks the operator's act_as, and is the only authority
+    // `resolveTokenForSession` consults.
+    mockGetAccessToken.mockResolvedValue(null);
 
     const res = await requestJson('POST', '/session/device/token', { deviceId, deviceSecret: secret });
 
@@ -483,7 +486,10 @@ describe('POST /session/device/token — pinned mint (identity-bound clients)', 
 
   it('answers the SAME error when the pinned member exists but its session is dead (no existence oracle)', async () => {
     const { deviceId, pinned, secret } = await twoAccountDevice();
-    mockValidateSessionById.mockResolvedValue(null);
+    // A session that cannot mint IS the dead session: `getAccessToken` re-reads
+    // the row and re-checks the operator's act_as, and is the only authority
+    // `resolveTokenForSession` consults.
+    mockGetAccessToken.mockResolvedValue(null);
 
     const res = await requestJson('POST', '/session/device/token', {
       deviceId,

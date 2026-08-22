@@ -334,8 +334,10 @@ describe('POST /session/browser-hub/resolve', () => {
 
   it('distinguishes a dead device from a dead handle, and keeps the credential', async () => {
     const { deviceId, handle } = await deviceWithHub();
-    // The handle is fine; the device has nothing live to mint for.
-    mockValidateSessionById.mockResolvedValue(null);
+    // The handle is fine; the device has nothing live to mint for. Expressed
+    // through `getAccessToken`, which re-reads the row and re-checks the
+    // operator's act_as, and is the only authority the resolve path consults.
+    mockGetAccessToken.mockResolvedValue(null);
 
     const response = await requestJson('POST', '/session/browser-hub/resolve', { handle });
     expect(response.status).toBe(401);
