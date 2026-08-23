@@ -834,7 +834,7 @@ router.post(
  * @desc Stream-upload durable media into a normal public file owned by an
  *       existing local Oxy user. Used by Mention MCP intent-media when the
  *       caller authenticates with an MCP JWT (no Oxy session bearer).
- * @access Service token only (requires files:write)
+ * @access Privileged service token only (requires files:write and federation:write)
  */
 router.post(
   '/service/user-media',
@@ -842,6 +842,11 @@ router.post(
   cacheUploadLimiter,
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     requireServiceScope(req, 'files:write');
+    // Attributing a public file to a user is cross-tenant act-as authority, not
+    // ordinary application-owned file access. Require a staff-granted scope in
+    // addition to files:write so self-grantable service credentials cannot pick
+    // an arbitrary local user via x-owner-user-id.
+    requireServiceScope(req, 'federation:write');
 
     const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
     if (!ownerUserId) {
