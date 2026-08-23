@@ -1492,23 +1492,14 @@ router.post(
 
     const userData = formatUserResponse(user);
 
-    // Mint the `deviceSecret` the client persists first-party (with the response's
-    // `deviceId`) to restore the session via `POST /session/device/token`
-    // (zero-cookie transport). Best-effort — a mint failure never fails the claim,
-    // and a device with no doc simply omits the secret.
-    let deviceSecret: string | undefined;
-    try {
-      if (typeof session.deviceId === 'string' && session.deviceId.length > 0) {
-        const { deviceSessionService } = await import('../services/deviceSession.service.js');
-        const minted = await deviceSessionService.issueDeviceSecret(session.deviceId);
-        if (minted) deviceSecret = minted;
-      }
-    } catch (error) {
-      logger.warn('[AuthSession] deviceSecret mint failed on claim', {
-        sessionId: authSession.authorizedSessionId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    // Register the account on the fresh, claim-only device boundary created by
+    // the approval service, then mint its restore secret. `finalizeDeviceLogin`
+    // is best-effort, so an infrastructure failure still leaves the one-time
+    // access token usable without ever falling back to the approver's device.
+    const { deviceSecret } = await finalizeDeviceLogin({
+      session: { sessionId: authSession.authorizedSessionId, deviceId: session.deviceId },
+      userId: authSession.authorizedUserId,
+    });
 
     logger.info('[AuthSession] Claim succeeded', {
       sessionToken: sessionToken.substring(0, 8) + '...',
