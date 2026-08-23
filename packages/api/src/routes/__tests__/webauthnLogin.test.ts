@@ -147,9 +147,10 @@ async function accountWithPasskey(options?: {
   counter?: number;
   transports?: string[];
   userVerified?: boolean;
+  kind?: 'personal' | 'organization';
 }): Promise<{ userId: string; username: string; credentialID: string }> {
   const username = options?.username ?? freshUsername();
-  const [row] = await getDb().insert(users).values({ username }).returning({ id: users.id });
+  const [row] = await getDb().insert(users).values({ username, kind: options?.kind ?? 'personal' }).returning({ id: users.id });
   const credentialID = freshCredentialId();
   await getDb().insert(webauthnCredentials).values({
     userId: row.id,
@@ -248,6 +249,17 @@ interface AuthOptionsArg {
 }
 
 describe('POST /webauthn/login/options', () => {
+  it('treats a managed account like an account with no directly usable passkey', async () => {
+    const { username, credentialID } = await accountWithPasskey({ kind: 'organization' });
+
+    const res = await request(server, 'POST', '/webauthn/login/options', { username });
+
+    expect(res.status).toBe(200);
+    const opts = mockGenerateAuthOptions.mock.calls[0][0] as AuthOptionsArg;
+    expect(opts.allowCredentials.map((credential) => credential.id)).not.toContain(credentialID);
+    expect((await storedChallenge(currentChallenge)).used).toBe(true);
+  });
+
   it("username-first (KNOWN username with a passkey): returns that user's real allowCredentials and binds the challenge to the account", async () => {
     const { userId, username, credentialID } = await accountWithPasskey({ transports: ['usb', 'nfc'] });
 
@@ -396,6 +408,18 @@ describe('POST /webauthn/login/options', () => {
 });
 
 describe('POST /webauthn/login/verify', () => {
+  it('never mints a direct session for a managed account credential', async () => {
+    const { credentialID } = await accountWithPasskey({ kind: 'organization' });
+    presentedCredentialId = credentialID;
+    await request(server, 'POST', '/webauthn/login/options', {});
+
+    const res = await request(server, 'POST', '/webauthn/login/verify', { response: authenticationResponse() });
+
+    expect(res.status).toBe(401);
+    expect(mockCreateSession).not.toHaveBeenCalled();
+    expect(mockFinalizeDeviceLogin).not.toHaveBeenCalled();
+  });
+
   it('mints a session with the byte-identical AuthSuccess shape of /auth/verify', async () => {
     const { userId, username, credentialID } = await accountWithPasskey({ counter: 5 });
     presentedCredentialId = credentialID;
