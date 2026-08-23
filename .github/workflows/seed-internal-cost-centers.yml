@@ -40,11 +40,6 @@ name: Seed internal cost centres
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Branch or SHA to build the seeder image from'
-        required: true
-        type: string
-        default: 'main'
       only_cost_centers:
         description: "Comma-separated cost-centre slugs this run may touch (e.g. 'codea')"
         required: true
@@ -76,13 +71,25 @@ permissions:
 
 jobs:
   seed:
+    # BOTH HALVES, AND NEITHER IS ENOUGH ALONE. This job assumes
+    # `oxy-github-deploy`, so whatever it checks out runs against production
+    # AWS. It took a `ref` input, so anyone able to dispatch it could point it
+    # at a branch nobody reviewed and execute that code with the deploy role —
+    # a path around branch protection rather than through it.
+    #
+    # `if` bounds which REF the workflow file itself may be dispatched from;
+    # the hardcoded checkout bounds what the job RUNS. Dispatch-ref alone still
+    # lets `inputs.ref` name anything, and a hardcoded checkout alone still runs
+    # a workflow definition from an arbitrary branch. `seed-oxy-applications.yml`
+    # carries the same pair, and is where this shape is copied from.
+    if: github.ref == 'refs/heads/main'
     # Same arch as the deployed image — the service runs linux/arm64.
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: main
 
       - name: Refuse an empty cost-centre list
         env:
