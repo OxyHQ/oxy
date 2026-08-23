@@ -831,7 +831,7 @@ describe('background credential', () => {
 });
 
 describe('resolveTokenForAccount / resolveActiveToken', () => {
-  it('mints a NON-active member account token after re-validating its session', async () => {
+  it("mints a NON-active member account token, from that account's own session", async () => {
     const device = deviceId();
     const a1 = await account();
     const a2 = await account();
@@ -840,7 +840,6 @@ describe('resolveTokenForAccount / resolveActiveToken', () => {
     await deviceSessionService.switchActive(device, a1);
     const state = await deviceSessionService.getState(device);
     jest.clearAllMocks();
-    mockValidateSessionById.mockResolvedValue({ session: {} });
     mockGetAccessToken.mockResolvedValue({
       accessToken: 'jwt-a2',
       expiresAt: new Date('2026-07-07T00:00:00.000Z'),
@@ -850,7 +849,10 @@ describe('resolveTokenForAccount / resolveActiveToken', () => {
       accessToken: 'jwt-a2',
       expiresAt: '2026-07-07T00:00:00.000Z',
     });
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s2', false);
+    // `s2`, not the ACTIVE account's `s1` — and `getAccessToken` is the only
+    // session call, because it is itself the re-validation (see the method).
+    expect(mockGetAccessToken).toHaveBeenCalledWith('s2');
+    expect(mockValidateSessionById).not.toHaveBeenCalled();
   });
 
   it('is READ-ONLY: resolving a pinned account performs no device-row write at all', async () => {
@@ -872,21 +874,21 @@ describe('resolveTokenForAccount / resolveActiveToken', () => {
     expect(after.updatedAt.getTime()).toBe(before.updatedAt.getTime());
   });
 
-  it('returns null for a non-member, a revoked session, and a session that cannot mint', async () => {
+  it('returns null for a non-member, and for a session that cannot mint', async () => {
     const device = deviceId();
     const a1 = await account();
     await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
     const state = await deviceSessionService.getState(device);
 
     jest.clearAllMocks();
+    // A non-member is refused off the device state alone — the session service
+    // is never reached, so an unknown accountId cannot mint anything.
     expect(await deviceSessionService.resolveTokenForAccount(state, 'ghost')).toBeNull();
-    expect(mockValidateSessionById).not.toHaveBeenCalled();
-
-    mockValidateSessionById.mockResolvedValueOnce(null);
-    expect(await deviceSessionService.resolveTokenForAccount(state, a1)).toBeNull();
     expect(mockGetAccessToken).not.toHaveBeenCalled();
 
-    mockValidateSessionById.mockResolvedValue({ session: {} });
+    // A revoked session and a session that cannot mint are ONE case here:
+    // `getAccessToken` answers null for both, and the caller must not be able
+    // to tell them apart (see the pinned mint route).
     mockGetAccessToken.mockResolvedValueOnce(null);
     expect(await deviceSessionService.resolveTokenForAccount(state, a1)).toBeNull();
   });

@@ -26,6 +26,7 @@ import {
 import {
   checkAccessTokenBinding,
   generateSessionTokens,
+  tokenBindingFromRow,
   validateAccessToken,
   validateRefreshToken,
   type AccessTokenBinding,
@@ -41,6 +42,23 @@ import type {
   SessionCreateOptions,
   SessionRefreshResult,
 } from '../types/session.types';
+
+/**
+ * The half of `SessionTokenBindingRow` a MINT decides. `sessionId` and `userId`
+ * are the row's identity — the mint already holds both and never derives them
+ * from the binding — so what is left is exactly the set of columns the write
+ * spreads and the set of claims `tokenBindingFromRow` reads. Naming it keeps
+ * those two in step: a binding column added to the row shape stops compiling
+ * here until the mint decides a value for it.
+ *
+ * `scopes` is re-declared mutable. The row shape says `readonly` because a
+ * reader must not edit the grant it was handed; this value is the one being
+ * WRITTEN to `sessions.scopes`, and drizzle's insert/update types take the
+ * column's own `string[]`.
+ */
+type SessionBinding = Omit<SessionTokenBindingRow, 'sessionId' | 'userId' | 'scopes'> & {
+  scopes: string[];
+};
 
 const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000; // 7 days
 const TOKEN_ROTATION_GRACE_PERIOD_MS = 30_000; // 30 seconds grace period for concurrent tab refreshes
@@ -127,24 +145,11 @@ function extractUserId(value: string | null | undefined): string | undefined {
  * The access-token v2 binding a live session row describes (issue #937,
  * Phase 6). The ROW is the authority in both directions: this is what a re-mint
  * puts into the claims, and what `validateSession` checks a presented token's
- * claims back against.
- *
- * `principalUserId` is `operated_by_user_id` when the session is delegated and
- * the subject itself otherwise. That single line is the actor/subject
- * separation the whole phase turns on — collapsing it would make a delegated
- * session's token claim the organization authorised itself.
+ * claims back against — see `tokenBindingFromRow`, which derives the claims and
+ * carries the reason the actor/subject split is written in exactly one place.
  */
 function tokenBindingOf(session: CachedSession): AccessTokenBinding {
-  return {
-    subjectAccountId: session.userId,
-    principalUserId: session.operatedByUserId ?? session.userId,
-    sessionId: session.sessionId,
-    deviceId: session.deviceId,
-    deviceSessionId: session.deviceSessionId,
-    deviceContextId: session.deviceContextId,
-    clientId: session.clientId,
-    scopes: session.scopes,
-  };
+  return tokenBindingFromRow(bindingRowOf(session), session.deviceId);
 }
 
 /** The same row, in the shape `checkAccessTokenBinding` validates against. */
@@ -611,26 +616,7 @@ class SessionService {
       // mints — the fallback can't re-sprawl.
       const reusableOn = async (candidateDeviceId: string) => {
         const [row] = await getDb()
-          .select({
-            id: sessions.id,
-            sessionId: sessions.sessionId,
-            deviceId: sessions.deviceId,
-            deviceName: sessions.deviceName,
-            // The binding this session ALREADY carries, and the refresh token a
-            // reuse is about to replace. Read here because the reuse branch
-            // below has to answer "what does the caller say nothing about?" —
-            // without these columns it cannot, and the mint silently asserted
-            // NULL for every one of them (see the effective binding below).
-            // `refresh_token` is protected and named explicitly, which is the
-            // opt-in shape `schema/__tests__/protectedColumns.test.ts` asks for.
-            operatedByUserId: sessions.operatedByUserId,
-            applicationId: sessions.applicationId,
-            clientId: sessions.clientId,
-            scopes: sessions.scopes,
-            deviceSessionId: sessions.deviceSessionId,
-            deviceContextId: sessions.deviceContextId,
-            refreshToken: sessions.refreshToken,
-          })
+          .select(SESSION_COLUMNS)
           .from(sessions)
           .where(
             and(
@@ -697,7 +683,7 @@ class SessionService {
         // deviceId and a label and nothing else onto a device whose own
         // session the login lane bound to a device context afterwards
         // (`deviceSessionService.bindSessionToContext`).
-        const reusedBinding = {
+        const reusedBinding: SessionBinding = {
           operatedByUserId: operatedByUserId ?? existingSession.operatedByUserId,
           applicationId: application ? application.applicationId : existingSession.applicationId,
           clientId: application ? application.clientId : existingSession.clientId,
@@ -717,16 +703,9 @@ class SessionService {
         // central id when supplied), so the reused access token's `deviceId`
         // claim addresses the caller's real device — the room the client's
         // SessionClient joins and where cross-domain broadcasts land.
-        const { accessToken, refreshToken } = generateSessionTokens({
-          subjectAccountId: userId,
-          principalUserId: reusedBinding.operatedByUserId ?? userId,
-          sessionId,
-          deviceId: deviceInfo.deviceId,
-          deviceSessionId: reusedBinding.deviceSessionId,
-          deviceContextId: reusedBinding.deviceContextId,
-          clientId: reusedBinding.clientId,
-          scopes: reusedBinding.scopes,
-        });
+        const { accessToken, refreshToken } = generateSessionTokens(
+          tokenBindingFromRow({ sessionId, userId, ...reusedBinding }, deviceInfo.deviceId)
+        );
 
         // Migrate a reused session onto the caller's central device when an
         // explicit deviceId was supplied and the reused session still sits on a
@@ -766,12 +745,7 @@ class SessionService {
             // write is what let the token assert NULL while the row kept its
             // value. Where the caller supplied nothing these re-write the
             // value the row already held, which is a no-op by construction.
-            operatedByUserId: reusedBinding.operatedByUserId,
-            applicationId: reusedBinding.applicationId,
-            clientId: reusedBinding.clientId,
-            scopes: reusedBinding.scopes,
-            deviceSessionId: reusedBinding.deviceSessionId,
-            deviceContextId: reusedBinding.deviceContextId,
+            ...reusedBinding,
           })
           .where(eq(sessions.id, existingSession.id))
           .returning(SESSION_COLUMNS);
@@ -829,7 +803,7 @@ class SessionService {
       // "not a delegated session" and "no device context yet" — all first-class
       // states, not missing data, and the `account:act_as` re-check keys off
       // the operator being NULL.
-      const newBinding = {
+      const newBinding: SessionBinding = {
         operatedByUserId: operatedByUserId || null,
         applicationId: application?.applicationId ?? null,
         clientId: application?.clientId ?? null,
@@ -837,16 +811,9 @@ class SessionService {
         deviceSessionId: deviceContext?.deviceSessionId ?? null,
         deviceContextId: deviceContext?.deviceContextId ?? null,
       };
-      const { accessToken, refreshToken } = generateSessionTokens({
-        subjectAccountId: userId,
-        principalUserId: newBinding.operatedByUserId ?? userId,
-        sessionId,
-        deviceId: deviceInfo.deviceId,
-        deviceSessionId: newBinding.deviceSessionId,
-        deviceContextId: newBinding.deviceContextId,
-        clientId: newBinding.clientId,
-        scopes: newBinding.scopes,
-      });
+      const { accessToken, refreshToken } = generateSessionTokens(
+        tokenBindingFromRow({ sessionId, userId, ...newBinding }, deviceInfo.deviceId)
+      );
 
       // `deviceInfo` was a nested subdocument in Mongo; the eight fields are
       // real columns now (see the table in `db/schema/sessions.ts`).
@@ -866,12 +833,7 @@ class SessionService {
           lastActiveAt: now,
           accessToken,
           refreshToken,
-          operatedByUserId: newBinding.operatedByUserId,
-          applicationId: newBinding.applicationId,
-          clientId: newBinding.clientId,
-          scopes: newBinding.scopes,
-          deviceSessionId: newBinding.deviceSessionId,
-          deviceContextId: newBinding.deviceContextId,
+          ...newBinding,
           isActive: true,
           expiresAt,
           lastRefresh: now,

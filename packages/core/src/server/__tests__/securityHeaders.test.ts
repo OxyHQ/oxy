@@ -3,6 +3,7 @@ import {
   buildOxyCspDirectives,
   buildOxyPagesHeaders,
   createOxySecurityHeaders,
+  cspSourcesFor,
   extractInlineScripts,
   formatOxyCspPolicy,
   inlineScriptCspHash,
@@ -27,16 +28,6 @@ function renderPolicy(options: Parameters<typeof createOxySecurityHeaders>[0]): 
 
   createOxySecurityHeaders(options)(req, res, next);
   return headers['Content-Security-Policy'] ?? '';
-}
-
-/** The sources of one directive, parsed back out of the rendered header. */
-function policySources(policy: string, directive: string): string[] {
-  const found = policy
-    .split(';')
-    .map((segment) => segment.trim())
-    .find((segment) => segment === directive || segment.startsWith(`${directive} `));
-  if (found === undefined) return [];
-  return found.split(/\s+/).slice(1);
 }
 
 /** The CSP value parsed back out of a Cloudflare Pages `_headers` block. */
@@ -238,7 +229,7 @@ describe('@oxyhq/core/server extractInlineScripts', () => {
 describe('@oxyhq/core/server buildOxyPagesHeaders inline-script hashes', () => {
   it('allows the built HTML\'s inline script by hash', () => {
     const block = buildOxyPagesHeaders({ html: [expoExportHtml()] });
-    expect(policySources(cspOf(block), 'script-src')).toEqual([
+    expect(cspSourcesFor(cspOf(block), 'script-src')).toEqual([
       "'self'",
       CLOUDFLARE_SCRIPT_HOST,
       EXPO_HYDRATE_SHA256,
@@ -250,7 +241,7 @@ describe('@oxyhq/core/server buildOxyPagesHeaders inline-script hashes', () => {
     // sha256-" would be satisfied by a builder that hashed unconditionally.
     const block = buildOxyPagesHeaders({ html: ['<html><body>nothing inline</body></html>'] });
     expect(cspOf(block)).not.toContain('sha256-');
-    expect(policySources(cspOf(block), 'script-src')).toEqual(["'self'", CLOUDFLARE_SCRIPT_HOST]);
+    expect(cspSourcesFor(cspOf(block), 'script-src')).toEqual(["'self'", CLOUDFLARE_SCRIPT_HOST]);
   });
 
   it('dedupes one route-per-file export down to a single hash', () => {
@@ -265,9 +256,9 @@ describe('@oxyhq/core/server buildOxyPagesHeaders inline-script hashes', () => {
       csp: { imgSrc: ['blob:'], connectSrc: ['blob:'] },
       html: [expoExportHtml()],
     });
-    expect(policySources(cspOf(block), 'img-src')).toContain('blob:');
-    expect(policySources(cspOf(block), 'script-src')).toContain(EXPO_HYDRATE_SHA256);
-    expect(policySources(cspOf(block), 'script-src')).toContain("'self'");
+    expect(cspSourcesFor(cspOf(block), 'img-src')).toContain('blob:');
+    expect(cspSourcesFor(cspOf(block), 'script-src')).toContain(EXPO_HYDRATE_SHA256);
+    expect(cspSourcesFor(cspOf(block), 'script-src')).toContain("'self'");
   });
 
   it('never hashes styles, which would disable style-src unsafe-inline', () => {
@@ -276,7 +267,7 @@ describe('@oxyhq/core/server buildOxyPagesHeaders inline-script hashes', () => {
     const block = buildOxyPagesHeaders({
       html: ['<html><head><style>.a{color:red}</style></head></html>'],
     });
-    expect(policySources(cspOf(block), 'style-src')).toEqual(["'self'", "'unsafe-inline'"]);
+    expect(cspSourcesFor(cspOf(block), 'style-src')).toEqual(["'self'", "'unsafe-inline'"]);
     expect(cspOf(block)).not.toContain('sha256-');
   });
 
@@ -296,8 +287,8 @@ describe('@oxyhq/core/server createOxySecurityHeaders', () => {
   it('sends the resolved baseline as a real Content-Security-Policy header', () => {
     const policy = renderPolicy({});
 
-    expect(policySources(policy, 'script-src')).toEqual(["'self'", CLOUDFLARE_SCRIPT_HOST]);
-    expect(policySources(policy, 'connect-src')).toEqual([
+    expect(cspSourcesFor(policy, 'script-src')).toEqual(["'self'", CLOUDFLARE_SCRIPT_HOST]);
+    expect(cspSourcesFor(policy, 'connect-src')).toEqual([
       "'self'",
       CLOUDFLARE_REPORT_HOST,
       'https://api.oxy.so',
@@ -315,7 +306,7 @@ describe('@oxyhq/core/server createOxySecurityHeaders', () => {
       },
     });
 
-    expect(policySources(policy, 'connect-src')).toEqual([
+    expect(cspSourcesFor(policy, 'connect-src')).toEqual([
       "'self'",
       CLOUDFLARE_REPORT_HOST,
       'https://api.oxy.so',
@@ -324,7 +315,7 @@ describe('@oxyhq/core/server createOxySecurityHeaders', () => {
       'https://api.mention.earth',
       'wss://api.mention.earth',
     ]);
-    expect(policySources(policy, 'frame-src')).toEqual([
+    expect(cspSourcesFor(policy, 'frame-src')).toEqual([
       "'self'",
       'https://www.youtube-nocookie.com',
     ]);

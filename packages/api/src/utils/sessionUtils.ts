@@ -342,6 +342,40 @@ function audienceIncludes(aud: jwt.JwtPayload['aud'], expected: string): boolean
 }
 
 /**
+ * The v2 binding a session row implies, for the ATTRIBUTION device the mint is
+ * stamping. The inverse of `checkAccessTokenBinding`: that one asks whether a
+ * presented token still matches its row, this one produces the token the row
+ * would mint — so both sides of the phase derive the claims from the SAME
+ * expression instead of two copies that can drift.
+ *
+ * `principalUserId` is `operated_by_user_id` when the session is delegated and
+ * the subject itself otherwise. That single line is the actor/subject
+ * separation the whole phase turns on — collapsing it would make a delegated
+ * session's token claim the organization authorised itself — which is why it
+ * is written HERE once and never beside a caller's own mint.
+ *
+ * `deviceId` is a parameter rather than a row field because it is the only
+ * part of a mint the row does not decide: a reuse that migrates the session
+ * onto the caller's central device stamps the NEW id while the row still names
+ * the old one, and the rotation path stamps the presented token's.
+ */
+export function tokenBindingFromRow(
+  row: SessionTokenBindingRow,
+  deviceId: string
+): AccessTokenBinding {
+  return {
+    subjectAccountId: row.userId,
+    principalUserId: row.operatedByUserId ?? row.userId,
+    sessionId: row.sessionId,
+    deviceId,
+    deviceSessionId: row.deviceSessionId,
+    deviceContextId: row.deviceContextId,
+    clientId: row.clientId,
+    scopes: row.scopes,
+  };
+}
+
+/**
  * Resource-server validation of a verified access token against the session it
  * names. `validateAccessToken` proved the SIGNATURE and the expiry; this proves
  * the token still describes its session, and answers with the identity the

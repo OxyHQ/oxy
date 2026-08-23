@@ -527,7 +527,7 @@ describe('refreshTokens', () => {
   });
 });
 
-describe('getAccessToken — the sliding mint chokepoint', () => {
+describe('getAccessToken — the mint chokepoint', () => {
   it('slides expiresAt forward when a still-valid session mints without rotating', async () => {
     const user = await account();
     const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
@@ -556,6 +556,56 @@ describe('getAccessToken — the sliding mint chokepoint', () => {
 
     expect(await sessionService.getAccessToken(created.sessionId)).toBeNull();
     expect(await sessionService.getAccessToken(randomUUID())).toBeNull();
+  });
+
+  it('never asks the membership oracle for an ordinary session', async () => {
+    // The performance half of the mint-path re-check, pinned rather than left
+    // to the comment on it. `ensureManagedSessionAuthorized` returns before any
+    // lookup when `operated_by_user_id` is NULL, so the overwhelmingly common
+    // session pays nothing for a guarantee only delegated sessions need.
+    //
+    // Not a vacuous assertion: 'mints NO token for a preserved operator who
+    // has lost act_as' proves this same mock IS reached, with these same
+    // arguments, when the session carries an operator.
+    const user = await account();
+    const session = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    expect((await storedSession(session.sessionId)).operatedByUserId).toBeNull();
+
+    mockVerifyActingAs.mockClear();
+    expect(await sessionService.getAccessToken(session.sessionId)).not.toBeNull();
+    expect(mockVerifyActingAs).not.toHaveBeenCalled();
+  });
+
+  it('mints from the ROW, never from a stale cached copy', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const beforeRotation = await storedSession(created.sessionId);
+
+    // Another process rotates this session. Its `sessionCache.invalidate` reaches
+    // only its OWN local tier, so this one keeps the superseded pair...
+    expect(await sessionService.refreshTokens(created.refreshToken)).not.toBeNull();
+    // ...and once the rotation grace has passed, the superseded refresh token
+    // resolves to nothing at all.
+    await getDb()
+      .update(sessions)
+      .set({ tokenRotatedAt: new Date(Date.now() - 10 * 60 * 1000) })
+      .where(eq(sessions.sessionId, created.sessionId));
+
+    // The cached copy as it looks 15 minutes on: the row it describes is gone
+    // and its access token has expired, which is what sends `getAccessToken`
+    // down the rotate path.
+    const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
+    const claims = jwt.decode(beforeRotation.accessToken) as Record<string, unknown>;
+    delete claims.iat;
+    delete claims.exp;
+    sessionCache.set(created.sessionId, {
+      ...beforeRotation,
+      accessToken: jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '-1s' }),
+    });
+
+    const minted = await sessionService.getAccessToken(created.sessionId);
+    expect(minted).not.toBeNull();
+    expect(await sessionService.validateSession(minted?.accessToken ?? '')).not.toBeNull();
   });
 });
 
@@ -998,23 +1048,6 @@ describe('createSession reuse preserves the binding the row already carries', ()
     expect(await sessionService.validateSession(reused.accessToken)).toBeNull();
   });
 
-  it('never asks the membership oracle for an ordinary session', async () => {
-    // The performance half of the mint-path re-check, pinned rather than left
-    // to the comment on it. `ensureManagedSessionAuthorized` returns before any
-    // lookup when `operated_by_user_id` is NULL, so the overwhelmingly common
-    // session pays nothing for a guarantee only delegated sessions need.
-    //
-    // Not a vacuous assertion: the sibling case above proves this same mock IS
-    // reached, with these same arguments, when the session carries an operator.
-    const user = await account();
-    const session = await sessionService.createSession(user, request(), { deviceId: deviceId() });
-    expect((await storedSession(session.sessionId)).operatedByUserId).toBeNull();
-
-    mockVerifyActingAs.mockClear();
-    expect(await sessionService.getAccessToken(session.sessionId)).not.toBeNull();
-    expect(mockVerifyActingAs).not.toHaveBeenCalled();
-  });
-
   it('still lets the caller REPOINT a binding it does supply', async () => {
     // The other half: "absent means keep" must not become "supplied is
     // ignored". A later exchange can widen or narrow what the client was
@@ -1059,39 +1092,5 @@ describe('createSession reuse preserves the binding the row already carries', ()
     const graced = await sessionService.refreshTokens(first.refreshToken);
     expect(graced).not.toBeNull();
     expect(graced?.accessToken).toBe(second.accessToken);
-  });
-});
-
-describe('getAccessToken mints from the ROW, never from a stale cached copy', () => {
-  it('re-reads the session when the cached token no longer describes it', async () => {
-    const user = await account();
-    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
-    const beforeRotation = await storedSession(created.sessionId);
-
-    // Another process rotates this session. Its `sessionCache.invalidate` reaches
-    // only its OWN local tier, so this one keeps the superseded pair...
-    expect(await sessionService.refreshTokens(created.refreshToken)).not.toBeNull();
-    // ...and once the rotation grace has passed, the superseded refresh token
-    // resolves to nothing at all.
-    await getDb()
-      .update(sessions)
-      .set({ tokenRotatedAt: new Date(Date.now() - 10 * 60 * 1000) })
-      .where(eq(sessions.sessionId, created.sessionId));
-
-    // The cached copy as it looks 15 minutes on: the row it describes is gone
-    // and its access token has expired, which is what sends `getAccessToken`
-    // down the rotate path.
-    const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
-    const claims = jwt.decode(beforeRotation.accessToken) as Record<string, unknown>;
-    delete claims.iat;
-    delete claims.exp;
-    sessionCache.set(created.sessionId, {
-      ...beforeRotation,
-      accessToken: jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '-1s' }),
-    });
-
-    const minted = await sessionService.getAccessToken(created.sessionId);
-    expect(minted).not.toBeNull();
-    expect(await sessionService.validateSession(minted?.accessToken ?? '')).not.toBeNull();
   });
 });
