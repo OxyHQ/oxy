@@ -487,7 +487,7 @@ router.post('/signout', asyncHandler(async (req: AuthRequest, res: Response) => 
     }
     broadcastDeviceState(outcome.state);
     broadcastSessionAccountsChanged(outcome.removedAccountIds, outcome.state.revision, 'signout');
-    res.json({ data: { directory: outcome.directory, ...(await withActiveToken(outcome.state)) } });
+    res.json({ data: { directory: outcome.directory, ...withoutActiveToken(outcome.state) } });
     return;
   }
 
