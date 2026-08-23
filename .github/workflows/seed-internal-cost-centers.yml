@@ -78,10 +78,16 @@ jobs:
     # a path around branch protection rather than through it.
     #
     # `if` bounds which REF the workflow file itself may be dispatched from;
-    # the hardcoded checkout bounds what the job RUNS. Dispatch-ref alone still
-    # lets `inputs.ref` name anything, and a hardcoded checkout alone still runs
-    # a workflow definition from an arbitrary branch. `seed-oxy-applications.yml`
-    # carries the same pair, and is where this shape is copied from.
+    # the pinned checkout bounds what the job RUNS. Dispatch-ref alone still
+    # lets `inputs.ref` name anything, and a pinned checkout alone still runs a
+    # workflow definition from an arbitrary branch.
+    #
+    # `github.sha` RATHER THAN `main`, and the difference is not stylistic:
+    # under the guard above, `github.sha` IS the commit on main that dispatched
+    # this run, and it cannot move. `ref: main` re-resolves at checkout time, so
+    # a push landing between the guard and the checkout would run something
+    # nobody dispatched. `seed-oxy-applications.yml` uses the weaker `ref: main`
+    # and should be moved to this form; the stronger one is from #906.
     if: github.ref == 'refs/heads/main'
     # Same arch as the deployed image — the service runs linux/arm64.
     runs-on: ubuntu-24.04-arm
@@ -89,7 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.sha }}
 
       - name: Refuse an empty cost-centre list
         env:
