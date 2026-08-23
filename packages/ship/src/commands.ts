@@ -102,7 +102,13 @@ export async function publishCommand(flags: ShipFlags): Promise<void> {
     if (!asset) {
       throw new Error(`Server asked for an asset we did not offer: ${ticket.sha256}`);
     }
-    await client.uploadAsset(ticket.uploadUrl, ticket.contentType, ticket.cacheControl, asset.absPath);
+    await client.uploadAsset(
+      ticket.uploadUrl,
+      ticket.contentType,
+      ticket.cacheControl,
+      ticket.checksumSHA256,
+      asset.absPath
+    );
   }
 
   const complete = await client.completeAssets([...bySha.keys()]);

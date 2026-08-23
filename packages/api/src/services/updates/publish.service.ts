@@ -29,6 +29,7 @@
  */
 
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
 import type {
   AssetInitItem,
   AssetInitResponse,
@@ -304,9 +305,11 @@ export async function initAssets(
       });
 
     const s3Key = updateAssetS3Key(asset.sha256);
+    const checksumSHA256 = Buffer.from(asset.sha256, 'hex').toString('base64');
     const uploadUrl = await s3Service.getPresignedUploadUrl(s3Key, {
       contentType: asset.contentType,
       cacheControl: ASSET_CACHE_CONTROL,
+      checksumSHA256,
       expiresIn: ASSET_UPLOAD_URL_EXPIRY_SECONDS,
     });
     missing.push({
@@ -315,6 +318,7 @@ export async function initAssets(
       storageKey: s3Key,
       contentType: asset.contentType,
       cacheControl: ASSET_CACHE_CONTROL,
+      checksumSHA256,
     });
   }
 
@@ -329,10 +333,9 @@ export async function initAssets(
 }
 
 /**
- * Verify each claimed-complete asset actually exists in S3 (HEAD) and flip it to
- * `uploaded`, recording the object's true byte size. An object that is absent or
- * empty stays `pending` and is reported as such — the caller must re-PUT it
- * before the assets can back a published update.
+ * Verify each claimed-complete asset's bytes and flip it to `uploaded`. Because
+ * assets are globally deduplicated by their content address, trusting only S3
+ * metadata here would let one publisher poison an asset used by every app.
  */
 export async function completeAssets(
   applicationId: string,
@@ -365,10 +368,27 @@ export async function completeAssets(
     }
 
     const head = await s3Service.headObject(asset.s3Key);
-    if (!head || head.size <= 0) {
-      logger.warn('Oxy Updates asset complete: object missing or empty', {
+    if (!head || head.size <= 0 || head.size !== asset.size) {
+      logger.warn('Oxy Updates asset complete: object missing or size mismatch', {
         applicationId,
         sha256,
+        s3Key: asset.s3Key,
+        expectedSize: asset.size,
+        actualSize: head?.size ?? 0,
+      });
+      results.push({ sha256, status: 'pending', size: 0 });
+      continue;
+    }
+
+    const bytes = await s3Service.downloadBuffer(asset.s3Key);
+    const actualSha256 = createHash('sha256').update(bytes).digest('hex');
+    if (bytes.length !== asset.size || actualSha256 !== sha256) {
+      logger.warn('Oxy Updates asset complete: content verification failed', {
+        applicationId,
+        sha256,
+        actualSha256,
+        expectedSize: asset.size,
+        actualSize: bytes.length,
         s3Key: asset.s3Key,
       });
       results.push({ sha256, status: 'pending', size: 0 });
@@ -377,9 +397,9 @@ export async function completeAssets(
 
     await db
       .update(updateAssets)
-      .set({ size: head.size, status: 'uploaded' })
+      .set({ status: 'uploaded' })
       .where(eq(updateAssets.sha256, sha256));
-    results.push({ sha256, status: 'uploaded', size: head.size });
+    results.push({ sha256, status: 'uploaded', size: asset.size });
   }
 
   return { assets: results };
