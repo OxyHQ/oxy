@@ -590,7 +590,7 @@ describe('POST /session/device/add', () => {
 });
 
 describe('GET /session/device/state', () => {
-  it('returns the device subset with a live active token', async () => {
+  it('returns the device subset without minting an active-account token', async () => {
     const { deviceId, accountId } = await deviceWithSecret();
     callerDeviceId = deviceId;
     callerAccountId = accountId;
@@ -600,12 +600,13 @@ describe('GET /session/device/state', () => {
     expect(res.status).toBe(200);
     const data = res.body.data as {
       state: { deviceId: string; activeAccountId: string; accounts: unknown[] };
-      activeToken: { accessToken: string };
+      activeToken: null;
     };
     expect(data.state.deviceId).toBe(deviceId);
     expect(data.state.activeAccountId).toBe(accountId);
     expect(data.state.accounts).toHaveLength(1);
-    expect(data.activeToken.accessToken).toBe('jwt-active');
+    expect(data.activeToken).toBeNull();
+    expect(mockGetAccessToken).not.toHaveBeenCalled();
   });
 });
 
@@ -622,6 +623,8 @@ describe('POST /session/device/switch', () => {
     const res = await requestJson('POST', '/session/device/switch', { accountId: first });
 
     expect(res.status).toBe(200);
+    expect(res.body.data.activeToken).toBeNull();
+    expect(mockGetAccessToken).not.toHaveBeenCalled();
     const after = await storedDevice(deviceId);
     expect(after.activeAccountId).toBe(first);
     expect(after.revision).toBeGreaterThan(before.revision);
