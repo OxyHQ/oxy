@@ -1,6 +1,6 @@
 /**
- * Non-destructive redirect-uri helpers. Official-app reconciliation must never
- * replace an existing allowlist — only append missing canonical entries.
+ * Redirect-uri helpers. Official-app reconciliation may seed an empty
+ * allowlist, but must never broaden an explicitly configured allowlist.
  */
 
 /** Union preserving order: existing entries first, then additions, de-duplicated. */
@@ -29,20 +29,20 @@ export function originOfWebsiteUrl(websiteUrl: string): string | null {
 }
 
 /**
- * When a trusted app's `websiteUrl` origin is missing from `redirectUris`,
- * return the unioned allowlist that repairs it. Returns `null` when no change
- * is needed or the website URL is unusable.
+ * Seed an empty trusted-app allowlist from its `websiteUrl` origin. Existing
+ * entries are security-sensitive exact callback URIs and must never be changed
+ * or supplemented by this background repair.
  */
 export function computeOfficialRedirectUriRepair(
   redirectUris: readonly string[] | null | undefined,
   websiteUrl: string | null | undefined,
 ): string[] | null {
+  if (redirectUris?.length) return null;
+
   const trimmed = websiteUrl?.trim();
   if (!trimmed) return null;
 
   const origin = originOfWebsiteUrl(trimmed);
   if (!origin) return null;
-  if (includesRedirectUri(redirectUris, origin)) return null;
-
-  return unionRedirectUris(redirectUris, [origin]);
+  return [origin];
 }
