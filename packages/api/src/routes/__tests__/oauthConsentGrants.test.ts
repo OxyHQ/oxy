@@ -82,8 +82,10 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { appGrants } from '../../db/schema/appGrants';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { serviceActingAsRevocations } from '../../db/schema/serviceActingAsRevocations';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import { resolveServiceActingAsGrant } from '../../services/serviceActingAs.service';
 import authRouter from '../auth';
 
 interface JsonResponse {
@@ -152,6 +154,20 @@ async function client(
     environment: 'production',
   });
   return { clientId, applicationId: app.id };
+}
+
+async function storedRevocation(userId: string, applicationId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(serviceActingAsRevocations)
+    .where(
+      and(
+        eq(serviceActingAsRevocations.userId, userId),
+        eq(serviceActingAsRevocations.applicationId, applicationId)
+      )
+    )
+    .limit(1);
+  return row;
 }
 
 async function storedGrant(userId: string, applicationId: string) {
@@ -532,5 +548,196 @@ describe('follow scopes are never auto-approved, for anybody', () => {
 
     const grant = await storedGrant(authenticatedUser?._id ?? '', applicationId);
     expect(grant?.scopes).toEqual(['user:read', 'follows:write']);
+  });
+});
+
+/**
+ * Revoking has to reach the AUTOMATIC delegation too, not only the OAuth grant.
+ *
+ * Offline delegation is automatic for platform-trusted applications, which by
+ * design have no `app_grants` row. So before the revocation marker existed, a
+ * user clicking "disconnect" on a first-party app deleted nothing and revoked
+ * nothing — silently, on exactly the applications with the most authority. These
+ * tests assert against `resolveServiceActingAsGrant`, the function the verify
+ * endpoint answers from, rather than against the marker row alone: a stored row
+ * nothing consults would pass an existence check and still authorize the app.
+ */
+describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
+  it('revokes a FIRST-PARTY app that never had a grant row to delete', async () => {
+    const userId = authenticatedUser?._id ?? '';
+    const { applicationId } = await client({ type: 'first_party' });
+
+    // Automatic before: no grant row anywhere, and it may still act.
+    expect(await storedGrant(userId, applicationId)).toBeUndefined();
+    expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      authorized: true,
+      scopes: ['user:read', 'files:read'],
+    });
+
+    const res = await send('DELETE', `/auth/grants/${applicationId}`);
+
+    expect(res.status).toBe(200);
+    expect(await storedRevocation(userId, applicationId)).toBeDefined();
+    expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      authorized: false,
+      scopes: [],
+    });
+  });
+
+  it('revokes for the caller only, leaving another user of the same app acting', async () => {
+    const userId = authenticatedUser?._id ?? '';
+    const { applicationId } = await client({ type: 'first_party' });
+    const [other] = await getDb().insert(users).values({}).returning({ id: users.id });
+
+    await send('DELETE', `/auth/grants/${applicationId}`);
+
+    expect(await resolveServiceActingAsGrant(applicationId, userId)).toMatchObject({
+      authorized: false,
+    });
+    expect(await resolveServiceActingAsGrant(applicationId, other.id)).toMatchObject({
+      authorized: true,
+    });
+  });
+
+  it('is idempotent — revoking twice refreshes the marker rather than failing', async () => {
+    const userId = authenticatedUser?._id ?? '';
+    const { applicationId } = await client({ type: 'first_party' });
+
+    const first = await send('DELETE', `/auth/grants/${applicationId}`);
+    const second = await send('DELETE', `/auth/grants/${applicationId}`);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.body.data).toEqual({ revoked: true });
+    expect(await storedRevocation(userId, applicationId)).toBeDefined();
+  });
+
+  it('still answers 200 for an applicationId that names nothing, writing no marker', async () => {
+    // The marker insert carries an FK. Writing it unconditionally would fail on
+    // an unknown id and surface as a 500, turning this endpoint into an
+    // existence oracle it deliberately is not.
+    const res = await send('DELETE', '/auth/grants/not-an-application-at-all');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ revoked: true });
+  });
+});
+
+/**
+ * What UNDOES a revocation, and what must not.
+ *
+ * These drive the real `POST /auth/oauth/authorize` rather than calling
+ * `clearServiceActingAsRevocation` directly, and that is the whole point of
+ * them: the condition guarding the clear lives in `recordAppGrant`, so a test
+ * that calls the clear itself proves the clear works and says nothing about WHEN
+ * it runs. Mutation-verified — removing the `acting-as:offline` condition and
+ * clearing on every authorize survived the suite until these existed.
+ */
+describe('POST /auth/oauth/authorize — undoing a revocation', () => {
+  it('does NOT clear a revocation on an authorize that records a grant for OTHER scopes', async () => {
+    // The scope here has to be consent-required but NOT `acting-as:offline`,
+    // and that is the whole subtlety of this test.
+    //
+    // `recordAppGrant` — where the clear lives — is only called when the app is
+    // untrusted OR the request names a consent-required scope. So an ORDINARY
+    // first-party authorize (`user:read`) never reaches the clear at all, and a
+    // test using one passes whether the condition exists or not. Measured: with
+    // `user:read` this test survived the mutation that removes the condition.
+    //
+    // `follows:write` is consent-required, so the grant IS recorded, the clear
+    // IS reached, and the condition is the only thing stopping it running.
+    const userId = authenticatedUser?._id ?? '';
+    const { clientId, applicationId } = await client({
+      type: 'first_party',
+      scopes: ['user:read', 'follows:write'],
+    });
+    await send('DELETE', `/auth/grants/${applicationId}`);
+    expect(await storedRevocation(userId, applicationId)).toBeDefined();
+
+    const res = await send('POST', '/auth/oauth/authorize', {
+      clientId,
+      redirectUri: REDIRECT,
+      scope: 'user:read follows:write',
+    });
+
+    expect(res.status).toBe(200);
+    // The grant WAS recorded — proving the clear was reached and declined,
+    // rather than the whole branch having been skipped.
+    expect((await storedGrant(userId, applicationId)).scopes).toEqual([
+      'user:read',
+      'follows:write',
+    ]);
+    expect(await storedRevocation(userId, applicationId)).toBeDefined();
+    expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      authorized: false,
+      scopes: [],
+    });
+  });
+
+  it('does NOT clear a revocation on an ordinary auto-approved first-party authorize', async () => {
+    // The other half: an ordinary first-party sign-in records no grant at all,
+    // so nothing runs that could clear the marker. Weaker than the test above —
+    // it cannot detect the condition being removed — and kept because it pins
+    // the behaviour a user actually experiences: revoke Alia, sign in again,
+    // still revoked.
+    const userId = authenticatedUser?._id ?? '';
+    const { clientId, applicationId } = await client({ type: 'first_party' });
+    await send('DELETE', `/auth/grants/${applicationId}`);
+
+    const res = await send('POST', '/auth/oauth/authorize', {
+      clientId,
+      redirectUri: REDIRECT,
+      scope: 'user:read files:read',
+    });
+
+    expect(res.status).toBe(200);
+    expect(await storedRevocation(userId, applicationId)).toBeDefined();
+    expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
+      authorized: false,
+      scopes: [],
+    });
+  });
+
+  it('clears it when the authorize names acting-as:offline', async () => {
+    // That scope is consent-required, so reaching here with it means the user
+    // saw a consent screen and approved — the explicit decision the clear needs.
+    const userId = authenticatedUser?._id ?? '';
+    const { clientId, applicationId } = await client({
+      type: 'first_party',
+      scopes: ['user:read', 'acting-as:offline'],
+    });
+    await send('DELETE', `/auth/grants/${applicationId}`);
+    expect(await storedRevocation(userId, applicationId)).toBeDefined();
+
+    const res = await send('POST', '/auth/oauth/authorize', {
+      clientId,
+      redirectUri: REDIRECT,
+      scope: 'user:read acting-as:offline',
+    });
+
+    expect(res.status).toBe(200);
+    expect(await storedRevocation(userId, applicationId)).toBeUndefined();
+    expect(await resolveServiceActingAsGrant(applicationId, userId)).toMatchObject({
+      authorized: true,
+    });
+  });
+
+  it('does not clear ANOTHER user revocation of the same application', async () => {
+    const { clientId, applicationId } = await client({
+      type: 'first_party',
+      scopes: ['user:read', 'acting-as:offline'],
+    });
+    const [other] = await getDb().insert(users).values({}).returning({ id: users.id });
+    await getDb()
+      .insert(serviceActingAsRevocations)
+      .values({ userId: other.id, applicationId });
+
+    await send('POST', '/auth/oauth/authorize', {
+      clientId,
+      redirectUri: REDIRECT,
+      scope: 'user:read acting-as:offline',
+    });
+
+    expect(await storedRevocation(other.id, applicationId)).toBeDefined();
   });
 });

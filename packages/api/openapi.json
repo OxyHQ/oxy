@@ -3157,7 +3157,9 @@
                         "follows:events",
                         "follow-targets:register",
                         "chains:write",
-                        "chains:read"
+                        "chains:read",
+                        "acting-as:offline",
+                        "podcasts:write"
                       ]
                     }
                   }
@@ -3414,7 +3416,9 @@
                         "follows:events",
                         "follow-targets:register",
                         "chains:write",
-                        "chains:read"
+                        "chains:read",
+                        "acting-as:offline",
+                        "podcasts:write"
                       ]
                     }
                   },
@@ -3762,7 +3766,9 @@
                         "follows:events",
                         "follow-targets:register",
                         "chains:write",
-                        "chains:read"
+                        "chains:read",
+                        "acting-as:offline",
+                        "podcasts:write"
                       ]
                     }
                   },

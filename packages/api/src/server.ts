@@ -26,6 +26,7 @@ import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
+import internalRoutes from './routes/internal';
 import accountRoutes from './routes/accounts';
 import devicesRouter from './routes/devices';
 import securityRoutes from './routes/security';
@@ -681,6 +682,17 @@ app.use('/links', linksRoutes);
 app.use('/store', storeRoutes);
 app.use('/location-search', locationSearchRoutes);
 app.use('/applications', csrfProtection, applicationRoutes);
+// Service-to-service only. The router gates ITSELF on a valid service token AND
+// a platform-trusted calling application (`routes/internal.ts`), so the mount
+// adds no middleware of its own — putting the gate in the router means an
+// endpoint added there cannot be mounted past it.
+//
+// No `csrfProtection`: CSRF defends ambient credentials a browser attaches by
+// itself, and this router accepts only a bearer service token, which a browser
+// never sends on its own. No `userRateLimiter` either — that limiter keys on a
+// user session this router has none of; its limiter keys on the calling
+// application instead.
+app.use('/internal', internalRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
 app.use('/accounts', csrfProtection, accountRoutes);

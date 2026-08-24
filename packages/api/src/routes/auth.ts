@@ -30,6 +30,11 @@ import { authSessions } from '../db/schema/authSessions';
 import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
 import { sessions as sessionsTable } from '../db/schema/sessions';
 import { users } from '../db/schema/users';
+import {
+  clearServiceActingAsRevocation,
+  revokeServiceActingAs,
+  SERVICE_ACTING_AS_SCOPE,
+} from '../services/serviceActingAs.service';
 import { intersectScopes, isPaymentsScope } from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
@@ -2411,6 +2416,18 @@ async function recordAppGrant(
         )`,
       },
     });
+
+  // Approving `acting-as:offline` is the one signal that undoes a revocation.
+  //
+  // It qualifies because it is consent-required: a request naming it ALWAYS
+  // reaches the consent screen, for a trusted application exactly as for a
+  // third-party one, so arriving here with it means a person read that screen
+  // and approved. Clearing on any successful authorize would instead have made
+  // revocation worthless — a first-party application is auto-approved, so its
+  // next sign-in would silently undo a deliberate refusal.
+  if (requestedScopes.includes(SERVICE_ACTING_AS_SCOPE)) {
+    await clearServiceActingAsRevocation(userId, applicationId);
+  }
 }
 
 const oauthAuthorizeLimiter = rateLimit({
@@ -2896,6 +2913,32 @@ router.delete(
       .where(
         and(eq(appGrants.userId, user._id.toString()), eq(appGrants.applicationId, applicationId))
       );
+
+    // Deleting the grant row is not enough, and for a first-party application it
+    // does nothing at all. Offline delegation is AUTOMATIC for trusted
+    // applications, which by design have no grant row to delete — so a user who
+    // clicked "disconnect" would have revoked nothing, silently, on exactly the
+    // applications with the most authority.
+    //
+    // The marker is the revocation for that case. Written here rather than
+    // behind a second endpoint so ONE user action ends both: the user does not
+    // have to know whether what they had was an OAuth grant or an automatic
+    // first-party delegation. See `services/serviceActingAs.service.ts`.
+    //
+    // Written unconditionally, including for an `applicationId` that names no
+    // application — the FK makes that insert fail, which the surrounding
+    // `asyncHandler` would surface as a 500 and turn this endpoint into an
+    // existence oracle. So it is ordered after the delete and guarded by the
+    // same "does this application exist" read the response never reveals.
+    const [revocable] = await getDb()
+      .select({ id: applications.id })
+      .from(applications)
+      .where(eq(applications.id, applicationId))
+      .limit(1);
+
+    if (revocable) {
+      await revokeServiceActingAs(user._id.toString(), applicationId);
+    }
 
     sendSuccess(res, { revoked: true });
   })

@@ -129,6 +129,7 @@ export * from './restrictions';
 export * from './reviewerReputationProfiles';
 export * from './securityActivities';
 export * from './senderAvatars';
+export * from './serviceActingAsRevocations';
 export * from './sessions';
 export * from './signedRecords';
 export * from './spendingLimits';
