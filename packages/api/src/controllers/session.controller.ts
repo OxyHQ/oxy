@@ -30,16 +30,11 @@ import type { SessionCreateOptions } from '../types/session.types';
 export function sessionCreateOptionsFromBody(body: {
   deviceName?: string;
   deviceFingerprint?: string;
-  deviceId?: string;
 }): SessionCreateOptions {
-  const opts: SessionCreateOptions = {
+  return {
     deviceName: body.deviceName,
     deviceFingerprint: body.deviceFingerprint,
   };
-  if (typeof body.deviceId === 'string' && body.deviceId.trim()) {
-    opts.deviceId = body.deviceId.trim();
-  }
-  return opts;
 }
 
 /**
@@ -338,7 +333,7 @@ export class SessionController {
    */
   static async verifyChallenge(req: Request, res: Response) {
     try {
-      const { publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint, deviceId } = req.body;
+      const { publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint } = req.body;
       const db = getDb();
 
       if (!publicKey || !challenge || !signature || !timestamp) {
@@ -417,7 +412,7 @@ export class SessionController {
       const session = await sessionService.createSession(
         user.id,
         req,
-        sessionCreateOptionsFromBody({ deviceName, deviceFingerprint, deviceId }),
+        sessionCreateOptionsFromBody({ deviceName, deviceFingerprint }),
       );
       const sessionAfterCreate = Date.now();
 

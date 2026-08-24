@@ -701,12 +701,11 @@ router.get('/user/:publicKey', validate({ params: getUserByPublicKeyParams }), S
  *         description: Application is not available (suspended/deleted/pending review).
  */
 router.post('/session/create', validate({ body: authSessionCreateSchema }), asyncHandler(async (req, res) => {
-  const { sessionToken, expiresAt, clientId, applicationId, deviceId, oauth } = req.body as {
+  const { sessionToken, expiresAt, clientId, applicationId, oauth } = req.body as {
     sessionToken: string;
     clientId?: string;
     applicationId?: string;
     expiresAt?: string | number;
-    deviceId?: string;
     oauth?: {
       redirectUri: string;
       codeChallenge: string;
@@ -916,7 +915,6 @@ router.post('/session/create', validate({ body: authSessionCreateSchema }), asyn
       oauthCodeChallengeMethod: oauthContext ? oauthContext.codeChallengeMethod : null,
       oauthScopes: oauthContext ? oauthContext.scopes : null,
       oauthSubjectAccountId: oauthContext?.subjectAccountId ?? null,
-      deviceId: typeof deviceId === 'string' && deviceId.trim() ? deviceId.trim() : null,
     })
     .onConflictDoNothing({ target: authSessions.sessionToken })
     .returning({
@@ -1277,16 +1275,15 @@ router.post('/session/authorize/:sessionToken', authMiddleware, validate({ param
     const appLabel = app ? app.name : 'App';
 
     // Create a new session for the third-party app, owned by the
-    // authenticated user identified via the bearer token. When the flow was
-    // started with a device binding (`deviceId` persisted at create time), pass it
-    // as the explicit deviceId so the session lands on the originating device.
+    // authenticated user identified via the bearer token. The server derives a
+    // fresh device id because the public session-creation request has not proved
+    // ownership of an existing device session.
     const newSession = await sessionService.createSession(
       authenticatedUserId,
       req,
       {
         deviceName: deviceName || `${appLabel} App`,
         deviceFingerprint,
-        ...(authSession.deviceId ? { deviceId: authSession.deviceId } : {}),
       }
     );
     newSessionId = newSession.sessionId;

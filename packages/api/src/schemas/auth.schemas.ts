@@ -2,8 +2,6 @@ import { commonsDenyReasonSchema } from '@oxyhq/contracts';
 import { z } from 'zod';
 import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN } from '../utils/username';
 
-const deviceIdField = z.string().trim().min(1).max(128).optional();
-
 /**
  * A username is a routing key (`/@alice`, `acct:alice@…`), not prose. The length
  * bounds alone accepted `"al ice"` — the pattern is what actually rejects
@@ -39,7 +37,6 @@ export const verifyChallengeSchema = z.object({
   timestamp: z.number(),
   deviceName: z.string().trim().optional(),
   deviceFingerprint: z.string().trim().optional(),
-  deviceId: deviceIdField,
 });
 
 // GET /auth/check-username/:username
@@ -92,8 +89,6 @@ export const authSessionCreateSchema = z.object({
   clientId: z.string().trim().min(1).optional(),
   applicationId: z.string().trim().min(1).optional(),
   expiresAt: z.union([z.string(), z.number()]).optional(),
-  /** Originating RP device id — converges QR sign-in onto the same DeviceSession. */
-  deviceId: deviceIdField,
   oauth: authSessionOAuthContextSchema.optional(),
 }).refine(
   (data) => Boolean(data.clientId) || Boolean(data.applicationId),
