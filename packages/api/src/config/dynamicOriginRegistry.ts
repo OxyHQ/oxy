@@ -84,6 +84,7 @@ export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
   'https://alia.onl',
   'https://api.alia.onl',
   'https://auth.alia.onl',
+  'https://canvas.alia.onl',
   // ── Syra ──
   'https://syra.fm',
   // ── Allo ──
