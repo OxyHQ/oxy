@@ -159,39 +159,95 @@ verifier and an explicit refusal all produce the same 403. Omitting the header
 is not a failure — it means the service acts as itself, and `req.userId` is
 `null`.
 
-### The grant
+### Who may be acted for
 
-Authority lives in **`app_grants`** — the same revocable row the OAuth consent
-screen writes, `GET /auth/grants` lists and `DELETE /auth/grants/:applicationId`
-removes. There is deliberately no separate delegation table: a second store
-would be a second revocation surface, and a user disconnecting an app in
-"Connected apps" means it.
+**First-party Oxy applications are automatic.** The platform does not ask a user
+to authorize one Oxy app to act for them in another — from the user's side it is
+one product. This is the same stance `app_grants` already takes, auto-approving
+trusted applications on the consent path and recording no grant row for them.
 
-A row alone authorises nothing. The grant must name **`acting-as:offline`**,
-which is:
+Resolution order, and the order is the security property:
 
-- **privileged** — only Oxy staff may add it to an application's ceiling, so an
-  arbitrary self-service app can never put the question to a user; and
-- **consent-required** — never auto-approved, whoever the application is. This
-  is what makes the mechanism work at all: trusted applications are otherwise
-  auto-approved and record **no** grant row, and every application that can mint
-  a service token is trusted.
+| | condition | answer |
+|---|---|---|
+| 1 | the user revoked this application | no |
+| 2 | the application is missing or not `active` | no |
+| 3 | the user granted it `acting-as:offline` | yes, with the **grant's** scopes |
+| 4 | the application is platform-**trusted** | yes, with the **application's** scopes |
+| 5 | otherwise | no |
 
-Both gates are needed. Consent alone would let any app ask; privilege alone
-would let the platform decide for the user.
+Revocation is checked **first**, so it wins over everything after it, trust
+included — a revocation consulted only for non-trusted applications would do
+nothing for exactly the applications that need it. Trust is checked **last**
+because it is the weakest claim on the list: it says the platform vouches for the
+application, not that this user did.
+
+A user who has never interacted with a first-party application is authorized.
+That is the default now, not an oversight.
+
+**The cost, stated rather than implied: a leaked first-party service credential
+can act as any user who has not explicitly revoked that application.** The gate
+is a platform fact ("is this app trusted") instead of a per-user one ("did this
+user agree"), so one stolen credential reaches the whole user base rather than
+the set of people who opted in. That is the price of automatic; it was accepted
+deliberately, and it is what makes credential rotation and the `credentialId`
+claim's revocation story load-bearing rather than nice to have.
+
+### Revocation
+
+`DELETE /auth/grants/:applicationId` is the one user action. It deletes the
+`app_grants` row if there is one **and** writes a marker to
+`service_acting_as_revocations`, so the user need not know whether what they had
+was an OAuth grant or an automatic first-party delegation.
+
+The marker exists because for an automatic application there is no grant row to
+delete. Absence cannot carry the answer in either direction: a user who never
+connected anything has no row and must not read as refusing, and absence cannot
+mean authorized on its own either — the trusted+active check decides that,
+separately.
+
+It is a marker table rather than a column on `app_grants` because a revocation
+row living in the grant table would be a row whose presence means the opposite of
+every other row there, in a table `followCapability` already reads as consent.
+This is not a second revocation surface of the dangerous kind: a second place to
+say YES is dangerous because revoking in one leaves the other authorising, while
+a second place to say NO can only ever subtract authority.
+
+**Undoing it takes a real decision.** The marker is cleared only when an
+authorize names `acting-as:offline` — a scope that is privileged (staff-only on an
+application's ceiling) and consent-required (never auto-approved, whoever the
+application is), so a request carrying it always reaches a consent screen.
+Clearing on any successful authorize would have made revocation worthless: a
+first-party application is auto-approved, so its next sign-in would silently undo
+a deliberate refusal.
+
+### Non-trusted applications
+
+They keep the grant path: a grant naming `acting-as:offline`, and nothing weaker.
+Unreachable today — the mint refuses them a service token and `/internal` refuses
+them again — and kept because "unreachable" is a property of two other files, and
+the day either changes this must not start authorizing an application no user
+agreed to.
 
 ### How the two scope sets compose
 
 | | source | says |
 |---|---|---|
 | `req.serviceApp.scopes` | credential ∩ application ceiling, at mint | what the PLATFORM allows this app to do |
-| `req.serviceActingAs.scopes` | the user's `app_grants` row | what THIS USER allowed it to do |
+| `req.serviceActingAs.scopes` | the grant row, or the application's ceiling | what the USER allows it to do |
 
 `oxy.requireScope(s)` requires `s` in **both** for a delegated request, and in
 `serviceApp.scopes` alone for a request acting as itself. The intersection is
 the point: only the app scope would let an app do to a user what that user never
 consented to; only the grant would let a user hand an app authority staff never
 gave it.
+
+Note what the second row means on the **automatic** path: with no per-user
+decision to narrow by, the verify endpoint returns the application's own ceiling,
+so the intersection narrows nothing and the effective authority is the token's
+scopes. That is the honest consequence of automatic consent rather than an
+oversight. On the **grant** path it returns the grant's scopes, which do narrow,
+because there the user chose them.
 
 ### Who may call the verify endpoint
 
