@@ -36,8 +36,16 @@ interface JwtPayload {
  * Confirms that a given service app holds an active delegation grant for
  * the supplied user, along with the explicit scope list the grant covers.
  *
- * The api side persists these via the `ServiceActingAs` model:
- *   { serviceAppId, userId, scopes: string[], grantedAt, expiresAt }
+ * The API side stores this as an ordinary `app_grants` row — the SAME revocable
+ * record the OAuth consent screen writes and the "Connected apps" UI lists and
+ * deletes — whose `scopes` name `acting-as:offline`. There is deliberately no
+ * separate delegation table: a second store would be a second revocation
+ * surface, and a user who disconnects an application in "Connected apps" means
+ * it, so one revoke has to end everything.
+ *
+ * `scopes` is what THAT USER consented to, not what the application may do in
+ * general. `requireScope` intersects it with the token's own app-wide scopes for
+ * a delegated request, and the intersection is the effective authority.
  *
  * The SDK never inspects the grant directly — it round-trips through
  * `GET /internal/service-acting-as/verify?appId=...&userId=...` so the
@@ -217,11 +225,31 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
       }
 
       try {
+        // The verify endpoint is service-to-service and admits only a
+        // platform-TRUSTED calling application, so this call must carry the
+        // VERIFIER's own service token. Sent explicitly rather than through
+        // `makeServiceRequest`, which would drop `retry: false` and the timeout
+        // — and those two are not incidental: this runs inside request-handling
+        // middleware, so an inner retry loop multiplies the latency of every
+        // delegated request by the number of attempts.
+        //
+        // A verifier with no service credentials configured throws here and
+        // lands in the catch below, which is the correct outcome. A host that
+        // cannot prove who it is has no business being told which users have
+        // delegated to which applications, and the 60s negative cache stops a
+        // misconfigured deployment from turning every request into a round trip.
+        const serviceToken = await (this as unknown as OxyAuthInstance).getServiceToken();
+
         const result = await this.makeRequest<ServiceActingAsVerification>(
           'GET',
           '/internal/service-acting-as/verify',
           { appId, userId },
-          { cache: false, retry: false, timeout: 5000 },
+          {
+            cache: false,
+            retry: false,
+            timeout: 5000,
+            headers: { Authorization: `Bearer ${serviceToken}` },
+          },
         );
 
         const authorized = Boolean(result && result.authorized);
@@ -973,6 +1001,20 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * service requests require the app scope. Delegated user requests require
      * BOTH the app scope and the per-user delegation scope.
      *
+     * The intersection is the point, not a redundancy, because the two scope
+     * lists answer different questions and neither implies the other:
+     *
+     *   `serviceApp.scopes`      what the PLATFORM allows this application to do
+     *                            (credential ∩ application ceiling, at mint time)
+     *   `serviceActingAs.scopes` what THIS USER allowed it to do (`app_grants`)
+     *
+     * Requiring only the app scope would let an application do to a user
+     * something that user never consented to; requiring only the grant would let
+     * a user hand an application authority staff never gave it, so a revoked
+     * platform scope would keep working for every user who had already
+     * consented. Effective authority is the intersection, and this is where it
+     * is taken.
+     *
      * Requests authenticated as a regular user (no service token) are rejected
      * with 403 — scope-protected endpoints are service-to-service by design.
      *
@@ -1155,6 +1197,7 @@ interface SocketLike {
 
 interface OxyAuthInstance {
   verifyServiceActingAs(appId: string, userId: string): Promise<ServiceActingAsVerification | null>;
+  getServiceToken(apiKey?: string, apiSecret?: string): Promise<string>;
   validateSession(
     sessionId: string,
     options?: { deviceFingerprint?: string; useHeaderValidation?: boolean },
