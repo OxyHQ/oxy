@@ -17,11 +17,13 @@
 import {
   intersectScopes,
   unionValidScopes,
+  isFollowScope,
   isPaymentsScope,
   isPrivilegedScope,
   isUserConsentRequiredScope,
   isValidApplicationScope,
   userConsentRequiredScopes,
+  FOLLOW_APPLICATION_SCOPES,
   PAYMENTS_APPLICATION_SCOPES,
   PRIVILEGED_APPLICATION_SCOPES,
   USER_CONSENT_REQUIRED_SCOPES,
@@ -255,8 +257,37 @@ describe('follow scopes: the user grants them, the platform never assumes them',
     'follow-targets:register',
   ] as const;
 
-  it('holds exactly the follow family, and loses none of it silently', () => {
-    expect([...USER_CONSENT_REQUIRED_SCOPES].sort()).toEqual([...MUST_BE_CONSENTED].sort());
+  it('holds the whole follow family, and loses none of it silently', () => {
+    expect([...FOLLOW_APPLICATION_SCOPES].sort()).toEqual([...MUST_BE_CONSENTED].sort());
+    for (const scope of MUST_BE_CONSENTED) {
+      expect([...USER_CONSENT_REQUIRED_SCOPES]).toContain(scope);
+    }
+  });
+
+  it('is no longer ONLY the follow family, and the difference is deliberate', () => {
+    // Spelled out rather than asserted as a count. The consent-required set now
+    // has two members that are not follow scopes, and each is here for a stated
+    // reason — so an accidental third addition fails this, and a deliberate one
+    // is a line someone has to write.
+    const CONSENT_REQUIRED_BEYOND_FOLLOWS = ['acting-as:offline', 'podcasts:write'] as const;
+    expect([...USER_CONSENT_REQUIRED_SCOPES].sort()).toEqual(
+      [...MUST_BE_CONSENTED, ...CONSENT_REQUIRED_BEYOND_FOLLOWS].sort()
+    );
+  });
+
+  it('does NOT treat every consent-required scope as a follow scope', () => {
+    // `assertFollowScopes` guards the follow authorization path, and it once
+    // asked `isUserConsentRequiredScope` because the two sets were identical.
+    // The moment they stopped being identical that guard began admitting scopes
+    // from other domains while still reading as if it checked something. This is
+    // the assertion that would have caught it.
+    expect(isFollowScope('acting-as:offline')).toBe(false);
+    expect(isFollowScope('podcasts:write')).toBe(false);
+    expect(isUserConsentRequiredScope('acting-as:offline')).toBe(true);
+    expect(isUserConsentRequiredScope('podcasts:write')).toBe(true);
+    for (const scope of MUST_BE_CONSENTED) {
+      expect(isFollowScope(scope)).toBe(true);
+    }
   });
 
   it('treats every one of them as consent-required', () => {
@@ -282,9 +313,31 @@ describe('follow scopes: the user grants them, the platform never assumes them',
     }
   });
 
-  it('and the two sets do not overlap in the other direction either', () => {
-    for (const scope of PRIVILEGED_APPLICATION_SCOPES) {
-      expect(isUserConsentRequiredScope(scope)).toBe(false);
+  it('lets the two sets overlap only where BOTH questions were deliberately answered', () => {
+    // The sets ask different questions — "may the owner grant this to
+    // themselves?" and "may the platform decide for the user?" — so an overlap
+    // is legal, and for `acting-as:offline` it is the design: staff decide
+    // whether an application may ever ASK to act as a user, and the user decides
+    // whether it may act as THEM. Neither gate substitutes for the other.
+    //
+    // Every other overlap is still a mistake, so the exception is named rather
+    // than the assertion dropped. Written as a literal, because deriving the
+    // expected set from the constants under test would make any edit agree with
+    // itself.
+    const DELIBERATELY_BOTH = ['acting-as:offline'];
+    const overlap = PRIVILEGED_APPLICATION_SCOPES.filter((scope) =>
+      isUserConsentRequiredScope(scope)
+    );
+
+    expect([...overlap].sort()).toEqual([...DELIBERATELY_BOTH].sort());
+  });
+
+  it('keeps the FOLLOW family out of the privileged set, whatever else overlaps', () => {
+    // The original property, preserved. A follow scope's authority comes from
+    // the subject user, so staff-gating one would answer the wrong question and
+    // block a third-party app the user genuinely authorized.
+    for (const scope of MUST_BE_CONSENTED) {
+      expect(isPrivilegedScope(scope)).toBe(false);
     }
   });
 

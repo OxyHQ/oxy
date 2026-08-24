@@ -40,7 +40,7 @@ import { getDb } from '../config/postgres';
 import { appGrants } from '../db/schema/appGrants';
 import { applications } from '../db/schema/applications';
 import { authSessions } from '../db/schema/authSessions';
-import { isUserConsentRequiredScope } from '../utils/applicationScopes';
+import { isFollowScope } from '../utils/applicationScopes';
 
 /** What a verified request is allowed to do on the user's follow graph. */
 export interface FollowCapability {
@@ -187,10 +187,16 @@ export function missingFollowScope(
  *
  * Exported for the routes to assert their own constants at module load, so the
  * mistake surfaces at boot rather than as a permanently-denied request.
+ *
+ * Asks {@link isFollowScope}, not `isUserConsentRequiredScope`. The two sets
+ * were identical when this was written and are not any more — every follow scope
+ * is consent-required, but not every consent-required scope is a follow scope.
+ * Asking the wider question would let a scope from another domain through this
+ * guard while the guard still read as if it checked something.
  */
 export function assertFollowScopes(required: readonly string[]): void {
   for (const scope of required) {
-    if (!isUserConsentRequiredScope(scope)) {
+    if (!isFollowScope(scope)) {
       throw new Error(
         `${scope} is not a follow scope; follow authorization must not be used to gate it`
       );
