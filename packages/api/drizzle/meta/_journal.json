@@ -386,6 +386,13 @@
       "when": 1787542502222,
       "tag": "0055_service_acting_as_scopes",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1787545357870,
+      "tag": "0056_service_acting_as_revocations",
+      "breakpoints": true
     }
   ]
 }

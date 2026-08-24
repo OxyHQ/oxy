@@ -41,7 +41,11 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import { SERVICE_ACTING_AS_SCOPE } from '../../services/serviceActingAs.service';
+import {
+  clearServiceActingAsRevocation,
+  revokeServiceActingAs,
+  SERVICE_ACTING_AS_SCOPE,
+} from '../../services/serviceActingAs.service';
 import internalRouter from '../internal';
 
 const ACCESS_TOKEN_SECRET = 'service-acting-as-verify-test-secret';
@@ -102,6 +106,11 @@ async function seedApp(
 
 async function grant(userId: string, applicationId: string, scopes: string[]): Promise<void> {
   await getDb().insert(appGrants).values({ userId, applicationId, scopes });
+}
+
+/** What `DELETE /auth/grants/:applicationId` writes beside deleting the row. */
+async function revoke(userId: string, applicationId: string): Promise<void> {
+  await revokeServiceActingAs(userId, applicationId);
 }
 
 function serviceToken(app: SeededApp, options: { expiresIn?: number; secret?: string } = {}) {
@@ -271,164 +280,243 @@ describe('caller trust', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The grant itself
+// Who may be acted for
+//
+// Offline delegation is AUTOMATIC for platform-trusted applications — the owner
+// decided the platform does not ask a user to authorize one Oxy app to act for
+// them in another. So the cases that carry weight are the ones that must still
+// refuse: an untrusted application, an inactive one, and a user who said no.
 // ---------------------------------------------------------------------------
 
-describe('delegation grants', () => {
+describe('delegation', () => {
   let caller: SeededApp;
 
   beforeAll(async () => {
     caller = await seedApp('internal');
   });
 
-  it('authorizes when the user granted the subject app acting-as:offline', async () => {
-    const subject = await seedApp();
-    const subjectUser = await user();
-    await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE, 'podcasts:write']);
+  describe('automatic for first-party', () => {
+    it('authorizes a trusted app with NO grant row, carrying the app scopes', async () => {
+      const subject = await seedApp('internal');
+      const subjectUser = await user();
 
-    const res = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
+      const res = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
 
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({
-      authorized: true,
-      scopes: [SERVICE_ACTING_AS_SCOPE, 'podcasts:write'],
+      expect(res.status).toBe(200);
+      // `seedApp` grants the application `user:read`; the automatic path returns
+      // the application's own ceiling, since no per-user decision exists to
+      // narrow by. `requireScope` still intersects with the token's scopes.
+      expect(res.body.data).toEqual({ authorized: true, scopes: ['user:read'] });
+    });
+
+    it('refuses a trusted app that is no longer active', async () => {
+      const subject = await seedApp('internal', 'suspended');
+      const subjectUser = await user();
+
+      const res = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
     });
   });
 
-  it('REFUSES a grant that does not name acting-as:offline', async () => {
-    // The whole hazard of reusing `app_grants`: a user has a row for every app
-    // they ever signed into. If the row's existence authorized delegation, every
-    // one of those apps could act as them. This is the case that proves it does
-    // not.
-    const subject = await seedApp();
-    const subjectUser = await user();
-    await grant(subjectUser, subject.appId, ['user:read', 'files:write', 'podcasts:write']);
+  describe('automatic does NOT extend to third parties', () => {
+    it('REFUSES an untrusted subject app with no grant', async () => {
+      // The load-bearing negative of the whole rework. "Trusted" is the gate;
+      // if this passes, every self-service application on the platform can act
+      // as every user.
+      const subject = await seedApp('third_party');
+      const subjectUser = await user();
 
-    const res = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ authorized: false, scopes: [] });
-  });
-
-  it('refuses when the user has no grant for the subject app at all', async () => {
-    const subject = await seedApp();
-    const subjectUser = await user();
-
-    const res = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ authorized: false, scopes: [] });
-  });
-
-  it('refuses once the grant is REVOKED, having authorized before', async () => {
-    const subject = await seedApp();
-    const subjectUser = await user();
-    await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
-
-    const before = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
-    expect(before.body.data).toEqual({ authorized: true, scopes: [SERVICE_ACTING_AS_SCOPE] });
-
-    // Exactly what `DELETE /auth/grants/:applicationId` does.
-    await getDb()
-      .delete(appGrants)
-      .where(
-        and(eq(appGrants.userId, subjectUser), eq(appGrants.applicationId, subject.appId))
+      const res = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
       );
 
-    const after = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
-    expect(after.body.data).toEqual({ authorized: false, scopes: [] });
-  });
-
-  it('refuses for a DIFFERENT user than the one who granted', async () => {
-    const subject = await seedApp();
-    const granter = await user();
-    const stranger = await user();
-    await grant(granter, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
-
-    const res = await verify({ appId: subject.appId, userId: stranger }, serviceToken(caller));
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ authorized: false, scopes: [] });
-  });
-
-  it('refuses for a DIFFERENT app than the one granted', async () => {
-    const granted = await seedApp();
-    const other = await seedApp();
-    const subjectUser = await user();
-    await grant(subjectUser, granted.appId, [SERVICE_ACTING_AS_SCOPE]);
-
-    const res = await verify({ appId: other.appId, userId: subjectUser }, serviceToken(caller));
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ authorized: false, scopes: [] });
-  });
-
-  it('refuses when the SUBJECT application is no longer active, grant notwithstanding', async () => {
-    const subject = await seedApp('internal', 'suspended');
-    const subjectUser = await user();
-    await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
-
-    const res = await verify(
-      { appId: subject.appId, userId: subjectUser },
-      serviceToken(caller)
-    );
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ authorized: false, scopes: [] });
-  });
-
-  it('answers 200 false for ids that name nothing — never 404, so it is no existence oracle', async () => {
-    const unknownApp = randomUUID();
-    const unknownUser = randomUUID();
-
-    const res = await verify({ appId: unknownApp, userId: unknownUser }, serviceToken(caller));
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ authorized: false, scopes: [] });
-  });
-
-  it('rejects a request missing the query parameters entirely (400)', async () => {
-    const address = server.address() as AddressInfo;
-    const token = serviceToken(caller);
-    const res = await new Promise<VerifyResponse>((resolve, reject) => {
-      const req = http.request(
-        {
-          method: 'GET',
-          host: '127.0.0.1',
-          port: address.port,
-          path: '/internal/service-acting-as/verify',
-          headers: { authorization: `Bearer ${token}`, connection: 'close' },
-        },
-        (r) => {
-          let raw = '';
-          r.on('data', (c) => {
-            raw += c;
-          });
-          r.on('end', () =>
-            resolve({ status: r.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} })
-          );
-        }
-      );
-      req.on('error', reject);
-      req.end();
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
     });
 
-    expect(res.status).toBe(400);
-    expect(res.body.data).toBeUndefined();
+    it('refuses an untrusted subject app whose grant does NOT name acting-as:offline', async () => {
+      // A user has a grant row for every app they ever signed into. The row's
+      // existence must authorize nothing.
+      const subject = await seedApp('third_party');
+      const subjectUser = await user();
+      await grant(subjectUser, subject.appId, ['user:read', 'files:write', 'podcasts:write']);
+
+      const res = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
+
+      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+    });
+
+    it('authorizes an untrusted subject app when the grant DOES name it', async () => {
+      const subject = await seedApp('third_party');
+      const subjectUser = await user();
+      await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE, 'podcasts:write']);
+
+      const res = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
+
+      expect(res.body.data).toEqual({
+        authorized: true,
+        scopes: [SERVICE_ACTING_AS_SCOPE, 'podcasts:write'],
+      });
+    });
+  });
+
+  describe('revocation', () => {
+    it('REFUSES a first-party app the user explicitly revoked', async () => {
+      // Automatic by default must not mean unrevocable. There is no grant row
+      // to delete for a trusted app, so this is the only thing standing between
+      // a user who said no and an app that keeps acting for them.
+      const subject = await seedApp('internal');
+      const subjectUser = await user();
+
+      const before = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
+      expect(before.body.data).toEqual({ authorized: true, scopes: ['user:read'] });
+
+      await revoke(subjectUser, subject.appId);
+
+      const after = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
+      expect(after.body.data).toEqual({ authorized: false, scopes: [] });
+    });
+
+    it('beats an explicit grant too — revocation is checked first', async () => {
+      // The grant path must not be a way around a refusal.
+      const subject = await seedApp('third_party');
+      const subjectUser = await user();
+      await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
+      await revoke(subjectUser, subject.appId);
+
+      const res = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
+
+      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+    });
+
+    it('is per (user, application) — one user revoking does not refuse for another', async () => {
+      const subject = await seedApp('internal');
+      const refuser = await user();
+      const bystander = await user();
+      await revoke(refuser, subject.appId);
+
+      const refused = await verify(
+        { appId: subject.appId, userId: refuser },
+        serviceToken(caller)
+      );
+      const allowed = await verify(
+        { appId: subject.appId, userId: bystander },
+        serviceToken(caller)
+      );
+
+      expect(refused.body.data).toEqual({ authorized: false, scopes: [] });
+      expect(allowed.body.data).toEqual({ authorized: true, scopes: ['user:read'] });
+    });
+
+    it('is per application — revoking one first-party app leaves the others acting', async () => {
+      const revoked = await seedApp('internal');
+      const other = await seedApp('internal');
+      const subjectUser = await user();
+      await revoke(subjectUser, revoked.appId);
+
+      expect(
+        (await verify({ appId: revoked.appId, userId: subjectUser }, serviceToken(caller))).body
+          .data
+      ).toEqual({ authorized: false, scopes: [] });
+      expect(
+        (await verify({ appId: other.appId, userId: subjectUser }, serviceToken(caller))).body.data
+      ).toEqual({ authorized: true, scopes: ['user:read'] });
+    });
+
+    it('is undone by a grant naming acting-as:offline, and by nothing weaker', async () => {
+      // The re-authorization path. `acting-as:offline` is consent-required, so
+      // approving it means a person read a consent screen — which is why
+      // clearing on it is safe where clearing on any authorize would not be.
+      const subject = await seedApp('internal');
+      const subjectUser = await user();
+      await revoke(subjectUser, subject.appId);
+
+      // A weaker grant does not undo it.
+      await grant(subjectUser, subject.appId, ['user:read']);
+      expect(
+        (await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller))).body
+          .data
+      ).toEqual({ authorized: false, scopes: [] });
+
+      // The real thing does — this is what `recordAppGrant` calls.
+      await clearServiceActingAsRevocation(subjectUser, subject.appId);
+      await getDb()
+        .update(appGrants)
+        .set({ scopes: ['user:read', SERVICE_ACTING_AS_SCOPE] })
+        .where(
+          and(eq(appGrants.userId, subjectUser), eq(appGrants.applicationId, subject.appId))
+        );
+
+      expect(
+        (await verify({ appId: subject.appId, userId: subjectUser }, serviceToken(caller))).body
+          .data
+      ).toEqual({ authorized: true, scopes: ['user:read', SERVICE_ACTING_AS_SCOPE] });
+    });
+  });
+
+  describe('the answer reveals nothing else', () => {
+    it('answers 200 false for ids that name nothing — never 404', async () => {
+      const res = await verify(
+        { appId: randomUUID(), userId: randomUUID() },
+        serviceToken(caller)
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+    });
+
+    it('rejects a request missing the query parameters entirely (400)', async () => {
+      const address = server.address() as AddressInfo;
+      const token = serviceToken(caller);
+      const res = await new Promise<VerifyResponse>((resolve, reject) => {
+        const req = http.request(
+          {
+            method: 'GET',
+            host: '127.0.0.1',
+            port: address.port,
+            path: '/internal/service-acting-as/verify',
+            headers: { authorization: `Bearer ${token}`, connection: 'close' },
+          },
+          (r) => {
+            let raw = '';
+            r.on('data', (c) => {
+              raw += c;
+            });
+            r.on('end', () =>
+              resolve({ status: r.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} })
+            );
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.data).toBeUndefined();
+    });
   });
 });
