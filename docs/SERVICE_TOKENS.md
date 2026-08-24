@@ -142,6 +142,72 @@ ADR 0007 forbids is a compile error, not a review question.
 Restated as the rule a reviewer applies: **if removing `X-Oxy-User-Id` from a
 request would change what any account is charged, the code is wrong.**
 
+## Acting as a user
+
+`X-Oxy-User-Id` is a header, so on its own it proves nothing. `oxy.auth()`
+therefore treats it as a request to be authorised, not as an identity: on every
+request carrying it, the middleware calls
+
+```
+GET /internal/service-acting-as/verify?appId=<app>&userId=<user>
+→ { "authorized": boolean, "scopes": string[] }
+```
+
+and refuses with `403 SERVICE_ACTING_AS_UNAUTHORIZED` unless the answer is yes.
+There is **no fail-open path**: an unreachable endpoint, an unconfigured
+verifier and an explicit refusal all produce the same 403. Omitting the header
+is not a failure — it means the service acts as itself, and `req.userId` is
+`null`.
+
+### The grant
+
+Authority lives in **`app_grants`** — the same revocable row the OAuth consent
+screen writes, `GET /auth/grants` lists and `DELETE /auth/grants/:applicationId`
+removes. There is deliberately no separate delegation table: a second store
+would be a second revocation surface, and a user disconnecting an app in
+"Connected apps" means it.
+
+A row alone authorises nothing. The grant must name **`acting-as:offline`**,
+which is:
+
+- **privileged** — only Oxy staff may add it to an application's ceiling, so an
+  arbitrary self-service app can never put the question to a user; and
+- **consent-required** — never auto-approved, whoever the application is. This
+  is what makes the mechanism work at all: trusted applications are otherwise
+  auto-approved and record **no** grant row, and every application that can mint
+  a service token is trusted.
+
+Both gates are needed. Consent alone would let any app ask; privilege alone
+would let the platform decide for the user.
+
+### How the two scope sets compose
+
+| | source | says |
+|---|---|---|
+| `req.serviceApp.scopes` | credential ∩ application ceiling, at mint | what the PLATFORM allows this app to do |
+| `req.serviceActingAs.scopes` | the user's `app_grants` row | what THIS USER allowed it to do |
+
+`oxy.requireScope(s)` requires `s` in **both** for a delegated request, and in
+`serviceApp.scopes` alone for a request acting as itself. The intersection is
+the point: only the app scope would let an app do to a user what that user never
+consented to; only the grant would let a user hand an app authority staff never
+gave it.
+
+### Who may call the verify endpoint
+
+`/internal` is service-to-service only, gated on a valid service token **and** a
+platform-trusted calling application. The second gate is not redundant — the
+mint has a deliberate carve-out letting a non-trusted app mint a service token
+from a payments-only credential, so holding a token is not the same as being a
+first-party service.
+
+The verifier is not the application being asked about (Syra asks about Alia), so
+"may only ask about itself" would break the mechanism rather than tighten it.
+The residual disclosure — a trusted first-party service can learn whether a user
+delegated to some other app — is accepted and logged. Every negative answer is
+byte-identical (`{ authorized: false, scopes: [] }`, always 200, never 404), so
+the endpoint is not an oracle for which users or applications exist.
+
 ## Security
 
 - Service tokens verified via **HMAC-SHA256 signature** (not just decoded)
@@ -156,9 +222,13 @@ request would change what any account is charged, the code is wrong.**
 
 | File | Purpose |
 |------|---------|
-| `packages/api/src/routes/auth.ts` | `POST /auth/service-token` endpoint |
-| `packages/api/src/models/Application.ts` | `type` / `isOfficial` / `isInternal` fields |
-| `packages/api/src/models/ApplicationCredential.ts` | `publicKey`, `secretHash`, `type: 'service'` |
+| `packages/api/src/routes/auth.ts` | `POST /auth/service-token` endpoint; `GET`/`DELETE /auth/grants` |
+| `packages/api/src/routes/internal.ts` | `/internal` router + `GET /internal/service-acting-as/verify` |
+| `packages/api/src/services/serviceActingAs.service.ts` | resolves the delegation grant; `acting-as:offline` |
+| `packages/api/src/db/schema/appGrants.ts` | `app_grants` — the revocable per-(user, app) consent row |
+| `packages/api/src/utils/applicationScopes.ts` | the scope vocabulary, privileged and consent-required sets |
+| `packages/api/src/db/schema/applications.ts` | `type` / `isOfficial` / `isInternal` fields |
+| `packages/api/src/db/schema/applicationCredentials.ts` | `publicKey`, `secretHash`, `type: 'service'` |
 | `packages/api/src/utils/credentialUsability.ts` | `isCredentialUsable()` (active or in rotation grace) |
 | `packages/core/src/mixins/OxyServices.utility.ts` | `auth()` + `serviceAuth()` middleware |
 | `packages/core/src/mixins/OxyServices.auth.ts` | `getServiceToken()`, `makeServiceRequest()`, `configureServiceAuth()` |
