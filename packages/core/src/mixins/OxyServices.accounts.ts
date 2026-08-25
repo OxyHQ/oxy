@@ -202,6 +202,21 @@ export interface CreateAccountInput {
   bio?: string;
   avatar?: string;
   /**
+   * Named color preset KEY — `'blue'`, `'mint'`, … — never a hex value. The
+   * account graph's half of `User.color`, which every account DTO already
+   * carries; this is how one gets WRITTEN for an account you administer.
+   *
+   * Set it HERE rather than after the fact. For a managed account the colour is
+   * a visual identity, and an account that is discoverable without one and
+   * acquires it on a second request is a face that changes by itself.
+   *
+   * Omitted is not "no colour": the platform assigns a random preset, exactly as
+   * it did before this field existed. A reserved preset is refused unless the
+   * account has a claim to it — the administrator's own entitlements are not the
+   * ones weighed.
+   */
+  color?: string;
+  /**
    * What the account is about. ORDERED — the FIRST element is the primary
    * category, so a picker must submit them in the order the user arranged them
    * and must not sort. Stable ids, never labels: render each one through the
@@ -242,6 +257,15 @@ export interface UpdateAccountInput {
   name?: { first?: string; last?: string; displayName?: string };
   bio?: string | null;
   avatar?: string | null;
+  /**
+   * Named color preset KEY, same vocabulary as `CreateAccountInput['color']`.
+   *
+   * NOT nullable, unlike `bio` and `avatar`: the column is `NOT NULL` with a
+   * default, so an account always HAS a colour and there is no "clear" to
+   * express. Sending the value the account already carries is always accepted,
+   * so a client may PATCH back the object it was served.
+   */
+  color?: string;
   /**
    * Replaces the WHOLE list, in the order given — there is no add/remove verb,
    * because a partial edit cannot express a re-ordering and the order is what

@@ -77,6 +77,45 @@ describe('@oxyhq/contracts account kinds', () => {
     expect(parsed.success && 'isPrivateAccount' in parsed.data).toBe(false);
   });
 
+  /**
+   * Same reasoning as `isPrivateAccount` above, and the same failure it guards:
+   * the API names every create field explicitly, so a `color` this schema strips
+   * reaches the insert as `undefined` and the account is born with a RANDOM
+   * preset — a success, with the wrong face, reported nowhere.
+   */
+  it('carries color through the parse, rather than stripping it', () => {
+    const parsed = createAccountRequestSchema.safeParse({
+      kind: 'bot',
+      username: 'agent-with-a-colour',
+      color: 'purple',
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.color).toBe('purple');
+  });
+
+  it('leaves color undefined when it is not supplied', () => {
+    // Undefined, never a fallback picked here: the column's own default is a
+    // random non-reserved preset, and a value invented in this schema would
+    // replace that with whatever one file happened to name.
+    const parsed = createAccountRequestSchema.safeParse({
+      kind: 'bot',
+      username: 'ordinary-agent',
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && 'color' in parsed.data).toBe(false);
+  });
+
+  it('rejects a color that is not a string, or is longer than a preset key', () => {
+    for (const color of [{ hex: '#fff' }, 'x'.repeat(33)]) {
+      const parsed = createAccountRequestSchema.safeParse({
+        kind: 'bot',
+        username: 'agent',
+        color,
+      });
+      expect(parsed.success).toBe(false);
+    }
+  });
+
   it('rejects a non-boolean isPrivateAccount', () => {
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',

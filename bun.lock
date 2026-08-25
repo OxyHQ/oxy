@@ -410,7 +410,7 @@
     },
     "packages/contracts": {
       "name": "@oxyhq/contracts",
-      "version": "0.31.0",
+      "version": "0.32.0",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -423,7 +423,7 @@
     },
     "packages/core": {
       "name": "@oxyhq/core",
-      "version": "21.1.0",
+      "version": "21.2.0",
       "dependencies": {
         "@noble/ciphers": "^1.3.0",
         "@noble/hashes": "^1.8.0",

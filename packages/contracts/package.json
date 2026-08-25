@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/contracts",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "description": "OxyHQ API contracts \u2014 single source of truth for request/response Zod schemas and inferred types, shared by the backend and the client SDKs",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
