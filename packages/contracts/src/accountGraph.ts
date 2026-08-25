@@ -68,9 +68,13 @@ export type ChildAccountKindGap = Exclude<
 export const childAccountKindSchema = z.enum(CHILD_ACCOUNT_KINDS);
 
 /**
- * Whether an operator may ACT AS an account of this kind — switch the whole app
- * into it (`POST /accounts/:id/switch`) or authorise an app to act as it
- * (an OAuth delegated subject).
+ * Whether an account of this kind may be the SUBJECT OF A DELEGATION — an
+ * application acting as it on some person's authority. `POST /internal/accounts/
+ * :id/service-switch` and the OAuth delegated subject both gate on this.
+ *
+ * It is NOT the question an account switcher asks. See
+ * {@link isOperatorSwitchTargetKind}, and the note below on why the difference
+ * is `bot`.
  *
  * Two kinds are refused, for opposite reasons:
  *
@@ -87,8 +91,43 @@ export const childAccountKindSchema = z.enum(CHILD_ACCOUNT_KINDS);
  * Consumers must gate on this predicate rather than testing `kind === 'personal'`,
  * which silently admits every kind added after it was written.
  */
-export function isActAsEligibleKind(kind: AccountKind | null | undefined): boolean {
+export function isDelegatedActAsEligibleKind(kind: AccountKind | null | undefined): boolean {
   return kind === 'organization' || kind === 'project' || kind === 'bot';
+}
+
+/**
+ * Whether a PERSON may switch into an account of this kind — become it, in an
+ * account switcher, for the rest of their session.
+ *
+ * ## Why this is not the same question as {@link isDelegatedActAsEligibleKind}
+ *
+ * The two differ on exactly one kind, `bot`, and that difference is the whole
+ * reason both exist.
+ *
+ * **A bot is not something you become. It is something that operates on your
+ * behalf.** Its whole purpose is to act while nobody is present: an application
+ * holds a credential, names the human whose authority it borrows, and speaks as
+ * the bot. That is delegation, and it is what
+ * {@link isDelegatedActAsEligibleKind} admits it for.
+ *
+ * Handing a person the bot's seat instead inverts that. It puts a human inside
+ * the identity that exists to act without one, and it does so on the human's own
+ * device, next to their personal login — which is precisely what happened: a
+ * `bot` account held a live session on a person's device, offered to them by a
+ * switcher that had asked the delegation question by mistake.
+ *
+ * `channel` is refused here as well, for the reason set out above, and
+ * `personal` because assuming somebody else's login is impersonation.
+ *
+ * ## This is the narrower predicate, deliberately
+ *
+ * Everything a person may become, a service may also act as; the reverse does
+ * not hold. A caller that is unsure which question it is asking wants THIS one:
+ * being wrong here withholds an affordance, while being wrong the other way
+ * hands out a seat.
+ */
+export function isOperatorSwitchTargetKind(kind: AccountKind | null | undefined): boolean {
+  return kind === 'organization' || kind === 'project';
 }
 
 /**
@@ -347,7 +386,7 @@ export const accountCategoriesSchema = z
  *
  * A person has interests, not a sector — and their interests are not a
  * classification anybody else gets to read off their profile. Spelled out
- * positively, like {@link isActAsEligibleKind} and for the same reason: a `kind
+ * positively, like {@link isDelegatedActAsEligibleKind} and for the same reason: a `kind
  * !== 'personal'` test silently admits every kind invented after it was
  * written, whereas this list forces whoever adds one to decide.
  */

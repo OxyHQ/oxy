@@ -50,7 +50,8 @@ import { CACHE_TIMES } from './mixinHelpers';
  * (`local|federated|agent|automated`). `personal` accounts have a direct login;
  * `organization` / `project` / `bot` / `channel` accounts are operated via
  * `AccountMember` and have no direct login. Of those, only the first three may
- * be acted AS — see `isActAsEligibleKind`.
+ * be acted AS by an application (`isDelegatedActAsEligibleKind`), and only the
+ * first two may be SWITCHED INTO by a person (`isOperatorSwitchTargetKind`).
  *
  * Single source of truth is `@oxyhq/contracts`.
  */
@@ -60,7 +61,8 @@ export {
   ACCOUNT_KINDS,
   MAX_ACCOUNT_CATEGORIES,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
-  isActAsEligibleKind,
+  isDelegatedActAsEligibleKind,
+  isOperatorSwitchTargetKind,
   isSelectableAccountCategoryId,
   kindAcceptsAccountCategories,
 } from '@oxyhq/contracts';
@@ -180,7 +182,7 @@ export interface CreateAccountInput {
    * service-provisioned only. What actually makes a channel safe does not depend
    * on who creates it: `createChildAccount` writes no auth method, so it is born
    * with no login, and `POST /accounts/:id/switch` refuses it via
-   * `isActAsEligibleKind`, so no session can ever have a channel as its subject
+   * both act-as predicates, so no session can ever have a channel as its subject
    * and therefore no bearer exists that could add one. `personal` is excluded
    * because it is a human login, minted at signup.
    */

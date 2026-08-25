@@ -29,8 +29,8 @@ type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
  *
  * A strict subset of what `POST /accounts` accepts, not `Exclude<AccountKind,
  * 'personal'>`: this screen CREATES AND ENTERS in one gesture, so it can only
- * offer kinds an operator may act as — `isActAsEligibleKind` is the same
- * predicate the server enforces on `POST /accounts/:id/switch`.
+ * offer kinds an operator may switch into — `isOperatorSwitchTargetKind` is the
+ * same predicate the server enforces on `POST /accounts/:id/switch`.
  *
  * So `channel` is absent here even though `POST /accounts` accepts it from any
  * signed-in caller: a channel is a content identity nobody occupies, and

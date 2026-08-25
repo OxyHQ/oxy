@@ -10,7 +10,8 @@ import {
   accountCategoryIdSchema,
   createAccountRequestSchema,
   isAccountKind,
-  isActAsEligibleKind,
+  isDelegatedActAsEligibleKind,
+  isOperatorSwitchTargetKind,
   isSelectableAccountCategoryId,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
@@ -126,13 +127,13 @@ describe('@oxyhq/contracts account kinds', () => {
   });
 
   /**
-   * The act-as partition, stated as a full truth table over EVERY kind rather
+   * The DELEGATION partition, stated as a full truth table over EVERY kind rather
    * than a spot check — the failure this guards is a new kind silently landing
    * on the eligible side of a `kind === 'personal'` test.
    */
-  it('admits only organization/project/bot to act-as', () => {
+  it('admits only organization/project/bot as a delegated subject', () => {
     const verdicts = Object.fromEntries(
-      ACCOUNT_KINDS.map((kind) => [kind, isActAsEligibleKind(kind)])
+      ACCOUNT_KINDS.map((kind) => [kind, isDelegatedActAsEligibleKind(kind)])
     );
     expect(verdicts).toEqual({
       personal: false,
@@ -143,9 +144,30 @@ describe('@oxyhq/contracts account kinds', () => {
     });
   });
 
-  it('treats a missing kind as ineligible', () => {
-    expect(isActAsEligibleKind(undefined)).toBe(false);
-    expect(isActAsEligibleKind(null)).toBe(false);
+  /**
+   * The SWITCHER partition. `bot` is the one row that differs from the table
+   * above, and it is the reason there are two predicates: an application acting
+   * as a bot is the bot's purpose, while a person switching into one seats a
+   * human inside an identity built to run without one.
+   */
+  it('refuses bot as well as channel to a person switching accounts', () => {
+    const verdicts = Object.fromEntries(
+      ACCOUNT_KINDS.map((kind) => [kind, isOperatorSwitchTargetKind(kind)])
+    );
+    expect(verdicts).toEqual({
+      personal: false,
+      organization: true,
+      project: true,
+      bot: false,
+      channel: false,
+    });
+  });
+
+  it('treats a missing kind as ineligible, on both', () => {
+    expect(isDelegatedActAsEligibleKind(undefined)).toBe(false);
+    expect(isDelegatedActAsEligibleKind(null)).toBe(false);
+    expect(isOperatorSwitchTargetKind(undefined)).toBe(false);
+    expect(isOperatorSwitchTargetKind(null)).toBe(false);
   });
 
   it('narrows only real kinds', () => {

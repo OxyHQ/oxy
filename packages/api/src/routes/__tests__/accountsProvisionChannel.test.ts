@@ -15,7 +15,7 @@
  * organization and then have them switch into it. The `kind: 'channel'`
  * restriction is what keeps the scope bounded to publishing rights on an
  * identity nobody can occupy, and it is why this surface does not reopen what
- * `isActAsEligibleKind` closed.
+ * the act-as predicates closed.
  */
 
 import express from 'express';

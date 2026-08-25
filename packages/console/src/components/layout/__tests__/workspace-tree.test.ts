@@ -67,8 +67,15 @@ describe('buildWorkspaceTree', () => {
    * "drops channels" from "drops everything" — and dropping everything is the
    * worse failure, because it would empty an operator's switcher of the orgs
    * they actually work in. Adding a sixth kind fails this with a missing key.
+   *
+   * `bot` moved to `false` with the act-as split. Every row this tree produces
+   * SWITCHES the session, so it is a switcher and answers the operator question:
+   * a bot operates on your behalf, it is not a workspace you enter. The Console's
+   * MANAGEMENT surfaces are unaffected — they read `useAccount().accounts`, which
+   * is deliberately unfiltered, so a bot is still listed, opened and administered
+   * there.
    */
-  it('lists every switchable kind and no channel', () => {
+  it('lists every switchable kind, and neither a channel nor a bot', () => {
     const accounts = ACCOUNT_KINDS.map((kind) =>
       node(kind, kind, kind === 'personal' ? 'self' : 'owner')
     );
@@ -81,14 +88,14 @@ describe('buildWorkspaceTree', () => {
       personal: true,
       organization: true,
       project: true,
-      bot: true,
+      bot: false,
       channel: false,
     });
   });
 
   /**
    * The caller's own personal account is act-as INELIGIBLE, so a switcher
-   * narrowed with `isActAsEligibleKind` instead of `isSwitchTargetAccount`
+   * narrowed with a bare kind predicate instead of `isSwitchTargetAccount`
    * would drop the row that returns you to yourself — the one row that must
    * never disappear. Pinned separately from the matrix above so the reason is
    * legible when it breaks.
@@ -206,10 +213,12 @@ describe('buildWorkspaceTree', () => {
       ...childrenOf(root.accountId).map((child) => child.accountId),
     ]);
 
-    expect(rendered.slice().sort()).toEqual(['bot', 'me', 'org', 'shared', 'underChan']);
+    expect(rendered.slice().sort()).toEqual(['me', 'org', 'shared', 'underChan']);
     // Exactly once each — a set comparison alone cannot see a duplicate.
     expect(rendered).toHaveLength(new Set(rendered).size);
     expect(rendered).not.toContain('chan');
+    // Same reason as the channel: a bot is not a workspace anybody enters.
+    expect(rendered).not.toContain('bot');
   });
 
   it('returns empty groups for an empty account list', () => {
