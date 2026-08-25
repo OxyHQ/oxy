@@ -17,11 +17,12 @@
  *
  * The spec-list assertions at the bottom are not tidiness: `internal_cost_centers`
  * carries CHECK constraints on the slug's grammar and the label's length, and
- * `account.service.ts` carries its own rule for a username. A spec that violates
- * any of them fails inside the ECS one-shot, against production, with the
- * account for earlier entries in the run already minted.
+ * the slug IS the account's username. A spec that violates any of them fails
+ * inside the ECS one-shot, against production, with the account for earlier
+ * entries in the run already minted.
  */
 
+import { isValidUsername } from '@oxyhq/contracts';
 import { isValidDisplayName } from '@oxyhq/core';
 import { MAX_ACCOUNT_DEPTH } from '../../db/schema/userAncestors';
 import {
@@ -216,10 +217,12 @@ describe('computeCostCenterPlan', () => {
     );
 
     it.each(INTERNAL_COST_CENTERS)('$name is a usable account username', (center) => {
-      // `AccountService.resolveUniqueUsername`'s own rule. The slug IS the
+      // The ONE policy, asked directly rather than restated. The slug IS the
       // username, so a slug the account layer rejects is a centre that can never
-      // be created.
-      expect(center.name).toMatch(/^[\w.-]+$/);
+      // be created — and the slug CHECK is LOOSER on length (63 vs 30), so this
+      // is the assertion that catches an over-long slug, in CI, instead of
+      // halfway through a production run.
+      expect(isValidUsername(center.name)).toBe(true);
       expect(center.name).toBe(center.name.toLowerCase());
     });
 

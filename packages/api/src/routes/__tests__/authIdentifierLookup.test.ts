@@ -84,7 +84,7 @@ async function account(fields: Partial<typeof users.$inferInsert>): Promise<stri
   return row.id;
 }
 
-/** Alphanumeric only — `USERNAME_PATTERN` rejects anything else with a 400. */
+/** Alphanumeric only, so a generated name is legal under any tightening of the policy. */
 const uniqueUsername = () => `u${randomUUID().replace(/-/g, '').slice(0, 20)}`;
 
 beforeAll(async () => {
@@ -134,10 +134,26 @@ describe('GET /auth/check-username/:username', () => {
     expect((res.body.data as { available: boolean }).available).toBe(false);
   });
 
-  it('rejects a username outside the policy with 400', async () => {
-    const res = await get('/auth/check-username/has-a-hyphen');
-    expect(res.status).toBe(400);
+  /**
+   * A hyphen is INSIDE the policy now, and this endpoint is the one read that
+   * applies the write rule — so it has to say "available", not 400. The
+   * predecessor rejected it while `POST /accounts` happily stored it, which is
+   * the disagreement the single policy exists to end.
+   */
+  it('reports a hyphenated username as available, because a write would accept it', async () => {
+    const res = await get(`/auth/check-username/${uniqueUsername()}-bot`);
+
+    expect(res.status).toBe(200);
+    expect((res.body.data as { available: boolean }).available).toBe(true);
   });
+
+  it.each(['has.a.dot', 'has_a__double', '-leading', 'ab'])(
+    'rejects %s with 400, because a write would reject it',
+    async (username) => {
+      const res = await get(`/auth/check-username/${username}`);
+      expect(res.status).toBe(400);
+    }
+  );
 });
 
 describe('GET /auth/check-email/:email', () => {

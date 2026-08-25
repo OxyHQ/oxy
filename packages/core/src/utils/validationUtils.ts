@@ -9,6 +9,7 @@ import {
   DISPLAY_NAME_LETTERS_RANGES,
   DISPLAY_NAME_NAME_SEPARATORS_RANGES,
 } from './displayNamePolicyRanges.generated';
+import { usernameSchema } from '@oxyhq/contracts';
 
 /**
  * Maximum stored length of a display name, in code units after cleaning.
@@ -26,11 +27,6 @@ export const DISPLAY_NAME_INVALID_MESSAGE =
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Username validation regex (alphanumeric, underscores, and hyphens, 3-30 chars)
- */
-export const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
-
-/**
  * Password validation regex (at least 8 chars, 1 uppercase, 1 lowercase, 1 number)
  */
 // At least 8 characters (tests expect len>=8 without complexity requirements)
@@ -41,13 +37,6 @@ export const PASSWORD_REGEX = /^.{8,}$/;
  */
 export function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email);
-}
-
-/**
- * Validate username format
- */
-export function isValidUsername(username: string): boolean {
-  return USERNAME_REGEX.test(username);
 }
 
 /**
@@ -378,7 +367,10 @@ export function validateAndSanitizeUserInput(input: unknown, type: 'string' | 'e
     case 'email':
       return isValidEmail(sanitized) ? sanitized : null;
     case 'username':
-      return isValidUsername(sanitized) ? sanitized : null;
+      // The ONE policy, from `@oxyhq/contracts`. This module used to declare a
+      // second one (`^[a-zA-Z0-9_-]{3,30}$`) that the server did not enforce, so
+      // the SDK could call a name valid and the API 400 it.
+      return usernameSchema.safeParse(sanitized).success ? sanitized : null;
     case 'string':
       return isRequiredString(sanitized) ? sanitized : null;
     default:

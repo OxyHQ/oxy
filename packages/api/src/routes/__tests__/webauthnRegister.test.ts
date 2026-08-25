@@ -137,7 +137,7 @@ async function request(
   });
 }
 
-/** A username unique to one test, inside `USERNAME_PATTERN` (3–30 alphanumerics). */
+/** A username unique to one test, and alphanumeric, so `usernameSchema` accepts it. */
 function freshUsername(): string {
   return `wa${randomUUID().replace(/-/g, '').slice(0, 20)}`;
 }

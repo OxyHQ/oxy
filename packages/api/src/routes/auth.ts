@@ -102,7 +102,7 @@ import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
 import { deriveCoarseClientLabel } from '../utils/deviceUtils';
 import { serializePublicApplication } from '../utils/serializeApplication';
 import { composeDisplayName, formatUserNameResponse } from '../utils/displayName';
-import { USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { normalizeUsername } from '../utils/username';
 
 const router = express.Router();
 
@@ -233,7 +233,7 @@ router.use('/webauthn', webauthnRouter);
  *                 type: string
  *                 minLength: 3
  *                 maxLength: 30
- *                 pattern: '^[a-zA-Z0-9]{3,30}$'
+ *                 pattern: '^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$'
  *     responses:
  *       200:
  *         description: Account created and the first session issued.
@@ -433,19 +433,11 @@ const checkLimiter = rateLimit({
  *         description: Rate limit exceeded
  */
 router.get('/check-username/:username', checkLimiter, validate({ params: checkUsernameParams }), asyncHandler(async (req, res) => {
-  let { username } = req.params;
-  
-  if (!username) {
-    throw new BadRequestError(
-      'Username must be at least 3 characters long and contain only letters and numbers'
-    );
-  }
-
-  username = normalizeUsername(username);
-
-  if (!USERNAME_PATTERN.test(username)) {
-    throw new BadRequestError('Username can only contain letters and numbers');
-  }
+  // `checkUsernameParams` already held the candidate to `usernameSchema`.
+  // Availability is a READ, but it answers a question about a WRITE — "may I
+  // have this name?" — so it applies the write policy to the string being asked
+  // for. It judges no stored row: the lookup below matches whatever is there.
+  const username = normalizeUsername(req.params.username);
 
   // `lower(btrim(...))` on BOTH sides — that is the expression
   // `users_lower_username_key` indexes, so a plain `username = $1` would be

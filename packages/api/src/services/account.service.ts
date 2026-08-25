@@ -51,6 +51,9 @@ import {
   isActAsEligibleKind,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
+  usernameSchema,
+  USERNAME_INVALID_MESSAGE,
+  USERNAME_MAX_LENGTH,
   type AccountCategoryId,
 } from '@oxyhq/contracts';
 import {
@@ -85,6 +88,25 @@ import userCache from '../utils/userCache';
  * ever held this".
  */
 const ACT_AS_PERMISSION: AccountPermission = 'account:act_as';
+
+/**
+ * The candidate `resolveUniqueUsername` tries after `base` is taken.
+ *
+ * The counter has to fit INSIDE the policy, which is the part the unbounded
+ * predecessor never had to think about: a 30-character name whose `1` was
+ * appended would be 31 and fail the very rule that just admitted it. So the base
+ * is cut to leave room, and a separator left exposed by that cut is dropped —
+ * `my-bot` cut to `my-` must not become `my-1`'s ugly sibling `my--1`, and a name
+ * may not end on a separator either.
+ *
+ * The cut can never breach the 3-character floor: the suffix is at most four
+ * digits, so at least 26 characters of base always survive.
+ */
+function suffixedUsername(base: string, suffix: number): string {
+  const counter = String(suffix);
+  const trimmed = base.slice(0, USERNAME_MAX_LENGTH - counter.length).replace(/[-_]+$/, '');
+  return `${trimmed}${counter}`;
+}
 
 /**
  * Reject a name half that the display-name policy would not allow.
@@ -1516,23 +1538,29 @@ export class AccountService {
 
   /**
    * Resolve a unique username, suffixing a numeric counter on collision (org and
-   * bot accounts share the account username index with humans). Validates the
-   * username character policy.
+   * bot accounts share the account username index with humans).
+   *
+   * Holds the request to `usernameSchema` — the SAME policy signup, public-key
+   * registration, webauthn and `PUT /users/me` apply. This method used to carry
+   * its own rule (`^[\w.-]+$`, no length bound at all, dots admitted) and it is
+   * the one that governs every managed account, so bots and projects could take
+   * names — a single character, two hundred characters, dotted — that no person
+   * could ask for, in the very same unique index.
+   *
+   * It also no longer LOWER-CASES. Uniqueness is decided by the
+   * `lower(btrim(username))` index, so folding the case bought nothing and cost
+   * the caller their name: asking for `MyBot` returned `mybot`.
    *
    * The collision probe is written against the EXPRESSION the unique index is
    * built on — `lower(btrim(username))`, `db/schema/users.ts` — so a candidate
    * that differs only by case is REJECTED here rather than by the constraint.
    */
   private async resolveUniqueUsername(requested: string, excludeId?: string): Promise<string> {
-    const base = requested.trim().toLowerCase();
-    if (!base) {
-      throw new BadRequestError('Username is required');
+    const parsed = usernameSchema.safeParse(requested);
+    if (!parsed.success) {
+      throw new BadRequestError(USERNAME_INVALID_MESSAGE, { field: 'username' });
     }
-    if (!/^[\w.-]+$/.test(base)) {
-      throw new BadRequestError(
-        'Username may only contain letters, numbers, underscores, hyphens, and dots'
-      );
-    }
+    const base = parsed.data;
 
     const db = getDb();
     let candidate = base;
@@ -1549,7 +1577,7 @@ export class AccountService {
       if (!taken) {
         return candidate;
       }
-      candidate = `${base}${suffix}`;
+      candidate = suffixedUsername(base, suffix);
     }
     throw new ConflictError('Could not allocate a unique username');
   }
