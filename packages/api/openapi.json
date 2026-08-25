@@ -483,8 +483,9 @@
                   },
                   "username": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
+                    "minLength": 3,
+                    "maxLength": 30
                   },
                   "name": {
                     "type": "object",
@@ -669,8 +670,9 @@
                   },
                   "username": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
+                    "minLength": 3,
+                    "maxLength": 30
                   },
                   "name": {
                     "type": "object",
@@ -1102,8 +1104,9 @@
                 "properties": {
                   "username": {
                     "type": "string",
-                    "minLength": 1,
-                    "maxLength": 100
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
+                    "minLength": 3,
+                    "maxLength": 30
                   },
                   "name": {
                     "type": "object",
@@ -7617,7 +7620,7 @@
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 30,
-                    "pattern": "^[a-zA-Z0-9]{3,30}$"
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$"
                   }
                 }
               }
@@ -30544,7 +30547,7 @@
                     "type": "string",
                     "minLength": 3,
                     "maxLength": 30,
-                    "pattern": "^[a-zA-Z0-9]{3,30}$",
+                    "pattern": "^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$",
                     "example": "alice"
                   },
                   "email": {
