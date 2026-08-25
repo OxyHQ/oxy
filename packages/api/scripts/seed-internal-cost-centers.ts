@@ -107,15 +107,19 @@ async function observe(spec: InternalCostCenterSpec): Promise<CostCenterObservat
 }
 
 /**
- * Mint the project account for a centre, and PROVE it got the handle asked for.
+ * Mint the project account for a centre.
  *
- * `AccountService.resolveUniqueUsername` allocates `codea1` when `codea` is
- * taken, which is right for a person picking a handle and wrong here: the
- * username IS the slug, and a suffixed one would leave the account and the
- * report addressed by two different strings. `computeCostCenterPlan` refuses a
- * collision before reaching this point, so a suffix here can only come from a
- * row inserted between the observation and the write — a race, which this reads
- * the field back to catch rather than assume away.
+ * The username IS the slug: an account addressed by one string and a report by
+ * another is not a cost centre, it is two records. `computeCostCenterPlan`
+ * refuses a collision before reaching this point, and the only remaining way to
+ * lose the handle is a row inserted between that observation and this write.
+ *
+ * That race used to need catching HERE, by reading the stored username back:
+ * `createChildAccount` would allocate `codea1` when `codea` was taken and report
+ * success. It no longer adapts — a taken handle is a `ConflictError` from the
+ * probe and from the lost race alike — so the collision now aborts the run
+ * BEFORE the account exists, instead of after. That is strictly better: the
+ * read-back could only report an orphan it had already created.
  */
 async function createCostCenterAccount(
   spec: InternalCostCenterSpec,
@@ -127,15 +131,6 @@ async function createCostCenterAccount(
     name: { displayName: spec.displayName },
     description: spec.description,
   });
-
-  if (account.username !== spec.name) {
-    throw new Error(
-      `Minted the project account for cost centre "${spec.name}" but it was given the username ` +
-        `"${account.username}" — something claimed the handle mid-run. The account exists ` +
-        `(id ${account.id}) and is NOT labelled as a cost centre; resolve the collision and ` +
-        're-run.'
-    );
-  }
 
   return account.id;
 }

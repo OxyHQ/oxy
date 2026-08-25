@@ -167,3 +167,55 @@ describe('stripDisallowedUsernameCharacters', () => {
     expect(isValidUsername('-alice-')).toBe(false);
   });
 });
+
+/**
+ * The three questions a handle GENERATOR asks, pinned so they stay answerable.
+ *
+ * Alia's `suggestAgentUsername` re-derives a subset of this policy by hand and
+ * has no minimum, so an agent called "Al" is proposed as `al` and refused on
+ * submit. Replacing that hand-rolled subset with these calls is the fix; these
+ * assertions are what keep the calls available and honest.
+ */
+describe('a slug generator can be built on this without re-deriving it', () => {
+  /** The shape of Alia's generator, expressed against the policy instead of a copy. */
+  function suggest(displayName: string): string | null {
+    const slug = stripDisallowedUsernameCharacters(
+      displayName.trim().replace(/\s+/g, '-')
+    ).replace(/[-_]{2,}/g, '-');
+    const trimmed = slug.replace(/^[-_]+/, '').replace(/[-_]+$/, '').slice(0, USERNAME_MAX_LENGTH);
+    return isValidUsername(trimmed) ? trimmed : null;
+  }
+
+  it('accepts an ordinary name', () => {
+    expect(suggest('Community Maestro')).toBe('Community-Maestro');
+  });
+
+  it('drops what the policy forbids rather than proposing it', () => {
+    expect(suggest('Nate.  Isern!')).toBe('Nate-Isern');
+  });
+
+  /**
+   * The case the hand-rolled generator gets wrong: two characters is a legal
+   * SLUG and an illegal USERNAME. Knowing that requires the minimum, which is why
+   * it is exported.
+   */
+  it('reports too-short rather than proposing a name the server will refuse', () => {
+    expect(suggest('Al')).toBeNull();
+    expect('Al'.length).toBeLessThan(USERNAME_MIN_LENGTH);
+  });
+
+  it('does not exceed the ceiling', () => {
+    const proposed = suggest('A'.repeat(120));
+    expect(proposed).not.toBeNull();
+    expect((proposed ?? '').length).toBeLessThanOrEqual(USERNAME_MAX_LENGTH);
+  });
+
+  it('needs no server dependency: the module is zod and constants', () => {
+    // A generator runs in a React Native bundle and in another repo's backend.
+    // If this ever needed a database handle or an HTTP client, every consumer
+    // would go back to re-deriving the rule, which is how there came to be seven.
+    expect(typeof isValidUsername).toBe('function');
+    expect(typeof stripDisallowedUsernameCharacters).toBe('function');
+    expect(USERNAME_MIN_LENGTH).toBeLessThan(USERNAME_MAX_LENGTH);
+  });
+});

@@ -6,11 +6,12 @@
  *
  * Two failure shapes are pinned hardest:
  *
- *  - The QUIET workaround. `AccountService.resolveUniqueUsername` allocates
- *    `codea1` when `codea` is taken, and nothing downstream would complain: the
- *    slug stays unique, the report still balances, and only a human later
- *    looking the account up by handle finds somebody else's. Every collision
- *    below must REFUSE, not adapt.
+ *  - The QUIET workaround. `AccountService` used to allocate `codea1` when
+ *    `codea` was taken, and nothing downstream would complain: the slug stays
+ *    unique, the report still balances, and only a human later looking the
+ *    account up by handle finds somebody else's. It now refuses, and the plan
+ *    below must refuse EARLIER — a 409 from the service aborts a run that has
+ *    already minted the accounts before it.
  *  - The under-reporting dry run. `registerCostCenter` revives a retired centre
  *    on conflict, so a re-run can undo a deliberate retirement. The plan has to
  *    say so BEFORE the write, or the operator's only warning arrives after it.
@@ -163,10 +164,11 @@ describe('computeCostCenterPlan', () => {
     });
 
     it('never falls back to minting a suffixed handle', () => {
-      // The whole point: `resolveUniqueUsername` would happily produce `codea1`,
-      // and the slug would still be unique. A refusal costs one rename by
-      // somebody who can see both accounts; a silent suffix costs the next
-      // person a day.
+      // The whole point: a suffixed `codea1` keeps the slug unique and loses the
+      // handle. The service refuses one now too, but this layer must refuse
+      // FIRST — the service's 409 arrives mid-run, after earlier centres have
+      // already been minted. A refusal costs one rename by somebody who can see
+      // both accounts; a silent suffix costs the next person a day.
       for (const observation of [
         holder({ kind: 'personal' }),
         holder({ parentAccountId: 'other-org' }),
