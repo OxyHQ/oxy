@@ -84,6 +84,7 @@ interface PaginationQuery {
 
 const router = Router();
 import { PAGINATION } from '../utils/constants';
+import { resolveOperatorId } from '../middleware/operator';
 
 // Constants
 /**
@@ -821,12 +822,15 @@ async function resolveAuthorizedRecommendationClientId(
     return undefined;
   }
 
-  // USER session: authorized only when the caller has effective access to the
+  // USER session: authorized only when the OPERATOR has effective access to the
   // application's owning account (a member of the account, with inheritance).
-  const userId = req.user?._id;
-  if (!userId) {
+  // The operator, not the session's subject: while acting as an organization the
+  // subject is that organization, which is not a member of itself, so asking it
+  // refuses the very people who own the application.
+  if (!req.user?._id) {
     return undefined;
   }
+  const userId = await resolveOperatorId(req);
 
   const [application] = await getDb()
     .select({ ownerAccountId: applications.ownerAccountId })
@@ -835,7 +839,7 @@ async function resolveAuthorizedRecommendationClientId(
     .limit(1);
   if (application?.ownerAccountId) {
     const access = await accountService.resolveEffectiveAccess(
-      userId.toString(),
+      userId,
       application.ownerAccountId
     );
     if (access) {
