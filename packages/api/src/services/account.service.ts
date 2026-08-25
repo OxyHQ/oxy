@@ -53,7 +53,6 @@ import {
   newlyAddedRetiredCategories,
   usernameSchema,
   USERNAME_INVALID_MESSAGE,
-  USERNAME_MAX_LENGTH,
   type AccountCategoryId,
 } from '@oxyhq/contracts';
 import {
@@ -74,6 +73,7 @@ import {
   isUserColorPreset,
   normalizeUserColor,
 } from '../utils/profileColor';
+import { violatesUniqueIndex } from '../utils/postgresErrors';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 
@@ -90,22 +90,24 @@ import userCache from '../utils/userCache';
 const ACT_AS_PERMISSION: AccountPermission = 'account:act_as';
 
 /**
- * The candidate `resolveUniqueUsername` tries after `base` is taken.
- *
- * The counter has to fit INSIDE the policy, which is the part the unbounded
- * predecessor never had to think about: a 30-character name whose `1` was
- * appended would be 31 and fail the very rule that just admitted it. So the base
- * is cut to leave room, and a separator left exposed by that cut is dropped —
- * `my-bot` cut to `my-` must not become `my-1`'s ugly sibling `my--1`, and a name
- * may not end on a separator either.
- *
- * The cut can never breach the 3-character floor: the suffix is at most four
- * digits, so at least 26 characters of base always survive.
+ * The unique index `users.username` is held by, named so a lost race can be told
+ * apart from every other constraint on the same table. Declared in
+ * `db/schema/users.ts` as `uniqueIndex('users_lower_username_key')`; Postgres
+ * reports an expression index's own name in `constraint_name`, verified against
+ * a real violation.
  */
-function suffixedUsername(base: string, suffix: number): string {
-  const counter = String(suffix);
-  const trimmed = base.slice(0, USERNAME_MAX_LENGTH - counter.length).replace(/[-_]+$/, '');
-  return `${trimmed}${counter}`;
+const USERNAME_UNIQUE_INDEX = 'users_lower_username_key';
+
+/**
+ * The 409 a taken handle produces, wherever it is detected.
+ *
+ * One shape for both detections — the probe in `assertUsernameAvailable` and the
+ * `users_lower_username_key` violation a lost race raises — because a client
+ * retrying with a fresh suggestion cannot be asked to recognise two. `field` is
+ * what tells it WHICH input to change.
+ */
+function usernameTakenError(username: string): ConflictError {
+  return new ConflictError(`The username "${username}" is already taken`, { field: 'username' });
 }
 
 /**
@@ -440,11 +442,11 @@ export class AccountService {
       throw new BadRequestError('A channel cannot own another channel');
     }
 
-    const username = await this.resolveUniqueUsername(input.username);
+    const username = await this.assertUsernameAvailable(input.username);
 
     assertValidAccountName(input.name);
 
-    // After `resolveUniqueUsername`, so the reserved-color gate weighs the handle
+    // After `assertUsernameAvailable`, so the reserved-color gate weighs the handle
     // the account will actually carry. `null` for the id: the row does not exist
     // yet, so there is no subscription to resolve and only the handle branch can
     // pass — see `assertColorNotReserved`.
@@ -457,7 +459,13 @@ export class AccountService {
     const ancestors = childAncestorsOf(parent);
     const rootAccountId = childRootOf(parent);
 
-    const { account, membership } = await db.transaction(async (tx) => {
+    // The probe in `assertUsernameAvailable` answered a moment ago; another
+    // request can have taken the name since. `users_lower_username_key` is what
+    // makes that safe, and this is what makes it LEGIBLE: the loser of the race
+    // gets the same 409 as the loser of the probe, never a 500 that a retrying
+    // client cannot act on.
+    const { account, membership } = await this.rejectingTakenUsername(username, () =>
+      db.transaction(async (tx) => {
       const [created] = await tx
         .insert(users)
         .values({
@@ -502,7 +510,8 @@ export class AccountService {
         .returning();
 
       return { account: created, membership: member };
-    });
+      })
+    );
 
     logger.info('Account created', {
       accountId: account.id,
@@ -675,7 +684,7 @@ export class AccountService {
     }
 
     if (input.username !== undefined) {
-      set.username = await this.resolveUniqueUsername(input.username, accountId);
+      set.username = await this.assertUsernameAvailable(input.username, accountId);
     }
     if (input.name !== undefined) {
       assertValidAccountName(input.name);
@@ -714,9 +723,16 @@ export class AccountService {
     }
     if (input.links !== undefined) set.links = input.links;
 
+    // Same race as creation, on the rename: `set.username` was probed, and the
+    // window between the probe and this statement is another request's chance to
+    // take it.
     const updated =
       Object.keys(set).length > 0
-        ? (await db.update(users).set(set).where(eq(users.id, accountId)).returning())[0]
+        ? (
+            await this.rejectingTakenUsername(set.username, () =>
+              db.update(users).set(set).where(eq(users.id, accountId)).returning()
+            )
+          )[0]
         : account;
 
     userCache.invalidate(accountId);
@@ -1537,49 +1553,97 @@ export class AccountService {
   }
 
   /**
-   * Resolve a unique username, suffixing a numeric counter on collision (org and
-   * bot accounts share the account username index with humans).
+   * The canonical form of a requested username, once it is known to be legal and
+   * free. Throws rather than adapting.
+   *
+   * ## It used to RENAME, silently
+   *
+   * This method suffixed a counter on collision — ask for `pepe`, get `pepe1`,
+   * and nobody is told. It is the same defect as the `.toLowerCase()` that used
+   * to live in these same lines: both hand the caller back an account under a
+   * name they did not ask for. A handle is chosen by a person; a server that
+   * quietly picks a different one has answered a question nobody asked.
+   *
+   * The consumers were already written for the refusal. Alia's
+   * `lib/agent-identity.ts` says so outright — "this proposes and never decides.
+   * `POST /accounts` is the authority, its duplicate answer is the only true one,
+   * and the CLIENT retries with a fresh suggestion" — and its
+   * `bot-account.ts` implements a retry loop keyed on **409**. That 409 never
+   * arrived, so the loop was dead code and the owner got `community-maestro1`.
+   * The cost-centre seed goes further and treats a suffix as a FAILURE, because
+   * there the username IS the slug.
+   *
+   * ## Legality and availability are one question here
    *
    * Holds the request to `usernameSchema` — the SAME policy signup, public-key
-   * registration, webauthn and `PUT /users/me` apply. This method used to carry
-   * its own rule (`^[\w.-]+$`, no length bound at all, dots admitted) and it is
-   * the one that governs every managed account, so bots and projects could take
-   * names — a single character, two hundred characters, dotted — that no person
-   * could ask for, in the very same unique index.
+   * registration, webauthn and `PUT /users/me` apply. This path governs every
+   * managed account, and its own rule (`^[\w.-]+$`, dots, no length bound at
+   * all) is how a bot could take a name no person could ask for, in the very same
+   * unique index.
    *
-   * It also no longer LOWER-CASES. Uniqueness is decided by the
-   * `lower(btrim(username))` index, so folding the case bought nothing and cost
-   * the caller their name: asking for `MyBot` returned `mybot`.
+   * The probe is written against the EXPRESSION the unique index is built on —
+   * `lower(btrim(username))`, `db/schema/users.ts` — so a candidate that differs
+   * only by case conflicts here rather than at the constraint.
    *
-   * The collision probe is written against the EXPRESSION the unique index is
-   * built on — `lower(btrim(username))`, `db/schema/users.ts` — so a candidate
-   * that differs only by case is REJECTED here rather than by the constraint.
+   * ## And the probe alone is not enough
+   *
+   * This is a check-then-insert, so it is a race: the name can be taken between
+   * this answer and the write. `users_lower_username_key` is what keeps that
+   * correct — no duplicate can exist — but the loser's failure surfaces as a
+   * driver error. The callers therefore translate that constraint into the SAME
+   * `ConflictError`, so both the caller who loses the probe and the caller who
+   * loses the race get a 409 rather than one of them getting a 500.
    */
-  private async resolveUniqueUsername(requested: string, excludeId?: string): Promise<string> {
+  /**
+   * Run a write that stores a username, turning a lost race into the SAME 409 the
+   * probe produces.
+   *
+   * Only `users_lower_username_key` is translated, by NAME. A `users` write can
+   * violate `users_lower_email_key` or `users_lower_public_key_key` just as
+   * easily, and reporting either as "that username is taken" would send the
+   * caller to fix a field that was never the problem — a confident, wrong error
+   * message, which is worse than the 500 it replaced. Everything else propagates
+   * untouched.
+   *
+   * `username` may be absent: an update that does not rename cannot lose this
+   * race, and there is no name to put in the message. The column is nullable, so
+   * `null` is one of the ways it arrives.
+   */
+  private async rejectingTakenUsername<T>(
+    username: string | null | undefined,
+    write: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await write();
+    } catch (error) {
+      if (typeof username === 'string' && violatesUniqueIndex(error, USERNAME_UNIQUE_INDEX)) {
+        throw usernameTakenError(username);
+      }
+      throw error;
+    }
+  }
+
+  private async assertUsernameAvailable(requested: string, excludeId?: string): Promise<string> {
     const parsed = usernameSchema.safeParse(requested);
     if (!parsed.success) {
       throw new BadRequestError(USERNAME_INVALID_MESSAGE, { field: 'username' });
     }
-    const base = parsed.data;
+    const username = parsed.data;
 
-    const db = getDb();
-    let candidate = base;
-    for (let suffix = 1; suffix <= 1000; suffix++) {
-      const clauses = [sql`lower(btrim(${users.username})) = lower(btrim(${candidate}))`];
-      if (excludeId) {
-        clauses.push(ne(users.id, excludeId));
-      }
-      const [taken] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(and(...clauses))
-        .limit(1);
-      if (!taken) {
-        return candidate;
-      }
-      candidate = suffixedUsername(base, suffix);
+    const clauses = [sql`lower(btrim(${users.username})) = lower(btrim(${username}))`];
+    if (excludeId) {
+      clauses.push(ne(users.id, excludeId));
     }
-    throw new ConflictError('Could not allocate a unique username');
+    const [taken] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(and(...clauses))
+      .limit(1);
+    if (taken) {
+      throw usernameTakenError(username);
+    }
+
+    return username;
   }
 }
 

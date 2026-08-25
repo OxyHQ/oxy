@@ -68,6 +68,29 @@
  * rows in `handle@domain` form, written by `POST /users/resolve` through its own
  * normalizer. Those are another server's namespace; this rule would reject every
  * one of them and must never be pointed at that path.
+ *
+ * ## Usable by a handle GENERATOR, deliberately
+ *
+ * Slug generators are how the eighth copy of this rule appears. Alia's
+ * `suggestAgentUsername` builds one from an agent's name and re-derives a subset
+ * of these rules by hand — its own docblock admits it ("A leading digit or an
+ * empty slug both fail Oxy's username rules") — and, having no minimum, proposes
+ * `al` for an agent called "Al", which the server then refuses.
+ *
+ * So this module answers a generator's three questions without dragging a server
+ * dependency along. It is zod and nothing else, so it imports cleanly into a
+ * React Native bundle or another repo's backend:
+ *
+ *   - *Does this candidate pass?* {@link isValidUsername}, or `safeParse` when the
+ *     reason matters.
+ *   - *How short is too short, how long is too long?* {@link USERNAME_MIN_LENGTH}
+ *     and {@link USERNAME_MAX_LENGTH}, so a generator can pad or truncate instead
+ *     of guessing and being 400ed.
+ *   - *Which characters survive?* {@link stripDisallowedUsernameCharacters}.
+ *
+ * A generator PROPOSES; only `POST /accounts` decides, and a taken handle comes
+ * back as a 409 for the client to retry with a fresh suggestion. Nothing here
+ * knows what is taken, and it must not pretend to.
  */
 
 import { z } from 'zod';

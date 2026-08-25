@@ -569,16 +569,21 @@ describe('createChildAccount', () => {
     expect(row).toBeUndefined();
   });
 
-  test('suffixes the username on collision', async () => {
+  /**
+   * This used to assert `${taken}1` — the suffix. Asking for a handle and being
+   * given a different one is the server answering a question nobody asked, and
+   * the consumers were already written for the refusal: Alia retries on 409, and
+   * the cost-centre seed treats a suffix as a failure. `accountUsernameCollision`
+   * covers the rename, the case-insensitivity and the lost race.
+   */
+  test('refuses a taken username rather than suffixing it', async () => {
     const root = await seedAccount();
     const taken = uniqueUsername('oxy');
     await seedAccount({ kind: 'organization', username: taken });
 
-    const { account } = await accountService.createChildAccount(root.id, root.id, {
-      kind: 'organization',
-      username: taken,
-    });
-    expect(account.username).toBe(`${taken}1`);
+    await expect(
+      accountService.createChildAccount(root.id, root.id, { kind: 'organization', username: taken })
+    ).rejects.toMatchObject({ statusCode: 409 });
   });
 
   test('enforces MAX_ACCOUNT_DEPTH', async () => {
