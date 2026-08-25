@@ -105,12 +105,23 @@ describe('the canonical official-application registry', () => {
     });
   });
 
-  describe('Alia holds exactly the inference scopes it needs', () => {
+  describe('Alia holds exactly the inference and delegation scopes it needs', () => {
     const WITHHELD: readonly string[] = [
       'inference:routing:write',
       'inference:providers:write',
       'inference:providers:read',
     ];
+
+    /**
+     * The two staff-gated scopes Alia is authorised to hold, and the ONLY two.
+     *
+     * Named as a constant because three assertions below need the same list and
+     * they ask different questions of it — that both are granted, that no THIRD
+     * privileged scope has joined them, and that neither name is a typo. A
+     * misspelling would be absent from `PRIVILEGED_APPLICATION_SCOPES`, absent
+     * from the grant, and would read exactly like a deliberate decision.
+     */
+    const DELEGATION_SCOPES: readonly string[] = ['acting-as:offline', 'accounts:act-as-session'];
 
     it('declares the argued set and nothing else', () => {
       expect(specNamed('Alia').scopes).toEqual([...ALIA_APPLICATION_SCOPES]);
@@ -135,9 +146,38 @@ describe('the canonical official-application registry', () => {
       expect(ALIA_APPLICATION_SCOPES).toContain('inference:usage:read');
     });
 
-    it('holds no staff-gated scope of any family', () => {
+    it('carries both delegation scopes the service lane is built on', () => {
+      // `acting-as:offline` is what `GET /internal/service-acting-as/verify`
+      // reads before it will answer `authorized: true`, and
+      // `accounts:act-as-session` is what `POST /internal/accounts/:id/service-switch`
+      // requires before it will mint a session for a managed account. Without
+      // either, the corresponding capability is UNREACHABLE rather than merely
+      // unauthorized — which is a silent absence, not an error.
+      expect(ALIA_APPLICATION_SCOPES).toEqual(expect.arrayContaining([...DELEGATION_SCOPES]));
+    });
+
+    it('holds exactly those two staff-gated scopes and no others', () => {
+      // This REPLACES "holds no staff-gated scope of any family", which was a
+      // real gate rather than a formality: the seed is the one path where a
+      // staff-only scope reaches an application without a person reviewing a
+      // request for it. What changed is the DECISION — Alia is now argued to
+      // need two of them — not whether anything is enforced. So the replacement
+      // has to bite in the same place, and it does in both directions: a THIRD
+      // privileged scope added here lengthens the array and fails, and either
+      // named one going missing shortens it and fails.
       const privileged = ALIA_APPLICATION_SCOPES.filter((scope) => isPrivilegedScope(scope));
-      expect(privileged).toEqual([]);
+      expect(privileged).toEqual([...DELEGATION_SCOPES]);
+    });
+
+    it('both delegation names are REAL privileged scopes, so pinning them means something', () => {
+      // Vacuity floor for the two assertions above, in their own currency: if
+      // `accounts:act-as-session` were misspelled it would be a non-scope, the
+      // privileged filter would return only one entry, and the pin would fail —
+      // but it would fail looking like a policy regression rather than a typo.
+      for (const scope of DELEGATION_SCOPES) {
+        expect(isValidApplicationScope(scope)).toBe(true);
+        expect(isPrivilegedScope(scope)).toBe(true);
+      }
     });
 
     it.each(WITHHELD)('withholds %s', (scope) => {
@@ -152,11 +192,35 @@ describe('the canonical official-application registry', () => {
       }
     });
 
-    it('grants nothing outside the inference family except the `user:read` baseline', () => {
-      const outsiders = ALIA_APPLICATION_SCOPES.filter(
-        (scope) => scope !== 'user:read' && !scope.startsWith('inference:')
+    /**
+     * The one filter both assertions below run, so the negative claim and its
+     * positive control cannot drift apart. A control that re-implements the
+     * predicate it is controlling measures the re-implementation.
+     */
+    const outsidersOf = (scopes: readonly string[]): string[] =>
+      scopes.filter(
+        (scope) =>
+          scope !== 'user:read' &&
+          !scope.startsWith('inference:') &&
+          !DELEGATION_SCOPES.includes(scope)
       );
-      expect(outsiders).toEqual([]);
+
+    it('grants nothing outside inference, `user:read` and the two delegation scopes', () => {
+      // This REPLACES "grants nothing outside the inference family except the
+      // `user:read` baseline". The exemption list grew by exactly the two scopes
+      // argued for above and by nothing else, which is the point: the sentence
+      // this test enforces is still "and nothing else".
+      expect(outsidersOf(ALIA_APPLICATION_SCOPES)).toEqual([]);
+    });
+
+    it('that scan can see an outsider at all', () => {
+      // Positive control the original assertion never had. An empty result and a
+      // filter that matches nothing are the same observation, and the exemption
+      // list just got longer — which is precisely when a widened predicate stops
+      // catching what it was written for.
+      expect(outsidersOf([...ALIA_APPLICATION_SCOPES, 'federation:write'])).toEqual([
+        'federation:write',
+      ]);
     });
   });
 
