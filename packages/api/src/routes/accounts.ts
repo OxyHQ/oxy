@@ -2,7 +2,7 @@ import express from 'express';
 import type { Request } from 'express';
 import { and, count, eq, ne } from 'drizzle-orm';
 import {
-  isActAsEligibleKind,
+  isOperatorSwitchTargetKind,
   type AccountCategoryId,
   type ChildAccountKind,
 } from '@oxyhq/contracts';
@@ -85,7 +85,7 @@ const router = express.Router();
 // credential. CSRF is a non-issue: `verifyCsrfToken` returns early for any
 // `Authorization: Bearer` request, because CSRF protects ambient cookie auth.
 //
-// WHY THIS DOES NOT REOPEN WHAT `isActAsEligibleKind` CLOSED
+// WHY THIS DOES NOT REOPEN WHAT THE ACT-AS PREDICATES CLOSED
 //
 // The property is that no bearer can exist whose subject is a channel, so
 // nothing can add an auth method to one. Neither route touches
@@ -631,7 +631,7 @@ router.post(
     // makes "a channel can never be logged into" structural — no session whose
     // subject is a channel can be minted, so no bearer exists that could add an
     // auth method to one.
-    if (!isActAsEligibleKind(account.kind)) {
+    if (!isOperatorSwitchTargetKind(account.kind)) {
       throw new ForbiddenError(
         account.kind === 'channel'
           ? 'Cannot switch into a channel account'

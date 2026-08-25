@@ -48,7 +48,7 @@ import type { AccountKind } from '../db/schema/users';
 import {
   CHILD_ACCOUNT_KINDS,
   RETIRED_ACCOUNT_CATEGORY_IDS,
-  isActAsEligibleKind,
+  isDelegatedActAsEligibleKind,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
   usernameSchema,
@@ -922,7 +922,7 @@ export class AccountService {
    * TWO FAMILIES, TWO AUTHORITIES — collapsing them into one membership test is
    * the easy way to get this wrong, in both directions at once:
    *
-   *  - a **channel** can never be acted as ({@link isActAsEligibleKind} refuses
+   *  - a **channel** can never be acted as ({@link isDelegatedActAsEligibleKind} refuses
    *    it: it is a content identity, not a seat). No session can be minted whose
    *    subject is a channel, so there is no stronger right than membership to ask
    *    for — acting for a channel simply IS being one of its active members;
@@ -991,7 +991,7 @@ export class AccountService {
 
     // Ordered so the dominant case — an ordinary personal target — costs this
     // one indexed lookup and no membership read at all.
-    if (account.kind !== 'channel' && !isActAsEligibleKind(account.kind)) {
+    if (account.kind !== 'channel' && !isDelegatedActAsEligibleKind(account.kind)) {
       return false;
     }
 

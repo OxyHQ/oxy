@@ -56,7 +56,7 @@
 import express from 'express';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { isActAsEligibleKind } from '@oxyhq/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
 import { publicColumns } from '@oxyhq/db/assert';
 import { getDb } from '../config/postgres';
 import { applications } from '../db/schema/applications';
@@ -286,7 +286,7 @@ const serviceAccountSwitchOperator = z.string().trim().min(1).max(128);
  *
  * ## The blast radius, stated rather than implied
  *
- * THIS IS NOT A BOT-ONLY ENDPOINT. `isActAsEligibleKind` admits `organization`
+ * THIS IS NOT A BOT-ONLY ENDPOINT. `isDelegatedActAsEligibleKind` admits `organization`
  * and `project` as well, so the scope permits an application to become a user's
  * ORGANIZATION, not merely the bot they built for it — with that organization's
  * billing surfaces, its members, its content and its ability to remove people.
@@ -380,7 +380,7 @@ router.post(
       throw new ForbiddenError('That user is not authorized to act as this account');
     }
 
-    if (!isActAsEligibleKind(account.kind)) {
+    if (!isDelegatedActAsEligibleKind(account.kind)) {
       throw new ForbiddenError(
         account.kind === 'channel'
           ? 'Cannot act as a channel account'
