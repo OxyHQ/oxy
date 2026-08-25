@@ -585,7 +585,7 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
   // operated session authenticates as the managed account, and that account is
   // not a member of itself — asking it refuses the very people who own the
   // organization the application belongs to.
-  const userId = await resolveOperatorId(req);
+  const operatorId = await resolveOperatorId(req);
   const db = getDb();
 
   const [application] = await db
@@ -598,7 +598,7 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
   }
 
   const accountAccess = await accountService.resolveEffectiveAccess(
-    userId,
+    operatorId,
     application.ownerAccountId
   );
   if (!accountAccess) {
@@ -645,7 +645,7 @@ router.get(
   '/',
   validate({ query: listApplicationsQuerySchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = await resolveOperatorId(req);
+    const operatorId = await resolveOperatorId(req);
     const ownerAccountIdFilter = req.query.ownerAccountId as string | undefined;
 
     // The caller's EFFECTIVE account access per accessible account id — role
@@ -657,13 +657,13 @@ router.get(
     >();
 
     if (ownerAccountIdFilter !== undefined) {
-      const access = await accountService.resolveEffectiveAccess(userId, ownerAccountIdFilter);
+      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter);
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
       accessByAccountId.set(ownerAccountIdFilter, access);
     } else {
-      const nodes = await accountService.listAccessibleAccounts(userId);
+      const nodes = await accountService.listAccessibleAccounts(operatorId);
       for (const node of nodes) {
         // `self` carries no membership row: a user is the implicit owner of
         // their own account, exactly as `resolveEffectiveAccess` treats it.
