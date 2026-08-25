@@ -26,6 +26,7 @@ import {
   FOLLOW_APPLICATION_SCOPES,
   PAYMENTS_APPLICATION_SCOPES,
   PRIVILEGED_APPLICATION_SCOPES,
+  SERVICE_ACCOUNT_SWITCH_SCOPE,
   USER_CONSENT_REQUIRED_SCOPES,
 } from '../applicationScopes';
 
@@ -238,6 +239,70 @@ describe('the inference scope family (#972 workstream 3)', () => {
     // vocabulary check runs on every path, not only on freshly-requested input.
     expect(intersectScopes([...RETIRED], [...RETIRED])).toEqual([]);
     expect(unionValidScopes([...RETIRED], ['user:read', ...RETIRED])).toEqual(['user:read']);
+  });
+});
+
+describe('accounts:act-as-session — minting a session AS a managed account', () => {
+  it('is the scope the endpoint asks for, spelled once', () => {
+    // The constant is what `internal.ts` gates on. If it ever stops naming a
+    // real vocabulary entry the route silently checks for a string no token can
+    // carry, so the tie is asserted rather than assumed.
+    expect(SERVICE_ACCOUNT_SWITCH_SCOPE).toBe('accounts:act-as-session');
+    expect(isValidApplicationScope(SERVICE_ACCOUNT_SWITCH_SCOPE)).toBe(true);
+  });
+
+  it('is staff-only to add to an application ceiling', () => {
+    // It mints a durable bearer for accounts in every tenant. An application
+    // owner deciding for themselves that their app may become other people's
+    // organizations and bots is the escalation this refuses.
+    expect(isPrivilegedScope(SERVICE_ACCOUNT_SWITCH_SCOPE)).toBe(true);
+  });
+
+  it('is NOT consent-required, and that is a decision with a reason', () => {
+    // This set only has teeth on the OAuth authorize lane, and this scope never
+    // travels it — the endpoint reads it off a SERVICE TOKEN, minted from a
+    // credential, with no user in the request. A grant row naming it would
+    // authorize nothing, and the consent screen would be shown to whoever is
+    // signing in rather than to the member of the TARGET account whose
+    // `account:act_as` actually gates the mint.
+    expect(isUserConsentRequiredScope(SERVICE_ACCOUNT_SWITCH_SCOPE)).toBe(false);
+    expect(userConsentRequiredScopes([SERVICE_ACCOUNT_SWITCH_SCOPE])).toEqual([]);
+    // Positive control on the same two calls, so a classifier that had broken
+    // into answering `false` for everything cannot pass this.
+    expect(isUserConsentRequiredScope('acting-as:offline')).toBe(true);
+    expect(userConsentRequiredScopes([SERVICE_ACCOUNT_SWITCH_SCOPE, 'follows:read'])).toEqual([
+      'follows:read',
+    ]);
+  });
+
+  it('is a DIFFERENT scope from acting-as:offline, and neither implies the other', () => {
+    // The whole point of adding one rather than reusing the other: holding
+    // per-request attribution must not confer minting durable sessions, and an
+    // application granted the mint is not thereby granted attribution.
+    expect(SERVICE_ACCOUNT_SWITCH_SCOPE).not.toBe('acting-as:offline');
+    expect(intersectScopes([SERVICE_ACCOUNT_SWITCH_SCOPE], ['acting-as:offline'])).toEqual([]);
+    expect(intersectScopes(['acting-as:offline'], [SERVICE_ACCOUNT_SWITCH_SCOPE])).toEqual([]);
+  });
+
+  it('is dropped from a credential whose application was never granted it', () => {
+    // The escalation `intersectScopes` exists to refuse, on the scope where it
+    // matters most: a credential naming the staff-gated mint, on an application
+    // that holds only the smaller authority.
+    expect(
+      intersectScopes(
+        ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE],
+        ['user:read', 'acting-as:offline']
+      )
+    ).toEqual(['user:read']);
+    // The other direction, so the assertion above is about the INTERSECTION and
+    // not about this scope being unmintable.
+    expect(
+      intersectScopes([SERVICE_ACCOUNT_SWITCH_SCOPE], ['user:read', SERVICE_ACCOUNT_SWITCH_SCOPE])
+    ).toEqual([SERVICE_ACCOUNT_SWITCH_SCOPE]);
+  });
+
+  it('is not a follow scope', () => {
+    expect(isFollowScope(SERVICE_ACCOUNT_SWITCH_SCOPE)).toBe(false);
   });
 });
 
