@@ -41,12 +41,20 @@ export interface SessionCreateOptions {
   deviceFingerprint?: DeviceFingerprintInput;
   /**
    * When set, the session's deviceId is derived deterministically from
-   * (userId, stableDeviceKey) via `deriveServiceDeviceId` so one (user, RP)
-   * reuses a single session, independent of request IP/UA. Originally added
-   * for IdP server-minted sessions; no current call site passes this option
-   * post-wave-2 (kept for any future server-minted-session caller that needs
-   * the same stable-per-RP-session property). Real device logins (no
-   * stableDeviceKey) are unaffected.
+   * (userId, stableDeviceKey) via `deriveServiceDeviceId` so one (user, key)
+   * reuses a single session, independent of request IP/UA. Real device logins
+   * (no stableDeviceKey) are unaffected.
+   *
+   * MANDATORY for any caller with no stable client identity of its own, which
+   * is every server-to-server mint: a backend sends no meaningful User-Agent,
+   * `deriveStableDeviceId` returns null for it, and `extractDeviceInfo` then
+   * falls through to a RANDOM deviceId — a fresh `sessions` row on every call,
+   * forever, with no symptom until the table grows.
+   *
+   * Two callers pass it, and each keys it on the thing that is stable for them:
+   * the untrusted-client OAuth exchange (`oauth:<clientId>`, one session per
+   * (user, client)) and the service account switch
+   * (`service:<appId>:<accountId>`, one session per (application, account)).
    */
   stableDeviceKey?: string;
   /**

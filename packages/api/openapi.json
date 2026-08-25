@@ -3162,6 +3162,7 @@
                         "chains:write",
                         "chains:read",
                         "acting-as:offline",
+                        "accounts:act-as-session",
                         "podcasts:write"
                       ]
                     }
@@ -3421,6 +3422,7 @@
                         "chains:write",
                         "chains:read",
                         "acting-as:offline",
+                        "accounts:act-as-session",
                         "podcasts:write"
                       ]
                     }
@@ -3771,6 +3773,7 @@
                         "chains:write",
                         "chains:read",
                         "acting-as:offline",
+                        "accounts:act-as-session",
                         "podcasts:write"
                       ]
                     }

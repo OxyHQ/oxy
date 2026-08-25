@@ -85,6 +85,28 @@
  *   authorises one already-authenticated service principal to name a user in
  *   `X-Oxy-User-Id`, and that user is attribution only, never the billing
  *   principal (ADR 0007).
+ * - `accounts:act-as-session` permits a service credential to MINT A SESSION
+ *   whose subject is a managed account (`organization` / `project` / `bot`), on
+ *   the authority of a human who holds `account:act_as` over it —
+ *   `POST /internal/accounts/:id/service-switch`. It is what lets an Oxy app run
+ *   an autonomous agent AS a real `bot` account rather than as itself wearing a
+ *   label. PRIVILEGED — see {@link PRIVILEGED_APPLICATION_SCOPES}.
+ *
+ *   IT IS A SEPARATE SCOPE FROM `acting-as:offline`, NOT A VARIANT OF IT, and
+ *   the distance between them is the whole reason it exists. `acting-as:offline`
+ *   buys per-request ATTRIBUTION: the service stays the principal and merely
+ *   names a user. This buys a DURABLE SESSION whose subject is somebody else's
+ *   account — a bearer that outlives the request, refreshes itself, and speaks
+ *   with that account's voice everywhere in the ecosystem. Spelling one as a
+ *   flavour of the other would have silently handed that authority to every
+ *   application already holding the smaller one, which is why the name sits in
+ *   the `accounts:` family beside `accounts:provision` rather than in the
+ *   `acting-as:` one.
+ *
+ *   It authorises the CALL, never the delegation. The per-human decision is
+ *   `account:act_as` on the account graph, re-read from `account_members` on
+ *   every mint and re-checked on every validate and refresh, so a member losing
+ *   it kills the live session rather than merely refusing the next one.
  * - `podcasts:write` permits a delegated service request to create and update
  *   podcast episodes belonging to the SUBJECT USER in the app that owns them.
  *   Not privileged: it is the user's own content in the user's own account, the
@@ -130,6 +152,7 @@ export const APPLICATION_SCOPES = [
   'chains:write',
   'chains:read',
   'acting-as:offline',
+  'accounts:act-as-session',
   'podcasts:write',
 ] as const;
 
@@ -217,6 +240,17 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   the service lane as a whole, and if the narrow Oxy Pay carve-out there ever
  *   widens, this classification is what still stands between a self-service app
  *   and an offline delegation grant.
+
+ * - `accounts:act-as-session` mints a real, refreshable session whose subject is
+ *   a managed account the calling application does not own. It is the largest
+ *   authority `/internal` grants, and it reaches accounts in every tenant, so it
+ *   is staff-only for the same reason `accounts:provision` is — an application
+ *   owner may not decide for themselves that their app may become other people's
+ *   organizations and bots.
+ *
+ *   It is deliberately ABSENT from {@link USER_CONSENT_REQUIRED_SCOPES}, which
+ *   is a decision and not an omission — the reasoning is recorded on that
+ *   constant, because the question it asks is answered on a different lane.
  *
  * All non-privileged scopes in {@link APPLICATION_SCOPES} authorise an app only
  * over its OWN resources (files, models, webhooks, public user reads) or over
@@ -237,6 +271,7 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'inference:routing:write',
   'inference:providers:write',
   'acting-as:offline',
+  'accounts:act-as-session',
 ] as const satisfies readonly ApplicationScope[];
 
 /**
@@ -308,6 +343,32 @@ export function isFollowScope(scope: string): boolean {
  * `podcasts:write` is here on the ordinary criterion: podcast episodes written
  * into a user's account are the user's content, and being first-party is not a
  * reason to be handed them without being asked.
+
+ * `accounts:act-as-session` is deliberately NOT here, and it is the one absence
+ * worth arguing rather than assuming, because it is the most powerful scope in
+ * the vocabulary. Membership here would buy nothing and cost a lie.
+ *
+ * It buys nothing because this set only has teeth on the OAuth authorize lane:
+ * it forces a consent screen and makes `recordAppGrant` write an `app_grants`
+ * row. `POST /internal/accounts/:id/service-switch` never reads an `app_grants`
+ * row for its own scope — it reads the scope off the SERVICE TOKEN, which is
+ * minted from a credential, with no user in the request to consent to anything.
+ * A grant row naming it would sit there authorizing nothing, which is exactly
+ * the "vocabulary entry an application could hold and never a permission
+ * anything checked" this module retired `chat:completions` for.
+ *
+ * It costs a lie because the screen would name the wrong person. The user an
+ * OAuth consent screen is shown to is whoever is signing in; the human whose
+ * decision actually gates this mint is a member of the TARGET account holding
+ * `account:act_as` over it, and those are routinely different people. Asking
+ * the first to approve on behalf of the second would present a real decision to
+ * someone who does not hold it.
+ *
+ * The per-human decision is not missing — it is `account:act_as` on the account
+ * graph, granted per member through the account's own members surface, read on
+ * every mint and re-read on every validate and refresh. Revocation is reachable
+ * two ways, both of which the endpoint consults: withdraw that membership, or
+ * revoke the application outright (`service_acting_as_revocations`).
  *
  * NO `inference:*` scope belongs here, and the reason is the attribution rule
  * rather than a judgement about how sensitive inference is. The financially
@@ -347,6 +408,17 @@ export function isUserConsentRequiredScope(scope: string): boolean {
 export function userConsentRequiredScopes(requested: readonly string[]): string[] {
   return requested.filter(isUserConsentRequiredScope);
 }
+
+/**
+ * The one scope `POST /internal/accounts/:id/service-switch` requires.
+ *
+ * Named here rather than spelled as a literal in the route because the
+ * annotation is the gate: typed `ApplicationScope`, renaming or removing the
+ * vocabulary entry makes THIS line a compile error instead of leaving a route
+ * checking for a string no token can ever carry — a gate that fails open and
+ * reads as if it still measures something.
+ */
+export const SERVICE_ACCOUNT_SWITCH_SCOPE: ApplicationScope = 'accounts:act-as-session';
 
 const PRIVILEGED_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<ApplicationScope>(
   PRIVILEGED_APPLICATION_SCOPES
