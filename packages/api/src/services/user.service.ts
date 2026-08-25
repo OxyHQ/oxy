@@ -41,7 +41,7 @@ import {
   normalizeLocations,
   normalizeProfileName,
 } from '../utils/profileTextNormalization';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { normalizeUsername } from '../utils/username';
 import { BadRequestError } from '../utils/error';
 import { Request } from 'express';
 import {
@@ -67,7 +67,12 @@ import { assertColorNotReserved, normalizeUserColor } from '../utils/profileColo
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxyhq/core';
 import { buildUserDid } from './did.service';
-import { isAccountKind, type UserRelationship } from '@oxyhq/contracts';
+import {
+  isAccountKind,
+  isValidUsername,
+  USERNAME_INVALID_MESSAGE,
+  type UserRelationship,
+} from '@oxyhq/contracts';
 import type { NameParts } from '../utils/displayName';
 
 // Constants
@@ -975,17 +980,18 @@ export class UserService {
     }
 
     // A username is a routing key (`/@alice`, `acct:alice@…`), not prose: it must
-    // satisfy the same 3–30 ASCII-alphanumeric policy signup enforces, which in
-    // particular admits no whitespace at all. Only an actual CHANGE is validated:
-    // clients that PUT the whole profile back echo the stored username, and a
-    // value that predates this policy must not make an unrelated bio edit fail.
+    // satisfy the ONE policy every write path enforces, which in particular
+    // admits no whitespace at all. Only an actual CHANGE is validated: clients
+    // that PUT the whole profile back echo the stored username, and a value that
+    // predates this policy must not make an unrelated bio edit fail. That
+    // asymmetry is the write-not-read rule in miniature, and it is deliberate.
     const nextUsername = filteredUpdates.username;
     if (
       typeof nextUsername === 'string' &&
       nextUsername !== existing.username &&
-      !USERNAME_PATTERN.test(nextUsername)
+      !isValidUsername(nextUsername)
     ) {
-      throw new BadRequestError(INVALID_USERNAME_MESSAGE, { field: 'username' });
+      throw new BadRequestError(USERNAME_INVALID_MESSAGE, { field: 'username' });
     }
 
     // Validate uniqueness constraints

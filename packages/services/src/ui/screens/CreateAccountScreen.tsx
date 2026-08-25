@@ -4,6 +4,13 @@ import { View, ActivityIndicator } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxyhq/core';
 import { accountCategoryLabel, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, MAX_ACCOUNT_CATEGORIES, MAX_DISPLAY_NAME_LENGTH, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxyhq/core';
+import {
+  isValidUsername,
+  stripDisallowedUsernameCharacters,
+  USERNAME_INVALID_MESSAGE,
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+} from '@oxyhq/contracts';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -36,9 +43,7 @@ type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
  */
 type CreatableAccountKind = Extract<AccountKind, 'organization' | 'project' | 'bot'>;
 
-const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
 const DEBOUNCE_MS = 400;
-const USERNAME_MAX = 30;
 const DISPLAY_NAME_MAX = MAX_DISPLAY_NAME_LENGTH;
 const BIO_MAX = 160;
 
@@ -144,21 +149,24 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (!value || value.length < 3) {
+    if (!value || value.length < USERNAME_MIN_LENGTH) {
       setUsernameStatus(value.length > 0 ? 'invalid' : 'idle');
       setUsernameMessage(
         value.length > 0
-          ? (t('accounts.create.username.tooShort') || 'Username must be at least 3 characters')
+          ? (t('accounts.create.username.tooShort')
+            || `Username must be at least ${USERNAME_MIN_LENGTH} characters`)
           : '',
       );
       return;
     }
 
-    if (!USERNAME_REGEX.test(value)) {
+    // The ONE policy, from `@oxyhq/contracts`. This screen used to carry a
+    // private copy of the rule, and the server it talks to enforced a LOOSER one
+    // — so a name this field refused was a name `POST /accounts` would happily
+    // have stored.
+    if (!isValidUsername(value)) {
       setUsernameStatus('invalid');
-      setUsernameMessage(
-        t('accounts.create.username.invalidChars') || 'Only letters, numbers, hyphens, and underscores',
-      );
+      setUsernameMessage(t('accounts.create.username.invalidChars') || USERNAME_INVALID_MESSAGE);
       return;
     }
 
@@ -186,7 +194,11 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   }, [oxyServices, t]);
 
   const handleUsernameChange = useCallback((value: string) => {
-    const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    // Filters characters the policy forbids, and nothing else. It no longer
+    // lower-cases: `MyBot` is stored as `MyBot`, and uniqueness is decided
+    // case-insensitively by the database index rather than by rewriting what
+    // somebody typed.
+    const cleaned = stripDisallowedUsernameCharacters(value);
     setUsername(cleaned);
     checkUsername(cleaned);
   }, [checkUsername]);
@@ -360,7 +372,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"
-                maxLength={USERNAME_MAX}
+                maxLength={USERNAME_MAX_LENGTH}
               />
             </TextField>
             {(usernameStatus === 'checking' || usernameMessage) ? (

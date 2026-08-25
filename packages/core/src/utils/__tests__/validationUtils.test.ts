@@ -7,7 +7,6 @@ import {
   isValidArray,
   isValidObject,
   isValidEmail,
-  isValidUsername,
   isValidPassword,
   isValidDisplayName,
   DISPLAY_NAME_ALLOWED_SCRIPTS,
@@ -126,21 +125,14 @@ describe('Validation Utils', () => {
     });
   });
 
-  describe('isValidUsername', () => {
-    it('should return true for valid usernames', () => {
-      expect(isValidUsername('user123')).toBe(true);
-      expect(isValidUsername('test_user')).toBe(true);
-      expect(isValidUsername('john-doe')).toBe(true);
-    });
-
-    it('should return false for invalid usernames', () => {
-      expect(isValidUsername('')).toBe(false);
-      expect(isValidUsername('a')).toBe(false); // too short
-      expect(isValidUsername('ab')).toBe(false); // too short
-      expect(isValidUsername('user@domain')).toBe(false); // invalid characters
-      expect(isValidUsername('user with spaces')).toBe(false); // spaces
-    });
-  });
+  /**
+   * `isValidUsername` and `USERNAME_REGEX` were REMOVED from this module: they
+   * were a second username policy, looser than the one the server enforced, so
+   * the SDK could call a name valid and the API 400 it. The rule now lives once,
+   * in `@oxyhq/contracts`, and its own suite covers it. What survives here is the
+   * one thing this module still does with a username — sanitise-then-validate,
+   * asserted below to answer from that single policy.
+   */
 
   describe('isValidPassword', () => {
     it('should return true for valid passwords', () => {
@@ -676,6 +668,12 @@ describe('Validation Utils', () => {
       expect(validateAndSanitizeUserInput('  testuser  ', 'username')).toBe('testuser');
       expect(validateAndSanitizeUserInput('ab', 'username')).toBeNull(); // too short
       expect(validateAndSanitizeUserInput(123, 'username')).toBeNull();
+      // Answers from the one policy in `@oxyhq/contracts`, not from a rule of its
+      // own: a dot and an edge separator are rejected here because they are
+      // rejected there.
+      expect(validateAndSanitizeUserInput('my-bot', 'username')).toBe('my-bot');
+      expect(validateAndSanitizeUserInput('my.bot', 'username')).toBeNull();
+      expect(validateAndSanitizeUserInput('-mybot', 'username')).toBeNull();
     });
 
     it('should validate and sanitize string input', () => {

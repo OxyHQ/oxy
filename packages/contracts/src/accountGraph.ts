@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { usernameSchema } from './username';
 
 /**
  * Account-graph classification — the ONE authority for the kind vocabulary.
@@ -408,7 +409,14 @@ const accountNameSchema = z
 export const createAccountRequestSchema = z.object({
   parentAccountId: z.string().trim().min(1).optional(),
   kind: childAccountKindSchema,
-  username: z.string().trim().min(1).max(100),
+  /**
+   * The SAME policy a person's handle is held to. `users.username` is one unique
+   * index, so a managed account may not reserve a name a person could not ask
+   * for — and this route's predecessor (`.min(1).max(100)` here, `^[\w.-]+$`
+   * with no ceiling in the service) is how a one-character or dotted or
+   * 100-character handle became reachable for bots alone.
+   */
+  username: usernameSchema,
   name: accountNameSchema,
   bio: z.string().trim().max(500).optional(),
   avatar: z.string().optional(),

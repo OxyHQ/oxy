@@ -1,21 +1,8 @@
-import { commonsDenyReasonSchema } from '@oxyhq/contracts';
+import { commonsDenyReasonSchema, usernameSchema } from '@oxyhq/contracts';
 import { z } from 'zod';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN } from '../utils/username';
 
 const deviceIdField = z.string().trim().min(1).max(128).optional();
 
-/**
- * A username is a routing key (`/@alice`, `acct:alice@…`), not prose. The length
- * bounds alone accepted `"al ice"` — the pattern is what actually rejects
- * whitespace and punctuation. The signup / registration controllers enforce the
- * same rule; declaring it on the schema means the request never reaches them.
- */
-const usernameField = z
-  .string()
-  .trim()
-  .min(3)
-  .max(30)
-  .regex(USERNAME_PATTERN, INVALID_USERNAME_MESSAGE);
 
 // POST /auth/register (public key)
 export const registerPublicKeySchema = z.object({
@@ -23,7 +10,7 @@ export const registerPublicKeySchema = z.object({
   signature: z.string().trim().min(1),
   timestamp: z.number(),
   email: z.string().trim().email().optional(),
-  username: usernameField.optional(),
+  username: usernameSchema.optional(),
 });
 
 // POST /auth/challenge
@@ -42,9 +29,16 @@ export const verifyChallengeSchema = z.object({
   deviceId: deviceIdField,
 });
 
-// GET /auth/check-username/:username
+/**
+ * GET /auth/check-username/:username
+ *
+ * The availability check answers a question about a WRITE, so it holds the
+ * candidate to the write policy. Its predecessor bounded the length and nothing
+ * else, which meant the UI could be told `al ice` was "available" and then be
+ * 400ed for asking for it.
+ */
 export const checkUsernameParams = z.object({
-  username: z.string().trim().min(3).max(30),
+  username: usernameSchema,
 });
 
 // GET /auth/check-email/:email
