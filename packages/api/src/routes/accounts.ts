@@ -498,7 +498,7 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
 }> {
   // An operated session authenticates as the managed account, but its RBAC
   // remains that of the human operator recorded on the server-side session.
-  const userId = await resolveOperatorId(req);
+  const operatorId = await resolveOperatorId(req);
   const id = req.params.id;
 
   // The `isValidObjectId` guard is gone: it only ever prevented a Mongoose
@@ -509,14 +509,14 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
     throw new NotFoundError('Account not found');
   }
 
-  const access = await accountService.effectiveAccessForAccount(userId, account);
+  const access = await accountService.effectiveAccessForAccount(operatorId, account);
   if (!access) {
     throw new ForbiddenError('You do not have access to this account');
   }
 
   req.account = account;
   req.access = access;
-  req.operatorId = userId;
+  req.operatorId = operatorId;
   return { account, access };
 }
 

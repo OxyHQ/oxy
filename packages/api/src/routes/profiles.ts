@@ -830,7 +830,7 @@ async function resolveAuthorizedRecommendationClientId(
   if (!req.user?._id) {
     return undefined;
   }
-  const userId = await resolveOperatorId(req);
+  const operatorId = await resolveOperatorId(req);
 
   const [application] = await getDb()
     .select({ ownerAccountId: applications.ownerAccountId })
@@ -839,7 +839,7 @@ async function resolveAuthorizedRecommendationClientId(
     .limit(1);
   if (application?.ownerAccountId) {
     const access = await accountService.resolveEffectiveAccess(
-      userId,
+      operatorId,
       application.ownerAccountId
     );
     if (access) {

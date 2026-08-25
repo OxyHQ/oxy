@@ -116,7 +116,7 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
   }
   // The OPERATOR's access over the owning account. A session acting as the
   // organization that owns the application is not a member of itself.
-  const userId = await resolveOperatorId(req);
+  const operatorId = await resolveOperatorId(req);
   const [application] = await getDb()
     .select({ ownerAccountId: applications.ownerAccountId })
     .from(applications)
@@ -125,7 +125,7 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
     throw new NotFoundError('Application not found');
   }
   const access = await accountService.resolveEffectiveAccess(
-    userId,
+    operatorId,
     application.ownerAccountId
   );
   if (!access) {
