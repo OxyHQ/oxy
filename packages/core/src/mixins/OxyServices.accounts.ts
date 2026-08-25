@@ -212,6 +212,22 @@ export interface CreateAccountInput {
    * keep working. At most `MAX_ACCOUNT_CATEGORIES`, no duplicates.
    */
   accountCategories?: AccountCategoryId[];
+  /**
+   * Create the account already opted OUT of discovery — kept out of people
+   * search, the follow-graph lists, `/similar` and the recommendation pools,
+   * with non-public media follower-gated.
+   *
+   * Pass `true` when the account is not something its owner has published yet:
+   * an agent, an unlaunched project, an organization for something unannounced.
+   * OMITTED IS NOT `false` IN MEANING, only in effect — saying nothing leaves
+   * the platform default, which is discoverable, and that default is not
+   * changed by this option existing.
+   *
+   * Setting it later is `PUT /users/:userId/privacy`, which needs the ACCOUNT's
+   * own bearer. Passing it here is the only way to have the account never be
+   * discoverable at all, rather than discoverable until a second call lands.
+   */
+  isPrivateAccount?: boolean;
 }
 
 /** Input accepted by `updateAccount`. Tree placement changes go through `/move`. */

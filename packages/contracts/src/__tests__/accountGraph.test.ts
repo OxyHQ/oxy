@@ -49,6 +49,44 @@ describe('@oxyhq/contracts account kinds', () => {
   });
 
   /**
+   * `z.object()` STRIPS an unknown key rather than rejecting it, so a field the
+   * API reads but this schema never declared arrives as `undefined` with no
+   * validation error anywhere. That is why the contract half is asserted on the
+   * PARSED OUTPUT and not merely on `success` — `safeParse` would report `true`
+   * for a schema that silently threw the field away.
+   */
+  it('carries isPrivateAccount through the parse, rather than stripping it', () => {
+    const parsed = createAccountRequestSchema.safeParse({
+      kind: 'bot',
+      username: 'unpublished-agent',
+      isPrivateAccount: true,
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.isPrivateAccount).toBe(true);
+  });
+
+  it('leaves isPrivateAccount undefined when it is not supplied', () => {
+    // Undefined, never `false`. The API distinguishes "the caller did not say"
+    // — which falls through to the column default — from "the caller said
+    // discoverable", and a schema defaulting it here would erase that.
+    const parsed = createAccountRequestSchema.safeParse({
+      kind: 'bot',
+      username: 'ordinary-agent',
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && 'isPrivateAccount' in parsed.data).toBe(false);
+  });
+
+  it('rejects a non-boolean isPrivateAccount', () => {
+    const parsed = createAccountRequestSchema.safeParse({
+      kind: 'bot',
+      username: 'agent',
+      isPrivateAccount: 'yes',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  /**
    * The act-as partition, stated as a full truth table over EVERY kind rather
    * than a spot check — the failure this guards is a new kind silently landing
    * on the eligible side of a `kind === 'personal'` test.

@@ -182,6 +182,46 @@ describe('POST /accounts', () => {
    * assumed. Without it, a suite that only ever sends creatable kinds cannot
    * tell a route that validates its input from one that does not.
    */
+  /**
+   * THE HANDOFF, which is its own failure mode.
+   *
+   * This handler does not spread `req.body` — it names every field and passes
+   * them one by one, which is what stops mass assignment. The cost is that a
+   * field the schema accepts and this list omits is dropped BETWEEN validation
+   * and the insert, with no error at any layer: the request succeeds, the
+   * account is created, and it is simply discoverable when the caller asked for
+   * the opposite. Neither the contract test nor the service test can see that
+   * gap, because each one is on the far side of it.
+   */
+  it('passes isPrivateAccount through to the service', async () => {
+    const res = await request(server, {
+      kind: 'bot',
+      username: 'unpublished-agent',
+      isPrivateAccount: true,
+    });
+
+    expect(res.status).toBe(201);
+    expect(mockCreateChildAccount).toHaveBeenCalledWith(
+      OPERATOR_ID,
+      OPERATOR_ID,
+      expect.objectContaining({ isPrivateAccount: true })
+    );
+  });
+
+  it('passes nothing when the caller says nothing, leaving the platform default', async () => {
+    // `undefined`, not `false`. The service must be able to tell "the caller did
+    // not say" from "the caller said discoverable", because only the first one
+    // is allowed to fall through to the column default.
+    await request(server, { kind: 'bot', username: 'ordinary-agent' });
+
+    const [, , input] = mockCreateChildAccount.mock.calls[0] as [
+      string,
+      string,
+      { isPrivateAccount?: boolean },
+    ];
+    expect(input.isPrivateAccount).toBeUndefined();
+  });
+
   it('refuses a personal account (400)', async () => {
     const res = await request(server, { kind: 'personal', username: 'someone' });
 

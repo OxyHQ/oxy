@@ -415,6 +415,47 @@ export const createAccountRequestSchema = z.object({
   description: z.string().trim().max(1000).optional(),
   /** Ordered, PRIMARY FIRST — see rule 2 above {@link ACCOUNT_CATEGORY_IDS}. */
   accountCategories: accountCategoriesSchema.optional(),
+  /**
+   * Create the account already opted OUT of discovery.
+   *
+   * ## Why this belongs at CREATION and not only on the privacy route
+   *
+   * Every account is born discoverable: the column defaults to `false` and
+   * nothing on the create path wrote it, so a new account appears in people
+   * search the instant it exists. For a human signing themselves up that is the
+   * right default and it is NOT changed here. For an account a program creates
+   * on someone's behalf — an agent, an unlaunched project, an organization for
+   * something not yet announced — it publishes the thing before its owner ever
+   * decided to.
+   *
+   * The alternative is a second call right after create, which is a window in
+   * which the account IS public, and a window whose closing depends on a second
+   * request succeeding. A field here has neither: one statement, one row, born
+   * in the state the caller asked for.
+   *
+   * ## It reuses the existing flag deliberately
+   *
+   * This is `privacy_is_private_account`, the same one `PUT /users/:id/privacy`
+   * toggles — not a new "published" column. A second visibility flag would be a
+   * second source of truth for one question, and the two would disagree.
+   *
+   * Inherited semantics, stated because reusing a flag means inheriting ALL of
+   * it: the account is kept out of people search, out of the follow-graph lists
+   * (`followers` / `following` / `mutuals`), out of `/similar` and out of the
+   * recommendation candidate pools, and its non-public, non-unlisted media
+   * becomes follower-gated. It does NOT hide the profile from someone who knows
+   * the handle, and it carries NO follow-approval flow — following is immediate
+   * and unilateral whatever this says, so nothing here creates a request queue
+   * nobody attends.
+   *
+   * ## Not conditioned on `kind`, on purpose
+   *
+   * The same reasoning as `accountCategories` above: this object does not
+   * refine on kind, and an unlaunched organization has exactly the problem an
+   * unpublished agent does. The discovery predicate never reads `kind`, so the
+   * remedy must not either.
+   */
+  isPrivateAccount: z.boolean().optional(),
 });
 
 export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;

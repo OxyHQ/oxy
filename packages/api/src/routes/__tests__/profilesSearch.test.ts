@@ -187,6 +187,41 @@ describe('GET /profiles/search — discoverability gate', () => {
   });
 });
 
+describe('GET /profiles/search — account kind', () => {
+  /**
+   * PINS THE ECOSYSTEM-WIDE PRODUCT DECISION, ON THIS SURFACE.
+   *
+   * People search is BLIND to `users.kind` — `peopleSearchPredicate` has no kind
+   * clause, so a bot and an organization are returned beside people here. Until
+   * this case existed, every people-search test in the API seeded only
+   * `personal` rows, which meant adding a kind clause (removing every bot,
+   * organization and channel from every search surface at once) was a change CI
+   * could not see. The mechanism is pinned in
+   * `utils/__tests__/profileQuery.test.ts`; this pins that THIS ROUTE still runs
+   * it, so a per-surface divergence fails too.
+   *
+   * This is the surface `@oxyhq/core`'s `searchProfiles` calls, so it is the one
+   * every consuming app's people search resolves through.
+   *
+   * The private bot is the control: without it, "the bot came back" is also what
+   * a route that had stopped applying the gate would produce.
+   */
+  it('returns bots, organizations and channels beside people', async () => {
+    const term = token();
+    const person = await account({ username: `person${term}`, kind: 'personal' });
+    const bot = await account({ username: `bot${term}`, kind: 'bot' });
+    const org = await account({ username: `org${term}`, kind: 'organization' });
+    const channel = await account({ username: `channel${term}`, kind: 'channel' });
+    await account({ username: `privbot${term}`, kind: 'bot', privacyIsPrivateAccount: true });
+
+    const res = await search(term);
+
+    expect(res.status).toBe(200);
+    expect(ids(res).sort()).toEqual([person, bot, org, channel].sort());
+    expect(res.body.pagination?.total).toBe(4);
+  });
+});
+
 describe('GET /profiles/search — match surface', () => {
   it('matches on username, first name, last name and description — but not bio', async () => {
     const term = token();

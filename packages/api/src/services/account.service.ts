@@ -205,6 +205,13 @@ export interface CreateChildAccountInput {
    * kind check on this path — see `createAccountRequestSchema`.
    */
   accountCategories?: AccountCategoryId[];
+  /**
+   * Born opted OUT of discovery. Omitted leaves the column default (`false`),
+   * which is the unchanged behaviour for every existing caller — see
+   * `createAccountRequestSchema` for why this exists at creation at all, and
+   * for the full set of semantics the flag carries.
+   */
+  isPrivateAccount?: boolean;
 }
 
 // ===========================================================================
@@ -407,6 +414,10 @@ export class AccountService {
           type: 'local',
           kind: input.kind,
           accountCategories: input.accountCategories,
+          // `undefined` leaves the column to its `false` default, so a caller
+          // that says nothing gets exactly today's behaviour. Only an explicit
+          // `true` opts the new account out of discovery.
+          privacyIsPrivateAccount: input.isPrivateAccount,
           parentAccountId: parent.account.id,
           rootAccountId,
           accountStatus: 'active',
