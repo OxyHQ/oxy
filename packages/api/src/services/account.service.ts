@@ -66,6 +66,11 @@ import {
   NotFoundError,
 } from '../utils/error';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxyhq/core';
+import {
+  assertColorNotReserved,
+  isUserColorPreset,
+  normalizeUserColor,
+} from '../utils/profileColor';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 
@@ -101,6 +106,20 @@ function assertValidAccountName(
       throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
     }
   }
+}
+
+/**
+ * Reject a color the preset catalogue does not contain.
+ *
+ * Account create/update is a second write path onto `users.color`, so it runs
+ * the same policy `updateUserProfile` does; the reserved-color half of that
+ * policy lives in `utils/profileColor` and is shared by both.
+ *
+ * Callers run this only when the color CHANGES — see `updateAccount`.
+ */
+function assertAssignableColorPreset(color: string): void {
+  if (isUserColorPreset(color)) return;
+  throw new BadRequestError(`Unknown color preset "${color}"`);
 }
 
 /** How the caller is related to an account in their accessible forest. */
@@ -200,6 +219,13 @@ export interface CreateChildAccountInput {
   bio?: string;
   avatar?: string;
   description?: string;
+  /**
+   * Named preset key (`USER_COLOR_PRESETS`), never a hex value. Omitted leaves
+   * the column's own default, a random non-reserved preset — which is what every
+   * caller got before this field existed, so saying nothing is unchanged
+   * behaviour rather than a colorless account.
+   */
+  color?: string;
   /**
    * Ordered, PRIMARY FIRST. Every child kind may carry these, so there is no
    * kind check on this path — see `createAccountRequestSchema`.
@@ -396,6 +422,16 @@ export class AccountService {
 
     assertValidAccountName(input.name);
 
+    // After `resolveUniqueUsername`, so the reserved-color gate weighs the handle
+    // the account will actually carry. `null` for the id: the row does not exist
+    // yet, so there is no subscription to resolve and only the handle branch can
+    // pass — see `assertColorNotReserved`.
+    const color = input.color === undefined ? undefined : normalizeUserColor(input.color);
+    if (color !== undefined) {
+      assertAssignableColorPreset(color);
+      await assertColorNotReserved(color, { accountId: null, username });
+    }
+
     const ancestors = childAncestorsOf(parent);
     const rootAccountId = childRootOf(parent);
 
@@ -410,6 +446,10 @@ export class AccountService {
           bio: input.bio,
           description: input.description,
           avatar: input.avatar,
+          // `undefined` leaves the column to its `$defaultFn` (a random
+          // non-reserved preset), which is what every account got before this
+          // field existed.
+          color,
           verified: true,
           type: 'local',
           kind: input.kind,
@@ -630,7 +670,26 @@ export class AccountService {
     if (input.bio !== undefined) set.bio = input.bio;
     if (input.avatar !== undefined) set.avatar = input.avatar;
     if (input.description !== undefined) set.description = input.description;
-    if (input.color !== undefined) set.color = input.color;
+    if (input.color !== undefined) {
+      const color = normalizeUserColor(input.color);
+      // Both checks are about ADOPTING a colour, so a write that changes nothing
+      // runs neither. A client that reads an account and PATCHes the whole object
+      // back must not be 400ed by a field it did not touch — that would take the
+      // field it DID change down with it, the failure `updateAccountSchema`
+      // describes for withdrawn `accountCategories` and for a nullable `bio`. It
+      // is also what lets a legacy hex colour (still permitted by
+      // `users_color_check`) be carried forward without being newly adoptable.
+      if (color !== account.color) {
+        assertAssignableColorPreset(color);
+        // The subject is the account being coloured, not the administrator
+        // asking: an operator's own premium plan does not travel down the tree.
+        await assertColorNotReserved(color, {
+          accountId,
+          username: set.username ?? account.username,
+        });
+      }
+      set.color = color;
+    }
     if (input.links !== undefined) set.links = input.links;
 
     const updated =

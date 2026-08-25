@@ -737,6 +737,7 @@ router.post(
       bio?: string;
       avatar?: string;
       description?: string;
+      color?: string;
       accountCategories?: AccountCategoryId[];
       isPrivateAccount?: boolean;
     };
@@ -759,6 +760,7 @@ router.post(
       bio: body.bio,
       avatar: body.avatar ? stripSensitiveUrlQueryParams(body.avatar) : body.avatar,
       description: body.description,
+      color: body.color,
       accountCategories: body.accountCategories,
       // Threaded explicitly, like every other field: this handler names each
       // one, so a field the schema accepts but this list omits is dropped

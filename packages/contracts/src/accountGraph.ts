@@ -413,6 +413,23 @@ export const createAccountRequestSchema = z.object({
   bio: z.string().trim().max(500).optional(),
   avatar: z.string().optional(),
   description: z.string().trim().max(1000).optional(),
+  /**
+   * A named color preset KEY (`"blue"`, `"mint"`, …), never a hex value.
+   *
+   * Here at CREATION for the reason `isPrivateAccount` is, in miniature: for a
+   * managed account the color is a visual identity, and an account that is
+   * discoverable without one and acquires it on a second request is a face that
+   * changes by itself. One statement, one row, born looking like what its owner
+   * chose.
+   *
+   * The VALUE is checked in the API rather than here. The vocabulary is
+   * `USER_COLOR_PRESETS`, which is declared next to the `users_color_check` CHECK
+   * that is rendered from it — pinning the list a second time in this package
+   * would be a second source of truth for what the database accepts, and the two
+   * would drift apart silently. What this shape does is keep an over-long or
+   * non-string value from reaching the service at all.
+   */
+  color: z.string().trim().max(32).optional(),
   /** Ordered, PRIMARY FIRST — see rule 2 above {@link ACCOUNT_CATEGORY_IDS}. */
   accountCategories: accountCategoriesSchema.optional(),
   /**

@@ -55,6 +55,19 @@ export const updateAccountSchema = z
     bio: z.string().trim().max(500).nullable().optional(),
     avatar: z.string().nullable().optional(),
     description: z.string().trim().max(1000).optional(),
+    /**
+     * A named preset KEY, never a hex value — and NOT nullable, because the
+     * column is `NOT NULL` with a default, so an account always has a colour and
+     * there is no "clear" to spell.
+     *
+     * The VALUE is checked in `account.service`, not here, for the same reason
+     * `accountCategories` below is: whether a colour may be adopted depends on
+     * the account's PREVIOUS value (a preset the catalogue no longer contains
+     * may be kept, not newly taken) and on the account's own entitlements (a
+     * reserved preset). A schema cannot see either, and one that narrowed to the
+     * catalogue here would 400 the whole request for a client that round-tripped
+     * what it was served.
+     */
     color: z.string().trim().max(32).optional(),
     links: z.array(z.string()).optional(),
     /**
