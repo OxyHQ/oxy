@@ -75,14 +75,21 @@ export interface SeedAppSpec {
 
 /**
  * The scopes the Alia application holds, and the argument for each — issue #972
- * workstream 14, "grant only the inference scopes Alia requires".
+ * workstream 14, "grant only the inference scopes Alia requires", widened by the
+ * service lane that lets Alia act FOR a user and AS a managed account.
  *
  * Alia is a CONSUMER of the inference platform, not an operator of it. That
- * sentence decides the whole list: it may spend its owner account's balance, see
- * what it can spend it on, and read back what it spent. It may not change where
- * anyone's traffic goes.
+ * sentence still decides the whole inference half of the list: Alia may spend its
+ * owner account's balance, see what it can spend it on, and read back what it
+ * spent. It may not change where anyone's traffic goes.
  *
- * GRANTED:
+ * The delegation half answers a DIFFERENT question, and running the two together
+ * is how a consumer's scope list quietly becomes an operator's. Delegation is not
+ * an inference capability spelled differently: it decides WHOSE VOICE a request
+ * carries, and it reaches the account graph, which nothing in the `inference:*`
+ * family touches. So it is argued on its own terms, separately, below.
+ *
+ * GRANTED — inference:
  *
  *  - `user:read` — the baseline every official application holds; Alia signs
  *    users in with Oxy.
@@ -104,6 +111,38 @@ export interface SeedAppSpec {
  *    served a request when a user reports a slow or wrong answer. Describing
  *    where a request would go is not deciding it, and an app that cannot see the
  *    catalogue cannot debug its own latency.
+ *
+ * GRANTED — delegation. BOTH ARE STAFF-GATED
+ * ({@link PRIVILEGED_APPLICATION_SCOPES}), so neither is self-grantable by the
+ * application's owner and this canonical seed — run by staff — is the supported
+ * way to hold them:
+ *
+ *  - `acting-as:offline` — Alia's backend does work for a user OUTSIDE a request
+ *    that user made: an agent run, a scheduled job, an inbound message to a bot
+ *    its owner registered. Without this scope a service token can act only as
+ *    Alia ITSELF, so that work is indistinguishable from work Alia did for its
+ *    own account. `GET /internal/service-acting-as/verify` is what reads it, and
+ *    it answers `authorized: false` for any application that does not hold it —
+ *    the capability is unreachable rather than merely unauthorized.
+ *
+ *    Also CONSENT-REQUIRED ({@link USER_CONSENT_REQUIRED_SCOPES}), and that is
+ *    the half that matters to the person on the other end: the user is asked, a
+ *    revocable `app_grants` row is written, and Alia lands in "Connected apps"
+ *    where they can take it back. Being first-party buys no exemption — a
+ *    trusted application records no grant row otherwise, which would leave the
+ *    verify endpoint with nothing to read.
+ *  - `accounts:act-as-session` — Alia runs agents that ARE accounts rather than
+ *    labels. An agent bound to a `bot` account has to speak with that account's
+ *    voice everywhere in the ecosystem, and `POST /internal/accounts/:id/service-switch`
+ *    mints the session that lets it. Deliberately NOT consent-required, for the
+ *    reason recorded on {@link USER_CONSENT_REQUIRED_SCOPES}: that lane never
+ *    reads an `app_grants` row for this scope, so a screen would name the wrong
+ *    person and authorise nothing.
+ *
+ *    Holding it authorises NOTHING on its own, which is what makes it safe at
+ *    the ceiling: the mint additionally requires a human who holds
+ *    `account:act_as` over the target account. Alia can become a managed account
+ *    somebody delegated to it, and no other account in the ecosystem.
  *
  * WITHHELD, each for its own reason rather than by omission:
  *
@@ -128,9 +167,16 @@ export interface SeedAppSpec {
  *    and this one is self-grantable — it can be added the day a surface needs it,
  *    by the application's own owner, with no staff round trip.
  *
- * Nothing outside the `inference:*` family and `user:read` is granted. Alia is
- * not a federation peer, does not move reputation, writes no signals, sends no
- * notifications and touches no follow graph.
+ * Nothing outside the `inference:*` family, `user:read` and those two delegation
+ * scopes is granted. Alia is not a federation peer, does not move reputation,
+ * writes no signals, sends no notifications and touches no follow graph.
+ *
+ * These two privileged entries are why `__tests__/seedOxyApplicationsSpecs.test.ts`
+ * now pins the privileged subset BY NAME instead of asserting it is empty. "Alia
+ * holds no staff-gated scope of any family" was a real gate, not a formality, so
+ * the replacement has to bite in the same place: a THIRD privileged scope
+ * appearing here must fail the suite, and a named one going missing must fail it
+ * too. What changed is the decision, not whether one is enforced.
  */
 export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'user:read',
@@ -138,6 +184,8 @@ export const ALIA_APPLICATION_SCOPES: readonly ApplicationScope[] = [
   'inference:models:read',
   'inference:usage:read',
   'inference:routing:read',
+  'acting-as:offline',
+  'accounts:act-as-session',
 ];
 
 /**
