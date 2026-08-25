@@ -309,6 +309,75 @@ describe('createChildAccount', () => {
     expect(membership.accountId).toBe(account.id);
   });
 
+  /**
+   * THE FIELD REACHES THE COLUMN, and saying nothing leaves the default.
+   *
+   * Both halves are load-bearing and they fail differently. A create path that
+   * ignores `isPrivateAccount` publishes an account its owner never published —
+   * silently, because nothing errors and the row looks fine. A create path that
+   * defaults it the OTHER way hides every account every existing caller makes,
+   * equally silently. So the default case is asserted beside the explicit one
+   * rather than assumed from the column definition.
+   *
+   * Read back from the stored row, never from the service's return value: the
+   * question is what the database holds, and a serializer that echoed the input
+   * would answer it wrongly.
+   */
+  test('creates an account opted OUT of discovery when asked, and discoverable when not', async () => {
+    const root = await seedAccount();
+
+    const hidden = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsername('hidden'),
+      isPrivateAccount: true,
+    });
+    const silent = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsername('silent'),
+    });
+    const explicit = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsername('explicit'),
+      isPrivateAccount: false,
+    });
+
+    const stored = async (id: string) => {
+      const [row] = await getDb()
+        .select({ isPrivate: users.privacyIsPrivateAccount })
+        .from(users)
+        .where(eq(users.id, id));
+      return row.isPrivate;
+    };
+
+    expect(await stored(hidden.account.id)).toBe(true);
+    // The unchanged behaviour for every caller that predates this option.
+    expect(await stored(silent.account.id)).toBe(false);
+    expect(await stored(explicit.account.id)).toBe(false);
+  });
+
+  /**
+   * Not conditioned on `kind`. `createAccountRequestSchema` takes an explicit
+   * position against kind-conditional fields and a contracts test enforces it,
+   * so a create path that honoured this only for `bot` would contradict the
+   * contract while still passing the case above.
+   */
+  test('honours the opt-out for every child kind, not only bot', async () => {
+    const root = await seedAccount();
+
+    for (const kind of ['organization', 'project', 'bot', 'channel'] as const) {
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind,
+        username: uniqueUsername(`priv${kind}`),
+        isPrivateAccount: true,
+      });
+      const [row] = await getDb()
+        .select({ isPrivate: users.privacyIsPrivateAccount })
+        .from(users)
+        .where(eq(users.id, account.id));
+      expect({ kind, isPrivate: row.isPrivate }).toEqual({ kind, isPrivate: true });
+    }
+  });
+
   test('rejects a personal child kind', async () => {
     const root = await seedAccount();
     await expect(

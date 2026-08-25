@@ -568,6 +568,9 @@
                       ]
                     },
                     "maxItems": 4
+                  },
+                  "isPrivateAccount": {
+                    "type": "boolean"
                   }
                 },
                 "required": [

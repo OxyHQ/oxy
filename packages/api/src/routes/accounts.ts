@@ -738,6 +738,7 @@ router.post(
       avatar?: string;
       description?: string;
       accountCategories?: AccountCategoryId[];
+      isPrivateAccount?: boolean;
     };
 
     const parentAccountId = body.parentAccountId ?? userId;
@@ -759,6 +760,10 @@ router.post(
       avatar: body.avatar ? stripSensitiveUrlQueryParams(body.avatar) : body.avatar,
       description: body.description,
       accountCategories: body.accountCategories,
+      // Threaded explicitly, like every other field: this handler names each
+      // one, so a field the schema accepts but this list omits is dropped
+      // between validation and the insert with no error anywhere.
+      isPrivateAccount: body.isPrivateAccount,
     });
 
     const node: AccountNode = {
