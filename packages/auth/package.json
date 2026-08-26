@@ -12,7 +12,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "^1.7.0",
     "@expo/vector-icons": "^15.0.3",
     "@hugeicons/core-free-icons": "catalog:",
     "@hugeicons/react": "^1.1.9",
@@ -34,7 +34,7 @@
     "@tanstack/react-query": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
-    "input-otp": "^1.4.2",
+    "input-otp": "^1.5.0",
     "lucide-react": "^0.454.0",
     "qrcode": "^1.5.4",
     "radix-ui": "catalog:",
