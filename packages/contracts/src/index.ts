@@ -41,11 +41,14 @@ export type {
 
 export {
     usernameSchema,
+    usernameSchemaForAccountKind,
     isValidUsername,
     stripDisallowedUsernameCharacters,
+    applyBotUsernameSuffix,
     USERNAME_MIN_LENGTH,
     USERNAME_MAX_LENGTH,
     USERNAME_INVALID_MESSAGE,
+    BOT_USERNAME_INVALID_MESSAGE,
 } from './username';
 
 export {

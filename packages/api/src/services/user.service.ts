@@ -69,8 +69,7 @@ import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } fro
 import { buildUserDid } from './did.service';
 import {
   isAccountKind,
-  isValidUsername,
-  USERNAME_INVALID_MESSAGE,
+  usernameSchemaForAccountKind,
   type UserRelationship,
 } from '@oxyhq/contracts';
 import type { NameParts } from '../utils/displayName';
@@ -985,13 +984,18 @@ export class UserService {
     // that PUT the whole profile back echo the stored username, and a value that
     // predates this policy must not make an unrelated bio edit fail. That
     // asymmetry is the write-not-read rule in miniature, and it is deliberate.
+    //
+    // The policy is the one for the row's KIND, so a rename cannot strip the
+    // label off a bot: `PUT /users/:userId` reaches every account, not only a
+    // person's own. Reading the kind from the STORED row rather than the request
+    // is what makes that true — `kind` is not a field this route may set, so a
+    // caller cannot declare itself a person to escape the rule.
     const nextUsername = filteredUpdates.username;
-    if (
-      typeof nextUsername === 'string' &&
-      nextUsername !== existing.username &&
-      !isValidUsername(nextUsername)
-    ) {
-      throw new BadRequestError(USERNAME_INVALID_MESSAGE, { field: 'username' });
+    if (typeof nextUsername === 'string' && nextUsername !== existing.username) {
+      const parsed = usernameSchemaForAccountKind(existing.kind).safeParse(nextUsername);
+      if (!parsed.success) {
+        throw new BadRequestError(parsed.error.issues[0].message, { field: 'username' });
+      }
     }
 
     // Validate uniqueness constraints

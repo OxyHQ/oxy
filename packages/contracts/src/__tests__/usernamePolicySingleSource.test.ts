@@ -7,6 +7,12 @@
  * no per-kind namespace to hold a per-kind rule, so a second rule is not a
  * variant: it is a disagreement about who may hold a name in the same index.
  *
+ * `botUsernameSchema` is not that. It only TIGHTENS — a bot's handle must also
+ * end in `bot` — and it is declared in the same OWNER file, reached through the
+ * one branch (`usernameSchemaForAccountKind`), so it is inside the single
+ * declaration rather than beside it. What this gate hunts is a rule written
+ * SOMEWHERE ELSE, whichever direction it points.
+ *
  * ## Why a gate rather than a comment
  *
  * The rules did not diverge loudly. SEVEN accumulated across five packages —

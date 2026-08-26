@@ -51,8 +51,7 @@ import {
   isDelegatedActAsEligibleKind,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
-  usernameSchema,
-  USERNAME_INVALID_MESSAGE,
+  usernameSchemaForAccountKind,
   type AccountCategoryId,
 } from '@oxyhq/contracts';
 import {
@@ -442,7 +441,7 @@ export class AccountService {
       throw new BadRequestError('A channel cannot own another channel');
     }
 
-    const username = await this.assertUsernameAvailable(input.username);
+    const username = await this.assertUsernameAvailable(input.username, input.kind);
 
     assertValidAccountName(input.name);
 
@@ -684,7 +683,7 @@ export class AccountService {
     }
 
     if (input.username !== undefined) {
-      set.username = await this.assertUsernameAvailable(input.username, accountId);
+      set.username = await this.assertUsernameAvailable(input.username, account.kind, accountId);
     }
     if (input.name !== undefined) {
       assertValidAccountName(input.name);
@@ -1581,6 +1580,15 @@ export class AccountService {
    * all) is how a bot could take a name no person could ask for, in the very same
    * unique index.
    *
+   * ## And the one exception, which only this path can apply
+   *
+   * A `bot` account's handle must also end in `bot`
+   * ({@link usernameSchemaForAccountKind}). The kind is what decides, so it is
+   * passed in rather than inferred from the name: `createChildAccount` knows the
+   * kind it is minting, and a rename knows the kind of the row it is renaming.
+   * Guessing from the string would make `abbot` a bot and a bot called `luna` a
+   * person.
+   *
    * The probe is written against the EXPRESSION the unique index is built on —
    * `lower(btrim(username))`, `db/schema/users.ts` — so a candidate that differs
    * only by case conflicts here rather than at the constraint.
@@ -1623,10 +1631,19 @@ export class AccountService {
     }
   }
 
-  private async assertUsernameAvailable(requested: string, excludeId?: string): Promise<string> {
-    const parsed = usernameSchema.safeParse(requested);
+  private async assertUsernameAvailable(
+    requested: string,
+    kind: AccountKind | null | undefined,
+    excludeId?: string
+  ): Promise<string> {
+    const parsed = usernameSchemaForAccountKind(kind).safeParse(requested);
     if (!parsed.success) {
-      throw new BadRequestError(USERNAME_INVALID_MESSAGE, { field: 'username' });
+      // The ISSUE's message, not the base constant: a bot handle can fail either
+      // half of the rule, and "must end in bot" told to somebody who typed `a.b`
+      // sends them to append a label and be refused a second time. Zod reports
+      // the base policy first, so the message always names the thing that is
+      // actually wrong.
+      throw new BadRequestError(parsed.error.issues[0].message, { field: 'username' });
     }
     const username = parsed.data;
 

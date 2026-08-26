@@ -90,6 +90,16 @@ function uniqueUsername(prefix: string): string {
   return `${prefix}-${randomBytes(6).toString('hex')}`;
 }
 
+/**
+ * The same, carrying the label a `bot` account's handle must end in
+ * (`botUsernameSchema`, `@oxyhq/contracts`). Every `POST /accounts` below mints a
+ * bot because the colour question is easiest to ask of one, so the handles have
+ * to satisfy the bot policy or the 400 under test never arrives.
+ */
+function uniqueBotUsername(prefix: string): string {
+  return `${uniqueUsername(prefix)}bot`;
+}
+
 function send(
   method: 'POST' | 'PATCH' | 'GET',
   path: string,
@@ -212,7 +222,7 @@ describe('POST /accounts — an account born with a color', () => {
   test('persists the color and returns it on the created account', async () => {
     const operator = await seedPersonalAccount();
     actingUserId = operator;
-    const username = uniqueUsername('agent');
+    const username = uniqueBotUsername('agent');
 
     const res = await send('POST', '/accounts', {
       kind: 'bot',
@@ -236,7 +246,7 @@ describe('POST /accounts — an account born with a color', () => {
 
     const res = await send('POST', '/accounts', {
       kind: 'bot',
-      username: uniqueUsername('agent'),
+      username: uniqueBotUsername('agent'),
     });
 
     expect(res.status).toBe(201);
@@ -248,7 +258,7 @@ describe('POST /accounts — an account born with a color', () => {
   test('refuses a color outside the preset catalogue, and creates nothing', async () => {
     const operator = await seedPersonalAccount();
     actingUserId = operator;
-    const username = uniqueUsername('agent');
+    const username = uniqueBotUsername('agent');
 
     const res = await send('POST', '/accounts', {
       kind: 'bot',
@@ -272,7 +282,7 @@ describe('POST /accounts — an account born with a color', () => {
 
     const reserved = await send('POST', '/accounts', {
       kind: 'bot',
-      username: uniqueUsername('agent'),
+      username: uniqueBotUsername('agent'),
       color: 'oxy',
     });
     expect(reserved.status).toBe(400);
@@ -281,7 +291,7 @@ describe('POST /accounts — an account born with a color', () => {
     // so the refusal above is about the VALUE and not about the field existing.
     const free = await send('POST', '/accounts', {
       kind: 'bot',
-      username: uniqueUsername('agent'),
+      username: uniqueBotUsername('agent'),
       color: 'mint',
     });
     expect(free.status).toBe(201);
