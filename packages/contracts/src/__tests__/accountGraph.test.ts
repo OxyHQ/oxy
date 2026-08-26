@@ -17,6 +17,7 @@ import {
   newlyAddedRetiredCategories,
   type AccountCategoryId,
 } from '../accountGraph';
+import { BOT_USERNAME_INVALID_MESSAGE } from '../username';
 import { userResponseSchema } from '../userResponse';
 
 describe('@oxyhq/contracts account kinds', () => {
@@ -59,7 +60,7 @@ describe('@oxyhq/contracts account kinds', () => {
   it('carries isPrivateAccount through the parse, rather than stripping it', () => {
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'unpublished-agent',
+      username: 'unpublished-agentbot',
       isPrivateAccount: true,
     });
     expect(parsed.success).toBe(true);
@@ -72,7 +73,7 @@ describe('@oxyhq/contracts account kinds', () => {
     // discoverable", and a schema defaulting it here would erase that.
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'ordinary-agent',
+      username: 'ordinary-agentbot',
     });
     expect(parsed.success).toBe(true);
     expect(parsed.success && 'isPrivateAccount' in parsed.data).toBe(false);
@@ -87,7 +88,7 @@ describe('@oxyhq/contracts account kinds', () => {
   it('carries color through the parse, rather than stripping it', () => {
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'agent-with-a-colour',
+      username: 'agent-with-a-colourbot',
       color: 'purple',
     });
     expect(parsed.success).toBe(true);
@@ -100,7 +101,7 @@ describe('@oxyhq/contracts account kinds', () => {
     // replace that with whatever one file happened to name.
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'ordinary-agent',
+      username: 'ordinary-agentbot',
     });
     expect(parsed.success).toBe(true);
     expect(parsed.success && 'color' in parsed.data).toBe(false);
@@ -110,7 +111,7 @@ describe('@oxyhq/contracts account kinds', () => {
     for (const color of [{ hex: '#fff' }, 'x'.repeat(33)]) {
       const parsed = createAccountRequestSchema.safeParse({
         kind: 'bot',
-        username: 'agent',
+        username: 'agentbot',
         color,
       });
       expect(parsed.success).toBe(false);
@@ -120,7 +121,7 @@ describe('@oxyhq/contracts account kinds', () => {
   it('rejects a non-boolean isPrivateAccount', () => {
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'agent',
+      username: 'agentbot',
       isPrivateAccount: 'yes',
     });
     expect(parsed.success).toBe(false);
@@ -331,12 +332,56 @@ describe('@oxyhq/contracts account categories', () => {
       expect(kindAcceptsAccountCategories(kind)).toBe(true);
       const parsed = createAccountRequestSchema.safeParse({
         kind,
-        username: `acct-${kind}`,
+        // `bot` is the one kind whose handle must carry a label, so the fixture
+        // carries one — the categories question is orthogonal to it.
+        username: kind === 'bot' ? 'acct-bot' : `acct-${kind}`,
         accountCategories: ['news'],
       });
       expect(parsed.success).toBe(true);
     }
     expect([...ACCOUNT_CATEGORY_KINDS].sort()).toEqual([...CHILD_ACCOUNT_KINDS].sort());
+  });
+
+  /**
+   * The refinement it DOES carry: `kind` and `username` arrive together here, so
+   * this is the only wire schema that can hold a bot's handle to the label.
+   *
+   * It matters because this object is exported for CLIENTS. Without it an agent
+   * creation flow validates its own request, submits, and is 400ed by the server
+   * — the "propose, then refuse" defect, one layer up.
+   */
+  describe('a bot handle is held to the label, and only a bot handle', () => {
+    it('refuses a bot whose username carries none, and blames the username', () => {
+      const parsed = createAccountRequestSchema.safeParse({
+        kind: 'bot',
+        username: 'garden-helper',
+      });
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0]?.path).toEqual(['username']);
+      expect(parsed.error?.issues[0]?.message).toBe(BOT_USERNAME_INVALID_MESSAGE);
+    });
+
+    it('accepts a bot whose username carries it', () => {
+      const parsed = createAccountRequestSchema.safeParse({
+        kind: 'bot',
+        username: 'garden-helperbot',
+      });
+
+      expect(parsed.success).toBe(true);
+    });
+
+    it.each(CHILD_ACCOUNT_KINDS.filter((kind) => kind !== 'bot'))(
+      'leaves a %s account free to use any legal handle',
+      (kind) => {
+        const parsed = createAccountRequestSchema.safeParse({
+          kind,
+          username: 'garden-helper',
+        });
+
+        expect(parsed.success).toBe(true);
+      }
+    );
   });
 
   // ---- withdrawal ----------------------------------------------------------

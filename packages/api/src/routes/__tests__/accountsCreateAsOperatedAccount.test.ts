@@ -128,6 +128,16 @@ function uniqueUsername(prefix: string): string {
   return `${prefix}${randomBytes(5).toString('hex')}`;
 }
 
+/**
+ * The same, carrying the label a `bot` account's handle must end in
+ * (`botUsernameSchema`, `@oxyhq/contracts`). The question below is who the
+ * PARENT and the owner member are, which is asked of a bot throughout — so the
+ * handles have to satisfy the bot policy or every 201 becomes a 400.
+ */
+function uniqueBotUsername(prefix: string): string {
+  return `${uniqueUsername(prefix)}bot`;
+}
+
 async function seedAccount(kind: 'personal' | 'organization'): Promise<string> {
   const [row] = await getDb()
     .insert(users)
@@ -208,7 +218,7 @@ describe('a person operating an organization creates under it', () => {
     subjectId = org;
     operatedByUserId = human;
 
-    const res = await createAccount({ kind: 'bot', username: uniqueUsername('agent') });
+    const res = await createAccount({ kind: 'bot', username: uniqueBotUsername('agent') });
 
     expect(res.status).toBe(201);
     // The parent is the SUBJECT: switching into an organization is what makes
@@ -228,7 +238,7 @@ describe('a person operating an organization creates under it', () => {
     subjectId = org;
     operatedByUserId = human;
 
-    const res = await createAccount({ kind: 'bot', username: uniqueUsername('agent') });
+    const res = await createAccount({ kind: 'bot', username: uniqueBotUsername('agent') });
     const created = res.body.account?.accountId ?? '';
 
     const owners = await getDb()
@@ -257,7 +267,7 @@ describe('a person operating an organization creates under it', () => {
     subjectId = org;
     operatedByUserId = human;
 
-    const res = await createAccount({ kind: 'bot', username: uniqueUsername('agent') });
+    const res = await createAccount({ kind: 'bot', username: uniqueBotUsername('agent') });
 
     expect(res.status).toBe(403);
     expect(res.body.message).toContain('children:create');
@@ -273,7 +283,7 @@ describe('a person operating an organization creates under it', () => {
     subjectId = org;
     operatedByUserId = stranger;
 
-    const res = await createAccount({ kind: 'bot', username: uniqueUsername('agent') });
+    const res = await createAccount({ kind: 'bot', username: uniqueBotUsername('agent') });
 
     expect(res.status).toBe(403);
     expect(res.body.message).toContain('do not have access');
@@ -303,7 +313,7 @@ describe('the degraded-session path, where implicit self-ownership would escalat
     subjectId = org;
     operatedByUserId = null;
 
-    const res = await createAccount({ kind: 'bot', username: uniqueUsername('agent') });
+    const res = await createAccount({ kind: 'bot', username: uniqueBotUsername('agent') });
 
     expect(res.status).toBe(403);
     expect(res.body.message).toContain('do not have access');
@@ -353,7 +363,7 @@ describe('an ordinary personal session is unchanged', () => {
 
     const res = await createAccount({
       kind: 'bot',
-      username: uniqueUsername('agent'),
+      username: uniqueBotUsername('agent'),
       parentAccountId: org,
     });
 

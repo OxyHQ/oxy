@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { usernameSchema } from './username';
+import { usernameSchema, usernameSchemaForAccountKind } from './username';
 
 /**
  * Account-graph classification — the ONE authority for the kind vocabulary.
@@ -454,6 +454,10 @@ export const createAccountRequestSchema = z.object({
    * for — and this route's predecessor (`.min(1).max(100)` here, `^[\w.-]+$`
    * with no ceiling in the service) is how a one-character or dotted or
    * 100-character handle became reachable for bots alone.
+   *
+   * A `bot` is held to that AND to the label its handle must end in. That half
+   * cannot live on this field — it depends on `kind`, a sibling — so it is in the
+   * `superRefine` below, which reports its issue against this path.
    */
   username: usernameSchema,
   name: accountNameSchema,
@@ -520,6 +524,26 @@ export const createAccountRequestSchema = z.object({
    * remedy must not either.
    */
   isPrivateAccount: z.boolean().optional(),
+}).superRefine((request, ctx) => {
+  // The ONE place `kind` and `username` arrive in the same object, so it is the
+  // only place a wire schema CAN apply the per-kind half of the policy: a bot's
+  // handle must end in `bot`. Not a second rule — it asks
+  // `usernameSchemaForAccountKind`, the same declaration the service asks.
+  //
+  // It is here rather than only in the API because this schema is exported for
+  // CLIENTS: an agent-creation flow that validates its request and is then 400ed
+  // by the server is the "propose, then refuse" defect the minimum length
+  // already caused once. The service check stays regardless — it also governs
+  // renames and the service-provisioned channel route, where the kind comes from
+  // the stored row and never from this object.
+  const parsed = usernameSchemaForAccountKind(request.kind).safeParse(request.username);
+  if (!parsed.success) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['username'],
+      message: parsed.error.issues[0].message,
+    });
+  }
 });
 
 export type CreateAccountRequest = z.infer<typeof createAccountRequestSchema>;

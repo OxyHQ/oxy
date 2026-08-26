@@ -7,10 +7,17 @@
  * a database CHECK behind it is committed to minting.
  */
 
+import { ACCOUNT_KINDS } from '../accountGraph';
 import {
+  applyBotUsernameSuffix,
+  botUsernameSchema,
   isValidUsername,
   stripDisallowedUsernameCharacters,
   usernameSchema,
+  usernameSchemaForAccountKind,
+  BOT_USERNAME_INVALID_MESSAGE,
+  BOT_USERNAME_SUFFIX,
+  USERNAME_INVALID_MESSAGE,
   USERNAME_MAX_LENGTH,
   USERNAME_MIN_LENGTH,
 } from '../username';
@@ -217,5 +224,201 @@ describe('a slug generator can be built on this without re-deriving it', () => {
     expect(typeof isValidUsername).toBe('function');
     expect(typeof stripDisallowedUsernameCharacters).toBe('function');
     expect(USERNAME_MIN_LENGTH).toBeLessThan(USERNAME_MAX_LENGTH);
+  });
+});
+
+/**
+ * The one exception the policy carries, and the four kinds it must not reach.
+ *
+ * A bot's handle ends in `bot`. It is a labelling rule, not a namespace: the
+ * unique index is still one index, `mybot` is still a name a person could have
+ * asked for first, and every other kind is governed by exactly the schema above.
+ * So the tests that matter most here are the NEGATIVE ones — `personal`,
+ * `organization`, `project` and `channel` must be handed back the unchanged
+ * policy, and the ~73k federated rows must never meet either schema.
+ */
+describe('a bot account labels itself in its handle', () => {
+  describe('what conforms', () => {
+    it.each([
+      ['aliabot', 'the plain form, and the one Telegram itself produces'],
+      ['my-bot', 'a hyphen separator, which this policy admits'],
+      ['my_bot', 'an underscore separator, admitted on the same footing'],
+      ['community-guidebot', 'an existing handle with the label appended'],
+      ['bot', 'the label alone: 3 characters, at the floor, and free to claim'],
+    ])('accepts %s (%s)', (username) => {
+      expect(botUsernameSchema.safeParse(username).success).toBe(true);
+    });
+
+    /**
+     * Case is PRESERVED but uniqueness folds it (`lower(btrim(username))`), so a
+     * case-SENSITIVE suffix test would accept `mybot` and refuse `MyBot` — two
+     * names the index considers the same one. This is the discriminator for that
+     * bug: it fails if the comparison is written with a bare `endsWith`.
+     */
+    it.each(['MyBot', 'MYBOT', 'myBOT', 'My-Bot'])(
+      'accepts %s, because the index cannot tell it from the lower-case form',
+      (username) => {
+        expect(botUsernameSchema.safeParse(username).success).toBe(true);
+      }
+    );
+
+    it('returns the handle as typed, capitals and all', () => {
+      expect(botUsernameSchema.parse('MyBot')).toBe('MyBot');
+    });
+  });
+
+  describe('what does not, and the message that says why', () => {
+    it.each([
+      'alia',
+      'community-guide',
+      'community-maestro',
+      'community-pulse',
+      'botanist',
+      'robot-helper',
+    ])('rejects %s', (username) => {
+      expect(botUsernameSchema.safeParse(username).success).toBe(false);
+    });
+
+    it('says what is wrong, naming the suffix', () => {
+      const parsed = botUsernameSchema.safeParse('community-guide');
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0]?.message).toBe(BOT_USERNAME_INVALID_MESSAGE);
+      expect(BOT_USERNAME_INVALID_MESSAGE).toContain(BOT_USERNAME_SUFFIX);
+    });
+
+    /**
+     * The suffix is checked LAST, so a handle that is illegal for everybody is
+     * reported as illegal — not as a bot that forgot its label. A caller told to
+     * append `bot` to `a.b` would append it and be refused a second time.
+     */
+    it('reports the base policy first when both are broken', () => {
+      const parsed = botUsernameSchema.safeParse('a.b');
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0]?.message).toBe(USERNAME_INVALID_MESSAGE);
+    });
+
+    it('still holds a conforming suffix to the base policy', () => {
+      // Ends in `bot`, and is illegal for every kind: a separator cannot lead.
+      expect(botUsernameSchema.safeParse('-mybot').success).toBe(false);
+      expect(botUsernameSchema.safeParse('my--bot').success).toBe(false);
+      expect(botUsernameSchema.safeParse(`${'a'.repeat(USERNAME_MAX_LENGTH)}bot`).success).toBe(
+        false
+      );
+    });
+  });
+
+  /**
+   * The control that decides whether this is a labelling rule or a second
+   * policy. Every kind that is not `bot` gets the schema unchanged — asserted by
+   * IDENTITY, not by re-testing a handful of names, so a future variant for
+   * `channel` cannot slip in while the character tests still pass.
+   */
+  describe('and it reaches no other kind', () => {
+    it.each(['personal', 'organization', 'project', 'channel'] as const)(
+      '%s is governed by the unchanged policy',
+      (kind) => {
+        expect(usernameSchemaForAccountKind(kind)).toBe(usernameSchema);
+      }
+    );
+
+    it.each(['personal', 'organization', 'project', 'channel'] as const)(
+      'a %s account may hold a handle that does not end in bot',
+      (kind) => {
+        expect(usernameSchemaForAccountKind(kind).safeParse('community-guide').success).toBe(true);
+      }
+    );
+
+    it.each(['personal', 'organization', 'project', 'channel'] as const)(
+      'and a %s account is not forbidden one that does',
+      (kind) => {
+        // The rule says what a bot's handle must look like, not that the label is
+        // reserved. `robot` and `abbot` are ordinary words.
+        expect(usernameSchemaForAccountKind(kind).safeParse('abbot').success).toBe(true);
+      }
+    );
+
+    it('bot is the only kind that gets a different schema', () => {
+      const branched = ACCOUNT_KINDS.filter(
+        (kind) => usernameSchemaForAccountKind(kind) !== usernameSchema
+      );
+
+      expect(branched).toEqual(['bot']);
+    });
+
+    it('an absent kind is the base policy, never the stricter one', () => {
+      // `users.kind` defaults to `personal` and 11 rows predate the column being
+      // filled in. A rule that treated "unknown" as "bot" would 400 a rename on
+      // an account nobody ever called a bot.
+      expect(usernameSchemaForAccountKind(null)).toBe(usernameSchema);
+      expect(usernameSchemaForAccountKind(undefined)).toBe(usernameSchema);
+    });
+  });
+
+  /**
+   * The federated namespace, which this must never be pointed at.
+   *
+   * `users.username` also holds ~73k remote actors as `handle@domain`, written by
+   * `POST /users/resolve` through its own normalizer. Some of them are bots on
+   * their own server. Neither schema governs them — and both would reject them,
+   * which is what makes "never point it there" a real requirement rather than a
+   * style note.
+   */
+  describe('and it says nothing about remote actors', () => {
+    it.each(['alice@mastodon.social', 'newsbot@mastodon.social', `${'a'.repeat(70)}@example.org`])(
+      'rejects %s under BOTH schemas, so neither may govern the federated column',
+      (handle) => {
+        expect(usernameSchema.safeParse(handle).success).toBe(false);
+        expect(botUsernameSchema.safeParse(handle).success).toBe(false);
+      }
+    );
+  });
+});
+
+/**
+ * The generator's side of the same rule.
+ *
+ * A suggestion that the server will refuse is the defect this exists to prevent:
+ * Alia's agent creation proposes a handle from the agent's name, and without
+ * this it would propose `community-guide` for a bot and be 400ed on submit.
+ */
+describe('applyBotUsernameSuffix', () => {
+  it('appends the label to a handle that lacks it', () => {
+    expect(applyBotUsernameSuffix('community-guide')).toBe('community-guidebot');
+  });
+
+  it('leaves a handle that already carries it alone, whatever its case', () => {
+    expect(applyBotUsernameSuffix('aliabot')).toBe('aliabot');
+    expect(applyBotUsernameSuffix('MyBot')).toBe('MyBot');
+  });
+
+  it('keeps a separator the caller typed rather than inventing one', () => {
+    // `community-guide-` is not a legal handle on its own; with the label it is.
+    expect(applyBotUsernameSuffix('community-guide-')).toBe('community-guide-bot');
+  });
+
+  it('makes room for the label instead of overflowing the ceiling', () => {
+    const suggested = applyBotUsernameSuffix('a'.repeat(USERNAME_MAX_LENGTH));
+
+    expect(suggested.length).toBe(USERNAME_MAX_LENGTH);
+    expect(botUsernameSchema.safeParse(suggested).success).toBe(true);
+  });
+
+  it('proposes something the server accepts, for every name a person might type', () => {
+    for (const name of ['Community Guide', 'Alia', 'Al', 'a'.repeat(120), 'Nate.  Isern!']) {
+      const slug = stripDisallowedUsernameCharacters(name.trim().replace(/\s+/g, '-'))
+        .replace(/[-_]{2,}/g, '-')
+        .replace(/^[-_]+/, '');
+      expect(botUsernameSchema.safeParse(applyBotUsernameSuffix(slug)).success).toBe(true);
+    }
+  });
+
+  it('cannot rescue a name the base policy refuses', () => {
+    // It PROPOSES; `POST /accounts` decides. A dot survives the append and the
+    // schema still says no, which is the honest outcome — the coercing rules this
+    // policy replaced would have deleted it and handed back another name.
+    expect(applyBotUsernameSuffix('a.b')).toBe('a.bbot');
+    expect(botUsernameSchema.safeParse('a.bbot').success).toBe(false);
   });
 });
