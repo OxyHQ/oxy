@@ -12,10 +12,10 @@
     "check": "prettier --write . && eslint --fix"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "^1.7.0",
     "@expo/vector-icons": "^15.0.3",
     "@hugeicons/core-free-icons": "catalog:",
-    "@hugeicons/react": "^1.1.9",
+    "@hugeicons/react": "^1.1.10",
     "@oxyhq/bloom": "catalog:",
     "@oxyhq/contracts": "*",
     "@oxyhq/core": "*",
@@ -24,9 +24,9 @@
     "@tanstack/query-sync-storage-persister": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-query-persist-client": "catalog:",
-    "@tanstack/react-router": "^1.170.18",
-    "@tanstack/react-router-devtools": "^1.167.0",
-    "@tanstack/router-plugin": "^1.168.20",
+    "@tanstack/react-router": "^1.170.32",
+    "@tanstack/react-router-devtools": "^1.167.1",
+    "@tanstack/router-plugin": "^1.168.35",
     "@vitejs/plugin-react": "catalog:",
     "axios": "catalog:",
     "class-variance-authority": "catalog:",
@@ -41,7 +41,7 @@
     "react-native-safe-area-context": "catalog:",
     "react-native-svg": "catalog:",
     "react-native-web": "^0.21.0",
-    "react-resizable-panels": "^4.12.2",
+    "react-resizable-panels": "^4.12.3",
     "shadcn": "catalog:",
     "shiki": "^3.23.0",
     "socket.io-client": "catalog:",
@@ -65,7 +65,7 @@
     "@types/react-dom": "^19.2.4",
     "jsdom": "^29.1.1",
     "prettier": "^3.9.6",
-    "vitest": "^4.1.9",
+    "vitest": "^4.1.11",
     "web-vitals": "^5.3.0",
     "vite-plugin-react-native-web": "catalog:"
   }
