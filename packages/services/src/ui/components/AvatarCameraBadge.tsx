@@ -1,7 +1,7 @@
 import type React from 'react';
 import type { ViewStyle } from 'react-native';
 import { View } from 'react-native-css/components';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 
 /**

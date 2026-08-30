@@ -9,9 +9,17 @@
 ## Run:    docker run --env-file .env -p 8080:8080 oxy-api
 ##
 
-FROM node:20-alpine AS builder
+FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS bun-bin
 
-RUN npm install -g bun
+FROM node:20-alpine AS bun-node
+
+# Copy one platform-specific, digest-pinned Bun binary. Installing the npm
+# wrapper retained multiple @oven platform binaries and added 346 MiB to the
+# runtime while only one 85 MiB executable can ever run in a given image.
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN test "$(bun --version)" = "1.3.14"
+
+FROM bun-node AS builder
 
 WORKDIR /app
 
@@ -29,7 +37,11 @@ WORKDIR /app
 # Remove bun.lock since the workspace change invalidates it — bun will
 # resolve fresh dependencies (still deterministic from package.json versions).
 COPY package.json ./
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
+# The root dependencies belong to the Expo test app, not the API. Leaving them
+# in this reduced server workspace pulled Expo, React Native and Bloom into both
+# the build graph and the production image even though no server package imports
+# them. Package-local dependencies below remain authoritative.
+RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 
 # Copy package.json files for dependency resolution
 COPY packages/api/package.json packages/api/
@@ -42,7 +54,7 @@ COPY packages/db/package.json packages/db/
 # Install dependencies (no lockfile — workspace subset doesn't match the full monorepo lock)
 RUN bun install
 
-# The install above is UNPINNED, so this asserts the one property the lockfile
+# The install above is UNLOCKED, so this asserts the one property the lockfile
 # would otherwise have guaranteed: that the express types resolve to exactly one
 # copy. `@types/express-slow-down` and `@types/express-rate-limit` both request
 # `@types/express: "*"`, which resolves to `latest` (v5) here and lands BESIDE
@@ -69,6 +81,13 @@ COPY packages/federation/ packages/federation/
 COPY packages/db/ packages/db/
 COPY packages/api/ packages/api/
 
+# drizzle-orm's runtime migrator reads the SQL files and meta/_journal.json.
+# The 46 historical drizzle-kit snapshots are generation inputs only and added
+# roughly 25 MiB to every API task, so stage the exact runtime ledger here.
+RUN mkdir -p packages/api/drizzle-runtime/meta \
+    && cp packages/api/drizzle/*.sql packages/api/drizzle-runtime/ \
+    && cp packages/api/drizzle/meta/_journal.json packages/api/drizzle-runtime/meta/
+
 # Build contracts first (api depends on it at runtime via dist/cjs), then
 # protocol (the signed-record crypto base core + api consume), then federation
 # (HTTP signatures for outbound ActivityPub fetches), then core (api imports
@@ -78,30 +97,54 @@ COPY packages/api/ packages/api/
 RUN bun run --filter @oxyhq/contracts build
 RUN bun run --filter @oxyhq/protocol build
 RUN bun run --filter @oxyhq/core build
-RUN bun run --filter @oxyhq/federation build
+# Federation's public build script rebuilds contracts, protocol and core before
+# compiling itself. Those exact artifacts were produced above, so invoke only
+# Federation's three package-local compilation phases here.
+RUN bun run --cwd packages/federation build:cjs \
+    && bun run --cwd packages/federation build:esm \
+    && bun run --cwd packages/federation build:types
 RUN bun run --filter @oxyhq/db build
-RUN bun run --filter @oxyhq/api build
+RUN bun run --cwd packages/api tsc -p tsconfig.json
+
+# ── Production dependency tree ────────────────────────────────────
+# Native dependencies may need a compiler while installing, but the resulting
+# node_modules is portable to the identical Alpine runtime below. Keeping the
+# toolchain in this throwaway stage removes roughly 300 MiB from the final image.
+FROM bun-node AS production-deps
+
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+
+# Reuse the already-normalised workspace manifests from the builder. The API
+# image always installs Alpine's ffmpeg/ffprobe, so carrying ffprobe-static's
+# every-OS binary bundle (336 MiB in a measured install) is pure duplication.
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/packages/api/package.json packages/api/
+COPY --from=builder /app/packages/core/package.json packages/core/
+COPY --from=builder /app/packages/protocol/package.json packages/protocol/
+COPY --from=builder /app/packages/contracts/package.json packages/contracts/
+COPY --from=builder /app/packages/federation/package.json packages/federation/
+COPY --from=builder /app/packages/db/package.json packages/db/
+RUN node -e "const fs=require('fs'); const apiFile='packages/api/package.json'; const api=require('./'+apiFile); delete api.optionalDependencies?.['ffmpeg-static']; delete api.optionalDependencies?.['ffprobe-static']; for (const name of Object.keys(api.dependencies ?? {})) if (name.startsWith('@types/')) delete api.dependencies[name]; fs.writeFileSync(apiFile, JSON.stringify(api, null, 2)); const mobilePeers=['@react-native-async-storage/async-storage','expo-crypto','expo-secure-store','expo-modules-core']; for (const name of ['core','protocol']) { const file='packages/'+name+'/package.json'; const p=require('./'+file); for (const peer of mobilePeers) { delete p.peerDependencies?.[peer]; delete p.peerDependenciesMeta?.[peer]; } fs.writeFileSync(file, JSON.stringify(p, null, 2)); }"
+
+# Install production dependencies
+RUN bun install --production \
+    && rm -rf node_modules/.bun/@img+sharp-linux-*@* \
+              node_modules/.bun/@img+sharp-libvips-linux-*@*
 
 # ── Production image ──────────────────────────────────────────────
 FROM node:20-alpine
 
-RUN apk add --no-cache python3 make g++ ffmpeg curl
-RUN npm install -g bun
+COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
+RUN apk add --no-cache ffmpeg curl \
+    && test "$(bun --version)" = "1.3.14"
 
 WORKDIR /app
 
-# Copy workspace root and override workspaces
-COPY package.json ./
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
-COPY packages/api/package.json packages/api/
-COPY packages/core/package.json packages/core/
-COPY packages/protocol/package.json packages/protocol/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/federation/package.json packages/federation/
-COPY packages/db/package.json packages/db/
-
-# Install production dependencies
-RUN bun install --production
+COPY --from=production-deps /app/package.json ./
+COPY --from=production-deps /app/packages packages/
+COPY --from=production-deps /app/node_modules node_modules/
 
 # Copy built artifacts. @oxyhq/db's dist is needed HERE and not only in the
 # builder: `bun install --production` above resolves the same `workspace:*`, and
@@ -132,7 +175,21 @@ COPY --from=builder /app/packages/core/src packages/core/src
 # because it depends on esbuild, whose arm64/alpine postinstall breaks this
 # image (PR #261). drizzle-orm is already a runtime dependency and ships the
 # migrator, so migrations run from the same image the service runs.
-COPY --from=builder /app/packages/api/drizzle packages/api/drizzle
+COPY --from=builder /app/packages/api/drizzle-runtime packages/api/drizzle
+
+# Fail the build at the layer that owns runtime completeness. ffmpeg/ffprobe
+# must come from Alpine, Sharp must retain its platform optional dependency,
+# Bun must remain for the explicitly supported TypeScript one-shot tasks, and
+# the two redundant static-binary packages must not leak back in.
+RUN command -v ffmpeg >/dev/null \
+    && command -v ffprobe >/dev/null \
+    && command -v bun >/dev/null \
+    && node -e "const p=require.resolve('sharp',{paths:['/app/packages/api']}); require(p)" \
+    && test ! -d node_modules/ffmpeg-static \
+    && test ! -d node_modules/ffprobe-static \
+    && test ! -e packages/api/drizzle/meta/0000_snapshot.json \
+    && test ! -e /usr/bin/python3 \
+    && test ! -e /usr/bin/g++
 
 # Main API entry point
 CMD ["node", "packages/api/dist/server.js"]

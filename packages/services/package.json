@@ -111,9 +111,11 @@
   "scripts": {
     "typescript": "tsc --skipLibCheck --noEmit",
     "lint": "biome lint --error-on-warnings ./src",
-    "build": "bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view",
+    "build": "bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view",
     "postbuild": "node scripts/verify-package.mjs",
     "verify:package": "node scripts/verify-package.mjs",
+    "generate:icon-fonts": "node scripts/generate-icon-font-subsets.mjs",
+    "check:icon-fonts": "node scripts/check-icon-font-subsets.mjs",
     "build:js": "bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun run copy-assets",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",

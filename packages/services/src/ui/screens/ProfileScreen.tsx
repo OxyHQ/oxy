@@ -10,7 +10,7 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import { Avatar } from '@oxyhq/bloom/avatar';
 import FollowButton from '../components/FollowButton';
 import { useFollow } from '../hooks/useFollow';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';

@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@oxyhq/bloom/search';

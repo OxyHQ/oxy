@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxyhq/core';
 import { accountCategoryLabel, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, MAX_ACCOUNT_CATEGORIES, MAX_DISPLAY_NAME_LENGTH, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxyhq/core';
 import {

@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@oxyhq/bloom/toast';
 import { surfaces } from '@oxyhq/bloom/surfaces';

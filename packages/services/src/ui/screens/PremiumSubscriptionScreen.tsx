@@ -16,7 +16,7 @@ import {
     SegmentedControlItem,
     SegmentedControlItemText,
 } from '@oxyhq/bloom/segmented-control';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';

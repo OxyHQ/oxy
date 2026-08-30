@@ -138,8 +138,16 @@ const { createOxyMetroConfig } = require('@oxyhq/app-preset/metro');
 module.exports = createOxyMetroConfig(__dirname, {
   sharedTypesPackage: '@myapp/shared-types', // optional
   cssInput: './global.css',                  // optional, this is the default
+  dropConsole: true,                         // optional, production web only
+  // svgTransformerPath: require.resolve('react-native-svg-transformer/expo'),
+  // extraBlockList: [path.join(__dirname, '../../.claude/worktrees')],
 });
 ```
+
+`extraBlockList` accepts regular expressions or directory paths. Directory
+paths are escaped and block only their descendants. `extraNodeModules`,
+`extraWatchFolders`, `extraAssetExts`, and `extraSourceExts` extend the shared
+defaults without replacing them.
 
 ### 3. Babel (`babel.config.js`)
 
