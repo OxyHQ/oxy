@@ -35,10 +35,14 @@ import {
   revokeServiceActingAs,
   SERVICE_ACTING_AS_SCOPE,
 } from '../services/serviceActingAs.service';
-import { intersectScopes, isPaymentsScope } from '../utils/applicationScopes';
+import {
+  intersectScopes,
+  isPaymentsScope,
+  isPrivilegedScope,
+  userConsentRequiredScopes,
+} from '../utils/applicationScopes';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import { isTrustedApplication } from '../utils/trustedApplication';
-import { userConsentRequiredScopes } from '../utils/applicationScopes';
 import { authMiddleware, rejectQueryToken, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
@@ -3772,11 +3776,14 @@ router.post('/service-token', serviceTokenLimiter, validate({ body: serviceToken
   // INTERSECTED with the application's granted scopes — a credential can never
   // exceed its app's authority (a privileged scope like federation:write only
   // survives if BOTH the credential AND the app hold it). A credential that
-  // requested no scopes inherits the app's full granted set (unchanged
-  // behaviour for credentials provisioned without explicit scopes).
+  // requested no scopes is a legacy credential: it inherits only the app's
+  // non-privileged grants. Privileged authority must always have been named on
+  // the credential itself, where creation applies the staff-only gate.
   const appScopes = app.scopes;
   const scopes =
-    credential.scopes.length > 0 ? intersectScopes(credential.scopes, appScopes) : appScopes;
+    credential.scopes.length > 0
+      ? intersectScopes(credential.scopes, appScopes)
+      : appScopes.filter((scope) => !isPrivilegedScope(scope));
   const token = jwt.sign(
     {
       type: 'service',

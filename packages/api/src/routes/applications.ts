@@ -1038,17 +1038,19 @@ router.post(
     }
 
     const isMachineCredential = body.type === 'machine';
+    const requiresExplicitScopes = isMachineCredential || body.type === 'service';
 
-    // A machine credential must NAME its authority. The service-token mint has a
-    // documented "no scopes means the application's full grant" fallback for
-    // credentials provisioned before scopes existed; there is no such legacy
+    // Machine and service credentials must NAME their authority. The
+    // service-token mint has a documented "no scopes means the application's
+    // full grant" fallback for credentials provisioned before scopes existed;
+    // there is no such legacy
     // shape here, and defaulting an external, long-lived bearer key to
     // everything its application can do is the wrong default to inherit. The
-    // machine lane therefore performs no fallback, and this is what stops a
-    // scopeless key resolving to no authority at all — which would fail later,
-    // opaquely, at the first scope check.
-    if (isMachineCredential && requestedScopes.length === 0) {
-      throw new BadRequestError('A machine credential must request at least one scope');
+    // machine and service lanes therefore require explicit authority. This also
+    // prevents a newly created service credential from entering the legacy
+    // full-grant fallback at mint time.
+    if (requiresExplicitScopes && requestedScopes.length === 0) {
+      throw new BadRequestError(`${body.type} credentials must request at least one scope`);
     }
 
     // `expiresInSeconds` sets `expires_at` on an ACTIVE row. On every other type
