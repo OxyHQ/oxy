@@ -127,7 +127,7 @@
     "invariant": "^2.2.4",
     "jwt-decode": "^4.0.0",
     "socket.io-client": "catalog:",
-    "tldts": "^7.4.10",
+    "tldts": "^7.4.11",
     "zod": "^3.25.64"
   },
   "peerDependencies": {
