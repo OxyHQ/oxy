@@ -726,6 +726,14 @@ export {
     canSwitchIntoAccount,
 } from './session/accountSwitchTargets';
 
+// The service/agent counterpart to the human switch predicates above. Kept on
+// its own semantic seam because `bot` is delegable but never human-switchable.
+export { resolveAccountDelegationAccess } from './session/accountDelegationAccess';
+export type {
+    AccountDelegationAccess,
+    AccountDelegationNode,
+} from './session/accountDelegationAccess';
+
 // Headless controller for the unified account dialog. Framework-agnostic
 // state machine + subscribe/getSnapshot store (bind via `useSyncExternalStore`)
 // — sign-in is passkey (WebAuthn) or the Commons QR / shared-keychain handoff;
