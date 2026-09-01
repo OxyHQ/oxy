@@ -15,7 +15,7 @@ export const VERSIONS = {
   // been bumped but not yet published names a range nothing can resolve.
   oxyServices: '^30.0.0', // @oxyhq/services
   oxyCore: '^23.0.0', // @oxyhq/core
-  oxyBloom: '^0.67.0', // @oxyhq/bloom — tracks the workspace catalog, not npm latest
+  oxyBloom: '^1.8.0', // @oxyhq/bloom — tracks the workspace catalog, not npm latest
   oxyContracts: '^0.35.0', // @oxyhq/contracts
   oxyAppPreset: '^0.3.0', // @oxyhq/app-preset
 
