@@ -48,9 +48,10 @@ import type { AccountKind } from '../db/schema/users';
 import {
   CHILD_ACCOUNT_KINDS,
   RETIRED_ACCOUNT_CATEGORY_IDS,
-  isActAsEligibleKind,
+  isDelegatedActAsEligibleKind,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
+  usernameSchemaForAccountKind,
   type AccountCategoryId,
 } from '@oxyhq/contracts';
 import {
@@ -66,6 +67,12 @@ import {
   NotFoundError,
 } from '../utils/error';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxyhq/core';
+import {
+  assertColorNotReserved,
+  isUserColorPreset,
+  normalizeUserColor,
+} from '../utils/profileColor';
+import { violatesUniqueIndex } from '../utils/postgresErrors';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 
@@ -80,6 +87,27 @@ import userCache from '../utils/userCache';
  * ever held this".
  */
 const ACT_AS_PERMISSION: AccountPermission = 'account:act_as';
+
+/**
+ * The unique index `users.username` is held by, named so a lost race can be told
+ * apart from every other constraint on the same table. Declared in
+ * `db/schema/users.ts` as `uniqueIndex('users_lower_username_key')`; Postgres
+ * reports an expression index's own name in `constraint_name`, verified against
+ * a real violation.
+ */
+const USERNAME_UNIQUE_INDEX = 'users_lower_username_key';
+
+/**
+ * The 409 a taken handle produces, wherever it is detected.
+ *
+ * One shape for both detections — the probe in `assertUsernameAvailable` and the
+ * `users_lower_username_key` violation a lost race raises — because a client
+ * retrying with a fresh suggestion cannot be asked to recognise two. `field` is
+ * what tells it WHICH input to change.
+ */
+function usernameTakenError(username: string): ConflictError {
+  return new ConflictError(`The username "${username}" is already taken`, { field: 'username' });
+}
 
 /**
  * Reject a name half that the display-name policy would not allow.
@@ -101,6 +129,20 @@ function assertValidAccountName(
       throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
     }
   }
+}
+
+/**
+ * Reject a color the preset catalogue does not contain.
+ *
+ * Account create/update is a second write path onto `users.color`, so it runs
+ * the same policy `updateUserProfile` does; the reserved-color half of that
+ * policy lives in `utils/profileColor` and is shared by both.
+ *
+ * Callers run this only when the color CHANGES — see `updateAccount`.
+ */
+function assertAssignableColorPreset(color: string): void {
+  if (isUserColorPreset(color)) return;
+  throw new BadRequestError(`Unknown color preset "${color}"`);
 }
 
 /** How the caller is related to an account in their accessible forest. */
@@ -200,6 +242,13 @@ export interface CreateChildAccountInput {
   bio?: string;
   avatar?: string;
   description?: string;
+  /**
+   * Named preset key (`USER_COLOR_PRESETS`), never a hex value. Omitted leaves
+   * the column's own default, a random non-reserved preset — which is what every
+   * caller got before this field existed, so saying nothing is unchanged
+   * behaviour rather than a colorless account.
+   */
+  color?: string;
   /**
    * Ordered, PRIMARY FIRST. Every child kind may carry these, so there is no
    * kind check on this path — see `createAccountRequestSchema`.
@@ -392,14 +441,30 @@ export class AccountService {
       throw new BadRequestError('A channel cannot own another channel');
     }
 
-    const username = await this.resolveUniqueUsername(input.username);
+    const username = await this.assertUsernameAvailable(input.username, input.kind);
 
     assertValidAccountName(input.name);
+
+    // After `assertUsernameAvailable`, so the reserved-color gate weighs the handle
+    // the account will actually carry. `null` for the id: the row does not exist
+    // yet, so there is no subscription to resolve and only the handle branch can
+    // pass — see `assertColorNotReserved`.
+    const color = input.color === undefined ? undefined : normalizeUserColor(input.color);
+    if (color !== undefined) {
+      assertAssignableColorPreset(color);
+      await assertColorNotReserved(color, { accountId: null, username });
+    }
 
     const ancestors = childAncestorsOf(parent);
     const rootAccountId = childRootOf(parent);
 
-    const { account, membership } = await db.transaction(async (tx) => {
+    // The probe in `assertUsernameAvailable` answered a moment ago; another
+    // request can have taken the name since. `users_lower_username_key` is what
+    // makes that safe, and this is what makes it LEGIBLE: the loser of the race
+    // gets the same 409 as the loser of the probe, never a 500 that a retrying
+    // client cannot act on.
+    const { account, membership } = await this.rejectingTakenUsername(username, () =>
+      db.transaction(async (tx) => {
       const [created] = await tx
         .insert(users)
         .values({
@@ -410,6 +475,10 @@ export class AccountService {
           bio: input.bio,
           description: input.description,
           avatar: input.avatar,
+          // `undefined` leaves the column to its `$defaultFn` (a random
+          // non-reserved preset), which is what every account got before this
+          // field existed.
+          color,
           verified: true,
           type: 'local',
           kind: input.kind,
@@ -440,7 +509,8 @@ export class AccountService {
         .returning();
 
       return { account: created, membership: member };
-    });
+      })
+    );
 
     logger.info('Account created', {
       accountId: account.id,
@@ -613,7 +683,7 @@ export class AccountService {
     }
 
     if (input.username !== undefined) {
-      set.username = await this.resolveUniqueUsername(input.username, accountId);
+      set.username = await this.assertUsernameAvailable(input.username, account.kind, accountId);
     }
     if (input.name !== undefined) {
       assertValidAccountName(input.name);
@@ -630,12 +700,38 @@ export class AccountService {
     if (input.bio !== undefined) set.bio = input.bio;
     if (input.avatar !== undefined) set.avatar = input.avatar;
     if (input.description !== undefined) set.description = input.description;
-    if (input.color !== undefined) set.color = input.color;
+    if (input.color !== undefined) {
+      const color = normalizeUserColor(input.color);
+      // Both checks are about ADOPTING a colour, so a write that changes nothing
+      // runs neither. A client that reads an account and PATCHes the whole object
+      // back must not be 400ed by a field it did not touch — that would take the
+      // field it DID change down with it, the failure `updateAccountSchema`
+      // describes for withdrawn `accountCategories` and for a nullable `bio`. It
+      // is also what lets a legacy hex colour (still permitted by
+      // `users_color_check`) be carried forward without being newly adoptable.
+      if (color !== account.color) {
+        assertAssignableColorPreset(color);
+        // The subject is the account being coloured, not the administrator
+        // asking: an operator's own premium plan does not travel down the tree.
+        await assertColorNotReserved(color, {
+          accountId,
+          username: set.username ?? account.username,
+        });
+      }
+      set.color = color;
+    }
     if (input.links !== undefined) set.links = input.links;
 
+    // Same race as creation, on the rename: `set.username` was probed, and the
+    // window between the probe and this statement is another request's chance to
+    // take it.
     const updated =
       Object.keys(set).length > 0
-        ? (await db.update(users).set(set).where(eq(users.id, accountId)).returning())[0]
+        ? (
+            await this.rejectingTakenUsername(set.username, () =>
+              db.update(users).set(set).where(eq(users.id, accountId)).returning()
+            )
+          )[0]
         : account;
 
     userCache.invalidate(accountId);
@@ -825,7 +921,7 @@ export class AccountService {
    * TWO FAMILIES, TWO AUTHORITIES — collapsing them into one membership test is
    * the easy way to get this wrong, in both directions at once:
    *
-   *  - a **channel** can never be acted as ({@link isActAsEligibleKind} refuses
+   *  - a **channel** can never be acted as ({@link isDelegatedActAsEligibleKind} refuses
    *    it: it is a content identity, not a seat). No session can be minted whose
    *    subject is a channel, so there is no stronger right than membership to ask
    *    for — acting for a channel simply IS being one of its active members;
@@ -894,7 +990,7 @@ export class AccountService {
 
     // Ordered so the dominant case — an ordinary personal target — costs this
     // one indexed lookup and no membership read at all.
-    if (account.kind !== 'channel' && !isActAsEligibleKind(account.kind)) {
+    if (account.kind !== 'channel' && !isDelegatedActAsEligibleKind(account.kind)) {
       return false;
     }
 
@@ -1456,43 +1552,115 @@ export class AccountService {
   }
 
   /**
-   * Resolve a unique username, suffixing a numeric counter on collision (org and
-   * bot accounts share the account username index with humans). Validates the
-   * username character policy.
+   * The canonical form of a requested username, once it is known to be legal and
+   * free. Throws rather than adapting.
    *
-   * The collision probe is written against the EXPRESSION the unique index is
-   * built on — `lower(btrim(username))`, `db/schema/users.ts` — so a candidate
-   * that differs only by case is REJECTED here rather than by the constraint.
+   * ## It used to RENAME, silently
+   *
+   * This method suffixed a counter on collision — ask for `pepe`, get `pepe1`,
+   * and nobody is told. It is the same defect as the `.toLowerCase()` that used
+   * to live in these same lines: both hand the caller back an account under a
+   * name they did not ask for. A handle is chosen by a person; a server that
+   * quietly picks a different one has answered a question nobody asked.
+   *
+   * The consumers were already written for the refusal. Alia's
+   * `lib/agent-identity.ts` says so outright — "this proposes and never decides.
+   * `POST /accounts` is the authority, its duplicate answer is the only true one,
+   * and the CLIENT retries with a fresh suggestion" — and its
+   * `bot-account.ts` implements a retry loop keyed on **409**. That 409 never
+   * arrived, so the loop was dead code and the owner got `community-maestro1`.
+   * The cost-centre seed goes further and treats a suffix as a FAILURE, because
+   * there the username IS the slug.
+   *
+   * ## Legality and availability are one question here
+   *
+   * Holds the request to `usernameSchema` — the SAME policy signup, public-key
+   * registration, webauthn and `PUT /users/me` apply. This path governs every
+   * managed account, and its own rule (`^[\w.-]+$`, dots, no length bound at
+   * all) is how a bot could take a name no person could ask for, in the very same
+   * unique index.
+   *
+   * ## And the one exception, which only this path can apply
+   *
+   * A `bot` account's handle must also end in `bot`
+   * ({@link usernameSchemaForAccountKind}). The kind is what decides, so it is
+   * passed in rather than inferred from the name: `createChildAccount` knows the
+   * kind it is minting, and a rename knows the kind of the row it is renaming.
+   * Guessing from the string would make `abbot` a bot and a bot called `luna` a
+   * person.
+   *
+   * The probe is written against the EXPRESSION the unique index is built on —
+   * `lower(btrim(username))`, `db/schema/users.ts` — so a candidate that differs
+   * only by case conflicts here rather than at the constraint.
+   *
+   * ## And the probe alone is not enough
+   *
+   * This is a check-then-insert, so it is a race: the name can be taken between
+   * this answer and the write. `users_lower_username_key` is what keeps that
+   * correct — no duplicate can exist — but the loser's failure surfaces as a
+   * driver error. The callers therefore translate that constraint into the SAME
+   * `ConflictError`, so both the caller who loses the probe and the caller who
+   * loses the race get a 409 rather than one of them getting a 500.
    */
-  private async resolveUniqueUsername(requested: string, excludeId?: string): Promise<string> {
-    const base = requested.trim().toLowerCase();
-    if (!base) {
-      throw new BadRequestError('Username is required');
+  /**
+   * Run a write that stores a username, turning a lost race into the SAME 409 the
+   * probe produces.
+   *
+   * Only `users_lower_username_key` is translated, by NAME. A `users` write can
+   * violate `users_lower_email_key` or `users_lower_public_key_key` just as
+   * easily, and reporting either as "that username is taken" would send the
+   * caller to fix a field that was never the problem — a confident, wrong error
+   * message, which is worse than the 500 it replaced. Everything else propagates
+   * untouched.
+   *
+   * `username` may be absent: an update that does not rename cannot lose this
+   * race, and there is no name to put in the message. The column is nullable, so
+   * `null` is one of the ways it arrives.
+   */
+  private async rejectingTakenUsername<T>(
+    username: string | null | undefined,
+    write: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await write();
+    } catch (error) {
+      if (typeof username === 'string' && violatesUniqueIndex(error, USERNAME_UNIQUE_INDEX)) {
+        throw usernameTakenError(username);
+      }
+      throw error;
     }
-    if (!/^[\w.-]+$/.test(base)) {
-      throw new BadRequestError(
-        'Username may only contain letters, numbers, underscores, hyphens, and dots'
-      );
+  }
+
+  private async assertUsernameAvailable(
+    requested: string,
+    kind: AccountKind | null | undefined,
+    excludeId?: string
+  ): Promise<string> {
+    const parsed = usernameSchemaForAccountKind(kind).safeParse(requested);
+    if (!parsed.success) {
+      // The ISSUE's message, not the base constant: a bot handle can fail either
+      // half of the rule, and "must end in bot" told to somebody who typed `a.b`
+      // sends them to append a label and be refused a second time. Zod reports
+      // the base policy first, so the message always names the thing that is
+      // actually wrong.
+      throw new BadRequestError(parsed.error.issues[0].message, { field: 'username' });
+    }
+    const username = parsed.data;
+
+    const clauses = [sql`lower(btrim(${users.username})) = lower(btrim(${username}))`];
+    if (excludeId) {
+      clauses.push(ne(users.id, excludeId));
+    }
+    const [taken] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(and(...clauses))
+      .limit(1);
+    if (taken) {
+      throw usernameTakenError(username);
     }
 
-    const db = getDb();
-    let candidate = base;
-    for (let suffix = 1; suffix <= 1000; suffix++) {
-      const clauses = [sql`lower(btrim(${users.username})) = lower(btrim(${candidate}))`];
-      if (excludeId) {
-        clauses.push(ne(users.id, excludeId));
-      }
-      const [taken] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(and(...clauses))
-        .limit(1);
-      if (!taken) {
-        return candidate;
-      }
-      candidate = `${base}${suffix}`;
-    }
-    throw new ConflictError('Could not allocate a unique username');
+    return username;
   }
 }
 

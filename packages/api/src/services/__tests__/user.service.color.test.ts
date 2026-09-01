@@ -24,6 +24,7 @@ import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { billingSubscriptions } from '../../db/schema/billingSubscriptions';
 import { users } from '../../db/schema/users';
+import { BadRequestError } from '../../utils/error';
 import { userService } from '../user.service';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
@@ -97,6 +98,14 @@ describe('the `oxy` colour is refused without premium', () => {
     async (color) => {
       const id = await makeUser({ color: 'blue' });
 
+      // The CLASS and the message are asserted separately because they fail
+      // separately: `toThrow(message)` passes for any error carrying that text,
+      // so it says nothing about the status. A bare `Error` reaches
+      // `errorHandler`'s catch-all and answers 500 with "An unexpected error
+      // occurred" in production — the user is told the server broke, and never
+      // told why their colour did not save. The refused write is a no-op (the
+      // assertion below is exactly that), so asking twice costs nothing.
+      await expect(userService.updateUserProfile(id, { color })).rejects.toThrow(BadRequestError);
       await expect(userService.updateUserProfile(id, { color })).rejects.toThrow(
         'The oxy color is exclusive to premium subscribers'
       );

@@ -16,7 +16,7 @@
  * to manage, not a list of identities the device can become.
  */
 
-import { isActAsEligibleKind } from '@oxyhq/contracts';
+import { isOperatorSwitchTargetKind } from '@oxyhq/contracts';
 import type {
   AccountRelationship,
   AccountKind,
@@ -34,17 +34,23 @@ import type {
  *    is the HUMAN operator's personal account even while they are operating an
  *    org — never the operated account. Kind is irrelevant on this ground: the
  *    caller IS that account, so returning to it asks the server for nothing.
- *  - **The server will mint a session for it** — `isActAsEligibleKind(kind)` is
- *    the exact predicate `POST /accounts/:id/switch` enforces, so a row offered
- *    on this ground is never a dead button.
+ *  - **The server will mint a session for it** — `isOperatorSwitchTargetKind(kind)`
+ *    is the exact predicate `POST /accounts/:id/switch` enforces, so a row
+ *    offered on this ground is never a dead button.
  *
- * `isActAsEligibleKind` ALONE is not this question, and reaching for it
+ * `isOperatorSwitchTargetKind` ALONE is not this question, and reaching for it
  * directly is the mistake this function exists to prevent: it is false for
  * `personal` as well as `channel`, so a switcher gated on it alone renders an
  * empty list rather than a filtered one. Equally, `kind !== 'channel'` is not
  * this question either — it silently admits every kind invented after it was
- * written, which is the same trap `isActAsEligibleKind` was introduced to close
+ * written, which is the same trap the kind predicates were introduced to close
  * on the server.
+ *
+ * And it is the OPERATOR predicate, never `isDelegatedActAsEligibleKind`. The
+ * two differ only on `bot`, so the delegated one produces a list that looks
+ * right and contains one row too many — a seat inside the identity that exists
+ * to act while nobody is present. That is not a hypothetical: it put a live bot
+ * session on a person's own device, beside their personal login.
  *
  * Takes a structural subset rather than a whole {@link AccountNode} so a caller
  * holding an already-projected row can ask it too.
@@ -52,7 +58,7 @@ import type {
 export function isSwitchTargetAccount(
   node: { kind?: AccountKind | null; relationship?: AccountRelationship },
 ): boolean {
-  return node.relationship === 'self' || isActAsEligibleKind(node.kind);
+  return node.relationship === 'self' || isOperatorSwitchTargetKind(node.kind);
 }
 
 /**

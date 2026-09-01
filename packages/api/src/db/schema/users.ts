@@ -118,6 +118,9 @@ export const USER_COLOR_PRESETS = [
   'oxy',
 ] as const;
 
+/** A preset key the catalogue above still contains. */
+export type UserColorPreset = (typeof USER_COLOR_PRESETS)[number];
+
 /**
  * 3- or 6-digit hex, case-insensitive.
  *

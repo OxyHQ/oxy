@@ -12,8 +12,8 @@ import {
     type LayoutChangeEvent,
 } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import Ionicons from '../../icons/Ionicons';
+import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import type { FileMetadata } from '@oxyhq/core';
 import { computePhotoGridLayout } from './photoGridLayout';

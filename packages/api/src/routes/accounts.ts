@@ -2,7 +2,7 @@ import express from 'express';
 import type { Request } from 'express';
 import { and, count, eq, ne } from 'drizzle-orm';
 import {
-  isActAsEligibleKind,
+  isOperatorSwitchTargetKind,
   type AccountCategoryId,
   type ChildAccountKind,
 } from '@oxyhq/contracts';
@@ -16,7 +16,7 @@ import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler } from '../utils/asyncHandler';
-import { ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
+import { ForbiddenError, NotFoundError } from '../utils/error';
 import {
   accountService,
   type AccountMemberRow,
@@ -41,6 +41,7 @@ import { resolveUserByIdentifier } from '../utils/resolveUserIdentifier';
 import { accountMembers } from '../db/schema/accountMembers';
 import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { formatUserResponse } from '../utils/userTransform';
+import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
 import {
   effectivePermissionsForMember,
   type AccountPermission,
@@ -70,6 +71,36 @@ import {
 interface AccountContextRequest extends AuthRequest {
   account?: AccountRow;
   access?: EffectiveAccess;
+  /**
+   * The human whose authority `access` was resolved from — cached by
+   * `loadAccountContext` so a handler behind `requireAccountPermission` asks for
+   * the operator without a second session read.
+   *
+   * It exists because its absence is what caused the bug: the operator was
+   * computed, used once and discarded, so every handler after it reached for
+   * `requireUserId(req)` — the SUBJECT — and authorized the wrong identity.
+   */
+  operatorId?: string;
+}
+
+/**
+ * The operator `loadAccountContext` already resolved for this request.
+ *
+ * Every handler that reads it runs behind `requireAccountPermission`, which
+ * cannot reach the handler without having populated it — so an absent value is a
+ * routing mistake (a handler wired without the middleware), not a runtime
+ * condition. It throws rather than falling back to `requireUserId`, because that
+ * fallback is precisely the bug: it would authorize the SUBJECT, silently, on
+ * exactly the path where the two differ.
+ */
+function requireOperatorId(req: AccountContextRequest): string {
+  const operatorId = req.operatorId;
+  if (!operatorId) {
+    throw new Error(
+      'requireOperatorId called without loadAccountContext; wire the route behind requireAccountPermission'
+    );
+  }
+  return operatorId;
 }
 
 const router = express.Router();
@@ -85,7 +116,7 @@ const router = express.Router();
 // credential. CSRF is a non-issue: `verifyCsrfToken` returns early for any
 // `Authorization: Bearer` request, because CSRF protects ambient cookie auth.
 //
-// WHY THIS DOES NOT REOPEN WHAT `isActAsEligibleKind` CLOSED
+// WHY THIS DOES NOT REOPEN WHAT THE ACT-AS PREDICATES CLOSED
 //
 // The property is that no bearer can exist whose subject is a channel, so
 // nothing can add an auth method to one. Neither route touches
@@ -313,15 +344,6 @@ router.delete(
 // All remaining account routes require an authenticated user.
 router.use(authMiddleware);
 
-/** Resolve the authenticated user id, or throw 401. */
-function requireUserId(req: AuthRequest): string {
-  const userId = req.user?._id?.toString();
-  if (!userId) {
-    throw new UnauthorizedError('Authentication required');
-  }
-  return userId;
-}
-
 /**
  * Resolve the caller's central deviceId from their verified bearer (the access
  * token embeds a `deviceId` claim). Returns null when the token is absent or
@@ -331,45 +353,6 @@ function resolveCallerDeviceId(req: AuthRequest): string | null {
   const token = extractTokenFromRequest(req);
   const decoded = token ? decodeToken(token) : null;
   return decoded?.deviceId ?? null;
-}
-
-/**
- * Resolve the OPERATOR anchoring the caller's account graph and switches — the
- * HUMAN behind the request, NOT the account currently being acted-as.
- *
- * For an ordinary session the operator IS the authenticated account. For an
- * operated (managed / sub-account) session — one minted by `POST /:id/switch`
- * and carrying `operatedByUserId` — the operator is that recorded human, so
- * every switcher surface stays anchored on the person no matter which of their
- * accounts is currently active. Without this, acting-as a leaf sub-account
- * (which has no children/memberships of its own) collapses the switchable set to
- * just that account and makes sibling switches fail `verifyActingAs`.
- *
- * `operatedByUserId` is authoritative and server-set at switch time (bound to
- * the operator's `account:act_as` membership, re-verified on validate/refresh),
- * so trusting it here escalates nothing. The bearer JWT does not carry it
- * (session-doc-only), so it is read from the (request-cached) session record; a
- * missing/unreadable session degrades safely to the authenticated account.
- */
-async function resolveOperatorId(req: AuthRequest): Promise<string> {
-  const authedUserId = requireUserId(req);
-  const token = extractTokenFromRequest(req);
-  const sessionId = token ? decodeToken(token)?.sessionId : undefined;
-  if (!sessionId) {
-    return authedUserId;
-  }
-  try {
-    const sessionDoc = await sessionService.getSession(sessionId, true);
-    const operator = sessionDoc?.operatedByUserId ? sessionDoc.operatedByUserId.toString() : null;
-    return operator ?? authedUserId;
-  } catch (error) {
-    logger.debug('[accounts] resolveOperatorId: session lookup failed, using active account', {
-      component: 'accounts',
-      method: 'resolveOperatorId',
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return authedUserId;
-  }
 }
 
 /** Per-user (or per-IP when anonymous) rate-limit key for a scope. */
@@ -515,7 +498,7 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
 }> {
   // An operated session authenticates as the managed account, but its RBAC
   // remains that of the human operator recorded on the server-side session.
-  const userId = await resolveOperatorId(req);
+  const operatorId = await resolveOperatorId(req);
   const id = req.params.id;
 
   // The `isValidObjectId` guard is gone: it only ever prevented a Mongoose
@@ -526,13 +509,14 @@ async function loadAccountContext(req: AccountContextRequest): Promise<{
     throw new NotFoundError('Account not found');
   }
 
-  const access = await accountService.effectiveAccessForAccount(userId, account);
+  const access = await accountService.effectiveAccessForAccount(operatorId, account);
   if (!access) {
     throw new ForbiddenError('You do not have access to this account');
   }
 
   req.account = account;
   req.access = access;
+  req.operatorId = operatorId;
   return { account, access };
 }
 
@@ -631,7 +615,7 @@ router.post(
     // makes "a channel can never be logged into" structural — no session whose
     // subject is a channel can be minted, so no bearer exists that could add an
     // auth method to one.
-    if (!isActAsEligibleKind(account.kind)) {
+    if (!isOperatorSwitchTargetKind(account.kind)) {
       throw new ForbiddenError(
         account.kind === 'channel'
           ? 'Cannot switch into a channel account'
@@ -728,7 +712,13 @@ router.post(
   writeLimiter,
   validate({ body: createAccountSchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = requireUserId(req);
+    // THREE identities, not one. This handler used to read a single `userId`
+    // for all of them, and on a personal session that is right by accident —
+    // subject and operator are the same account, so nothing disagrees. The
+    // moment somebody switches into an organization they diverge, and the one
+    // value answered the wrong question twice.
+    const operatorId = await resolveOperatorId(req);
+    const subjectId = resolveSubjectId(req);
     const body = req.body as {
       parentAccountId?: string;
       kind: ChildAccountKind;
@@ -737,14 +727,30 @@ router.post(
       bio?: string;
       avatar?: string;
       description?: string;
+      color?: string;
       accountCategories?: AccountCategoryId[];
       isPrivateAccount?: boolean;
     };
 
-    const parentAccountId = body.parentAccountId ?? userId;
+    // WHERE it hangs is a question about the SUBJECT. Creating an agent while
+    // acting as an organization puts the agent under the ORGANIZATION, which is
+    // the whole point of switching: the account you are operating is the one you
+    // are building under. A client that names no parent means "here", and "here"
+    // is wherever the session is standing.
+    const parentAccountId = body.parentAccountId ?? subjectId;
 
-    // The caller must be allowed to create children on the chosen parent.
-    const access = await accountService.resolveEffectiveAccess(userId, parentAccountId);
+    // WHETHER it may be created is a question about the OPERATOR. The authority
+    // is the human's role over that parent, never the parent's implicit
+    // ownership of itself — an organization is not a member of itself, so asking
+    // the subject returned `null` and refused an owner the right to build under
+    // their own organization.
+    //
+    // Deliberately NOT solved by letting an account own itself. `account:act_as`
+    // is carried by `editor` as well as `owner` and `admin`, while
+    // `children:create` is not, so implicit self-ownership would hand every
+    // editor who switches a permission their role withholds. Asking the operator
+    // gives each person exactly the role they already hold here.
+    const access = await accountService.resolveEffectiveAccess(operatorId, parentAccountId);
     if (!access) {
       throw new ForbiddenError('You do not have access to the parent account');
     }
@@ -752,13 +758,17 @@ router.post(
       throw new ForbiddenError('Missing required permission: children:create');
     }
 
-    const { account, membership } = await accountService.createChildAccount(parentAccountId, userId, {
+    // WHO OWNS the new account is a question about the operator too: the owner
+    // member of an account is a person, and the person here is the human, not
+    // the organization they are wearing.
+    const { account, membership } = await accountService.createChildAccount(parentAccountId, operatorId, {
       kind: body.kind,
       username: body.username,
       name: body.name,
       bio: body.bio,
       avatar: body.avatar ? stripSensitiveUrlQueryParams(body.avatar) : body.avatar,
       description: body.description,
+      color: body.color,
       accountCategories: body.accountCategories,
       // Threaded explicitly, like every other field: this handler names each
       // one, so a field the schema accepts but this list omits is dropped
@@ -948,7 +958,9 @@ router.get(
     if (!account) {
       throw new NotFoundError('Account not found');
     }
-    const children = await accountService.listChildren(requireUserId(req), account.id);
+    // The operator's visibility, not the subject's: `loadAccountContext` already
+    // resolved the human this request's authority belongs to.
+    const children = await accountService.listChildren(requireOperatorId(req), account.id);
     res.json({ accounts: children.map(serializeAccountNode) });
   })
 );
@@ -964,7 +976,7 @@ router.get(
     if (!account) {
       throw new NotFoundError('Account not found');
     }
-    const subtree = await accountService.getSubtree(requireUserId(req), account.id);
+    const subtree = await accountService.getSubtree(requireOperatorId(req), account.id);
     res.json({ accounts: subtree.map(serializeAccountNode) });
   })
 );
@@ -985,8 +997,13 @@ router.post(
     }
     const { newParentId } = req.body as { newParentId: string };
 
-    const userId = requireUserId(req);
-    const destAccess = await accountService.resolveEffectiveAccess(userId, newParentId);
+    // The DESTINATION is a second authorization, and it was asking the subject —
+    // the identical defect the create route carried. Acting as an organization,
+    // moving an account into it refused the organization's own owner.
+    const destAccess = await accountService.resolveEffectiveAccess(
+      requireOperatorId(req),
+      newParentId
+    );
     if (!destAccess || !destAccess.permissions.includes('children:create')) {
       throw new ForbiddenError('Missing permission to add children to the destination account');
     }
@@ -1051,7 +1068,9 @@ router.post(
 
     const member = await accountService.addMember(
       account.id,
-      requireUserId(req),
+      // The inviter is a person. While operating an organization that person is
+      // the operator, not the organization.
+      requireOperatorId(req),
       targetUser.id,
       role,
       inherit
@@ -1124,7 +1143,9 @@ router.patch(
     // whose access is INHERITED from an ancestor has no row on this account, and
     // the row they would be editing here is a different one that nonetheless
     // decides what they may do on this account.
-    if (target.memberUserId === requireUserId(req)) {
+    // "Your own" membership is the OPERATOR's: a membership row names a human,
+    // and while acting as an organization the subject is not one.
+    if (target.memberUserId === requireOperatorId(req)) {
       throw new ForbiddenError('You cannot change your own membership');
     }
 
@@ -1187,7 +1208,7 @@ router.post(
     }
     const { userId: targetUserId } = req.body as { userId: string };
 
-    await accountService.transferOwnership(account.id, requireUserId(req), targetUserId);
+    await accountService.transferOwnership(account.id, requireOperatorId(req), targetUserId);
     res.json({ success: true });
   })
 );

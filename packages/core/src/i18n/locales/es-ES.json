@@ -1829,6 +1829,7 @@
         "taken": "El nombre de usuario ya está en uso",
         "tooShort": "El nombre de usuario debe tener al menos 3 caracteres",
         "invalidChars": "Solo letras, números, guiones y guiones bajos",
+        "mustEndInBot": "El nombre de usuario de una cuenta de bot debe terminar en “bot”",
         "checkFailed": "No se pudo comprobar la disponibilidad"
       },
       "accountCategory": {

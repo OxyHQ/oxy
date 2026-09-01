@@ -59,6 +59,20 @@ function uniqueUsername(prefix: string): string {
   return `${prefix}${seedCounter}z${Date.now().toString(36)}`;
 }
 
+/**
+ * A handle legal for `kind`. Only `bot` differs — `botUsernameSchema`
+ * (`@oxyhq/contracts`) requires its handle to end in `bot` — so a loop over every
+ * child kind has to carry the label for that one member, or the iteration 400s
+ * on a question that has nothing to do with what the case is testing.
+ */
+function uniqueUsernameFor(
+  kind: (typeof CHILD_ACCOUNT_KINDS)[number],
+  prefix: string
+): string {
+  const handle = uniqueUsername(prefix);
+  return kind === 'bot' ? `${handle}bot` : handle;
+}
+
 interface SeedOptions {
   kind?: 'personal' | 'organization' | 'project' | 'bot' | 'channel';
   username?: string;
@@ -328,16 +342,16 @@ describe('createChildAccount', () => {
 
     const hidden = await accountService.createChildAccount(root.id, root.id, {
       kind: 'bot',
-      username: uniqueUsername('hidden'),
+      username: uniqueUsernameFor('bot', 'hidden'),
       isPrivateAccount: true,
     });
     const silent = await accountService.createChildAccount(root.id, root.id, {
       kind: 'bot',
-      username: uniqueUsername('silent'),
+      username: uniqueUsernameFor('bot', 'silent'),
     });
     const explicit = await accountService.createChildAccount(root.id, root.id, {
       kind: 'bot',
-      username: uniqueUsername('explicit'),
+      username: uniqueUsernameFor('bot', 'explicit'),
       isPrivateAccount: false,
     });
 
@@ -367,7 +381,7 @@ describe('createChildAccount', () => {
     for (const kind of ['organization', 'project', 'bot', 'channel'] as const) {
       const { account } = await accountService.createChildAccount(root.id, root.id, {
         kind,
-        username: uniqueUsername(`priv${kind}`),
+        username: uniqueUsernameFor(kind, `priv${kind}`),
         isPrivateAccount: true,
       });
       const [row] = await getDb()
@@ -467,7 +481,7 @@ describe('createChildAccount', () => {
     for (const kind of CHILD_ACCOUNT_KINDS) {
       const { account } = await accountService.createChildAccount(root.id, root.id, {
         kind,
-        username: uniqueUsername(`cat-${kind}`),
+        username: uniqueUsernameFor(kind, `cat-${kind}`),
         accountCategories: ['technology'],
       });
       expect(account.accountCategories).toEqual(['technology']);
@@ -569,16 +583,21 @@ describe('createChildAccount', () => {
     expect(row).toBeUndefined();
   });
 
-  test('suffixes the username on collision', async () => {
+  /**
+   * This used to assert `${taken}1` — the suffix. Asking for a handle and being
+   * given a different one is the server answering a question nobody asked, and
+   * the consumers were already written for the refusal: Alia retries on 409, and
+   * the cost-centre seed treats a suffix as a failure. `accountUsernameCollision`
+   * covers the rename, the case-insensitivity and the lost race.
+   */
+  test('refuses a taken username rather than suffixing it', async () => {
     const root = await seedAccount();
     const taken = uniqueUsername('oxy');
     await seedAccount({ kind: 'organization', username: taken });
 
-    const { account } = await accountService.createChildAccount(root.id, root.id, {
-      kind: 'organization',
-      username: taken,
-    });
-    expect(account.username).toBe(`${taken}1`);
+    await expect(
+      accountService.createChildAccount(root.id, root.id, { kind: 'organization', username: taken })
+    ).rejects.toMatchObject({ statusCode: 409 });
   });
 
   test('enforces MAX_ACCOUNT_DEPTH', async () => {

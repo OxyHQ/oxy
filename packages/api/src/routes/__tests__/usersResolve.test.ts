@@ -588,6 +588,36 @@ describe('PUT /users/resolve — persistence', () => {
     expect(invalidateSpy).toHaveBeenCalledWith(stored.id);
   });
 
+  /**
+   * The federated namespace is not governed by the local username policy, and in
+   * particular not by the rule that a `bot` account's handle must end in `bot`
+   * (`botUsernameSchema`, `@oxyhq/contracts`).
+   *
+   * A remote bot is a bot on ANOTHER server. Its handle is stored as
+   * `handle@domain` — a shape the local policy rejects outright, label or no
+   * label — and there are ~74k such rows. Pointing either schema at this route
+   * would reject every one of them, so this is the control that says nobody did:
+   * an actor that is plainly a bot and carries no label resolves, and lands in
+   * `users` under exactly the handle it was given.
+   */
+  it('stores a remote BOT actor whose handle carries no local label', async () => {
+    const handle = `newsfeed${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      displayName: 'News Feed',
+    });
+
+    expect(res.status).toBe(200);
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.username).toBe(`${handle}@mastodon.social`);
+    expect(stored.username.endsWith('bot')).toBe(false);
+  });
+
   it('clears an existing tombstone on re-resolve rather than leaving the actor dead', async () => {
     const handle = `revived${token()}`;
     const actorUri = `https://mastodon.social/users/${handle}`;

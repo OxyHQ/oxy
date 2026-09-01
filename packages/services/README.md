@@ -188,8 +188,12 @@ function UserProfile() {
 Typography is owned entirely by `@oxyhq/bloom`. `BloomThemeProvider` ships the
 Inter, BlomusModernus and Geist Mono families — variable `.ttf` files loaded via
 `expo-font` on native, `@font-face` rules injected as data URLs on web — and
-applies the default family to every `<Text>`. This package bundles no fonts and
-loads none, so it adds no font weight to consumer app binaries.
+applies the default family to every `<Text>`. This package bundles and loads no
+fonts for typography. Its screens do ship two generated icon-font subsets:
+only the Ionicons and Material Community Icons code points referenced by Services
+are included (currently about 75 KB combined instead of the 1.70 MB full fonts).
+The subsets keep the original glyph outlines and use private family names, so
+they do not collide with a consumer app's own icon fonts.
 
 ```typescript
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';

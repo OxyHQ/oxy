@@ -16,7 +16,8 @@ export {
     CHILD_ACCOUNT_KINDS,
     childAccountKindSchema,
     isAccountKind,
-    isActAsEligibleKind,
+    isDelegatedActAsEligibleKind,
+    isOperatorSwitchTargetKind,
     ACCOUNT_CATEGORY_IDS,
     ACCOUNT_CATEGORY_KINDS,
     accountCategoriesSchema,
@@ -37,6 +38,18 @@ export type {
     ChildAccountKind,
     CreateAccountRequest,
 } from './accountGraph';
+
+export {
+    usernameSchema,
+    usernameSchemaForAccountKind,
+    isValidUsername,
+    stripDisallowedUsernameCharacters,
+    applyBotUsernameSuffix,
+    USERNAME_MIN_LENGTH,
+    USERNAME_MAX_LENGTH,
+    USERNAME_INVALID_MESSAGE,
+    BOT_USERNAME_INVALID_MESSAGE,
+} from './username';
 
 export {
     // Schemas

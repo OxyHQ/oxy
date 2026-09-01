@@ -1,5 +1,5 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import type MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import Ionicons from "../icons/Ionicons";
+import type MaterialCommunityIcons from "../icons/MaterialCommunityIcons";
 import { Button } from "@oxyhq/bloom/button";
 import {
 	SettingsListGroup,

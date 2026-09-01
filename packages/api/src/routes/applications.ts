@@ -46,6 +46,7 @@ import {
   rotateCredentialSchema,
 } from '../schemas/application.schemas';
 import { generateMachineCredentialToken } from '../utils/machineCredentialToken';
+import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
 import {
   listCredentialAuditTrail,
   recordCredentialLifecycleEvent,
@@ -580,7 +581,11 @@ function callerMembershipFromAccess(access: AppAccess | undefined): SerializedCa
  * when the caller has no account access to its owner.
  */
 async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess> {
-  const userId = requireUserId(req);
+  // The OPERATOR's access over the owning account, never the subject's. An
+  // operated session authenticates as the managed account, and that account is
+  // not a member of itself — asking it refuses the very people who own the
+  // organization the application belongs to.
+  const operatorId = await resolveOperatorId(req);
   const db = getDb();
 
   const [application] = await db
@@ -593,7 +598,7 @@ async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess
   }
 
   const accountAccess = await accountService.resolveEffectiveAccess(
-    userId,
+    operatorId,
     application.ownerAccountId
   );
   if (!accountAccess) {
@@ -640,7 +645,7 @@ router.get(
   '/',
   validate({ query: listApplicationsQuerySchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = requireUserId(req);
+    const operatorId = await resolveOperatorId(req);
     const ownerAccountIdFilter = req.query.ownerAccountId as string | undefined;
 
     // The caller's EFFECTIVE account access per accessible account id — role
@@ -652,13 +657,13 @@ router.get(
     >();
 
     if (ownerAccountIdFilter !== undefined) {
-      const access = await accountService.resolveEffectiveAccess(userId, ownerAccountIdFilter);
+      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter);
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
       accessByAccountId.set(ownerAccountIdFilter, access);
     } else {
-      const nodes = await accountService.listAccessibleAccounts(userId);
+      const nodes = await accountService.listAccessibleAccounts(operatorId);
       for (const node of nodes) {
         // `self` carries no membership row: a user is the implicit owner of
         // their own account, exactly as `resolveEffectiveAccess` treats it.
@@ -721,7 +726,10 @@ router.post(
   '/',
   validate({ body: createApplicationSchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = requireUserId(req);
+    // The same three-way split `POST /accounts` needed: where it hangs is the
+    // SUBJECT's question, whether it may be created is the OPERATOR's.
+    const operatorId = await resolveOperatorId(req);
+    const subjectId = resolveSubjectId(req);
     const body = req.body as {
       ownerAccountId?: string;
       name: string;
@@ -734,9 +742,11 @@ router.post(
       scopes?: typeof APPLICATION_SCOPES[number][];
     };
 
-    const ownerAccountId = body.ownerAccountId ?? userId;
+    // Acting as an organization and naming no owner means "this organization",
+    // which is what switching into it is for.
+    const ownerAccountId = body.ownerAccountId ?? subjectId;
 
-    const access = await accountService.resolveEffectiveAccess(userId, ownerAccountId);
+    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId);
     if (!access) {
       throw new ForbiddenError('You do not have access to the owning account');
     }
@@ -759,7 +769,7 @@ router.post(
         redirectUris: resolveRedirectUris(body) ?? [],
         scopes,
         ownerAccountId,
-        createdByUserId: userId,
+        createdByUserId: operatorId,
       })
       .returning();
 
@@ -770,7 +780,7 @@ router.post(
     }
 
     logger.info('Application created', {
-      userId,
+      userId: operatorId,
       applicationId: application.id,
       ownerAccountId: ownerAccountId,
       name: application.name,

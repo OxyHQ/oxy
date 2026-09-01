@@ -2,7 +2,7 @@ import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { ReputationTransaction, TrustTier } from '@oxyhq/contracts';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 import { Chip } from '@oxyhq/bloom/chip';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { H1, Text } from '@oxyhq/bloom/typography';

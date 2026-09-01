@@ -7,7 +7,7 @@ import {
     type ViewStyle,
 } from 'react-native';
 import { View, Pressable } from 'react-native-css/components';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { Text } from '@oxyhq/bloom/typography';

@@ -50,7 +50,8 @@ import { CACHE_TIMES } from './mixinHelpers';
  * (`local|federated|agent|automated`). `personal` accounts have a direct login;
  * `organization` / `project` / `bot` / `channel` accounts are operated via
  * `AccountMember` and have no direct login. Of those, only the first three may
- * be acted AS — see `isActAsEligibleKind`.
+ * be acted AS by an application (`isDelegatedActAsEligibleKind`), and only the
+ * first two may be SWITCHED INTO by a person (`isOperatorSwitchTargetKind`).
  *
  * Single source of truth is `@oxyhq/contracts`.
  */
@@ -60,7 +61,8 @@ export {
   ACCOUNT_KINDS,
   MAX_ACCOUNT_CATEGORIES,
   SELECTABLE_ACCOUNT_CATEGORY_IDS,
-  isActAsEligibleKind,
+  isDelegatedActAsEligibleKind,
+  isOperatorSwitchTargetKind,
   isSelectableAccountCategoryId,
   kindAcceptsAccountCategories,
 } from '@oxyhq/contracts';
@@ -180,7 +182,7 @@ export interface CreateAccountInput {
    * service-provisioned only. What actually makes a channel safe does not depend
    * on who creates it: `createChildAccount` writes no auth method, so it is born
    * with no login, and `POST /accounts/:id/switch` refuses it via
-   * `isActAsEligibleKind`, so no session can ever have a channel as its subject
+   * both act-as predicates, so no session can ever have a channel as its subject
    * and therefore no bearer exists that could add one. `personal` is excluded
    * because it is a human login, minted at signup.
    */
@@ -201,6 +203,21 @@ export interface CreateAccountInput {
   name?: { first?: string; last?: string; displayName?: string };
   bio?: string;
   avatar?: string;
+  /**
+   * Named color preset KEY — `'blue'`, `'mint'`, … — never a hex value. The
+   * account graph's half of `User.color`, which every account DTO already
+   * carries; this is how one gets WRITTEN for an account you administer.
+   *
+   * Set it HERE rather than after the fact. For a managed account the colour is
+   * a visual identity, and an account that is discoverable without one and
+   * acquires it on a second request is a face that changes by itself.
+   *
+   * Omitted is not "no colour": the platform assigns a random preset, exactly as
+   * it did before this field existed. A reserved preset is refused unless the
+   * account has a claim to it — the administrator's own entitlements are not the
+   * ones weighed.
+   */
+  color?: string;
   /**
    * What the account is about. ORDERED — the FIRST element is the primary
    * category, so a picker must submit them in the order the user arranged them
@@ -242,6 +259,15 @@ export interface UpdateAccountInput {
   name?: { first?: string; last?: string; displayName?: string };
   bio?: string | null;
   avatar?: string | null;
+  /**
+   * Named color preset KEY, same vocabulary as `CreateAccountInput['color']`.
+   *
+   * NOT nullable, unlike `bio` and `avatar`: the column is `NOT NULL` with a
+   * default, so an account always HAS a colour and there is no "clear" to
+   * express. Sending the value the account already carries is always accepted,
+   * so a client may PATCH back the object it was served.
+   */
+  color?: string;
   /**
    * Replaces the WHOLE list, in the order given — there is no add/remove verb,
    * because a partial edit cannot express a re-ordering and the order is what
