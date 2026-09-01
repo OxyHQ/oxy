@@ -45,7 +45,6 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0",
-    "@oxyhq/core": "workspace:*",
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
