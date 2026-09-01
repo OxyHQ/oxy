@@ -17,9 +17,12 @@ import {
 } from '../queries/queryKeys';
 import { mutationKeys } from './mutationKeys';
 import { useOxy } from '../../context/OxyContext';
-import { toast } from '@oxyhq/bloom';
-import { refreshAvatarInStore } from '../../utils/avatarUtils';
+import { toast } from '@oxyhq/bloom/toast';
 import { useAuthStore } from '../../stores/authStore';
+import {
+  clearedFieldsFromProfileUpdate,
+  upsertCachedUser,
+} from '../queries/userCache';
 
 /**
  * Update user profile with optimistic updates and offline queue support
@@ -104,10 +107,10 @@ export const useUpdateProfile = () => {
       // Update authStore so frontend components see the changes immediately
       useAuthStore.getState().setUser(data);
 
-      // If avatar was updated, refresh accountStore with cache-busted URL
-      if (updates.avatar && activeSessionId && oxyServices) {
-        refreshAvatarInStore(activeSessionId, updates.avatar, oxyServices);
-      }
+      const cleared = clearedFieldsFromProfileUpdate(updates);
+      upsertCachedUser(queryClient, data, data.id, {
+        cleared: cleared.length > 0 ? cleared : undefined,
+      });
 
       // Invalidate all related queries so every consumer (the account dialog,
       // session lists, managed accounts, etc.) refetches the fresh profile.
@@ -192,11 +195,6 @@ export const useUploadAvatar = () => {
       // Update authStore so frontend components see the changes immediately
       useAuthStore.getState().setUser(data);
       
-      // Refresh accountStore with cache-busted URL if avatar was updated
-      if (data?.avatar && activeSessionId && oxyServices) {
-        refreshAvatarInStore(activeSessionId, data.avatar, oxyServices);
-      }
-
       // Invalidate all related queries to refresh everywhere, including the
       // sessions cache so other-account avatars update too.
       invalidateUserQueries(queryClient);

@@ -19,6 +19,7 @@ import { useCivicCard } from '@/hooks/useCivicCard';
 import { usePersonhood } from '@/hooks/usePersonhood';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { userIdFromDid } from '@/lib/civic/did';
+import { trustTierLabel } from '@oxyhq/core';
 import {
   getVerificationMeta,
   getTrustTierMeta,
@@ -41,7 +42,7 @@ import { useTranslation } from '@/lib/i18n';
 export default function ScannedCardScreen() {
   const colors = useColors();
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { did } = useLocalSearchParams<{ did: string }>();
 
   const userId = useMemo(() => (did ? userIdFromDid(did) : null), [did]);
@@ -154,7 +155,7 @@ export default function ScannedCardScreen() {
           </View>
 
           <View style={styles.badgeRow}>
-            <CivicBadge tone={trust.tone} icon="shield-check" label={t(`civic.trustTier.${trust.labelKey}`)} />
+            <CivicBadge tone={trust.tone} icon="shield-check" label={trustTierLabel(locale, trust.labelKey)} />
             <CivicBadge
               tone={personhoodMeta.tone}
               icon="account-check-outline"

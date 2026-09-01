@@ -1,14 +1,22 @@
 import { type LinkPreview, linkPreviewSchema } from '@oxyhq/contracts';
-import type { ILinkPreview } from '../../models/LinkPreview';
+import type { linkPreviews } from '../../db/schema';
 
 /**
  * Fields the serializer reads off a stored preview. Deliberately a NARROW pick
- * that EXCLUDES `originImageUrl` / `originFaviconUrl` — the privacy invariant is
- * enforced at the type level here: the server-only origin URLs are not even in
- * scope for the mapping, so they can never be copied into the client DTO.
+ * that EXCLUDES `origin_image_url` / `origin_favicon_url` — the privacy
+ * invariant is enforced at the type level here: the server-only origin URLs are
+ * not even in scope for the mapping, so they can never be copied into the client
+ * DTO.
+ *
+ * This matters MORE under drizzle than it did under Mongoose. Those two columns
+ * were `select: false`, so a plain `find()` never loaded them; drizzle's
+ * `db.select().from(linkPreviews)` returns every column, so the type is now the
+ * only thing standing between a whole-row read and a leak of the origin URL
+ * (which would tell the origin server the viewer's IP). The reads in
+ * `linkPreviewService` therefore also enumerate their columns.
  */
 export type SerializableLinkPreview = Pick<
-  ILinkPreview,
+  typeof linkPreviews.$inferSelect,
   | 'requestedUrl'
   | 'canonicalUrl'
   | 'title'

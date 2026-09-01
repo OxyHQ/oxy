@@ -9,10 +9,11 @@ import { beforeEach, describe, expect, mock, test } from "bun:test"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { MemoryRouter } from "react-router-dom"
+import { defaultDeviceSwitcher } from "@/lib/__tests__/setup-services-mock"
 
 // The button opens the services account dialog. Stub the services surface so the
 // test can assert the dialog is opened with the 'signin' view without mounting
-// the full OxyProvider / RN overlay stack. `useSwitchableAccounts` returns no
+// the full OxyProvider / RN overlay stack. `useDeviceSwitcher` returns no
 // accounts → the form opens on the identifier step (not the chooser / loading
 // spinner), where the third option lives.
 const openAccountDialog = mock(() => undefined)
@@ -22,9 +23,8 @@ mock.module("@oxyhq/services", () => ({
         oxyServices: { lookupUsername: async () => ({ username: "", name: {}, avatar: null, color: null }) },
         signInWithPassword: async () => ({ status: "ok" as const }),
         completeTwoFactorSignIn: async () => ({}),
-        switchToAccount: async () => undefined,
     }),
-    useSwitchableAccounts: () => ({ isLoading: false, currentSessionId: null, accounts: [] }),
+    useDeviceSwitcher: defaultDeviceSwitcher,
     // No-op stubs — this suite never renders them, but `mock.module` is
     // process-global (last writer wins across files), so every export a
     // sibling suite's page imports statically must be defined here too:

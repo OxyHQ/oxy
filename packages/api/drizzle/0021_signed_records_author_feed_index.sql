@@ -1,0 +1,24 @@
+-- oxy:deploy-phase=pre
+--
+-- PRE, for the reason 0020 sets out: an index is never named by a query, so it
+-- is invisible to the image still serving, while the arriving image's
+-- multi-author read (`oxyRecordStore.listRecordsByAuthors`) wants it from its
+-- first request. Marking it `post` would leave that read scanning until somebody
+-- dispatched the second half.
+--
+-- Plain CREATE INDEX, not CONCURRENTLY: the migrator runs inside a transaction
+-- and CONCURRENTLY cannot. The cost is that writes to `signed_records` block
+-- while it builds — reads are unaffected, since a non-concurrent build takes
+-- SHARE, not ACCESS EXCLUSIVE. The writers are record publishes
+-- (identity/profile/civic/node), not a request hot path. **Check the table's
+-- production row count before dispatching this**: the build time is
+-- proportional to it, and that is the whole of the risk.
+--
+-- Column order is load-bearing and is argued where it is declared
+-- (`src/db/schema/signedRecords.ts`), together with the measured plan: PG17
+-- takes a Bitmap Index Scan for the author set and then sorts, so this index
+-- buys the RESTRICTION rather than the ordering. `nsid` stays an IN-list filter
+-- rather than a leading column so one index serves any lexicon mix. The partial
+-- predicate matches the query exactly — a v1 row carries no lexicon to filter
+-- on, and an unverified row never reaches a feed.
+CREATE INDEX "signed_records_authors_created_at_id_idx" ON "signed_records" USING btree ("user_id","created_at","id") WHERE "signed_records"."nsid" is not null and "signed_records"."verified";

@@ -13,7 +13,7 @@
  */
 
 import express from 'express';
-import mongoose from 'mongoose';
+import { and, eq, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   assetInitRequestSchema,
@@ -30,18 +30,18 @@ import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import {
-  BadRequestError,
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
   ValidationError,
 } from '../utils/error';
 import { logger } from '../utils/logger';
-import Application from '../models/Application';
+import { getDb } from '../config/postgres';
+import { applications } from '../db/schema';
 import { accountService } from '../services/account.service';
-import { appPermissionsForAccountRole } from '../utils/accountRoles';
+import { appPermissionsForAccountAccess } from '../utils/accountRoles';
+import { resolveOperatorId } from '../middleware/operator';
 import * as publishService from '../services/updates/publish.service';
-import type { UpdatePlatform } from '../models/UpdateChannel';
 
 const router = express.Router();
 
@@ -91,12 +91,15 @@ function authenticatePrincipal(
   void authMiddleware(req, res, next);
 }
 
-/** Enforce that the authenticated principal may manage updates for `applicationId`. */
+/**
+ * Enforce that the authenticated principal may manage updates for
+ * `applicationId`.
+ *
+ * There is no id-shape guard: it existed only to keep a non-ObjectId string from
+ * becoming a Mongoose `CastError`. An application id that names no row is a 404,
+ * which Postgres answers for any string.
+ */
 async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string): Promise<void> {
-  if (!mongoose.Types.ObjectId.isValid(applicationId)) {
-    throw new BadRequestError('Invalid applicationId');
-  }
-
   if (req.serviceApp) {
     const scopes = req.serviceApp.scopes ?? [];
     if (!scopes.includes('updates:publish')) {
@@ -108,25 +111,31 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
     return;
   }
 
-  const userId = req.user?._id?.toString();
-  if (!userId) {
+  if (!req.user?._id) {
     throw new UnauthorizedError('Authentication required');
   }
-  const application = await Application.findOne({
-    _id: applicationId,
-    status: { $ne: 'deleted' },
-  }).select('ownerAccountId');
+  // The OPERATOR's access over the owning account. A session acting as the
+  // organization that owns the application is not a member of itself.
+  const operatorId = await resolveOperatorId(req);
+  const [application] = await getDb()
+    .select({ ownerAccountId: applications.ownerAccountId })
+    .from(applications)
+    .where(and(eq(applications.id, applicationId), ne(applications.status, 'deleted')));
   if (!application) {
     throw new NotFoundError('Application not found');
   }
   const access = await accountService.resolveEffectiveAccess(
-    userId,
-    application.ownerAccountId.toString()
+    operatorId,
+    application.ownerAccountId
   );
   if (!access) {
     throw new ForbiddenError('You do not have access to this application');
   }
-  if (!appPermissionsForAccountRole(access.role).includes('updates:manage')) {
+  // From the caller's EFFECTIVE account access, never their role: a per-member
+  // revoke has to reach this gate too (issue #978). `updates:manage` answers to
+  // `apps:update` — publishing an OTA update replaces the code the app ships,
+  // so a member whose `apps:update` was withdrawn cannot keep doing it.
+  if (!appPermissionsForAccountAccess(access).includes('updates:manage')) {
     throw new ForbiddenError('Missing required permission: updates:manage');
   }
 }
@@ -212,7 +221,7 @@ router.post(
       body.applicationId,
       req.params.channel,
       body.runtimeVersion,
-      body.platform as UpdatePlatform
+      body.platform
     );
     sendSuccess(res, result);
   })
@@ -228,7 +237,7 @@ router.post(
       body.applicationId,
       req.params.channel,
       body.runtimeVersion,
-      body.platform as UpdatePlatform
+      body.platform
     );
     sendSuccess(res, { channel });
   })

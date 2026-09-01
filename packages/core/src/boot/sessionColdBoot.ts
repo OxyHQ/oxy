@@ -15,10 +15,17 @@
  *      origin persisted a `deviceId` + `deviceSecret`, mint a short access token
  *      with a single bearer-less POST to `/session/device/token` (no cookie, no
  *      navigation) and rotate the secret in-use.
- *   3. `shared-key-signin` (native, ACCOUNT mode) — re-mint from the
- *      shared-keychain identity — OR `identity-key-signin` (IDENTITY mode) —
- *      re-mint from THIS device's primary identity key.
- *   4. Signed out.
+ *   3. `shared-device-adopt` (native, ACCOUNT mode) — this app has no credential
+ *      of its own but a sibling official app already put one in the shared native
+ *      slot: adopt it and mint. This is how a newly installed official app joins
+ *      the device's existing session WITHOUT another QR and without ever touching
+ *      the Commons private key.
+ *   4. `shared-key-signin` (native, ACCOUNT mode) — the legacy lane: re-mint by
+ *      signing with the shared-keychain IDENTITY key. Retained as a recovery /
+ *      compatibility path for devices whose apps have not yet published a shared
+ *      device credential — OR `identity-key-signin` (IDENTITY mode) — re-mint
+ *      from THIS device's primary identity key.
+ *   5. Signed out.
  *
  * Two session modes (see {@link RunSessionColdBootOptions.sessionMode}):
  *   - `account` (default) — the device's ACTIVE account owns the session. Every
@@ -42,8 +49,12 @@ import {
   type IdentityBinding,
 } from '../session/identitySession';
 import type { IdentityPin } from '../session/identityPin';
+import {
+  decideSharedDeviceJoin,
+  type SharedDeviceCredentialStore,
+} from '../session/sharedDeviceCredential';
 import type { OxyServices } from '../OxyServices';
-import type { AuthStateStore } from '../session/authStateStore';
+import type { AuthStateStore, PersistedAuthState } from '../session/authStateStore';
 
 /**
  * Who owns the session this boot resolves.
@@ -116,6 +127,18 @@ export interface RunSessionColdBootOptions {
    * `sessionMode: 'identity'`. Ignored in `'account'` mode.
    */
   identity?: IdentityBinding;
+  /**
+   * The cross-app native slot holding this device's shared DeviceSession
+   * credential, enabling the `shared-device-adopt` lane. Supplied by
+   * `@oxyhq/services` on native; absent on web, where each origin is its own
+   * device by design.
+   *
+   * IGNORED in `sessionMode: 'identity'`. The shared slot belongs to whichever
+   * principal signed in on this device; an identity-bound client must resolve
+   * its session from the local key alone, and adopting a device credential is
+   * exactly the drift that mode exists to prevent.
+   */
+  sharedDeviceCredential?: SharedDeviceCredentialStore;
 }
 
 /**
@@ -227,10 +250,9 @@ export async function runSessionColdBoot(
   //    origin persisted a deviceId + deviceSecret, mint a short access token with
   //    a single bearer-less POST (no cookie, no navigation). The mint itself runs
   //    through `refreshDeviceSecretArm`, which acquires the client's PROCESS-WIDE
-  //    single-flight, persists the rotated `nextDeviceSecret` BEFORE planting the
-  //    token, and returns a classified outcome — so this step can never
-  //    double-rotate the server against the scheduler/transport/401 lanes, and
-  //    the durable store always converges on the true `current` secret.
+  //    single-flight, persists `nextDeviceSecret` BEFORE planting the token, and
+  //    returns a classified outcome — so concurrent mint lanes share one in-flight
+  //    request and the durable store always converges on the server's credential.
   steps.push({
     id: 'device-secret-mint',
     // Network step — skip entirely when the caller reports the device offline so
@@ -249,7 +271,7 @@ export async function runSessionColdBoot(
       const result = await refreshDeviceSecretArm({ oxy, store, pin });
       switch (result.status) {
         case 'ok':
-          // The arm persisted the rotated secret and planted the token.
+          // The arm persisted nextDeviceSecret and planted the token.
           return {
             kind: 'session',
             session: {
@@ -343,10 +365,111 @@ export async function runSessionColdBoot(
         };
       },
     });
-  } else {
-    // 3. shared-key-signin (native) — re-mint from the shared identity. Native
-    //    AND online: it is a network step (challenge + verify round-trips), so it
-    //    is gated by the same offline hint as the mint lane. `{ retry: false }`
+  } else if (opts.sharedDeviceCredential) {
+    // 3. shared-device-adopt (native, ACCOUNT mode) — join the device's existing
+    //    session through the shared native credential slot.
+    //
+    //    This is the lane that separates identity from session transport. What it
+    //    reads is an ordinary, individually revocable `deviceId` + `deviceSecret`
+    //    put there by a sibling official app — never the Commons private key. It
+    //    is what lets a freshly installed official app land signed in with no QR,
+    //    and it is why an ordinary app never needs identity-key access at all.
+    //
+    //    `decideSharedDeviceJoin` gates it: an app that already holds its own
+    //    credential is never moved, and an UNREADABLE slot is never mistaken for
+    //    an empty one. The lane therefore cannot sign anyone out, in either
+    //    upgrade order.
+    const sharedSlot = opts.sharedDeviceCredential;
+    steps.push({
+      id: 'shared-device-adopt',
+      // The adoption itself is local, but it is only worth committing alongside
+      // a mint that proves the credential — so the whole lane is online-gated
+      // like every other network step.
+      enabled: () => isNative && !isOffline(),
+      run: async () => {
+        const before = await store.load();
+        const decision = decideSharedDeviceJoin(before, await sharedSlot.read());
+        if (decision.action === 'skip') {
+          logger.debug(
+            `shared device credential not adopted (${decision.reason})`,
+            { component: 'sessionColdBoot', method: 'shared-device-adopt' },
+          );
+          return { kind: 'skip' };
+        }
+
+        // Restore the store to exactly what it held before this lane touched it.
+        // A credential we adopted and could not prove must not be left behind for
+        // the next boot's mint lane to keep retrying.
+        const revert = async (): Promise<void> => {
+          if (before) {
+            await store.save(before);
+          } else {
+            await store.clear();
+          }
+        };
+
+        const adopted: PersistedAuthState = {
+          // The mint fills both in from the device's live state; carrying the
+          // previous session's ids into a different device session would be a
+          // lie for however long the mint takes.
+          sessionId: '',
+          userId: '',
+          deviceId: decision.credential.deviceId,
+          deviceSecret: decision.credential.deviceSecret,
+        };
+        if (!(await store.save(adopted))) {
+          logger.error(
+            'adopted the shared device credential but it could not be durably persisted — reverting',
+            undefined,
+            { component: 'sessionColdBoot', method: 'shared-device-adopt' },
+          );
+          await revert();
+          return { kind: 'skip' };
+        }
+
+        const result = await refreshDeviceSecretArm({ oxy, store, pin: null });
+        if (result.status === 'ok') {
+          return {
+            kind: 'session',
+            session: {
+              sessionId: result.sessionId,
+              userId: result.userId,
+              accessToken: result.token,
+            },
+          };
+        }
+
+        if (result.status === 'invalid-secret') {
+          // The one place we hold POSITIVE proof that the exact bytes in the
+          // shared slot are dead — the server rejected them by name. Clearing it
+          // signs nobody out (a credential the server does not recognise cannot
+          // be minting for anyone) and it is what stops a dead credential from
+          // blocking every future install: a stale slot owned by a different
+          // `deviceId` is otherwise never overwritten, by design.
+          await sharedSlot.clear();
+        } else if (result.status === 'no-session') {
+          signedOutReason = 'no_session';
+        }
+        await revert();
+        return { kind: 'skip' };
+      },
+    });
+  }
+
+  if (identityBinding === null) {
+    // 4. shared-key-signin (native) — the RECOVERY / COMPATIBILITY lane: sign a
+    //    challenge with the shared-keychain IDENTITY key to re-mint a session.
+    //
+    //    It runs LAST on purpose. Using the self-custody key to obtain an ordinary
+    //    session is the over-sharing #937 sets out to end, so it is now reachable
+    //    only on a device where no sibling app has published a shared device
+    //    credential yet — an install that predates this lane, or one where the
+    //    shared slot is unreadable. Its own `store.save` below feeds the shared
+    //    slot through the mirroring store, so the FIRST boot that takes this lane
+    //    is also the last one that needs to: every later app joins by credential.
+    //
+    //    Native AND online: it is a network step (challenge + verify round-trips),
+    //    so it is gated by the same offline hint as the mint lane. `{ retry: false }`
     //    keeps the two round-trips as single attempts — the refresh scheduler /
     //    401 lane own later retries — so this step cannot multiply boot latency.
     steps.push({

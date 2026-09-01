@@ -15,7 +15,8 @@ import type { ReputationSource, ReputationSourceKey } from '@/lib/civic/reputati
 import type { AppColors } from '@/hooks/useColors';
 import type { MaterialCommunityIconName } from '@/types/icons';
 import { mixColors } from '@/utils/color';
-import type { ReputationBalance, TrustTier } from '@oxyhq/core';
+import type { ReputationBalance, TrustTier } from '@oxyhq/contracts';
+import { trustTierLabel } from '@oxyhq/core';
 import { useTranslation } from '@/lib/i18n';
 
 interface StandingSectionProps {
@@ -71,7 +72,7 @@ function tierColor(tier: TrustTier, colors: AppColors): string {
  */
 export function StandingSection({ balance, sources, isOffline }: StandingSectionProps) {
   const colors = useColors();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const toggleSelect = useCallback(
@@ -127,7 +128,7 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
           current: progress.current,
           target: progress.targetMin,
           remaining: progress.remaining,
-          tier: t(`civic.trustTier.${progress.nextTier}`),
+          tier: trustTierLabel(locale, progress.nextTier),
         });
       case 'topPoints':
         return t('civic.reputation.progress.topTier');
@@ -155,7 +156,7 @@ export function StandingSection({ balance, sources, isOffline }: StandingSection
         <View style={[styles.tierChip, { backgroundColor: colors.backgroundSecondary }]}>
           <View style={[styles.tierDot, { backgroundColor: tierAccent }]} />
           <ThemedText style={[styles.tierChipText, { color: colors.text }]} numberOfLines={1}>
-            {t(`civic.trustTier.${balance.trustTier}`)}
+            {trustTierLabel(locale, balance.trustTier)}
           </ThemedText>
         </View>
         {isOffline && (

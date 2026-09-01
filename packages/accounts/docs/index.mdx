@@ -30,7 +30,7 @@ A user-facing app, not a library. Most integrators won't embed it — they'll de
 Accounts is a standard official relying party on the device-first session model:
 
 - On cold boot, `OxyProvider` restores the session silently from the server-side device session (see [device sessions](../../../docs/auth/device-session.md)). It never auto-redirects to a login page.
-- Logged-out users get the SDK sign-in surface (`OxyAccountDialog`): Commons QR / deep-link first, password collapsed under "Sign in without the app".
+- Logged-out users get the SDK sign-in surface (`OxyAccountDialog`): existing device accounts, then one primary "Continue with Oxy" action (Commons QR, push delivery, or same-device deep link).
 - The app implements no local session restore, callbacks, or token plumbing — the SDK owns all of it.
 
 ## Deep-linking into MyAccount

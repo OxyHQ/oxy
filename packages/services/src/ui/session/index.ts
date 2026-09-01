@@ -13,6 +13,7 @@
 export { createSessionClient } from './createSessionClient';
 export { createTokenTransport } from './tokenTransport';
 export { createPlatformAuthStateStore } from './authStore';
+export { useBackgroundSessionSync } from './useBackgroundSessionSync';
 export { createIdentitySessionBinding, IdentityBoundSessionError } from './identityBinding';
 export type { IdentitySessionBinding } from './identityBinding';
 export {

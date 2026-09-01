@@ -1,270 +1,333 @@
 /**
- * Unit tests for the v2 per-subject hash chain (F0.2).
+ * The v2 per-subject hash chain (F0.2), against a REAL Postgres.
  *
- * Exercises chain continuity + transactional head advance on top of the existing
- * signed-record verification:
- *  - a v2 genesis record stores and creates the RepoHead,
- *  - a second v2 record with the correct prev/seq extends the chain + advances head,
- *  - a wrong `prev` is rejected `chain_fork`; a seq gap is rejected `bad_seq`;
- *    a non-genesis with no head is `chain_gap`,
- *  - a v1 record still verifies + stores WITHOUT touching the chain,
- *  - `recordId` matches core's `computeRecordId`,
- *  - the head advance is transactional,
- *  - a duplicate `{userId, seq}` (E11000) surfaces as `chain_conflict`.
+ * The suite this replaces mocked `SignedRecord`, `RepoHead` and
+ * `mongoose.startSession`, then asserted on the ARGUMENTS handed to
+ * `SignedRecord.create` and `RepoHead.findOneAndUpdate`. None of those models is
+ * imported by the service any more, so the mocks were inert and the assertions
+ * described a Mongoose call shape that no longer exists. The chain's actual
+ * guarantees are structural, so they are asserted against stored rows here:
  *
- * Both models + `mongoose.startSession` are mocked; `computeRecordId` from
- * `@oxyhq/core` is the REAL deterministic function (so the recordId assertion is
- * meaningful and client/server cannot drift).
+ *  - **`prev` is the content address of the record before it.** The chain is
+ *    walked from genesis to head and every link is re-derived with
+ *    `computeRecordId`, so a store that wrote a plausible-looking hash of
+ *    something else would fail.
+ *  - **`seq` is one monotone sequence per ACCOUNT**, shared by every
+ *    `(collection, rkey)` key on that account and independent of other accounts'.
+ *  - **A refused append is a no-op on BOTH tables.** `chain_fork`, `bad_seq` and
+ *    `chain_gap` each leave the ledger and `repo_heads` exactly as they were —
+ *    and a correct append still lands afterwards, so "nothing changed" is never
+ *    a passing description of a poisoned chain.
+ *
+ * The atomicity of the append + head advance, and the `{user_id, seq}`
+ * `chain_conflict` backstop, are covered in `reputationCivic.postgres.test.ts`
+ * and are deliberately not restated.
+ *
+ * Every account is created per test, so no assertion depends on a table being
+ * empty.
  */
 
 import { ec as EC } from 'elliptic';
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-
-const mockSrFindOne = jest.fn();
-const mockSrCreate = jest.fn();
-const mockHeadFindOne = jest.fn();
-const mockHeadUpdate = jest.fn();
-const mockUserFindById = jest.fn();
-
-jest.mock('../../models/SignedRecord', () => ({
-  __esModule: true,
-  default: {
-    findOne: (...args: unknown[]) => mockSrFindOne(...args),
-    create: (...args: unknown[]) => mockSrCreate(...args),
-  },
-}));
-
-// The oxyVerificationResolver (inside the real verifyAndStoreRecord) reads the
-// subject's verification methods from User; mock it to expose the test key.
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: { findById: (...args: unknown[]) => mockUserFindById(...args) },
-  default: { findById: (...args: unknown[]) => mockUserFindById(...args) },
-}));
-
-jest.mock('../../models/RepoHead', () => ({
-  __esModule: true,
-  default: {
-    findOne: (...args: unknown[]) => mockHeadFindOne(...args),
-    findOneAndUpdate: (...args: unknown[]) => mockHeadUpdate(...args),
-  },
-}));
-
-// Keep real mongoose Types/ObjectId, but stub startSession so withTransaction
-// runs the work session-lessly through a fake session object.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  const startSession = jest.fn(async () => ({
-    withTransaction: async (fn: () => Promise<unknown>) => fn(),
-    endSession: async () => undefined,
-  }));
-  const patched = { ...actual, startSession };
-  return { __esModule: true, ...patched, default: patched };
-});
-
-jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
-}));
-
+import { asc, eq } from 'drizzle-orm';
 import { computeRecordId } from '@oxyhq/protocol';
-import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
+import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { repoHeads } from '../../db/schema/repoHeads';
+import { signedRecords } from '../../db/schema/signedRecords';
+import { users } from '../../db/schema/users';
 import { buildUserDid } from '../did.service';
+import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
 
 const ec = new EC('secp256k1');
 
-const USER_ID = '507f1f77bcf86cd799439011';
-const keyPair = ec.genKeyPair();
-const PUBLIC_KEY = keyPair.getPublic('hex');
-const PRIVATE_KEY = keyPair.getPrivate('hex');
+/** A wall-clock base every envelope's `issuedAt` is offset from, so ordering is explicit. */
+const T0 = 1_700_000_000_000;
 
-type V2Fields = Omit<SignedRecordEnvelope, 'signature'>;
-
-function v2Fields(overrides: Partial<V2Fields> = {}): V2Fields {
-  return {
-    version: 2,
-    type: 'identity',
-    subject: buildUserDid(USER_ID),
-    issuer: buildUserDid(USER_ID),
-    record: { displayName: 'Nate' },
-    issuedAt: Date.now(),
-    seq: 0,
-    prev: null,
-    collection: 'app.oxy.identity',
-    rkey: 'self',
-    publicKey: PUBLIC_KEY,
-    alg: 'ES256K-DER-SHA256',
-    ...overrides,
-  };
+interface Signer {
+  userId: string;
+  did: string;
+  publicKey: string;
+  privateKey: string;
 }
 
-/** No prior record of this type (monotonic check passes). */
-function noPriorRecord(): void {
-  mockSrFindOne.mockReturnValue({ sort: () => ({ lean: () => Promise.resolve(null) }) });
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+/** An account whose primary `users.public_key` authorizes the returned signer. */
+async function signer(): Promise<Signer> {
+  const pair = ec.genKeyPair();
+  const publicKey = pair.getPublic('hex');
+  const [row] = await getDb().insert(users).values({ publicKey }).returning({ id: users.id });
+  return { userId: row.id, did: buildUserDid(row.id), publicKey, privateKey: pair.getPrivate('hex') };
 }
 
-/** A prior record with a given issuedAt (so a newer record stays monotonic). */
-function priorRecord(issuedAt: number): void {
-  mockSrFindOne.mockReturnValue({ sort: () => ({ lean: () => Promise.resolve({ envelope: { issuedAt } }) }) });
-}
-
-/** No chain head yet. */
-function noHead(): void {
-  mockHeadFindOne.mockReturnValue({ lean: () => Promise.resolve(null) });
-}
-
-/** An existing chain head. */
-function headAt(headRecordId: string, seq: number): void {
-  mockHeadFindOne.mockReturnValue({ lean: () => Promise.resolve({ headRecordId, seq }) });
-}
-
-beforeEach(() => {
-  mockSrFindOne.mockReset();
-  mockSrCreate.mockReset();
-  mockHeadFindOne.mockReset();
-  mockHeadUpdate.mockReset();
-  mockUserFindById.mockReset();
-  // The subject resolves to a single current verification method (the test key).
-  mockUserFindById.mockReturnValue({ select: () => ({ lean: () => Promise.resolve({ publicKey: PUBLIC_KEY }) }) });
-  // create echoes its input (array form → array; object form → object).
-  mockSrCreate.mockImplementation((arg: unknown) =>
-    Array.isArray(arg)
-      ? Promise.resolve([{ ...(arg[0] as object), _id: 'rec' }])
-      : Promise.resolve({ ...(arg as object), _id: 'rec' }),
+/** Build + sign a v2 (chained) envelope. Defaults to the genesis position. */
+function v2Envelope(
+  subject: Signer,
+  overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {}
+): SignedRecordEnvelope {
+  return signRecordEnvelope(
+    {
+      version: 2,
+      type: 'identity',
+      subject: subject.did,
+      issuer: subject.did,
+      record: { displayName: 'Nate' },
+      issuedAt: T0,
+      seq: 0,
+      prev: null,
+      collection: 'app.oxy.identity',
+      rkey: 'self',
+      publicKey: subject.publicKey,
+      alg: 'ES256K-DER-SHA256',
+      ...overrides,
+    },
+    subject.privateKey
   );
-  mockHeadUpdate.mockResolvedValue({});
-});
+}
 
-describe('verifyAndStoreRecord — v2 genesis', () => {
-  it('stores the genesis record and creates the RepoHead', async () => {
-    noPriorRecord();
-    noHead();
-    const env = signRecordEnvelope(v2Fields(), PRIVATE_KEY);
+/** Append an envelope, failing the test loudly if it was refused. */
+async function append(subject: Signer, envelope: SignedRecordEnvelope): Promise<string> {
+  const outcome = await verifyAndStoreRecord(envelope, subject.userId);
+  if (!outcome.ok) {
+    throw new Error(`expected the append to succeed, got ${outcome.reason}`);
+  }
+  return outcome.record.recordId;
+}
 
-    const result = await verifyAndStoreRecord(env, USER_ID);
+/** The account's chain rows in `seq` order. */
+async function chainRows(userId: string) {
+  return getDb()
+    .select({
+      seq: signedRecords.seq,
+      prev: signedRecords.prev,
+      recordId: signedRecords.recordId,
+      nsid: signedRecords.nsid,
+      rkey: signedRecords.rkey,
+    })
+    .from(signedRecords)
+    .where(eq(signedRecords.userId, userId))
+    .orderBy(asc(signedRecords.seq));
+}
 
-    expect(result.ok).toBe(true);
-    // SignedRecord inserted with the chain fields. The envelope's `collection`
-    // is denormalized to the `nsid` column.
-    const created = mockSrCreate.mock.calls[0][0][0];
-    expect(created).toMatchObject({ seq: 0, prev: null, nsid: 'app.oxy.identity', rkey: 'self', verified: true });
-    expect(created.collection).toBeUndefined();
-    // recordId matches core's computeRecordId byte-for-byte.
-    expect(created.recordId).toBe(await computeRecordId(env));
-    // RepoHead advanced to seq 0 with the genesis recordId.
-    const [filter, update] = mockHeadUpdate.mock.calls[0];
-    expect(filter).toEqual({ userId: USER_ID });
-    expect(update.$set).toMatchObject({ seq: 0, headRecordId: await computeRecordId(env) });
-    expect(update.$inc).toEqual({ recordCount: 1 });
+/** The account's head row, or `undefined` when it has no chain. */
+async function headRow(userId: string) {
+  const [row] = await getDb()
+    .select({
+      seq: repoHeads.seq,
+      headRecordId: repoHeads.headRecordId,
+      recordCount: repoHeads.recordCount,
+      subjectDid: repoHeads.subjectDid,
+    })
+    .from(repoHeads)
+    .where(eq(repoHeads.userId, userId));
+  return row;
+}
+
+describe('every record links to the content address of the one before it', () => {
+  it('walks genesis → head with each prev re-derived from the previous envelope', async () => {
+    const subject = await signer();
+
+    const genesis = v2Envelope(subject);
+    const genesisId = await append(subject, genesis);
+    expect(genesisId).toBe(await computeRecordId(genesis));
+
+    const second = v2Envelope(subject, {
+      seq: 1,
+      prev: genesisId,
+      issuedAt: T0 + 1_000,
+      record: { displayName: 'Nate II' },
+    });
+    const secondId = await append(subject, second);
+
+    const third = v2Envelope(subject, {
+      seq: 2,
+      prev: secondId,
+      issuedAt: T0 + 2_000,
+      record: { displayName: 'Nate III' },
+    });
+    const thirdId = await append(subject, third);
+
+    // Re-derived, not echoed: `computeRecordId` is the same function the client
+    // uses, so a server that hashed anything else would diverge here.
+    expect([genesisId, secondId, thirdId]).toEqual([
+      await computeRecordId(genesis),
+      await computeRecordId(second),
+      await computeRecordId(third),
+    ]);
+    expect(new Set([genesisId, secondId, thirdId]).size).toBe(3);
+
+    const rows = await chainRows(subject.userId);
+    expect(rows.map((row) => row.seq)).toEqual([0, 1, 2]);
+    expect(rows.map((row) => row.recordId)).toEqual([genesisId, secondId, thirdId]);
+    // The links themselves: genesis has none, and each later record names the
+    // address of its predecessor.
+    expect(rows.map((row) => row.prev)).toEqual([null, genesisId, secondId]);
+    // The envelope's `collection` is denormalized to the `nsid` column.
+    expect(rows.map((row) => row.nsid)).toEqual([
+      'app.oxy.identity',
+      'app.oxy.identity',
+      'app.oxy.identity',
+    ]);
+
+    expect(await headRow(subject.userId)).toEqual({
+      seq: 2,
+      headRecordId: thirdId,
+      recordCount: 3,
+      subjectDid: subject.did,
+    });
   });
 });
 
-describe('verifyAndStoreRecord — v2 extension', () => {
-  it('a second record with correct prev/seq extends the chain and advances the head', async () => {
-    const genesisEnv = signRecordEnvelope(v2Fields({ issuedAt: 1_700_000_000_000 }), PRIVATE_KEY);
-    const genesisId = await computeRecordId(genesisEnv);
+describe('a refused append leaves the ledger AND the head untouched', () => {
+  it('rejects a `prev` that is not the current head with chain_fork', async () => {
+    const subject = await signer();
+    const genesisId = await append(subject, v2Envelope(subject));
 
-    priorRecord(1_700_000_000_000);
-    headAt(genesisId, 0);
-    const env = signRecordEnvelope(
-      v2Fields({ seq: 1, prev: genesisId, issuedAt: 1_700_000_001_000, record: { bio: 'hi' } }),
-      PRIVATE_KEY,
+    const forked = v2Envelope(subject, {
+      seq: 1,
+      prev: 'f'.repeat(64),
+      issuedAt: T0 + 1_000,
+      record: { displayName: 'Fork' },
+    });
+    expect(await verifyAndStoreRecord(forked, subject.userId)).toEqual({
+      ok: false,
+      reason: 'chain_fork',
+    });
+
+    expect(await chainRows(subject.userId)).toHaveLength(1);
+    expect(await headRow(subject.userId)).toMatchObject({
+      seq: 0,
+      headRecordId: genesisId,
+      recordCount: 1,
+    });
+
+    // ...and the chain is still writable, so "unchanged" is not a description of
+    // a chain the rejection broke.
+    const secondId = await append(
+      subject,
+      v2Envelope(subject, { seq: 1, prev: genesisId, issuedAt: T0 + 2_000, record: { ok: true } })
     );
+    expect(await headRow(subject.userId)).toMatchObject({
+      seq: 1,
+      headRecordId: secondId,
+      recordCount: 2,
+    });
+  });
 
-    const result = await verifyAndStoreRecord(env, USER_ID);
+  it('rejects a re-genesis once a chain exists', async () => {
+    // `seq: 0, prev: null` against a live head is the chain-reset shape: it
+    // would orphan every existing record while looking like a first write.
+    const subject = await signer();
+    const genesisId = await append(subject, v2Envelope(subject));
 
-    expect(result.ok).toBe(true);
-    const created = mockSrCreate.mock.calls[0][0][0];
-    expect(created).toMatchObject({ seq: 1, prev: genesisId });
-    const [, update] = mockHeadUpdate.mock.calls[0];
-    expect(update.$set).toMatchObject({ seq: 1, headRecordId: await computeRecordId(env) });
+    const regenesis = v2Envelope(subject, { issuedAt: T0 + 1_000, record: { displayName: 'Reset' } });
+    expect(await verifyAndStoreRecord(regenesis, subject.userId)).toEqual({
+      ok: false,
+      reason: 'chain_fork',
+    });
+
+    expect(await chainRows(subject.userId)).toHaveLength(1);
+    expect(await headRow(subject.userId)).toMatchObject({ seq: 0, headRecordId: genesisId });
+  });
+
+  it('rejects a seq that skips ahead of the head with bad_seq', async () => {
+    const subject = await signer();
+    const genesisId = await append(subject, v2Envelope(subject));
+
+    // The `prev` is CORRECT here — only the sequence is wrong, which is what
+    // separates `bad_seq` from `chain_fork`.
+    const skipped = v2Envelope(subject, {
+      seq: 5,
+      prev: genesisId,
+      issuedAt: T0 + 1_000,
+      record: { displayName: 'Skip' },
+    });
+    expect(await verifyAndStoreRecord(skipped, subject.userId)).toEqual({
+      ok: false,
+      reason: 'bad_seq',
+    });
+
+    expect(await chainRows(subject.userId)).toHaveLength(1);
+    expect(await headRow(subject.userId)).toMatchObject({ seq: 0, recordCount: 1 });
+  });
+
+  it('rejects a non-genesis record when the account has no chain with chain_gap', async () => {
+    const subject = await signer();
+
+    const orphan = v2Envelope(subject, { seq: 1, prev: 'a'.repeat(64), issuedAt: T0 + 1_000 });
+    expect(await verifyAndStoreRecord(orphan, subject.userId)).toEqual({
+      ok: false,
+      reason: 'chain_gap',
+    });
+
+    expect(await chainRows(subject.userId)).toHaveLength(0);
+    expect(await headRow(subject.userId)).toBeUndefined();
+
+    // The account can still open a chain at genesis — the refusal above was
+    // about the position, not about the account.
+    await append(subject, v2Envelope(subject));
+    expect(await headRow(subject.userId)).toMatchObject({ seq: 0, recordCount: 1 });
   });
 });
 
-describe('verifyAndStoreRecord — chain rejections', () => {
-  it('rejects a wrong prev with chain_fork (and does not store)', async () => {
-    priorRecord(1_700_000_000_000);
-    headAt('a'.repeat(64), 0);
-    const env = signRecordEnvelope(
-      v2Fields({ seq: 1, prev: 'b'.repeat(64), issuedAt: 1_700_000_001_000 }),
-      PRIVATE_KEY,
-    );
+describe('one chain per account', () => {
+  it('shares a single seq sequence across every (collection, rkey) key', async () => {
+    // `nsid`/`rkey` partition records WITHIN one chain for last-writer-wins
+    // materialization; they must not fork `seq` or the head.
+    const subject = await signer();
 
-    const result = await verifyAndStoreRecord(env, USER_ID);
+    const identityId = await append(subject, v2Envelope(subject));
+    const vouch = v2Envelope(subject, {
+      type: 'personhood_vouch',
+      seq: 1,
+      prev: identityId,
+      issuedAt: T0 + 1_000,
+      collection: 'app.oxy.personhood',
+      rkey: 'subject-a',
+      record: { about: buildUserDid('someone') },
+    });
+    const vouchId = await append(subject, vouch);
 
-    expect(result).toEqual({ ok: false, reason: 'chain_fork' });
-    expect(mockSrCreate).not.toHaveBeenCalled();
-    expect(mockHeadUpdate).not.toHaveBeenCalled();
+    const rows = await chainRows(subject.userId);
+    expect(rows.map((row) => [row.seq, row.nsid, row.rkey])).toEqual([
+      [0, 'app.oxy.identity', 'self'],
+      [1, 'app.oxy.personhood', 'subject-a'],
+    ]);
+
+    const heads = await getDb()
+      .select({ seq: repoHeads.seq, headRecordId: repoHeads.headRecordId })
+      .from(repoHeads)
+      .where(eq(repoHeads.userId, subject.userId));
+    expect(heads).toEqual([{ seq: 1, headRecordId: vouchId }]);
   });
 
-  it('rejects a seq gap (correct prev, wrong seq) with bad_seq', async () => {
-    priorRecord(1_700_000_000_000);
-    headAt('a'.repeat(64), 0);
-    const env = signRecordEnvelope(
-      v2Fields({ seq: 5, prev: 'a'.repeat(64), issuedAt: 1_700_000_001_000 }),
-      PRIVATE_KEY,
+  it('keeps two accounts’ chains independent', async () => {
+    const first = await signer();
+    const second = await signer();
+
+    const firstGenesis = await append(first, v2Envelope(first));
+    await append(
+      first,
+      v2Envelope(first, { seq: 1, prev: firstGenesis, issuedAt: T0 + 1_000, record: { n: 2 } })
     );
 
-    const result = await verifyAndStoreRecord(env, USER_ID);
+    // The second account's FIRST record is a genesis even though the first
+    // account is already at seq 1 — a chain scoped to anything wider than the
+    // account would reject this as `bad_seq`/`chain_gap`.
+    const secondGenesis = await append(second, v2Envelope(second));
 
-    expect(result).toEqual({ ok: false, reason: 'bad_seq' });
-    expect(mockSrCreate).not.toHaveBeenCalled();
-  });
-
-  it('rejects a non-genesis record when no head exists with chain_gap', async () => {
-    priorRecord(1_700_000_000_000);
-    noHead();
-    const env = signRecordEnvelope(
-      v2Fields({ seq: 1, prev: 'a'.repeat(64), issuedAt: 1_700_000_001_000 }),
-      PRIVATE_KEY,
-    );
-
-    const result = await verifyAndStoreRecord(env, USER_ID);
-
-    expect(result).toEqual({ ok: false, reason: 'chain_gap' });
-    expect(mockSrCreate).not.toHaveBeenCalled();
-  });
-});
-
-describe('verifyAndStoreRecord — v1 back-compat', () => {
-  it('verifies + stores a v1 record WITHOUT touching the chain', async () => {
-    noPriorRecord();
-    const env = signRecordEnvelope(
-      {
-        version: 1,
-        type: 'identity',
-        subject: buildUserDid(USER_ID),
-        issuer: buildUserDid(USER_ID),
-        record: { displayName: 'Nate' },
-        issuedAt: Date.now(),
-        publicKey: PUBLIC_KEY,
-        alg: 'ES256K-DER-SHA256',
-      },
-      PRIVATE_KEY,
-    );
-
-    const result = await verifyAndStoreRecord(env, USER_ID);
-
-    expect(result.ok).toBe(true);
-    // v1 create is the single-object form, with NO chain fields.
-    const created = mockSrCreate.mock.calls[0][0];
-    expect(created.seq).toBeUndefined();
-    expect(created.recordId).toBeUndefined();
-    expect(created.verified).toBe(true);
-    // The chain is never consulted or advanced for v1.
-    expect(mockHeadFindOne).not.toHaveBeenCalled();
-    expect(mockHeadUpdate).not.toHaveBeenCalled();
-  });
-});
-
-describe('verifyAndStoreRecord — concurrency backstop', () => {
-  it('surfaces a duplicate {userId, seq} (E11000) as chain_conflict', async () => {
-    noPriorRecord();
-    noHead();
-    mockSrCreate.mockRejectedValueOnce(Object.assign(new Error('E11000 duplicate key'), { code: 11000 }));
-    const env = signRecordEnvelope(v2Fields(), PRIVATE_KEY);
-
-    const result = await verifyAndStoreRecord(env, USER_ID);
-
-    expect(result).toEqual({ ok: false, reason: 'chain_conflict' });
+    expect(await headRow(first.userId)).toMatchObject({ seq: 1, recordCount: 2 });
+    expect(await headRow(second.userId)).toMatchObject({
+      seq: 0,
+      headRecordId: secondGenesis,
+      recordCount: 1,
+    });
+    expect(await chainRows(second.userId)).toHaveLength(1);
   });
 });

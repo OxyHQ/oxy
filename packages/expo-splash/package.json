@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/expo-splash",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared native-splash toolkit for Oxy Expo apps — each app centers its own logo on the shared dark brand background with the Oxy \"from Oxy\" symbol pinned to the bottom of the native OS splash (the \"Instagram, from Meta\" pattern).",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -32,6 +32,7 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "NOTICE",
     "dist",
     "plugin",
     "config",
@@ -52,7 +53,7 @@
     "directory": "packages/expo-splash"
   },
   "author": "OxyHQ",
-  "license": "AGPL-3.0-only",
+  "license": "Apache-2.0",
   "homepage": "https://oxy.so",
   "engines": {
     "node": ">=18.0.0"
@@ -79,7 +80,7 @@
   },
   "devDependencies": {
     "@types/react": "*",
-    "expo": "^57.0.6",
+    "expo": "catalog:",
     "expo-splash-screen": "*",
     "react": "*",
     "react-native": "*",

@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
-import { assetService, s3Service } from '../services/assetServiceSingleton';
+import { assetService } from '../services/assetServiceSingleton';
+import { s3Service } from '../services/s3ServiceSingleton';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { optionalAuthMiddleware, getMediaViewerUserId } from '../middleware/optionalAuth';
 import { mediaHeadersMiddleware } from '../middleware/mediaHeaders';
@@ -10,7 +11,7 @@ import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess } from '../utils/asyncHandler';
 import { ApiError, BadRequestError, NotFoundError, UnauthorizedError, ForbiddenError, ValidationError, ConflictError } from '../utils/error';
 import { z } from 'zod';
-import type { FileVisibility } from '../models/File';
+import type { FileLinkRecord, FileVariantRecord, FileVisibility } from '../types/file.types';
 import type { MediaAccessContext } from '../types/mediaPrivacy.types';
 import { validate } from '../middleware/validate';
 import {
@@ -21,14 +22,17 @@ import {
   batchAccessSchema,
   assetsByIdsBodySchema,
   assetsBySha256BodySchema,
+  linkFileSchema,
+  unlinkFileSchema,
 } from '../schemas/assets.schemas';
 import { generateMissingFilePlaceholder, TRANSPARENT_PNG_PLACEHOLDER } from '../utils/placeholders';
 import { buildCdnUrl, stripPublicPrefix, isPublicKey, CDN_REDIRECT_MAX_AGE_SECONDS } from '../config/cdn';
 import { MEDIA_TOKEN_QUERY_PARAM, MEDIA_TOKEN_TTL_SECONDS, signMediaToken } from '../utils/mediaToken';
 import { FEDERATION_CACHE_MAX_BYTES, USER_MEDIA_MAX_BYTES, isAllowedCacheMime } from '../constants/federationCache';
-import User from '../models/User';
-import { isValidObjectId } from '../utils/validation';
-import { serviceAssetMetadataFields } from '../utils/fileMediaMetadata';
+import { and, eq } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { users } from '../db/schema';
+import { resolveFileMediaMetadata } from '../utils/fileMediaMetadata';
 
 interface AuthenticatedRequest extends express.Request {
   user?: {
@@ -39,6 +43,40 @@ interface AuthenticatedRequest extends express.Request {
 
 const router = express.Router();
 const upload = multer(); // memory storage
+
+/**
+ * Project a link/variant row onto the wire shape clients already receive.
+ *
+ * Two differences would otherwise ship silently. Mongo stored these as
+ * subdocuments declared `{ _id: false }`, so they carried NO id and no parent
+ * pointer — the `file_links.id` / `file_variants.id` / `file_id` columns are
+ * new and internal, and must not leak. And Mongo OMITTED an unset optional
+ * field, where a Postgres row spells it `null`; `JSON.stringify` drops
+ * `undefined` but preserves `null`, so passing rows through verbatim would turn
+ * "absent" into an explicit `null` for every consumer in the ecosystem.
+ */
+function serializeLink(link: FileLinkRecord) {
+  return {
+    app: link.app,
+    entityType: link.entityType,
+    entityId: link.entityId,
+    createdBy: link.createdBy,
+    createdAt: link.createdAt,
+    ...(link.webhookUrl === null ? {} : { webhookUrl: link.webhookUrl }),
+  };
+}
+
+function serializeVariant(variant: FileVariantRecord) {
+  return {
+    type: variant.type,
+    key: variant.key,
+    ...(variant.width === null ? {} : { width: variant.width }),
+    ...(variant.height === null ? {} : { height: variant.height }),
+    ...(variant.readyAt === null ? {} : { readyAt: variant.readyAt }),
+    ...(variant.size === null ? {} : { size: variant.size }),
+    ...(variant.metadata === null ? {} : { metadata: variant.metadata }),
+  };
+}
 
 /**
  * Build an absolute, our-origin streaming URL for an asset on the host that
@@ -113,21 +151,6 @@ const completeUploadSchema = z.object({
   metadata: z.record(z.any()).optional()
 });
 
-const linkFileSchema = z.object({
-  app: z.string().min(1, 'App name is required'),
-  entityType: z.string().min(1, 'Entity type is required'),
-  entityId: z.string().min(1, 'Entity ID is required'),
-  visibility: z.enum(['private', 'public', 'unlisted']).optional()
-  ,
-  webhookUrl: z.string().url().optional()
-});
-
-const unlinkFileSchema = z.object({
-  app: z.string().min(1, 'App name is required'),
-  entityType: z.string().min(1, 'Entity type is required'),
-  entityId: z.string().min(1, 'Entity ID is required')
-});
-
 /**
  * @openapi
  * /assets:
@@ -187,7 +210,7 @@ router.get('/', authMiddleware, validate({ query: listAssetsQuerySchema }), asyn
 
   sendSuccess(res, {
     files: files.map((file) => ({
-      id: file._id,
+      id: file.id,
       sha256: file.sha256,
       size: file.size,
       mime: file.mime,
@@ -195,11 +218,11 @@ router.get('/', authMiddleware, validate({ query: listAssetsQuerySchema }), asyn
       originalName: file.originalName,
       ownerUserId: file.ownerUserId,
       status: file.status,
-      usageCount: file.usageCount,
+      usageCount: file.links.length,
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
-      links: file.links,
-      variants: file.variants,
+      links: file.links.map(serializeLink),
+      variants: file.variants.map(serializeVariant),
       metadata: file.metadata,
     })),
     total,
@@ -378,24 +401,24 @@ router.post('/complete', authMiddleware, validate({ body: completeUploadSchema }
 
   logger.info('Asset upload completed', { 
     userId: user._id, 
-    fileId: file._id,
+    fileId: file.id,
     originalName: validatedData.originalName
   });
 
   sendSuccess(res, {
-    assetId: file._id.toString(),
+    assetId: file.id,
     file: {
-      id: file._id,
+      id: file.id,
       sha256: file.sha256,
       size: file.size,
       mime: file.mime,
       originalName: file.originalName,
       status: file.status,
-      usageCount: file.usageCount,
+      usageCount: file.links.length,
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
-      links: file.links,
-      variants: file.variants
+      links: file.links.map(serializeLink),
+      variants: file.variants.map(serializeVariant)
     }
   });
 }));
@@ -515,13 +538,13 @@ router.post('/upload', authMiddleware, upload.single('file'), asyncHandler(async
 
   logger.info('File uploaded via direct endpoint', { 
     userId: user._id, 
-    fileId: file._id,
+    fileId: file.id,
     sha256: file.sha256
   });
 
   sendSuccess(res, {
     file: {
-      id: file._id.toString(),
+      id: file.id,
       sha256: file.sha256,
       size: file.size,
       mime: file.mime,
@@ -529,8 +552,8 @@ router.post('/upload', authMiddleware, upload.single('file'), asyncHandler(async
       originalName: file.originalName,
       visibility: file.visibility,
       metadata: file.metadata,
-      links: file.links,
-      variants: file.variants
+      links: file.links.map(serializeLink),
+      variants: file.variants.map(serializeVariant)
     }
   });
 }));
@@ -557,6 +580,8 @@ router.post('/upload', authMiddleware, upload.single('file'), asyncHandler(async
 const CACHE_RATE_WINDOW_MS = 60 * 1000;
 const CACHE_UPLOAD_MAX_PER_MINUTE = 30;
 const CACHE_DELETE_MAX_PER_MINUTE = 240;
+/** See {@link assetServiceLookupLimiter} for how this ceiling was chosen. */
+const SERVICE_LOOKUP_MAX_PER_MINUTE = 600;
 
 function requireServiceScope(req: ServiceAuthRequest, scope: string): void {
   const scopes = req.serviceApp?.scopes ?? [];
@@ -587,6 +612,39 @@ const cacheUploadLimiter = rateLimit({
       return `asset-cache:upload:${serviceApp.appId}`;
     }
     return `asset-cache:upload:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * Per-app rate limit for the two bulk service LOOKUPS (`/service/by-ids`,
+ * `/service/by-sha256`). Both are exempt from the general per-IP browser budget
+ * via `SERVICE_TO_SERVICE_BULK_PATHS`, so this is their SOLE ceiling for
+ * authenticated service traffic and the invariant that exemption depends on.
+ * (Requests WITHOUT a valid service token are never exempted, so they remain
+ * under `rl:general` — this limiter bounds the authenticated path.)
+ *
+ * Sized for the workload that exposed the gap: a relying app's media-metadata
+ * backfill resolves up to {@link SERVICE_ASSET_METADATA cap} 100 ids per request,
+ * so 600/min per app is 60,000 ids/min — comfortably above any backfill sweep
+ * while still bounding a runaway loop or a compromised credential. Deliberately
+ * far above `cacheUploadLimiter`'s 30/min: that guards an S3 write, this is a
+ * projected read of documents by `_id`.
+ *
+ * Unique redis prefix per the rate-limiter convention — a duplicated prefix on a
+ * shared store makes a request increment the same counter twice
+ * (`ERR_ERL_DOUBLE_COUNT`) and silently halves the budget.
+ */
+const assetServiceLookupLimiter = rateLimit({
+  prefix: 'rl:asset-lookup:',
+  windowMs: CACHE_RATE_WINDOW_MS,
+  max: SERVICE_LOOKUP_MAX_PER_MINUTE,
+  message: 'Too many asset metadata lookups. Please slow down.',
+  keyGenerator: (req: express.Request) => {
+    const serviceApp = (req as ServiceAuthRequest).serviceApp;
+    if (serviceApp?.appId) {
+      return `asset-lookup:${serviceApp.appId}`;
+    }
+    return `asset-lookup:ip:${hashedIpKey(req)}`;
   },
 });
 
@@ -650,14 +708,14 @@ router.post(
       logger.info('Federation media cached', {
         appId: req.serviceApp?.appId,
         appName: req.serviceApp?.appName,
-        fileId: file._id,
+        fileId: file.id,
         mime,
         size: file.size,
       });
 
       sendSuccess(res, {
         file: {
-          id: file._id.toString(),
+          id: file.id,
         },
       });
     } catch (error) {
@@ -685,13 +743,19 @@ router.post(
     requireServiceScope(req, 'files:write');
 
     const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
-    if (!ownerUserId || !isValidObjectId(ownerUserId)) {
+    if (!ownerUserId) {
       throw new BadRequestError('x-owner-user-id must be a valid federated user id');
     }
 
-    const owner = await User.findOne({ _id: ownerUserId, type: 'federated' })
-      .select('_id type')
-      .lean();
+    // An id of the wrong SHAPE is no longer a separate 400: a `text` primary key
+    // matches no row, so it lands on the same 403 an id that simply names no
+    // federated account does. That is the answer this endpoint already gives for
+    // "not a federated user", and it is the accurate one.
+    const [owner] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, ownerUserId), eq(users.type, 'federated')))
+      .limit(1);
     if (!owner) {
       throw new ForbiddenError('Federated media owner must be an existing federated user');
     }
@@ -742,14 +806,14 @@ router.post(
         appId: req.serviceApp?.appId,
         appName: req.serviceApp?.appName,
         ownerUserId,
-        fileId: file._id,
+        fileId: file.id,
         mime,
         size: file.size,
       });
 
       sendSuccess(res, {
         file: {
-          id: file._id.toString(),
+          id: file.id,
           sha256: file.sha256,
           size: file.size,
           mime: file.mime,
@@ -770,7 +834,7 @@ router.post(
  * @desc Stream-upload durable media into a normal public file owned by an
  *       existing local Oxy user. Used by Mention MCP intent-media when the
  *       caller authenticates with an MCP JWT (no Oxy session bearer).
- * @access Service token only (requires files:write)
+ * @access Privileged service token only (requires files:write and federation:write)
  */
 router.post(
   '/service/user-media',
@@ -778,15 +842,24 @@ router.post(
   cacheUploadLimiter,
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     requireServiceScope(req, 'files:write');
+    // Attributing a public file to a user is cross-tenant act-as authority, not
+    // ordinary application-owned file access. Require a staff-granted scope in
+    // addition to files:write so self-grantable service credentials cannot pick
+    // an arbitrary local user via x-owner-user-id.
+    requireServiceScope(req, 'federation:write');
 
     const ownerUserId = getSingleHeader(req, 'x-owner-user-id')?.trim();
-    if (!ownerUserId || !isValidObjectId(ownerUserId)) {
+    if (!ownerUserId) {
       throw new BadRequestError('x-owner-user-id must be a valid user id');
     }
 
-    const owner = await User.findOne({ _id: ownerUserId, type: 'local' })
-      .select('_id type')
-      .lean();
+    // Same reasoning as `/service/federation` above: a malformed id matches no
+    // row and gets the endpoint's existing "not an existing local user" 403.
+    const [owner] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, ownerUserId), eq(users.type, 'local')))
+      .limit(1);
     if (!owner) {
       throw new ForbiddenError('User media owner must be an existing local user');
     }
@@ -840,14 +913,14 @@ router.post(
         appId: req.serviceApp?.appId,
         appName: req.serviceApp?.appName,
         ownerUserId,
-        fileId: file._id,
+        fileId: file.id,
         mime,
         size: file.size,
       });
 
       sendSuccess(res, {
         file: {
-          id: file._id.toString(),
+          id: file.id,
           sha256: file.sha256,
           size: file.size,
           mime: file.mime,
@@ -963,6 +1036,7 @@ router.delete(
 router.post(
   '/service/by-ids',
   serviceAuthMiddleware,
+  assetServiceLookupLimiter,
   validate({ body: assetsByIdsBodySchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     requireServiceScope(req, 'files:read');
@@ -977,9 +1051,9 @@ router.post(
     const data = files
       .filter((file) => file.status !== 'deleted')
       .map((file) => {
-        const media = serviceAssetMetadataFields(file);
+        const media = resolveFileMediaMetadata(file);
         return {
-          id: file._id.toString(),
+          id: file.id,
           sha256: file.sha256,
           mime: file.mime,
           size: file.size,
@@ -1074,6 +1148,7 @@ router.post(
 router.post(
   '/service/by-sha256',
   serviceAuthMiddleware,
+  assetServiceLookupLimiter,
   validate({ body: assetsBySha256BodySchema }),
   asyncHandler(async (req: ServiceAuthRequest, res: express.Response) => {
     requireServiceScope(req, 'files:read');
@@ -1103,14 +1178,14 @@ router.post(
           // batch — omit `url` and keep metadata (mirrors batch-access).
           logger.warn('service/by-sha256: CDN resolution failed; omitting url', {
             sha256: file.sha256,
-            fileId: file._id.toString(),
+            fileId: file.id,
             error: error instanceof Error ? error.message : String(error),
           });
         }
-        const media = serviceAssetMetadataFields(file);
+        const media = resolveFileMediaMetadata(file);
         return {
           sha256: file.sha256,
-          id: file._id.toString(),
+          id: file.id,
           mime: file.mime,
           size: file.size,
           status: file.status,
@@ -1171,11 +1246,11 @@ router.post('/:id/links', authMiddleware, validate({ params: assetIdParams, body
   });
 
   sendSuccess(res, {
-    assetId: file._id.toString(),
+    assetId: file.id,
     file: {
-      id: file._id,
-      usageCount: file.usageCount,
-      links: file.links,
+      id: file.id,
+      usageCount: file.links.length,
+      links: file.links.map(serializeLink),
       status: file.status
     }
   });
@@ -1218,9 +1293,9 @@ router.delete('/:id/links', authMiddleware, validate({ params: assetIdParams, bo
 
   sendSuccess(res, {
     file: {
-      id: file._id,
-      usageCount: file.usageCount,
-      links: file.links,
+      id: file.id,
+      usageCount: file.links.length,
+      links: file.links.map(serializeLink),
       status: file.status
     }
   });
@@ -1271,9 +1346,9 @@ router.get('/:id', authMiddleware, validate({ params: assetIdParams }), asyncHan
   });
 
   sendSuccess(res, {
-    assetId: file._id.toString(),
+    assetId: file.id,
     file: {
-      id: file._id,
+      id: file.id,
       sha256: file.sha256,
       size: file.size,
       mime: file.mime,
@@ -1281,11 +1356,11 @@ router.get('/:id', authMiddleware, validate({ params: assetIdParams }), asyncHan
       originalName: file.originalName,
       ownerUserId: file.ownerUserId,
       status: file.status,
-      usageCount: file.usageCount,
+      usageCount: file.links.length,
       createdAt: file.createdAt,
       updatedAt: file.updatedAt,
-      links: file.links,
-      variants: file.variants,
+      links: file.links.map(serializeLink),
+      variants: file.variants.map(serializeVariant),
       metadata: file.metadata
     }
   });
@@ -1333,8 +1408,7 @@ router.get('/:id', authMiddleware, validate({ params: assetIdParams }), asyncHan
  *                   type: string
  *                   format: uri
  *                 variant:
- *                   type: string
- *                   nullable: true
+ *                   type: [string, "null"]
  *                 expiresIn:
  *                   type: integer
  *       401:
@@ -1527,7 +1601,21 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
       const ensured = await assetService.ensureVariant(fileId, variantType, file);
       storageKey = ensured.key;
     } catch (e: any) {
-      logger.warn('Variant ensure failed, falling back to original', { fileId, variantType, error: e?.message });
+      logger.warn('Variant ensure failed', { fileId, variantType, error: e?.message });
+      if (fallback === 'placeholder') {
+        const buf = Buffer.from(TRANSPARENT_PNG_PLACEHOLDER, 'base64');
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Length', String(buf.length));
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).end(buf);
+      }
+      if (fallback === 'icon' || fallback === 'placeholderVisible') {
+        const svg = generateMissingFilePlaceholder(fileId);
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).end(svg);
+      }
+      throw new NotFoundError('File not found');
     }
   }
 
@@ -1542,13 +1630,12 @@ router.get('/:id/stream', mediaHeadersMiddleware, validate({ params: assetIdPara
           storageKey = ensured.key;
           storageExists = await s3Service.fileExists(storageKey);
         } catch (e: any) {
-          logger.warn('Variant ensure failed after repairing original, falling back to original', {
+          logger.warn('Variant ensure failed after repairing original', {
             fileId,
             variantType,
             error: e?.message,
           });
-          storageKey = file.storageKey;
-          storageExists = await s3Service.fileExists(storageKey);
+          storageExists = false;
         }
       }
     }
@@ -1746,9 +1833,9 @@ router.post('/:id/restore', authMiddleware, validate({ params: assetIdParams }),
 
   sendSuccess(res, {
     file: {
-      id: file._id,
+      id: file.id,
       status: file.status,
-      usageCount: file.usageCount
+      usageCount: file.links.length
     }
   });
 }));
@@ -1779,7 +1866,7 @@ router.patch('/:id/visibility', authMiddleware, asyncHandler(async (req: Authent
   }
 
   // Compare as strings (handle ObjectId vs string comparison)
-  if (file.ownerUserId.toString() !== user._id.toString()) {
+  if (file.ownerUserId !== user._id) {
     throw new ForbiddenError('Access denied');
   }
 
@@ -1788,7 +1875,7 @@ router.patch('/:id/visibility', authMiddleware, asyncHandler(async (req: Authent
     // No change needed, return current file
     return sendSuccess(res, {
       file: {
-        id: file._id,
+        id: file.id,
         visibility: file.visibility,
         updatedAt: file.updatedAt
       }
@@ -1806,7 +1893,7 @@ router.patch('/:id/visibility', authMiddleware, asyncHandler(async (req: Authent
 
   sendSuccess(res, {
     file: {
-      id: updatedFile._id,
+      id: updatedFile.id,
       visibility: updatedFile.visibility,
       updatedAt: updatedFile.updatedAt
     }
@@ -1893,7 +1980,7 @@ router.post('/batch-access', authMiddleware, validate({ body: batchAccessSchema 
   // One DB round trip for the whole batch, then map each request (with its own
   // variant) back to its file. Unknown ids resolve to a "not found" entry.
   const fetched = await assetService.getFilesByIds(requests.map((r) => r.fileId));
-  const filesById = new Map(fetched.map((f) => [f._id.toString(), f]));
+  const filesById = new Map(fetched.map((f) => [f.id, f]));
 
   const results: Record<string, BatchAccessResult> = {};
 

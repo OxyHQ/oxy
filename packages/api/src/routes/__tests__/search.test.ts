@@ -1,59 +1,71 @@
 /**
- * GET /search archived-exclusion coverage for the legacy people-search surface.
+ * `GET /search` against a REAL Postgres.
+ *
+ * The legacy people-search surface. It shares `peopleSearchPredicate` /
+ * `peopleSearchMatch` / `peopleSearchOrder` with `GET /profiles/search` but
+ * differs in three ways that are wire contract and are pinned here:
+ *
+ *  - it ALSO matches the user's saved locations (`includeLocations: true`),
+ *  - it serializes through `utils/userTransform.formatUserResponse`, so a row
+ *    carries `privacySettings` — deliberately containing ONLY the public
+ *    `fediverseSharing` leaf,
+ *  - it answers `{ users, pagination: { page, limit, hasMore } }`, page-based
+ *    rather than offset-based, with `hasMore` derived from a full page.
+ *
+ * The old suite fed a mocked `User.aggregate` an in-memory pool and asserted the
+ * `$match` object; the route builds SQL now, so the filter is exercised by
+ * seeding rows that must and must not come back.
+ *
+ * Every test scopes itself with a unique token so the shared test database
+ * cannot influence a result.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
-import { Types } from 'mongoose';
+import { randomUUID } from 'node:crypto';
+import { userResponseSchema, safeParseContract } from '@oxyhq/contracts';
 
-const mockUserFind = jest.fn();
-
-jest.mock('../../middleware/validate', () => ({
-  validate: () => (_req: unknown, _res: unknown, next: () => void) => next(),
-}));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../../utils/userTransform', () => ({
-  formatUserResponse: (user: { _id: { toString(): string } }) => ({
-    id: user._id.toString(),
-  }),
-}));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    find: (...args: unknown[]) => mockUserFind(...args),
-  },
-}));
 
-import searchRouter from '../search';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userLocations } from '../../db/schema/userLocations';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import searchRouter from '../search';
 
-interface PoolUser {
-  _id: Types.ObjectId;
-  username?: string;
-  accountStatus?: string;
-  reputationTier?: string;
-  privacySettings?: { isPrivateAccount?: boolean };
+interface SearchResponse {
+  status: number;
+  raw: string;
+  body: {
+    users?: Array<Record<string, unknown>>;
+    pagination?: { page: number; limit: number; hasMore: boolean };
+  };
 }
 
-function requestJson(server: http.Server, path: string): Promise<{ status: number; body: { users?: Array<{ id: string }> } }> {
+let server: http.Server;
+
+function search(params: Record<string, string>): Promise<SearchResponse> {
   const address = server.address() as AddressInfo;
+  const queryString = new URLSearchParams(params);
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { method: 'GET', host: '127.0.0.1', port: address.port, path },
+      { method: 'GET', host: '127.0.0.1', port: address.port, path: `/search?${queryString}` },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = raw.length > 0 ? JSON.parse(raw) : {};
-            resolve({ status: res.statusCode ?? 0, body: parsed });
-          } catch (err) {
-            reject(err);
-          }
+        res.on('data', (chunk) => {
+          raw += chunk;
         });
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            raw,
+            body: raw.length > 0 ? JSON.parse(raw) : {},
+          }),
+        );
       },
     );
     req.on('error', reject);
@@ -61,198 +73,268 @@ function requestJson(server: http.Server, path: string): Promise<{ status: numbe
   });
 }
 
-function matchesFindFilter(user: PoolUser, filter: Record<string, unknown>): boolean {
-  const acct = filter.accountStatus as { $ne?: string } | undefined;
-  if (acct && typeof acct.$ne === 'string' && user.accountStatus === acct.$ne) {
-    return false;
-  }
-  const tier = filter.reputationTier as { $ne?: string } | undefined;
-  if (tier && typeof tier.$ne === 'string' && user.reputationTier === tier.$ne) {
-    return false;
-  }
-  const privateGate = filter['privacySettings.isPrivateAccount'] as { $ne?: boolean } | undefined;
-  if (privateGate && privateGate.$ne === true && user.privacySettings?.isPrivateAccount === true) {
-    return false;
-  }
-  const or = filter.$or as Array<Record<string, unknown>> | undefined;
-  if (!Array.isArray(or)) return true;
-  return or.some((clause) => {
-    const [field, pattern] = Object.entries(clause)[0];
-    const value = field === 'username' ? user.username : undefined;
-    if (typeof value !== 'string') return false;
-    if (pattern instanceof RegExp) {
-      return pattern.test(value);
-    }
-    if (pattern && typeof pattern === 'object' && '$regex' in pattern) {
-      const regex = pattern as { $regex: string; $options?: string };
-      return new RegExp(regex.$regex, regex.$options ?? '').test(value);
-    }
-    return false;
-  });
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
 }
 
-const activeUser = new Types.ObjectId();
-const archivedUser = new Types.ObjectId();
-const restrictedUser = new Types.ObjectId();
-const privateUser = new Types.ObjectId();
+function token(): string {
+  return `t${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+}
 
-let server: http.Server;
+function ids(res: SearchResponse): string[] {
+  return (res.body.users ?? []).map((row) => row.id as string);
+}
 
-beforeAll((done) => {
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
-  app.use(searchRouter);
+  app.use(express.json());
+  app.use('/search', searchRouter);
   app.use(errorHandler);
-  server = app.listen(0, done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
 });
 
-beforeEach(() => {
-  jest.clearAllMocks();
-});
+describe('GET /search — discoverability gate', () => {
+  it('excludes an archived account while returning an active one', async () => {
+    const term = token();
+    const visible = await account({ username: `active${term}` });
+    await account({ username: `archived${term}`, accountStatus: 'archived' });
 
-describe('GET /search archived exclusion', () => {
-  it('adds accountStatus: { $ne: "archived" } to the User.find filter', async () => {
-    const chain = {
-      select: jest.fn().mockReturnThis(),
-      sort: jest.fn().mockReturnThis(),
-      skip: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockResolvedValue([]),
-    };
-    mockUserFind.mockReturnValue(chain);
+    const res = await search({ query: term });
 
-    const res = await requestJson(server, '/?query=test&type=users');
     expect(res.status).toBe(200);
-
-    const filter = mockUserFind.mock.calls[0][0] as Record<string, unknown>;
-    expect(filter.accountStatus).toEqual({ $ne: 'archived' });
-    expect(filter.reputationTier).toEqual({ $ne: 'restricted' });
-    expect(filter['privacySettings.isPrivateAccount']).toEqual({ $ne: true });
+    expect(ids(res)).toEqual([visible]);
   });
 
-  it('filters archived accounts while surfacing active matches', async () => {
-    const pool: PoolUser[] = [
-      { _id: activeUser, username: 'active_match', accountStatus: 'active' },
-      { _id: archivedUser, username: 'archived_match', accountStatus: 'archived' },
-    ];
+  it('excludes a restricted-tier account while returning trusted and default-tier matches', async () => {
+    const term = token();
+    const trusted = await account({ username: `trusted${term}`, reputationTier: 'trusted' });
+    const untiered = await account({ username: `untiered${term}` });
+    await account({ username: `restricted${term}`, reputationTier: 'restricted' });
 
-    mockUserFind.mockImplementation((filter: Record<string, unknown>) => {
-      const matched = pool.filter((user) => matchesFindFilter(user, filter));
-      return {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue(
-          matched.map((user) => ({
-            _id: user._id,
-            username: user.username,
-            accountStatus: user.accountStatus,
-          })),
-        ),
-      };
+    const res = await search({ query: term });
+
+    expect(ids(res).sort()).toEqual([trusted, untiered].sort());
+  });
+
+  it('excludes a private account while returning a public one', async () => {
+    const term = token();
+    const publicUser = await account({ username: `public${term}` });
+    await account({ username: `private${term}`, privacyIsPrivateAccount: true });
+
+    const res = await search({ query: term });
+
+    expect(ids(res)).toEqual([publicUser]);
+  });
+});
+
+describe('GET /search — account kind', () => {
+  /**
+   * PINS THE ECOSYSTEM-WIDE PRODUCT DECISION, ON THIS SURFACE.
+   *
+   * People search is BLIND to `users.kind` — `peopleSearchPredicate` has no kind
+   * clause, so a bot and an organization are returned beside people here. Until
+   * this case existed, every people-search test in the API seeded only
+   * `personal` rows, which meant adding a kind clause (removing every bot,
+   * organization and channel from every search surface at once) was a change CI
+   * could not see. The mechanism is pinned in
+   * `utils/__tests__/profileQuery.test.ts`; this pins that THIS ROUTE still runs
+   * it, so a per-surface divergence fails too.
+   *
+   * The private bot is the control: without it, "the bot came back" is also what
+   * a route that had stopped applying the gate would produce.
+   */
+  it('returns bots, organizations and channels beside people', async () => {
+    const term = token();
+    const person = await account({ username: `person${term}`, kind: 'personal' });
+    const bot = await account({ username: `bot${term}`, kind: 'bot' });
+    const org = await account({ username: `org${term}`, kind: 'organization' });
+    const channel = await account({ username: `channel${term}`, kind: 'channel' });
+    await account({ username: `privbot${term}`, kind: 'bot', privacyIsPrivateAccount: true });
+
+    const res = await search({ query: term });
+
+    expect(res.status).toBe(200);
+    expect(ids(res).sort()).toEqual([person, bot, org, channel].sort());
+  });
+});
+
+describe('GET /search — match surface', () => {
+  it('matches a saved location by name, city and country', async () => {
+    const term = token();
+    const byName = await account({ username: `a${token()}` });
+    const byCity = await account({ username: `b${token()}` });
+    const byCountry = await account({ username: `c${token()}` });
+    const unrelated = await account({ username: `d${token()}` });
+    await getDb()
+      .insert(userLocations)
+      .values([
+        { userId: byName, locationKey: 'home', name: `Studio ${term}` },
+        { userId: byCity, locationKey: 'home', name: 'Home', city: `City${term}` },
+        { userId: byCountry, locationKey: 'home', name: 'Home', country: `Country${term}` },
+        { userId: unrelated, locationKey: 'home', name: 'Home', state: `State${term}` },
+      ]);
+
+    const res = await search({ query: term });
+
+    // `state` is deliberately NOT a searched location field.
+    expect(ids(res).sort()).toEqual([byName, byCity, byCountry].sort());
+  });
+
+  it('matches on username, first name, last name and description', async () => {
+    const term = token();
+    const byUsername = await account({ username: `u${term}` });
+    const byFirst = await account({ username: `a${token()}`, nameFirst: `First${term}` });
+    const byLast = await account({ username: `b${token()}`, nameLast: `Last${term}` });
+    const byDescription = await account({
+      username: `c${token()}`,
+      description: `about ${term}`,
     });
 
-    const res = await requestJson(server, '/?query=match&type=users');
-    expect(res.status).toBe(200);
+    const res = await search({ query: term });
 
-    const ids = (res.body.users ?? []).map((user) => String(user.id));
-    expect(ids).toContain(activeUser.toString());
-    expect(ids).not.toContain(archivedUser.toString());
+    expect(ids(res).sort()).toEqual([byUsername, byFirst, byLast, byDescription].sort());
   });
 
-  it('filters restricted-tier accounts while surfacing active and untiered matches', async () => {
-    const pool: PoolUser[] = [
-      { _id: activeUser, username: 'active_match', accountStatus: 'active' },
-      { _id: restrictedUser, username: 'restricted_match', accountStatus: 'active', reputationTier: 'restricted' },
-    ];
+  it('strips a single leading @ so a handle-style query matches the stored username', async () => {
+    const term = token();
+    const stored = `${term}.bsky.social@bsky.social`;
+    const id = await account({ username: stored });
 
-    mockUserFind.mockImplementation((filter: Record<string, unknown>) => {
-      const matched = pool.filter((user) => matchesFindFilter(user, filter));
-      return {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue(
-          matched.map((user) => ({
-            _id: user._id,
-            username: user.username,
-            accountStatus: user.accountStatus,
-            reputationTier: user.reputationTier,
-          })),
-        ),
-      };
+    const res = await search({ query: `@${stored}` });
+
+    expect(ids(res)).toEqual([id]);
+  });
+
+  it('finds a bridged account when the query is a pasted x.com profile URL', async () => {
+    const marker = token();
+    const bridged = await account({ username: `${marker}@x.com`, type: 'federated' });
+    await account({ username: `other${token()}`, description: `see https://x.com/${marker} for more` });
+
+    const res = await search({ query: `https://x.com/${marker}?s=20&t=abc` });
+
+    expect(ids(res)).toEqual([bridged]);
+  });
+
+  it('treats twitter.com and mobile.x.com as the same network when pasted', async () => {
+    const marker = token();
+    const bridged = await account({ username: `${marker}@x.com`, type: 'federated' });
+    await account({ username: `other${token()}`, description: `see https://x.com/${marker} for more` });
+
+    expect(ids(await search({ query: `https://twitter.com/${marker}` }))).toEqual([bridged]);
+    expect(ids(await search({ query: `https://mobile.x.com/${marker}?s=20` }))).toEqual([bridged]);
+  });
+
+  it('returns nothing for type=users when the query matches nobody', async () => {
+    const res = await search({ query: token(), type: 'users' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.users).toEqual([]);
+  });
+
+  it('400s an out-of-range limit', async () => {
+    const res = await search({ query: token(), limit: '500' });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /search — ordering and pagination', () => {
+  it('orders NATIVE accounts before FEDERATED ones with the same query', async () => {
+    const term = token();
+    const federated = await account({
+      username: `fed${term}`,
+      type: 'federated',
+      reputationRankWeight: 3,
     });
+    const native = await account({ username: `nat${term}`, reputationRankWeight: 0.1 });
 
-    const res = await requestJson(server, '/?query=match&type=users');
-    expect(res.status).toBe(200);
+    const res = await search({ query: term });
 
-    const ids = (res.body.users ?? []).map((user) => String(user.id));
-    expect(ids).toContain(activeUser.toString());
-    expect(ids).not.toContain(restrictedUser.toString());
+    expect(ids(res)).toEqual([native, federated]);
   });
 
-  it('filters private accounts while surfacing public matches', async () => {
-    const pool: PoolUser[] = [
-      { _id: activeUser, username: 'public_match', accountStatus: 'active' },
+  it('pages without duplicating or skipping a row, and reports hasMore off a full page', async () => {
+    const term = token();
+    const seeded: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      seeded.push(await account({ username: `p${index}${term}`, reputationRankWeight: 1 }));
+    }
+
+    const page1 = await search({ query: term, page: '1', limit: '2' });
+    const page2 = await search({ query: term, page: '2', limit: '2' });
+    const page3 = await search({ query: term, page: '3', limit: '2' });
+
+    expect([...ids(page1), ...ids(page2), ...ids(page3)]).toEqual(seeded);
+    expect(page1.body.pagination).toEqual({ page: 1, limit: 2, hasMore: true });
+    expect(page2.body.pagination).toEqual({ page: 2, limit: 2, hasMore: true });
+    // The last page is short, so there is nothing after it.
+    expect(page3.body.pagination).toEqual({ page: 3, limit: 2, hasMore: false });
+  });
+});
+
+describe('GET /search — wire shape', () => {
+  it('emits the full user DTO, with privacySettings carrying only the public leaf', async () => {
+    const term = token();
+    const id = await account({
+      username: `shape${term}`,
+      nameFirst: 'Shape',
+      nameLast: 'Row',
+      avatar: 'file_row',
+      color: 'purple',
+      bio: 'row bio',
+      description: 'row description',
+      links: ['https://oxy.so/row'],
+      verified: true,
+      email: `shape${term}@oxy.so`,
+      phone: '+34600111222',
+      refreshToken: `rt_secret_${term}`,
+      privacyIsPrivateAccount: false,
+      privacyDiscoverableByEmail: true,
+    });
+    const [stored] = await getDb()
+      .select({ createdAt: users.createdAt, updatedAt: users.updatedAt })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+
+    const res = await search({ query: term });
+
+    expect(res.body.users).toEqual([
       {
-        _id: privateUser,
-        username: 'private_match',
-        accountStatus: 'active',
-        privacySettings: { isPrivateAccount: true },
+        id,
+        username: `shape${term}`,
+        avatar: 'file_row',
+        color: 'purple',
+        kind: 'personal',
+        name: { displayName: 'Shape Row', first: 'Shape', last: 'Row', full: 'Shape Row' },
+        // ONLY the public consent leaf. `isPrivateAccount`,
+        // `discoverableByEmail` and the rest of the privacy block must not ride
+        // this surface — the Mongo `$project` named this one path and nothing
+        // else, and the port keeps it that way.
+        privacySettings: { fediverseSharing: true },
+        verified: true,
+        // `publicUserColumns` does not select `languages`, so the normalizer
+        // sees nothing and emits an empty list rather than inventing a locale.
+        languages: [],
+        bio: 'row bio',
+        description: 'row description',
+        links: ['https://oxy.so/row'],
+        linksMetadata: [],
+        createdAt: stored.createdAt.toISOString(),
+        updatedAt: stored.updatedAt.toISOString(),
       },
-    ];
-
-    mockUserFind.mockImplementation((filter: Record<string, unknown>) => {
-      const matched = pool.filter((user) => matchesFindFilter(user, filter));
-      return {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue(
-          matched.map((user) => ({
-            _id: user._id,
-            username: user.username,
-            accountStatus: user.accountStatus,
-            privacySettings: user.privacySettings,
-          })),
-        ),
-      };
-    });
-
-    const res = await requestJson(server, '/?query=match&type=users');
-    expect(res.status).toBe(200);
-
-    const ids = (res.body.users ?? []).map((user) => String(user.id));
-    expect(ids).toContain(activeUser.toString());
-    expect(ids).not.toContain(privateUser.toString());
-  });
-});
-
-describe('GET /search leading-@ handling', () => {
-  it('strips a single leading @ so a Bluesky handle matches the stored username', async () => {
-    const pool: PoolUser[] = [
-      { _id: activeUser, username: 'adamrbjack.bsky.social@bsky.social', accountStatus: 'active' },
-    ];
-
-    mockUserFind.mockImplementation((filter: Record<string, unknown>) => {
-      const matched = pool.filter((user) => matchesFindFilter(user, filter));
-      return {
-        select: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue(
-          matched.map((user) => ({ _id: user._id, username: user.username })),
-        ),
-      };
-    });
-
-    const res = await requestJson(
-      server,
-      `/?query=${encodeURIComponent('@adamrbjack.bsky.social@bsky.social')}&type=users`,
-    );
-    expect(res.status).toBe(200);
-    expect((res.body.users ?? []).map((user) => user.id)).toContain(activeUser.toString());
+    ]);
+    expect(safeParseContract(userResponseSchema, res.body.users?.[0])).not.toBeNull();
   });
 });

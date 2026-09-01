@@ -1,94 +1,132 @@
-// The global jest.setup.cjs mocks `mongoose` wholesale, stripping `Schema.Types`.
-// `user.service.ts` imports the real `Follow` model (not mocked here), whose
-// schema references `Schema.Types.ObjectId` at module load — so restore the
-// actual mongoose module. The User/Subscription models ARE mocked below.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
-});
+/**
+ * Profile text normalization, asserted on the STORED row.
+ *
+ * The suite this replaces asserted `expect(set).toHaveBeenCalledWith('name',
+ * {...})` against a mocked Mongoose document. That is a claim about an argument,
+ * not about the database: normalization that happened and was then discarded by
+ * the write path — or applied to the wrong column — passed it identically. The
+ * reported bug this whole area exists for was a value rendered with
+ * `white-space: pre-wrap` INTACT, which is a property of what is stored.
+ *
+ * So every case here writes through `updateUserProfile` and reads the row back.
+ * The child collections (`user_locations`, `user_link_metadata`) are read as
+ * rows, because normalization has to survive the embedded-array → child-table
+ * translation too, and the ORDER a child table returns is not the submitted
+ * order unless a column says so.
+ */
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    findById: jest.fn(),
-    findOne: jest.fn(),
-  },
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: {
-    findOne: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: { invalidate: jest.fn() },
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: { logEmailChange: jest.fn(), logProfileUpdate: jest.fn() },
-}));
-
-import User from '../../models/User';
-import { userService } from '../user.service';
+import { randomUUID } from 'node:crypto';
+import { asc, eq, sql } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
+import { userLocations } from '../../db/schema/userLocations';
+import { users } from '../../db/schema/users';
 import { BadRequestError } from '../../utils/error';
-import { INVALID_USERNAME_MESSAGE } from '../../utils/username';
+import { USERNAME_INVALID_MESSAGE } from '@oxyhq/contracts';
+import { userService } from '../user.service';
 
-const mockUser = User as jest.Mocked<typeof User>;
+const uniqueId = () => randomUUID().replace(/-/g, '');
 
 /**
- * The reported bug, at the profile write path: a remote page served its `<title>`
- * across indented source lines, so the string carried a real newline plus six
- * spaces of indentation.
+ * The reported bug's exact input: a remote page served its `<title>` across
+ * indented source lines, so the string carries a real newline plus indentation.
  */
 const INDENTED_REMOTE_TITLE = '\n      Mi título\n    ';
 
-/**
- * Stand in for the Mongoose document `updateUserProfile` loads and saves. `set`
- * is the assertion surface: it receives exactly what will be persisted.
- */
-function mockUserDocument(overrides: Record<string, unknown> = {}) {
-  const set = jest.fn();
-  const save = jest.fn().mockResolvedValue(undefined);
-  const toObject = jest.fn().mockReturnValue({ _id: 'user-1' });
-  const doc = {
-    _id: 'user-1',
-    username: 'alice',
-    email: 'user@example.com',
-    set,
-    save,
-    toObject,
-    ...overrides,
-  };
-  (mockUser.findById as jest.Mock).mockReturnValueOnce({
-    select: jest.fn().mockReturnValue(doc),
-  });
-  return { set, save };
+async function makeUser(overrides: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const id = uniqueId();
+  await getDb()
+    .insert(users)
+    .values({ id, username: `u${id}`, email: `${id}@example.test`, ...overrides });
+  return id;
 }
 
-describe('UserService.updateUserProfile text normalization', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+async function storedRow(userId: string) {
+  const [row] = await getDb()
+    .select({
+      username: users.username,
+      nameFirst: users.nameFirst,
+      nameLast: users.nameLast,
+      bio: users.bio,
+      links: users.links,
+    })
+    .from(users)
+    .where(eq(users.id, userId));
+  return row;
+}
 
-  it('collapses a run of spaces in the NATIVE display name (was stored verbatim)', async () => {
-    const { set, save } = mockUserDocument();
+beforeAll(async () => {
+  await connectPostgres();
+});
 
-    await userService.updateUserProfile('user-1', {
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('display name', () => {
+  it('collapses a run of spaces before storing', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, {
       name: { first: `Ana${' '.repeat(20)}`, last: 'Gómez' },
     });
 
-    expect(set).toHaveBeenCalledWith('name', { first: 'Ana', last: 'Gómez' });
-    expect(save).toHaveBeenCalled();
+    // The stored columns, not the arguments — the run of spaces used to survive
+    // to the client, which renders it with `white-space: pre-wrap`.
+    expect(await storedRow(id)).toMatchObject({ nameFirst: 'Ana', nameLast: 'Gómez' });
   });
 
-  it('normalizes an indented multi-line remote title in linksMetadata', async () => {
-    const { set } = mockUserDocument();
+  it('keeps an apostrophe intact rather than escaping it', async () => {
+    const id = await makeUser();
 
-    await userService.updateUserProfile('user-1', {
+    const updated = await userService.updateUserProfile(id, {
+      name: { first: "N'Golo", last: "O'Brien" },
+    });
+
+    expect(updated.name).toEqual({ first: "N'Golo", last: "O'Brien" });
+    expect(await storedRow(id)).toMatchObject({ nameFirst: "N'Golo", nameLast: "O'Brien" });
+  });
+
+  it('rejects a name the display-name policy forbids, and stores nothing', async () => {
+    const id = await makeUser({ nameFirst: 'Ada' });
+
+    await expect(
+      userService.updateUserProfile(id, { name: { first: 'Ada 3000 🚀' } })
+    ).rejects.toBeInstanceOf(BadRequestError);
+
+    expect((await storedRow(id)).nameFirst).toBe('Ada');
+  });
+});
+
+describe('bio', () => {
+  it('strips trailing whitespace per line so blank lines collapse', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, {
+      bio: 'Primera línea\n   \n   \nSegunda línea',
+    });
+
+    expect((await storedRow(id)).bio).toBe('Primera línea\n\nSegunda línea');
+  });
+});
+
+describe('links', () => {
+  it('trims each entry and drops the empty ones', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, {
+      links: [' https://example.com ', '   '],
+    });
+
+    expect((await storedRow(id)).links).toEqual(['https://example.com']);
+  });
+});
+
+describe('linksMetadata child rows', () => {
+  it('normalizes an indented multi-line remote title and description', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, {
       linksMetadata: [
         {
           url: 'https://example.com',
@@ -98,7 +136,16 @@ describe('UserService.updateUserProfile text normalization', () => {
       ],
     });
 
-    expect(set).toHaveBeenCalledWith('linksMetadata', [
+    const rows = await getDb()
+      .select({
+        url: userLinkMetadata.url,
+        title: userLinkMetadata.title,
+        description: userLinkMetadata.description,
+      })
+      .from(userLinkMetadata)
+      .where(eq(userLinkMetadata.userId, id));
+
+    expect(rows).toEqual([
       {
         url: 'https://example.com',
         title: 'Mi título',
@@ -107,10 +154,36 @@ describe('UserService.updateUserProfile text normalization', () => {
     ]);
   });
 
-  it('normalizes the place name and address of a location', async () => {
-    const { set } = mockUserDocument();
+  it('records the submitted order as `position`', async () => {
+    // An embedded array was ordered by construction; a child table is a SET
+    // until a column says otherwise, so the order is part of the contract.
+    const id = await makeUser();
 
-    await userService.updateUserProfile('user-1', {
+    await userService.updateUserProfile(id, {
+      linksMetadata: [
+        { url: 'https://second.test', title: 'B', description: '' },
+        { url: 'https://first.test', title: 'A', description: '' },
+      ],
+    });
+
+    const rows = await getDb()
+      .select({ url: userLinkMetadata.url, position: userLinkMetadata.position })
+      .from(userLinkMetadata)
+      .where(eq(userLinkMetadata.userId, id))
+      .orderBy(asc(userLinkMetadata.position));
+
+    expect(rows).toEqual([
+      { url: 'https://second.test', position: 0 },
+      { url: 'https://first.test', position: 1 },
+    ]);
+  });
+});
+
+describe('location child rows', () => {
+  it('normalizes the place name, label and formatted address', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, {
       locations: [
         {
           id: 'loc-1',
@@ -121,73 +194,128 @@ describe('UserService.updateUserProfile text normalization', () => {
       ],
     });
 
-    expect(set).toHaveBeenCalledWith('locations', [
+    const rows = await getDb()
+      .select({
+        locationKey: userLocations.locationKey,
+        name: userLocations.name,
+        label: userLocations.label,
+        formattedAddress: userLocations.formattedAddress,
+      })
+      .from(userLocations)
+      .where(eq(userLocations.userId, id));
+
+    expect(rows).toEqual([
       {
-        id: 'loc-1',
+        locationKey: 'loc-1',
         name: 'Plaça de Catalunya',
         label: 'Home office',
-        address: { formattedAddress: 'Plaça de Catalunya, Barcelona' },
+        formattedAddress: 'Plaça de Catalunya, Barcelona',
       },
     ]);
   });
 
-  it('trims profile links and drops empty entries', async () => {
-    const { set } = mockUserDocument();
+  it('writes the coordinate pair into its NAMED columns, unswapped', async () => {
+    // The original Mongo defect was a coordinate-ordering mistake, and the fix
+    // has two halves: named columns at the write path (this test) and a
+    // GENERATED point so the spatial value cannot disagree with them (the
+    // assertion below). Barcelona is 41.4°N, 2.2°E; a transposed pair is a
+    // PLAUSIBLE point off the coast of Somalia, so asserting "a row came back"
+    // would pass against the exact bug.
+    const id = await makeUser();
 
-    await userService.updateUserProfile('user-1', {
-      links: [' https://example.com ', '   '],
+    await userService.updateUserProfile(id, {
+      locations: [
+        { id: 'loc-1', name: 'Barcelona', coordinates: { lat: 41.3874, lon: 2.1686 } },
+      ],
     });
 
-    expect(set).toHaveBeenCalledWith('links', ['https://example.com']);
+    const [row] = await getDb()
+      .select({
+        latitude: userLocations.latitude,
+        longitude: userLocations.longitude,
+        // ST_X is the FIRST ordinate of the generated point, which must be the
+        // longitude — that is the whole ordering contract.
+        pointX: sql<number>`ST_X(${userLocations.geo}::geometry)`,
+        pointY: sql<number>`ST_Y(${userLocations.geo}::geometry)`,
+      })
+      .from(userLocations)
+      .where(eq(userLocations.userId, id));
+
+    expect(row.latitude).toBeCloseTo(41.3874, 4);
+    expect(row.longitude).toBeCloseTo(2.1686, 4);
+    expect(row.pointX).toBeCloseTo(2.1686, 4);
+    expect(row.pointY).toBeCloseTo(41.3874, 4);
   });
 
-  it('strips the trailing whitespace of a bio line so blank lines collapse', async () => {
-    const { set } = mockUserDocument();
+  it('replaces the previous locations rather than appending to them', async () => {
+    const id = await makeUser();
 
-    await userService.updateUserProfile('user-1', {
-      bio: 'Primera línea\n   \n   \nSegunda línea',
+    await userService.updateUserProfile(id, {
+      locations: [
+        { id: 'loc-1', name: 'First' },
+        { id: 'loc-2', name: 'Second' },
+      ],
+    });
+    await userService.updateUserProfile(id, {
+      locations: [{ id: 'loc-3', name: 'Only' }],
     });
 
-    expect(set).toHaveBeenCalledWith('bio', 'Primera línea\n\nSegunda línea');
+    const rows = await getDb()
+      .select({ locationKey: userLocations.locationKey })
+      .from(userLocations)
+      .where(eq(userLocations.userId, id));
+
+    expect(rows).toEqual([{ locationKey: 'loc-3' }]);
+  });
+});
+
+describe('username policy', () => {
+  it('rejects interior whitespace with a 400', async () => {
+    const id = await makeUser();
+
+    await expect(
+      userService.updateUserProfile(id, { username: 'al ice' })
+    ).rejects.toMatchObject({ statusCode: 400, message: USERNAME_INVALID_MESSAGE });
   });
 
-  describe('username policy', () => {
-    it('rejects a username with interior whitespace', async () => {
-      mockUserDocument();
+  it('rejects punctuation with a 400', async () => {
+    const id = await makeUser();
 
-      await expect(
-        userService.updateUserProfile('user-1', { username: 'al ice' })
-      ).rejects.toMatchObject({ statusCode: 400, message: INVALID_USERNAME_MESSAGE });
-    });
+    await expect(
+      userService.updateUserProfile(id, { username: 'al.ice' })
+    ).rejects.toBeInstanceOf(BadRequestError);
+  });
 
-    it('rejects a username with punctuation', async () => {
-      mockUserDocument();
+  it('stores a clean username change trimmed', async () => {
+    const id = await makeUser();
+    const next = `bob${uniqueId().slice(0, 8)}`;
 
-      await expect(
-        userService.updateUserProfile('user-1', { username: 'al.ice' })
-      ).rejects.toBeInstanceOf(BadRequestError);
-    });
+    await userService.updateUserProfile(id, { username: `  ${next} ` });
 
-    it('accepts a clean username change and stores it trimmed', async () => {
-      const { set } = mockUserDocument();
+    expect((await storedRow(id)).username).toBe(next);
+  });
 
-      await userService.updateUserProfile('user-1', { username: '  bob99 ' });
+  it('does not re-validate an unchanged legacy username echoed back by the client', async () => {
+    // A client that PUTs the whole profile sends the stored username back. A
+    // value that predates the policy must not make an unrelated bio edit fail.
+    const legacy = `legacy.user.${uniqueId().slice(0, 8)}`;
+    const id = await makeUser({ username: legacy });
 
-      expect(set).toHaveBeenCalledWith('username', 'bob99');
-    });
+    await userService.updateUserProfile(id, { username: legacy, bio: 'Hola' });
 
-    it('does not re-validate an unchanged legacy username echoed back by the client', async () => {
-      // A client that PUTs the whole profile sends the stored username back. A
-      // value that predates the policy must not make an unrelated bio edit fail.
-      const { set, save } = mockUserDocument({ username: 'legacy.user' });
+    expect(await storedRow(id)).toMatchObject({ username: legacy, bio: 'Hola' });
+  });
 
-      await userService.updateUserProfile('user-1', {
-        username: 'legacy.user',
-        bio: 'Hola',
-      });
+  it('rejects a username already taken by another account, case-insensitively', async () => {
+    // The unique index is on `lower(btrim(username))`, so an uppercase spelling
+    // must be refused HERE with a 400 rather than reaching the constraint as a
+    // 500.
+    const taken = `taken${uniqueId().slice(0, 8)}`;
+    await makeUser({ username: taken });
+    const id = await makeUser();
 
-      expect(set).toHaveBeenCalledWith('username', 'legacy.user');
-      expect(save).toHaveBeenCalled();
-    });
+    await expect(
+      userService.updateUserProfile(id, { username: taken.toUpperCase() })
+    ).rejects.toThrow('Username already exists');
   });
 });

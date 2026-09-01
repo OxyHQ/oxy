@@ -184,7 +184,7 @@ export default function CreateBackupScreen() {
 
   if (identityStatus === 'checking') {
     return (
-      <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
         <StackHeader
           title={t('backup.title')}
           onBack={() => router.back()}
@@ -197,7 +197,7 @@ export default function CreateBackupScreen() {
 
   if (identityStatus === 'unavailable') {
     return (
-      <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
         <StackHeader
           title={t('backup.title')}
           subtitle={t('backup.unavailableSubtitle')}
@@ -214,7 +214,7 @@ export default function CreateBackupScreen() {
 
   if (identityStatus === 'missing') {
     return (
-      <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
         <StackHeader
           title={t('backup.missingTitle')}
           subtitle={t('backup.missingSubtitle')}
@@ -241,7 +241,7 @@ export default function CreateBackupScreen() {
   const backupExists = backupStatus?.exists === true;
 
   return (
-    <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
       <StackHeader
         title={t('backup.title')}
         subtitle={t('backup.subtitle')}
@@ -328,7 +328,6 @@ const styles = StyleSheet.create({
   content: {
     padding: 22,
     paddingTop: 24,
-    paddingBottom: 120,
     gap: 20,
   },
   muted: {

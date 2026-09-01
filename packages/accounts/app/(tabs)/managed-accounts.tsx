@@ -8,11 +8,11 @@ import { Section } from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
 import { useOxy } from '@oxyhq/services';
 import { alert, toast } from '@oxyhq/bloom';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';
 import type { AccountNode } from '@oxyhq/core';
-import { getAccountDisplayName } from '@oxyhq/core';
+import { getAccountDisplayName, getNormalizedUserHandle, canSwitchIntoAccount } from '@oxyhq/core';
 import { useAccountRowBuilder } from '@/components/managed-accounts/account-row';
 import { useManagedAccountGroups } from '@/hooks/managed-accounts/useManagedAccountGroups';
 
@@ -68,6 +68,16 @@ export default function ManagedAccountsScreen() {
   }, [showBottomSheet]);
 
   const handleEditProfile = useCallback((accountId: string) => {
+    const node = accounts.find((entry) => entry.accountId === accountId);
+    // An account the caller cannot switch into — a channel, or a membership
+    // without `account:act_as` — cannot be edited by switching into it first.
+    // Edit via the per-account settings sheet, which PATCHes by id without a
+    // session switch. `canSwitchIntoAccount` encodes both the kind rule and the
+    // permission gate so this branch stays aligned with the API's switch route.
+    if (!node || !canSwitchIntoAccount(node)) {
+      showBottomSheet?.({ screen: 'AccountSettings', props: { accountId } });
+      return;
+    }
     // Editing a non-personal account's profile happens through the shared
     // profile editor, which targets the current account — so switch into the
     // account first, then open the editor.
@@ -81,10 +91,13 @@ export default function ManagedAccountsScreen() {
       .catch((error) => {
         console.error('Failed to switch account before editing', error);
       });
-  }, [switchToAccount, showBottomSheet]);
+  }, [switchToAccount, showBottomSheet, accounts]);
 
   const handleArchiveAccount = useCallback((node: AccountNode) => {
-    const name = getAccountDisplayName(node.account ?? null, locale);
+    const name =
+      node.account?.name?.displayName ??
+      getNormalizedUserHandle(node.account) ??
+      getAccountDisplayName(null, locale);
     alert(
       t('managedAccounts.archive.confirmTitle'),
       t('managedAccounts.archive.confirmBody', { name }),
@@ -184,6 +197,13 @@ export default function ManagedAccountsScreen() {
                 <Section title={t('managedAccounts.groups.bots')}>
                   <AccountCard>
                     <GroupedSection items={groups.bots.map(buildItem)} />
+                  </AccountCard>
+                </Section>
+              )}
+              {groups.channels.length > 0 && (
+                <Section title={t('managedAccounts.groups.channels')}>
+                  <AccountCard>
+                    <GroupedSection items={groups.channels.map(buildItem)} />
                   </AccountCard>
                 </Section>
               )}

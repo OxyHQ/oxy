@@ -1,67 +1,58 @@
 /**
- * WebAuthn registration ceremony tests (Fase B/b1).
+ * WebAuthn registration ceremony against a REAL Postgres.
  *
- * Exercises the Oxy orchestration around `@simplewebauthn/server`: username
- * availability at options time, the atomic (flow-bound) challenge burn, the
- * linking branch (push credential + authMethods + invalidate cache), the signup
- * branch (create account + credential, run the shared session mint), and the
- * duplicate-credential / expired-challenge rejections.
+ * Every assertion below reads the STORED ROW — `users`, `webauthn_credentials`,
+ * `user_auth_methods`, `webauthn_challenges` — rather than a mocked model's call
+ * shape. The previous suite mocked the Mongoose models and asserted on the
+ * `findOneAndUpdate` filter object, which proved the query was BUILT as expected
+ * and never that the row ended up correct; the rollback case in particular
+ * asserted only that a compensating delete was CALLED.
  *
  * `@simplewebauthn/server` is mocked at the MODULE BOUNDARY so the test can drive
  * the verification RESULT — production still calls the real verifier; nothing
- * about real attestation verification is weakened here. The session mint is
- * mocked to the SAME `AuthSuccess` shape `/auth/verify` returns (see
- * `buildSessionAuthResponse`), so the signup branch's response shape is locked.
+ * about real attestation verification is weakened here. `session.service`,
+ * `deviceLogin.service` and `securityActivityService` are mocked because they are
+ * collaborators (each ported in its own file), not the subject. The session
+ * response shape is NOT mocked: the real `buildSessionAuthResponse` runs, so the
+ * `AuthSuccess` wire shape is genuinely locked.
+ *
+ * Every test mints its own username and credential id, so no assertion depends on
+ * a table being empty — the suite shares one database with the rest of the run.
  */
 
 import express from 'express';
 import http from 'http';
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
+import { and, eq } from 'drizzle-orm';
 
-const REG_CHALLENGE = 'registration-challenge-abc';
 const OXY_ORIGIN = 'https://accounts.oxy.so';
-const NEW_CRED_ID = 'new-credential-id-xyz';
-const LINK_USER_ID = '507f1f77bcf86cd799439011';
-const NEW_USER_ID = '507f1f77bcf86cd7994390aa';
 
 // ---- controllable mock state ----------------------------------------------
+/** The bearer the route resolves; null = unauthenticated (signup lane). */
 let mockBearerUserId: string | null = null;
-let mockBurnResult: unknown = { _id: 'c1', challenge: REG_CHALLENGE, type: 'registration' };
-let mockCredCreateError: { code?: number } | null = null;
+/** The challenge BOTH the generated options and the signed clientData carry. */
+let currentChallenge = '';
+/** The credential id the mocked verifier reports for this ceremony. */
+let currentCredentialId = '';
 let mockRegisterUserVerified = true;
 
-const mockChallengeCreate = jest.fn();
-const mockChallengeFindOneAndUpdate = jest.fn();
-const mockCredFind = jest.fn();
-const mockCredCreate = jest.fn();
-const mockUserFindById = jest.fn();
-const mockUserFindOne = jest.fn();
-const mockUserFindByIdAndDelete = jest.fn();
-const mockUserSave = jest.fn();
-const mockInvalidate = jest.fn();
+const mockGenerateRegistration = jest.fn();
+const mockVerifyRegistration = jest.fn();
 const mockCreateSession = jest.fn();
 const mockFinalizeDeviceLogin = jest.fn();
 const mockLogSignIn = jest.fn();
-const mockVerifyRegistration = jest.fn();
-const mockGenerateRegistration = jest.fn();
+const mockInvalidate = jest.fn();
 
-let mockNewUserDoc: { _id: string; username?: string; avatar?: string; authMethods: unknown[]; save: jest.Mock };
-
-function leanValue(value: unknown) {
-  return { lean: () => Promise.resolve(value) };
-}
-function selectLean(value: unknown) {
-  return { select: () => leanValue(value) };
-}
-
-// ---- module mocks ----------------------------------------------------------
 jest.mock('@simplewebauthn/server', () => ({
   generateRegistrationOptions: (...args: unknown[]) => mockGenerateRegistration(...args),
   verifyRegistrationResponse: (...args: unknown[]) => mockVerifyRegistration(...args),
+  generateAuthenticationOptions: jest.fn(),
+  verifyAuthenticationResponse: jest.fn(),
 }));
 
 jest.mock('@simplewebauthn/server/helpers', () => ({
-  decodeClientDataJSON: () => ({ origin: OXY_ORIGIN, challenge: REG_CHALLENGE, type: 'webauthn.create' }),
+  decodeClientDataJSON: () => ({ origin: OXY_ORIGIN, challenge: currentChallenge, type: 'webauthn.create' }),
   isoUint8Array: { fromUTF8String: (s: string) => new TextEncoder().encode(s) },
 }));
 
@@ -73,73 +64,6 @@ jest.mock('../../middleware/authUtils', () => ({
   extractTokenFromRequest: (req: { headers: Record<string, string> }) =>
     req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : undefined,
   decodeToken: () => (mockBearerUserId ? { userId: mockBearerUserId, type: 'access' } : null),
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: class {
-    _id = NEW_USER_ID;
-    username?: string;
-    avatar?: string;
-    authMethods: unknown[] = [];
-    constructor(init: { username?: string; authMethods?: unknown[] }) {
-      this.username = init.username;
-      this.authMethods = init.authMethods ?? [];
-      mockNewUserDoc = this as unknown as typeof mockNewUserDoc;
-    }
-    save = mockUserSave;
-    static findById = (...args: unknown[]) => mockUserFindById(...args);
-    static findOne = (...args: unknown[]) => mockUserFindOne(...args);
-    static findByIdAndDelete = (...args: unknown[]) => mockUserFindByIdAndDelete(...args);
-  },
-  buildAuthMethod: (type: string, metadata?: Record<string, unknown>) => ({ type, linkedAt: new Date(), metadata }),
-}));
-
-jest.mock('../../models/WebauthnCredential', () => ({
-  __esModule: true,
-  default: {
-    find: (...args: unknown[]) => mockCredFind(...args),
-    create: (...args: unknown[]) => mockCredCreate(...args),
-  },
-}));
-
-jest.mock('../../models/WebauthnChallenge', () => ({
-  __esModule: true,
-  default: {
-    create: (...args: unknown[]) => mockChallengeCreate(...args),
-    findOneAndUpdate: (...args: unknown[]) => mockChallengeFindOneAndUpdate(...args),
-  },
-}));
-
-jest.mock('../../models/Notification', () => ({
-  __esModule: true,
-  default: class {
-    save = jest.fn().mockResolvedValue(undefined);
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: { invalidate: (...args: unknown[]) => mockInvalidate(...args) },
-}));
-
-jest.mock('../../controllers/session.controller', () => ({
-  __esModule: true,
-  buildSessionAuthResponse: (
-    session: { sessionId: string; deviceId: string; expiresAt: Date; accessToken?: string },
-    user: { _id: { toString(): string }; username?: string; avatar?: string },
-  ) => ({
-    sessionId: session.sessionId,
-    deviceId: session.deviceId,
-    expiresAt: session.expiresAt.toISOString(),
-    accessToken: session.accessToken,
-    user: { id: user._id.toString(), username: user.username, avatar: user.avatar },
-  }),
-  sessionCreateOptionsFromBody: (body: { deviceName?: string; deviceFingerprint?: string; deviceId?: string }) => ({
-    deviceName: body.deviceName,
-    deviceFingerprint: body.deviceFingerprint,
-    ...(body.deviceId ? { deviceId: body.deviceId } : {}),
-  }),
 }));
 
 jest.mock('../../services/session.service', () => ({
@@ -157,6 +81,20 @@ jest.mock('../../services/securityActivityService', () => ({
   default: { logSignIn: (...args: unknown[]) => mockLogSignIn(...args), logSuspiciousActivity: jest.fn() },
 }));
 
+jest.mock('../../utils/userCache', () => ({
+  __esModule: true,
+  default: { invalidate: (...args: unknown[]) => mockInvalidate(...args) },
+}));
+
+// `session.controller` (the real one, for `buildSessionAuthResponse`) imports the
+// socket emitter from `server.ts`; loading that module would boot the app.
+jest.mock('../../server', () => ({ __esModule: true, emitSessionUpdate: jest.fn() }));
+
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userAuthMethods } from '../../db/schema/userAuthMethods';
+import { users } from '../../db/schema/users';
+import { webauthnChallenges } from '../../db/schema/webauthnChallenges';
+import { webauthnCredentials } from '../../db/schema/webauthnCredentials';
 import webauthnRouter from '../webauthn';
 
 interface JsonResponse {
@@ -199,11 +137,68 @@ async function request(
   });
 }
 
+/** A username unique to one test, and alphanumeric, so `usernameSchema` accepts it. */
+function freshUsername(): string {
+  return `wa${randomUUID().replace(/-/g, '').slice(0, 20)}`;
+}
+
+/** A base64url-ish credential id unique to one test. */
+function freshCredentialId(): string {
+  return `cred${randomUUID().replace(/-/g, '')}`;
+}
+
+/** A real `users` row — every `user_id` in this suite carries a foreign key. */
+async function account(username?: string, kind: 'personal' | 'organization' = 'personal'): Promise<string> {
+  const [row] = await getDb()
+    .insert(users)
+    .values({ ...(username === undefined ? {} : { username }), kind })
+    .returning({ id: users.id });
+  return row.id;
+}
+
+/** The stored challenge row, read straight from Postgres. */
+async function storedChallenge(challenge: string) {
+  const [row] = await getDb()
+    .select()
+    .from(webauthnChallenges)
+    .where(eq(webauthnChallenges.challenge, challenge))
+    .limit(1);
+  return row;
+}
+
+/** The stored credential row for a public credential id. */
+async function storedCredential(credentialID: string) {
+  const [row] = await getDb()
+    .select()
+    .from(webauthnCredentials)
+    .where(eq(webauthnCredentials.credentialID, credentialID))
+    .limit(1);
+  return row;
+}
+
+/** The stored auth-method rows of an account. */
+async function storedAuthMethods(userId: string) {
+  return getDb()
+    .select()
+    .from(userAuthMethods)
+    .where(eq(userAuthMethods.userId, userId));
+}
+
+/** The stored account for a username, matched the way the route matches it. */
+async function storedUserByUsername(username: string) {
+  const [row] = await getDb()
+    .select({ id: users.id, username: users.username })
+    .from(users)
+    .where(eq(users.username, username))
+    .limit(1);
+  return row;
+}
+
 /** A minimal RegistrationResponseJSON-shaped payload; the verifier is mocked. */
 function registrationResponse() {
   return {
-    id: NEW_CRED_ID,
-    rawId: NEW_CRED_ID,
+    id: currentCredentialId,
+    rawId: currentCredentialId,
     type: 'public-key',
     clientExtensionResults: {},
     response: { clientDataJSON: 'stub', attestationObject: 'stub' },
@@ -212,79 +207,105 @@ function registrationResponse() {
 
 let server: http.Server;
 
-beforeAll((done) => {
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/webauthn', webauthnRouter);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
 });
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockBearerUserId = null;
-  mockBurnResult = { _id: 'c1', challenge: REG_CHALLENGE, type: 'registration' };
-  mockCredCreateError = null;
   mockRegisterUserVerified = true;
+  currentChallenge = `reg-${randomUUID()}`;
+  currentCredentialId = freshCredentialId();
 
-  mockGenerateRegistration.mockResolvedValue({
-    challenge: REG_CHALLENGE,
+  mockGenerateRegistration.mockImplementation(async () => ({
+    challenge: currentChallenge,
     rp: { name: 'Oxy', id: 'localhost' },
     user: { id: 'x', name: 'x', displayName: '' },
     pubKeyCredParams: [],
     excludeCredentials: [],
-  });
-  mockChallengeCreate.mockResolvedValue({});
-  mockChallengeFindOneAndUpdate.mockImplementation(() => leanValue(mockBurnResult));
-  mockCredFind.mockReturnValue(selectLean([]));
-  mockCredCreate.mockImplementation(async () => {
-    if (mockCredCreateError) throw mockCredCreateError;
-    return {};
-  });
-  mockUserSave.mockResolvedValue(undefined);
-  mockUserFindById.mockReturnValue({ _id: LINK_USER_ID, username: 'linker', authMethods: [], save: mockUserSave });
-  mockUserFindOne.mockReturnValue(selectLean(null));
-  mockUserFindByIdAndDelete.mockResolvedValue(undefined);
-  mockCreateSession.mockResolvedValue({
-    sessionId: 'sess-1',
-    deviceId: 'dev-1',
-    accessToken: 'access-token-1',
-    expiresAt: new Date('2026-08-01T00:00:00.000Z'),
-    createdAt: new Date(),
-    deviceInfo: { deviceName: 'Test Device', deviceType: 'web', platform: 'web' },
-  });
-  mockFinalizeDeviceLogin.mockResolvedValue({ deviceSecret: 'device-secret-1' });
-  mockLogSignIn.mockResolvedValue(undefined);
+  }));
   mockVerifyRegistration.mockImplementation(async () => ({
     verified: true,
     registrationInfo: {
-      credential: { id: NEW_CRED_ID, publicKey: new Uint8Array([1, 2, 3, 4]), counter: 0, transports: ['internal'] },
+      credential: {
+        id: currentCredentialId,
+        publicKey: new Uint8Array([1, 2, 3, 4]),
+        counter: 0,
+        transports: ['internal'],
+      },
       credentialDeviceType: 'multiDevice',
       credentialBackedUp: true,
       userVerified: mockRegisterUserVerified,
     },
   }));
+  // The FLAT `sessions` row shape `session.service` returns post-port: device
+  // fields are columns, never a nested `deviceInfo` subdocument.
+  mockCreateSession.mockResolvedValue({
+    sessionId: `sess-${randomUUID()}`,
+    deviceId: `dev-${randomUUID()}`,
+    accessToken: 'access-token-1',
+    expiresAt: new Date('2026-08-01T00:00:00.000Z'),
+    createdAt: new Date(),
+    deviceName: 'Test Device',
+    deviceType: 'web',
+    platform: 'web',
+  });
+  mockFinalizeDeviceLogin.mockResolvedValue({ deviceSecret: 'device-secret-1' });
+  mockLogSignIn.mockResolvedValue(undefined);
 });
 
 describe('POST /webauthn/register/options', () => {
-  it('signup branch: validates username availability and persists a registration challenge', async () => {
-    const res = await request(server, 'POST', '/webauthn/register/options', { username: 'freshuser' });
+  it('signup branch: stores an UNBOUND, unspent registration challenge', async () => {
+    const username = freshUsername();
+    const res = await request(server, 'POST', '/webauthn/register/options', { username });
+
     expect(res.status).toBe(200);
-    expect(res.body.challenge).toBe(REG_CHALLENGE);
-    expect(mockChallengeCreate).toHaveBeenCalledTimes(1);
-    const stored = mockChallengeCreate.mock.calls[0][0] as { type: string; userId?: string };
+    expect(res.body.challenge).toBe(currentChallenge);
+
+    const stored = await storedChallenge(currentChallenge);
     expect(stored.type).toBe('registration');
-    expect(stored.userId).toBeUndefined(); // signup challenge is not bound to a user
+    // A signup challenge belongs to no account yet.
+    expect(stored.userId).toBeNull();
+    expect(stored.used).toBe(false);
+    expect(stored.expiresAt.getTime()).toBeGreaterThan(Date.now());
+    // No account was created at options time.
+    expect(await storedUserByUsername(username)).toBeUndefined();
   });
 
   it('rejects a taken username with 409 (no challenge stored)', async () => {
-    mockUserFindOne.mockReturnValue(selectLean({ _id: 'someone' }));
-    const res = await request(server, 'POST', '/webauthn/register/options', { username: 'taken' });
+    const username = freshUsername();
+    await account(username);
+
+    const res = await request(server, 'POST', '/webauthn/register/options', { username });
+
     expect(res.status).toBe(409);
-    expect(mockChallengeCreate).not.toHaveBeenCalled();
+    expect(await storedChallenge(currentChallenge)).toBeUndefined();
+  });
+
+  it('rejects a username that differs only by CASE (the lookup is case-insensitive)', async () => {
+    const username = freshUsername();
+    await account(username);
+
+    const res = await request(server, 'POST', '/webauthn/register/options', {
+      username: username.toUpperCase(),
+    });
+
+    expect(res.status).toBe(409);
+    expect(await storedChallenge(currentChallenge)).toBeUndefined();
   });
 
   it('requires a username in the signup branch', async () => {
@@ -292,8 +313,61 @@ describe('POST /webauthn/register/options', () => {
     expect(res.status).toBe(400);
   });
 
+  it('linking branch: binds the challenge to the bearer and excludes their existing passkeys', async () => {
+    const userId = await account(freshUsername());
+    const existingCredentialId = freshCredentialId();
+    await getDb().insert(webauthnCredentials).values({
+      userId,
+      credentialID: existingCredentialId,
+      credentialPublicKey: Buffer.from([9, 9, 9]),
+      counter: 3,
+      transports: ['usb', 'nfc'],
+      deviceType: 'singleDevice',
+      backedUp: false,
+      userVerified: true,
+      name: 'Old Key',
+    });
+    mockBearerUserId = userId;
+
+    const res = await request(
+      server,
+      'POST',
+      '/webauthn/register/options',
+      {},
+      { authorization: 'Bearer valid-token' },
+    );
+
+    expect(res.status).toBe(200);
+    const options = mockGenerateRegistration.mock.calls[0][0] as {
+      excludeCredentials: { id: string; transports?: string[] }[];
+    };
+    // Read back out of the real table, transports included.
+    expect(options.excludeCredentials).toEqual([
+      { id: existingCredentialId, transports: ['usb', 'nfc'] },
+    ]);
+
+    const stored = await storedChallenge(currentChallenge);
+    expect(stored.userId).toBe(userId);
+    expect(stored.used).toBe(false);
+  });
+
+  it('rejects linking a passkey to a managed account bearer', async () => {
+    mockBearerUserId = await account(freshUsername(), 'organization');
+
+    const res = await request(
+      server,
+      'POST',
+      '/webauthn/register/options',
+      {},
+      { authorization: 'Bearer valid-token' },
+    );
+
+    expect(res.status).toBe(403);
+    expect(await storedChallenge(currentChallenge)).toBeUndefined();
+  });
+
   it('offers residentKey:preferred + UV:preferred and does NOT pin authenticatorAttachment (roaming/hardware keys can enrol)', async () => {
-    const res = await request(server, 'POST', '/webauthn/register/options', { username: 'freshuser' });
+    const res = await request(server, 'POST', '/webauthn/register/options', { username: freshUsername() });
     expect(res.status).toBe(200);
     const opts = mockGenerateRegistration.mock.calls[0][0] as {
       authenticatorSelection: {
@@ -314,9 +388,12 @@ describe('POST /webauthn/register/options', () => {
 });
 
 describe('POST /webauthn/register/verify — signup branch', () => {
-  it('creates the account + credential + webauthn authMethod and returns the AuthSuccess mint shape', async () => {
+  it('creates account + credential + webauthn auth method in one go and returns the AuthSuccess mint shape', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+
     const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username: 'freshuser',
+      username,
       deviceName: 'My Laptop',
       response: registrationResponse(),
     });
@@ -326,84 +403,207 @@ describe('POST /webauthn/register/verify — signup branch', () => {
     expect(Object.keys(res.body).sort()).toEqual(['accessToken', 'deviceId', 'deviceSecret', 'expiresAt', 'sessionId', 'user']);
     expect(res.body.deviceSecret).toBe('device-secret-1');
     expect(res.body.accessToken).toBe('access-token-1');
-    // Same nested user shape as /auth/verify (avatar omitted when undefined, as JSON does).
-    expect(res.body.user).toMatchObject({ id: NEW_USER_ID, username: 'freshuser' });
 
-    // Account + credential were created; a webauthn authMethod was stamped.
-    expect(mockUserSave).toHaveBeenCalledTimes(1);
-    expect(mockCredCreate).toHaveBeenCalledTimes(1);
-    const credArg = mockCredCreate.mock.calls[0][0] as {
-      credentialID: string;
-      name: string;
-      deviceType: string;
-      userVerified: boolean;
-    };
-    expect(credArg.credentialID).toBe(NEW_CRED_ID);
-    expect(credArg.name).toBe('My Laptop');
+    const created = await storedUserByUsername(username);
+    expect(created).toBeDefined();
+    expect(res.body.user).toMatchObject({ id: created.id, username });
+
+    // The credential row carries the ceremony's real values.
+    const credential = await storedCredential(currentCredentialId);
+    expect(credential.userId).toBe(created.id);
+    expect(credential.name).toBe('My Laptop');
+    expect(credential.counter).toBe(0);
+    expect(credential.deviceType).toBe('multiDevice');
+    expect(credential.backedUp).toBe(true);
     // Assurance level captured at enrollment (this ceremony did real UV).
-    expect(credArg.userVerified).toBe(true);
-    expect(mockNewUserDoc.authMethods).toHaveLength(1);
-    expect((mockNewUserDoc.authMethods[0] as { type: string }).type).toBe('webauthn');
-    expect(mockCreateSession).toHaveBeenCalledTimes(1);
+    expect(credential.userVerified).toBe(true);
+    expect(credential.transports).toEqual(['internal']);
+    // bytea round-trips as the exact COSE bytes the verifier reported.
+    expect(Buffer.from(credential.credentialPublicKey)).toEqual(Buffer.from([1, 2, 3, 4]));
+
+    // The auth method is a ROW in the child table, not an array entry.
+    const methods = await storedAuthMethods(created.id);
+    expect(methods).toHaveLength(1);
+    expect(methods[0].type).toBe('webauthn');
+    expect(methods[0].methodCredentialId).toBe(currentCredentialId);
+    expect(methods[0].methodName).toBe('My Laptop');
+    expect(methods[0].methodPublicKey).toBeNull();
+
+    // The challenge is spent.
+    expect((await storedChallenge(currentChallenge)).used).toBe(true);
+
+    // The mint ran against the FLAT session row (a `deviceInfo` regression would
+    // silently drop these three).
+    expect(mockLogSignIn).toHaveBeenCalledTimes(1);
+    expect(mockLogSignIn.mock.calls[0][3]).toEqual({
+      deviceName: 'My Laptop',
+      deviceType: 'web',
+      platform: 'web',
+    });
     // Possession-only credentials are accepted — UV is not required at verify.
     const verifyArg = mockVerifyRegistration.mock.calls[0][0] as { requireUserVerification: boolean };
     expect(verifyArg.requireUserVerification).toBe(false);
   });
 
+  it('defaults the credential name when the client sends none', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+
+    expect((await storedCredential(currentCredentialId)).name).toBe('Passkey');
+  });
+
   it('records userVerified:false for a possession-only (no-UV) enrollment and still creates the account', async () => {
     mockRegisterUserVerified = false;
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+
     const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username: 'freshuser',
+      username,
       deviceName: 'Titan Key',
       response: registrationResponse(),
     });
 
     expect(res.status).toBe(200);
-    expect(mockCredCreate).toHaveBeenCalledTimes(1);
-    const credArg = mockCredCreate.mock.calls[0][0] as { userVerified: boolean };
     // Presence-only assertion → recorded as an unverified (possession-only) credential.
-    expect(credArg.userVerified).toBe(false);
-    expect(mockCreateSession).toHaveBeenCalledTimes(1);
+    expect((await storedCredential(currentCredentialId)).userVerified).toBe(false);
+    expect(await storedUserByUsername(username)).toBeDefined();
   });
 
-  it('rolls back the account when the credential insert collides (duplicate) → 409', async () => {
-    mockCredCreateError = { code: 11000 };
+  it('leaves NO account behind when the credential collides — the whole signup rolls back (409)', async () => {
+    // Someone else already registered this exact passkey.
+    const otherUserId = await account(freshUsername());
+    await getDb().insert(webauthnCredentials).values({
+      userId: otherUserId,
+      credentialID: currentCredentialId,
+      credentialPublicKey: Buffer.from([7]),
+      counter: 1,
+      deviceType: 'singleDevice',
+      backedUp: false,
+      userVerified: false,
+      name: 'Theirs',
+    });
+
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
     const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username: 'freshuser',
+      username,
       response: registrationResponse(),
     });
+
     expect(res.status).toBe(409);
-    expect(mockUserFindByIdAndDelete).toHaveBeenCalledTimes(1);
+    // The row itself is gone — not "a compensating delete was called".
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    // The pre-existing credential still belongs to its original owner.
+    expect((await storedCredential(currentCredentialId)).userId).toBe(otherUserId);
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it('rejects a burned/expired challenge with 401 (no account created)', async () => {
-    mockBurnResult = null; // findOneAndUpdate matches nothing
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username: 'freshuser',
+  it('rejects a burned challenge with 401 — a replay creates no second account', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    const first = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+    expect(first.status).toBe(200);
+
+    // Replay the SAME (now burned) challenge with a different username.
+    const replayUsername = freshUsername();
+    currentCredentialId = freshCredentialId();
+    const replay = await request(server, 'POST', '/webauthn/register/verify', {
+      username: replayUsername,
       response: registrationResponse(),
     });
-    expect(res.status).toBe(401);
-    expect(mockUserSave).not.toHaveBeenCalled();
-    expect(mockCredCreate).not.toHaveBeenCalled();
+
+    expect(replay.status).toBe(401);
+    expect(await storedUserByUsername(replayUsername)).toBeUndefined();
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
   });
 
-  it('rejects when the attestation does not verify', async () => {
+  it('rejects an EXPIRED challenge with 401 (the read filters the deadline; it does not wait for the sweep)', async () => {
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+    // Age the row past its deadline — the sweep has not run, so only the read-side
+    // predicate can reject it.
+    await getDb()
+      .update(webauthnChallenges)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(webauthnChallenges.challenge, currentChallenge));
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+
+    expect(res.status).toBe(401);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    // Still unspent: an expired challenge is rejected, not consumed.
+    expect((await storedChallenge(currentChallenge)).used).toBe(false);
+  });
+
+  it('rejects an unknown challenge with 401 (no account created)', async () => {
+    const username = freshUsername();
+    // No options call at all — nothing was ever stored for this challenge.
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+
+    expect(res.status).toBe(401);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+  });
+
+  it('rejects when the attestation does not verify (challenge already burned, nothing written)', async () => {
     mockVerifyRegistration.mockResolvedValue({ verified: false });
-    const res = await request(server, 'POST', '/webauthn/register/verify', {
-      username: 'freshuser',
-      response: registrationResponse(),
-    });
+    const username = freshUsername();
+    await request(server, 'POST', '/webauthn/register/options', { username });
+
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+
     expect(res.status).toBe(400);
-    expect(mockCredCreate).not.toHaveBeenCalled();
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+  });
+
+  it('refuses a signup challenge that was minted for a LINKING flow', async () => {
+    // Mint a challenge bound to an account…
+    const userId = await account(freshUsername());
+    mockBearerUserId = userId;
+    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
+
+    // …then try to spend it on the unauthenticated signup lane.
+    mockBearerUserId = null;
+    const username = freshUsername();
+    const res = await request(server, 'POST', '/webauthn/register/verify', { username, response: registrationResponse() });
+
+    expect(res.status).toBe(401);
+    expect(await storedUserByUsername(username)).toBeUndefined();
+    // The linking challenge is untouched — it can still be spent by its own flow.
+    expect((await storedChallenge(currentChallenge)).used).toBe(false);
   });
 });
 
 describe('POST /webauthn/register/verify — linking branch', () => {
-  it('links the passkey to the bearer account (credential + authMethod + cache invalidate)', async () => {
-    mockBearerUserId = LINK_USER_ID;
-    const linkDoc = { _id: LINK_USER_ID, username: 'linker', authMethods: [] as unknown[], save: mockUserSave };
-    mockUserFindById.mockReturnValue(linkDoc);
+  it('rejects a managed account even if a linking challenge already exists', async () => {
+    const managedId = await account(freshUsername(), 'organization');
+    mockBearerUserId = managedId;
+    await getDb().insert(webauthnChallenges).values({
+      challenge: currentChallenge,
+      type: 'registration',
+      userId: managedId,
+      expiresAt: new Date(Date.now() + 60_000),
+      used: false,
+    });
+
+    const res = await request(
+      server,
+      'POST',
+      '/webauthn/register/verify',
+      { response: registrationResponse() },
+      { authorization: 'Bearer valid-token' },
+    );
+
+    expect(res.status).toBe(403);
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+    expect(await storedAuthMethods(managedId)).toHaveLength(0);
+  });
+
+  it('links the passkey to the bearer account (credential row + auth-method row + cache invalidate)', async () => {
+    const userId = await account(freshUsername());
+    mockBearerUserId = userId;
+    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
 
     const res = await request(
       server,
@@ -415,35 +615,33 @@ describe('POST /webauthn/register/verify — linking branch', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(mockCredCreate).toHaveBeenCalledTimes(1);
+
+    const credential = await storedCredential(currentCredentialId);
+    expect(credential.userId).toBe(userId);
+    expect(credential.name).toBe('YubiKey');
     // The linked credential records its enrollment assurance level.
-    const credArg = mockCredCreate.mock.calls[0][0] as { userVerified: boolean };
-    expect(credArg.userVerified).toBe(true);
-    expect(linkDoc.authMethods).toHaveLength(1);
-    expect((linkDoc.authMethods[0] as { type: string }).type).toBe('webauthn');
-    expect(mockInvalidate).toHaveBeenCalledWith(LINK_USER_ID);
+    expect(credential.userVerified).toBe(true);
+
+    const methods = await storedAuthMethods(userId);
+    expect(methods).toHaveLength(1);
+    expect(methods[0].type).toBe('webauthn');
+    expect(methods[0].methodCredentialId).toBe(currentCredentialId);
+
+    expect(mockInvalidate).toHaveBeenCalledWith(userId);
     // Linking does NOT mint a new session.
     expect(mockCreateSession).not.toHaveBeenCalled();
   });
 
-  it('binds the burn to the caller: a linking challenge query carries the user id', async () => {
-    mockBearerUserId = LINK_USER_ID;
-    mockUserFindById.mockReturnValue({ _id: LINK_USER_ID, username: 'linker', authMethods: [], save: mockUserSave });
-    await request(
-      server,
-      'POST',
-      '/webauthn/register/verify',
-      { response: registrationResponse() },
-      { authorization: 'Bearer valid-token' },
-    );
-    const query = mockChallengeFindOneAndUpdate.mock.calls[0][0] as { userId: unknown };
-    expect(query.userId).toBe(LINK_USER_ID);
-  });
+  it('refuses a linking challenge minted for a DIFFERENT account (cross-account redirect)', async () => {
+    const victimId = await account(freshUsername());
+    const attackerId = await account(freshUsername());
 
-  it('rejects a duplicate passkey on link with 409', async () => {
-    mockBearerUserId = LINK_USER_ID;
-    mockUserFindById.mockReturnValue({ _id: LINK_USER_ID, username: 'linker', authMethods: [], save: mockUserSave });
-    mockCredCreateError = { code: 11000 };
+    // The challenge is minted for the victim…
+    mockBearerUserId = victimId;
+    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
+
+    // …and presented by the attacker.
+    mockBearerUserId = attackerId;
     const res = await request(
       server,
       'POST',
@@ -451,6 +649,41 @@ describe('POST /webauthn/register/verify — linking branch', () => {
       { response: registrationResponse() },
       { authorization: 'Bearer valid-token' },
     );
+
+    expect(res.status).toBe(401);
+    expect(await storedCredential(currentCredentialId)).toBeUndefined();
+    expect(await storedAuthMethods(attackerId)).toHaveLength(0);
+    // The victim's challenge is still unspent.
+    expect((await storedChallenge(currentChallenge)).used).toBe(false);
+  });
+
+  it('rejects a duplicate passkey on link with 409 and writes no auth-method row', async () => {
+    const otherUserId = await account(freshUsername());
+    await getDb().insert(webauthnCredentials).values({
+      userId: otherUserId,
+      credentialID: currentCredentialId,
+      credentialPublicKey: Buffer.from([7]),
+      counter: 1,
+      deviceType: 'singleDevice',
+      backedUp: false,
+      userVerified: false,
+      name: 'Theirs',
+    });
+
+    const userId = await account(freshUsername());
+    mockBearerUserId = userId;
+    await request(server, 'POST', '/webauthn/register/options', {}, { authorization: 'Bearer valid-token' });
+
+    const res = await request(
+      server,
+      'POST',
+      '/webauthn/register/verify',
+      { response: registrationResponse() },
+      { authorization: 'Bearer valid-token' },
+    );
+
     expect(res.status).toBe(409);
+    expect(await storedAuthMethods(userId)).toHaveLength(0);
+    expect((await storedCredential(currentCredentialId)).userId).toBe(otherUserId);
   });
 });

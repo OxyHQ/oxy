@@ -4,7 +4,12 @@
  */
 
 import { getUserLanguages } from '@oxyhq/core';
-import type { ThemePreference } from '@oxyhq/contracts';
+import {
+  ACCOUNT_CATEGORY_IDS,
+  isAccountKind,
+  type AccountCategoryId,
+  type ThemePreference,
+} from '@oxyhq/contracts';
 import { formatUserNameResponse, type NameParts, type NameResponse } from './displayName';
 
 type StringableId = string | { toString(): string };
@@ -17,7 +22,7 @@ export type UserLike = {
   avatar?: string | null;
   color?: string | null;
   name?: NameParts;
-  organizationCategory?: string;
+  accountCategories?: unknown;
   privacySettings?: unknown;
   verified?: boolean;
   languages?: string[];
@@ -52,6 +57,25 @@ function toVerifiedDomains(value: unknown): VerifiedDomainDto[] | undefined {
     domains.push({ domain, verifiedAt, method });
   }
   return domains;
+}
+
+/**
+ * Ordered account categories, filtered to ids the vocabulary still defines.
+ *
+ * ORDER IS PRESERVED — `filter` keeps it, and nothing here sorts or
+ * de-duplicates, because index 0 is the primary category and any rewrite would
+ * change which one that is. An unknown id is dropped rather than emitted: the
+ * DTO is parsed against `accountCategoriesSchema` by consumers, so passing one
+ * through would fail the whole payload over a value no client could render
+ * anyway (its label key would not exist).
+ */
+function toAccountCategories(value: unknown): AccountCategoryId[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const known = new Set<string>(ACCOUNT_CATEGORY_IDS);
+  const ids = value.filter((entry): entry is AccountCategoryId =>
+    typeof entry === 'string' && known.has(entry)
+  );
+  return ids.length > 0 ? ids : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -98,6 +122,19 @@ function booleanValue(value: unknown): boolean | undefined {
 export interface UserIdentitySource {
   _id?: unknown;
   /**
+   * Drizzle returns the users row FLAT — `name_first` / `name_last` columns, not
+   * the nested `name` object Mongoose's schema produced. Both shapes reach this
+   * one serializer during the Postgres port, and `name.displayName` is the
+   * canonical API contract every ecosystem app reads, so the flat form is
+   * accepted here rather than reassembled by each caller. `formatUserResponse`
+   * takes `unknown`, so a caller that got this wrong would not fail tsc — it
+   * would silently emit `name: {}` and surface as a zod error inside the SDK.
+   */
+  nameFirst?: unknown;
+  nameLast?: unknown;
+  /** Flat `name_display` column — the explicit, stored display name. */
+  nameDisplay?: unknown;
+  /**
    * Present only on objects that already went through the User schema's
    * toObject/toJSON transform, which deletes `_id` and folds the identifier into
    * `id` (e.g. a keyless managed/org account).
@@ -141,9 +178,20 @@ function resolveIdentityId(source: UserIdentitySource): string | undefined {
   return fromObjectId || safeFallback || undefined;
 }
 
-/** Narrow a raw `name` value to the structured `NameParts` the composer reads. */
-function identityNameSource(name: unknown): NameParts | undefined {
-  return typeof name === 'object' && name !== null ? (name as NameParts) : undefined;
+/**
+ * Narrow a source's name to the structured `NameParts` the composer reads,
+ * accepting either the nested Mongoose shape or the flat Drizzle columns.
+ * Returns `undefined` when neither yields anything, so a nameless account still
+ * omits `displayName` and consumers fall back to the handle.
+ */
+function identityNameSource(source: UserIdentitySource): NameParts | undefined {
+  if (typeof source.name === 'object' && source.name !== null) {
+    return source.name as NameParts;
+  }
+  const first = typeof source.nameFirst === 'string' ? source.nameFirst : '';
+  const last = typeof source.nameLast === 'string' ? source.nameLast : '';
+  const displayName = typeof source.nameDisplay === 'string' ? source.nameDisplay : '';
+  return first || last || displayName ? { first, last, displayName } : undefined;
 }
 
 /**
@@ -168,7 +216,7 @@ export function userIdentityFields(source: UserIdentitySource): UserIdentityFiel
   return {
     id: resolveIdentityId(source),
     name: formatUserNameResponse({
-      name: identityNameSource(source.name),
+      name: identityNameSource(source),
       username: stringValue(source.username),
       publicKey: stringValue(source.publicKey),
     }),
@@ -223,7 +271,15 @@ export function formatUserResponse(user: unknown) {
     links: Array.isArray(user.links) ? user.links.filter((link): link is string => typeof link === 'string') : undefined,
     linksMetadata: Array.isArray(user.linksMetadata) ? user.linksMetadata : undefined,
     verifiedDomains: toVerifiedDomains(user.verifiedDomains),
-    organizationCategory: stringValue(user.organizationCategory),
+    // Account-graph classification. Orthogonal to `type` below — `kind` says
+    // WHAT the account is (person / organization / channel …), `type` says where
+    // it lives and how it is driven. Both ride every user DTO.
+    kind: isAccountKind(user.kind) ? user.kind : undefined,
+    // What the account is about, ORDERED — index 0 is the primary category.
+    // Ids only; the label is the reader's to render. `undefined` rather than
+    // `[]` when there are none, matching every other optional field here, so a
+    // personal account's DTO does not grow an empty array on every bulk fetch.
+    accountCategories: toAccountCategories(user.accountCategories),
     // Portable theme preference — rides this self/session payload (login, device
     // sessions, getUserBySession) so account switches carry the theme too.
     themePreference: toThemePreference(user.themePreference),

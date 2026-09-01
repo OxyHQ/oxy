@@ -6,5 +6,5 @@ Este handoff cumplió su función y está archivado. Referencias vigentes:
 
 - **Cómo funciona la sesión hoy:** [`../auth/device-session.md`](../auth/device-session.md) · [`../SESSION-ARCHITECTURE.md`](../SESSION-ARCHITECTURE.md)
 - **Plan maestro:** [`oxy-auth-platform.md`](./oxy-auth-platform.md) (marcado IMPLEMENTADO)
-- **Cierre / auditoría:** [`oxy-auth-audit.md`](./oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO"
+- **Cierre / auditoría:** [`oxy-auth-audit.md`](../archive/auth/oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO"
 - **Handoff completo original (registro histórico):** [`archive/oxy-auth-agent-handoff.md`](./archive/oxy-auth-agent-handoff.md)

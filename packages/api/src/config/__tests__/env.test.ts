@@ -20,7 +20,7 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 const REQUIRED_BASE_ENV: Record<string, string> = {
-  MONGODB_URI: 'mongodb://localhost:27017/test',
+  DATABASE_URL: 'postgres://oxy:oxy@127.0.0.1:5432/oxy_test',
   ACCESS_TOKEN_SECRET: 'a'.repeat(64),
   REFRESH_TOKEN_SECRET: 'b'.repeat(64),
   AWS_REGION: 'eu-west-1',
@@ -65,6 +65,49 @@ describe('isValidHostname', () => {
 
   it.each(INVALID)('rejects %j', (value) => {
     expect(isValidHostname(value)).toBe(false);
+  });
+});
+
+describe('validateRequiredEnvVars — DATABASE_URL', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env = { ...originalEnv, ...REQUIRED_BASE_ENV };
+    process.env.NODE_ENV = 'development';
+    process.env.DEVICE_ID_SALT = 'x'.repeat(48);
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('fails fast when DATABASE_URL is unset', () => {
+    delete process.env.DATABASE_URL;
+    expect(() => validateRequiredEnvVars()).toThrow(ConfigurationError);
+    expect(() => validateRequiredEnvVars()).toThrow(/DATABASE_URL/);
+  });
+
+  it.each(['postgres://oxy@localhost:5432/oxy', 'postgresql://oxy@localhost:5432/oxy'])(
+    'accepts %s without a shape warning',
+    (url) => {
+      process.env.DATABASE_URL = url;
+      expect(() => validateRequiredEnvVars()).not.toThrow();
+      const warnCalls = JSON.stringify((logger.warn as jest.Mock).mock.calls);
+      expect(warnCalls).not.toMatch(/DATABASE_URL/);
+    }
+  );
+
+  it('warns (but does not throw) when DATABASE_URL is not a Postgres URI', () => {
+    process.env.DATABASE_URL = 'mysql://oxy@localhost:3306/oxy';
+    expect(() => validateRequiredEnvVars()).not.toThrow();
+    const warnCalls = JSON.stringify((logger.warn as jest.Mock).mock.calls);
+    expect(warnCalls).toMatch(/DATABASE_URL/);
+  });
+
+  it('boots with no MONGODB_URI at all — Mongo left the serving path', () => {
+    delete process.env.MONGODB_URI;
+    expect(() => validateRequiredEnvVars()).not.toThrow();
   });
 });
 

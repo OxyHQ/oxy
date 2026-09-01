@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { Suspense, useCallback, useEffect, useMemo, useState, type ErrorInfo } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useStore } from 'zustand';
 import { useTheme } from '@oxyhq/bloom/theme';
 import {
@@ -25,7 +25,7 @@ import {
 } from '../hooks/useSurfaceHeader';
 import type { BaseScreenProps } from '../types/navigation';
 
-/** Error boundary catching screen render failures (e.g. a lazy `require()` throw). */
+/** Error boundary catching screen render failures, so one bad screen cannot blank the surface. */
 interface ScreenErrorBoundaryState {
   error: Error | null;
 }
@@ -69,11 +69,33 @@ class ScreenErrorBoundary extends React.Component<
   }
 }
 
+/** The body fill shared by the two states that replace a screen: crashed, and not loaded yet. */
 const errorStyles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   title: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
   message: { fontSize: 13, textAlign: 'center' },
 });
+
+/**
+ * Shown while a route's screen module is still loading. Screens are registered
+ * as `lazy(() => import(...))` (see `../navigation/routes`), so the very first
+ * presentation of a surface can land here for a frame; the surface chrome is
+ * already on screen by then, so this fills only the body.
+ *
+ * Deliberately RN's `ActivityIndicator` rather than `@oxyhq/bloom/loading`,
+ * matching `authChooser/requestSurfaces`: Bloom still declares
+ * `sideEffects: false`, so its `Loading` can still tree-shake to `undefined` in
+ * a rolldown-vite production bundle. Removing that risk from the first frame of
+ * every route is not worth a themed spinner.
+ */
+function ScreenPending() {
+  const theme = useTheme();
+  return (
+    <View style={errorStyles.container}>
+      <ActivityIndicator size="large" color={theme.colors.primary} />
+    </View>
+  );
+}
 
 export interface SurfaceScreenProps {
   /** This surface's route history (the NAV-WITHIN axis). */
@@ -251,7 +273,9 @@ function SurfaceScreen({
   return (
     <SurfaceHeaderContext.Provider value={headerContext}>
       <ScreenErrorBoundary screenName={top.route}>
-        <ScreenComponent {...screenProps} />
+        <Suspense fallback={<ScreenPending />}>
+          <ScreenComponent {...screenProps} />
+        </Suspense>
       </ScreenErrorBoundary>
     </SurfaceHeaderContext.Provider>
   );

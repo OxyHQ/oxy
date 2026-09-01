@@ -13,11 +13,11 @@
  */
 
 import type React from 'react';
-import { View } from 'react-native';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { ActivityIndicator, View } from 'react-native';
+import MaterialCommunityIcons from '../../icons/MaterialCommunityIcons';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxyhq/bloom/button';
-import { Loading } from '@oxyhq/bloom/loading';
+import { useTheme } from '@oxyhq/bloom/theme';
 import { Text } from '@oxyhq/bloom/typography';
 import type { CommonsDeliveryRoute, SignInProgress } from '@oxyhq/core';
 import { authChooserStyles as styles } from './styles';
@@ -30,8 +30,16 @@ const QR_SIZE = 196;
 /** The leading route glyph, sized to sit where the QR plate otherwise would. */
 const ROUTE_GLYPH_SIZE = 44;
 
-/** The indeterminate leading visual: the request exists but has nothing to show yet. */
-export const PreparingSurface: React.FC = () => <Loading variant="spinner" size="large" />;
+/**
+ * The indeterminate leading visual: the request exists but has nothing to show yet.
+ * Uses RN's ActivityIndicator — `@oxyhq/bloom/loading` can tree-shake to `undefined`
+ * in rolldown-vite production bundles when co-imported with `@oxyhq/bloom/button`
+ * (auth.oxy.so/authorize blank screen, React #130).
+ */
+export const PreparingSurface: React.FC = () => {
+  const theme = useTheme();
+  return <ActivityIndicator size="large" color={theme.colors.primary} />;
+};
 
 /** The leading glyph for a route whose surface is elsewhere (the phone, Commons). */
 export const RouteGlyph: React.FC<{

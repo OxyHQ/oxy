@@ -102,58 +102,60 @@ export async function startWebOAuthSignIn(
     return startRedirectSignIn(context, options, 'popup-blocked');
   }
 
-  const prepared = await prepareAuthorizeRequest({
-    clientId: context.clientId,
-    redirectUri: options.redirectUri,
-    authorizeBaseUrl: context.authorizeBaseUrl,
-    scope: options.scope,
-    responseMode: 'web_message',
-  });
+  try {
+    const prepared = await prepareAuthorizeRequest({
+      clientId: context.clientId,
+      redirectUri: options.redirectUri,
+      authorizeBaseUrl: context.authorizeBaseUrl,
+      scope: options.scope,
+      responseMode: 'web_message',
+    });
 
-  if (!navigateOAuthPopup(popup, prepared.authorizeUrl)) {
-    closeOAuthPopup(popup);
-    return startRedirectSignIn(context, options, 'popup-navigation-failed');
-  }
-
-  const outcome = await awaitOAuthPopupResult({
-    popup,
-    expectedOrigin: prepared.authorizeOrigin,
-    expectedState: prepared.handshake.state,
-    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
-  });
-  // The IdP closes itself after delivering; this covers every other outcome
-  // (timeout, mismatch, an error the IdP reported before closing).
-  closeOAuthPopup(popup);
-
-  switch (outcome.kind) {
-    case 'code': {
-      const completion = await completeOAuthCode({
-        oxyServices: context.oxyServices,
-        clientId: context.clientId,
-        code: outcome.code,
-        returnedState: outcome.state,
-        handshake: prepared.handshake,
-        redirectUri: options.redirectUri,
-        commitSession: context.commitSession,
-      });
-      return completion.ok
-        ? { status: 'signed-in' }
-        : { status: 'failed', reason: completion.reason };
+    if (!navigateOAuthPopup(popup, prepared.authorizeUrl)) {
+      return startRedirectSignIn(context, options, 'popup-navigation-failed');
     }
-    case 'oauth-error':
-      return {
-        status: 'failed',
-        reason: 'idp-error',
-        description: outcome.errorDescription ?? outcome.error,
-      };
-    case 'state-mismatch':
-      return { status: 'failed', reason: 'state-mismatch' };
-    case 'closed':
-      return { status: 'cancelled' };
-    case 'timed-out':
-      return { status: 'timed-out' };
-    case 'unsupported':
-      return { status: 'unsupported', reason: 'no-browser' };
+
+    const outcome = await awaitOAuthPopupResult({
+      popup,
+      expectedOrigin: prepared.authorizeOrigin,
+      expectedState: prepared.handshake.state,
+      redirectUri: options.redirectUri,
+      ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    });
+
+    switch (outcome.kind) {
+      case 'code': {
+        const completion = await completeOAuthCode({
+          oxyServices: context.oxyServices,
+          clientId: context.clientId,
+          code: outcome.code,
+          returnedState: outcome.state,
+          handshake: prepared.handshake,
+          redirectUri: options.redirectUri,
+          commitSession: context.commitSession,
+        });
+        return completion.ok
+          ? { status: 'signed-in' }
+          : { status: 'failed', reason: completion.reason };
+      }
+      case 'oauth-error':
+        return {
+          status: 'failed',
+          reason: 'idp-error',
+          description: outcome.errorDescription ?? outcome.error,
+        };
+      case 'state-mismatch':
+        return { status: 'failed', reason: 'state-mismatch' };
+      case 'closed':
+        return { status: 'cancelled' };
+      case 'timed-out':
+        return { status: 'timed-out' };
+      case 'unsupported':
+        return { status: 'unsupported', reason: 'no-browser' };
+    }
+  } finally {
+    // Covers throws after open (prepare/exchange/commit) and every settled outcome.
+    closeOAuthPopup(popup);
   }
 }
 
@@ -178,7 +180,11 @@ async function startRedirectSignIn(
     scope: options.scope,
   });
 
-  if (!persistOAuthHandshake(prepared.handshake.state, prepared.handshake.codeVerifier)) {
+  if (!persistOAuthHandshake(
+    prepared.handshake.state,
+    prepared.handshake.codeVerifier,
+    options.redirectUri,
+  )) {
     return { status: 'failed', reason: 'handshake-storage' };
   }
 

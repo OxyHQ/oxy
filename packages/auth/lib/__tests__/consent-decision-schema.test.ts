@@ -1,25 +1,30 @@
 /**
- * Contract tests for `consentDecisionSchema` + `consentRequiredFromBody` — the
- * `GET /auth/oauth/consent` decision the authorize page runs to decide whether
- * the OAuth consent screen must be shown or the request can be auto-approved.
+ * Contract tests for `oauthConsentDecisionSchema` + `consentRequiredFromBody` —
+ * the `GET /auth/oauth/consent` decision the authorize page runs to decide
+ * whether the OAuth consent screen must be shown or the request can be
+ * auto-approved.
  *
  * The page calls this for the OAuth code path right after an account is
  * selected. The security-critical invariant: ANY response the schema cannot
  * validate (transport failure, malformed body, missing field, unknown `reason`)
  * MUST fail safe to `consentRequired: true` so the consent screen is shown — we
  * never silently auto-approve on a parse error.
+ *
+ * The schema moved to `@oxyhq/contracts` when the browser hub's edge layer
+ * became a second consumer of the same response (issue #937 Phase 5), and it is
+ * a discriminated union there rather than the flat object this file used to
+ * hold. The cases below are unchanged and still pass; the union additionally
+ * rejects reason/flag pairs the server can never emit, which the last test
+ * pins.
  */
 import { describe, expect, test } from "bun:test"
-import {
-    consentDecisionSchema,
-    consentRequiredFromBody,
-    safeParse,
-} from "@/lib/schemas"
+import { oauthConsentDecisionSchema } from "@oxyhq/contracts"
+import { consentRequiredFromBody, safeParse } from "@/lib/schemas"
 
-describe("consentDecisionSchema", () => {
+describe("oauthConsentDecisionSchema", () => {
     test("parses every valid reason", () => {
         for (const reason of ["trusted", "granted", "new", "scope_changed"]) {
-            const parsed = safeParse(consentDecisionSchema, {
+            const parsed = safeParse(oauthConsentDecisionSchema, {
                 consentRequired: reason === "new" || reason === "scope_changed",
                 reason,
             })
@@ -32,7 +37,7 @@ describe("consentDecisionSchema", () => {
 
     test("rejects an unknown reason enum value", () => {
         expect(
-            safeParse(consentDecisionSchema, {
+            safeParse(oauthConsentDecisionSchema, {
                 consentRequired: false,
                 reason: "because_i_said_so",
             })
@@ -41,17 +46,48 @@ describe("consentDecisionSchema", () => {
 
     test("rejects a missing consentRequired field", () => {
         expect(
-            safeParse(consentDecisionSchema, { reason: "trusted" })
+            safeParse(oauthConsentDecisionSchema, { reason: "trusted" })
         ).toBeNull()
     })
 
     test("rejects a non-boolean consentRequired", () => {
         expect(
-            safeParse(consentDecisionSchema, {
+            safeParse(oauthConsentDecisionSchema, {
                 consentRequired: "false",
                 reason: "trusted",
             })
         ).toBeNull()
+    })
+
+    test("rejects a reason that contradicts its own flag", () => {
+        // `trusted` means "do not ask", so it cannot ride on `true`; `new` means
+        // "ask", so it cannot ride on `false`. The flat schema this replaced
+        // accepted both, and a consumer reading `reason` first would then have
+        // auto-approved a request the server said to ask about.
+        expect(
+            safeParse(oauthConsentDecisionSchema, {
+                consentRequired: true,
+                reason: "trusted",
+            })
+        ).toBeNull()
+        expect(
+            safeParse(oauthConsentDecisionSchema, {
+                consentRequired: false,
+                reason: "new",
+            })
+        ).toBeNull()
+    })
+
+    test("carries the scopes that forced the screen", () => {
+        const parsed = safeParse(oauthConsentDecisionSchema, {
+            consentRequired: true,
+            reason: "new",
+            userConsentScopes: ["follows:read"],
+        })
+        expect(parsed).not.toBeNull()
+        expect(
+            parsed?.consentRequired === true ? parsed.userConsentScopes : null
+        ).toEqual(["follows:read"])
     })
 })
 

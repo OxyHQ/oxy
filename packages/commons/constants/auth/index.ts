@@ -10,13 +10,14 @@ export const USERNAME_DEBOUNCE_MS = 500;
 export const CREATING_PROGRESS_INTERVAL_MS = 500;
 export const CREATING_FINAL_DELAY_MS = 500;
 
-/**
- * Username validation rules
+/*
+ * Username validation rules used to live here — a third copy of the policy
+ * (`^[a-z0-9]+$/i`, minimum 4) that agreed with neither the server nor the SDK.
+ * Its minimum would have refused `oxy`, which is the platform owner's own
+ * organization. The rule, its length bounds and its message now come from
+ * `@oxyhq/contracts` (`usernameSchema`, `USERNAME_MIN_LENGTH`,
+ * `USERNAME_INVALID_MESSAGE`), which is what the API enforces.
  */
-export const USERNAME_MIN_LENGTH = 4;
-export const USERNAME_REGEX = /^[a-z0-9]+$/i;
-export const USERNAME_FORMAT_ERROR = 'You can use a-z, 0-9. Minimum length is 4 characters.';
-export const USERNAME_INVALID_ERROR = 'Please enter a valid username (4+ characters, a-z and 0-9 only)';
 
 /**
  * Word lists for generating creative usernames

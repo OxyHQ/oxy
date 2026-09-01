@@ -7,7 +7,6 @@ import type { User } from '../models/interfaces';
 import type {
   UserNameResponse,
   LoginResult,
-  LoginSessionResult,
   CommonsDenyReason,
 } from '@oxyhq/contracts';
 import { loginResultSchema, safeParseContract } from '@oxyhq/contracts';
@@ -31,6 +30,13 @@ import { normalizeUserIdentity, normalizeUserIdentityOrNull } from '../utils/use
  * returned `expiresAt` is authoritative; this is only the client-proposed value.
  */
 const COMMONS_SIGN_IN_EXPIRY_MS = 5 * 60 * 1000;
+
+/**
+ * Fallback access-token lifetime used only if the token endpoint ever omits the
+ * RFC 6749 `expires_in` member. Matches the server's current 15-minute access
+ * token; the server's value always wins when present.
+ */
+const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
 export interface ChallengeResponse {
   challenge: string;
@@ -57,6 +63,50 @@ export interface ChallengeVerifyRequest {
 export interface PublicKeyCheckResponse {
   registered: boolean;
   message: string;
+}
+
+/** OpenID Connect userinfo claims returned by `GET /auth/oauth/userinfo`. */
+export interface OAuthUserInfoResponse {
+  sub: string;
+  preferred_username?: string;
+  name?: string;
+  picture?: string;
+}
+
+/**
+ * The session an OAuth authorization-code exchange yields.
+ *
+ * Deliberately NOT `LoginSessionResult`. That type mirrors the API's
+ * `buildSessionAuthResponse`, which every FIRST-PARTY sign-in lane emits, and it
+ * requires `deviceId` because those lanes always join the origin's DeviceSession.
+ * `POST /auth/oauth/token` is the RFC 6749 token endpoint and serves third
+ * parties, whose grant is deliberately ISOLATED: an untrusted application must be
+ * able to receive a session carrying NO DeviceSession credential at all.
+ *
+ * Both device fields are therefore optional here, and a response omitting them is
+ * a well-formed device-less grant rather than a malformed payload. What that
+ * costs the session is spelled out on `exchangeOAuthCode` below.
+ */
+export interface OAuthTokenExchangeResult {
+  sessionId: string;
+  /** ISO-8601 expiry of {@link accessToken}, derived from RFC 6749 `expires_in`. */
+  expiresAt: string;
+  accessToken?: string;
+  /**
+   * The DeviceSession this grant joined, when the server issued one. ABSENT for
+   * an isolated third-party grant — never assume a string.
+   */
+  deviceId?: string;
+  /**
+   * The zero-cookie mint credential for {@link deviceId}. Present only alongside
+   * it; absent for an isolated third-party grant.
+   */
+  deviceSecret?: string;
+  user: {
+    id: string;
+    username?: string;
+    avatar?: string;
+  };
 }
 
 // ===========================================================================
@@ -146,12 +196,17 @@ export interface CommonsSignInHandle {
 export interface CommonsSignInStatus {
   /** True once an approver has authorized the session. */
   authorized: boolean;
-  /** The authorized session id (present once `authorized`). */
+  /** The authorized session id (present once `authorized` for device sign-in). */
   sessionId?: string;
   /** The approving identity's public key (present once `authorized`). */
   publicKey?: string;
   /** Lifecycle status (`'pending'` | `'authorized'` | `'cancelled'` | `'expired'`). */
   status?: string;
+  /**
+   * How this request finalizes. Unrecognized/missing values degrade to
+   * `device_sign_in` so an older API never misroutes an OAuth finalize.
+   */
+  purpose?: CommonsSignInPurpose;
   /**
    * ISO-8601 timestamp of when the request was pushed to a known Commons
    * installation, or `null` when no push has been sent (including on a server
@@ -1101,7 +1156,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
         if (res === null || typeof res !== 'object') {
           throw new Error('auth/session/status returned an unexpected response shape');
         }
-        const { authorized, sessionId, publicKey, status, pushSentAt, openedAt } =
+        const { authorized, sessionId, publicKey, status, purpose, pushSentAt, openedAt } =
           res as Record<string, unknown>;
 
         return {
@@ -1109,6 +1164,7 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
           ...(typeof sessionId === 'string' && sessionId ? { sessionId } : {}),
           ...(typeof publicKey === 'string' && publicKey ? { publicKey } : {}),
           ...(typeof status === 'string' && status ? { status } : {}),
+          purpose: purpose === 'oauth_authorization' ? 'oauth_authorization' : 'device_sign_in',
           pushSentAt: parseCommonsProgressTimestamp(pushSentAt),
           openedAt: parseCommonsProgressTimestamp(openedAt),
         };
@@ -1671,61 +1727,129 @@ export function OxyServicesAuthMixin<T extends typeof OxyServicesBase>(Base: T) 
      * after sign-in at auth.oxy.so) for a device-first session.
      * Public first-party clients use PKCE (`codeVerifier`); the access token is
      * planted immediately on success.
+     *
+     * Speaks the standard RFC 6749 §4.1.3 token request — a form-urlencoded
+     * body with snake_case parameters and `grant_type=authorization_code` — and
+     * reads the flat §5.1 response. The camelCase JSON request and `{ data }`
+     * response this method used before were an Oxy invention no OAuth library
+     * could interoperate with; the endpoint no longer accepts them. The method's
+     * OWN signature is unchanged, so callers are unaffected.
+     *
+     * `deviceId` + `deviceSecret` are OPTIONAL and their absence is a valid
+     * outcome, not an error. A third-party grant is meant to be isolated from the
+     * browser's shared DeviceSession, so the token endpoint must be free to return
+     * no device credential at all — the guard that used to require the pair made
+     * that omission unshippable, since it turned every third-party sign-in through
+     * the SDK into a silent `exchange-failed`.
+     *
+     * The cost is real and deliberate: a DEVICE-LESS session cannot use the
+     * zero-cookie mint lane (`POST /session/device/token`), because that lane's
+     * whole proof is possession of a `deviceSecret`. Its lifetime is therefore the
+     * access token itself — nothing persists a restore credential, the cold boot's
+     * `device-secret-mint` step reports `no-secret` and skips, and the refresh
+     * scheduler has nothing to re-mint from. When the token expires the session
+     * ends LOUDLY: the 401 lane clears the tokens and the provider resolves signed
+     * out, so the app can run the OAuth flow again. It never degrades into a
+     * session that looks alive and cannot refresh.
      */
     async exchangeOAuthCode(params: {
       code: string;
       clientId: string;
       redirectUri: string;
       codeVerifier: string;
-    }): Promise<LoginSessionResult> {
+    }): Promise<OAuthTokenExchangeResult> {
       try {
-        const res = await this.makeRequest<unknown>('POST', '/auth/oauth/token', {
+        const form = new URLSearchParams({
+          grant_type: 'authorization_code',
           code: params.code,
-          clientId: params.clientId,
-          redirectUri: params.redirectUri,
-          codeVerifier: params.codeVerifier,
-        }, { cache: false, skipAuth: true });
-        const payload =
-          (res as { data?: Record<string, unknown> }).data ??
-          (res as Record<string, unknown>);
-        if (!payload || typeof payload !== 'object') {
+          redirect_uri: params.redirectUri,
+          client_id: params.clientId,
+          code_verifier: params.codeVerifier,
+        });
+        const res = await this.makeRequest<unknown>(
+          'POST',
+          '/auth/oauth/token',
+          form,
+          { cache: false, skipAuth: true },
+        );
+        if (!res || typeof res !== 'object') {
           throw new Error('auth/oauth/token returned an unexpected response shape');
         }
-        const record = payload as Record<string, unknown>;
-        const accessToken = (record.access_token ?? record.accessToken) as string | undefined;
-        const sessionId = (record.session_id ?? record.sessionId) as string | undefined;
-        const deviceId = (record.deviceId ?? record.device_id) as string | undefined;
-        const deviceSecret = (record.deviceSecret ?? record.device_secret) as string | undefined;
+        // RFC 6749 §5.1: every member sits at the TOP LEVEL of the document.
+        const record = res as Record<string, unknown>;
+        const accessToken = typeof record.access_token === 'string' ? record.access_token : undefined;
+        const sessionId = typeof record.session_id === 'string' ? record.session_id : undefined;
+        const deviceId = typeof record.deviceId === 'string' ? record.deviceId : undefined;
+        const deviceSecret = typeof record.deviceSecret === 'string' ? record.deviceSecret : undefined;
         const userRaw = record.user;
-        if (!sessionId || !deviceId || !userRaw || typeof userRaw !== 'object') {
+        // The device pair is NOT part of this guard — see the note above. What is
+        // still mandatory is what identifies the session at all.
+        if (!sessionId || !userRaw || typeof userRaw !== 'object') {
           throw new Error('auth/oauth/token returned an incomplete session payload');
         }
         const userObj = userRaw as Record<string, unknown>;
-        const userId = userObj.id as string | undefined;
+        const userId = typeof userObj.id === 'string' ? userObj.id : undefined;
         if (!userId) {
           throw new Error('auth/oauth/token returned a session without user.id');
         }
         const expiresInSec =
-          typeof record.expires_in === 'number'
-            ? record.expires_in
-            : typeof record.expiresIn === 'number'
-              ? record.expiresIn
-              : 15 * 60;
+          typeof record.expires_in === 'number' ? record.expires_in : DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
         const expiresAt = new Date(Date.now() + expiresInSec * 1000).toISOString();
         if (accessToken) {
           this.setTokens(accessToken);
         }
+        if (!deviceId || !deviceSecret) {
+          logger.debug(
+            'auth/oauth/token returned no device credential — this session lives only as long as its access token',
+            { component: 'oxy.auth', method: 'exchangeOAuthCode' },
+          );
+        }
         return {
           sessionId,
-          deviceId,
           expiresAt,
           accessToken,
-          deviceSecret,
+          // Omitted rather than set to `undefined` when the server sent no device
+          // credential, so a device-less grant serializes as the absence it is.
+          ...(deviceId ? { deviceId } : {}),
+          ...(deviceSecret ? { deviceSecret } : {}),
           user: {
             id: userId,
             username: typeof userObj.username === 'string' ? userObj.username : undefined,
             avatar: typeof userObj.avatar === 'string' ? userObj.avatar : undefined,
           },
+        };
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Fetch OpenID Connect userinfo for the current bearer (`GET /auth/oauth/userinfo`).
+     * The response is a flat JSON document — no `{ data }` wrapper.
+     */
+    async getOAuthUserInfo(): Promise<OAuthUserInfoResponse> {
+      try {
+        const res = await this.makeRequest<unknown>(
+          'GET',
+          '/auth/oauth/userinfo',
+          undefined,
+          { cache: false },
+        );
+        if (!res || typeof res !== 'object') {
+          throw new Error('auth/oauth/userinfo returned an unexpected response shape');
+        }
+        const record = res as Record<string, unknown>;
+        const sub = typeof record.sub === 'string' ? record.sub : undefined;
+        if (!sub) {
+          throw new Error('auth/oauth/userinfo returned a response without sub');
+        }
+        return {
+          sub,
+          ...(typeof record.preferred_username === 'string'
+            ? { preferred_username: record.preferred_username }
+            : {}),
+          ...(typeof record.name === 'string' ? { name: record.name } : {}),
+          ...(typeof record.picture === 'string' ? { picture: record.picture } : {}),
         };
       } catch (error) {
         throw this.handleError(error);

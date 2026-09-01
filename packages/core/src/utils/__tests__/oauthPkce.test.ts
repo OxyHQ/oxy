@@ -1,15 +1,19 @@
 import { createHash } from 'node:crypto';
 import {
   buildOAuthAuthorizeUrl,
+  canonicalizeOAuthRedirectUri,
   computeCodeChallenge,
   DEFAULT_OAUTH_SCOPE,
   generateOAuthState,
   generatePkcePair,
   OXY_AUTHORIZE_URL,
+  OXY_OAUTH_REDIRECT_URI_STORAGE_KEY,
   OXY_OAUTH_RETURN_PATH_STORAGE_KEY,
   clearOAuthHandshake,
   consumeOAuthReturnPath,
+  persistOAuthHandshake,
   persistOAuthReturnPath,
+  readOAuthHandshake,
 } from '../oauthPkce';
 
 /** RFC 7636 unreserved subset produced by base64url (no `+`, `/`, `=`). */
@@ -154,6 +158,53 @@ describe('buildOAuthAuthorizeUrl', () => {
     expect(url).not.toContain('redirect_uri=https://merchant.co');
     // Round-trips back to the exact original when parsed.
     expect(new URL(url).searchParams.get('redirect_uri')).toBe(redirectUri);
+  });
+});
+
+describe('canonicalizeOAuthRedirectUri', () => {
+  it('collapses apex URLs to origin only', () => {
+    expect(canonicalizeOAuthRedirectUri('https://app.example/')).toBe('https://app.example');
+    expect(canonicalizeOAuthRedirectUri('https://app.example')).toBe('https://app.example');
+  });
+
+  it('preserves path-qualified redirect URIs', () => {
+    const uri = 'https://app.example/oauth/callback';
+    expect(canonicalizeOAuthRedirectUri(uri)).toBe(uri);
+  });
+});
+
+describe('OAuth handshake persistence', () => {
+  function installSessionStorage(): Map<string, string> {
+    const map = new Map<string, string>();
+    (globalThis as { sessionStorage?: Storage }).sessionStorage = {
+      getItem: (k: string) => (map.has(k) ? (map.get(k) as string) : null),
+      setItem: (k: string, v: string) => void map.set(k, v),
+      removeItem: (k: string) => void map.delete(k),
+      clear: () => map.clear(),
+      key: (i: number) => [...map.keys()][i] ?? null,
+      get length() {
+        return map.size;
+      },
+    } as unknown as Storage;
+    return map;
+  }
+
+  afterEach(() => {
+    delete (globalThis as { sessionStorage?: Storage }).sessionStorage;
+  });
+
+  it('round-trips redirect_uri through persist/read/clear', () => {
+    const store = installSessionStorage();
+    const redirectUri = 'https://app.example/oauth/callback';
+    expect(persistOAuthHandshake('state-1', 'verifier-1', redirectUri)).toBe(true);
+    expect(readOAuthHandshake()).toEqual({
+      state: 'state-1',
+      codeVerifier: 'verifier-1',
+      redirectUri,
+    });
+    clearOAuthHandshake();
+    expect(store.get(OXY_OAUTH_REDIRECT_URI_STORAGE_KEY)).toBeUndefined();
+    expect(readOAuthHandshake()).toBeNull();
   });
 });
 

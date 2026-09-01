@@ -241,13 +241,17 @@ describe('runColdBoot', () => {
     it('hangs forever when a step never settles and no deadline is set', async () => {
       const terminalRan = jest.fn();
       let settled = false;
+      let releaseHang: (() => void) | undefined;
 
       const outcomePromise = runColdBoot<TestSession>({
         steps: [
           {
             id: 'never-settles',
-            // Never resolves or rejects — models a hung async call.
-            run: () => new Promise<ColdBootStepResult<TestSession>>(() => {}),
+            // Never resolves or rejects until the test tears down — models a hung async call.
+            run: () =>
+              new Promise<ColdBootStepResult<TestSession>>((resolve) => {
+                releaseHang = () => resolve({ kind: 'skip' });
+              }),
           },
           {
             id: 'terminal',
@@ -268,8 +272,9 @@ describe('runColdBoot', () => {
       expect(settled).toBe(false);
       expect(terminalRan).not.toHaveBeenCalled();
 
-      // Avoid a dangling unhandled promise in the test runner.
-      void outcomePromise;
+      // Tear down the intentional hang so Jest workers can exit cleanly.
+      releaseHang?.();
+      await outcomePromise;
     });
 
     /**

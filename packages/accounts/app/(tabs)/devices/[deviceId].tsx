@@ -14,7 +14,7 @@ import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useTranslation } from '@/lib/i18n';
 import { getDeviceIcon, getDeviceDisplayName, type DeviceRecord } from '@/utils/device-utils';
 import { useHapticPress } from '@/hooks/use-haptic-press';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 // 20% alpha suffix applied to the success token for the current-device icon
 // badge background (e.g. `#10B981` -> `#10B98120`).

@@ -3,20 +3,46 @@
  */
 
 /**
- * Build URL search parameters from an object
+ * Build a plain query-parameter record from an object, stringifying values and
+ * dropping `undefined`/`null` entries.
+ *
+ * This is the shape `OxyServices.makeRequest` expects for a GET's `params`:
+ * `HttpService` inspects it with `Object.keys(...)` (both to decide whether to
+ * append a query string and to build the request's cache key), and
+ * `Object.keys(new URLSearchParams({ limit: '20' }))` is `[]` — a
+ * `URLSearchParams` exposes its entries through iterator methods, never as own
+ * enumerable properties. Passing one to `makeRequest` therefore silently drops
+ * the whole query string. Always hand `makeRequest` a plain record.
+ *
+ * Generic over the input object rather than taking `Record<string, unknown>`,
+ * because a TypeScript `interface` (`PaginationParams`, `FollowGraphParams`, …)
+ * has no implicit index signature and so is not assignable to that type.
+ */
+export function buildQueryParams<T extends object>(params: T): Record<string, string> {
+  const query: Record<string, string> = {};
+
+  // Widening the value to `unknown` is always sound; the default overload of
+  // `Object.entries` would otherwise infer `any` here.
+  for (const [key, value] of Object.entries(params) as [string, unknown][]) {
+    if (value !== undefined && value !== null) {
+      query[key] = String(value);
+    }
+  }
+
+  return query;
+}
+
+/**
+ * Build URL search parameters from an object.
+ *
+ * For building a URL string only — see {@link buildQueryParams} for the shape
+ * `makeRequest` needs.
+ *
  * @param params Object with parameter key-value pairs
  * @returns URLSearchParams instance
  */
-export function buildSearchParams(params: Record<string, any>): URLSearchParams {
-  const searchParams = new URLSearchParams();
-  
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null) {
-      searchParams.append(key, value.toString());
-    }
-  }
-  
-  return searchParams;
+export function buildSearchParams<T extends object>(params: T): URLSearchParams {
+  return new URLSearchParams(buildQueryParams(params));
 }
 
 /**
@@ -25,7 +51,7 @@ export function buildSearchParams(params: Record<string, any>): URLSearchParams 
  * @param params Object with parameter key-value pairs
  * @returns Complete URL with search parameters
  */
-export function buildUrl(baseUrl: string, params?: Record<string, any>): string {
+export function buildUrl<T extends object>(baseUrl: string, params?: T): string {
   if (!params) return baseUrl;
   
   const searchParams = buildSearchParams(params);
@@ -43,12 +69,35 @@ export interface PaginationParams {
 }
 
 /**
- * Build pagination search parameters
- * @param params Pagination parameters
- * @returns URLSearchParams with pagination
+ * Ordering for the follow-graph list endpoints (`/users/:id/followers`,
+ * `/users/:id/following`, `/users/:id/mutuals`).
+ *
+ * - `recent` — newest follow edge first (the server default).
+ * - `oldest` — oldest follow edge first.
  */
-export function buildPaginationParams(params: PaginationParams): URLSearchParams {
-  return buildSearchParams(params);
+export type FollowGraphSort = 'recent' | 'oldest';
+
+/**
+ * Pagination plus the follow-graph ordering.
+ *
+ * Kept separate from {@link PaginationParams}, which is shared by endpoints
+ * that have no `sort` at all.
+ */
+export interface FollowGraphParams extends PaginationParams {
+  sort?: FollowGraphSort;
+}
+
+/**
+ * Build pagination query parameters.
+ *
+ * Returns a plain record — NOT a `URLSearchParams` — because that is the only
+ * shape `makeRequest`/`HttpService` can read. See {@link buildQueryParams}.
+ *
+ * @param params Pagination parameters
+ * @returns Query record with pagination
+ */
+export function buildPaginationParams(params: PaginationParams): Record<string, string> {
+  return buildQueryParams(params);
 }
 
 /**

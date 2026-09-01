@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -9,7 +10,7 @@ import {
   Key01Icon,
   RefreshIcon,
 } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import type {Application, ApplicationCredential, ApplicationCredentialType, ApplicationEnvironment, CallerAccess} from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+  credentialAuditAttribution,
+  credentialAuditVariant,
+  humaniseAuditToken,
+} from '@/lib/credential-audit';
+import {
   availablePaymentsScopes,
   isUntrustedThirdPartyApp,
   PAYMENTS_SCOPES,
@@ -49,9 +55,11 @@ import {
 import {
   useApplicationCredentials,
   useCreateCredential,
+  useCredentialAudit,
   useRevokeCredential,
   useRotateCredential,
 } from '@/hooks/use-applications';
+import { usePlaygroundKey } from '@/lib/playground-key';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -64,6 +72,7 @@ const CREDENTIAL_TYPES: Array<{ value: ApplicationCredentialType; label: string 
   { value: 'public', label: 'Public' },
   { value: 'confidential', label: 'Confidential' },
   { value: 'service', label: 'Service' },
+  { value: 'machine', label: 'API key (machine)' },
 ];
 
 const ENVIRONMENTS: Array<{ value: ApplicationEnvironment; label: string }> = [
@@ -82,10 +91,26 @@ function statusVariant(status: ApplicationCredential['status']): 'default' | 'se
   return 'secondary';
 }
 
+/**
+ * Credential material shown ONCE, immediately after a create or a rotate.
+ *
+ * Held in component state only, cleared by the "I saved my secret" button, and
+ * never read back from anywhere — the credentials list the API serves carries no
+ * secret field at all, so there is nothing for this component to re-render even
+ * if it tried.
+ *
+ * `secret` and `token` are separate and both optional because exactly one of
+ * them exists per credential type: `secret` for a `confidential`/`service`
+ * client, `token` for a `machine` API key, neither for a `public` client.
+ * Collapsing them into one field is what would let an API key's bearer token be
+ * rendered under the wrong label — or a `public` client's `null` be copied to
+ * the clipboard as the string "null".
+ */
 interface RevealedSecret {
   credentialName: string;
   publicKey: string;
-  secret: string;
+  secret: string | null;
+  token?: string;
 }
 
 interface CredentialsSectionProps {
@@ -94,6 +119,12 @@ interface CredentialsSectionProps {
 }
 
 export function CredentialsSection({ application, access }: CredentialsSectionProps) {
+  const navigate = useNavigate();
+  // The playground's key holder. This is the ONLY moment a machine credential's
+  // bearer token exists in the browser, so it is the only moment the hand-off is
+  // possible at all — see `lib/playground-key.ts` for why it is a store rather
+  // than router state.
+  const setPlaygroundKey = usePlaygroundKey((state) => state.setApiKey);
   const appId = application._id;
   const canRead = access.can('credentials:read');
   const canCreate = access.can('credentials:create');
@@ -111,6 +142,8 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
   const [environment, setEnvironment] = useState<ApplicationEnvironment>('development');
   const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [revealed, setRevealed] = useState<RevealedSecret | null>(null);
+  /** Which credential's trail is expanded, if any. One at a time. */
+  const [trailFor, setTrailFor] = useState<string | null>(null);
   const [credentialToRotate, setCredentialToRotate] = useState<ApplicationCredential | null>(null);
   const [credentialToRevoke, setCredentialToRevoke] = useState<ApplicationCredential | null>(null);
 
@@ -122,6 +155,10 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
   const grantablePaymentsScopes = availablePaymentsScopes(application.scopes);
   const requiresPaymentsScopes =
     type === 'service' && isUntrustedThirdPartyApp(application);
+  // A machine credential must name at least one scope — the API refuses a
+  // scopeless one rather than defaulting it to the application's whole grant,
+  // so the form has to ask.
+  const isMachineType = type === 'machine';
 
   const resetCreateForm = () => {
     setName('');
@@ -157,6 +194,10 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
       toast.error('Select at least one payments scope for service credentials');
       return;
     }
+    if (isMachineType && selectedScopes.length === 0) {
+      toast.error('Select at least one scope for an API key');
+      return;
+    }
     try {
       const result = await createCredential.mutateAsync({
         appId,
@@ -164,7 +205,7 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
           name: name.trim(),
           type,
           environment,
-          ...(type === 'service' && selectedScopes.length > 0
+          ...((type === 'service' || isMachineType) && selectedScopes.length > 0
             ? { scopes: selectedScopes }
             : {}),
         },
@@ -175,6 +216,7 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
         credentialName: result.credential.name,
         publicKey: result.credential.publicKey,
         secret: result.secret,
+        token: result.token,
       });
       toast.success('Credential created');
     } catch (error) {
@@ -196,6 +238,7 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
         credentialName: result.credential.name,
         publicKey: result.credential.publicKey,
         secret: result.secret,
+        token: result.token,
       });
       toast.success('Credential rotated');
     } catch (error) {
@@ -273,22 +316,71 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                 <HugeiconsIcon icon={Copy01Icon} size={14} className="text-muted-foreground" />
               </button>
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Secret</Label>
-              <button
-                onClick={() => handleCopy(revealed.secret, 'Secret copied to clipboard')}
-                className="flex w-full items-center gap-2 rounded bg-background/60 p-2 transition-colors hover:bg-background"
-              >
-                <span className="flex-1 truncate text-left font-mono text-sm text-foreground">
-                  {revealed.secret}
-                </span>
-                <HugeiconsIcon icon={Copy01Icon} size={14} className="text-muted-foreground" />
-              </button>
-            </div>
+            {/* Rendered ONLY when the credential actually has one. A `public`
+                client's `secret` is null and a machine credential's is too —
+                without this guard the box would show an empty value and the copy
+                button would put the string "null" on the clipboard. */}
+            {revealed.secret ? (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Secret</Label>
+                <button
+                  onClick={() => handleCopy(revealed.secret ?? '', 'Secret copied to clipboard')}
+                  className="flex w-full items-center gap-2 rounded bg-background/60 p-2 transition-colors hover:bg-background"
+                >
+                  <span className="flex-1 truncate text-left font-mono text-sm text-foreground">
+                    {revealed.secret}
+                  </span>
+                  <HugeiconsIcon icon={Copy01Icon} size={14} className="text-muted-foreground" />
+                </button>
+              </div>
+            ) : null}
+            {/* The machine credential's single bearer string. A separate box with
+                its own label, so it can never be mistaken for the OAuth secret
+                above — the two are used in completely different ways. */}
+            {revealed.token ? (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  API key — send as <code>Authorization: Bearer</code>
+                </Label>
+                <button
+                  onClick={() => handleCopy(revealed.token ?? '', 'API key copied to clipboard')}
+                  className="flex w-full items-center gap-2 rounded bg-background/60 p-2 transition-colors hover:bg-background"
+                >
+                  <span className="flex-1 truncate text-left font-mono text-sm text-foreground">
+                    {revealed.token}
+                  </span>
+                  <HugeiconsIcon icon={Copy01Icon} size={14} className="text-muted-foreground" />
+                </button>
+              </div>
+            ) : null}
           </div>
-          <Button variant="outline" size="sm" className="mt-3" onClick={() => setRevealed(null)}>
-            I saved my secret
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => setRevealed(null)}>
+              I saved my secret
+            </Button>
+            {/*
+              Offered only for a machine credential's `token`. The `secret` above
+              belongs to a confidential or service client and is not an `oxy_sk_…`
+              bearer, so it cannot authenticate the inference edge — a button
+              carrying it would produce a refusal that looked like a bug.
+
+              The key is handed over in MEMORY (never a URL, never storage) and
+              this component unmounts on navigation, so the reveal box does not
+              survive the hop.
+            */}
+            {revealed.token ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPlaygroundKey(revealed.token ?? '');
+                  navigate({ to: '/playground' });
+                }}
+              >
+                Try this key in the playground
+              </Button>
+            ) : null}
+          </div>
         </div>
       )}
 
@@ -310,7 +402,8 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
       ) : (
         <div className="divide-y divide-border rounded-lg border border-border">
           {credentials.map((credential) => (
-            <div key={credential._id} className="flex items-center justify-between gap-4 px-4 py-3">
+            <div key={credential._id}>
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-foreground truncate">{credential.name}</p>
@@ -324,13 +417,21 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                     {credential.environment}
                   </Badge>
                 </div>
+                {/* For an API key the identifier a developer recognises is its
+                    `oxy_sk_` prefix, not the OAuth client id it also carries.
+                    Both are public; neither is the key. */}
                 <button
                   onClick={() =>
-                    handleCopy(credential.publicKey, 'Client ID copied to clipboard')
+                    handleCopy(
+                      credential.tokenPrefix ?? credential.publicKey,
+                      credential.tokenPrefix
+                        ? 'API key ID copied to clipboard'
+                        : 'Client ID copied to clipboard'
+                    )
                   }
                   className="mt-1 flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <span className="truncate">{credential.publicKey}</span>
+                  <span className="truncate">{credential.tokenPrefix ?? credential.publicKey}</span>
                   <HugeiconsIcon icon={Copy01Icon} size={12} />
                 </button>
               </div>
@@ -358,7 +459,23 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                     <HugeiconsIcon icon={Delete02Icon} size={16} className="text-destructive" />
                   </Button>
                 )}
+                {/* Gated on the same `credentials:read` the endpoint enforces, so
+                    the affordance and the server agree. A revoked credential keeps
+                    its trail: the revocation is the part worth reading. */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    setTrailFor(trailFor === credential._id ? null : credential._id)
+                  }
+                >
+                  {trailFor === credential._id ? 'Hide trail' : 'Trail'}
+                </Button>
               </div>
+              </div>
+              {trailFor === credential._id && (
+                <CredentialTrail appId={appId} credentialId={credential._id} />
+              )}
             </div>
           ))}
         </div>
@@ -442,6 +559,33 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
                 )}
               </div>
             )}
+            {isMachineType && (
+              <div className="space-y-2">
+                <Label className="text-sm">Scopes</Label>
+                {application.scopes.length > 0 ? (
+                  <div className="space-y-3 rounded-lg border border-border p-3">
+                    {application.scopes.map((scope) => (
+                      <div key={scope} className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-foreground">{scope}</p>
+                        <Switch
+                          checked={selectedScopes.includes(scope)}
+                          onCheckedChange={(checked) => toggleScope(scope, checked)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Grant this application at least one scope under General before creating an API
+                    key.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  An API key is a single bearer string. It is shown once on creation and once on
+                  each rotation, and can never be read back.
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="credential-environment" className="text-sm">
                 Environment
@@ -472,7 +616,8 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
               disabled={
                 createCredential.isPending ||
                 !name.trim() ||
-                (requiresPaymentsScopes && selectedScopes.length === 0)
+                (requiresPaymentsScopes && selectedScopes.length === 0) ||
+                (isMachineType && selectedScopes.length === 0)
               }
             >
               {createCredential.isPending ? 'Creating...' : 'Create credential'}
@@ -528,6 +673,83 @@ export function CredentialsSection({ application, access }: CredentialsSectionPr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/**
+ * One credential's audit trail: created, rotated, revoked, and every refused
+ * validation.
+ *
+ * Unlike the BYOK trail beside it, nothing is projected away here — the server's
+ * wire type has no `metadata` property at all, so there is no blob to drop. See
+ * `useCredentialAudit`.
+ *
+ * `reason` and a null `actorUserId` are TWO CORRELATED STATES rather than four
+ * independent ones: a `validation_failed` row is the only kind with a reason, and
+ * the only kind with no actor — because nobody performed it, a refused request
+ * did. So the attribution is rendered off `eventType`, not off the nullness of
+ * `actorUserId`, which would read "by a service credential" for a refusal that
+ * had no actor at all.
+ */
+function CredentialTrail({ appId, credentialId }: { appId: string; credentialId: string }) {
+  const { data: events = [], isLoading, isError } = useCredentialAudit(appId, credentialId);
+
+  if (isLoading) {
+    return (
+      <div className="border-t border-border px-4 py-3">
+        <Skeleton.Box width="100%" height={60} borderRadius={10} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
+        The trail could not be loaded.
+      </p>
+    );
+  }
+
+  if (events.length === 0) {
+    return (
+      <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
+        No recorded activity.
+      </p>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-border border-t border-border">
+      {events.map((event) => (
+        <div
+          key={`${event.eventType}-${event.reason ?? 'none'}-${event.createdAt}`}
+          className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={credentialAuditVariant(event)} className="text-xs">
+              {humaniseAuditToken(event.eventType)}
+            </Badge>
+            {event.reason !== null && (
+              <Badge variant="ghost" className="text-xs">
+                {humaniseAuditToken(event.reason)}
+              </Badge>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {event.environment ?? 'no environment'} · {credentialAuditAttribution(event)}
+            </span>
+            {/* A rotation grace deadline, when the event set one. */}
+            {event.effectiveUntil !== null && (
+              <span className="text-xs text-muted-foreground">
+                until {new Date(event.effectiveUntil).toLocaleString()}
+              </span>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {new Date(event.createdAt).toLocaleString()}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }

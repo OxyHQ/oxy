@@ -2,17 +2,19 @@ import { useEffect } from "react"
 import ReactDOM from "react-dom/client"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { BloomThemeProvider } from "@oxyhq/bloom/theme"
+import { ConnectionStatusToasts } from "@oxyhq/bloom/connection-status"
 import { OxyProvider } from "@oxyhq/services"
 import { getBloomThemeCSS, setBasePreset } from "@/lib/bloom-css"
 import { getApiBaseUrl } from "@/lib/oxy-api-client"
 import { OXY_CLIENT_ID } from "@/lib/oxy-client"
+import { isBrowserHubEnabled } from "@/lib/hub-client"
 import { LayoutProvider } from "@/lib/layout-context"
 import { LocaleProvider } from "@/lib/i18n/locale-context"
 import { AuthLayout } from "@/src/pages/layout"
 import { LoginPage } from "@/src/pages/login"
 import { SignUpPage } from "@/src/pages/signup"
 import { AuthorizePage } from "@/src/pages/authorize"
-import { HubSyncPage } from "@/src/pages/hub-sync"
+import { HubAuthorizePage } from "@/src/pages/hub-authorize"
 import { HubPasskeyPage } from "@/src/pages/hub-passkey"
 import "@/app/globals.css"
 
@@ -33,15 +35,35 @@ styleEl.textContent = bloomCSS
 document.head.appendChild(styleEl)
 setBasePreset("oxy")
 
+/**
+ * Whether this build serves `/authorize` from the browser hub (issue #937
+ * Phase 5, ADR 0003).
+ *
+ * Read ONCE, here, from the build's own env — one flag for the whole lane. OFF
+ * is the default and means `auth.oxy.so` behaves byte-for-byte as it does
+ * today: the SDK's per-origin `{deviceId, deviceSecret}`, the normal cold boot,
+ * and not one `/hub/*` request. Flipping it ON is the BROWSER-VERIFICATION
+ * GATE — it comes out when somebody has actually run Chrome, Safari and
+ * Firefox, private windows, and third-party cookies blocked against the lane,
+ * never on reasoning.
+ */
+const BROWSER_HUB_ENABLED = isBrowserHubEnabled(import.meta.env)
+
+/** The one place the flag chooses a page. */
+function AuthorizeRoute() {
+    return BROWSER_HUB_ENABLED ? <HubAuthorizePage /> : <AuthorizePage />
+}
+
 function App() {
     return (
         <LocaleProvider>
             <LayoutProvider>
                 <BloomThemeProvider mode="system" colorPreset="oxy">
+                <ConnectionStatusToasts />
                 {/* The IdP is a device-first origin like every other Oxy app: it
                     runs the normal SDK cold boot (restore this origin's device
                     session from its own persisted `{deviceId, deviceSecret}`),
-                    enumerates device accounts through `useSwitchableAccounts`, and
+                    enumerates the device directory through `useDeviceSwitcher`, and
                     supplies the OxyAccountDialog + OxyConsentScreen context. It
                     stays a shell OAuth/authorize/consent surface — NOT a Relying
                     Party. The former `coldBoot={false}` IdP exception existed for
@@ -49,7 +71,17 @@ function App() {
                 <OxyProvider
                     baseURL={getApiBaseUrl()}
                     clientId={OXY_CLIENT_ID}
-                    hubSync={false}
+                    // With the browser hub ON, the durable credential for this
+                    // browser profile is the server-side DeviceSession behind
+                    // `__Host-oxy-device`, so this origin persists none of its
+                    // own. Two durable credentials for one origin is the dual
+                    // authority ADR 0003 exists to remove — revoking the hub
+                    // while a localStorage secret still mints would make a
+                    // sign-out look like it worked. OFF (the default) leaves the
+                    // provider byte-for-byte as it was.
+                    deviceCredentialStorage={
+                        BROWSER_HUB_ENABLED ? "ephemeral" : "persistent"
+                    }
                 >
                     <BrowserRouter>
                         <Routes>
@@ -57,11 +89,11 @@ function App() {
                             <Route element={<AuthLayout />}>
                                 <Route path="/login" element={<LoginPage />} />
                                 <Route path="/signup" element={<SignUpPage />} />
-                                <Route path="/authorize" element={<AuthorizePage />} />
+                                <Route path="/authorize" element={<AuthorizeRoute />} />
                                 <Route path="/hub-passkey" element={<HubPasskeyPage />} />
                                 <Route path="/auth/login" element={<LoginPage />} />
                                 <Route path="/auth/signup" element={<SignUpPage />} />
-                                <Route path="/auth/authorize" element={<AuthorizePage />} />
+                                <Route path="/auth/authorize" element={<AuthorizeRoute />} />
                             </Route>
 
                             {/* Account management lives on accounts.oxy.so — the IdP no longer
@@ -70,9 +102,6 @@ function App() {
                             <Route path="/settings/password" element={<ExternalRedirect url="https://accounts.oxy.so/security" />} />
                             <Route path="/settings/linked-accounts" element={<ExternalRedirect url="https://accounts.oxy.so/security" />} />
                             <Route path="/settings/sessions" element={<ExternalRedirect url="https://accounts.oxy.so/sessions" />} />
-
-                            {/* Callback routes (no layout) */}
-                            <Route path="/sync" element={<HubSyncPage />} />
 
                             <Route path="/" element={<ExternalRedirect url="https://oxy.so" />} />
                             <Route path="*" element={<Navigate to="/login" replace />} />

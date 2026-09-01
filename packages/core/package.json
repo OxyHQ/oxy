@@ -1,7 +1,7 @@
 {
   "name": "@oxyhq/core",
-  "version": "12.10.6",
-  "description": "OxyHQ SDK Foundation — API client, authentication, cryptographic identity, and shared utilities",
+  "version": "23.0.0",
+  "description": "OxyHQ SDK Foundation \u2014 API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
   "types": "dist/types/index.d.ts",
@@ -62,6 +62,7 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "NOTICE",
     "dist",
     "src"
   ],
@@ -79,7 +80,7 @@
     "directory": "packages/core"
   },
   "author": "OxyHQ",
-  "license": "AGPL-3.0-only",
+  "license": "Apache-2.0",
   "homepage": "https://oxy.so",
   "engines": {
     "node": ">=18.0.0"
@@ -117,28 +118,26 @@
     "@noble/hashes": "^1.8.0",
     "@oxyhq/contracts": "workspace:^",
     "@oxyhq/protocol": "workspace:^",
-    "bip39": "^3.1.0",
+    "@scure/bip39": "^1.6.0",
+    "@types/elliptic": "catalog:",
     "buffer": "^6.0.3",
-    "elliptic": "^6.6.1",
+    "elliptic": "catalog:",
+    "express-rate-limit": "catalog:",
+    "helmet": "^8.0.0",
     "invariant": "^2.2.4",
     "jwt-decode": "^4.0.0",
-    "socket.io-client": "^4.8.1",
-    "tldts": "^7.4.8",
+    "socket.io-client": "catalog:",
+    "tldts": "^7.4.10",
     "zod": "^3.25.64"
   },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": "*",
     "expo-crypto": "*",
     "expo-secure-store": "*",
-    "express": "^4.0.0",
-    "express-rate-limit": "^7.0.0",
-    "helmet": "^8.0.0"
+    "express": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@react-native-async-storage/async-storage": {
-      "optional": true
-    },
-    "helmet": {
       "optional": true
     },
     "expo-crypto": {
@@ -152,19 +151,18 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "catalog:",
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@types/elliptic": "^6.4.18",
-    "@types/express": "^4.17.21",
+    "@types/express": "catalog:",
     "@types/invariant": "^2.2.34",
     "@types/node": "^20.19.43",
     "expo-crypto": "~56.0.3",
     "expo-secure-store": "~56.0.4",
-    "express": "^4.22.2",
-    "express-rate-limit": "^7.5.0",
-    "helmet": "^8.3.0",
+    "express": "catalog:",
+    "express-rate-limit": "catalog:",
     "regexpu-core": "^6.4.0",
-    "release-it": "^19.0.6",
-    "typescript": "^5.9.2"
+    "release-it": "catalog:",
+    "typescript": "^5.9.2",
+    "helmet": "catalog:"
   }
 }

@@ -1,123 +1,327 @@
 /**
- * Random personhood audit tests (civic / Fase 3).
+ * Random personhood audits (civic / Fase 3), against a REAL Postgres.
  *
- * `sweepPersonhoodAudits` samples real persons and opens a jury request for each
- * (reusing the Fase 2 `openValidationRequest`), skipping subjects with an audit
- * already open. `resolvePersonhoodAuditOutcome` rewards the majority and, on a
- * `rejected` (fake) outcome, runs the staking slash cascade. The validator jury
- * + personhood service + reputation award are mocked; `did.service` runs for real.
+ * The suite this replaces mocked `PersonhoodStatus.aggregate`, the jury, the
+ * personhood service and the reputation award, then asserted that
+ * `openValidationRequest` had been CALLED with a particular object. That says
+ * nothing about the three properties the audit sweep actually has to hold:
+ *
+ *  - **An audit is only ever opened about a REAL PERSON.** The sample is drawn
+ *    `where is_real_person`, so the discriminating fixture is a cohort of
+ *    accounts that are NOT real persons: they can never be sampled, whatever the
+ *    random draw does, so asserting they never acquire an audit is deterministic
+ *    even though the sample is not.
+ *  - **At most ONE open audit per subject.** The stable `personhood_audit:<id>`
+ *    source key rides the `unique (source_action_id) where status in
+ *    ('pending','quorum_met')` index, so re-running the sweep can never fork a
+ *    subject's audit across two juries that could each only expire.
+ *  - **A `rejected` audit is a STAKING event.** The jury saying "fake" slashes
+ *    every active voucher of the subject and recomputes them; a `validated` one
+ *    must not. Both are asserted against the vouch rows, not against a spy.
+ *
+ * The sweep samples RANDOMLY over a table the whole run shares, so nothing here
+ * asserts a sample size or a global count — every assertion is scoped to the
+ * accounts this file seeded.
  */
 
-const mockOpen = jest.fn();
-const mockSlashVouchers = jest.fn();
-const mockRecompute = jest.fn();
-const mockAward = jest.fn();
-const mockCount = jest.fn();
-const mockAggregate = jest.fn();
-const mockReqFind = jest.fn();
-
-jest.mock('../civic/validator.service', () => ({ openValidationRequest: (...a: unknown[]) => mockOpen(...a) }));
-jest.mock('../civic/personhood.service', () => ({
-  slashVouchersForFakeSubject: (...a: unknown[]) => mockSlashVouchers(...a),
-  recomputePersonhood: (...a: unknown[]) => mockRecompute(...a),
-}));
-jest.mock('../reputation.service', () => ({ reputationService: { award: (...a: unknown[]) => mockAward(...a) } }));
-jest.mock('../../models/PersonhoodStatus', () => ({
-  __esModule: true,
-  default: {
-    countDocuments: (...a: unknown[]) => mockCount(...a),
-    aggregate: (...a: unknown[]) => mockAggregate(...a),
-  },
-}));
-jest.mock('../../models/ValidationRequest', () => ({
-  __esModule: true,
-  default: { find: (...a: unknown[]) => mockReqFind(...a) },
-}));
-jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
-}));
-
-import {
-  sweepPersonhoodAudits,
-  resolvePersonhoodAuditOutcome,
-  openPersonhoodAudit,
-} from '../civic/personhoodAudit.service';
+import { randomUUID } from 'node:crypto';
+import { ec as EC } from 'elliptic';
+import { and, eq, inArray } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
+import { personhoodVouches } from '../../db/schema/personhoodVouches';
+import { reputationTransactions } from '../../db/schema/reputationTransactions';
+import { validationRequests } from '../../db/schema/validationRequests';
+import { users } from '../../db/schema/users';
 import { buildUserDid } from '../did.service';
-import type { IValidationRequest } from '../../models/ValidationRequest';
+import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
+import { reputationService } from '../reputation.service';
+import {
+  openPersonhoodAudit,
+  resolvePersonhoodAuditOutcome,
+  sweepPersonhoodAudits,
+} from '../civic/personhoodAudit.service';
+import {
+  PERSONHOOD_AUDIT_ACTION,
+  PERSONHOOD_VOUCH_DEFAULT_STAKE,
+} from '../../utils/civic.constants';
+import {
+  VALIDATION_CORRECT_ACTION,
+  VALIDATION_CORRECT_POINTS,
+  VOUCH_SLASHED_ACTION,
+} from '../../utils/reputation.constants';
 
-const U1 = '1'.repeat(24);
-const U2 = '2'.repeat(24);
+const ec = new EC('secp256k1');
+const uniqueId = () => randomUUID().replace(/-/g, '');
 
-function selectLean(data: unknown) {
-  return { select: () => ({ lean: async () => data }) };
+/** How many real persons this file seeds before exercising the random sweep. */
+const REAL_PERSON_COHORT = 60;
+/** …and how many accounts it seeds that are explicitly NOT real persons. */
+const IMPOSTOR_COHORT = 5;
+/** A bounded retry so one unlucky random draw cannot flake the sweep case. */
+const SWEEP_ATTEMPTS = 3;
+
+async function makeAccount(): Promise<string> {
+  const id = uniqueId();
+  await getDb().insert(users).values({ id, username: `au${id.slice(0, 12)}` });
+  return id;
 }
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockOpen.mockResolvedValue({ _id: { toString: () => 'req-x' } });
-  mockSlashVouchers.mockResolvedValue(2);
-  mockRecompute.mockResolvedValue({});
-  mockAward.mockResolvedValue({});
-  mockReqFind.mockReturnValue(selectLean([])); // no open audits by default
+/** An account with a personhood verdict already recorded. */
+async function makeJudged(isRealPerson: boolean): Promise<string> {
+  const userId = await makeAccount();
+  await getDb()
+    .insert(personhoodStatuses)
+    .values({ userId, isRealPerson, score: isRealPerson ? 0.9 : 0.1 });
+  return userId;
+}
+
+/** An ACTIVE vouch backed by a real signed record on the voucher's own chain. */
+async function seedActiveVouch(subjectUserId: string): Promise<string> {
+  const keyPair = ec.genKeyPair();
+  const publicKey = keyPair.getPublic('hex');
+  const voucherId = uniqueId();
+  await getDb()
+    .insert(users)
+    .values({ id: voucherId, username: `vo${voucherId.slice(0, 12)}`, publicKey });
+  const envelope = signRecordEnvelope(
+    {
+      version: 2,
+      type: 'personhood_vouch',
+      subject: buildUserDid(voucherId),
+      issuer: buildUserDid(voucherId),
+      record: { about: buildUserDid(subjectUserId), context: 'met-in-person' },
+      issuedAt: Date.now(),
+      seq: 0,
+      prev: null,
+      collection: 'app.oxy.personhood',
+      rkey: `vouch-${uniqueId().slice(0, 8)}`,
+      publicKey,
+      alg: 'ES256K-DER-SHA256',
+    },
+    keyPair.getPrivate('hex'),
+  );
+  const stored = await verifyAndStoreRecord(envelope, voucherId);
+  if (!stored.ok) {
+    throw new Error(`vouch fixture could not be stored: ${stored.reason}`);
+  }
+  await getDb().insert(personhoodVouches).values({
+    voucherUserId: voucherId,
+    subjectUserId,
+    stakeAmount: PERSONHOOD_VOUCH_DEFAULT_STAKE,
+    recordId: stored.record.recordId,
+  });
+  return voucherId;
+}
+
+/** The audit requests (of any status) opened for a set of subjects. */
+async function auditsFor(subjectIds: string[]) {
+  if (subjectIds.length === 0) {
+    return [];
+  }
+  return getDb()
+    .select({
+      id: validationRequests.id,
+      subjectUserId: validationRequests.subjectUserId,
+      sourceActionId: validationRequests.sourceActionId,
+      status: validationRequests.status,
+      payload: validationRequests.payload,
+    })
+    .from(validationRequests)
+    .where(
+      and(
+        eq(validationRequests.actionType, PERSONHOOD_AUDIT_ACTION),
+        inArray(validationRequests.subjectUserId, subjectIds),
+      ),
+    );
+}
+
+async function vouchStatus(voucherUserId: string, subjectUserId: string): Promise<string> {
+  const [row] = await getDb()
+    .select({ status: personhoodVouches.status })
+    .from(personhoodVouches)
+    .where(
+      and(
+        eq(personhoodVouches.voucherUserId, voucherUserId),
+        eq(personhoodVouches.subjectUserId, subjectUserId),
+      ),
+    );
+  return row.status;
+}
+
+async function ledgerRows(userId: string) {
+  return getDb()
+    .select({
+      actionType: reputationTransactions.actionType,
+      points: reputationTransactions.points,
+      sourceActionId: reputationTransactions.sourceActionId,
+    })
+    .from(reputationTransactions)
+    .where(eq(reputationTransactions.userId, userId));
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+  await reputationService.seedDefaultRules();
+});
+
+afterAll(async () => {
+  await closePostgres();
 });
 
 describe('openPersonhoodAudit', () => {
-  it('opens a personhood_audit jury request with the subject DID payload', async () => {
-    await openPersonhoodAudit(U1);
-    expect(mockOpen).toHaveBeenCalledTimes(1);
-    expect(mockOpen.mock.calls[0][0]).toMatchObject({
-      subjectUserId: U1,
-      actionType: 'personhood_audit',
-      sourceActionId: `personhood_audit:${U1}`,
-      payload: { kind: 'personhood_audit', subjectDid: buildUserDid(U1) },
+  it('opens a jury request carrying the subject DID under a stable source key', async () => {
+    const subjectUserId = await makeJudged(true);
+
+    const request = await openPersonhoodAudit(subjectUserId);
+
+    const [stored] = await auditsFor([subjectUserId]);
+    expect(stored.id).toBe(request.id);
+    expect(stored.status).toBe('pending');
+    expect(stored.sourceActionId).toBe(`personhood_audit:${subjectUserId}`);
+    // The jurors inspect the payload; the DID is what identifies the subject to
+    // them, and it is what the payload hash the verdicts bind to is computed on.
+    expect(stored.payload).toEqual({
+      kind: 'personhood_audit',
+      subjectDid: buildUserDid(subjectUserId),
     });
+  });
+
+  it('is idempotent while an audit for the subject is still open', async () => {
+    const subjectUserId = await makeJudged(true);
+
+    const first = await openPersonhoodAudit(subjectUserId);
+    const second = await openPersonhoodAudit(subjectUserId);
+
+    expect(second.id).toBe(first.id);
+    expect(await auditsFor([subjectUserId])).toHaveLength(1);
   });
 });
 
 describe('sweepPersonhoodAudits', () => {
-  it('opens an audit for each sampled real person', async () => {
-    mockCount.mockResolvedValue(10);
-    mockAggregate.mockResolvedValue([{ userId: U1 }, { userId: U2 }]);
-    const opened = await sweepPersonhoodAudits();
-    expect(opened).toBe(2);
-    expect(mockOpen).toHaveBeenCalledTimes(2);
-  });
+  it(
+    'audits real persons, never an account that is not one, and never twice at once',
+    async () => {
+      const realPersons: string[] = [];
+      for (let i = 0; i < REAL_PERSON_COHORT; i += 1) {
+        realPersons.push(await makeJudged(true));
+      }
+      const impostors: string[] = [];
+      for (let i = 0; i < IMPOSTOR_COHORT; i += 1) {
+        impostors.push(await makeJudged(false));
+      }
 
-  it('skips a subject that already has an open audit', async () => {
-    mockCount.mockResolvedValue(10);
-    mockAggregate.mockResolvedValue([{ userId: U1 }, { userId: U2 }]);
-    mockReqFind.mockReturnValue(selectLean([{ subjectUserId: U1 }]));
-    const opened = await sweepPersonhoodAudits();
-    expect(opened).toBe(1);
-    expect(mockOpen).toHaveBeenCalledTimes(1);
-    expect(mockOpen.mock.calls[0][0].subjectUserId).toBe(U2);
-  });
+      // The sample is random over a shared table, so the ONE probabilistic step
+      // is bounded rather than assumed: retry until the draw touches this
+      // cohort. Everything asserted afterwards is deterministic.
+      let opened = 0;
+      let audited: Awaited<ReturnType<typeof auditsFor>> = [];
+      for (let attempt = 0; attempt < SWEEP_ATTEMPTS && audited.length === 0; attempt += 1) {
+        opened += await sweepPersonhoodAudits();
+        audited = await auditsFor(realPersons);
+      }
 
-  it('is a no-op when there are no real persons', async () => {
-    mockCount.mockResolvedValue(0);
-    const opened = await sweepPersonhoodAudits();
-    expect(opened).toBe(0);
-    expect(mockAggregate).not.toHaveBeenCalled();
-    expect(mockOpen).not.toHaveBeenCalled();
-  });
+      expect(audited.length).toBeGreaterThan(0);
+      // The counter never under-reports what it opened.
+      expect(opened).toBeGreaterThanOrEqual(audited.length);
+
+      for (const audit of audited) {
+        expect(audit.sourceActionId).toBe(`personhood_audit:${audit.subjectUserId}`);
+        expect(audit.payload).toEqual({
+          kind: 'personhood_audit',
+          subjectDid: buildUserDid(audit.subjectUserId),
+        });
+      }
+
+      // Deterministic, whatever the draw did: the sample is taken `where
+      // is_real_person`, so an account with a sub-θ verdict can never appear.
+      expect(await auditsFor(impostors)).toEqual([]);
+
+      // Re-running must not fork any subject's audit across two open juries.
+      await sweepPersonhoodAudits();
+      const afterSecondSweep = await auditsFor(realPersons);
+      const openPerSubject = new Map<string, number>();
+      for (const audit of afterSecondSweep) {
+        if (audit.status === 'pending' || audit.status === 'quorum_met') {
+          openPerSubject.set(audit.subjectUserId, (openPerSubject.get(audit.subjectUserId) ?? 0) + 1);
+        }
+      }
+      expect([...openPerSubject.values()].every((count) => count === 1)).toBe(true);
+      expect(openPerSubject.size).toBeGreaterThan(0);
+    },
+    120_000,
+  );
 });
 
 describe('resolvePersonhoodAuditOutcome', () => {
-  const request = {
-    _id: { toString: () => 'req-1' },
-    subjectUserId: { toString: () => U1 },
-  } as unknown as IValidationRequest;
+  it('rewards the majority and runs the STAKING SLASH cascade on a rejected audit', async () => {
+    const subjectUserId = await makeJudged(true);
+    const voucher = await seedActiveVouch(subjectUserId);
+    const request = await openPersonhoodAudit(subjectUserId);
+    const jurors = [await makeAccount(), await makeAccount()];
 
-  it('on a rejected (fake) outcome, rewards the majority and runs the slash cascade', async () => {
-    await resolvePersonhoodAuditOutcome(request, 'rejected', ['j1', 'j2']);
-    expect(mockSlashVouchers).toHaveBeenCalledWith(U1, expect.any(String));
-    const correct = mockAward.mock.calls.filter((c) => c[0].actionType === 'validation_correct');
-    expect(correct).toHaveLength(2);
+    await resolvePersonhoodAuditOutcome(request, 'rejected', jurors);
+
+    for (const juror of jurors) {
+      expect(await ledgerRows(juror)).toEqual([
+        {
+          actionType: VALIDATION_CORRECT_ACTION,
+          points: VALIDATION_CORRECT_POINTS,
+          // The audit's own source key — distinct from the peer-validation one,
+          // so a juror can be rewarded for both without either being deduped away.
+          sourceActionId: `${request.id}:${juror}:audit`,
+        },
+      ]);
+    }
+
+    // The staking consequence: the voucher loses their stake and the edge.
+    expect(await vouchStatus(voucher, subjectUserId)).toBe('slashed');
+    expect(await ledgerRows(voucher)).toEqual([
+      {
+        actionType: VOUCH_SLASHED_ACTION,
+        points: -20,
+        sourceActionId: expect.stringContaining('vouch_slash:'),
+      },
+    ]);
+
+    // …and the subject was recomputed without their vouch.
+    const [status] = await getDb()
+      .select({ vouchCount: personhoodStatuses.vouchCount })
+      .from(personhoodStatuses)
+      .where(eq(personhoodStatuses.userId, subjectUserId));
+    expect(status.vouchCount).toBe(0);
   });
 
-  it('on a validated outcome, re-affirms the subject without slashing', async () => {
-    await resolvePersonhoodAuditOutcome(request, 'validated', ['j1']);
-    expect(mockSlashVouchers).not.toHaveBeenCalled();
-    expect(mockRecompute).toHaveBeenCalledWith(U1);
+  it('re-affirms the subject on a validated audit WITHOUT slashing anyone', async () => {
+    // The discriminating pair for the case above: the same inputs, the other
+    // outcome. A resolver that slashed unconditionally passes that one.
+    const subjectUserId = await makeJudged(true);
+    const voucher = await seedActiveVouch(subjectUserId);
+    const request = await openPersonhoodAudit(subjectUserId);
+    const juror = await makeAccount();
+
+    await resolvePersonhoodAuditOutcome(request, 'validated', [juror]);
+
+    expect(await vouchStatus(voucher, subjectUserId)).toBe('active');
+    expect(await ledgerRows(voucher)).toEqual([]);
+    expect(await ledgerRows(juror)).toHaveLength(1);
+
+    // The re-affirm recomputes the subject, so the status row reflects the
+    // surviving vouch rather than a stale count.
+    const [status] = await getDb()
+      .select({ vouchCount: personhoodStatuses.vouchCount })
+      .from(personhoodStatuses)
+      .where(eq(personhoodStatuses.userId, subjectUserId));
+    expect(status.vouchCount).toBe(1);
+  });
+
+  it('rewards nobody when the jury had no winning side to reward', async () => {
+    const subjectUserId = await makeJudged(true);
+    const voucher = await seedActiveVouch(subjectUserId);
+    const request = await openPersonhoodAudit(subjectUserId);
+
+    await resolvePersonhoodAuditOutcome(request, 'validated', []);
+
+    expect(await vouchStatus(voucher, subjectUserId)).toBe('active');
   });
 });

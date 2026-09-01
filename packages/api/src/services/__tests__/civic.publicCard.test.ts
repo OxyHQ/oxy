@@ -1,172 +1,286 @@
 /**
- * Civic public-card tests (Fase 1).
+ * The public Oxy ID card (civic / Fase 1), against a REAL Postgres.
  *
- * Asserts `buildSignedPublicCard` assembles the canonical card shape from the
- * user + reputation balance, and that the Oxy attestation verifies against the
- * canonical-JSON of the card (the same `ES256K-DER-SHA256` scheme a Commons
- * scanner uses OFFLINE). The User/ReputationBalance models are mocked; the
- * display-name composition + canonicalization run for real.
+ * The suite this replaces mocked `User`, `ReputationBalance` and
+ * `PersonhoodStatus` as Mongoose models the service no longer imports, so every
+ * "assertion" was really a statement about the mock's `.select().lean()` chain.
+ * The card is now assembled from FOUR tables — `users`, `reputation_balances`,
+ * `personhood_statuses` and the `user_verified_domains` child table — and the
+ * three composition rules that can silently break are exactly the ones a mock
+ * cannot vouch for:
+ *
+ *  - **The card is the OFFLINE contract.** A Commons scanner resolves a DID,
+ *    re-canonicalizes the card it received, and checks the Oxy signature without
+ *    talking to us again. That only works if the signed bytes are derivable from
+ *    the card alone — which is why the optional keys are OMITTED rather than set
+ *    to `undefined`, and why the tamper case below is the assertion that matters
+ *    (a signature test that only verifies the untouched card passes against a
+ *    signature computed over a constant).
+ *  - **`personhoodStatus` is TRI-state**, and the two false-ish states are
+ *    distinct: no row at all is `unverified`, a row below θ is `pending`. A
+ *    fixture that only exercises "row present, real person" cannot tell them
+ *    apart.
+ *  - **The card must carry no protected column.** `users` holds the phone, the
+ *    contact-discovery hashes and the live refresh token; drizzle returns every
+ *    column unless the select names them, so the key set is asserted exactly.
+ *
+ * The whole run shares one database, so every account carries a per-test random
+ * id and no assertion depends on a table being empty.
  */
 
+import { randomUUID } from 'node:crypto';
 import { ec as EC } from 'elliptic';
+import { eq } from 'drizzle-orm';
 import { canonicalize } from '@oxyhq/protocol';
+import type { PublicCard } from '@oxyhq/contracts';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
+import { reputationBalances } from '../../db/schema/reputationBalances';
+import { userVerifiedDomains } from '../../db/schema/userVerifiedDomains';
+import { users } from '../../db/schema/users';
+import { buildSignedPublicCard } from '../civic/publicCard.service';
+import SignatureService from '../signature.service';
+import { buildUserDid, OXY_DID } from '../did.service';
+import { getAssetCdnUrl } from '../../config/cdn';
 
 const ec = new EC('secp256k1');
 const oxyKey = ec.genKeyPair();
 const OXY_PUBLIC = oxyKey.getPublic('hex');
 const OXY_PRIVATE = oxyKey.getPrivate('hex');
 
-const USER_ID = '507f1f77bcf86cd799439011';
+const uniqueId = () => randomUUID().replace(/-/g, '');
 
-const mockUserFindById = jest.fn();
-const mockBalanceFindOne = jest.fn();
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: { findById: (...a: unknown[]) => mockUserFindById(...a) },
-}));
-jest.mock('../../models/ReputationBalance', () => ({
-  __esModule: true,
-  ReputationBalance: { findOne: (...a: unknown[]) => mockBalanceFindOne(...a) },
-}));
-const mockPersonhoodFindOne = jest.fn();
-jest.mock('../../models/PersonhoodStatus', () => ({
-  __esModule: true,
-  default: { findOne: (...a: unknown[]) => mockPersonhoodFindOne(...a) },
-}));
-jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
-}));
-
-import { buildSignedPublicCard } from '../civic/publicCard.service';
-import SignatureService from '../signature.service';
-import { buildUserDid, OXY_DID } from '../did.service';
-
-function userDoc(overrides: Record<string, unknown> = {}) {
-  return {
-    _id: USER_ID,
-    username: 'nate',
-    name: { first: 'Nate', last: 'Isern' },
-    avatar: 'fileabc',
-    publicKey: 'pk',
-    verified: true,
-    verifiedDomains: [{ domain: 'oxy.so', verifiedAt: new Date(), method: 'dns-txt' }],
-    ...overrides,
-  };
+/** An account, with only the fields the card is allowed to read. */
+async function makeUser(overrides: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const id = uniqueId();
+  await getDb()
+    .insert(users)
+    .values({
+      id,
+      username: `card${id.slice(0, 12)}`,
+      nameFirst: 'Nate',
+      nameLast: 'Isern',
+      avatar: `file${id.slice(0, 8)}`,
+      ...overrides,
+    });
+  return id;
 }
 
-beforeAll(() => {
+async function seedBalance(userId: string, trustTier: typeof reputationBalances.$inferInsert['trustTier']) {
+  await getDb().insert(reputationBalances).values({ userId, trustTier });
+}
+
+async function seedPersonhood(userId: string, isRealPerson: boolean) {
+  await getDb()
+    .insert(personhoodStatuses)
+    .values({ userId, isRealPerson, score: isRealPerson ? 0.9 : 0.2 });
+}
+
+beforeAll(async () => {
+  await connectPostgres();
   process.env.OXY_PRIVATE_KEY = OXY_PRIVATE;
   process.env.OXY_PUBLIC_KEY = OXY_PUBLIC;
 });
-afterAll(() => {
+
+afterAll(async () => {
   delete process.env.OXY_PRIVATE_KEY;
   delete process.env.OXY_PUBLIC_KEY;
-});
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockUserFindById.mockReturnValue({ select: () => ({ lean: async () => userDoc() }) });
-  mockBalanceFindOne.mockReturnValue({ lean: async () => ({ trustTier: 'trusted' }) });
-  mockPersonhoodFindOne.mockReturnValue({ select: () => ({ lean: async () => null }) });
+  await closePostgres();
 });
 
-describe('buildSignedPublicCard', () => {
-  it('assembles the canonical card shape', async () => {
-    const signed = await buildSignedPublicCard(USER_ID);
-    if (!signed) {
-      throw new Error('expected a signed card');
-    }
-    const { card } = signed;
+describe('the card is assembled from the stored rows', () => {
+  it('reads the name, handle, avatar, tier and domains out of four tables', async () => {
+    const userId = await makeUser();
+    await seedBalance(userId, 'trusted');
+    const domain = `${uniqueId().slice(0, 10)}.example`;
+    await getDb()
+      .insert(userVerifiedDomains)
+      .values({ userId, domain, verifiedAt: new Date(), method: 'dns-txt' });
 
-    expect(card.did).toBe(buildUserDid(USER_ID));
-    expect(card.userId).toBe(USER_ID);
-    expect(typeof card.name).toBe('string');
-    expect(card.name.length).toBeGreaterThan(0);
-    expect(card.username).toBe('nate');
-    expect(card.avatarUrl).toBe('https://cloud.oxy.so/fileabc');
-    expect(card.trustTier).toBe('trusted');
-    expect(card.personhoodStatus).toBe('unverified');
-    expect(card.verifiedDomains).toEqual(['oxy.so']);
-    expect(card.credentialBadges).toEqual([]);
-    expect(typeof card.issuedAt).toBe('number');
+    const signed = await buildSignedPublicCard(userId);
+    expect(signed).not.toBeNull();
+    if (!signed) return;
+
+    const [stored] = await getDb()
+      .select({ username: users.username, avatar: users.avatar })
+      .from(users)
+      .where(eq(users.id, userId));
+
+    expect(signed.card.did).toBe(buildUserDid(userId));
+    expect(signed.card.userId).toBe(userId);
+    expect(signed.card.name).toBe('Nate Isern');
+    expect(signed.card.username).toBe(stored.username);
+    expect(signed.card.avatarUrl).toBe(`${getAssetCdnUrl()}/${stored.avatar}`);
+    expect(signed.card.trustTier).toBe('trusted');
+    // The child table is the only source of these — an unrelated account's
+    // domains must not leak in.
+    expect(signed.card.verifiedDomains).toEqual([domain]);
+    expect(signed.card.credentialBadges).toEqual([]);
+    expect(typeof signed.card.issuedAt).toBe('number');
   });
 
-  it('surfaces a confirmed real person as personhoodStatus "verified" (Fase 3)', async () => {
-    mockPersonhoodFindOne.mockReturnValue({ select: () => ({ lean: async () => ({ isRealPerson: true }) }) });
-    const signed = await buildSignedPublicCard(USER_ID);
-    expect(signed?.card.personhoodStatus).toBe('verified');
+  it('carries EXACTLY the public keys — no protected column rides along', async () => {
+    // `users` holds `phone`, `hashed_email`, `hashed_phone` and the live refresh
+    // token. Drizzle returns every column unless the select names them, so the
+    // guarantee here is the key SET, not the presence of the ones we want.
+    const userId = await makeUser();
+    const signed = await buildSignedPublicCard(userId);
+    if (!signed) throw new Error('expected a card');
+
+    expect(Object.keys(signed.card).sort()).toEqual([
+      'avatarUrl',
+      'credentialBadges',
+      'did',
+      'issuedAt',
+      'name',
+      'personhoodStatus',
+      'trustTier',
+      'userId',
+      'username',
+      'verifiedDomains',
+    ]);
   });
 
-  it('surfaces an in-progress (sub-θ) personhood row as "pending"', async () => {
-    mockPersonhoodFindOne.mockReturnValue({ select: () => ({ lean: async () => ({ isRealPerson: false }) }) });
-    const signed = await buildSignedPublicCard(USER_ID);
+  it('falls back to the handle when the account has no real name', async () => {
+    const userId = await makeUser({ nameFirst: null, nameLast: null });
+    const signed = await buildSignedPublicCard(userId);
+    if (!signed) throw new Error('expected a card');
+
+    const [stored] = await getDb()
+      .select({ username: users.username })
+      .from(users)
+      .where(eq(users.id, userId));
+    expect(signed.card.name).toBe(stored.username);
+    expect(signed.card.name.length).toBeGreaterThan(0);
+  });
+
+  it('OMITS the optional keys when absent rather than setting them undefined', async () => {
+    // The signature covers `canonicalize(card)`. A present-but-undefined key and
+    // an absent one canonicalize differently, so a scanner rebuilding the card
+    // from the wire would derive different bytes and the offline check would
+    // fail for a reason nothing reports.
+    const userId = await makeUser({ username: null, avatar: null, nameFirst: 'Solo', nameLast: null });
+    const signed = await buildSignedPublicCard(userId);
+    if (!signed) throw new Error('expected a card');
+
+    expect('username' in signed.card).toBe(false);
+    expect('avatarUrl' in signed.card).toBe(false);
+  });
+
+  it('defaults the tier to "new" when the account has no balance row', async () => {
+    const userId = await makeUser();
+    const signed = await buildSignedPublicCard(userId);
+    expect(signed?.card.trustTier).toBe('new');
+  });
+});
+
+describe('personhoodStatus is tri-state', () => {
+  it('reads "unverified" when there is no personhood row at all', async () => {
+    const userId = await makeUser();
+    const signed = await buildSignedPublicCard(userId);
+    expect(signed?.card.personhoodStatus).toBe('unverified');
+  });
+
+  it('reads "pending" for a row that has NOT crossed θ', async () => {
+    // The discriminating half: `pending` and `unverified` are both "not a
+    // confirmed person", and a service that collapsed them would still pass a
+    // suite that only ever seeded a real person.
+    const userId = await makeUser();
+    await seedPersonhood(userId, false);
+    const signed = await buildSignedPublicCard(userId);
     expect(signed?.card.personhoodStatus).toBe('pending');
   });
 
-  it('seals the card with an Oxy attestation that verifies over the canonical card', async () => {
-    const signed = await buildSignedPublicCard(USER_ID);
-    if (!signed?.attestation) {
-      throw new Error('expected a signed card with an attestation');
-    }
-    const { card, attestation } = signed;
+  it('reads "verified" for a confirmed real person', async () => {
+    const userId = await makeUser();
+    await seedPersonhood(userId, true);
+    const signed = await buildSignedPublicCard(userId);
+    expect(signed?.card.personhoodStatus).toBe('verified');
+  });
+});
 
-    expect(attestation.issuer).toBe(OXY_DID);
-    expect(attestation.alg).toBe('ES256K-DER-SHA256');
-    expect(attestation.publicKey).toBe(OXY_PUBLIC);
+describe('the Oxy attestation is what a scanner checks offline', () => {
+  it('verifies over the canonical card with the Oxy custodial key', async () => {
+    const userId = await makeUser();
+    await seedBalance(userId, 'high_trust');
+
+    const signed = await buildSignedPublicCard(userId);
+    if (!signed?.attestation) throw new Error('expected an attested card');
+
+    expect(signed.attestation.issuer).toBe(OXY_DID);
+    expect(signed.attestation.alg).toBe('ES256K-DER-SHA256');
+    expect(signed.attestation.publicKey).toBe(OXY_PUBLIC);
     expect(
-      SignatureService.verifySignature(canonicalize(card), attestation.signature, attestation.publicKey),
+      SignatureService.verifySignature(
+        canonicalize(signed.card),
+        signed.attestation.signature,
+        signed.attestation.publicKey,
+      ),
     ).toBe(true);
   });
 
-  it('omits optional fields when absent (no username / avatar)', async () => {
-    mockUserFindById.mockReturnValue({
-      select: () => ({ lean: async () => userDoc({ username: undefined, avatar: undefined }) }),
-    });
-    const signed = await buildSignedPublicCard(USER_ID);
-    if (!signed) {
-      throw new Error('expected a signed card');
-    }
-    expect(signed.card.username).toBeUndefined();
-    expect(signed.card.avatarUrl).toBeUndefined();
+  it('FAILS once a single field of the card is altered', async () => {
+    // The assertion the untouched-card check cannot make: a signature computed
+    // over a constant, or a verifier that ignores its message, passes that one
+    // and fails this one.
+    const userId = await makeUser();
+    await seedBalance(userId, 'trusted');
+    const signed = await buildSignedPublicCard(userId);
+    if (!signed?.attestation) throw new Error('expected an attested card');
+
+    const forged: PublicCard = { ...signed.card, trustTier: 'verified' };
+    expect(
+      SignatureService.verifySignature(
+        canonicalize(forged),
+        signed.attestation.signature,
+        signed.attestation.publicKey,
+      ),
+    ).toBe(false);
   });
 
-  it('defaults trustTier to "new" when the user has no balance', async () => {
-    mockBalanceFindOne.mockReturnValue({ lean: async () => null });
-    const signed = await buildSignedPublicCard(USER_ID);
-    if (!signed) {
-      throw new Error('expected a signed card');
-    }
-    expect(signed.card.trustTier).toBe('new');
+  it('does not verify against a key that is not the Oxy custodial key', async () => {
+    const userId = await makeUser();
+    const signed = await buildSignedPublicCard(userId);
+    if (!signed?.attestation) throw new Error('expected an attested card');
+
+    const stranger = ec.genKeyPair().getPublic('hex');
+    expect(
+      SignatureService.verifySignature(
+        canonicalize(signed.card),
+        signed.attestation.signature,
+        stranger,
+      ),
+    ).toBe(false);
   });
 
-  it('returns null for an unknown user', async () => {
-    mockUserFindById.mockReturnValue({ select: () => ({ lean: async () => null }) });
-    expect(await buildSignedPublicCard(USER_ID)).toBeNull();
-  });
-
-  it('returns null for an archived user', async () => {
-    mockUserFindById.mockReturnValue({
-      select: () => ({ lean: async () => userDoc({ accountStatus: 'archived' }) }),
-    });
-    expect(await buildSignedPublicCard(USER_ID)).toBeNull();
-  });
-
-  it('returns null for a restricted-tier user', async () => {
-    mockUserFindById.mockReturnValue({
-      select: () => ({ lean: async () => userDoc({ reputationTier: 'restricted' }) }),
-    });
-    expect(await buildSignedPublicCard(USER_ID)).toBeNull();
-  });
-
-  it('still returns a card (attestation null) when the Oxy key is unconfigured', async () => {
+  it('still returns the card, unattested, when the Oxy key is unconfigured', async () => {
+    const userId = await makeUser();
     delete process.env.OXY_PRIVATE_KEY;
     delete process.env.OXY_PUBLIC_KEY;
-    const signed = await buildSignedPublicCard(USER_ID);
-    if (!signed) {
-      throw new Error('expected a signed card');
+    try {
+      const signed = await buildSignedPublicCard(userId);
+      if (!signed) throw new Error('expected a card');
+      expect(signed.attestation).toBeNull();
+      expect(signed.card.userId).toBe(userId);
+    } finally {
+      process.env.OXY_PRIVATE_KEY = OXY_PRIVATE;
+      process.env.OXY_PUBLIC_KEY = OXY_PUBLIC;
     }
-    expect(signed.attestation).toBeNull();
-    process.env.OXY_PRIVATE_KEY = OXY_PRIVATE;
-    process.env.OXY_PUBLIC_KEY = OXY_PUBLIC;
+  });
+});
+
+describe('accounts that must not have a card', () => {
+  it('returns null for an id no account holds', async () => {
+    expect(await buildSignedPublicCard(uniqueId())).toBeNull();
+  });
+
+  it('returns null for an archived account', async () => {
+    const userId = await makeUser({ accountStatus: 'archived' });
+    expect(await buildSignedPublicCard(userId)).toBeNull();
+  });
+
+  it('returns null for a restricted-tier account', async () => {
+    const userId = await makeUser({ reputationTier: 'restricted' });
+    expect(await buildSignedPublicCard(userId)).toBeNull();
   });
 });

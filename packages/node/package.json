@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/node",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Oxy personal data node — a self-hostable server that stores and serves a user's own signed records (their personal repo) for Oxy to ingest/mirror (Fase 5 decentralization)",
   "private": true,
   "type": "module",
@@ -21,7 +21,7 @@
     "self-sovereign-identity"
   ],
   "author": "OxyHQ",
-  "license": "AGPL-3.0-only",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -30,20 +30,20 @@
     "@oxyhq/core": "workspace:*",
     "@oxyhq/protocol": "workspace:*",
     "better-sqlite3": "^12.11.1",
-    "elliptic": "^6.6.1",
-    "express": "^4.22.2",
-    "pino": "^10.3.1"
+    "elliptic": "catalog:",
+    "express": "catalog:",
+    "pino": "catalog:"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
-    "@types/elliptic": "^6.4.18",
-    "@types/express": "^4.17.21",
+    "@types/elliptic": "catalog:",
+    "@types/express": "catalog:",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.1",
-    "@types/supertest": "^6.0.2",
+    "@types/supertest": "catalog:",
     "jest": "^29.7.0",
-    "supertest": "^7.0.0",
-    "ts-jest": "^29.4.11",
+    "supertest": "catalog:",
+    "ts-jest": "^29.4.12",
     "typescript": "^5.9.2"
   }
 }

@@ -1,20 +1,15 @@
 import {
-  
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
-  useState
+  useState,
 } from 'react';
 import { getBaseLanguage, normalizeLocale } from '@oxyhq/core';
-import {
-  DEFAULT_LOCALE,
-  
-  SUPPORTED_LOCALES
-} from './types';
-import type {ReactNode} from 'react';
-import type {Locale} from './types';
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from './types';
+import type { ReactNode } from 'react';
+import type { Locale } from './types';
 
 const STORAGE_KEY = 'oxy_console_locale';
 

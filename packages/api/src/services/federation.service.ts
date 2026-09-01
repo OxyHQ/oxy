@@ -8,10 +8,13 @@
 
 import crypto from 'crypto';
 import type { IncomingMessage } from 'http';
-import mongoose from 'mongoose';
-import { signRequest } from '@oxyhq/federation';
+import { and, eq, sql } from 'drizzle-orm';
+import { signRequest, canonicalFederationHost } from '@oxyhq/federation';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
-import User, { type IUser, type AccountKind } from '../models/User';
+import { getDb } from '../config/postgres';
+import { federationKeyPairs } from '../db/schema/federationKeyPairs';
+import { ACCOUNT_KINDS, users } from '../db/schema/users';
+import { userService, type AccountDocument } from './user.service';
 import { AssetService } from './assetService';
 import { createS3Service } from './s3Service';
 import { logger } from '../utils/logger';
@@ -19,6 +22,10 @@ import userCache from '../utils/userCache';
 import { composeDisplayName } from '../utils/displayName';
 import { cleanDisplayName } from '../utils/displayNameSanitize';
 import { sanitizePlainText, decodeHtmlEntities } from '../utils/sanitize';
+import { bridgeVouchesForNetwork } from '../config/federationBridgeTrust';
+
+/** The `users.kind` closed value set, derived from the column itself. */
+type AccountKind = (typeof ACCOUNT_KINDS)[number];
 
 const AP_ACCEPT_TYPES = [
   'application/activity+json',
@@ -45,7 +52,7 @@ const USER_AGENT = 'OxyHQ/1.0 (ActivityPub)';
  */
 export const OWN_FEDERATION_DOMAINS: ReadonlySet<string> = new Set(
   [AP_DOMAIN, ...(process.env.FEDERATION_OWN_DOMAINS ?? '').split(',')]
-    .map((domain) => domain.trim().toLowerCase())
+    .map((domain) => canonicalFederationHost(domain))
     .filter((domain) => domain.length > 0),
 );
 
@@ -56,9 +63,7 @@ export const OWN_FEDERATION_DOMAINS: ReadonlySet<string> = new Set(
  * 400) so they never mint a `type:'federated'` shadow row.
  */
 export function isOwnFederationDomain(domain: string): boolean {
-  const normalized = domain.trim().toLowerCase();
-  const canonical = normalized.startsWith('www.') ? normalized.slice(4) : normalized;
-  return OWN_FEDERATION_DOMAINS.has(canonical);
+  return OWN_FEDERATION_DOMAINS.has(canonicalFederationHost(domain));
 }
 
 /**
@@ -257,15 +262,20 @@ export function isFediverseHandle(query: string): boolean {
 // HTTP Signature Signing
 // ============================================================
 
-/** Mongoose model for the instance key pair (lazy-created collection). */
-const keyPairSchema = new mongoose.Schema({
-  keyId: { type: String, required: true, unique: true },
-  publicKeyPem: { type: String, required: true },
-  privateKeyPem: { type: String, required: true },
-}, { timestamps: true });
-
-const FederationKeyPair = mongoose.models.FederationKeyPair
-  || mongoose.model('FederationKeyPair', keyPairSchema, 'federation_keypairs');
+/**
+ * The three key-pair columns this service works in.
+ *
+ * `private_key_pem` is a PROTECTED column (`db/schema/protectedColumns.ts`), so
+ * naming it here is a deliberate opt-in — this module is the only one that may
+ * hold a private signing key, because it is the only one that signs. Every
+ * other reader goes through {@link getPublicKeyForKeyId} / {@link getUserPublicKey},
+ * which select the public half by name.
+ */
+const KEY_PAIR_COLUMNS = {
+  keyId: federationKeyPairs.keyId,
+  publicKeyPem: federationKeyPairs.publicKeyPem,
+  privateKeyPem: federationKeyPairs.privateKeyPem,
+} as const;
 
 interface KeyPairDoc {
   keyId: string;
@@ -305,15 +315,34 @@ function composeInstanceKeyId(domain: string): string {
   return `https://${domain}/ap/users/instance#main-key`;
 }
 
+/** Read one key pair by its keyId, or null when none exists. */
+async function findKeyPair(keyId: string): Promise<KeyPairDoc | null> {
+  const [row] = await getDb()
+    .select(KEY_PAIR_COLUMNS)
+    .from(federationKeyPairs)
+    .where(eq(federationKeyPairs.keyId, keyId))
+    .limit(1);
+  return row ?? null;
+}
+
 /**
  * Get or create an RSA key pair for the given keyId.
- * Generated once per identity, stored in MongoDB, cached in memory.
+ * Generated once per identity, stored in Postgres, cached in memory.
+ *
+ * The insert is `on conflict do nothing` on the unique `key_id` and falls back
+ * to a read, which makes it genuinely idempotent under concurrency rather than
+ * merely usually-idempotent: Mongo's read-then-create left a window in which
+ * two simultaneous first signatures for the same actor both generated a key and
+ * the second write failed the unique index outright. Here the loser simply
+ * adopts the winner's key — which matters because the two would be DIFFERENT
+ * keys, and a signature made with the one that lost verification against the
+ * published public key would fail on the remote side.
  */
 async function getOrCreateKeyPair(keyId: string): Promise<KeyPairDoc> {
   const cached = _keyPairCache.get(keyId);
   if (cached) return cached;
 
-  const existing = await FederationKeyPair.findOne({ keyId }).lean() as KeyPairDoc | null;
+  const existing = await findKeyPair(keyId);
   if (existing) {
     _keyPairCache.set(keyId, existing);
     return existing;
@@ -325,13 +354,16 @@ async function getOrCreateKeyPair(keyId: string): Promise<KeyPairDoc> {
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
   });
 
-  const doc = await FederationKeyPair.create({
-    keyId,
-    publicKeyPem: publicKey,
-    privateKeyPem: privateKey,
-  });
+  const [inserted] = await getDb()
+    .insert(federationKeyPairs)
+    .values({ keyId, publicKeyPem: publicKey, privateKeyPem: privateKey })
+    .onConflictDoNothing({ target: federationKeyPairs.keyId })
+    .returning(KEY_PAIR_COLUMNS);
 
-  const result = { keyId: doc.keyId, publicKeyPem: doc.publicKeyPem, privateKeyPem: doc.privateKeyPem };
+  const result = inserted ?? (await findKeyPair(keyId));
+  if (!result) {
+    throw new Error(`Federation key pair for ${keyId} could not be created or resolved`);
+  }
   _keyPairCache.set(keyId, result);
   return result;
 }
@@ -371,7 +403,7 @@ export async function getPublicKeyForKeyId(keyId: string): Promise<PublicKeyDoc 
     return { keyId: cached.keyId, publicKeyPem: cached.publicKeyPem };
   }
 
-  const existing = await FederationKeyPair.findOne({ keyId }).lean() as KeyPairDoc | null;
+  const existing = await findKeyPair(keyId);
   if (!existing) return null;
 
   _keyPairCache.set(keyId, existing);
@@ -407,7 +439,7 @@ export async function signWithKeyId(keyId: string, signingString: string): Promi
   let keyPair: KeyPairDoc | null = cached ?? null;
 
   if (!keyPair) {
-    keyPair = await FederationKeyPair.findOne({ keyId }).lean() as KeyPairDoc | null;
+    keyPair = await findKeyPair(keyId);
     if (keyPair) _keyPairCache.set(keyId, keyPair);
   }
 
@@ -510,8 +542,13 @@ interface BuildActorOptions {
 
 /**
  * Map an account `kind` to its ActivityPub actor `type`. A personal account is a
- * `Person`; organizations/projects/bots map to the corresponding AP actor types
- * so remote servers render them appropriately.
+ * `Person`; organizations/projects/bots/channels map to the corresponding AP
+ * actor types so remote servers render them appropriately.
+ *
+ * A channel is a `Service`: a non-human publishing identity nobody logs into.
+ * `Group` would be wrong — remote implementations that treat `Group` specially
+ * read it as a community that re-broadcasts its members' posts, whereas a
+ * channel publishes its own.
  */
 function actorTypeForKind(kind: AccountKind | undefined): string {
   switch (kind) {
@@ -520,6 +557,7 @@ function actorTypeForKind(kind: AccountKind | undefined): string {
     case 'project':
       return 'Group';
     case 'bot':
+    case 'channel':
       return 'Service';
     default:
       return 'Person';
@@ -645,15 +683,31 @@ async function resolveActorAvatarUrl(avatar: unknown): Promise<string | undefine
 }
 
 /**
+ * The account fields an actor document is built from.
+ *
+ * A STRUCTURAL type rather than the whole account document: this is the entire
+ * input to {@link buildActor}, so declaring it here is what lets `tsc` reject a
+ * caller that hands over a row missing `kind` or `avatar` — which a
+ * `Record<string, unknown>` parameter would have accepted silently.
+ */
+export interface ActorSourceUser {
+  username?: string | null;
+  name?: { first?: string | null; last?: string | null } | null;
+  avatar?: string | null;
+  bio?: string | null;
+  description?: string | null;
+  kind?: AccountKind | null;
+}
+
+/**
  * Returns a per-user actor JSON-LD document, self-consistent on `domain`
  * (defaults to Oxy's own federation domain {@link AP_DOMAIN}).
  *
- * The `name` field is the canonical composed display name (identity contract).
- * `getUserActor` is called with lean User docs (no virtuals), so the display
- * name is composed here via the shared {@link composeDisplayName} rules rather
- * than read from the (absent) virtual.
+ * The `name` field is the canonical composed display name (identity contract),
+ * composed here via the shared {@link composeDisplayName} rules — the model
+ * virtual it used to be read from does not exist on a row.
  */
-export async function getUserActor(user: IUser, domain: string = AP_DOMAIN): Promise<Record<string, unknown> | null> {
+export async function getUserActor(user: ActorSourceUser, domain: string = AP_DOMAIN): Promise<Record<string, unknown> | null> {
   if (!user?.username) return null;
   // Canonicalize before key lookup and actor URL assembly so `id`/`publicKey.owner`
   // always match `publicKey.id` (getUserKeyPair lowercases internally).
@@ -673,9 +727,12 @@ export async function getUserActor(user: IUser, domain: string = AP_DOMAIN): Pro
     publicKeyPem: keyPair.publicKeyPem,
     keyId: keyPair.keyId,
     name: displayName,
-    summary: user.bio || user.description || '',
+    summary: user.bio ?? user.description ?? '',
     avatar,
-    kind: user.kind,
+    // A row's `kind` is NOT NULL, but `ActorSourceUser` accepts null so a
+    // caller reading through a nullable projection needs no laundering of its
+    // own. `undefined` is what `actorTypeForKind` reads as "default to Person".
+    kind: user.kind ?? undefined,
   });
 }
 
@@ -1036,7 +1093,7 @@ class FederationService {
         },
       );
 
-      const fileId = file._id.toString();
+      const fileId = file.id;
 
       // Delete the replaced avatar only after the new durable file is present.
       // If dedupe returned the same file, keep it.
@@ -1072,7 +1129,37 @@ class FederationService {
    *    WebFinger → fetch actor profile (HTTP Signature) → download avatar →
    *    upsert as type=federated → return.
    */
-  async resolveAndUpsert(handle: string): Promise<IUser | null> {
+  /**
+   * Hand back a cached federated row without blocking on remote I/O. Schedules a
+   * background refresh when the record is stale or its avatar still needs work.
+   */
+  private async returnCachedFederatedRow(
+    existing: AccountDocument,
+    handleForRefresh: string,
+  ): Promise<AccountDocument> {
+    // Archived actors (410-Gone tombstones) stay cached for follow-graph /
+    // audit continuity but must not be refreshed or re-surfaced as live.
+    if (existing.accountStatus === 'archived') {
+      return existing;
+    }
+
+    const updatedAt = existing.updatedAt;
+    const isStale = !(updatedAt instanceof Date)
+      || Date.now() - updatedAt.getTime() >= STALE_MS;
+    const avatarNeedsDownload = typeof existing.avatar === 'string'
+      && existing.avatar.startsWith('http');
+    const avatarFileMissing = !isStale && !avatarNeedsDownload
+      ? !(await this.storedAvatarExists(existing.avatar))
+      : false;
+
+    if (isStale || avatarNeedsDownload || avatarFileMissing) {
+      this.scheduleBackgroundRefresh(existing, handleForRefresh);
+    }
+
+    return existing;
+  }
+
+  async resolveAndUpsert(handle: string): Promise<AccountDocument | null> {
     const cleaned = normalizeFediverseHandle(handle);
     if (!cleaned) return null;
 
@@ -1090,83 +1177,127 @@ class FederationService {
     }
 
     // Check cache: existing federated user.
-    // Fediverse usernames are case-insensitive; we store them lowercased.
-    const existing = await User.findOne({
-      type: 'federated',
-      'federation.domain': domain,
-      username: cleaned.toLowerCase(),
-    })
-      .select('-password -refreshToken')
-      .lean({ virtuals: true }) as IUser | null;
+    //
+    // Fediverse usernames are case-insensitive and we store them lowercased,
+    // but the lookup is written against the EXPRESSION `users_username_key` is
+    // built on (`lower(btrim(username))`) rather than a plain equality: a
+    // correct-looking `username = $1` is case-SENSITIVE and would miss a row
+    // whose stored casing differs, then upsert a duplicate actor beside it.
+    const cleanedHandle = cleaned.toLowerCase();
+    const [existingRow] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.type, 'federated'),
+          eq(users.federationDomain, domain),
+          sql`lower(btrim(${users.username})) = lower(btrim(${cleanedHandle}))`
+        )
+      )
+      .limit(1);
+
+    // The row is re-read as the full account document so the shape this service
+    // returns is byte-identical to what `PUT /users/resolve` returns for the
+    // same actor — one serializer, not two.
+    const existing = existingRow ? await userService.readAccountDocument(existingRow.id) : null;
 
     if (existing) {
-      // Archived actors (410-Gone tombstones) stay cached for follow-graph /
-      // audit continuity but must not be refreshed or re-surfaced as live.
-      if (existing.accountStatus === 'archived') {
-        return existing;
-      }
-
-      // We have a row — never block the caller on remote I/O. Decide whether a
-      // background refresh is warranted: either the record is stale, or its
-      // avatar is still a raw http URL (e.g. set by PUT /users/resolve) that
-      // hasn't been downloaded into an Oxy file yet.
-      const isStale = !existing.updatedAt
-        || Date.now() - new Date(existing.updatedAt).getTime() >= STALE_MS;
-      const avatarNeedsDownload = typeof existing.avatar === 'string'
-        && existing.avatar.startsWith('http');
-      const avatarFileMissing = !isStale && !avatarNeedsDownload
-        ? !(await this.storedAvatarExists(existing.avatar))
-        : false;
-
-      if (isStale || avatarNeedsDownload || avatarFileMissing) {
-        this.scheduleBackgroundRefresh(existing, cleaned);
-      }
-
-      return existing;
+      return this.returnCachedFederatedRow(existing, cleaned);
     }
 
     // No cached row — first-time blocking fetch (the only allowed blocking case).
     const webfinger = await this.resolveWebFingerResource(cleaned);
     if (!webfinger) return null;
 
+    // A relabelled bridge identity (e.g. `wired@x.com` stored via
+    // `PUT /users/resolve`) shares the bridge actor URI but not the bridge
+    // handle. A lookup keyed only on `(federationDomain, username)` would miss
+    // it and the upsert below would clobber the relabelled username/domain.
+    const [existingByActorUriRow] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          eq(users.type, 'federated'),
+          eq(users.federationActorUri, webfinger.actorUri),
+        ),
+      )
+      .limit(1);
+
+    const existingByActorUri = existingByActorUriRow
+      ? await userService.readAccountDocument(existingByActorUriRow.id)
+      : null;
+
+    if (existingByActorUri) {
+      const storedDomain = existingByActorUri.federation?.domain;
+      let actorHost: string | null = null;
+      try {
+        actorHost = canonicalFederationHost(new URL(webfinger.actorUri).hostname);
+      } catch {
+        actorHost = null;
+      }
+
+      // A relabelled bridge identity (e.g. `nasa@x.com` on a bird.makeup actor)
+      // shares the bridge actor URI but not the bridge handle. Returning cached
+      // here preserves the derived identity; falling through would clobber it
+      // back to the bridge copy. A stale row on a NON-bridge actor (wrong domain
+      // stored beside a canonical actor URI) must fall through to the upsert.
+      if (
+        actorHost
+        && typeof storedDomain === 'string'
+        && storedDomain.length > 0
+        && bridgeVouchesForNetwork(actorHost, storedDomain)
+      ) {
+        return this.returnCachedFederatedRow(existingByActorUri, cleaned);
+      }
+    }
+
     const verifiedAcct = await this.verifiedAccountForResolution(cleaned, webfinger);
     const profile = await this.fetchActorProfile(webfinger.actorUri, verifiedAcct);
     if (!profile) return null;
 
-    const setFields: Record<string, unknown> = {
-      type: 'federated',
+    // COLUMN PROPERTIES, never Mongo dot paths. Drizzle keys `set()`/`values()`
+    // by column property and SILENTLY IGNORES an unknown key, so `'name.first'`
+    // here would write nothing and throw nothing — the exact failure that left
+    // every federated actor resolved through `PUT /users/resolve` with a null
+    // display name until it was caught there.
+    const setFields: Partial<typeof users.$inferInsert> = {
       username: profile.username,
-      'name.first': cleanDisplayName(profile.displayName),
-      'federation.actorUri': profile.actorUri,
-      'federation.domain': profile.domain,
-      'federation.lastResolvedAt': new Date(),
+      nameFirst: cleanDisplayName(profile.displayName),
+      federationActorUri: profile.actorUri,
+      federationDomain: profile.domain,
+      federationLastResolvedAt: new Date(),
+      // Mongo's `$unset` of the tombstone fields. NULL is what "available"
+      // means on these two columns, so clearing them is a write of NULL.
+      federationUnavailableAt: null,
+      federationUnavailableReason: null,
     };
 
-    if (profile.bio) {
+    if (typeof profile.bio === 'string') {
       const safeBio = sanitizePlainText(profile.bio);
       setFields.bio = safeBio;
       setFields.description = safeBio;
     }
 
-    const user = await User.findOneAndUpdate(
-      { 'federation.actorUri': profile.actorUri },
-      {
-        $set: setFields,
-        $unset: {
-          'federation.unavailableAt': '',
-          'federation.unavailableReason': '',
-        },
-      },
-      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
-    )
-      .select('-password -refreshToken');
+    // Mongo's `{upsert: true}` on the unique `federation.actorUri`. `type` is
+    // written only on INSERT — matching `PUT /users/resolve`, where re-writing
+    // it on update would let the federation pipeline silently re-type an
+    // existing account. Column DEFAULTs replace `setDefaultsOnInsert`.
+    const [upserted] = await getDb()
+      .insert(users)
+      .values({ ...setFields, type: 'federated' })
+      .onConflictDoUpdate({ target: users.federationActorUri, set: setFields })
+      .returning({ id: users.id });
 
-    if (user) {
-      logger.info(`Resolved fediverse user: ${profile.username} (${profile.actorUri})`);
+    if (!upserted) {
+      return null;
     }
 
-    if (user && profile.avatarUrl) {
-      const userId = user._id.toString();
+    const userId = upserted.id;
+    logger.info(`Resolved fediverse user: ${profile.username} (${profile.actorUri})`);
+    userCache.invalidate(userId);
+
+    if (profile.avatarUrl) {
       const stored = await this.downloadAndStoreAvatar(
         profile.avatarUrl,
         undefined,
@@ -1174,24 +1305,23 @@ class FederationService {
         userId,
       );
       if (stored.fileId) {
-        const avatarFields: Record<string, unknown> = {
+        const avatarFields: Partial<typeof users.$inferInsert> = {
           avatar: stored.fileId,
-          'federation.lastAvatarFetchedAt': new Date(),
+          federationLastAvatarFetchedAt: new Date(),
         };
-        if (stored.etag) avatarFields['federation.avatarETag'] = stored.etag;
-        if (stored.lastModified) avatarFields['federation.avatarLastModified'] = stored.lastModified;
+        if (stored.etag) avatarFields.federationAvatarETag = stored.etag;
+        if (stored.lastModified) avatarFields.federationAvatarLastModified = stored.lastModified;
 
-        await User.updateOne({ _id: user._id }, { $set: avatarFields });
-        user.avatar = stored.fileId;
-        if (!user.federation) user.federation = {};
-        user.federation.lastAvatarFetchedAt = avatarFields['federation.lastAvatarFetchedAt'] as Date;
-        if (stored.etag) user.federation.avatarETag = stored.etag;
-        if (stored.lastModified) user.federation.avatarLastModified = stored.lastModified;
+        await getDb().update(users).set(avatarFields).where(eq(users.id, userId));
         userCache.invalidate(userId);
       }
     }
 
-    return user;
+    // Read the row back rather than patching the returned document field by
+    // field as Mongo did: the avatar write above happens AFTER the upsert, and
+    // hand-mirroring it into an in-memory copy is how the returned document and
+    // the stored row drift.
+    return userService.readAccountDocument(userId);
   }
 
   /**
@@ -1204,12 +1334,12 @@ class FederationService {
    * a rejected refresh is caught and logged so it can't surface as an unhandled
    * rejection or crash the process.
    */
-  private scheduleBackgroundRefresh(existing: IUser, handle: string): void {
+  private scheduleBackgroundRefresh(existing: AccountDocument, handle: string): void {
     if (existing.accountStatus === 'archived') {
       return;
     }
 
-    const key = existing.federation?.actorUri || handle.toLowerCase();
+    const key = existing.federation.actorUri || handle.toLowerCase();
 
     if (_refreshInFlight.has(key)) return;
 
@@ -1295,9 +1425,19 @@ class FederationService {
     opts: { force: boolean },
   ): Promise<void> {
     try {
-      const user = await User.findById(userId)
-        .select('avatar federation')
-        .lean() as Pick<IUser, '_id' | 'avatar' | 'federation'> | null;
+      // Four named columns, not `select()`: `users` carries protected columns
+      // (the raw phone number, the contact-discovery hashes, the refresh
+      // token) that a background avatar worker has no business loading.
+      const [user] = await getDb()
+        .select({
+          avatar: users.avatar,
+          lastAvatarFetchedAt: users.federationLastAvatarFetchedAt,
+          avatarETag: users.federationAvatarETag,
+          avatarLastModified: users.federationAvatarLastModified,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
       if (!user) {
         logger.warn(`Background avatar refresh: user ${userId} not found`);
         return;
@@ -1311,12 +1451,12 @@ class FederationService {
       // Persisted authority: skip a forced re-download inside the throttle window.
       // The in-memory guard in scheduleAvatarRefresh handles the common in-process
       // burst; this catches forced refreshes across process restarts.
-      const lastFetched = user.federation?.lastAvatarFetchedAt;
+      const lastFetched = user.lastAvatarFetchedAt;
       if (
         opts.force
         && alreadyHasFileId
         && lastFetched
-        && Date.now() - new Date(lastFetched).getTime() < AVATAR_REFRESH_MIN_INTERVAL_MS
+        && Date.now() - lastFetched.getTime() < AVATAR_REFRESH_MIN_INTERVAL_MS
       ) {
         return;
       }
@@ -1327,17 +1467,20 @@ class FederationService {
       }
 
       const stored = await this.downloadAndStoreAvatar(remoteAvatarUrl, storedAvatar, {
-        etag: user.federation?.avatarETag,
-        lastModified: user.federation?.avatarLastModified,
+        // The conditional-request validators are NULL when never fetched;
+        // `downloadAndStoreAvatar` reads them as "send no If-None-Match", which
+        // is what absent meant in Mongo.
+        etag: user.avatarETag ?? undefined,
+        lastModified: user.avatarLastModified ?? undefined,
       }, userId);
 
-      const setFields: Record<string, unknown> = {
-        'federation.lastAvatarFetchedAt': new Date(),
+      const setFields: Partial<typeof users.$inferInsert> = {
+        federationLastAvatarFetchedAt: new Date(),
       };
 
       if (stored.notModified) {
         // Host says our copy is current — only advance the fetch clock.
-        await User.updateOne({ _id: userId }, { $set: setFields });
+        await getDb().update(users).set(setFields).where(eq(users.id, userId));
         userCache.invalidate(userId);
         return;
       }
@@ -1345,17 +1488,17 @@ class FederationService {
       if (!stored.fileId) {
         // Download failed — keep the existing avatar, but advance the clock so a
         // forced refresh can't hammer a broken remote every request.
-        await User.updateOne({ _id: userId }, { $set: setFields });
+        await getDb().update(users).set(setFields).where(eq(users.id, userId));
         userCache.invalidate(userId);
         logger.warn(`Background avatar refresh: download failed for ${userId} (keeping existing)`);
         return;
       }
 
       setFields.avatar = stored.fileId;
-      if (stored.etag) setFields['federation.avatarETag'] = stored.etag;
-      if (stored.lastModified) setFields['federation.avatarLastModified'] = stored.lastModified;
+      if (stored.etag) setFields.federationAvatarETag = stored.etag;
+      if (stored.lastModified) setFields.federationAvatarLastModified = stored.lastModified;
 
-      await User.updateOne({ _id: userId }, { $set: setFields });
+      await getDb().update(users).set(setFields).where(eq(users.id, userId));
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently
@@ -1380,15 +1523,15 @@ class FederationService {
    * @param existing - The cached federated user to refresh.
    * @param handle   - The lowercased handle, used to re-WebFinger if no actorUri.
    */
-  private async refreshFederatedUser(existing: IUser, handle: string): Promise<void> {
+  private async refreshFederatedUser(existing: AccountDocument, handle: string): Promise<void> {
     if (existing.accountStatus === 'archived') {
       return;
     }
 
-    const userId = existing._id.toString();
+    const userId = existing._id;
     try {
       // Resolve the actor URI: reuse the stored one, else re-WebFinger.
-      const actorUri = existing.federation?.actorUri
+      const actorUri = existing.federation.actorUri
         || await this.resolveWebFinger(handle);
       if (!actorUri) {
         logger.warn(`Background refresh: could not resolve actor URI for ${handle}`);
@@ -1401,13 +1544,15 @@ class FederationService {
         return;
       }
 
-      const setFields: Record<string, unknown> = {};
+      // COLUMN PROPERTIES, never Mongo dot paths — see the note in
+      // `resolveAndUpsert`. `name.first` here would silently write nothing.
+      const setFields: Partial<typeof users.$inferInsert> = {};
 
       if (profile.displayName) {
-        setFields['name.first'] = cleanDisplayName(profile.displayName);
+        setFields.nameFirst = cleanDisplayName(profile.displayName);
       }
-      setFields['federation.lastResolvedAt'] = new Date();
-      if (profile.bio) {
+      setFields.federationLastResolvedAt = new Date();
+      if (typeof profile.bio === 'string') {
         const safeBio = sanitizePlainText(profile.bio);
         setFields.bio = safeBio;
         setFields.description = safeBio;
@@ -1420,40 +1565,51 @@ class FederationService {
       // still advance the fetch clock so we don't re-attempt every request.
       if (profile.avatarUrl) {
         const existingAvatar = typeof existing.avatar === 'string' ? existing.avatar : undefined;
+        // The conditional-request validators are read from the ROW, not from
+        // the account document this worker was handed. `AccountDocument`'s
+        // `federation` key carries only `actorUri`/`domain` (it is the wire
+        // shape `PUT /users/resolve` returns), so reading `avatarETag` off it
+        // would compile — through the index signature — and be `undefined`
+        // forever, quietly turning every background refresh into an
+        // unconditional re-download of an unchanged image.
+        const [validators] = await getDb()
+          .select({
+            etag: users.federationAvatarETag,
+            lastModified: users.federationAvatarLastModified,
+          })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1);
         const stored = await this.downloadAndStoreAvatar(profile.avatarUrl, existingAvatar, {
-          etag: existing.federation?.avatarETag,
-          lastModified: existing.federation?.avatarLastModified,
+          etag: validators?.etag ?? undefined,
+          lastModified: validators?.lastModified ?? undefined,
         }, userId);
         if (stored.notModified) {
-          setFields['federation.lastAvatarFetchedAt'] = new Date();
+          setFields.federationLastAvatarFetchedAt = new Date();
         } else if (stored.fileId) {
           setFields.avatar = stored.fileId;
-          setFields['federation.lastAvatarFetchedAt'] = new Date();
-          if (stored.etag) setFields['federation.avatarETag'] = stored.etag;
-          if (stored.lastModified) setFields['federation.avatarLastModified'] = stored.lastModified;
+          setFields.federationLastAvatarFetchedAt = new Date();
+          if (stored.etag) setFields.federationAvatarETag = stored.etag;
+          if (stored.lastModified) setFields.federationAvatarLastModified = stored.lastModified;
         } else {
           logger.warn(`Background refresh: avatar download failed for ${actorUri} (keeping existing)`);
         }
       }
 
-      if (Object.keys(setFields).length === 0) {
-        // Nothing new to persist; touch updatedAt so we don't re-attempt every
-        // request until the next stale window.
-        await User.updateOne({ _id: existing._id }, { $set: { updatedAt: new Date() } });
-        userCache.invalidate(userId);
-        return;
-      }
-
-      await User.updateOne(
-        { _id: existing._id },
-        {
-          $set: setFields,
-          $unset: {
-            'federation.unavailableAt': '',
-            'federation.unavailableReason': '',
-          },
-        },
-      );
+      // `federationLastResolvedAt` is set unconditionally above, so `setFields`
+      // is never empty — the Mongo branch that touched `updatedAt` alone to
+      // avoid re-attempting every request is unreachable here and is gone
+      // rather than kept as dead code. `updated_at` is maintained by drizzle's
+      // `$onUpdate` on the write below, which is what that branch was for.
+      await getDb()
+        .update(users)
+        .set({
+          ...setFields,
+          // Mongo's `$unset` of the tombstone fields — NULL is "available".
+          federationUnavailableAt: null,
+          federationUnavailableReason: null,
+        })
+        .where(eq(users.id, userId));
 
       // CRITICAL: every path that mutates user state must invalidate the cache,
       // otherwise getUserBySession serves stale in-memory data and silently

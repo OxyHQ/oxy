@@ -130,6 +130,30 @@ function buildFakeSessionClient(initialAccounts: FakeSessionAccount[]) {
 }
 
 /** A controllable stand-in for the device-first `AuthStateStore`. */
+/**
+ * The runtime surface `useAuthOperations` touches, as a recorder.
+ *
+ * This suite mocks `@oxyhq/core` wholesale — its subject is the orchestration,
+ * not the projection — so a real `OxyRuntime` would be built over a mocked core
+ * and prove nothing extra. `activeSessionId` is a real mutable fact because the
+ * hook READS it back to decide whether there is anything to sign out.
+ */
+function buildFakeRuntime(initialActiveSessionId: string | null) {
+  let activeSessionId = initialActiveSessionId;
+  const setActiveSessionId = jest.fn((sessionId: string | null) => {
+    activeSessionId = sessionId;
+  });
+  return {
+    getSnapshot: () => ({ activeSessionId }),
+    batch: (mutate: () => void) => mutate(),
+    setActiveSessionId,
+    mergeSessions: jest.fn(),
+    setAccount: jest.fn(),
+    setLoading: jest.fn(),
+    setError: jest.fn(),
+  };
+}
+
 function buildFakeStore() {
   return {
     load: jest.fn(async () => null),
@@ -144,13 +168,16 @@ interface SetupOpts {
   sessionClient?: ReturnType<typeof buildFakeSessionClient>;
   store?: ReturnType<typeof buildFakeStore>;
   syncFromClient?: jest.Mock<Promise<void>, []>;
+  identityBinding?: {
+    pinStore: { save: jest.Mock; load: jest.Mock; clear: jest.Mock };
+  };
+  refreshPinnedAccountId?: jest.Mock<Promise<string | null>, []>;
 }
 
 const setup = (opts: SetupOpts = {}) => {
   const oxyServices = makeOxyServices(opts.oxyServices);
   const store = opts.store ?? buildFakeStore();
-  const setActiveSessionId = jest.fn();
-  const updateSessions = jest.fn();
+  const runtime = buildFakeRuntime(opts.activeSessionId ?? null);
   const saveActiveSessionId = jest.fn(async () => undefined);
   const clearSessionState = jest.fn(async () => undefined);
   const switchSession = jest.fn(async () => ({
@@ -160,10 +187,6 @@ const setup = (opts: SetupOpts = {}) => {
   } as User));
   const onAuthStateChange = jest.fn();
   const onError = jest.fn();
-  const loginSuccess = jest.fn();
-  const loginFailure = jest.fn();
-  const logoutStore = jest.fn();
-  const setAuthState = jest.fn();
   const logger = jest.fn();
   const sessionClient = opts.sessionClient ?? buildFakeSessionClient([]);
   const syncFromClient = opts.syncFromClient ?? jest.fn(async () => undefined);
@@ -178,9 +201,7 @@ const setup = (opts: SetupOpts = {}) => {
       oxyServices: oxyServices as never,
       store: store as never,
       storage: null,
-      activeSessionId: opts.activeSessionId ?? null,
-      setActiveSessionId,
-      updateSessions,
+      runtime: runtime as never,
       saveActiveSessionId,
       clearSessionState,
       switchSession,
@@ -188,11 +209,9 @@ const setup = (opts: SetupOpts = {}) => {
       syncFromClient,
       onAuthStateChange,
       onError,
-      loginSuccess,
-      loginFailure,
-      logoutStore,
-      setAuthState,
       logger,
+      identityBinding: opts.identityBinding as never,
+      refreshPinnedAccountId: opts.refreshPinnedAccountId,
     }),
   );
 
@@ -202,16 +221,16 @@ const setup = (opts: SetupOpts = {}) => {
     store,
     sessionClient,
     syncFromClient,
-    setActiveSessionId,
-    updateSessions,
+    setActiveSessionId: runtime.setActiveSessionId,
+    mergeSessions: runtime.mergeSessions,
+    setAccount: runtime.setAccount,
+    setLoading: runtime.setLoading,
+    setError: runtime.setError,
     saveActiveSessionId,
     clearSessionState,
     switchSession,
     onAuthStateChange,
     onError,
-    loginSuccess,
-    loginFailure,
-    setAuthState,
     logger,
   };
 };
@@ -254,11 +273,35 @@ describe('useAuthOperations.signIn — online flow', () => {
     expect(helpers.syncFromClient).toHaveBeenCalledTimes(1);
     expect(helpers.setActiveSessionId).toHaveBeenCalledWith('new-session');
     expect(helpers.saveActiveSessionId).toHaveBeenCalledWith('new-session');
-    expect(helpers.loginSuccess).toHaveBeenCalled();
+    expect(helpers.setAccount).toHaveBeenCalled();
     expect(helpers.onAuthStateChange).toHaveBeenCalled();
     expect(signedInUser?.id).toBe('user-1');
-    expect(helpers.setAuthState).toHaveBeenCalledWith({ isLoading: true, error: null });
-    expect(helpers.setAuthState).toHaveBeenLastCalledWith({ isLoading: false });
+    expect(helpers.setLoading).toHaveBeenCalledWith(true);
+    expect(helpers.setLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  it('persists the identity pin when identityBinding is provided', async () => {
+    (sessionHelpers.fetchSessionsWithFallback as jest.Mock).mockResolvedValueOnce([
+      { sessionId: 'new-session', deviceId: 'device-1', userId: 'user-1', isCurrent: true },
+    ]);
+
+    const pinStore = {
+      load: jest.fn(async () => null),
+      save: jest.fn(async () => true),
+      clear: jest.fn(async () => undefined),
+    };
+    const refreshPinnedAccountId = jest.fn(async () => 'user-1');
+    const helpers = setup({ identityBinding: { pinStore }, refreshPinnedAccountId });
+
+    await act(async () => {
+      await helpers.result.current.signIn('AbC123');
+    });
+
+    expect(pinStore.save).toHaveBeenCalledWith({
+      publicKey: 'abc123',
+      accountId: 'user-1',
+    });
+    expect(refreshPinnedAccountId).toHaveBeenCalledTimes(1);
   });
 
   it('does not fail sign-in when device-session registration fails (best-effort)', async () => {
@@ -276,14 +319,16 @@ describe('useAuthOperations.signIn — online flow', () => {
     });
 
     expect(signedInUser?.id).toBe('user-1');
-    expect(helpers.loginSuccess).toHaveBeenCalled();
+    expect(helpers.setAccount).toHaveBeenCalled();
     expect(helpers.logger).toHaveBeenCalledWith(
       'Failed to register sign-in into device session set',
       expect.any(Error),
     );
     // The registration failure must not have cascaded into re-throwing / a
-    // failed sign-in.
-    expect(helpers.loginFailure).not.toHaveBeenCalled();
+    // failed sign-in. `signIn` opens by CLEARING any previous error, so the
+    // assertion is that no error MESSAGE was ever recorded — not that the
+    // setter went untouched.
+    expect(helpers.setError.mock.calls.map(([message]: [string | null]) => message)).toEqual([null]);
   });
 
   it('continues sign-in when the verify response omits an access token', async () => {
@@ -336,7 +381,7 @@ describe('useAuthOperations.signIn — online flow', () => {
     });
 
     expect((caught as Error).message).toBe('signature mismatch');
-    expect(helpers.loginFailure).toHaveBeenCalledWith('signature mismatch');
+    expect(helpers.setError).toHaveBeenCalledWith('signature mismatch');
     expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
       code: 'LOGIN_ERROR',
     }));
@@ -357,7 +402,7 @@ describe('useAuthOperations.signIn — online flow', () => {
     // Should have killed the newly-created duplicate and switched to the existing one
     expect(helpers.oxyServices.logoutSession).toHaveBeenCalledWith('new-session', 'new-session');
     expect(helpers.switchSession).toHaveBeenCalledWith('old-session');
-    expect(helpers.updateSessions).toHaveBeenCalledWith(
+    expect(helpers.mergeSessions).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({ sessionId: 'old-session' }),
       ]),
@@ -385,7 +430,7 @@ describe('useAuthOperations.signIn — requestChallenge failures', () => {
     expect(helpers.oxyServices.verifyChallenge).not.toHaveBeenCalled();
     expect(helpers.oxyServices.getCurrentUser).not.toHaveBeenCalled();
     expect(helpers.setActiveSessionId).not.toHaveBeenCalled();
-    expect(helpers.loginSuccess).not.toHaveBeenCalled();
+    expect(helpers.setAccount).not.toHaveBeenCalled();
     expect(helpers.onAuthStateChange).not.toHaveBeenCalled();
   });
 

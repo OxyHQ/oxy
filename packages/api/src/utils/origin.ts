@@ -72,6 +72,27 @@ export function isLoopbackOrigin(origin: string): boolean {
  *   isOxyApexOrigin('https://evil-oxy.so')     // false
  *   isOxyApexOrigin('https://oxy.so.evil.com') // false
  */
+/**
+ * True when the request carries browser context signals (`Origin` or
+ * `Sec-Fetch-Site`). Native HTTP clients (OkHttp, URLSession, curl) send
+ * neither; credentialed `fetch` in a browser always sends at least one.
+ *
+ * Used to refuse endpoints that must be native-only (e.g. background-credential
+ * provisioning) without relying on client-side platform gates alone.
+ */
+export function isBrowserClient(
+  headers: { origin?: string | string[]; 'sec-fetch-site'?: string | string[] },
+): boolean {
+  const origin = Array.isArray(headers.origin) ? headers.origin[0] : headers.origin;
+  if (origin !== undefined) {
+    return true;
+  }
+  const secFetchSite = Array.isArray(headers['sec-fetch-site'])
+    ? headers['sec-fetch-site'][0]
+    : headers['sec-fetch-site'];
+  return secFetchSite !== undefined;
+}
+
 export function isOxyApexOrigin(origin: string): boolean {
   if (isLoopbackOrigin(origin)) {
     return true;

@@ -1,132 +1,60 @@
 /**
  * Key-rotation route tests (b3 Feature 3 — atomic key rotation + last-credential
- * replacement).
+ * replacement), against a REAL Postgres.
  *
  * Proves the security invariants of `POST /auth/rotate/challenge` +
  * `POST /auth/rotate/complete`:
- *  - `oldPublicKey` is ALWAYS derived from the user doc, never the request (a
+ *  - `oldPublicKey` is ALWAYS derived from the user row, never the request (a
  *    client-supplied `oldPublicKey` is ignored; a signature from the wrong key
  *    is rejected);
  *  - the `rotate_key` challenge is purpose-scoped (a signin challenge can NEVER
- *    complete a rotation) and single-use (burn is atomic);
- *  - rotation is an atomic REPLACE — the `authMethods` array length is unchanged
- *    (never a `countAuthMethods() === 0` window);
+ *    complete a rotation), single-use, and expiry-checked on the READ (not left
+ *    to the sweep);
+ *  - rotation is an atomic REPLACE — the SAME `user_auth_methods` row is updated
+ *    in place, so the account never passes through zero auth methods;
  *  - `newPublicKey` already registered elsewhere is rejected (409);
- *  - `userCache.invalidate` fires and the derived DID reflects the new key
- *    immediately;
+ *  - `userCache.invalidate` fires, the stale `identity_backups` row is gone, and
+ *    the derived DID reflects the new key immediately;
  *  - `signOutEverywhere` revokes other sessions.
  *
- * The real `SignatureService` and `did.service` run; only the models + cache +
- * session service are mocked (the global mongoose mock cannot load the real
- * schema).
+ * Every assertion reads the STORED ROW. The previous suite drove an in-memory
+ * `Map` standing in for `AuthChallenge` and asserted on the `findOneAndUpdate`
+ * FILTER, which proved the query was built as expected but never that the
+ * challenge was actually spent — the atomic burn is precisely the thing that
+ * cannot be verified that way.
+ *
+ * The real `SignatureService` and `did.service` run; only the auth middleware,
+ * the user cache, the session service and the socket emitter are mocked.
  */
 
 import express from 'express';
 import http from 'http';
+import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
 import { ec as EC } from 'elliptic';
+import { and, eq } from 'drizzle-orm';
 
-const USER_ID = '507f1f77bcf86cd799439011';
+/** The account `authMiddleware` injects for the current test. */
+let currentUserId = '';
 
-interface MockUserDoc {
-  _id: string;
-  email?: string;
-  publicKey?: string;
-  createdAt: Date;
-  authMethods: Array<{ type: string; linkedAt: Date; metadata?: Record<string, unknown> }>;
-  save: jest.Mock;
-}
-
-interface ChallengeEntry {
-  publicKey: string;
-  purpose: string;
-  used: boolean;
-  expiresAt: Date;
-}
-
-let mockUserDoc: MockUserDoc;
-let mockConflictUser: { _id: string } | null;
-// When set, the conflict is only returned for this EXACT queried publicKey — used
-// to prove the conflict query runs against the CANONICAL key.
-let mockConflictKey: string | null;
-let mockOtherSessions: Array<{ sessionId: string }>;
 const mockInvalidate = jest.fn();
-const mockDeleteBackup = jest.fn().mockResolvedValue({ deletedCount: 1 });
 const mockDeactivateAll = jest.fn();
 const mockEmitSessionUpdate = jest.fn();
-const mockUserFindOne = jest.fn();
-const mockChallengeStore = new Map<string, ChallengeEntry>();
-
-function selectable(doc: unknown) {
-  return {
-    select: () => selectable(doc),
-    lean: () => Promise.resolve(doc),
-    then: (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
-      Promise.resolve(doc).then(resolve, reject),
-  };
-}
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (req: { user?: unknown }, _res: unknown, next: () => void) => {
-    req.user = mockUserDoc;
+    req.user = { _id: currentUserId };
     next();
   },
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: {
-    findById: () => selectable(mockUserDoc),
-    findOne: (filter: { publicKey?: string }) => {
-      mockUserFindOne(filter);
-      const conflict =
-        mockConflictUser && (mockConflictKey === null || filter?.publicKey === mockConflictKey)
-          ? mockConflictUser
-          : null;
-      return { select: () => ({ lean: () => Promise.resolve(conflict) }) };
-    },
-  },
-  buildAuthMethod: (type: string, metadata?: Record<string, unknown>) => ({ type, linkedAt: new Date(), metadata }),
+jest.mock('../../middleware/rateLimiter', () => ({
+  rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-jest.mock('../../models/AuthChallenge', () => ({
+jest.mock('../../utils/userCache', () => ({
   __esModule: true,
-  default: {
-    create: async (doc: { publicKey: string; challenge: string; purpose?: string; expiresAt: Date; used?: boolean }) => {
-      mockChallengeStore.set(doc.challenge, {
-        publicKey: doc.publicKey,
-        purpose: doc.purpose ?? 'signin',
-        used: doc.used ?? false,
-        expiresAt: doc.expiresAt,
-      });
-      return doc;
-    },
-    // Atomic single-use burn: matches the same {challenge, publicKey, used:false,
-    // purpose, expiresAt:$gt} filter the route uses, marks it used, returns the
-    // prior (truthy) doc or null.
-    findOneAndUpdate: async (filter: {
-      challenge: string;
-      publicKey?: string;
-      used?: boolean;
-      purpose?: string;
-      expiresAt?: { $gt: Date };
-    }) => {
-      const entry = mockChallengeStore.get(filter.challenge);
-      if (!entry || entry.used) return null;
-      if (filter.publicKey !== undefined && entry.publicKey !== filter.publicKey) return null;
-      if (filter.purpose !== undefined && entry.purpose !== filter.purpose) return null;
-      if (filter.expiresAt?.$gt && !(entry.expiresAt > filter.expiresAt.$gt)) return null;
-      entry.used = true;
-      return { _id: 'challenge-id', challenge: filter.challenge };
-    },
-  },
-}));
-
-jest.mock('../../models/Session', () => ({
-  __esModule: true,
-  default: {
-    find: () => ({ select: () => ({ lean: () => Promise.resolve(mockOtherSessions) }) }),
-  },
+  default: { invalidate: (...args: unknown[]) => mockInvalidate(...args) },
 }));
 
 jest.mock('../../services/session.service', () => ({
@@ -139,18 +67,12 @@ jest.mock('../../server', () => ({
   emitSessionUpdate: (...args: unknown[]) => mockEmitSessionUpdate(...args),
 }));
 
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: { invalidate: (...args: unknown[]) => mockInvalidate(...args) },
-}));
-
-jest.mock('../../models/IdentityBackup', () => ({
-  __esModule: true,
-  default: {
-    deleteOne: (...args: unknown[]) => mockDeleteBackup(...args),
-  },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { authChallenges } from '../../db/schema/authChallenges';
+import { identityBackups } from '../../db/schema/identityBackups';
+import { sessions } from '../../db/schema/sessions';
+import { userAuthMethods } from '../../db/schema/userAuthMethods';
+import { users } from '../../db/schema/users';
 import authLinkingRouter from '../authLinking';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument } from '../../services/did.service';
@@ -189,48 +111,92 @@ async function request(server: http.Server, method: string, path: string, payloa
   });
 }
 
+/** A fresh account holding `publicKey` as its identity key, with the matching row. */
+async function accountWithIdentity(publicKey: string): Promise<string> {
+  const [row] = await getDb().insert(users).values({ publicKey }).returning({ id: users.id });
+  await getDb().insert(userAuthMethods).values({
+    userId: row.id,
+    type: 'identity',
+    methodPublicKey: publicKey,
+    methodEmail: 'nate@oxy.so',
+  });
+  return row.id;
+}
+
+/** The stored account row. */
+async function storedUser(userId: string) {
+  const [row] = await getDb()
+    .select({ id: users.id, publicKey: users.publicKey })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return row;
+}
+
+/** The stored auth-method rows of an account. */
+async function storedAuthMethods(userId: string) {
+  return getDb()
+    .select()
+    .from(userAuthMethods)
+    .where(eq(userAuthMethods.userId, userId))
+    .orderBy(userAuthMethods.linkedAt, userAuthMethods.id);
+}
+
+/** The stored challenge row. */
+async function storedChallenge(challenge: string) {
+  const [row] = await getDb()
+    .select()
+    .from(authChallenges)
+    .where(eq(authChallenges.challenge, challenge))
+    .limit(1);
+  return row;
+}
+
+/** The DID document derived from what is actually stored for `userId`. */
+async function storedDidDocument(userId: string) {
+  const user = await storedUser(userId);
+  const methods = await storedAuthMethods(userId);
+  return buildDidDocument({
+    _id: userId,
+    publicKey: user.publicKey,
+    authMethods: methods.map((method) => ({
+      type: method.type,
+      metadata: { publicKey: method.methodPublicKey },
+    })),
+  });
+}
+
 let server: http.Server;
 let oldKeyPair: EC.KeyPair;
 let oldPublicKey: string;
 let oldPrivateKey: string;
 
-beforeAll((done) => {
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/auth', authLinkingRouter);
   // Mirror production: convert thrown ApiErrors (e.g. Zod validation via the
   // `validate` middleware) into JSON responses instead of Express's default HTML.
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
-  mockDeleteBackup.mockClear();
-  mockDeleteBackup.mockResolvedValue({ deletedCount: 1 });
-  mockChallengeStore.clear();
-  mockConflictUser = null;
-  mockConflictKey = null;
-  mockOtherSessions = [];
-
   oldKeyPair = ec.genKeyPair();
   oldPublicKey = oldKeyPair.getPublic('hex');
   oldPrivateKey = oldKeyPair.getPrivate('hex');
-
-  mockUserDoc = {
-    _id: USER_ID,
-    email: 'nate@oxy.so',
-    publicKey: oldPublicKey,
-    createdAt: new Date('2026-01-01T00:00:00.000Z'),
-    authMethods: [
-      { type: 'identity', linkedAt: new Date('2026-01-01T00:00:00.000Z'), metadata: { publicKey: oldPublicKey } },
-    ],
-    save: jest.fn().mockResolvedValue(undefined),
-  };
+  currentUserId = await accountWithIdentity(oldPublicKey);
 });
 
 /** Mint a rotate_key challenge for the current user via the real endpoint. */
@@ -251,7 +217,7 @@ function signRotation(params: {
   const canonicalOldPublicKey = SignatureService.canonicalizePublicKey(params.oldPublicKey);
   const message = JSON.stringify({
     action: 'rotate_key',
-    userId: USER_ID,
+    userId: currentUserId,
     oldPublicKey: canonicalOldPublicKey,
     newPublicKey: params.newPublicKey,
     challenge: params.challenge,
@@ -269,7 +235,7 @@ function signNewKeyProof(params: {
 }): string {
   const message = JSON.stringify({
     action: 'rotate_key_new',
-    userId: USER_ID,
+    userId: currentUserId,
     newPublicKey: params.newPublicKey,
     challenge: params.challenge,
     timestamp: params.timestamp,
@@ -305,36 +271,99 @@ function buildCompleteBody(params: {
   };
 }
 
+describe('POST /auth/rotate/challenge', () => {
+  it('stores an unspent, rotate_key-purpose challenge bound to the account key', async () => {
+    const challenge = await mintRotateChallenge();
+
+    const stored = await storedChallenge(challenge);
+    expect(stored.purpose).toBe('rotate_key');
+    expect(stored.publicKey).toBe(oldPublicKey);
+    expect(stored.used).toBe(false);
+    expect(stored.expiresAt.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('rejects an account with no identity key (400, nothing stored)', async () => {
+    await getDb().update(users).set({ publicKey: null }).where(eq(users.id, currentUserId));
+    const res = await request(server, 'POST', '/auth/rotate/challenge');
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('POST /auth/rotate/complete — happy path', () => {
-  it('atomically replaces the identity key, keeping authMethods length constant', async () => {
+  it('replaces the identity key IN PLACE: same row, new key, challenge spent, backup gone', async () => {
     const newKeyPair = ec.genKeyPair();
     const newPublicKey = newKeyPair.getPublic('hex');
-    const lengthBefore = mockUserDoc.authMethods.length;
+    const [identityBefore] = (await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity');
+    await getDb().insert(identityBackups).values({
+      userId: currentUserId,
+      lookupIdHash: `hash-${randomUUID()}`,
+      publicKeyHint: oldPublicKey.slice(0, 8),
+      ciphertext: 'deadbeef',
+      nonce: 'cafe',
+      algorithm: 'xchacha20poly1305',
+      kdfInfo: 'oxy-identity-backup',
+      version: 1,
+      clientCreatedAt: '2026-01-01T00:00:00.000Z',
+    });
 
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp }),
+    );
 
     expect(res.status).toBe(200);
     expect(res.body.publicKey).toBe(newPublicKey);
-    // Swapped in place.
-    expect(mockUserDoc.publicKey).toBe(newPublicKey);
-    // Atomic replace: array length is NEVER changed (no countAuthMethods()===0 window).
-    expect(mockUserDoc.authMethods).toHaveLength(lengthBefore);
-    expect(mockUserDoc.authMethods).toHaveLength(1);
-    const identity = mockUserDoc.authMethods.find((m) => m.type === 'identity');
-    expect(identity?.metadata?.publicKey).toBe(newPublicKey);
-    expect(mockUserDoc.save).toHaveBeenCalledTimes(1);
+    expect((await storedUser(currentUserId)).publicKey).toBe(newPublicKey);
+
+    // Atomic replace: the SAME row carries the new key — never deleted and
+    // re-inserted, so there is no `total === 0` window.
+    const methods = await storedAuthMethods(currentUserId);
+    expect(methods).toHaveLength(1);
+    expect(methods[0].id).toBe(identityBefore.id);
+    expect(methods[0].methodPublicKey).toBe(newPublicKey);
+    // Untouched metadata survives the in-place update.
+    expect(methods[0].methodEmail).toBe('nate@oxy.so');
+
+    // The challenge is spent.
+    expect((await storedChallenge(challenge)).used).toBe(true);
     // Cache invalidated.
-    expect(mockInvalidate).toHaveBeenCalledWith(USER_ID);
-    // Stale encrypted backup removed — it still held the old key.
-    expect(mockDeleteBackup).toHaveBeenCalledWith({ userId: USER_ID });
+    expect(mockInvalidate).toHaveBeenCalledWith(currentUserId);
+    // The stale encrypted backup — which still held the OLD key under the OLD
+    // phrase's locator — is gone.
+    const backups = await getDb()
+      .select({ id: identityBackups.id })
+      .from(identityBackups)
+      .where(eq(identityBackups.userId, currentUserId));
+    expect(backups).toHaveLength(0);
+
     // The derived DID reflects the new key IMMEDIATELY.
-    const vms = buildDidDocument(mockUserDoc).verificationMethod as Array<{ publicKeyHex?: string }>;
+    const vms = (await storedDidDocument(currentUserId)).verificationMethod as Array<{ publicKeyHex?: string }>;
     expect(vms.some((vm) => vm.publicKeyHex === newPublicKey)).toBe(true);
     expect(vms.some((vm) => vm.publicKeyHex === oldPublicKey)).toBe(false);
+  });
+
+  it('adds the identity row when the account had a key but no method row (legacy account)', async () => {
+    await getDb()
+      .delete(userAuthMethods)
+      .where(and(eq(userAuthMethods.userId, currentUserId), eq(userAuthMethods.type, 'identity')));
+
+    const newKeyPair = ec.genKeyPair();
+    const challenge = await mintRotateChallenge();
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+    );
+
+    expect(res.status).toBe(200);
+    const methods = await storedAuthMethods(currentUserId);
+    expect(methods).toHaveLength(1);
+    expect(methods[0].methodPublicKey).toBe(newKeyPair.getPublic('hex'));
   });
 });
 
@@ -350,10 +379,10 @@ describe('security invariant — proof-of-possession of the new key', () => {
     const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, timestamp });
 
     expect(res.status).toBe(400);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
   });
 
-  it('rejects a newKeyProof NOT signed by the new key (400)', async () => {
+  it('rejects a newKeyProof NOT signed by the new key (400, nothing written, challenge unspent)', async () => {
     const newKeyPair = ec.genKeyPair();
     const newPublicKey = newKeyPair.getPublic('hex');
     const impostor = ec.genKeyPair();
@@ -367,8 +396,8 @@ describe('security invariant — proof-of-possession of the new key', () => {
     const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, newKeyProof, timestamp });
 
     expect(res.status).toBe(400);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
-    expect(mockUserDoc.publicKey).toBe(oldPublicKey);
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
+    expect((await storedChallenge(challenge)).used).toBe(false);
   });
 });
 
@@ -380,50 +409,48 @@ describe('security invariant — key re-encoding is canonicalized', () => {
 
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, newPublicKey: compressed, challenge, timestamp });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, newPublicKey: compressed, challenge, timestamp }),
+    );
 
     expect(res.status).toBe(200);
     // Stored + returned in canonical form, NOT the re-encoding that was sent.
     expect(res.body.publicKey).toBe(canonical);
-    expect(mockUserDoc.publicKey).toBe(canonical);
-    const identity = mockUserDoc.authMethods.find((m) => m.type === 'identity');
-    expect(identity?.metadata?.publicKey).toBe(canonical);
-    // The uniqueness query ran against the CANONICAL key.
-    expect(mockUserFindOne).toHaveBeenCalledWith({ publicKey: canonical });
+    expect((await storedUser(currentUserId)).publicKey).toBe(canonical);
+    const [identity] = (await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity');
+    expect(identity.methodPublicKey).toBe(canonical);
   });
 
   it('rejects rotating to a re-encoding (compressed) of a key already registered to another account (409)', async () => {
-    // A key some OTHER account already holds (canonical form).
+    // A key some OTHER account already holds, stored canonically.
     const victimKeyPair = ec.genKeyPair();
     const victimCanonical = victimKeyPair.getPublic(false, 'hex').toLowerCase();
     const victimCompressed = victimKeyPair.getPublic(true, 'hex');
-    // The conflict only fires for the CANONICAL victim key — proving the server
-    // canonicalizes the compressed re-encoding BEFORE the uniqueness query.
-    mockConflictUser = { _id: 'victim-account' };
-    mockConflictKey = victimCanonical;
+    await accountWithIdentity(victimCanonical);
 
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
-    // The caller controls the victim key (has its private key) so proof-of-possession passes.
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair: victimKeyPair, oldPublicKey, newPublicKey: victimCompressed, challenge, timestamp });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    // The caller controls the victim key (has its private key) so proof-of-possession passes;
+    // only the canonicalization before the uniqueness query catches the re-encoding.
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair: victimKeyPair, oldPublicKey, newPublicKey: victimCompressed, challenge, timestamp }),
+    );
 
     expect(res.status).toBe(409);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
-    expect(mockUserDoc.publicKey).toBe(oldPublicKey);
-    expect(mockUserFindOne).toHaveBeenCalledWith({ publicKey: victimCanonical });
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
   });
 });
 
 describe('security invariant — oldPublicKey is server-derived', () => {
-  it('ignores a client-supplied oldPublicKey and validates against the user doc key', async () => {
+  it('ignores a client-supplied oldPublicKey and validates against the user row', async () => {
     const newKeyPair = ec.genKeyPair();
-    const newPublicKey = newKeyPair.getPublic('hex');
     const attacker = ec.genKeyPair();
-
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
     const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
@@ -434,16 +461,16 @@ describe('security invariant — oldPublicKey is server-derived', () => {
     });
 
     expect(res.status).toBe(200);
-    expect(mockUserDoc.publicKey).toBe(newPublicKey);
+    expect((await storedUser(currentUserId)).publicKey).toBe(newKeyPair.getPublic('hex'));
   });
 
   it('rejects a signature made with a key other than the account key (proving control of X but rotating Y)', async () => {
     const newKeyPair = ec.genKeyPair();
     const newPublicKey = newKeyPair.getPublic('hex');
     const attacker = ec.genKeyPair();
-
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
+
     // Old-key signature by the WRONG key; new-key proof is valid.
     const signature = signRotation({ privateKey: attacker.getPrivate('hex'), oldPublicKey, newPublicKey, challenge, timestamp });
     const newKeyProof = signNewKeyProof({ newPrivateKey: newKeyPair.getPrivate('hex'), newPublicKey, challenge, timestamp });
@@ -451,54 +478,79 @@ describe('security invariant — oldPublicKey is server-derived', () => {
     const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, newKeyProof, timestamp });
 
     expect(res.status).toBe(400);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
     expect(mockInvalidate).not.toHaveBeenCalled();
-    expect(mockUserDoc.publicKey).toBe(oldPublicKey);
     // Invalid signature must NOT burn the challenge — the caller can retry.
-    expect(mockChallengeStore.get(challenge)?.used).toBe(false);
+    expect((await storedChallenge(challenge)).used).toBe(false);
   });
 
   it('rotates when the account stores a compressed identity key but the client signs with the uncompressed form', async () => {
     const compressedOld = oldKeyPair.getPublic(true, 'hex');
-    mockUserDoc.publicKey = compressedOld;
-    mockUserDoc.authMethods = [
-      { type: 'identity', linkedAt: new Date('2026-01-01T00:00:00.000Z'), metadata: { publicKey: compressedOld } },
-    ];
+    currentUserId = await accountWithIdentity(compressedOld);
 
     const newKeyPair = ec.genKeyPair();
     const challenge = await mintRotateChallenge();
-    const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+    );
 
     expect(res.status).toBe(200);
-    expect(mockUserDoc.publicKey).toBe(newKeyPair.getPublic(false, 'hex').toLowerCase());
+    expect((await storedUser(currentUserId)).publicKey).toBe(newKeyPair.getPublic(false, 'hex').toLowerCase());
   });
 });
 
 describe('security invariant — purpose scoping', () => {
   it('a signin challenge (default purpose) can NOT complete a rotation', async () => {
     const newKeyPair = ec.genKeyPair();
-    const newPublicKey = newKeyPair.getPublic('hex');
     // Seed a SIGNIN-purpose challenge directly (as the signin flow would).
-    const challenge = 'signin-challenge-value';
-    mockChallengeStore.set(challenge, {
+    const challenge = `signin-${randomUUID()}`;
+    await getDb().insert(authChallenges).values({
       publicKey: oldPublicKey,
+      challenge,
       purpose: 'signin',
-      used: false,
       expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      used: false,
     });
 
-    const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, newPublicKey, challenge, timestamp });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+    );
 
     expect(res.status).toBe(401);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
     // The signin challenge must remain UNUSED (rotation never touched it).
-    expect(mockChallengeStore.get(challenge)?.used).toBe(false);
+    expect((await storedChallenge(challenge)).used).toBe(false);
+  });
+
+  it("a rotate challenge minted for ANOTHER account's key cannot rotate this one", async () => {
+    const strangerKeyPair = ec.genKeyPair();
+    const strangerPublicKey = strangerKeyPair.getPublic('hex');
+    const challenge = `foreign-${randomUUID()}`;
+    await getDb().insert(authChallenges).values({
+      publicKey: strangerPublicKey,
+      challenge,
+      purpose: 'rotate_key',
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      used: false,
+    });
+
+    const newKeyPair = ec.genKeyPair();
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+    );
+
+    expect(res.status).toBe(401);
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
+    expect((await storedChallenge(challenge)).used).toBe(false);
   });
 });
 
@@ -525,7 +577,31 @@ describe('security invariant — single-use challenge', () => {
       '/auth/rotate/complete',
       buildCompleteBody({ oldPrivateKey: firstKeyPair.getPrivate('hex'), newKeyPair: secondKeyPair, oldPublicKey: first, challenge, timestamp }),
     );
+
     expect(res2.status).toBe(401);
+    // The account still holds the key from the FIRST rotation.
+    expect((await storedUser(currentUserId)).publicKey).toBe(first);
+  });
+
+  it('rejects an EXPIRED challenge with 401 (the read filters the deadline; it does not wait for the sweep)', async () => {
+    const newKeyPair = ec.genKeyPair();
+    const challenge = await mintRotateChallenge();
+    await getDb()
+      .update(authChallenges)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(authChallenges.challenge, challenge));
+
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+    );
+
+    expect(res.status).toBe(401);
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
+    // Rejected, not consumed.
+    expect((await storedChallenge(challenge)).used).toBe(false);
   });
 });
 
@@ -535,31 +611,36 @@ describe('security invariant — stale request does not self-burn its challenge'
     const challenge = await mintRotateChallenge();
     // 10 minutes old — beyond the 5-minute freshness window.
     const timestamp = Date.now() - 10 * 60 * 1000;
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
 
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp }),
+    );
 
     expect(res.status).toBe(400);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
     // The challenge was NOT consumed — a fresh retry can still use it.
-    expect(mockChallengeStore.get(challenge)?.used).toBe(false);
+    expect((await storedChallenge(challenge)).used).toBe(false);
   });
 });
 
 describe('conflict + validation guards', () => {
   it('rejects a newPublicKey already registered to another account (409)', async () => {
     const newKeyPair = ec.genKeyPair();
-    mockConflictUser = { _id: 'a-different-user' };
+    await accountWithIdentity(newKeyPair.getPublic(false, 'hex').toLowerCase());
 
     const challenge = await mintRotateChallenge();
-    const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+    );
 
     expect(res.status).toBe(409);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
-    expect(mockUserDoc.publicKey).toBe(oldPublicKey);
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
   });
 
   it('rejects rotating to the SAME key (400)', async () => {
@@ -571,7 +652,7 @@ describe('conflict + validation guards', () => {
     const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey: oldPublicKey, challenge, signature, newKeyProof, timestamp });
 
     expect(res.status).toBe(400);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
+    expect((await storedChallenge(challenge)).used).toBe(false);
   });
 
   it('rejects an invalid newPublicKey (400)', async () => {
@@ -582,40 +663,88 @@ describe('conflict + validation guards', () => {
     const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey: 'not-a-key', challenge, signature, newKeyProof: 'deadbeef', timestamp });
 
     expect(res.status).toBe(400);
-    expect(mockUserDoc.save).not.toHaveBeenCalled();
-  });
-
-  it('the challenge endpoint rejects an account with no identity key (400)', async () => {
-    mockUserDoc.publicKey = undefined;
-    const res = await request(server, 'POST', '/auth/rotate/challenge');
-    expect(res.status).toBe(400);
+    expect((await storedUser(currentUserId)).publicKey).toBe(oldPublicKey);
   });
 });
 
 describe('signOutEverywhere', () => {
+  /** An active session row for the account (both token columns are unique + NOT NULL). */
+  async function activeSession(sessionId: string): Promise<void> {
+    await getDb().insert(sessions).values({
+      sessionId,
+      userId: currentUserId,
+      deviceId: `dev-${randomUUID()}`,
+      deviceType: 'web',
+      platform: 'web',
+      accessToken: `at-${randomUUID()}`,
+      refreshToken: `rt-${randomUUID()}`,
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+  }
+
   it('revokes other sessions and pushes a sessions_removed event on success', async () => {
-    mockOtherSessions = [{ sessionId: 's2' }, { sessionId: 's3' }];
+    const s2 = `s2-${randomUUID()}`;
+    const s3 = `s3-${randomUUID()}`;
+    await activeSession(s2);
+    await activeSession(s3);
     mockDeactivateAll.mockResolvedValue(2);
 
     const newKeyPair = ec.genKeyPair();
     const challenge = await mintRotateChallenge();
-    const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp, signOutEverywhere: true });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now(), signOutEverywhere: true }),
+    );
 
     expect(res.status).toBe(200);
-    expect(mockDeactivateAll).toHaveBeenCalledWith(USER_ID, undefined);
-    expect(mockEmitSessionUpdate).toHaveBeenCalledWith(USER_ID, { type: 'sessions_removed', sessionIds: ['s2', 's3'] });
+    expect(mockDeactivateAll).toHaveBeenCalledWith(currentUserId, undefined);
+    const [userId, payload] = mockEmitSessionUpdate.mock.calls[0] as [string, { type: string; sessionIds: string[] }];
+    expect(userId).toBe(currentUserId);
+    expect(payload.type).toBe('sessions_removed');
+    expect([...payload.sessionIds].sort()).toEqual([s2, s3].sort());
+  });
+
+  it('ignores INACTIVE and EXPIRED sessions when listing what was revoked', async () => {
+    const live = `live-${randomUUID()}`;
+    await activeSession(live);
+    // One deactivated and one expired session must not appear in the event.
+    const dead = `dead-${randomUUID()}`;
+    await activeSession(dead);
+    await getDb().update(sessions).set({ isActive: false }).where(eq(sessions.sessionId, dead));
+    const stale = `stale-${randomUUID()}`;
+    await activeSession(stale);
+    await getDb()
+      .update(sessions)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(sessions.sessionId, stale));
+
+    const newKeyPair = ec.genKeyPair();
+    const challenge = await mintRotateChallenge();
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now(), signOutEverywhere: true }),
+    );
+
+    expect(res.status).toBe(200);
+    const [, payload] = mockEmitSessionUpdate.mock.calls[0] as [string, { sessionIds: string[] }];
+    expect(payload.sessionIds).toEqual([live]);
   });
 
   it('does NOT revoke other sessions when the flag is absent', async () => {
+    await activeSession(`s-${randomUUID()}`);
+
     const newKeyPair = ec.genKeyPair();
     const challenge = await mintRotateChallenge();
-    const timestamp = Date.now();
-    const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
-
-    const res = await request(server, 'POST', '/auth/rotate/complete', body);
+    const res = await request(
+      server,
+      'POST',
+      '/auth/rotate/complete',
+      buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp: Date.now() }),
+    );
 
     expect(res.status).toBe(200);
     expect(mockDeactivateAll).not.toHaveBeenCalled();

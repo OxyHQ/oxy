@@ -1,9 +1,18 @@
 import type React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import type { AccountKind, CreateAccountInput, OrganizationCategory } from '@oxyhq/core';
-import { ORGANIZATION_CATEGORIES } from '@oxyhq/core';
+import Ionicons from '../icons/Ionicons';
+import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxyhq/core';
+import { accountCategoryLabel, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, MAX_ACCOUNT_CATEGORIES, MAX_DISPLAY_NAME_LENGTH, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxyhq/core';
+import {
+  applyBotUsernameSuffix,
+  stripDisallowedUsernameCharacters,
+  usernameSchemaForAccountKind,
+  BOT_USERNAME_INVALID_MESSAGE,
+  USERNAME_INVALID_MESSAGE,
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+} from '@oxyhq/contracts';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -13,17 +22,31 @@ import { Button } from '@oxyhq/bloom/button';
 import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { useOxy } from '../context/OxyContext';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
-/** Kind of account this screen can create. `personal` is a signup-minted root and is never created here. */
-type CreatableAccountKind = Exclude<AccountKind, 'personal'>;
+/**
+ * Kind of account this screen can create.
+ *
+ * A strict subset of what `POST /accounts` accepts, not `Exclude<AccountKind,
+ * 'personal'>`: this screen CREATES AND ENTERS in one gesture, so it can only
+ * offer kinds an operator may switch into — `isOperatorSwitchTargetKind` is the
+ * same predicate the server enforces on `POST /accounts/:id/switch`.
+ *
+ * So `channel` is absent here even though `POST /accounts` accepts it from any
+ * signed-in caller: a channel is a content identity nobody occupies, and
+ * offering it would create the account and then fail the switch. The reason is
+ * this screen's own shape, NOT a rule about who may create a channel — that rule
+ * changed once already, and a comment tied to it would now be false.
+ *
+ * Spelling the subset out here is what keeps a newly-added kind from silently
+ * inheriting the `project` label in {@link kindLabel}'s fallback.
+ */
+type CreatableAccountKind = Extract<AccountKind, 'organization' | 'project' | 'bot'>;
 
-const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
 const DEBOUNCE_MS = 400;
-const USERNAME_MAX = 30;
-const DISPLAY_NAME_MAX = 50;
+const DISPLAY_NAME_MAX = MAX_DISPLAY_NAME_LENGTH;
 const BIO_MAX = 160;
 
 interface KindOption {
@@ -67,23 +90,12 @@ const kindDescription = (
   }
 };
 
-const organizationCategoryLabel = (
-  t: (key: string, vars?: Record<string, string | number>) => string,
-  category: OrganizationCategory,
-): string => {
-  switch (category) {
-    case 'agency':
-      return t('accounts.organizationCategory.agency');
-    case 'cooperative':
-      return t('accounts.organizationCategory.cooperative');
-    case 'landlord':
-      return t('accounts.organizationCategory.landlord');
-    default:
-      return t('accounts.organizationCategory.other');
-  }
-};
-
-const ORGANIZATION_CATEGORY_OPTIONS: OrganizationCategory[] = [...ORGANIZATION_CATEGORIES];
+/**
+ * Only the SELECTABLE ids are offered. The full `ACCOUNT_CATEGORY_IDS` still
+ * contains withdrawn ones so that accounts already carrying them keep working —
+ * offering them here would be how an account newly acquires one.
+ */
+const ACCOUNT_CATEGORY_OPTIONS: readonly AccountCategoryId[] = SELECTABLE_ACCOUNT_CATEGORY_IDS;
 
 /**
  * Create a new account in the unified account graph (an organization, project,
@@ -98,7 +110,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
 }) => {
   const bloomTheme = useTheme();
   const { oxyServices, createAccount, switchToAccount } = useOxy();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   useSurfaceHeader({
     title: t('accounts.create.title') || 'Create account',
@@ -109,9 +121,15 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   const parentId = typeof parentAccountId === 'string' ? parentAccountId : undefined;
 
   const [kind, setKind] = useState<CreatableAccountKind>('project');
-  const [organizationCategory, setOrganizationCategory] = useState<OrganizationCategory>('agency');
+  /**
+   * ORDER IS THE DATA: index 0 is the primary category. Selecting appends,
+   * de-selecting removes, and neither sorts — so the list the user assembles is
+   * the list that is sent, and the first one they picked stays the primary.
+   */
+  const [accountCategories, setAccountCategories] = useState<AccountCategoryId[]>([]);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [displayNameError, setDisplayNameError] = useState('');
   const [bio, setBio] = useState('');
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
   const [usernameMessage, setUsernameMessage] = useState('');
@@ -128,25 +146,45 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   }, []);
 
   // Debounced username availability check
-  const checkUsername = useCallback((value: string) => {
+  //
+  // The kind is a PARAMETER, not a read of the `kind` state: this runs from the
+  // username field and from the type selector, and the selector's own `setKind`
+  // has not landed yet when it calls. Reading the state here would validate the
+  // previously chosen kind — an off-by-one that shows "available" for a bot
+  // handle `POST /accounts` will refuse.
+  const checkUsername = useCallback((value: string, forKind: CreatableAccountKind) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (!value || value.length < 3) {
+    if (!value || value.length < USERNAME_MIN_LENGTH) {
       setUsernameStatus(value.length > 0 ? 'invalid' : 'idle');
       setUsernameMessage(
         value.length > 0
-          ? (t('accounts.create.username.tooShort') || 'Username must be at least 3 characters')
+          ? (t('accounts.create.username.tooShort')
+            || `Username must be at least ${USERNAME_MIN_LENGTH} characters`)
           : '',
       );
       return;
     }
 
-    if (!USERNAME_REGEX.test(value)) {
+    // The ONE policy, from `@oxyhq/contracts`, for the kind being created. This
+    // screen used to carry a private copy of the rule, and the server it talks to
+    // enforced a LOOSER one — so a name this field refused was a name
+    // `POST /accounts` would happily have stored.
+    //
+    // WHICH half failed decides the copy: for a bot the rule has two, and telling
+    // somebody who typed `a.b` to append `bot` sends them to be refused a second
+    // time. The issue is read to choose between two LOCALIZED strings rather than
+    // shown directly — the schema's message is English, and this screen is not.
+    const parsed = usernameSchemaForAccountKind(forKind).safeParse(value);
+    if (!parsed.success) {
+      const failedTheLabel = parsed.error.issues[0]?.message === BOT_USERNAME_INVALID_MESSAGE;
       setUsernameStatus('invalid');
       setUsernameMessage(
-        t('accounts.create.username.invalidChars') || 'Only letters, numbers, hyphens, and underscores',
+        failedTheLabel
+          ? (t('accounts.create.username.mustEndInBot') || BOT_USERNAME_INVALID_MESSAGE)
+          : (t('accounts.create.username.invalidChars') || USERNAME_INVALID_MESSAGE),
       );
       return;
     }
@@ -175,29 +213,88 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   }, [oxyServices, t]);
 
   const handleUsernameChange = useCallback((value: string) => {
-    const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    // Filters characters the policy forbids, and nothing else. It no longer
+    // lower-cases: `MyBot` is stored as `MyBot`, and uniqueness is decided
+    // case-insensitively by the database index rather than by rewriting what
+    // somebody typed. It does NOT label a bot handle either — appending `bot` to
+    // every keystroke would fight the person typing `mybot` one letter at a time.
+    const cleaned = stripDisallowedUsernameCharacters(value);
     setUsername(cleaned);
-    checkUsername(cleaned);
-  }, [checkUsername]);
+    checkUsername(cleaned, kind);
+  }, [checkUsername, kind]);
 
-  const canCreate = usernameStatus === 'available' && displayName.trim().length > 0 && !isCreating;
+  /**
+   * Choosing the account type re-decides the handle, because the policy differs
+   * by kind: a `bot` handle must end in `bot`.
+   *
+   * Picking "Bot" LABELS what has been typed so far — visibly, in the field,
+   * before anything is submitted, and still editable. That is a proposal, not the
+   * silent rename the policy exists to prevent: the alternative is a field that
+   * says "invalid" and leaves the person to guess the rule from a sentence. It
+   * only ever adds the label, and only when moving to `bot` — moving away leaves
+   * the name alone, since the label is not forbidden to anybody else.
+   */
+  const handleKindChange = useCallback((nextKind: CreatableAccountKind) => {
+    setKind(nextKind);
+    if (!username) return;
+    const proposed = nextKind === 'bot' ? applyBotUsernameSuffix(username) : username;
+    setUsername(proposed);
+    checkUsername(proposed, nextKind);
+  }, [checkUsername, username]);
+
+  const handleDisplayNameChange = useCallback((value: string) => {
+    setDisplayName(value);
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setDisplayNameError('');
+      return;
+    }
+    const nameParts = trimmed.split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+    const invalidPart = [firstName, lastName].find((part) => part && !isValidDisplayName(part));
+    setDisplayNameError(
+      invalidPart
+        ? (t('accounts.create.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE)
+        : '',
+    );
+  }, [t]);
+
+  /**
+   * Append on select, splice out on de-select. Never sorts — appending is what
+   * makes the FIRST category the user chose the primary one, and a sort would
+   * silently reassign that. De-selecting the primary promotes whatever the user
+   * picked next, which is the only interpretation that does not invent a choice
+   * on their behalf.
+   */
+  const toggleAccountCategory = useCallback((category: AccountCategoryId) => {
+    setAccountCategories((current) => {
+      if (current.includes(category)) {
+        return current.filter((entry) => entry !== category);
+      }
+      if (current.length >= MAX_ACCOUNT_CATEGORIES) return current;
+      return [...current, category];
+    });
+  }, []);
+
+  const canCreate = usernameStatus === 'available'
+    && displayName.trim().length > 0
+    && !displayNameError
+    && !isCreating;
 
   const handleCreate = useCallback(async () => {
     if (!canCreate) return;
 
     setIsCreating(true);
     try {
-      // Split display name into first/last
-      const nameParts = displayName.trim().split(/\s+/);
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
-
       const input: CreateAccountInput = {
         kind,
         username,
-        name: { first: firstName, last: lastName },
+        name: { displayName: displayName.trim() },
         bio: bio.trim() || undefined,
-        ...(kind === 'organization' ? { organizationCategory } : null),
+        // Sent in the user's own order, or omitted entirely when empty — the
+        // API distinguishes "no categories" from "not stated" only by absence.
+        ...(accountCategories.length > 0 ? { accountCategories } : null),
         ...(parentId ? { parentAccountId: parentId } : null),
       };
       const account = await createAccount(input);
@@ -207,6 +304,13 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
       // Switch INTO the new account (real-session switch — the whole app becomes
       // it). Best-effort: creation already succeeded, so a switch hiccup should
       // not surface as a create failure.
+      //
+      // That trade holds for a TRANSIENT failure and only for one. A kind the
+      // server refuses outright fails DETERMINISTICALLY — `/switch` answers 403
+      // every time, never sometimes — and this swallow would turn it into a
+      // created account, no switch, and no error anywhere. Which is why
+      // `CreatableAccountKind` above is a subset of what `POST /accounts`
+      // accepts rather than of what it rejects.
       if (account.accountId) {
         await switchToAccount(account.accountId).catch(() => undefined);
       }
@@ -220,7 +324,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
     } finally {
       setIsCreating(false);
     }
-  }, [canCreate, kind, organizationCategory, username, displayName, bio, parentId, createAccount, switchToAccount, onClose, t]);
+  }, [canCreate, kind, accountCategories, username, displayName, bio, parentId, createAccount, switchToAccount, onClose, t]);
 
   // Status icon + color shown alongside the username field message
   const usernameIsInvalid = usernameStatus === 'taken' || usernameStatus === 'invalid';
@@ -251,7 +355,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
               )}
               title={kindLabel(t, option.value)}
               description={kindDescription(t, option.value)}
-              onPress={() => setKind(option.value)}
+              onPress={() => handleKindChange(option.value)}
               showChevron={false}
               rightElement={selected ? (
                 <Ionicons name="checkmark-circle" size={20} color={bloomTheme.colors.primary} />
@@ -262,26 +366,35 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
         })}
       </SettingsListGroup>
 
-      {/* Organization category — grouped selection rows, shown only for organizations */}
-      {kind === 'organization' ? (
-        <SettingsListGroup title={t('accounts.create.organizationCategory.label')}>
-          {ORGANIZATION_CATEGORY_OPTIONS.map((option) => {
-            const selected = option === organizationCategory;
+      {/* Categories — multi-select, shown for every kind this screen can create
+          (they are all non-personal). The badge on a selected row is its
+          POSITION, so the primary is legible as "1" rather than being a rule the
+          user has to be told. */}
+      <View className="gap-space-4">
+        <SettingsListGroup title={t('accounts.create.accountCategory.label')}>
+          {ACCOUNT_CATEGORY_OPTIONS.map((option) => {
+            const position = accountCategories.indexOf(option);
+            const selected = position >= 0;
+            const label = accountCategoryLabel(locale, option);
             return (
               <SettingsListItem
                 key={option}
-                title={organizationCategoryLabel(t, option)}
-                onPress={() => setOrganizationCategory(option)}
+                title={label}
+                disabled={!selected && accountCategories.length >= MAX_ACCOUNT_CATEGORIES}
+                onPress={() => toggleAccountCategory(option)}
                 showChevron={false}
                 rightElement={selected ? (
-                  <Ionicons name="checkmark-circle" size={20} color={bloomTheme.colors.primary} />
+                  <Text className="text-caption-1 font-semibold text-primary">{position + 1}</Text>
                 ) : undefined}
-                accessibilityLabel={organizationCategoryLabel(t, option)}
+                accessibilityLabel={label}
               />
             );
           })}
         </SettingsListGroup>
-      ) : null}
+        <Text className="text-caption font-caption text-text-tertiary px-space-4">
+          {t('accounts.create.accountCategory.hint', { max: MAX_ACCOUNT_CATEGORIES })}
+        </Text>
+      </View>
 
       {/* Details — a grouped section card hosting the form fields */}
       <SettingsListGroup title={t('accounts.create.detailsSection') || 'Details'}>
@@ -298,7 +411,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"
-                maxLength={USERNAME_MAX}
+                maxLength={USERNAME_MAX_LENGTH}
               />
             </TextField>
             {(usernameStatus === 'checking' || usernameMessage) ? (
@@ -320,15 +433,23 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
           </View>
 
           {/* Display Name */}
-          <TextField>
-            <TextFieldInput
-              floatingLabel
-              label={t('accounts.create.displayName.label') || 'Display name'}
-              value={displayName}
-              onChangeText={setDisplayName}
-              maxLength={DISPLAY_NAME_MAX}
-            />
-          </TextField>
+          <View className="gap-space-4">
+            <TextField isInvalid={Boolean(displayNameError)}>
+              <TextFieldInput
+                floatingLabel
+                label={t('accounts.create.displayName.label') || 'Display name'}
+                value={displayName}
+                onChangeText={handleDisplayNameChange}
+                isInvalid={Boolean(displayNameError)}
+                maxLength={DISPLAY_NAME_MAX}
+              />
+            </TextField>
+            {displayNameError ? (
+              <Text className="text-caption font-caption text-negative px-space-4">
+                {displayNameError}
+              </Text>
+            ) : null}
+          </View>
 
           {/* Bio */}
           <View className="gap-space-4">

@@ -2,7 +2,7 @@ import type { AccountStorageUsageResponse, AssetUploadInput, AssetUrlResponse, A
 import type { OxyServicesBase } from '../OxyServices.base';
 import { isReactNative } from '@oxyhq/protocol';
 import { logger } from '../logger';
-import { AssetUrlResolutionError } from '../OxyServices.errors';
+import { AssetUrlResolutionError, ServiceAssetMetadataError } from '../OxyServices.errors';
 import { extractErrorStatus } from '../utils/errorUtils';
 import { redactUrlQuery } from '../utils/redactUrl';
 
@@ -353,15 +353,28 @@ export function OxyServicesAssetsMixin<T extends typeof OxyServicesBase>(Base: T
      * throws because no credentials are available. A plain user-session request
      * is rejected by the route's service-auth guard.
      *
-     * Resilience: chunks are independent. A failed chunk is logged and skipped —
-     * the method returns every entry that resolved successfully rather than
-     * discarding the whole call on one chunk's failure. An empty/whitespace-only
-     * input resolves immediately with `[]` and performs no network call.
+     * FAILURE IS NOT ABSENCE. The server legitimately omits unknown/deleted ids,
+     * so a short result is normal — which means a chunk that FAILED (a 429, a
+     * timeout, a 5xx) is indistinguishable from "those assets don't exist" if it
+     * simply contributes nothing. This method used to swallow a failed chunk and
+     * return the rest, so every caller silently read a throttled request as "no
+     * metadata": a backfill counted the asset as needing no update, and the
+     * signed-record builder embedded a media item with no hash. Both reported
+     * success while writing nothing, and the MTN chain's records are immutable.
+     *
+     * So a failed chunk THROWS {@link ServiceAssetMetadataError} by default,
+     * carrying the ids it could not resolve. A caller that genuinely wants
+     * best-effort opts in with `{ partial: true }` and gets the old behaviour
+     * explicitly. An empty/whitespace-only input resolves immediately with `[]`
+     * and performs no network call.
      *
      * Not cached at the SDK layer: it's a POST keyed on a multi-id body (low hit
      * rate), mirroring the sibling service/POST methods which never cache.
      */
-    async getServiceAssetMetadataByIds(ids: string[]): Promise<ServiceAssetMetadata[]> {
+    async getServiceAssetMetadataByIds(
+      ids: string[],
+      options: { partial?: boolean } = {},
+    ): Promise<ServiceAssetMetadata[]> {
       const uniqueIds = Array.from(
         new Set(ids.filter((id): id is string => typeof id === 'string' && id.trim().length > 0)),
       );
@@ -374,7 +387,12 @@ export function OxyServicesAssetsMixin<T extends typeof OxyServicesBase>(Base: T
         chunks.push(uniqueIds.slice(i, i + SERVICE_ASSET_METADATA_CHUNK_SIZE));
       }
 
-      // Run chunks concurrently; a single chunk failure must not sink the rest.
+      // Chunks stay independent so one failure never cancels work already in
+      // flight; the failures are collected and re-raised together below.
+      const unresolvedIds: string[] = [];
+      const statuses: number[] = [];
+      let firstError: unknown;
+
       const settled = await Promise.all(
         chunks.map(async (chunk): Promise<ServiceAssetMetadata[]> => {
           try {
@@ -385,16 +403,25 @@ export function OxyServicesAssetsMixin<T extends typeof OxyServicesBase>(Base: T
             );
             return Array.isArray(entries) ? entries : [];
           } catch (error: unknown) {
-            logger.warn('getServiceAssetMetadataByIds: chunk failed, continuing with remaining chunks', {
+            const status = extractErrorStatus(error);
+            logger.warn('getServiceAssetMetadataByIds: chunk failed', {
               method: 'getServiceAssetMetadataByIds',
               chunkSize: chunk.length,
-              status: extractErrorStatus(error),
+              status,
+              partial: options.partial === true,
               error: error instanceof Error ? error.message : String(error),
             });
+            unresolvedIds.push(...chunk);
+            if (typeof status === 'number') statuses.push(status);
+            firstError ??= error;
             return [];
           }
         }),
       );
+
+      if (unresolvedIds.length > 0 && options.partial !== true) {
+        throw new ServiceAssetMetadataError(unresolvedIds, statuses, firstError);
+      }
 
       return settled.flat();
     }

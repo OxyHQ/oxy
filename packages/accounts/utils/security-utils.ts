@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { SecurityEventType, SecurityEventSeverity, SecurityActivity } from '@oxyhq/core';
 
 // Severity mapping (matches backend - single source of truth)

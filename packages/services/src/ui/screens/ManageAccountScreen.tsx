@@ -6,8 +6,8 @@ import {
     ActivityIndicator,
     Platform,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { toast } from '@oxyhq/bloom';
+import Ionicons from '../icons/Ionicons';
+import { toast } from '@oxyhq/bloom/toast';
 import { surfaces } from '@oxyhq/bloom/surfaces';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Text } from '@oxyhq/bloom/typography';
@@ -15,6 +15,7 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import {
     getAccountDisplayName,
     getAccountFallbackHandle,
+    getNormalizedUserHandle,
     logger as loggerUtil,
     packageInfo,
 } from '@oxyhq/core';
@@ -120,7 +121,13 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
     const [signingOutAllDevices, setSigningOutAllDevices] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
 
-    const displayName = useMemo(() => getAccountDisplayName(user, locale), [user, locale]);
+    const displayName = useMemo(
+        () =>
+            user?.name?.displayName ??
+            getNormalizedUserHandle(user) ??
+            getAccountDisplayName(null, locale),
+        [user, locale],
+    );
     const handle = useMemo(() => getAccountFallbackHandle(user), [user]);
     const avatarUri = useMemo(() => {
         return user?.avatar
@@ -134,7 +141,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         }
         const confirmed = await surfaces.confirm({
             title: t('common.actions.signOut') || 'Sign out',
-            message: t('common.confirms.signOut') || 'Are you sure you want to sign out?',
+            description: t('common.confirms.signOut') || 'Are you sure you want to sign out?',
             confirmLabel: t('common.actions.signOut') || 'Sign out',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -161,7 +168,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         }
         const confirmed = await surfaces.confirm({
             title: t('manageAccount.confirms.removeDeviceTitle') || 'Remove device',
-            message:
+            description:
                 t('manageAccount.confirms.removeDevice', { name: device.deviceName })
                 || `Sign out from "${device.deviceName}"?`,
             confirmLabel: t('common.remove') || 'Remove',
@@ -196,7 +203,7 @@ const ManageAccountScreen: React.FC<BaseScreenProps> = ({
         ).length;
         const confirmed = await surfaces.confirm({
             title: t('manageAccount.confirms.signOutAllDevicesTitle') || 'Sign out of all other devices',
-            message:
+            description:
                 t('manageAccount.confirms.signOutAllDevices', { count: otherDeviceCount })
                 || `End ${otherDeviceCount} other device session(s)? This won't sign you out here.`,
             confirmLabel: t('common.actions.signOut') || 'Sign out',

@@ -13,37 +13,116 @@
  *   - The default variant references Node's `'crypto'` and would crash Metro
  *     if bundled into an RN app.
  *   - This variant references the RN-only modules (`expo-crypto`,
- *     `expo-secure-store`, `@react-native-async-storage/async-storage`)
- *     as static imports, so Metro and Hermes both resolve and parse them
- *     cleanly.
+ *     `expo-secure-store`, `@react-native-async-storage/async-storage`),
+ *     each behind Metro's optional-dependency mechanism (see below).
  *
  * Both variants expose the same surface; importers don't care which one
  * they got.
  *
- * # Why static imports?
+ * # Why `try { require('literal') } catch` and not a static import?
  *
- * Every RN consumer of `@oxyhq/protocol` (via `@oxyhq/core`) already lists or
- * transitively pulls in `expo-crypto`, `expo-secure-store`, and
- * `@react-native-async-storage/async-storage` (they're stable Expo modules
- * present in `services`, `accounts`, `inbox`, and `test-app`). A static
- * import is what Metro wants to see anyway, and Hermes parses it like any
- * other ES module — no `Function`-constructor parser exotic-mode involved.
+ * Those three RN modules are declared OPTIONAL peer dependencies in
+ * `package.json`. A static `import` contradicts that: an optional peer that is
+ * omitted does not degrade, it fails to RESOLVE, and Metro aborts the whole
+ * bundle. Because `@oxyhq/core`'s `crypto/polyfill` imports `@oxyhq/protocol`
+ * from its root entry, this file is in the eager graph of EVERY React Native
+ * app on `@oxyhq/core` — so a single undeclared optional peer broke the native
+ * bundle of every app that did not happen to install it, with a resolution
+ * error pointing at a dependency the app never mentions.
  *
- * This is also clearer to debug: Metro fails up-front with a normal
- * unresolved-module error if a consumer is missing a peer dep, instead of
- * a confusing runtime throw the first time a code path that needs the
- * module is exercised.
+ * Metro treats a `require()` of a STRING LITERAL that sits inside a `try`
+ * block as an optional dependency: it resolves it when present, and when
+ * absent emits a stub that throws on evaluation instead of failing the build.
+ * The `catch` turns that into a `null` module handle, and the loader below
+ * throws an actionable error naming the missing package the first time the
+ * capability is actually used. Bundle-time hard failure becomes a
+ * capability-scoped runtime failure — which is exactly what "optional peer"
+ * is supposed to mean.
+ *
+ * Two constraints this shape has to respect, both learned the hard way:
+ *
+ *   - The specifier MUST be a literal. A runtime-computed `require(variable)`
+ *     is unresolvable for Metro (that is the bug the shared-identity bridge
+ *     below documents) and silently yields nothing in a consuming repo.
+ *   - The load MUST stay synchronous. `getRandomBytesRN` backs
+ *     `globalThis.crypto.getRandomValues` in `@oxyhq/core`'s polyfill, which
+ *     cannot await anything.
+ *
+ * `expo-modules-core` is a NON-optional peer (every RN app has it via `expo`),
+ * so it stays a plain static import.
  */
 
-import * as ExpoCrypto from 'expo-crypto';
-import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import type { ExpoCryptoLike, ExpoSecureStoreLike, SharedIdentityBridge } from './expoTypes';
 
 // Re-export the interfaces so consumers can import them from the same
 // entry-point they use for the loaders (mirrors the default variant).
 export type { ExpoCryptoLike, ExpoSecureStoreLike, SharedIdentityBridge };
+
+// ---------------------------------------------------------------------------
+// Optional peer resolution.
+//
+// `require` is declared locally rather than pulled from `@types/node`'s global:
+// this file only ever runs under Metro, and the local declaration returns
+// `unknown` so every module handle is narrowed explicitly instead of leaking
+// `any` from `NodeRequire`.
+// ---------------------------------------------------------------------------
+
+declare const require: (moduleName: string) => unknown;
+
+/** Persistent KV storage surface used from `@react-native-async-storage/async-storage`. */
+type AsyncStorageLike = {
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void>;
+};
+
+let expoCryptoModule: ExpoCryptoLike | null = null;
+let expoCryptoError: unknown;
+try {
+  expoCryptoModule = require('expo-crypto') as ExpoCryptoLike;
+} catch (error) {
+  expoCryptoError = error;
+}
+
+let secureStoreModule: ExpoSecureStoreLike | null = null;
+let secureStoreError: unknown;
+try {
+  secureStoreModule = require('expo-secure-store') as ExpoSecureStoreLike;
+} catch (error) {
+  secureStoreError = error;
+}
+
+let asyncStorageModule: AsyncStorageLike | null = null;
+let asyncStorageError: unknown;
+try {
+  // Babel's default-import interop unwraps `.default` for us on a static
+  // import; a raw `require` has to do it by hand. The `?? namespace` fallback
+  // covers a host that hands back a real ESM namespace with no `default`.
+  const namespace = require('@react-native-async-storage/async-storage') as AsyncStorageLike & {
+    default?: AsyncStorageLike;
+  };
+  asyncStorageModule = namespace.default ?? namespace;
+} catch (error) {
+  asyncStorageError = error;
+}
+
+/**
+ * Actionable error for a missing optional peer. Carries the underlying Metro
+ * resolution message so the failure is never silent — the `catch` above only
+ * defers the report to the point where the capability is actually needed.
+ */
+function missingOptionalPeerError(packageName: string, capability: string, cause: unknown): Error {
+  const sentences = [
+    `[oxy.protocol.crypto] '${packageName}' is not installed, so ${capability} is unavailable in this app.`,
+    'It is an optional peer dependency of @oxyhq/protocol that the React Native runtime needs —',
+    `install it with \`npx expo install ${packageName}\`.`,
+  ];
+  if (cause instanceof Error) {
+    sentences.push(`Underlying error: ${cause.message}`);
+  }
+  return new Error(sentences.join(' '));
+}
 
 // ---------------------------------------------------------------------------
 // Node `crypto` — never available in RN.
@@ -64,53 +143,68 @@ export async function loadNodeCrypto(): Promise<typeof import('crypto')> {
 // ---------------------------------------------------------------------------
 // expo-crypto — RN cryptographic primitives.
 //
-// Cast to `ExpoCryptoLike` via `unknown` because the structural interface
-// narrows the surface (omits internal expo types) but the real module satisfies
-// every declared method/property structurally.
+// The real module satisfies `ExpoCryptoLike` structurally; the structural
+// interface narrows the surface so consumers never pull expo's own types into
+// their compilation (see expoTypes.ts).
 // ---------------------------------------------------------------------------
 
 export async function loadExpoCrypto(): Promise<ExpoCryptoLike> {
-  return ExpoCrypto as unknown as ExpoCryptoLike;
+  if (!expoCryptoModule) {
+    throw missingOptionalPeerError('expo-crypto', 'React Native cryptography', expoCryptoError);
+  }
+  return expoCryptoModule;
 }
 
 // ---------------------------------------------------------------------------
 // expo-secure-store — RN keychain / keystore.
-//
-// Same pattern: the real SecureStore namespace satisfies ExpoSecureStoreLike
-// structurally. Cast via `unknown` to avoid importing SecureStoreOptions.
 // ---------------------------------------------------------------------------
 
 export async function loadSecureStore(): Promise<ExpoSecureStoreLike> {
-  return SecureStore as unknown as ExpoSecureStoreLike;
+  if (!secureStoreModule) {
+    throw missingOptionalPeerError(
+      'expo-secure-store',
+      'on-device identity storage',
+      secureStoreError,
+    );
+  }
+  return secureStoreModule;
 }
 
 // ---------------------------------------------------------------------------
 // @react-native-async-storage/async-storage — RN persistent KV storage.
 // ---------------------------------------------------------------------------
 
-type AsyncStorageLike = {
-  getItem: (key: string) => Promise<string | null>;
-  setItem: (key: string, value: string) => Promise<void>;
-  removeItem: (key: string) => Promise<void>;
-};
-
 export async function loadAsyncStorage(): Promise<{ default: AsyncStorageLike }> {
+  if (!asyncStorageModule) {
+    throw missingOptionalPeerError(
+      '@react-native-async-storage/async-storage',
+      'device/session persistence',
+      asyncStorageError,
+    );
+  }
   // Mirror the shape callers historically used (`module.default.<method>`)
   // so the call sites don't have to know whether the underlying module
   // ships ESM or CJS-with-default.
-  const storage = AsyncStorage as unknown as AsyncStorageLike;
-  return {
-    default: storage,
-  };
+  return { default: asyncStorageModule };
 }
 
 /**
- * Synchronous random-bytes via `expo-crypto.getRandomBytes`. Available
- * synchronously because `expo-crypto` is statically imported by this file
- * — no async initialization race.
+ * Synchronous random-bytes via `expo-crypto.getRandomBytes`.
+ *
+ * Synchronous by contract: `@oxyhq/core`'s crypto polyfill uses this to back
+ * `globalThis.crypto.getRandomValues`, which cannot await. That is why
+ * `expo-crypto` is resolved with a synchronous `require` at module scope rather
+ * than a dynamic `import()`.
  */
 export function getRandomBytesRN(byteCount: number): Uint8Array {
-  return ExpoCrypto.getRandomBytes(byteCount);
+  if (!expoCryptoModule) {
+    throw missingOptionalPeerError(
+      'expo-crypto',
+      'the React Native CSPRNG (crypto.getRandomValues)',
+      expoCryptoError,
+    );
+  }
+  return expoCryptoModule.getRandomBytes(byteCount);
 }
 
 // ---------------------------------------------------------------------------

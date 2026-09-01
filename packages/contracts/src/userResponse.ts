@@ -31,7 +31,7 @@
 
 import { z } from 'zod';
 import { verifiedDomainSchema } from './identity';
-import { organizationCategorySchema } from './accountGraph';
+import { accountCategoriesSchema, accountKindSchema } from './accountGraph';
 
 /**
  * Structured human name subdocument. Mirrors `User.name` (`NameSchema`).
@@ -167,10 +167,38 @@ export const userResponseSchema = z
          */
         verifiedDomains: z.array(verifiedDomainSchema).optional(),
         /**
-         * Real-estate / team taxonomy for `kind: 'organization'` accounts.
-         * Absent on personal, project, and bot accounts.
+         * Account-graph classification — what KIND of account this is.
+         *
+         * ORTHOGONAL to `type` (`local` / `federated` / `agent` / `automated`),
+         * which says where the account lives and how it is driven; the two
+         * coexist and neither substitutes for the other. A `channel` is a
+         * publishing identity nobody can act as, so a consumer that renders
+         * authored content reads THIS to tell a channel's post from a person's.
+         *
+         * Optional because a DTO produced from a source that never carried the
+         * column omits it; absent should be read as `personal`, the column's
+         * default, not as unknown.
          */
-        organizationCategory: organizationCategorySchema.optional(),
+        kind: accountKindSchema.optional(),
+        /**
+         * What this account is about — the field a profile screen RENDERS.
+         *
+         * **Ordered, primary first.** `accountCategories[0]` is the primary
+         * category; there is deliberately no sibling `primaryCategory` field,
+         * because two representations of one fact can disagree (see rule 2 in
+         * `accountGraph.ts`). Nothing downstream may sort, de-duplicate or
+         * otherwise reorder this array.
+         *
+         * **Ids, never labels.** Each element is a stable slug; the visible text
+         * comes from the reader's own translation catalogue, keyed
+         * `accounts.accountCategory.<id>`. A label on the wire would paint every
+         * profile in the language of whoever picked it.
+         *
+         * Absent when the account has none — which is every `personal` account,
+         * and any non-personal one that has not chosen. A renderer reads
+         * `user.accountCategories ?? []`.
+         */
+        accountCategories: accountCategoriesSchema.optional(),
         /**
          * The authenticated viewer's relationship to this profile. Present ONLY
          * on single-profile fetches (`GET /profiles/username/:username`,
@@ -195,6 +223,12 @@ export const userProfileUpdateSchema = z
             .object({
                 first: z.string().optional(),
                 last: z.string().optional(),
+                /**
+                 * Explicit display name, stored rather than composed. Wins over
+                 * `first`/`last` when set; send `''` to clear it and fall back
+                 * to the composed pair.
+                 */
+                displayName: z.string().optional(),
             })
             .optional(),
         username: z.string().optional(),

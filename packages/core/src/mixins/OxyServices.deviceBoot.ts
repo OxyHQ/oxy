@@ -12,17 +12,21 @@
  * This method carries NO persistence or token-planting side effects of its own;
  * the cold boot / re-mint handler own persistence and `setTokens`, so the same
  * primitive can be reused from either without double-planting.
+ *
+ * `provisionBackgroundCredential` is the mixin's second, adjacent call: it hands
+ * native background code (no JS runtime) its own non-rotating credential so that
+ * code never has to mint from — and therefore never rotates — the device secret
+ * JS depends on.
  */
 import {
+  deviceBackgroundCredentialResponseSchema,
   deviceTokenMintResponseSchema,
-  deviceHubTicketIssueResponseSchema,
-  deviceHubTicketRedeemResponseSchema,
   safeParseContract,
+  type DeviceBackgroundCredentialResponse,
   type DeviceTokenMintResponse,
-  type DeviceHubTicketIssueResponse,
-  type DeviceHubTicketRedeemResponse,
 } from '@oxyhq/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
+import { extractErrorStatus } from '../utils/errorUtils';
 
 /**
  * The server's `401 account_not_on_device` for a PINNED mint: the requested
@@ -66,8 +70,9 @@ export function OxyServicesDeviceBootMixin<T extends typeof OxyServicesBase>(Bas
      * Zero-cookie mint. Present the first-party `deviceId` + `deviceSecret` to
      * `POST /session/device/token` — NO bearer, NO cookies: possession of the
      * secret IS the device-ownership proof. Returns a fresh short access token
-     * for the device's active account plus `nextDeviceSecret` (rotation-in-use)
-     * and the projected device-session `state`.
+     * for the device's active account plus `nextDeviceSecret` (on mint, the same
+     * proven secret echoed back — rotation happens on sign-in, not mint) and
+     * the projected device-session `state`.
      *
      * `skipAuth`: this call carries no bearer, so a 401 must surface DIRECTLY —
      * never trigger `HttpService`'s 401→refresh→retry dance. The cold boot / re-
@@ -125,45 +130,79 @@ export function OxyServicesDeviceBootMixin<T extends typeof OxyServicesBase>(Bas
       }
     }
 
-    /** Mint a one-time hub sync ticket (bearer required). */
-    async issueHubTicket(returnOrigin: string): Promise<DeviceHubTicketIssueResponse> {
+    /**
+     * Provision a NON-rotating background credential for the caller's account on
+     * this device — the credential native background code (an Android widget
+     * worker, which runs with no JS runtime) presents to mint its own access
+     * tokens without any JS involvement.
+     *
+     * It exists precisely so background code never touches the device secret:
+     * `POST /session/device/token` ROTATES that secret on every mint (the
+     * presented one stays valid only for a short grace), so a worker minting
+     * from it would become a second writer of the value JS depends on and could
+     * silently sign the user out. The background credential is a separate,
+     * non-rotating value minted server-side, so the two lanes never contend.
+     *
+     * Bearer required and NO body: the server derives both the `deviceId` and
+     * the account from the validated bearer. This is the only way a background
+     * credential comes into existence, so background code can EXTEND a session
+     * the user established in-app but can never bootstrap one from nothing.
+     *
+     * Unlike the mint above this is NOT a control-plane call — it runs while a
+     * session is already live — so it takes the normal authenticated path: no
+     * `skipAuth` (a 401 should go through the ordinary re-mint lane) and no
+     * `bypassQueue` (nothing in the auth lane is parked awaiting it).
+     *
+     * There is deliberately no JS counterpart that MINTS from the returned
+     * credential: the native side owns that call, and a symmetric-looking JS
+     * method would be dead code plus a second implementation of the failure
+     * rules. The asymmetry is the design.
+     *
+     * **Call this from NATIVE only.** There is no background worker on web to
+     * consume the credential, and handing a browser origin a long-lived
+     * non-rotating secret to persist is strictly weaker than the rotating device
+     * secret it already holds. The 404 degrade below is also native-shaped: a
+     * browser attaches `Origin`, which a server predating this route answers
+     * `403 BAD_ORIGIN` from its router-wide same-site guard rather than 404, so
+     * the quiet degrade would not fire there. A native client sends no `Origin`
+     * and gets the 404. Gate the caller by platform; do not widen the degrade to
+     * 403, which would also swallow a genuine origin misconfiguration.
+     *
+     * That paragraph is LOAD-BEARING, not belt-and-braces: the route sits above
+     * oxy-api's router-wide origin guard (deliberately, so a native client with
+     * no `Origin` is not rejected). oxy-api additionally refuses callers that
+     * carry browser context signals (`Origin` or `Sec-Fetch-Site`) with
+     * `403 browser_not_allowed` — native HTTP clients send neither. Gate the
+     * caller by platform on the client as well; do not widen the 404 degrade to
+     * 403, which would also swallow a genuine origin misconfiguration.
+     *
+     * @returns the provisioned credential, or `null` when the endpoint is absent
+     * (404). The API deploy leads the SDK release, so a client on a newer SDK
+     * than the server degrades to "no background session" quietly instead of
+     * surfacing an error. The status is read off the RAW rejection because
+     * `handleError` only preserves it for errors carrying `HttpService`'s
+     * annotations.
+     * @throws if the response does not match {@link deviceBackgroundCredentialResponseSchema}.
+     */
+    async provisionBackgroundCredential(): Promise<DeviceBackgroundCredentialResponse | null> {
       try {
         const res = await this.makeRequest<unknown>(
           'POST',
-          '/session/device/hub-ticket',
-          { returnOrigin },
+          '/session/device/background-credential',
+          undefined,
           { cache: false },
         );
-        const parsed = safeParseContract(deviceHubTicketIssueResponseSchema, res);
+        const parsed = safeParseContract(deviceBackgroundCredentialResponseSchema, res);
         if (!parsed) {
-          throw new Error('session/device/hub-ticket returned an unexpected response shape');
+          throw new Error(
+            'session/device/background-credential returned an unexpected response shape',
+          );
         }
         return parsed;
       } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /** Redeem a hub sync ticket for a fresh device secret (public). */
-    async redeemHubTicket(
-      ticket: string,
-      returnOrigin: string,
-    ): Promise<DeviceHubTicketRedeemResponse> {
-      try {
-        const res = await this.makeRequest<unknown>(
-          'POST',
-          '/session/device/redeem-ticket',
-          { ticket, returnOrigin },
-          // Public device-hub sync mint (bearer-less). Same control-plane class as
-          // the device-secret mint — bypassQueue so it never waits for a slot.
-          { cache: false, skipAuth: true, bypassQueue: true },
-        );
-        const parsed = safeParseContract(deviceHubTicketRedeemResponseSchema, res);
-        if (!parsed) {
-          throw new Error('session/device/redeem-ticket returned an unexpected response shape');
+        if (extractErrorStatus(error) === 404) {
+          return null;
         }
-        return parsed;
-      } catch (error) {
         throw this.handleError(error);
       }
     }

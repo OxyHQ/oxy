@@ -1,221 +1,190 @@
 /**
- * UserService.getUserMutuals — "followers you know" tests.
+ * `getUserMutuals` — "followers you know" about ANOTHER profile.
  *
- * Mutuals = users U such that the VIEWER follows U AND U follows the target.
- * The viewer id is ALWAYS server-derived (the route resolves it from the auth
- * token via `resolveViewerId` and hands it to this method); these tests cover
- * the four logic outcomes the route relies on:
- *   - viewer with overlap → correct list + total (most-recent mutual first)
- *   - no viewer (anonymous / service token w/o user) → empty, zero DB queries
- *   - self-target (viewer === target) → empty, zero DB queries
- *   - viewer follows nobody → empty (short-circuits before count/user fetch)
+ * Users U such that the VIEWER follows U **and** U follows the TARGET. It is
+ * asymmetric in a way that is easy to get subtly wrong and impossible to see
+ * from a query shape: the viewer's side is an outbound edge, the target's side
+ * an inbound one. A predicate that reads both from the same column returns the
+ * viewer's own followers, or the target's, and both look like a plausible list.
  *
- * Mirrors the `user.service.bulkUnfollow` harness: restore the real `mongoose`
- * (the global setup mocks it wholesale, stripping `Types`) and mock the models
- * as chainable query builders. `formatUserResponse`/`displayName` run for real
- * so the emitted DTO is the exact public shape the route returns.
+ * The suite this replaces stubbed the aggregation and asserted that the second
+ * stage was skipped when the first returned nothing. Every case here seeds the
+ * two hops separately so a collapsed direction is visible in the RESULT.
  */
 
-// The global jest.setup.cjs mocks `mongoose` wholesale, which strips `Types`
-// (and therefore `Types.ObjectId`). This suite only needs the real `Types`
-// helper — the models themselves are mocked below — so restore the actual
-// mongoose module.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
+import { userService } from '../user.service';
+
+const uniqueId = () => randomUUID().replace(/-/g, '');
+
+async function makeUsers(
+  count: number,
+  overrides: Partial<typeof users.$inferInsert> = {}
+): Promise<string[]> {
+  const ids = Array.from({ length: count }, () => uniqueId());
+  await getDb()
+    .insert(users)
+    .values(ids.map((id) => ({ id, username: `u${id}`, ...overrides })));
+  return ids;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-import { Types } from 'mongoose';
+afterAll(async () => {
+  await closePostgres();
+});
 
-// Chainable Follow query builder: select/limit/skip/sort return the builder,
-// lean() is the terminal awaited result (sequenced per find() call).
-const mockFollowLean = jest.fn();
-const followQuery = {
-  select: jest.fn(() => followQuery),
-  limit: jest.fn(() => followQuery),
-  skip: jest.fn(() => followQuery),
-  sort: jest.fn(() => followQuery),
-  lean: mockFollowLean,
-};
-const mockFollowFind = jest.fn(() => followQuery);
-const mockFollowCountDocuments = jest.fn();
-const mockFollowAggregate = jest.fn();
+describe('the two hops are read in the right directions', () => {
+  it('returns users the viewer follows who also follow the target', async () => {
+    const [viewer, target, known, viewerOnly, targetOnly] = await makeUsers(5);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        // The mutual: viewer → known → target.
+        { followerId: viewer, followedId: known },
+        { followerId: known, followedId: target },
+        // Followed by the viewer but does NOT follow the target.
+        { followerId: viewer, followedId: viewerOnly },
+        // Follows the target but the viewer does NOT follow them.
+        { followerId: targetOnly, followedId: target },
+      ]);
 
-// Chainable User query builder: select/lean return the builder, exec() is the
-// terminal awaited result.
-const mockUserExec = jest.fn();
-const userQuery = {
-  select: jest.fn(() => userQuery),
-  lean: jest.fn(() => userQuery),
-  exec: mockUserExec,
-};
-const mockUserFind = jest.fn(() => userQuery);
+    const page = await userService.getUserMutuals(viewer, target, { limit: 10 });
 
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  default: {
-    find: mockFollowFind,
-    countDocuments: mockFollowCountDocuments,
-    aggregate: (...args: unknown[]) => mockFollowAggregate(...args),
-  },
-  FollowType: {
-    USER: 'user',
-    HASHTAG: 'hashtag',
-    TOPIC: 'topic',
-  },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    find: mockUserFind,
-  },
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-import { UserService } from '../user.service';
-
-describe('UserService.getUserMutuals', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+    expect(page.total).toBe(1);
+    expect(page.data.map((row) => row.id)).toEqual([known]);
   });
 
-  it('returns the mutual followers (viewer follows them AND they follow target) with total', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const targetId = new Types.ObjectId().toHexString();
+  it('does not return someone the viewer follows who the TARGET follows', async () => {
+    // The target's side must be INBOUND (they follow the candidate is wrong).
+    const [viewer, target, candidate] = await makeUsers(3);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: candidate },
+        { followerId: target, followedId: candidate },
+      ]);
 
-    // V = the people the viewer follows.
-    const v1 = new Types.ObjectId();
-    const v2 = new Types.ObjectId();
-    // Mutual = a target-follower that is also in V.
-    const mutual = new Types.ObjectId();
+    const page = await userService.getUserMutuals(viewer, target, { limit: 10 });
 
-    mockFollowLean
-      // 1) viewer's following set
-      .mockResolvedValueOnce([{ followedId: v1 }, { followedId: v2 }]);
-    mockFollowAggregate
-      // 2) visible mutual count + page
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([{ userId: mutual }]);
-    mockUserExec.mockResolvedValueOnce([
-      {
-        _id: mutual,
-        username: 'mutualfriend',
-        name: { first: 'Mutual', last: 'Friend' },
-        avatar: 'file-mutual',
-        color: '#3b82f6',
-      },
-    ]);
-
-    const result = await new UserService().getUserMutuals(viewerId, targetId, {
-      limit: 50,
-      offset: 0,
-    });
-
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowFind).toHaveBeenCalledWith({
-      followerUserId: viewerId,
-      followType: 'user',
-    });
-    expect(mockFollowAggregate).toHaveBeenCalledTimes(2);
-
-    expect(result.total).toBe(1);
-    expect(result.hasMore).toBe(false);
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0]).toMatchObject({
-      id: mutual.toHexString(),
-      username: 'mutualfriend',
-      avatar: 'file-mutual',
-      color: '#3b82f6',
-    });
-    expect(typeof result.data[0].name.displayName).toBe('string');
-    expect(result.data[0].name.displayName.length).toBeGreaterThan(0);
+    expect(page.total).toBe(0);
+    expect(page.data).toEqual([]);
   });
 
-  it('returns empty for an anonymous viewer without querying the database', async () => {
-    const targetId = new Types.ObjectId().toHexString();
+  it('does not return a target follower the viewer merely follows BACK from', async () => {
+    // The viewer's side must be OUTBOUND.
+    const [viewer, target, candidate] = await makeUsers(3);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: candidate, followedId: viewer },
+        { followerId: candidate, followedId: target },
+      ]);
 
-    const result = await new UserService().getUserMutuals(undefined, targetId, {
-      limit: 50,
-      offset: 0,
-    });
+    const page = await userService.getUserMutuals(viewer, target, { limit: 10 });
 
-    expect(result).toEqual({ data: [], total: 0, hasMore: false, limit: 50, offset: 0 });
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(mockFollowCountDocuments).not.toHaveBeenCalled();
-    expect(mockUserFind).not.toHaveBeenCalled();
+    expect(page.total).toBe(0);
+  });
+});
+
+describe('paging metadata', () => {
+  it('reports the full total and a truthful hasMore across pages', async () => {
+    const [viewer, target, ...known] = await makeUsers(7);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        ...known.map((id) => ({ followerId: viewer, followedId: id })),
+        ...known.map((id) => ({ followerId: id, followedId: target })),
+      ]);
+
+    const first = await userService.getUserMutuals(viewer, target, { limit: 2, offset: 0 });
+    expect(first.total).toBe(5);
+    expect(first.data).toHaveLength(2);
+    expect(first.hasMore).toBe(true);
+
+    const last = await userService.getUserMutuals(viewer, target, { limit: 2, offset: 4 });
+    expect(last.total).toBe(5);
+    expect(last.data).toHaveLength(1);
+    expect(last.hasMore).toBe(false);
+
+    // Union of the pages is the whole set — no row lost between them.
+    const middle = await userService.getUserMutuals(viewer, target, { limit: 2, offset: 2 });
+    const seen = [...first.data, ...middle.data, ...last.data].map((row) => row.id);
+    expect(new Set(seen).size).toBe(5);
   });
 
-  it('returns empty when the viewer is the target (no mutuals with yourself)', async () => {
-    const sameId = new Types.ObjectId().toHexString();
+  it('excludes an ineligible mutual from BOTH the page and the total', async () => {
+    const [viewer, target, eligible] = await makeUsers(3);
+    const [archived] = await makeUsers(1, { accountStatus: 'archived' });
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: eligible },
+        { followerId: eligible, followedId: target },
+        { followerId: viewer, followedId: archived },
+        { followerId: archived, followedId: target },
+      ]);
 
-    const result = await new UserService().getUserMutuals(sameId, sameId, {
-      limit: 50,
-      offset: 0,
-    });
+    const page = await userService.getUserMutuals(viewer, target, { limit: 10 });
 
-    expect(result).toEqual({ data: [], total: 0, hasMore: false, limit: 50, offset: 0 });
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(mockFollowCountDocuments).not.toHaveBeenCalled();
-    expect(mockUserFind).not.toHaveBeenCalled();
+    expect(page.total).toBe(1);
+    expect(page.data.map((row) => row.id)).toEqual([eligible]);
+  });
+});
+
+describe('degenerate inputs return an empty page, not an error', () => {
+  it('has no mutuals for an anonymous viewer', async () => {
+    const [target] = await makeUsers(1);
+
+    const page = await userService.getUserMutuals(undefined, target, { limit: 10 });
+    expect(page).toMatchObject({ data: [], total: 0, hasMore: false });
   });
 
-  it('returns empty when the viewer follows nobody (short-circuits before count/user fetch)', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const targetId = new Types.ObjectId().toHexString();
+  it('has no mutuals with yourself', async () => {
+    const [viewer, other] = await makeUsers(2);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: other },
+        { followerId: other, followedId: viewer },
+      ]);
 
-    mockFollowLean.mockResolvedValueOnce([]);
-
-    const result = await new UserService().getUserMutuals(viewerId, targetId, {
-      limit: 50,
-      offset: 0,
-    });
-
-    expect(result).toEqual({ data: [], total: 0, hasMore: false, limit: 50, offset: 0 });
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowCountDocuments).not.toHaveBeenCalled();
-    expect(mockUserFind).not.toHaveBeenCalled();
+    const page = await userService.getUserMutuals(viewer, viewer, { limit: 10 });
+    expect(page).toMatchObject({ data: [], total: 0 });
   });
 
-  it('returns empty when the viewer shares no followers with the target (total 0)', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const targetId = new Types.ObjectId().toHexString();
-    const v1 = new Types.ObjectId();
+  it('has no mutuals when the viewer follows nobody', async () => {
+    const [viewer, target, follower] = await makeUsers(3);
+    await getDb().insert(userFollows).values({ followerId: follower, followedId: target });
 
-    mockFollowLean.mockResolvedValueOnce([{ followedId: v1 }]);
-    mockFollowAggregate.mockResolvedValueOnce([]);
+    const page = await userService.getUserMutuals(viewer, target, { limit: 10 });
+    expect(page).toMatchObject({ data: [], total: 0 });
+  });
 
-    const result = await new UserService().getUserMutuals(viewerId, targetId, {
-      limit: 50,
-      offset: 0,
-    });
+  it('has no mutuals when the two share no one', async () => {
+    const [viewer, target, viewerFollows, targetFollower] = await makeUsers(4);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: viewerFollows },
+        { followerId: targetFollower, followedId: target },
+      ]);
 
-    expect(result).toEqual({ data: [], total: 0, hasMore: false, limit: 50, offset: 0 });
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowAggregate).toHaveBeenCalledTimes(1);
-    expect(mockUserFind).not.toHaveBeenCalled();
+    const page = await userService.getUserMutuals(viewer, target, { limit: 10 });
+    expect(page).toMatchObject({ data: [], total: 0 });
+  });
+
+  it('carries the requested limit and offset back on an empty page', async () => {
+    // Consumers page off these two fields, so an empty page still has to state
+    // where it was.
+    const [viewer, target] = await makeUsers(2);
+
+    const page = await userService.getUserMutuals(viewer, target, { limit: 7, offset: 14 });
+    expect(page).toEqual({ data: [], total: 0, hasMore: false, limit: 7, offset: 14 });
   });
 });

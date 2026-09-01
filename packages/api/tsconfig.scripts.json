@@ -1,0 +1,24 @@
+// Typecheck-only program that covers `scripts/**` in addition to `src/**`.
+//
+// The build config (`tsconfig.json`) pins `rootDir` to `src` so `dist/` mirrors
+// `src/` exactly; adding `scripts/**` there would either raise TS6059 or push
+// every emitted file down a `src/` level. This config widens `rootDir` to the
+// package root and sets `noEmit`, so the one-shot/backfill/migration scripts get
+// real type coverage without touching the build output.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*",
+    "scripts/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/**/*.test.ts",
+    "src/**/__tests__/**"
+  ]
+}

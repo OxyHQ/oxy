@@ -1,0 +1,248 @@
+name: Run PostgreSQL migrations
+
+# Applies the SQL migrations in `packages/api/drizzle/` to the production
+# PostgreSQL database.
+#
+# THIS IS NO LONGER THE NORMAL PATH, AND MUST NOT BECOME ONE AGAIN. Every deploy
+# now applies its own pending additive migrations before the rollout, and its own
+# post-rollout ones after (`.github/workflows/deploy-aws.yml` ->
+# `.github/scripts/deploy-ecs-image.sh`). This workflow is the escape hatch: a
+# migration stranded by a failed deploy, a schema change with no code behind it,
+# a dry run to read the plan before a release.
+#
+# It exists because on 2026-08-02 it was the ONLY path, and 0013 reached
+# production behind the image that reads the column it adds — a 500 on
+# `POST /users/by-ids` ecosystem-wide until this workflow was dispatched by hand.
+# Nothing about that migration was wrong; the ordering just depended on somebody
+# remembering to run two workflows in the right order while a deploy raced them.
+#
+# WHY IT IS SHAPED LIKE THIS:
+#
+# 1. The database is on a PRIVATE VPC address, unreachable from a GitHub runner,
+#    so the migration has to run as an ECS task INSIDE the VPC ("Fargate
+#    one-shot") — the same shape as seed-oxy-applications.yml, whose comments
+#    explain the task-definition reuse in more detail.
+#
+# 2. It runs the API image's OWN migrator: `node packages/api/dist/db/migrate.js`
+#    (source `packages/api/src/db/migrate.ts`), which uses drizzle-orm's migrator
+#    over the `.sql` files copied into the image. It is deliberately NOT
+#    `drizzle-kit migrate`: drizzle-kit is a devDependency and the runtime image
+#    is installed with `bun install --production`, which is what keeps `esbuild`
+#    — a documented arm64/alpine postinstall failure for this image (PR #261) —
+#    out of it. drizzle-kit depends on esbuild directly, so shipping the CLI
+#    would drag it back in.
+#
+# 3. It builds its own image from `ref` rather than reusing whatever `latest`
+#    happens to be, so the migrations applied are exactly the ones at the ref you
+#    chose, and a fix can be tried from a branch before it merges. The image
+#    differs from the live one only by tag; the throwaway task definition differs
+#    from the live one only by image.
+#
+# ALWAYS run dry FIRST (`dry_run=true`, the default). A dry run reads the
+# journal and the `drizzle.__drizzle_migrations` ledger, prints which migrations
+# WOULD be applied, and writes nothing at all — not even the ledger table. Read
+# the list, then re-run with dry_run=false.
+#
+# Applying twice is safe: the second run finds nothing pending and exits 0.
+# Applying twice AT ONCE is not, and the migrator now refuses to — it holds a
+# Postgres advisory lock for the whole run, because drizzle's own migrator takes
+# no lock and two of them replay the same DDL. That lock is the only interlock
+# this workflow and a running deploy share: they sit in different `concurrency`
+# groups (`postgres-migrations` and `deploy-oxy-api`) and cannot see each other.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch or SHA to build the migration image from'
+        required: true
+        type: string
+        default: 'main'
+      dry_run:
+        description: 'Report which migrations WOULD be applied, write nothing'
+        required: true
+        type: boolean
+        default: true
+      phase:
+        description: >-
+          all = everything pending (the usual answer here; this workflow is
+          dispatched when nothing needs protecting from a half-migrated schema).
+          pre = additive only, stopping at the first destructive migration.
+          post = what a pre run deferred, once the new image is live.
+        required: true
+        type: choice
+        options: [all, pre, post]
+        default: all
+
+concurrency:
+  # Two migrators against one database would race on the ledger.
+  group: postgres-migrations
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: oxy-api
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  DOCKERFILE: Dockerfile
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  migrate:
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the migration image (its own tag; never `latest`)
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          TAG="migrate-pg-$(git rev-parse --short HEAD)"
+          IMG="$ECR_REGISTRY/oxy/$APP:$TAG"
+          docker build -f "$DOCKERFILE" -t "$IMG" .
+          docker push "$IMG"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "Built $IMG"
+
+      - name: Assert the image can actually migrate
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          # A migration task that cannot find its own migrator or its .sql files
+          # exits non-zero INSIDE the VPC, where the only evidence is a
+          # CloudWatch stream. Prove both are present here instead, where the
+          # failure is attached to this step.
+          docker run --rm --entrypoint sh "$IMAGE" -c '
+            set -e
+            test -f packages/api/dist/db/migrate.js
+            test -f packages/api/drizzle/meta/_journal.json
+            ls packages/api/drizzle/*.sql >/dev/null
+            echo "migrator + $(ls packages/api/drizzle/*.sql | wc -l) migration file(s) present"
+          '
+          # And that it is a migrator that understands phases. An older image
+          # ignores the flag entirely and applies EVERYTHING, destructive
+          # migrations included, which is the failure this whole mechanism exists
+          # to prevent — and it would look like an ordinary successful run. The
+          # flag is parsed before DATABASE_URL is read, so this needs no database.
+          docker run --rm --entrypoint sh "$IMAGE" -c '
+            node packages/api/dist/db/migrate.js --phase=nonsense 2>&1 \
+              | grep -q "Unrecognised --phase" \
+              || { echo "This image does not validate --phase; it predates phased migrations."; exit 1; }
+            echo "migrator understands --phase"
+          '
+
+      - name: Run the migration as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          PHASE: ${{ inputs.phase }}
+        run: |
+          set -euo pipefail
+
+          # Take the task definition and network config from the LIVE service, so
+          # the one-shot runs with the same secrets, roles, subnets and security
+          # groups the API already runs with — DATABASE_URL included. Nothing is
+          # hardcoded, and nothing drifts when the service is redeployed.
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot
+          # even pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          # A throwaway revision that differs from the live one ONLY by the image.
+          # The service keeps running its own revision.
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > migrate-taskdef.json
+
+          MIGRATE_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://migrate-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "migration task definition: $MIGRATE_TASK_DEF"
+
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg dry "$DRY_RUN" \
+            --arg phase "$PHASE" \
+            '{containerOverrides:[{
+               name: $name,
+               command: ["node","packages/api/dist/db/migrate.js", "--phase=" + $phase],
+               environment: [
+                 {name:"DRY_RUN", value:$dry}
+               ]
+             }]}')
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$MIGRATE_TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+            --overrides "$OVERRIDES" \
+            --started-by "gh-migrate-postgres" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "task: $TASK_ARN"
+          echo "Waiting for the task to stop…"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+
+          echo "──────── migration output ────────"
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" \
+            --start-from-head \
+            --query 'events[].message' --output text || echo "(no logs retrieved)"
+          echo "──────────────────────────────────"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # A migration whose result you cannot see is a migration you have not run.
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Migration task exited with $EXIT_CODE"
+            exit 1
+          fi

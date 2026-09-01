@@ -10,18 +10,57 @@
  */
 
 import { OxyServices } from '../../OxyServices';
+import { OxyAuthenticationError } from '../../OxyServices.errors';
+import { isFullReputationBalance } from '@oxyhq/contracts';
 import type {
   ReputationBalance,
+  ReputationBalanceSummary,
+  ReputationBalanceView,
   ReputationTransaction,
   ReputationDispute,
   ReputationRule,
   ReputationLeaderboardEntry,
   ReputationInfluenceResult,
-} from '../OxyServices.reputation';
+} from '@oxyhq/contracts';
 
 const setAccessTokenForTest = (oxy: OxyServices): void => {
   oxy.httpService.setTokens('test-token');
 };
+
+/** An unsigned JWT carrying just the `userId` claim `getCurrentUserId` decodes. */
+const signedInToken = (userId: string): string => {
+  const encode = (value: object): string =>
+    Buffer.from(JSON.stringify(value))
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ userId })}.`;
+};
+
+/**
+ * The fields the SUBJECT view adds. Mirrors the private list the API's
+ * `reputationReadAuthz` test asserts absent from the public view.
+ */
+const FULL_BALANCE_FIELD_NAMES = [
+  'positive',
+  'negative',
+  'breakdown',
+  'influence',
+  'reliability',
+  'recalculatedAt',
+  'updatedAt',
+] as const;
+
+/*
+ * The COMPILE-TIME half of this guarantee — that no private field is reachable
+ * on `ReputationBalanceView` without narrowing — is asserted in the SOURCE file,
+ * not here: `ts-jest` runs with `diagnostics: false` and `tsconfig.json`
+ * excludes `**\/__tests__`, so a type-level assertion written in this file could
+ * never fail. See `_PrivateFieldsAreUnreachableOnTheView` in
+ * `@oxyhq/contracts`' `src/reputation.ts`, which that package's
+ * `bun run typescript` and `build:types` both check.
+ */
 
 const balanceFixture: ReputationBalance = {
   userId: 'u1',
@@ -51,6 +90,13 @@ const balanceFixture: ReputationBalance = {
   },
   recalculatedAt: '2026-06-16T00:00:00.000Z',
   updatedAt: '2026-06-16T00:00:00.000Z',
+};
+
+/** What the API serves a caller who is neither the subject nor staff. */
+const summaryFixture: ReputationBalanceSummary = {
+  userId: 'u1',
+  total: 120,
+  trustTier: 'trusted',
 };
 
 const transactionFixture: ReputationTransaction = {
@@ -120,6 +166,74 @@ describe('OxyServices.reputation', () => {
       makeRequestSpy.mockResolvedValue(balanceFixture);
       await oxy.getReputationBalance('a b/c');
       expect(makeRequestSpy.mock.calls[0][1]).toBe('/reputation/a%20b%2Fc/balance');
+    });
+
+    it('passes the public view through unchanged for a third-party subject', async () => {
+      makeRequestSpy.mockResolvedValue(summaryFixture);
+
+      const result = await oxy.getReputationBalance('someone-else');
+
+      expect(result).toEqual(summaryFixture);
+      expect(isFullReputationBalance(result)).toBe(false);
+    });
+  });
+
+  describe('isFullReputationBalance', () => {
+    it('narrows the subject view', () => {
+      const view: ReputationBalanceView = balanceFixture;
+      expect(isFullReputationBalance(view)).toBe(true);
+      if (isFullReputationBalance(view)) {
+        // Reachable ONLY through the guard — the point of the narrowing.
+        expect(view.reliability.reportAccuracyScore).toBe(1);
+        expect(view.influence.reportWeight).toBe(1.0);
+        expect(view.breakdown.content).toBe(80);
+      }
+    });
+
+    it('rejects the public view', () => {
+      expect(isFullReputationBalance(summaryFixture)).toBe(false);
+    });
+
+    it('rejects a payload missing any single private field', () => {
+      for (const field of FULL_BALANCE_FIELD_NAMES) {
+        const partial = { ...balanceFixture };
+        delete (partial as Record<string, unknown>)[field];
+        expect(isFullReputationBalance(partial as ReputationBalanceView)).toBe(false);
+      }
+    });
+  });
+
+  describe('getMyReputationBalance', () => {
+    it('reads the signed-in user id from the token and returns the full shape', async () => {
+      oxy.httpService.setTokens(signedInToken('me-123'));
+      makeRequestSpy.mockResolvedValue(balanceFixture);
+
+      const result = await oxy.getMyReputationBalance();
+
+      // Typed as the full balance with no narrowing — the ergonomic path.
+      expect(result.reliability.abuseScore).toBe(0);
+      expect(makeRequestSpy).toHaveBeenCalledWith(
+        'GET',
+        '/reputation/me-123/balance',
+        undefined,
+        expect.objectContaining({ cache: true }),
+      );
+    });
+
+    it('throws without a signed-in user, and never issues the request', async () => {
+      oxy.httpService.clearTokens();
+
+      await expect(oxy.getMyReputationBalance()).rejects.toThrow(OxyAuthenticationError);
+      expect(makeRequestSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws when the server answers 200 with the public view', async () => {
+      // What an absent or lapsed token gets: the endpoint's auth is optional, so
+      // the read succeeds and silently omits every private block.
+      oxy.httpService.setTokens(signedInToken('me-123'));
+      makeRequestSpy.mockResolvedValue(summaryFixture);
+
+      await expect(oxy.getMyReputationBalance()).rejects.toThrow(OxyAuthenticationError);
     });
   });
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { darkenColor } from '@/utils/color-utils';
 import { useColors } from '@/hooks/useColors';
 import { HorizontalScrollSection } from './horizontal-scroll-section';

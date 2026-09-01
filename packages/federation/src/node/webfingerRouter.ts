@@ -13,8 +13,9 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import { isSameFederationHost } from '../apUri';
 import type { UrlBuilders } from '../urls';
-import { normalizeActorUsername } from '../urls';
+import { INSTANCE_ACTOR_USERNAME, normalizeActorUsername } from '../urls';
 
 /** 1 hour, in seconds — the WebFinger JRD cache TTL + response `max-age`. */
 const WEBFINGER_CACHE_TTL = 3600;
@@ -90,13 +91,49 @@ export function createWebfingerRouter(config: WebfingerRouterConfig): Router {
     }
 
     const username = normalizeActorUsername(acct.substring(0, atIndex));
-    const acctDomain = acct.substring(atIndex + 1);
+    const acctDomain = acct.substring(atIndex + 1).trim();
 
-    if (acctDomain.toLowerCase() !== domain.toLowerCase()) {
+    if (!isSameFederationHost(acctDomain, domain)) {
       return res.status(404).json({ error: 'Unknown domain' });
     }
 
     try {
+      // The instance actor is NOT an Oxy user: it has no profile, no consent
+      // record, and `resolveUser` will never find it — so it must be answered
+      // here, ahead of both the resolve and the sharing-consent gate, exactly as
+      // the actor route answers ahead of them. Without this branch the server
+      // actor is served as an actor but is not WebFinger-resolvable, and every
+      // secure-mode instance then refuses our signed GETs: Mastodon's
+      // `FetchRemoteKeyService#find_actor` calls `FetchRemoteActorService`
+      // WITHOUT `only_key:`, which runs `check_webfinger!` unconditionally, so a
+      // 404 here raises `Webfinger::Error` and the signed fetch 401s.
+      //
+      // Deliberately NOT cached: the document is static (no I/O to amortize) and
+      // routing it through the app's JRD cache would let one stale or evicted
+      // entry make the server actor undiscoverable for a full TTL — which is the
+      // outage this branch exists to prevent.
+      if (username === INSTANCE_ACTOR_USERNAME) {
+        const instanceJrd: WebfingerJrd = {
+          subject: `acct:${INSTANCE_ACTOR_USERNAME}@${domain}`,
+          links: [
+            {
+              rel: 'self',
+              type: 'application/activity+json',
+              // The SAME builder call the actor route uses for the actor `id`.
+              // Mastodon compares `webfinger.self_link_href` against the actor
+              // uri and rejects a mismatch, so these must not be built twice.
+              href: config.urls.actor(INSTANCE_ACTOR_USERNAME),
+            },
+            // No `profile-page` rel: the server actor has no human-facing page
+            // (`/@instance` is not a profile), and the file's existing policy is
+            // that a dangling link is worse than an absent one.
+          ],
+        };
+        res.set('Content-Type', 'application/jrd+json; charset=utf-8');
+        res.set('Cache-Control', `max-age=${WEBFINGER_CACHE_TTL}`);
+        return res.json(instanceJrd);
+      }
+
       // Check the JRD cache first.
       const cached = await config.cache.get(username);
       if (cached) {

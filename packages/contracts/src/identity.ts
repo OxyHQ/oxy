@@ -429,10 +429,102 @@ export const exportAttestationSchema: z.ZodType<ExportAttestation> = z.object({
 });
 
 /**
+ * One settled charge, as the account it was charged to may take it away.
+ *
+ * Amounts are EXACT DECIMAL STRINGS, never numbers — the same rule the ledger
+ * itself follows. A JSON number cannot represent `0.000000700000` and a bill a
+ * customer re-adds must reproduce the figure Oxy charged.
+ */
+export interface ExportUsageReceipt {
+    receiptId: string;
+    requestId: string;
+    settledAt: string;
+    billedAmount: string;
+    currency: string;
+    outcome: string;
+    resolvedModelReference: string;
+    servingProvider: string;
+    /** True when the charge is Oxy's fee on a BYOK request, not the model cost. */
+    platformFeeOnly: boolean;
+}
+
+export const exportUsageReceiptSchema: z.ZodType<ExportUsageReceipt> = z.object({
+    receiptId: z.string(),
+    requestId: z.string(),
+    settledAt: z.string(),
+    billedAmount: z.string(),
+    currency: z.string(),
+    outcome: z.string(),
+    resolvedModelReference: z.string(),
+    servingProvider: z.string(),
+    platformFeeOnly: z.boolean(),
+});
+
+/** One entry in the account's own journal. */
+export interface ExportLedgerEntry {
+    entryId: string;
+    kind: string;
+    currency: string;
+    createdAt: string;
+}
+
+export const exportLedgerEntrySchema: z.ZodType<ExportLedgerEntry> = z.object({
+    entryId: z.string(),
+    kind: z.string(),
+    currency: z.string(),
+    createdAt: z.string(),
+});
+
+/** One hold: money that was neither spent nor returned at the time it was taken. */
+export interface ExportUsageReservation {
+    reservationId: string;
+    requestId: string;
+    status: string;
+    reservedAmount: string;
+    currency: string;
+    createdAt: string;
+    expiresAt: string;
+}
+
+export const exportUsageReservationSchema: z.ZodType<ExportUsageReservation> = z.object({
+    reservationId: z.string(),
+    requestId: z.string(),
+    status: z.string(),
+    reservedAmount: z.string(),
+    currency: z.string(),
+    createdAt: z.string(),
+    expiresAt: z.string(),
+});
+
+/**
+ * What the account was charged, in the subject-access export (#972 section 12).
+ *
+ * Scoped to the CALLING user's own account and read-only. It exists because a
+ * person exercising a subject-access request previously learned nothing about
+ * what they had been charged unless they also happened to be an account
+ * administrator hitting the enterprise reporting route — the deletion side of
+ * that checkbox preserved financial records the export then never disclosed.
+ *
+ * Empty arrays are the normal answer, and mean the account has no ledger history
+ * rather than that anything was withheld.
+ */
+export interface ExportFinancialSection {
+    receipts: ExportUsageReceipt[];
+    ledgerEntries: ExportLedgerEntry[];
+    reservations: ExportUsageReservation[];
+}
+
+export const exportFinancialSectionSchema: z.ZodType<ExportFinancialSection> = z.object({
+    receipts: z.array(exportUsageReceiptSchema),
+    ledgerEntries: z.array(exportLedgerEntrySchema),
+    reservations: z.array(exportUsageReservationSchema),
+});
+
+/**
  * The signed, open-format data-export bundle from `GET /users/me/export`. A
  * portable snapshot of the account: its DID document, profile, verified
  * domains, auth methods (no secrets), published signed records, per-app data,
- * and social graph.
+ * social graph, and what the account was charged.
  *
  * `attestation` is the Oxy custodial provenance signature. It is `null` only
  * when the Oxy custodial signing key (`OXY_PRIVATE_KEY`) is unset (dev /
@@ -453,6 +545,7 @@ export interface ExportBundle {
         following: string[];
         followers: string[];
     };
+    financial: ExportFinancialSection;
     attestation: ExportAttestation | null;
     proof?: ExportAttestation;
 }
@@ -471,6 +564,7 @@ export const exportBundleSchema: z.ZodType<ExportBundle> = z.object({
         following: z.array(z.string()),
         followers: z.array(z.string()),
     }),
+    financial: exportFinancialSectionSchema,
     attestation: exportAttestationSchema.nullable(),
     proof: exportAttestationSchema.optional(),
 });

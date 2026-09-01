@@ -1,430 +1,389 @@
 /**
- * GET /profiles/:userId/similar discovery-gate coverage.
+ * `GET /profiles/:userId/similar` against a REAL Postgres.
  *
- * Proves the co-follower "similar profiles" surface applies the SAME
- * eligibility/quality bar as `/profiles/recommendations`: incomplete
- * shell/QA accounts and stale/unavailable federated actors are filtered out
- * before they reach the response.
+ * Co-follower overlap: the people followed by the people who follow `:userId`,
+ * ranked by how many of them overlap. Three properties are load-bearing:
  *
- * The router is mounted on a minimal Express app and exercised via
- * `node:http` round-trips (mirrors profilesRecommendations.test.ts). The
- * mocked `Follow.aggregate` honours the post-`$unwind` `$match` the route adds
- * — applying it against an in-memory candidate pool exactly as MongoDB would —
- * so the assertions verify the route's own gate rather than a stub's behaviour.
+ *  - **The target gate.** An archived, `restricted` or PRIVATE target must not
+ *    seed a discovery surface at all — 404 before the follower graph is read.
+ *  - **The candidate bar.** Co-follower candidates are held to the same
+ *    eligibility as the recommendations surface: no shell/QA profiles, no
+ *    private accounts, no stale or unavailable federated actors.
+ *  - **The exclusion set.** The viewer, the target, and everyone the viewer
+ *    already follows are never suggested.
+ *
+ * The previous version reimplemented the Mongo `$graphLookup` pipeline inside
+ * the test and then asserted the pipeline's own stage ORDER — a check that could
+ * only ever agree with itself. Here the overlap is computed by Postgres from
+ * real `user_follows` rows.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
+import { randomUUID } from 'node:crypto';
 
-// The global mongoose mock (jest.setup.cjs) does not expose `Types`, which the
-// profiles route relies on (`new Types.ObjectId(...)`, `instanceof` checks).
-// Restore the REAL mongoose so the route's ObjectId handling runs unmocked.
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
-import { Types } from 'mongoose';
 
-const mockFollowFind = jest.fn();
-const mockFollowAggregate = jest.fn();
-
-// The similar route is bearer-gated. Mock authMiddleware to populate the
-// `{ id }` shape the route reads (`req.user?.id`).
+/** Set by a test before the request; read by the mocked auth middleware. */
 let currentUserId: string | undefined;
+
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (
-    req: { user?: { id: string } },
-    _res: unknown,
-    next: () => void
-  ) => {
-    if (currentUserId) {
-      req.user = { id: currentUserId };
-    }
+  authMiddleware: (req: { user?: { id: string } }, _res: unknown, next: () => void) => {
+    if (currentUserId) req.user = { id: currentUserId };
     next();
   },
 }));
-
-// Heavy / DB-touching imports pulled in by the profiles router are stubbed so
-// importing the router doesn't crash. None are used by /:userId/similar.
 jest.mock('../../middleware/optionalAuth', () => ({
   optionalUserOrServiceAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
-  resolveViewerId: (req: { user?: { _id?: string } }): string | undefined => req.user?._id,
-}));
-jest.mock('../../services/user.service', () => ({
-  userService: {
-    getUserStats: jest.fn(),
-    formatUserResponse: jest.fn(),
-    getUserById: jest.fn(),
-  },
-}));
-jest.mock('../../services/federation.service', () => ({
-  federationService: { resolveAndUpsert: jest.fn() },
-  isFediverseHandle: jest.fn().mockReturnValue(false),
-}));
-jest.mock('../../middleware/validate', () => ({
-  validate: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  resolveViewerId: () => currentUserId,
 }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  FollowType: { USER: 'user', HASHTAG: 'hashtag', TOPIC: 'topic' },
-  default: {
-    find: (...args: unknown[]) => mockFollowFind(...args),
-    aggregate: (...args: unknown[]) => mockFollowAggregate(...args),
-  },
-}));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    aggregate: jest.fn(),
-  },
-}));
-
-import profilesRouter from '../profiles';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import { userService } from '../../services/user.service';
+import { FEDERATED_RECOMMENDATION_MAX_AGE_MS } from '../../utils/profileQuery';
+import profilesRouter from '../profiles';
 
-const mockGetUserById = userService.getUserById as jest.MockedFunction<typeof userService.getUserById>;
-
-interface ProfileResult {
-  id: unknown;
-  username?: string;
-}
-
-interface JsonResponse {
+interface SimilarResponse {
   status: number;
-  body: { error?: string; message?: string; data?: ProfileResult[] };
+  body: { message?: string; data?: Array<Record<string, unknown>> };
 }
 
-function requestJson(server: http.Server, path: string): Promise<JsonResponse> {
+let server: http.Server;
+
+function similar(userId: string, params: Record<string, string> = {}): Promise<SimilarResponse> {
   const address = server.address() as AddressInfo;
+  const queryString = new URLSearchParams(params).toString();
+  const path = `/profiles/${encodeURIComponent(userId)}/similar${queryString ? `?${queryString}` : ''}`;
   return new Promise((resolve, reject) => {
     const req = http.request(
       { method: 'GET', host: '127.0.0.1', port: address.port, path },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = raw.length > 0 ? JSON.parse(raw) : {};
-            resolve({ status: res.statusCode ?? 0, body: parsed });
-          } catch (err) {
-            reject(err);
-          }
+        res.on('data', (chunk) => {
+          raw += chunk;
         });
-      }
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} }),
+        );
+      },
     );
     req.on('error', reject);
     req.end();
   });
 }
 
-const NON_EMPTY_STRING = { $type: 'string', $ne: '' };
-
-/**
- * A minimal candidate row as it exists in the `users` collection (nested under
- * `user.` after the route's `$lookup` + `$unwind`).
- */
-interface UserDoc {
-  _id: Types.ObjectId;
-  username?: string;
-  avatar?: string;
-  name?: { first?: string; last?: string };
-  bio?: string;
-  description?: string;
-  verified?: boolean;
-  type?: string;
-  accountStatus?: string;
-  reputationTier?: string;
-  isSensitive?: boolean;
-  privacySettings?: { isPrivateAccount?: boolean };
-  federation?: {
-    actorUri?: string;
-    domain?: string;
-    lastResolvedAt?: Date;
-    unavailableAt?: Date;
-  };
+function handle(prefix: string): string {
+  return `${prefix}${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 }
 
-/** Whether a value satisfies the `{ $type:'string', $ne:'' }` non-empty gate. */
-function isNonEmptyString(value: unknown): boolean {
-  return typeof value === 'string' && value !== '';
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
 }
 
-/**
- * Faithfully evaluate the route's post-`$unwind` eligibility/quality `$match`
- * against a candidate user document, mirroring MongoDB's semantics for the
- * exact `$and`/`$or`/`$type`/`$gte`/`$exists` operators the gate uses.
- */
-function passesEligibilityGate(user: UserDoc, minResolvedAt: Date): boolean {
-  if (user.privacySettings?.isPrivateAccount === true) return false;
-  if (user.accountStatus === 'archived') return false;
-  if (user.reputationTier === 'restricted') return false;
-  if (user.isSensitive === true) return false;
-
-  // profile-quality bar: non-empty username AND at least one curated signal.
-  if (!isNonEmptyString(user.username)) return false;
-  const hasCuratedSignal =
-    isNonEmptyString(user.avatar) ||
-    isNonEmptyString(user.name?.first) ||
-    isNonEmptyString(user.name?.last) ||
-    isNonEmptyString(user.bio) ||
-    isNonEmptyString(user.description) ||
-    user.verified === true;
-  if (!hasCuratedSignal) return false;
-
-  // federated-eligibility bar: non-federated OR fresh+available federated.
-  if (user.type !== 'federated') return true;
-  return (
-    isNonEmptyString(user.federation?.actorUri) &&
-    isNonEmptyString(user.federation?.domain) &&
-    !!user.federation?.lastResolvedAt &&
-    user.federation.lastResolvedAt >= minResolvedAt &&
-    user.federation?.unavailableAt === undefined
-  );
+/** An account that clears the discovery quality bar (username + one curation signal). */
+async function curatedAccount(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  return account({ username: handle('curated'), avatar: 'file_avatar', ...fields });
 }
 
-/**
- * Drive the mocked `Follow.aggregate` for the similar pipeline: locate the
- * post-`$unwind` eligibility `$match`, apply it against the candidate pool, and
- * emit the same projected row shape the real `profileProjectionStage` produces.
- */
-function aggregateSimilar(pool: UserDoc[]): (pipeline: unknown) => Promise<unknown[]> {
-  return (pipeline: unknown) => {
-    const stages = pipeline as Array<{
-      $match?: { $and?: Array<{ $or?: Array<Record<string, unknown>> }> };
-    }>;
-    const gateStage = stages.find(
-      (s) => s.$match && Array.isArray(s.$match.$and)
-    );
-    // The gate must be present — `minResolvedAt` is read off the federated
-    // clause so the freshness comparison matches the route's own cutoff.
-    const federatedClause = gateStage?.$match?.$and
-      ?.flatMap((c) => c.$or ?? [])
-      .find((c) => c['user.type'] === 'federated');
-    const gteClause = federatedClause?.['user.federation.lastResolvedAt'] as
-      | { $gte?: Date }
-      | undefined;
-    const minResolvedAt = gteClause?.$gte ?? new Date(0);
-
-    const eligible = gateStage
-      ? pool.filter((u) => passesEligibilityGate(u, minResolvedAt))
-      : pool;
-
-    return Promise.resolve(
-      eligible.map((u) => ({
-        _id: u._id,
-        username: u.username,
-        name: u.name,
-        avatar: u.avatar,
-        description: u.description,
-        type: u.type,
-        federation: u.federation,
-        mutualCount: 1,
-        followersCount: 0,
-        followingCount: 0,
-      }))
-    );
-  };
+async function follow(followerId: string, followedId: string): Promise<void> {
+  await getDb().insert(userFollows).values({ followerId, followedId });
 }
 
-const caller = new Types.ObjectId();
-const target = new Types.ObjectId();
-const follower = new Types.ObjectId();
+function ids(res: SimilarResponse): string[] {
+  return (res.body.data ?? []).map((row) => row.id as string);
+}
 
-// Candidate co-followed accounts.
-const completeProfile = new Types.ObjectId(); // username + avatar — passes
-const shellProfile = new Types.ObjectId();    // username only, no signal — filtered
-const freshFederated = new Types.ObjectId();   // fresh, available — passes
-const staleFederated = new Types.ObjectId();   // resolved too long ago — filtered
-const privateProfile = new Types.ObjectId(); // opted out of discovery — filtered
-
-let server: http.Server;
-
-beforeAll((done) => {
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/profiles', profilesRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
-  currentUserId = caller.toHexString();
-  mockGetUserById.mockResolvedValue({
-    _id: target,
-    accountStatus: 'active',
-    privacySettings: { isPrivateAccount: false },
-  } as never);
-
-  // The route loads targetFollowers + currentFollowing in that order. The
-  // target-followers load is now bounded:
-  //   Follow.find(...).select('followerUserId').sort({ _id: 1 }).limit(N).lean()
-  // while the current-following load stays Follow.find(...).select(...).lean().
-  const targetFollowersLean = jest.fn().mockResolvedValue([{ followerUserId: follower }]);
-  const currentFollowingLean = jest.fn().mockResolvedValue([]);
-  mockFollowFind
-    .mockReturnValueOnce({
-      select: jest.fn().mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          limit: jest.fn().mockReturnValue({ lean: targetFollowersLean }),
-        }),
-      }),
-    })
-    .mockReturnValueOnce({ select: jest.fn().mockReturnValue({ lean: currentFollowingLean }) });
+  currentUserId = undefined;
 });
 
-describe('GET /profiles/:userId/similar discovery gate', () => {
-  it('filters shell/QA and stale federated candidates while surfacing complete and fresh-federated profiles', async () => {
+describe('GET /profiles/:userId/similar — target gate', () => {
+  it('401s an unauthenticated request', async () => {
+    const target = await curatedAccount();
+
+    const res = await similar(target);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('404s an archived target', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount({ accountStatus: 'archived' });
+    const follower = await curatedAccount();
+    const overlap = await curatedAccount();
+    await follow(follower, target);
+    await follow(follower, overlap);
+
+    const res = await similar(target);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('404s a restricted-tier target', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount({ reputationTier: 'restricted' });
+
+    const res = await similar(target);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('404s a private-account target', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount({ privacyIsPrivateAccount: true });
+
+    const res = await similar(target);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('404s a target id that names no account', async () => {
+    currentUserId = await curatedAccount();
+
+    const res = await similar(randomUUID());
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /profiles/:userId/similar — overlap', () => {
+  it('returns co-followed accounts ranked by overlap count, with the count on each row', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+    const followerA = await curatedAccount();
+    const followerB = await curatedAccount();
+    const followerC = await curatedAccount();
+    const twiceCoFollowed = await curatedAccount();
+    const thriceCoFollowed = await curatedAccount();
+    const onceCoFollowed = await curatedAccount();
+
+    for (const follower of [followerA, followerB, followerC]) {
+      await follow(follower, target);
+      await follow(follower, thriceCoFollowed);
+    }
+    await follow(followerA, twiceCoFollowed);
+    await follow(followerB, twiceCoFollowed);
+    await follow(followerC, onceCoFollowed);
+
+    const res = await similar(target, { limit: '10' });
+
+    expect(res.status).toBe(200);
+    expect(ids(res)).toEqual([thriceCoFollowed, twiceCoFollowed, onceCoFollowed]);
+    expect(res.body.data?.map((row) => row.mutualCount)).toEqual([3, 2, 1]);
+  });
+
+  it('never suggests the viewer, the target, or an account the viewer already follows', async () => {
+    const viewer = await curatedAccount();
+    currentUserId = viewer;
+    const target = await curatedAccount();
+    const alreadyFollowed = await curatedAccount();
+    const suggestion = await curatedAccount();
+    const follower = await curatedAccount();
+
+    await follow(follower, target);
+    // The follower co-follows all four, so only the exclusion set can remove any.
+    await follow(follower, viewer);
+    await follow(follower, alreadyFollowed);
+    await follow(follower, suggestion);
+    await follow(viewer, alreadyFollowed);
+
+    const res = await similar(target, { limit: '10' });
+
+    expect(ids(res)).toEqual([suggestion]);
+  });
+
+  it('returns an empty list when the target has no followers', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+
+    const res = await similar(target, { limit: '10' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual([]);
+  });
+});
+
+describe('GET /profiles/:userId/similar — candidate eligibility', () => {
+  it('drops shell profiles, private accounts and stale/unavailable federated actors', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+    const follower = await curatedAccount();
+    await follow(follower, target);
+
     const now = Date.now();
-    const pool: UserDoc[] = [
-      { _id: completeProfile, username: 'complete', avatar: 'avatar-id' },
-      { _id: shellProfile, username: 'shell' },
+    const complete = await curatedAccount();
+    // Username only — no avatar, name, bio, description or badge.
+    const shell = await account({ username: handle('shell') });
+    const freshFederated = await curatedAccount({
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${handle('fresh')}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(now - 24 * 60 * 60 * 1000),
+    });
+    const staleFederated = await curatedAccount({
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${handle('stale')}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(now - FEDERATED_RECOMMENDATION_MAX_AGE_MS - 60_000),
+    });
+    const unavailableFederated = await curatedAccount({
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${handle('gone')}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(now - 60_000),
+      federationUnavailableAt: new Date(now - 60_000),
+    });
+    const privateAccount = await curatedAccount({ privacyIsPrivateAccount: true });
+    const sensitive = await curatedAccount({ isSensitive: true });
+    const archived = await curatedAccount({ accountStatus: 'archived' });
+    const restricted = await curatedAccount({ reputationTier: 'restricted' });
+
+    for (const candidate of [
+      complete,
+      shell,
+      freshFederated,
+      staleFederated,
+      unavailableFederated,
+      privateAccount,
+      sensitive,
+      archived,
+      restricted,
+    ]) {
+      await follow(follower, candidate);
+    }
+
+    const res = await similar(target, { limit: '50' });
+
+    const returned = ids(res);
+    expect(returned).toContain(complete);
+    expect(returned).toContain(freshFederated);
+    expect(returned).not.toContain(shell);
+    expect(returned).not.toContain(staleFederated);
+    expect(returned).not.toContain(unavailableFederated);
+    expect(returned).not.toContain(privateAccount);
+    expect(returned).not.toContain(sensitive);
+    expect(returned).not.toContain(archived);
+    expect(returned).not.toContain(restricted);
+  });
+});
+
+describe('GET /profiles/:userId/similar — paging', () => {
+  it('pages the overlap deterministically, with no duplicate and no skipped row', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+    const follower = await curatedAccount();
+    await follow(follower, target);
+
+    const candidates: string[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      const candidate = await curatedAccount();
+      candidates.push(candidate);
+      await follow(follower, candidate);
+    }
+
+    const page1 = await similar(target, { limit: '2', offset: '0' });
+    const page2 = await similar(target, { limit: '2', offset: '2' });
+
+    // Every candidate ties at mutualCount 1, so `id asc` is the only thing
+    // making the two pages a partition rather than an overlap.
+    expect([...ids(page1), ...ids(page2)].sort()).toEqual([...candidates].sort());
+    expect(new Set([...ids(page1), ...ids(page2)]).size).toBe(4);
+  });
+
+  it('400s an out-of-range limit', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+
+    const res = await similar(target, { limit: '100000' });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /profiles/:userId/similar — wire shape', () => {
+  it('emits the recommendation row DTO for each suggestion', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+    const follower = await curatedAccount();
+    await follow(follower, target);
+
+    const username = handle('suggested');
+    const suggestion = await account({
+      username,
+      nameFirst: 'Sug',
+      nameLast: 'Gestion',
+      avatar: 'file_suggestion',
+      description: 'a description',
+      verified: true,
+      reputationTier: 'trusted',
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${username}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(),
+    });
+    await follow(follower, suggestion);
+    // One follower of its own, so `_count` is a measurement.
+    await follow(target, suggestion);
+
+    const res = await similar(target, { limit: '10' });
+
+    expect(res.body.data).toEqual([
       {
-        _id: freshFederated,
-        username: 'fresh',
-        avatar: 'fed-avatar',
-        type: 'federated',
-        federation: {
-          actorUri: 'https://remote.example/users/fresh',
-          domain: 'remote.example',
-          lastResolvedAt: new Date(now - 24 * 60 * 60 * 1000), // 1 day ago — fresh
-        },
+        id: suggestion,
+        username,
+        name: { displayName: 'Sug Gestion', first: 'Sug', last: 'Gestion', full: 'Sug Gestion' },
+        avatar: 'file_suggestion',
+        description: 'a description',
+        verified: true,
+        trustTier: 'trusted',
+        mutualCount: 1,
+        isFederated: true,
+        isAgent: false,
+        isAutomated: false,
+        instance: 'remote.example',
+        _count: { followers: 2, following: 0 },
       },
-      {
-        _id: staleFederated,
-        username: 'stale',
-        avatar: 'fed-avatar',
-        type: 'federated',
-        federation: {
-          actorUri: 'https://remote.example/users/stale',
-          domain: 'remote.example',
-          lastResolvedAt: new Date(now - 40 * 24 * 60 * 60 * 1000), // 40 days ago — stale
-        },
-      },
-      {
-        _id: privateProfile,
-        username: 'private',
-        avatar: 'private-avatar',
-        privacySettings: { isPrivateAccount: true },
-      },
-    ];
-
-    mockFollowAggregate.mockImplementation(aggregateSimilar(pool));
-
-    const res = await requestJson(server, `/profiles/${target.toHexString()}/similar?limit=10`);
-
-    expect(res.status).toBe(200);
-    const returnedIds = (res.body.data ?? []).map((p) => String(p.id));
-
-    expect(returnedIds).toContain(completeProfile.toString()); // curated profile passes
-    expect(returnedIds).toContain(freshFederated.toString());  // fresh federated passes
-    expect(returnedIds).not.toContain(shellProfile.toString());  // shell filtered
-    expect(returnedIds).not.toContain(staleFederated.toString()); // stale federated filtered
-    expect(returnedIds).not.toContain(privateProfile.toString()); // private account filtered
+    ]);
   });
 
-  it('adds the eligibility/quality $match after the $unwind, before the follow-count lookups', async () => {
-    mockFollowAggregate.mockResolvedValue([]);
+  it('omits instance and reports isAgent for a non-federated agent account', async () => {
+    currentUserId = await curatedAccount();
+    const target = await curatedAccount();
+    const follower = await curatedAccount();
+    await follow(follower, target);
+    const agent = await curatedAccount({ type: 'agent' });
+    await follow(follower, agent);
 
-    const res = await requestJson(server, `/profiles/${target.toHexString()}/similar?limit=10`);
-    expect(res.status).toBe(200);
+    const res = await similar(target, { limit: '10' });
 
-    const pipeline = mockFollowAggregate.mock.calls[0][0] as Array<Record<string, unknown>>;
-
-    const unwindIndex = pipeline.findIndex((s) => '$unwind' in s);
-    const gateIndex = pipeline.findIndex(
-      (s) => '$match' in s && Array.isArray((s.$match as { $and?: unknown[] }).$and)
-    );
-    const followerLookupIndex = pipeline.findIndex(
-      (s) =>
-        '$lookup' in s &&
-        (s.$lookup as { as?: string }).as === 'followersArr'
-    );
-
-    expect(unwindIndex).toBeGreaterThanOrEqual(0);
-    expect(gateIndex).toBeGreaterThan(unwindIndex);
-    expect(followerLookupIndex).toBeGreaterThan(gateIndex);
-
-    // The gate combines federated-eligibility and profile-quality under `$and`,
-    // each contributing its own `$or`. The profile-quality clause requires a
-    // non-empty `user.username`.
-    const gateMatch = pipeline[gateIndex].$match as {
-      $and: Array<Record<string, unknown>>;
-      'user.privacySettings.isPrivateAccount'?: { $ne?: boolean };
-    };
-    expect(gateMatch['user.privacySettings.isPrivateAccount']).toEqual({ $ne: true });
-
-    const usernameClause = gateMatch.$and.find(
-      (c) => c['user.username'] !== undefined
-    );
-    expect(usernameClause?.['user.username']).toEqual(NON_EMPTY_STRING);
-
-    const qualityOr = gateMatch.$and
-      .flatMap((c) => (Array.isArray(c.$or) ? (c.$or as Array<Record<string, unknown>>) : []))
-      .filter((clause) => clause['user.avatar'] !== undefined);
-    expect(qualityOr).toEqual(
-      expect.arrayContaining([{ 'user.avatar': NON_EMPTY_STRING }])
-    );
-
-    const federatedClause = gateMatch.$and
-      .flatMap((c) => (Array.isArray(c.$or) ? (c.$or as Array<Record<string, unknown>>) : []))
-      .find((clause) => clause['user.type'] === 'federated');
-    expect(federatedClause).toEqual(
-      expect.objectContaining({
-        'user.type': 'federated',
-        'user.federation.actorUri': NON_EMPTY_STRING,
-        'user.federation.domain': NON_EMPTY_STRING,
-        'user.federation.lastResolvedAt': { $gte: expect.any(Date) },
-        'user.federation.unavailableAt': { $exists: false },
-      })
-    );
-  });
-
-  it('returns 404 for an archived target without querying the follower graph', async () => {
-    mockGetUserById.mockResolvedValueOnce({
-      _id: target,
-      accountStatus: 'archived',
-    } as never);
-
-    const res = await requestJson(server, `/profiles/${target.toHexString()}/similar?limit=10`);
-
-    expect(res.status).toBe(404);
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(mockFollowAggregate).not.toHaveBeenCalled();
-  });
-
-  it('returns 404 for a restricted target without querying the follower graph', async () => {
-    mockGetUserById.mockResolvedValueOnce({
-      _id: target,
-      accountStatus: 'active',
-      reputationTier: 'restricted',
-    } as never);
-
-    const res = await requestJson(server, `/profiles/${target.toHexString()}/similar?limit=10`);
-
-    expect(res.status).toBe(404);
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(mockFollowAggregate).not.toHaveBeenCalled();
-  });
-
-  it('returns 404 for a private-account target without querying the follower graph', async () => {
-    mockGetUserById.mockResolvedValueOnce({
-      _id: target,
-      accountStatus: 'active',
-      privacySettings: { isPrivateAccount: true },
-    } as never);
-
-    const res = await requestJson(server, `/profiles/${target.toHexString()}/similar?limit=10`);
-
-    expect(res.status).toBe(404);
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(mockFollowAggregate).not.toHaveBeenCalled();
+    const row = res.body.data?.[0];
+    expect(row?.id).toBe(agent);
+    expect(row?.isAgent).toBe(true);
+    expect(row?.isFederated).toBe(false);
+    expect(row).not.toHaveProperty('instance');
   });
 });

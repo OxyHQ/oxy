@@ -174,6 +174,18 @@ describe('GET /transparency/checkpoints', () => {
     const [, limit] = mockListCheckpoints.mock.calls[0] as [number, number];
     expect(limit).toBeLessThanOrEqual(200);
   });
+
+  it('rejects a malformed since cursor', async () => {
+    const res = await get('/transparency/checkpoints?since=abc');
+    expect(res.status).toBe(400);
+    expect(mockListCheckpoints).not.toHaveBeenCalled();
+  });
+
+  it('rejects a negative limit', async () => {
+    const res = await get('/transparency/checkpoints?limit=-1');
+    expect(res.status).toBe(400);
+    expect(mockListCheckpoints).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /transparency/proof', () => {

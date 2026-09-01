@@ -17,6 +17,7 @@ import { OxyServicesReputationMixin } from './OxyServices.reputation';
 import { OxyServicesAssetsMixin } from './OxyServices.assets';
 import { OxyServicesAccountsMixin } from './OxyServices.accounts';
 import { OxyServicesConnectedAppsMixin } from './OxyServices.connectedApps';
+import { OxyServicesStoreMixin } from './OxyServices.store';
 import { OxyServicesLocationMixin } from './OxyServices.location';
 import { OxyServicesAnalyticsMixin } from './OxyServices.analytics';
 import { OxyServicesDevicesMixin } from './OxyServices.devices';
@@ -28,8 +29,11 @@ import { OxyServicesContactsMixin } from './OxyServices.contacts';
 import { OxyServicesNotificationsMixin } from './OxyServices.notifications';
 import { OxyServicesAppDataMixin } from './OxyServices.appData';
 import { OxyServicesCivicMixin } from './OxyServices.civic';
+import { OxyServicesChainsMixin } from './OxyServices.chains';
 import { OxyServicesNodesMixin } from './OxyServices.nodes';
 import { OxyServicesLinksMixin } from './OxyServices.links';
+import { OxyServicesFollowGraphMixin } from './OxyServices.followGraph';
+import { OxyServicesInferenceMixin } from './OxyServices.inference';
 import { OxyServicesDeviceBootMixin } from './OxyServices.deviceBoot';
 import { OxyServicesDeviceTransferMixin } from './OxyServices.deviceTransfer';
 
@@ -54,6 +58,7 @@ type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesAssetsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesAccountsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesConnectedAppsMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesStoreMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesLocationMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesAnalyticsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDevicesMixin<typeof OxyServicesBase>>>
@@ -64,8 +69,11 @@ type AllMixinInstances =
   & InstanceType<ReturnType<typeof OxyServicesNotificationsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesAppDataMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesCivicMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesChainsMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesNodesMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesLinksMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesFollowGraphMixin<typeof OxyServicesBase>>>
+  & InstanceType<ReturnType<typeof OxyServicesInferenceMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDeviceBootMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesDeviceTransferMixin<typeof OxyServicesBase>>>
   & InstanceType<ReturnType<typeof OxyServicesUtilityMixin<typeof OxyServicesBase>>>;
@@ -121,6 +129,10 @@ const MIXIN_PIPELINE: MixinFunction[] = [
     // OAuth-consent surface (public app identity + connected-app grants). Kept
     // separate from account ownership.
     OxyServicesConnectedAppsMixin,
+    // The app store: the public storefront, the reviews on it, and the listing a
+    // publisher edits. A module OVER the platform — turn it off and OAuth still
+    // works — so it is its own surface rather than more of `accounts`.
+    OxyServicesStoreMixin,
     OxyServicesLocationMixin,
     OxyServicesAnalyticsMixin,
     OxyServicesDevicesMixin,
@@ -135,12 +147,22 @@ const MIXIN_PIPELINE: MixinFunction[] = [
     OxyServicesAppDataMixin,
     // Civic / Commons "Oxy ID" (public signed cards, Oxy ID QR payload)
     OxyServicesCivicMixin,
+    OxyServicesChainsMixin,
     // User nodes / decentralization (Fase 5): register/read/revoke/manage the
     // caller's personal data node + ingest hint.
     OxyServicesNodesMixin,
     // Link previews / unfurls: SDK-owned link-metadata resolution via oxy-api,
     // so apps stop scraping link metadata locally.
     OxyServicesLinksMixin,
+    // The user-owned follow graph (#809). One relationship per user and target,
+    // shared across applications, with per-application context on top.
+    OxyServicesFollowGraphMixin,
+
+    // The inference model catalogue (#972). Reads only, and deliberately no
+    // request/stream/receipt methods — the public inference edge those would
+    // call is workstream 4 and does not exist yet. See
+    // `docs/inference/README.md` for what is and is not built.
+    OxyServicesInferenceMixin,
 
     // Device-first token mint: the client half of the zero-cookie transport
     // (`mintFromDeviceSecret` → `POST /session/device/token`).

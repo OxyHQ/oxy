@@ -36,14 +36,18 @@
 import type React from 'react';
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 import { Linking, Platform } from 'react-native';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
+import { surfaces } from '@oxyhq/bloom/surfaces';
 import { useTheme } from '@oxyhq/bloom/theme';
-import type { AccountDialogSnapshot } from '@oxyhq/core';
-import { isOxyRpOrigin } from '@oxyhq/core';
+import { getNormalizedUserHandle, isOxyRpOrigin, type User } from '@oxyhq/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '../context/OxyContext';
+import { useDeviceSwitcher } from '../hooks/useDeviceSwitcher';
 import { useI18n } from '../hooks/useI18n';
-import { getAccountDialogConsumerHooks } from '../navigation/accountDialogManager';
+import {
+  getAccountDialogConsumerHooks,
+  subscribeToAccountDialogConsumerHooks,
+} from '../navigation/accountDialogManager';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { getCommonsAcquisitionUrl } from '../utils/commonsStoreLinks';
 import { useAccountStorageUsage } from '../hooks/queries/useServicesQueries';
@@ -51,13 +55,16 @@ import AccountsMenuView from './authChooser/AccountsMenuView';
 import SignInEntryView from './authChooser/SignInEntryView';
 import SignInRequestView from './authChooser/SignInRequestView';
 import SignUpView from './authChooser/SignUpView';
-import type {
-  AccountStorageModel,
-  AccountsMenuActions,
-  OxyAuthChooserHandlers,
-  PasskeyMode,
-  SignInAlternatives,
+import {
+  resolveAccentHex,
+  type AccountHeroModel,
+  type AccountStorageModel,
+  type AccountsMenuActions,
+  type OxyAuthChooserHandlers,
+  type PasskeyMode,
+  type SignInAlternatives,
 } from './authChooser/types';
+import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
 
 /** Commons' own identity-creation deep link (mirrors the `approve`/`attest`/`card` intents). */
 const COMMONS_CREATE_IDENTITY_URL = 'oxycommons://create-identity';
@@ -72,6 +79,13 @@ const ACCOUNTS_APP_URL = 'https://accounts.oxy.so';
 export interface OxyAuthChooserProps {
   /** Called after a completed switch, sign-in, or sign-up. */
   onComplete?: () => void;
+  /**
+   * When false, the web sign-in entry does not auto-start a device-flow
+   * session on mount. Use for hosts (e.g. the cross-origin passkey hub) that
+   * already have a pending `authorizeCode` and must not spawn a second one.
+   * @default true
+   */
+  autoStartSignIn?: boolean;
 }
 
 /**
@@ -79,20 +93,27 @@ export interface OxyAuthChooserProps {
  * (wrapped in Bloom's `<Dialog>`) today; mountable bare by any future host that
  * supplies its own `onComplete`.
  */
-const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
+const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({
+  onComplete,
+  autoStartSignIn: autoStartSignInEnabled = true,
+}) => {
   const {
     accountDialogController: controller,
     showBottomSheet,
-    refreshAccounts,
     signInWithPasskey,
     registerWithPasskey,
     oxyServices,
     logout,
     openAvatarPicker,
+    user,
   } = useOxy();
   const theme = useTheme();
   const { t } = useI18n();
   const queryClient = useQueryClient();
+  // The device's people and what each may act as, resolved for rendering — the
+  // SAME hook (and the same one builder) the auth.oxy.so chooser renders from,
+  // so the two switchers cannot drift.
+  const { principals } = useDeviceSwitcher();
 
   // A credential minted for `oxy.so` can only be ASSERTED there (or a loopback
   // dev host) — a hard WebAuthn RP-ID boundary the browser enforces, not
@@ -161,11 +182,11 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // a no-op on native (button-driven). Reads the live snapshot at call time (an
   // event callback, not render), so it is stable across renders.
   const autoStartSignIn = useCallback(() => {
-    if (!controller || !isWebBrowser()) return;
+    if (!autoStartSignInEnabled || !controller || !isWebBrowser()) return;
     const { view: currentView, signIn } = controller.getSnapshot();
     if ((currentView !== 'signin' && currentView !== 'add') || signIn.phase !== 'idle') return;
     void controller.signInWithOxy();
-  }, [controller]);
+  }, [autoStartSignInEnabled, controller]);
 
   // Bind the headless controller. `getSnapshot` returns a stable reference
   // between changes, so it is `useSyncExternalStore`-safe. Guard the no-provider
@@ -204,71 +225,141 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
     [controller, autoStartSignIn],
   );
   const getSnapshot = useCallback(
-    () => (controller ? controller.getSnapshot() : EMPTY_SNAPSHOT),
+    () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
     [controller],
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const { view } = snapshot;
+  const consumerHooks = useSyncExternalStore(
+    subscribeToAccountDialogConsumerHooks,
+    getAccountDialogConsumerHooks,
+    () => null,
+  );
 
-  const [switching, setSwitching] = useState(false);
-
-  const handleSwitch = useCallback(
-    async (accountId: string) => {
-      if (!controller || switching) return;
-      if (accountId === snapshot.activeAccountId) {
+  const handleActivate = useCallback(
+    async (contextId: string) => {
+      if (!controller) return;
+      if (controller.getSnapshot().activatingContextId) return;
+      // Already live: activating it again bumps nothing server-side, so treat
+      // the press as "yes, this one" and close.
+      if (contextId === controller.getSnapshot().activeContext?.contextId) {
         onComplete?.();
         return;
       }
-      setSwitching(true);
       try {
-        await controller.switchTo(accountId);
-        // `switchTo` never throws — it records a failure on the controller's
-        // snapshot. Read it back at the point the switch settles and surface it
-        // as a toast (event-driven, at the failure site — NOT an inline banner
-        // and NOT a snapshot-reaction). On success reload the app's account
-        // graph and drop cached account-scoped data so the new active identity
-        // re-fetches — the same side effects the context's own
-        // `switchToAccount` performs.
+        await controller.activateContext(contextId);
+        // Failures are recorded on the controller snapshot rather than thrown,
+        // so the same path works with the real controller and with test doubles
+        // that resolve void.
         if (controller.getSnapshot().error) {
-          toast.error(t('accountSwitcher.toasts.switchFailed'));
+          toast.error(t('accountSwitcher.toasts.activateFailed'));
           return;
         }
-        void refreshAccounts();
+        // The subject changed, so every account-scoped query is now about
+        // somebody else. The runtime resets its own caches between the bearer
+        // commit and the notify; this drops the Query cache the same way the
+        // account switch did.
         queryClient.invalidateQueries();
         onComplete?.();
-      } finally {
-        setSwitching(false);
+      } catch {
+        toast.error(t('accountSwitcher.toasts.activateFailed'));
       }
     },
-    [controller, switching, snapshot.activeAccountId, onComplete, refreshAccounts, queryClient, t],
+    [controller, onComplete, queryClient, t],
+  );
+
+  /**
+   * Remove ONE `principal → account` pair.
+   *
+   * Confirmed, and the confirmation says whose route is going: on a shared
+   * device the same organization is reachable through somebody else, and their
+   * access is untouched. That is the fact a single "remove account" control
+   * would get wrong.
+   */
+  const handleRemoveContext = useCallback(
+    async (contextId: string) => {
+      if (!controller) return;
+      const group = principals.find((principal) =>
+        principal.contexts.some((context) => context.contextId === contextId),
+      );
+      const context = group?.contexts.find((row) => row.contextId === contextId);
+      if (!group || !context) return;
+      const confirmed = await surfaces.confirm({
+        title: t('accountSwitcher.confirms.removeContextTitle'),
+        description: t('accountSwitcher.confirms.removeContext', {
+          person: group.displayName,
+          account: context.displayName,
+        }),
+        confirmLabel: t('common.remove'),
+        cancelLabel: t('common.cancel'),
+        destructive: true,
+      });
+      if (!confirmed) return;
+      const removed = await controller.signOutContext(contextId);
+      if (!removed) {
+        toast.error(t('accountSwitcher.toasts.contextRemoveFailed'));
+        return;
+      }
+      toast.success(t('accountSwitcher.toasts.contextRemoved', { account: context.displayName }));
+    },
+    [controller, principals, t],
+  );
+
+  /** Remove ONE PERSON and every account they reach here, and nobody else's. */
+  const handleRemovePrincipal = useCallback(
+    async (principalId: string) => {
+      if (!controller) return;
+      const group = principals.find((principal) => principal.principalId === principalId);
+      if (!group) return;
+      const confirmed = await surfaces.confirm({
+        title: t('accountSwitcher.confirms.removePrincipalTitle'),
+        description: t('accountSwitcher.confirms.removePrincipal', { name: group.displayName }),
+        confirmLabel: t('common.actions.signOut'),
+        cancelLabel: t('common.cancel'),
+        destructive: true,
+      });
+      if (!confirmed) return;
+      const removed = await controller.signOutPrincipal(principalId);
+      if (!removed) {
+        toast.error(t('accountSwitcher.toasts.principalRemoveFailed'));
+        return;
+      }
+      toast.success(t('accountSwitcher.toasts.principalRemoved', { name: group.displayName }));
+    },
+    [controller, principals, t],
   );
 
   const handleManage = useCallback(() => {
     onComplete?.();
-    const hooks = getAccountDialogConsumerHooks();
-    if (hooks?.onNavigateManage) {
-      hooks.onNavigateManage();
+    if (consumerHooks?.onNavigateManage) {
+      consumerHooks.onNavigateManage();
       return;
     }
     showBottomSheet?.('ManageAccount');
-  }, [onComplete, showBottomSheet]);
+  }, [consumerHooks, onComplete, showBottomSheet]);
 
   const handleAdd = useCallback(() => {
-    const hooks = getAccountDialogConsumerHooks();
-    if (hooks?.onAddAccount) {
-      hooks.onAddAccount();
+    if (consumerHooks?.onAddAccount) {
+      onComplete?.();
+      consumerHooks.onAddAccount();
       return;
     }
     // No consumer override: enter the "add account" view and auto-start the web
     // sign-in flow, from this handler (the event that reaches the view).
     controller?.add();
     autoStartSignIn();
-  }, [controller, autoStartSignIn]);
+  }, [consumerHooks, controller, autoStartSignIn, onComplete]);
 
   const handlers = useMemo<OxyAuthChooserHandlers>(
     () => ({
-      onSwitch: (accountId) => {
-        void handleSwitch(accountId);
+      onActivate: (contextId) => {
+        void handleActivate(contextId);
+      },
+      onRemoveContext: (contextId) => {
+        void handleRemoveContext(contextId);
+      },
+      onRemovePrincipal: (principalId) => {
+        void handleRemovePrincipal(principalId);
       },
       onAdd: handleAdd,
       onManage: handleManage,
@@ -276,7 +367,21 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
       // uploads / clears the picked photo — the single shared avatar write path.
       onEditAvatar: () => openAvatarPicker(),
     }),
-    [handleSwitch, handleAdd, handleManage, openAvatarPicker],
+    [handleActivate, handleRemoveContext, handleRemovePrincipal, handleAdd, handleManage, openAvatarPicker],
+  );
+
+  /**
+   * The hero block — the account this client is signed in as, from its FULL
+   * profile rather than from a directory row.
+   *
+   * The directory carries the minimum that renders a row for every person on
+   * the device; this is the one account we legitimately hold everything for, so
+   * the hero keeps its real EMAIL, which the rows below do not pretend to have.
+   * The accent is not in that category — every row is drawn in its own account's
+   * (issue #961), this one included, from the same field.
+   */
+  const hero = useMemo<AccountHeroModel | null>(() => (user ? buildHero(user, theme.colors.primary, oxyServices) : null),
+    [user, theme.colors.primary, oxyServices],
   );
 
   // Everything that is NOT the surface's one primary action. Wired once here;
@@ -307,7 +412,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   // Real storage usage for the account menu's "Oxy storage" block. Disabled
   // (no fetch) until a private-API session exists, so it is inert on the
   // sign-in/request/sign-up views; when present the block shows live used/total.
-  const storageQuery = useAccountStorageUsage();
+  const storageQuery = useAccountStorageUsage({ enabled: view === 'accounts' });
   const storage = useMemo<AccountStorageModel | null>(
     () =>
       storageQuery.data
@@ -344,8 +449,15 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
         void logout();
         onComplete?.();
       },
+      customItems: (consumerHooks?.menuItems ?? []).map((item) => ({
+        ...item,
+        onPress: () => {
+          onComplete?.();
+          item.onPress();
+        },
+      })),
     };
-  }, [onComplete, showBottomSheet, logout]);
+  }, [consumerHooks, onComplete, showBottomSheet, logout]);
 
   if (!controller) {
     return null;
@@ -355,6 +467,8 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
     return (
       <AccountsMenuView
         snapshot={snapshot}
+        principals={principals}
+        hero={hero}
         theme={theme}
         t={t}
         handlers={handlers}
@@ -399,6 +513,7 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   return (
     <SignInEntryView
       snapshot={snapshot}
+      principals={principals}
       theme={theme}
       t={t}
       handlers={handlers}
@@ -408,30 +523,32 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
   );
 };
 
-// ---------------------------------------------------------------------------
-// Empty snapshot (no-provider loading state)
-// ---------------------------------------------------------------------------
-
-const EMPTY_SNAPSHOT: AccountDialogSnapshot = {
-  view: 'accounts',
-  accounts: [],
-  activeAccountId: null,
-  loading: false,
-  error: null,
-  switchingAccountId: null,
-  signIn: {
-    phase: 'idle',
-    authorizeCode: null,
-    qrPayload: null,
-    expiresAt: null,
-    error: null,
-    route: null,
-    routeFailed: false,
-    pushSentAt: null,
-    openedAt: null,
-    progress: 'idle',
-  },
-  commonsAvailability: 'unknown',
-};
+/**
+ * The hero model for the signed-in account.
+ *
+ * The address line is the account's canonical `@oxy.so` email when it has one,
+ * else its normalized `@handle`. It never synthesizes a `username@oxy.so`
+ * address — the identity contract forbids it, and a non-Oxy or missing email
+ * falls through to the handle.
+ */
+function buildHero(
+  user: User,
+  fallbackAccent: string,
+  oxyServices: ReturnType<typeof useOxy>['oxyServices'],
+): AccountHeroModel {
+  const handle = getNormalizedUserHandle(user);
+  const displayName = user.name?.displayName?.trim() || handle || '';
+  const addressLine = user.email?.toLowerCase().endsWith('@oxy.so')
+    ? user.email
+    : handle
+      ? `@${handle}`
+      : null;
+  return {
+    displayName,
+    addressLine,
+    avatarUrl: user.avatar ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined,
+    accentHex: resolveAccentHex(user.color ?? null, fallbackAccent),
+  };
+}
 
 export default OxyAuthChooser;

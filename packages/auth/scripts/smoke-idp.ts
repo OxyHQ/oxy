@@ -6,13 +6,25 @@
  * post-FedCM-deletion contract so a broken deploy turns the workflow RED instead
  * of silently breaking sign-in for the whole ecosystem.
  *
- * The IdP is now a pure static SPA — it enumerates device accounts through the
- * SAME device-first SDK path every app uses (`useSwitchableAccounts`), so there
- * is no bespoke chooser-feed Pages Function to probe anymore.
+ * The IdP is a static SPA plus ONE Pages Functions directory, `functions/hub/*`
+ * (the browser DeviceSession hub — issue #937 Phase 5, ADR 0003). It still
+ * enumerates device accounts through the SAME device-first SDK path every app
+ * uses (`useDeviceSwitcher`), so the bespoke chooser-feed Pages Function deleted
+ * in the 2c cutover has not come back and is not probed here.
+ *
+ * The hub routes are deliberately NOT probed either: every one of them is a
+ * `POST` behind three CSRF gates, so a request this script could make is one the
+ * edge must refuse — a check whose only passing answer is 403 says nothing about
+ * whether the layer works. Verifying the hub means driving a real browser, which
+ * is not what a post-deploy curl gate is for.
  *
  * What it catches:
  *   - SPA renders blank / build totally broken   → `/`, `/login`, `/signup`, `/authorize` lose the SPA root marker.
+ *   - `/authorize` not routed at all             → a PKCE-bound authorize URL stops answering 200 with the SPA shell.
  *   - FedCM manifest NOT removed                  → `/.well-known/web-identity` still serves the FedCM config JSON.
+ *
+ * What it CANNOT catch, despite an earlier comment here claiming otherwise: a
+ * client-side render failure such as #784. See {@link checkAuthorizeWithPkce}.
  *
  * Usage:
  *   bun run packages/auth/scripts/smoke-idp.ts
@@ -56,6 +68,7 @@ interface FetchOutcome {
   status: number;
   contentType: string;
   body: string;
+  headers: Headers;
   error?: string;
 }
 
@@ -71,9 +84,10 @@ async function probe(url: string, init?: RequestInit): Promise<FetchOutcome> {
       status: res.status,
       contentType: res.headers.get('content-type') || '',
       body,
+      headers: res.headers,
     };
   } catch (err) {
-    return { status: 0, contentType: '', body: '', error: err instanceof Error ? err.message : String(err) };
+    return { status: 0, contentType: '', body: '', headers: new Headers(), error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -106,6 +120,36 @@ async function checkSpaPage(hostBase: string, path: string): Promise<void> {
 }
 
 /**
+ * A PKCE-bound authorize URL must still be SERVED. That is all this proves, and
+ * it is worth being precise about, because this check was once believed to cover
+ * the blank-page bug in #784 and covers none of it:
+ *
+ *  - the marker it looks for lives in `index.html`, which the static host
+ *    returns for every route whether or not React then dies on the client;
+ *  - `oxy_dk_smoke_client` is not a registered application, and the authorize
+ *    page redirects an unresolvable client to `/login` well before it reaches
+ *    the Commons lane. Using a REAL client id here would not help either — it
+ *    would create a live authorization request against production on every
+ *    deploy — so the substitution is deliberate, not an oversight.
+ *
+ * The render itself is covered where it can actually be observed, against a real
+ * production bundle: `lib/__tests__/authorize-surface-bundle.test.ts`.
+ */
+async function checkAuthorizeWithPkce(hostBase: string): Promise<void> {
+  const params = new URLSearchParams({
+    client_id: 'oxy_dk_smoke_client',
+    redirect_uri: 'https://app.example.com/callback',
+    response_type: 'code',
+    scope: 'openid profile',
+    state: 'smoke-state',
+    code_challenge: 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM',
+    code_challenge_method: 'S256',
+  });
+  const path = `/authorize?${params.toString()}`;
+  await checkSpaPage(hostBase, path);
+}
+
+/**
  * The FedCM manifest MUST be GONE. `GET /.well-known/web-identity` no longer has
  * a handler, so it falls through to the SPA (or 404) — anything EXCEPT a valid
  * `200 application/json` FedCM config with `provider_urls` is a pass. A regression
@@ -125,14 +169,41 @@ async function checkWebIdentityGone(hostBase: string): Promise<void> {
   record('web-identity removed', true, `no FedCM manifest (status ${out.status}, ${out.contentType || 'no content-type'})`);
 }
 
+/** Shared Oxy Pages security headers must include the Cloudflare beacon on both halves. */
+async function checkSecurityHeaders(hostBase: string): Promise<void> {
+  const out = await probe(`${hostBase}/`, { headers: { Accept: 'text/html' } });
+  if (out.error) {
+    record('security headers', false, `request failed: ${out.error}`);
+    return;
+  }
+  const csp = out.headers.get('content-security-policy') || '';
+  if (!csp) {
+    record('security headers', false, 'missing Content-Security-Policy header');
+    return;
+  }
+  const missing: string[] = [];
+  if (!csp.includes('static.cloudflareinsights.com')) missing.push('static.cloudflareinsights.com (script-src)');
+  if (!csp.includes('cloudflareinsights.com')) missing.push('cloudflareinsights.com (connect-src)');
+  if (!csp.includes("script-src 'self'")) missing.push("'self' in script-src");
+  if (out.headers.get('x-frame-options')?.toUpperCase() !== 'DENY') {
+    missing.push('X-Frame-Options: DENY');
+  }
+  if (missing.length > 0) {
+    record('security headers', false, `missing: ${missing.join('; ')}`);
+    return;
+  }
+  record('security headers', true, 'CSP baseline + X-Frame-Options present');
+}
+
 async function run(): Promise<void> {
   log(`\nauth.oxy.so smoke gate — target: ${PRIMARY_TARGET}\n`);
 
   await checkSpaPage(PRIMARY_TARGET, '/login');
   await checkSpaPage(PRIMARY_TARGET, '/signup');
   await checkSpaPage(PRIMARY_TARGET, '/authorize');
-  await checkSpaPage(PRIMARY_TARGET, '/sync?return=https://inbox.oxy.so');
+  await checkAuthorizeWithPkce(PRIMARY_TARGET);
   await checkWebIdentityGone(PRIMARY_TARGET);
+  await checkSecurityHeaders(PRIMARY_TARGET);
 
   const failed = results.filter((r) => !r.ok);
   log(`\n${failed.length === 0 ? 'OK' : 'FAILED'}: ${results.length - failed.length}/${results.length} checks passed.`);

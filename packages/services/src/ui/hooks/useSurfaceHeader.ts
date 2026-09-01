@@ -10,8 +10,13 @@ import type { DialogHeaderConfig } from '@oxyhq/bloom/dialog';
  * design-system fields Bloom's nav header supports: the single trailing
  * `primaryAction` CTA (Upload / Save), a trailing icon `actions` row, a header
  * `search` / `segments` in the large-title zone, an `onImage` `tone` over media,
- * and a wizard `progress` bar. Object/slot fields MUST be referentially stable
- * (memoize them with `useMemo`) so the header does not thrash.
+ * and a wizard `progress` bar.
+ *
+ * Only the NODE fields (`left`/`right`/`titleContent`, and an action's `icon`)
+ * must be referentially stable — a node can only be compared by identity, so an
+ * inline one thrashes the header. The rich OBJECT fields are compared by value
+ * (see {@link surfaceHeaderContentEqual}), so an inline `primaryAction` /
+ * `actions` / `search` / `segments` / `progress` is safe to pass.
  */
 export type SurfaceHeaderContent = Pick<
   DialogHeaderConfig,
@@ -42,16 +47,86 @@ interface SurfaceHeaderContextValue {
  */
 export const SurfaceHeaderContext = createContext<SurfaceHeaderContextValue | null>(null);
 
+type HeaderPrimaryAction = NonNullable<SurfaceHeaderContent['primaryAction']>;
+type HeaderAction = NonNullable<SurfaceHeaderContent['actions']>[number];
+type HeaderSearch = NonNullable<SurfaceHeaderContent['search']>;
+type HeaderSegments = NonNullable<SurfaceHeaderContent['segments']>;
+type HeaderProgress = NonNullable<SurfaceHeaderContent['progress']>;
+
+function primaryActionEqual(
+  a: HeaderPrimaryAction | undefined,
+  b: HeaderPrimaryAction | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  // `onPress` is a fresh closure each render — its identity never changes what
+  // the button renders, so compare only the render-affecting scalars.
+  return a.label === b.label && !!a.disabled === !!b.disabled && !!a.loading === !!b.loading;
+}
+
+function actionsEqual(a: HeaderAction[] | undefined, b: HeaderAction[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i];
+    const y = b[i];
+    if (!x || !y) return false;
+    // `icon` is a node (identity); `onPress` is ignored, like `primaryAction`'s.
+    if (
+      x.accessibilityLabel !== y.accessibilityLabel ||
+      !!x.disabled !== !!y.disabled ||
+      x.icon !== y.icon
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function searchEqual(a: HeaderSearch | undefined, b: HeaderSearch | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.value === b.value && a.placeholder === b.placeholder;
+}
+
+function segmentsEqual(a: HeaderSegments | undefined, b: HeaderSegments | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.value !== b.value || a.items.length !== b.items.length) return false;
+  for (let i = 0; i < a.items.length; i += 1) {
+    const x = a.items[i];
+    const y = b.items[i];
+    if (!x || !y || x.key !== y.key || x.label !== y.label) return false;
+  }
+  return true;
+}
+
+function progressEqual(a: HeaderProgress | undefined, b: HeaderProgress | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.step === b.step && a.total === b.total;
+}
+
 /**
- * Shallow value-equality for a surface's header contribution.
+ * Value-equality for a surface's header contribution.
  *
- * Scalars (`title`/`subtitle`/`largeTitle`/`tone`) compare by value; the object
- * and node fields (`titleContent`/`left`/`right`/`primaryAction`/`actions`/
- * `search`/`segments`/`progress`) compare by identity — callers memoize them, per
- * this hook's contract. Function-typed affordances compare by PRESENCE, never
- * identity: `onBack` legitimately gets a fresh closure each render, and its
- * identity never changes what the header renders, so it must not count as a
- * change (that is exactly what would drive the update loop).
+ * This MIRRORS Bloom's own `configsEqual` (`@oxyhq/bloom/dialog`), which guards
+ * the header store one layer down — deliberately field for field. The two must
+ * not diverge: this comparator is the gate that decides whether the host's
+ * `setContent` fires, so a comparator STRICTER than Bloom's re-introduces the
+ * update loop Bloom's own guard was written to prevent.
+ *
+ * Scalars (`title`/`subtitle`/`largeTitle`/`tone`) compare by value. The rich
+ * object fields (`primaryAction`/`actions`/`search`/`segments`/`progress`)
+ * compare by their render-affecting scalars, so a screen may build them inline:
+ * a fresh object with unchanged contents is NOT a change. Only the node fields
+ * (`titleContent`/`left`/`right`, and an action's `icon`) compare by identity —
+ * there is nothing else to compare a `ReactNode` by — so those, and only those,
+ * carry the memoize-me contract.
+ *
+ * Function-typed affordances compare by PRESENCE, never identity: `onBack`
+ * legitimately gets a fresh closure each render and its identity never changes
+ * what the header renders, so it must not count as a change (that is exactly
+ * what would drive the update loop).
  */
 function surfaceHeaderContentEqual(
   a: SurfaceHeaderContent | null,
@@ -67,12 +142,12 @@ function surfaceHeaderContentEqual(
     a.left === b.left &&
     a.right === b.right &&
     !!a.onBack === !!b.onBack &&
-    a.primaryAction === b.primaryAction &&
-    a.actions === b.actions &&
-    a.search === b.search &&
-    a.segments === b.segments &&
     a.tone === b.tone &&
-    a.progress === b.progress
+    primaryActionEqual(a.primaryAction, b.primaryAction) &&
+    actionsEqual(a.actions, b.actions) &&
+    searchEqual(a.search, b.search) &&
+    segmentsEqual(a.segments, b.segments) &&
+    progressEqual(a.progress, b.progress)
   );
 }
 

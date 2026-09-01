@@ -31,6 +31,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import type { BaseScreenProps } from '../types/navigation';
 import LogoText from './logo/LogoText';
 import OxyAuthChooser from './OxyAuthChooser';
+import { EMPTY_ACCOUNT_DIALOG_SNAPSHOT } from '../hooks/accountDialogSnapshot';
 
 type Translate = ReturnType<typeof useI18n>['t'];
 
@@ -61,21 +62,35 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
 
   // A lightweight, header-only binding to the same controller `OxyAuthChooser`
   // binds independently — cheap, and the established pattern here (
-  // `useSwitchableAccounts` also binds to this controller on its own).
+  // `useDeviceSwitcher` also binds to this controller on its own).
   const subscribe = useCallback(
     (listener: () => void) => (controller ? controller.subscribe(listener) : () => undefined),
     [controller],
   );
   const getSnapshot = useCallback(
-    () => (controller ? controller.getSnapshot() : EMPTY_SNAPSHOT),
+    () => (controller ? controller.getSnapshot() : EMPTY_ACCOUNT_DIALOG_SNAPSHOT),
     [controller],
   );
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const { view } = snapshot;
-  const showBack =
-    view === 'qr' || view === 'signup' || (view === 'add' && snapshot.accounts.length > 0);
-  const goToAccounts = useCallback(() => controller?.setView('accounts'), [controller]);
+  // "Add another account" only makes sense as a back destination when there IS
+  // another — i.e. somebody is already signed in on this device.
+  const hasSignedInAccounts = (snapshot.directory?.principals.length ?? 0) > 0;
+  const showBack = view === 'qr' || view === 'signup' || (view === 'add' && hasSignedInAccounts);
+  const goToAccounts = useCallback(() => {
+    if (!controller) return;
+    const { view: currentView, signIn } = controller.getSnapshot();
+    // Backing out of an active request must withdraw it — otherwise the
+    // authorizeCode stays approvable until expiry (issue #691 phase 5).
+    if (
+      (currentView === 'qr' || currentView === 'add') &&
+      (signIn.phase === 'starting' || signIn.phase === 'waiting')
+    ) {
+      controller.cancelSignIn();
+    }
+    controller.setView('accounts');
+  }, [controller]);
   // An ENTRY view (accounts / signin — no in-dialog back of its own) that is
   // MORPHED into a host surface (ManageAccount → switcher) has a frame beneath it,
   // so its back CLOSES the dialog and reshapes back to the host — routed through
@@ -88,7 +103,7 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
   // by the bar. Every OTHER view keeps the SHARED Dialog nav header the rest of
   // the SDK uses — a large in-content title/subtitle that collapses into the bar
   // on scroll — because their copy is informative.
-  const copy = view === 'accounts' ? null : headerCopy(view, snapshot.accounts.length, t);
+  const copy = view === 'accounts' ? null : headerCopy(view, hasSignedInAccounts, t);
 
   useSurfaceHeader({
     titleContent: copy ? undefined : NAV_LOGO,
@@ -114,7 +129,7 @@ const OxyAccountDialogScreen: React.FC<BaseScreenProps> = ({ canGoBack }) => {
 
 function headerCopy(
   view: Exclude<AccountDialogSnapshot['view'], 'accounts'>,
-  accountCount: number,
+  hasSignedInAccounts: boolean,
   t: Translate,
 ): { title: string; subtitle: string | null } {
   switch (view) {
@@ -135,7 +150,7 @@ function headerCopy(
         subtitle: t('signup.subtitle') || 'One identity for the whole ecosystem.',
       };
     default:
-      return accountCount > 0
+      return hasSignedInAccounts
         ? {
             title: t('signin.addAccountTitle') || 'Add another account',
             subtitle: t('signin.addAccountSubtitle') || 'Sign in with another account.',
@@ -146,28 +161,6 @@ function headerCopy(
           };
   }
 }
-
-const EMPTY_SNAPSHOT: AccountDialogSnapshot = {
-  view: 'accounts',
-  accounts: [],
-  activeAccountId: null,
-  loading: false,
-  error: null,
-  switchingAccountId: null,
-  signIn: {
-    phase: 'idle',
-    authorizeCode: null,
-    qrPayload: null,
-    expiresAt: null,
-    error: null,
-    route: null,
-    routeFailed: false,
-    pushSentAt: null,
-    openedAt: null,
-    progress: 'idle',
-  },
-  commonsAvailability: 'unknown',
-};
 
 /**
  * The screen gutter. In the Dialog's nav-header mode the surface adds NO content

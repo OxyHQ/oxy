@@ -9,30 +9,42 @@
  */
 export const VERSIONS = {
   // --- Oxy SDK ---
-  oxyServices: '^22.0.0', // @oxyhq/services
-  oxyCore: '^12.0.0', // @oxyhq/core
-  oxyBloom: '^0.44.1', // @oxyhq/bloom
-  oxyContracts: '^0.14.1', // @oxyhq/contracts
-  oxyAppPreset: '^0.1.0', // @oxyhq/app-preset
+  // Every range here must resolve on the PUBLIC registry — a generated app
+  // installs from npm, not from this workspace. So a pin tracks the PUBLISHED
+  // version, never `packages/<pkg>/package.json`: a workspace version that has
+  // been bumped but not yet published names a range nothing can resolve.
+  oxyServices: '^30.0.0', // @oxyhq/services
+  oxyCore: '^23.0.0', // @oxyhq/core
+  oxyBloom: '^0.67.0', // @oxyhq/bloom — tracks the workspace catalog, not npm latest
+  oxyContracts: '^0.34.0', // @oxyhq/contracts
+  oxyAppPreset: '^0.3.0', // @oxyhq/app-preset
 
   // --- Expo SDK 57 core ---
-  expo: '^57.0.4',
-  expoConstants: '~57.0.3',
-  expoFont: '~57.0.0',
-  expoImage: '~57.0.0',
-  expoLinking: '~57.0.2',
-  expoRouter: '~57.0.4',
+  expo: '^57.0.6',
+  expoConstants: '~57.0.5',
+  expoFont: '~57.0.1',
+  expoImage: '~57.0.1',
+  expoLinking: '~57.0.3',
+  expoRouter: '~57.0.6',
   expoSplashScreen: '~57.0.2',
-  expoStatusBar: '~57.0.0',
-  expoSystemUi: '~57.0.0',
-  expoWebBrowser: '~57.0.0',
-  expoBuildProperties: '~57.0.3',
+  expoStatusBar: '~57.0.1',
+  expoSystemUi: '~57.0.1',
+  expoWebBrowser: '~57.0.1',
+  expoBuildProperties: '~57.0.5',
   expoVectorIcons: '^15.1.1', // @expo/vector-icons
 
-  // --- Oxy SDK UI optional peers (toast / haptics / avatar crop / QR sign-in) ---
-  expoHaptics: '~57.0.0',
-  expoImageManipulator: '~57.0.0',
-  reactNativeQrcodeSvg: '^6.3.15',
+  // --- Oxy SDK UI optional peers (toast / haptics / avatar crop / file picking / QR sign-in) ---
+  // These are declared OPTIONAL by @oxyhq/services, but the screens that name
+  // them are reachable from its root barrel — and `tsc` resolves the specifier
+  // of an `import()` even when the call is lazy — so a consumer of the barrel
+  // must install them or fail to typecheck with TS2307. Adding a screen to the
+  // barrel upstream therefore adds a peer here; the list is not optional in
+  // practice. See packages/services/__tests__/notifications/barrelIsolation.test.ts.
+  expoHaptics: '~57.0.1',
+  expoImagePicker: '~57.0.4',
+  expoImageManipulator: '~57.0.4',
+  expoDocumentPicker: '~57.0.1',
+  reactNativeQrcodeSvg: '^6.3.0',
 
   // --- React / React Native (Expo SDK 57 pins) ---
   react: '19.2.3',
@@ -40,6 +52,7 @@ export const VERSIONS = {
   reactNative: '0.86.0',
   reactNativeWeb: '~0.21.0',
   reactTypes: '^19.2.17', // @types/react
+  reactDomTypes: '^19.2.3', // @types/react-dom
 
   // --- Native modules (Expo SDK 57 aligned) ---
   asyncStorage: '2.2.0', // @react-native-async-storage/async-storage
@@ -74,12 +87,23 @@ export const VERSIONS = {
   eslintConfigExpo: '~57.0.0',
   nodeTypes: '^20.0.0', // @types/node
 
-  // --- Backend (Express + Mongoose + Socket.IO) ---
-  express: '^4.22.1',
+  // --- Backend (Express + Socket.IO) ---
+  express: '^4.22.2',
   expressTypes: '^4.17.23', // @types/express
-  mongoose: '^8.22.1',
   socketIo: '^4.8.1', // socket.io
   dotenv: '^16.4.7',
+
+  // --- Backend datastore (PostgreSQL via drizzle) ---
+  // drizzle-orm and postgres are pinned EXACTLY, not caret-ranged: they are the
+  // peer dependencies @oxyhq/db declares, and drizzle's minor releases have
+  // changed generated DDL. One resolved version per ecosystem backend is what
+  // keeps a scaffolded app's migrations comparable with everyone else's.
+  // @oxyhq/db — column builders, casing authority, migration ledger. Published
+  // version, not the workspace one (see the Oxy SDK note at the top).
+  oxyDb: '^0.1.2',
+  drizzleOrm: '0.45.2', // drizzle-orm
+  postgres: '3.4.9', // postgres (postgres.js driver)
+  drizzleKit: '0.31.10', // drizzle-kit — devDependency; generates migrations only
 } as const;
 
 export type VersionKey = keyof typeof VERSIONS;

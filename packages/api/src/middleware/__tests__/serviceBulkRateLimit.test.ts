@@ -8,6 +8,8 @@
  *   - POST /assets/service/cache      (mirror remote media into the cache ns)
  *   - POST /assets/service/federation (persist durable federated media)
  *   - POST /assets/service/user-media (persist media for a local user; MCP)
+ *   - POST /assets/service/by-ids     (resolve asset metadata for a batch of ids)
+ *   - POST /assets/service/by-sha256  (reverse-resolve assets by content hash)
  *
  * Like `/federation/*` (#604), these must NOT share the per-IP browser budget
  * (`rl:general`, 1000/15min) — a backfill exhausts it and 429s legitimate bulk
@@ -42,6 +44,11 @@ function serviceToken(overrides: Record<string, unknown> = {}): string {
       appId: 'app-1',
       appName: 'Mention',
       credentialId: 'cred-1',
+      // The full attribution tuple the real mint emits (ADR 0007). A fixture
+      // short of it is not a service token as far as `verifyServiceToken` is
+      // concerned, so leaving these out would silently test the reject path.
+      ownerAccountId: 'owner-account-1',
+      environment: 'production',
       scopes: ['federation:write'],
       ...overrides,
     },
@@ -94,6 +101,10 @@ describe('isServiceToServiceBulkRequest', () => {
       '/assets/service/cache',
       '/assets/service/federation',
       '/assets/service/user-media',
+      // The bulk READ lookups. Absent from the set until a relying app's
+      // metadata backfill drew 24,423 429s off the browser budget.
+      '/assets/service/by-ids',
+      '/assets/service/by-sha256',
     ]) {
       expect(isServiceToServiceBulkRequest(makeReq(path, `Bearer ${serviceToken()}`))).toBe(true);
     }
@@ -159,6 +170,24 @@ describe('general limiter (rl:general) honours the token-gated exemption', () =>
       path: '/users/me',
       authorization: `Bearer ${serviceToken()}`,
     });
+    expect(res.status).toBe(200);
+    expect(hasRateLimitHeaders(res.headers)).toBe(true);
+    expect(res.headers['ratelimit-limit']).toBe('1000');
+  });
+
+  it('SKIPS the /assets/service/* LOOKUP paths with a valid service token', async () => {
+    for (const path of ['/assets/service/by-ids', '/assets/service/by-sha256']) {
+      const res = await request(server, { method: 'POST', path, authorization: `Bearer ${serviceToken()}` });
+      expect(res.status).toBe(200);
+      expect(hasRateLimitHeaders(res.headers)).toBe(false);
+    }
+  });
+
+  it('STILL enforces the LOOKUP paths for an unauthenticated request', async () => {
+    // The exemption is token-gated, so an unauthenticated flood of these paths
+    // keeps the per-IP browser ceiling. This is why allowlisting them does not
+    // widen the unauthenticated attack surface.
+    const res = await request(server, { method: 'POST', path: '/assets/service/by-ids' });
     expect(res.status).toBe(200);
     expect(hasRateLimitHeaders(res.headers)).toBe(true);
     expect(res.headers['ratelimit-limit']).toBe('1000');

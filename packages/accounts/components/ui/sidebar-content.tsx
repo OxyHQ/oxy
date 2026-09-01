@@ -4,7 +4,7 @@ import { BlurView } from 'expo-blur';
 import { useRouter, usePathname, type Href } from 'expo-router';
 import { useColors } from '@/hooks/useColors';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { darkenColor } from '@/utils/color-utils';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import type { MaterialCommunityIconName } from '@/types/icons';

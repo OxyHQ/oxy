@@ -1,9 +1,20 @@
-import Session, { type ISession } from '../models/Session';
-import { User, type IUser } from '../models/User';
+import { and, desc, asc, eq, gt, gte, ne } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { sessions } from '../db/schema/sessions';
+/**
+ * The user half of `getSessionWithUser` — the value that becomes `req.user`.
+ *
+ * `userService.readAccountDocument` is the SAME serializer `GET /users/me/data`
+ * and `PUT /users/resolve` return, so the authenticated request's view of an
+ * account and the API's own document view of it cannot describe it differently.
+ * It reads through `publicColumns(users)`, which is strictly narrower than the
+ * `.select('-password')` this replaces: the contact-discovery hashes, the raw
+ * phone number and the refresh token no longer ride on `req.user` at all.
+ */
+import { userService, type AccountDocument } from './user.service';
 import { logger } from '../utils/logger';
-import sessionCache from '../utils/sessionCache';
+import sessionCache, { type CachedSession } from '../utils/sessionCache';
 import userCache from '../utils/userCache';
-import { Types } from 'mongoose';
 import securityActivityService from './securityActivityService';
 import {
   extractDeviceInfo,
@@ -12,8 +23,17 @@ import {
   deriveServiceDeviceId,
   DeviceFingerprint
 } from '../utils/deviceUtils';
-import { generateSessionTokens, validateAccessToken, validateRefreshToken } from '../utils/sessionUtils';
+import {
+  checkAccessTokenBinding,
+  generateSessionTokens,
+  tokenBindingFromRow,
+  validateAccessToken,
+  validateRefreshToken,
+  type AccessTokenBinding,
+  type SessionTokenBindingRow,
+} from '../utils/sessionUtils';
 import deviceSessionService from './deviceSession.service';
+import { broadcastDeviceState } from '../utils/socket';
 import type { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
@@ -23,10 +43,24 @@ import type {
   SessionRefreshResult,
 } from '../types/session.types';
 
+/**
+ * The half of `SessionTokenBindingRow` a MINT decides. `sessionId` and `userId`
+ * are the row's identity — the mint already holds both and never derives them
+ * from the binding — so what is left is exactly the set of columns the write
+ * spreads and the set of claims `tokenBindingFromRow` reads. Naming it keeps
+ * those two in step: a binding column added to the row shape stops compiling
+ * here until the mint decides a value for it.
+ *
+ * `scopes` is re-declared mutable. The row shape says `readonly` because a
+ * reader must not edit the grant it was handed; this value is the one being
+ * WRITTEN to `sessions.scopes`, and drizzle's insert/update types take the
+ * column's own `string[]`.
+ */
+type SessionBinding = Omit<SessionTokenBindingRow, 'sessionId' | 'userId' | 'scopes'> & {
+  scopes: string[];
+};
+
 const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000; // 7 days
-const ACCESS_TOKEN_EXPIRES_IN = '15m';
-const REFRESH_TOKEN_EXPIRES_IN = '7d';
-const OBJECT_ID_LENGTH = 24; // MongoDB ObjectId hex string length
 const TOKEN_ROTATION_GRACE_PERIOD_MS = 30_000; // 30 seconds grace period for concurrent tab refreshes
 
 /**
@@ -47,49 +81,104 @@ const MANAGED_SESSION_RECHECK_MS = 60_000;
 const managedSessionRecheckAt = new Map<string, number>();
 
 /**
- * Extract userId string from various possible formats (ObjectId, populated object, string)
- * Handles edge cases and corrupted cache entries gracefully
- * 
- * @param userIdValue - The userId value which could be ObjectId, populated object, or string
- * @returns Extracted userId string or undefined if invalid
+ * The columns of a `sessions` row this service reads.
+ *
+ * Named EXPLICITLY rather than `select()`-ing the table: `access_token`,
+ * `refresh_token` and `previous_refresh_token` are registered in
+ * `db/schema/protectedColumns.ts`, and a bare `select()` against `sessions`
+ * fails the repo-wide gate in `schema/__tests__/protectedColumns.test.ts`. This
+ * service is the one place that legitimately needs the token columns — it mints
+ * and rotates them — so it opts in by naming them, which is exactly the
+ * greppable shape that registry asks for.
  */
-function extractUserIdFromCache(userIdValue: unknown): string | undefined {
-  if (!userIdValue) return undefined;
+const SESSION_COLUMNS = {
+  id: sessions.id,
+  sessionId: sessions.sessionId,
+  userId: sessions.userId,
+  deviceId: sessions.deviceId,
+  deviceName: sessions.deviceName,
+  deviceType: sessions.deviceType,
+  platform: sessions.platform,
+  browser: sessions.browser,
+  os: sessions.os,
+  lastActiveAt: sessions.lastActiveAt,
+  userAgent: sessions.userAgent,
+  deviceFingerprint: sessions.deviceFingerprint,
+  accessToken: sessions.accessToken,
+  refreshToken: sessions.refreshToken,
+  previousRefreshToken: sessions.previousRefreshToken,
+  tokenRotatedAt: sessions.tokenRotatedAt,
+  operatedByUserId: sessions.operatedByUserId,
+  // The access-token v2 binding. Selected on every read because it is what
+  // `validateSession` checks the presented token's claims against and what
+  // every re-mint reproduces — a session read that omitted it would mint a
+  // token asserting less than the row knows.
+  applicationId: sessions.applicationId,
+  clientId: sessions.clientId,
+  scopes: sessions.scopes,
+  deviceSessionId: sessions.deviceSessionId,
+  deviceContextId: sessions.deviceContextId,
+  isActive: sessions.isActive,
+  expiresAt: sessions.expiresAt,
+  lastRefresh: sessions.lastRefresh,
+  createdAt: sessions.createdAt,
+  updatedAt: sessions.updatedAt,
+} as const;
 
-  try {
-    if (userIdValue instanceof Types.ObjectId) {
-      return userIdValue.toString();
-    }
+/**
+ * An id column's value, or `undefined` when it holds none.
+ *
+ * Both columns this reads (`sessions.user_id`, `sessions.operated_by_user_id`)
+ * are `text`, so this is now only the empty-string/NULL check. The ObjectId
+ * branches are gone with the 24-hex length check that used to sit beside them
+ * — a 24-char test would REJECT every uuid v7 id minted after the cutover — and
+ * so are the "value may be a populated user document" branches: Mongo replaced
+ * `session.userId` with the user doc, and `getSessionWithUser` no longer does
+ * (see its closing note), so a document can no longer reach here.
+ */
+function extractUserId(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  return value.length > 0 ? value : undefined;
+}
 
-    if (typeof userIdValue === 'object' && userIdValue !== null && '_id' in userIdValue) {
-      const extractedId = (userIdValue as { _id?: unknown })._id;
-      if (extractedId instanceof Types.ObjectId) {
-        return extractedId.toString();
-      }
-      if (typeof extractedId === 'string' && Types.ObjectId.isValid(extractedId) && extractedId.length === OBJECT_ID_LENGTH) {
-        return extractedId;
-      }
-      return undefined;
-    }
+/**
+ * The access-token v2 binding a live session row describes (issue #937,
+ * Phase 6). The ROW is the authority in both directions: this is what a re-mint
+ * puts into the claims, and what `validateSession` checks a presented token's
+ * claims back against — see `tokenBindingFromRow`, which derives the claims and
+ * carries the reason the actor/subject split is written in exactly one place.
+ */
+function tokenBindingOf(session: CachedSession): AccessTokenBinding {
+  return tokenBindingFromRow(bindingRowOf(session), session.deviceId);
+}
 
-    if (typeof userIdValue === 'string') {
-      if (Types.ObjectId.isValid(userIdValue) && userIdValue.length === OBJECT_ID_LENGTH) {
-        return userIdValue;
-      }
-      return undefined;
-    }
+/** The same row, in the shape `checkAccessTokenBinding` validates against. */
+function bindingRowOf(session: CachedSession): SessionTokenBindingRow {
+  return {
+    sessionId: session.sessionId,
+    userId: session.userId,
+    operatedByUserId: session.operatedByUserId,
+    applicationId: session.applicationId,
+    clientId: session.clientId,
+    deviceSessionId: session.deviceSessionId,
+    deviceContextId: session.deviceContextId,
+    scopes: session.scopes,
+  };
+}
 
-    if (typeof userIdValue === 'object' && userIdValue !== null && 'toString' in userIdValue) {
-      const idString = String(userIdValue);
-      if (Types.ObjectId.isValid(idString) && idString.length === OBJECT_ID_LENGTH) {
-        return idString;
-      }
-    }
-  } catch {
-    // Silently handle extraction errors
-  }
-
-  return undefined;
+/**
+ * Whether a stored access token still describes the binding its row now
+ * carries. Read by `getAccessToken`, which is the one seam that hands back a
+ * STORED token instead of minting a fresh one — so it is also the only place a
+ * token can go stale relative to its row (the binding is written after the
+ * mint on the device-login lane, and a v1 token predates the binding
+ * entirely). A mismatch means re-mint, never "serve it anyway".
+ */
+function storedTokenMatchesBinding(session: CachedSession): boolean {
+  const validation = validateAccessToken(session.accessToken);
+  if (!validation.valid || !validation.payload) return false;
+  return checkAccessTokenBinding(validation.payload, bindingRowOf(session)).ok
+    && validation.payload.ver === 2;
 }
 
 class SessionService {
@@ -110,10 +199,10 @@ class SessionService {
    * mongoose wholesale, and would couple every session consumer to them).
    */
   private async ensureManagedSessionAuthorized(
-    session: { sessionId: string; userId: unknown; operatedByUserId?: unknown },
+    session: Pick<CachedSession, 'sessionId' | 'userId' | 'operatedByUserId'>,
     opts: { force?: boolean } = {}
   ): Promise<boolean> {
-    const operatorId = extractUserIdFromCache(session.operatedByUserId);
+    const operatorId = extractUserId(session.operatedByUserId);
     if (!operatorId) {
       return true; // ordinary session (no operator) — nothing to bind
     }
@@ -126,9 +215,10 @@ class SessionService {
       }
     }
 
-    // `userId` may be a raw ObjectId (refresh path) or a populated user doc
-    // (validate path, where getSessionWithUser swaps in the user) — normalize.
-    const accountId = extractUserIdFromCache(session.userId);
+    // The account this session belongs to. Mongo could hand back a populated
+    // user document here (the validate path swapped one in); `sessions.user_id`
+    // is a plain `text` foreign key now, so the id is the id.
+    const accountId = extractUserId(session.userId);
     if (!accountId) {
       return true;
     }
@@ -149,15 +239,27 @@ class SessionService {
       managedSessionRecheckAt.set(sessionId, Date.now());
       return true;
     } catch (error) {
-      // Never hard-fail auth on a transient membership-lookup error; the refresh
-      // path will re-check. Fail OPEN here (keep the session) to avoid locking a
-      // legitimately-switched operator out on a flaky DB read.
-      logger.error('[SessionService] Managed-session act_as re-check failed', error instanceof Error ? error : new Error(String(error)), {
+      // FAIL CLOSED. This used to return `true` — "never hard-fail auth on a
+      // transient lookup error" — which made a database fault an ANSWER: for as
+      // long as the membership read was broken, every managed-account session on
+      // the platform authorized itself, including the ones whose `account:act_as`
+      // had just been revoked. That is the whole grant this check exists to be
+      // able to withdraw, and it is not a grant that may be extended by an
+      // outage. `verifyActingAs` already fails closed on every negative it can
+      // establish; an unanswerable question is not weaker evidence than "no
+      // membership", it is no evidence at all.
+      //
+      // The session is NOT deactivated: an unanswered question is not a
+      // revocation, and destroying a session on a flaky read would turn a blip
+      // into a sign-out the user has to recover from. The recheck timestamp is
+      // deliberately not written either, so the very next request re-asks rather
+      // than inheriting this failure for the throttle window.
+      logger.error('[SessionService] Managed-session act_as re-check failed — failing closed', error instanceof Error ? error : new Error(String(error)), {
         component: 'SessionService',
         method: 'ensureManagedSessionAuthorized',
         sessionId: sessionId.substring(0, 8),
       });
-      return true;
+      return false;
     }
   }
 
@@ -171,7 +273,7 @@ class SessionService {
    * @param useCache - Whether to use cache (default: true)
    * @returns Session object or null if not found or expired
    */
-  async getSession(sessionId: string, useCache = true): Promise<ISession | null> {
+  async getSession(sessionId: string, useCache = true): Promise<CachedSession | null> {
     try {
       // Try cache first
       if (useCache) {
@@ -181,12 +283,20 @@ class SessionService {
         }
       }
 
-      // Fallback to database
-      const session = await Session.findOne({
-        sessionId,
-        isActive: true,
-        expiresAt: { $gt: new Date() }
-      }).lean();
+      // Fallback to database. `is_active` + `expires_at > now()` are filtered
+      // HERE, exactly as Mongo did — the expiry sweep is housekeeping only, and
+      // relying on it would turn its interval into a live-credential window.
+      const [session] = await getDb()
+        .select(SESSION_COLUMNS)
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.sessionId, sessionId),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, new Date())
+          )
+        )
+        .limit(1);
 
       if (!session) {
         return null;
@@ -194,10 +304,10 @@ class SessionService {
 
       // Cache the session
       if (useCache) {
-        sessionCache.set(sessionId, session as unknown as ISession);
+        sessionCache.set(sessionId, session);
       }
 
-      return session as unknown as ISession;
+      return session;
     } catch (error) {
       logger.error('[SessionService] Failed to get session', error instanceof Error ? error : new Error(String(error)), {
         component: 'SessionService',
@@ -219,23 +329,27 @@ class SessionService {
    * @param sessionId - The session ID to lookup
    * @param options - Configuration options
    * @param options.useCache - Whether to use cache (default: true)
-   * @param options.select - User fields to select (default: '-password')
    * @returns Session and user object, or null if not found
    */
   async getSessionWithUser(
-    sessionId: string, 
-    options: { useCache?: boolean; select?: string } = {}
-  ): Promise<{ session: ISession; user: any } | null> {
+    sessionId: string,
+    options: { useCache?: boolean } = {}
+  ): Promise<{ session: CachedSession; user: AccountDocument } | null> {
     try {
-      const { useCache = true, select = '-password' } = options;
+      const { useCache = true } = options;
+      // Mongoose projection strings do not travel to Postgres, and the only
+      // caller ever passed the default, so the `select` option is dropped
+      // rather than translated. `readAccountDocument` reads through
+      // `publicColumns(users)`, which withholds strictly more than
+      // `-password` did.
 
       // Try cache first for session (fast path)
       if (useCache) {
         const cached = sessionCache.get(sessionId);
         if (cached) {
           // Extract userId from cached session (handles various formats)
-          const userId = extractUserIdFromCache(cached.userId);
-          
+          const userId = extractUserId(cached.userId);
+
           if (!userId) {
             sessionCache.invalidate(sessionId);
           } else {
@@ -243,53 +357,58 @@ class SessionService {
             if (cachedUser) {
               return { session: cached, user: cachedUser };
             }
-            
-            const user = await User.findById(userId).select(select).lean<IUser>();
+
+            const user = await userService.readAccountDocument(userId);
             if (user) {
               userCache.set(userId, user);
               return { session: cached, user };
             }
-            
+
             sessionCache.invalidate(sessionId);
             return null;
           }
         }
       }
 
-      const sessionDoc = await Session.findOne({
-        sessionId,
-        isActive: true,
-        expiresAt: { $gt: new Date() }
-      }).lean();
+      const [sessionRow] = await getDb()
+        .select(SESSION_COLUMNS)
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.sessionId, sessionId),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, new Date())
+          )
+        )
+        .limit(1);
 
-      if (!sessionDoc?.userId) {
+      if (!sessionRow?.userId) {
         return null;
       }
 
       if (useCache) {
-        sessionCache.set(sessionId, sessionDoc as unknown as ISession);
+        sessionCache.set(sessionId, sessionRow);
       }
 
-      const userId = sessionDoc.userId.toString();
+      const userId = sessionRow.userId;
       let user = userCache.get(userId);
-      
+
       if (!user) {
-        const userDoc = await User.findById(userId).select(select).lean<IUser>();
+        const userDoc = await userService.readAccountDocument(userId);
         if (!userDoc) {
           return null;
         }
         user = userDoc;
-        if (useCache && user) {
+        if (useCache) {
           userCache.set(userId, user);
         }
       }
 
-      const session = {
-        ...sessionDoc,
-        userId: user
-      } as unknown as ISession;
-
-      return { session, user };
+      // Mongo replaced `session.userId` with the populated user document here.
+      // That swap does NOT travel: `sessions.user_id` is a `text` foreign key
+      // and the user rides beside the session in the returned pair instead, so
+      // `session.userId` stays the id it is declared to be.
+      return { session: sessionRow, user };
     } catch (error) {
       logger.error('[SessionService] Failed to get session with user', error instanceof Error ? error : new Error(String(error)), {
         component: 'SessionService',
@@ -332,6 +451,23 @@ class SessionService {
         return null;
       }
 
+      // Resource-server validation (issue #937, Phase 6). The signature and
+      // expiry were proven above; this proves the token still describes THIS
+      // session — issuer, audience, `sid`, subject, actor, authorized party,
+      // device context and scopes, all against the row. A v1 token asserted
+      // none of it and resolves to the row's own binding while the migration
+      // window is open.
+      const binding = checkAccessTokenBinding(validationResult.payload, bindingRowOf(session));
+      if (!binding.ok) {
+        logger.warn('[SessionService] Access token rejected by binding check', {
+          component: 'SessionService',
+          method: 'validateSession',
+          sessionId: sessionId.substring(0, 8),
+          reason: binding.reason,
+        });
+        return null;
+      }
+
       if (sessionCache.shouldUpdateLastActive(sessionId)) {
         this.updateLastActivity(sessionId).catch(() => {
           // Silently fail - non-critical operation
@@ -341,7 +477,8 @@ class SessionService {
       return {
         session,
         user: result.user,
-        payload: validationResult.payload
+        payload: validationResult.payload,
+        token: binding.identity,
       };
     } catch (error) {
       logger.error('[SessionService] Session validation failed', error instanceof Error ? error : new Error(String(error)), {
@@ -361,20 +498,17 @@ class SessionService {
   async updateLastActivity(sessionId: string): Promise<void> {
     try {
       const now = new Date();
-      
-      await Session.updateOne(
-        { sessionId, isActive: true },
-        { 
-          $set: { 
-            'deviceInfo.lastActive': now,
-            updatedAt: now
-          } 
-        }
-      );
+
+      // `updated_at` is maintained by drizzle's `$onUpdate`, so it is no longer
+      // set by hand here (Mongoose needed the explicit `$set`).
+      await getDb()
+        .update(sessions)
+        .set({ lastActiveAt: now })
+        .where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true)));
 
       const cached = sessionCache.get(sessionId);
       if (cached) {
-        cached.deviceInfo.lastActive = now;
+        cached.lastActiveAt = now;
         sessionCache.set(sessionId, cached);
       }
     } catch (error) {
@@ -405,17 +539,26 @@ class SessionService {
     userId: string,
     req: Request,
     options: SessionCreateOptions = {}
-  ): Promise<ISession> {
+  ): Promise<CachedSession> {
     try {
-      const { deviceName, deviceFingerprint, stableDeviceKey, deviceId: explicitDeviceId, operatedByUserId } = options;
+      const {
+        deviceName,
+        deviceFingerprint,
+        stableDeviceKey,
+        deviceId: explicitDeviceId,
+        operatedByUserId,
+        application,
+        deviceContext,
+      } = options;
       // For a server-to-server session mint where the request itself carries no
       // stable client identity (UA = 'unknown', egress IP varies per call), the
       // UA/IP-derived deviceId would be random every time and sprawl a new
       // session per exchange. When a `stableDeviceKey` is supplied, derive a
       // deterministic deviceId from (userId, key) and feed it as the provided
       // deviceId so `extractDeviceInfo` skips the UA/IP derivation entirely —
-      // one (user, RP) then reuses a single session via the lookup below (no
-      // current caller passes `stableDeviceKey`; see `SessionCreateOptions`).
+      // one (user, key) then reuses a single session via the lookup below. The
+      // callers are the untrusted-client OAuth exchange and the service account
+      // switch; see `SessionCreateOptions` for the key each of them uses.
       // An explicit `deviceId` — e.g. the account-switch route threading the
       // operator's own central deviceId onto the minted managed-account
       // session — wins over the derived stable id, letting the caller stamp a
@@ -460,41 +603,110 @@ class SessionService {
       }
 
       // Check if this is a new device for this user (no previous sessions on this device)
-      const isNewDevice = !(await Session.findOne({
-        userId,
-        deviceId: deviceInfo.deviceId,
-      }).select('_id').lean());
+      const priorOnDevice = await getDb()
+        .select({ id: sessions.id })
+        .from(sessions)
+        .where(and(eq(sessions.userId, userId), eq(sessions.deviceId, deviceInfo.deviceId)))
+        .limit(1);
+      const isNewDevice = priorOnDevice.length === 0;
 
       // Reuse an existing active session. Prefer one already attributed to the
       // caller's (central) device; fall back to a LEGACY per-origin session so a
       // pre-unification session HOPS onto the central device (below) instead of
       // orphaning. Once migrated it's found by the primary lookup on subsequent
       // mints — the fallback can't re-sprawl.
-      let existingSession = await Session.findOne({
-        userId,
-        deviceId: deviceInfo.deviceId,
-        isActive: true,
-        expiresAt: { $gt: new Date() }
-      }).select('_id sessionId deviceId deviceInfo').lean();
+      const reusableOn = async (candidateDeviceId: string) => {
+        const [row] = await getDb()
+          .select(SESSION_COLUMNS)
+          .from(sessions)
+          .where(
+            and(
+              eq(sessions.userId, userId),
+              eq(sessions.deviceId, candidateDeviceId),
+              eq(sessions.isActive, true),
+              gt(sessions.expiresAt, new Date()),
+              // A DELEGATED mint may only reuse a session belonging to the SAME
+              // operator. One device can legitimately hold two people who both
+              // act as the same organization (issue #937, ADR 0001), and without
+              // this the second one silently takes over the first one's session
+              // row: `operated_by_user_id` is rewritten below, so the audit actor
+              // changes underneath a live session and removing either person
+              // revokes the other's access.
+              //
+              // The reverse is deliberately NOT tightened. A mint with no
+              // operator reuses whatever is there, including a delegated row,
+              // because the alternative — minting a second, operator-less session
+              // for a managed account — would create exactly the unbounded org
+              // session the `account:act_as` re-check exists to prevent.
+              ...(operatedByUserId ? [eq(sessions.operatedByUserId, operatedByUserId)] : []),
+              // An APPLICATION-bound mint may only reuse a session already
+              // bound to that same application (issue #937, Phase 6). Without
+              // this, an OAuth exchange on the user's central device finds the
+              // device's ordinary first-party session and hands the client a
+              // token for it — the third party would literally receive the
+              // shared device session, and renaming the row `"<App> OAuth"` is
+              // all that would record it happened.
+              //
+              // The reverse is deliberately NOT tightened: an unbound mint may
+              // still reuse whatever is there. An untrusted client's session
+              // lives on its own derived deviceId (see the OAuth exchange), so
+              // an unbound mint on the central device never reaches one, and
+              // adding the symmetric predicate would only mint spare rows.
+              ...(application ? [eq(sessions.applicationId, application.applicationId)] : [])
+            )
+          )
+          .limit(1);
+        return row;
+      };
+
+      let existingSession = await reusableOn(deviceInfo.deviceId);
 
       if (!existingSession && originDeviceId && originDeviceId !== deviceInfo.deviceId) {
-        existingSession = await Session.findOne({
-          userId,
-          deviceId: originDeviceId,
-          isActive: true,
-          expiresAt: { $gt: new Date() }
-        }).select('_id sessionId deviceId deviceInfo').lean();
+        existingSession = await reusableOn(originDeviceId);
       }
 
       if (existingSession) {
         const sessionId = existingSession.sessionId;
         const expiresAt = new Date(Date.now() + SESSION_EXPIRES_IN);
         const now = new Date();
+        // The binding this reuse leaves the session with: the caller's value
+        // for each half it supplied, the reused row's existing value for every
+        // half it said nothing about. Computed ONCE and fed to BOTH the mint
+        // below and the row update, because a mint that says nothing about a
+        // binding is not asserting NULL — it is saying nothing, and the row
+        // remains the authority.
+        //
+        // The two drifting apart is not a degraded session but a dead one:
+        // `checkAccessTokenBinding` refuses a token against its own row on
+        // every later request (`device_session_mismatch`, `actor_mismatch`,
+        // `client_mismatch`). The reaching caller is the device-flow approve
+        // route, `POST /auth/session/authorize/:sessionToken`, which passes a
+        // deviceId and a label and nothing else onto a device whose own
+        // session the login lane bound to a device context afterwards
+        // (`deviceSessionService.bindSessionToContext`).
+        const reusedBinding: SessionBinding = {
+          operatedByUserId: operatedByUserId ?? existingSession.operatedByUserId,
+          applicationId: application ? application.applicationId : existingSession.applicationId,
+          clientId: application ? application.clientId : existingSession.clientId,
+          // Re-applied from the grant whenever one is supplied, because a later
+          // grant can widen or narrow what the client was given — a supplied
+          // value REPLACES the row's, it never merges with it.
+          scopes: application ? application.scopes : existingSession.scopes,
+          deviceSessionId: deviceContext
+            ? deviceContext.deviceSessionId
+            : existingSession.deviceSessionId,
+          deviceContextId: deviceContext
+            ? deviceContext.deviceContextId
+            : existingSession.deviceContextId,
+        };
+
         // Tokens are re-minted with the ATTRIBUTION deviceId (the explicit
         // central id when supplied), so the reused access token's `deviceId`
         // claim addresses the caller's real device — the room the client's
         // SessionClient joins and where cross-domain broadcasts land.
-        const { accessToken, refreshToken } = generateSessionTokens(userId, sessionId, deviceInfo.deviceId);
+        const { accessToken, refreshToken } = generateSessionTokens(
+          tokenBindingFromRow({ sessionId, userId, ...reusedBinding }, deviceInfo.deviceId)
+        );
 
         // Migrate a reused session onto the caller's central device when an
         // explicit deviceId was supplied and the reused session still sits on a
@@ -508,30 +720,39 @@ class SessionService {
           ? explicitDeviceId
           : null;
 
-        const updated = await Session.findOneAndUpdate(
-          { _id: existingSession._id },
-          {
-            $set: {
-              accessToken,
-              refreshToken,
-              expiresAt,
-              lastRefresh: now,
-              ...(migrateToDeviceId ? { deviceId: migrateToDeviceId } : {}),
-              'deviceInfo.lastActive': now,
-              'deviceInfo.deviceName': deviceName || existingSession.deviceInfo?.deviceName,
-              'deviceInfo.userAgent': deviceInfo.userAgent,
-              // Bind the reused session to the CURRENT operator when this is an
-              // account switch (keeps the act_as re-check pointed at whoever just
-              // switched in); leave it untouched for ordinary sessions.
-              ...(operatedByUserId ? { operatedByUserId } : {}),
-              updatedAt: now
-            }
-          },
-          { new: true }
-        );
+        const [updated] = await getDb()
+          .update(sessions)
+          .set({
+            accessToken,
+            refreshToken,
+            // A reuse re-mint REPLACES the refresh token, so it owes the same
+            // grace record a rotation does. Whoever read this session before the
+            // re-mint still holds the replaced token — including another task's
+            // `sessionCache`, whose local tier no invalidation from here reaches
+            // — and without these two columns that holder is dead instantly
+            // rather than for the 30s `TOKEN_ROTATION_GRACE_PERIOD_MS` window
+            // `refreshTokens` grants its own callers.
+            previousRefreshToken: existingSession.refreshToken,
+            tokenRotatedAt: now,
+            expiresAt,
+            lastRefresh: now,
+            ...(migrateToDeviceId ? { deviceId: migrateToDeviceId } : {}),
+            lastActiveAt: now,
+            deviceName: deviceName || existingSession.deviceName,
+            userAgent: deviceInfo.userAgent,
+            // The token minted just above asserts exactly these, so the row is
+            // written from the SAME expression rather than a second one that
+            // can disagree with it. Unconditional on purpose: a conditional
+            // write is what let the token assert NULL while the row kept its
+            // value. Where the caller supplied nothing these re-write the
+            // value the row already held, which is a no-op by construction.
+            ...reusedBinding,
+          })
+          .where(eq(sessions.id, existingSession.id))
+          .returning(SESSION_COLUMNS);
 
         if (updated) {
-          sessionCache.set(sessionId, updated as ISession);
+          sessionCache.set(sessionId, updated);
           if (migrateToDeviceId) {
             logger.info('[SessionService] Migrated reused session onto caller device', {
               component: 'SessionService',
@@ -547,7 +768,16 @@ class SessionService {
             // device); detach only deactivates a DIFFERENT stale session the old
             // doc referenced. Never fail the mint on cleanup errors.
             try {
-              await deviceSessionService.detachMigratedAccount(previousDeviceId, userId, sessionId);
+              // The detach advances the OLD device's `revision`, so it has to be
+              // announced: without this the clients still listening on that
+              // device room hold a revision the server has moved past, with no
+              // event that would ever tell them to re-fetch.
+              const detached = await deviceSessionService.detachMigratedAccount(
+                previousDeviceId,
+                userId,
+                sessionId
+              );
+              if (detached) broadcastDeviceState(detached);
             } catch (error) {
               logger.warn('[SessionService] Failed to detach migrated account from old device doc', {
                 component: 'SessionService',
@@ -558,38 +788,59 @@ class SessionService {
               });
             }
           }
-          return updated as ISession;
+          return updated;
         }
       }
 
       const sessionId = crypto.randomUUID();
       const expiresAt = new Date(Date.now() + SESSION_EXPIRES_IN);
       const now = new Date();
-      const { accessToken, refreshToken } = generateSessionTokens(userId, sessionId, deviceInfo.deviceId);
+      // A fresh session has no prior binding to preserve, so the caller's
+      // options ARE the binding — but it goes through one expression per field
+      // for the same reason the reuse branch does: the mint and the row are
+      // written from the SAME value, never from two copies of it.
+      //
+      // NULL, not a placeholder: NULL means "not one application's session",
+      // "not a delegated session" and "no device context yet" — all first-class
+      // states, not missing data, and the `account:act_as` re-check keys off
+      // the operator being NULL.
+      const newBinding: SessionBinding = {
+        operatedByUserId: operatedByUserId || null,
+        applicationId: application?.applicationId ?? null,
+        clientId: application?.clientId ?? null,
+        scopes: application?.scopes ?? [],
+        deviceSessionId: deviceContext?.deviceSessionId ?? null,
+        deviceContextId: deviceContext?.deviceContextId ?? null,
+      };
+      const { accessToken, refreshToken } = generateSessionTokens(
+        tokenBindingFromRow({ sessionId, userId, ...newBinding }, deviceInfo.deviceId)
+      );
 
-      const session = new Session({
-        sessionId,
-        userId,
-        deviceId: deviceInfo.deviceId,
-        deviceInfo: {
+      // `deviceInfo` was a nested subdocument in Mongo; the eight fields are
+      // real columns now (see the table in `db/schema/sessions.ts`).
+      const [session] = await getDb()
+        .insert(sessions)
+        .values({
+          sessionId,
+          userId,
+          deviceId: deviceInfo.deviceId,
           deviceName: deviceInfo.deviceName,
           deviceType: deviceInfo.deviceType,
           platform: deviceInfo.platform,
           browser: deviceInfo.browser,
           os: deviceInfo.os,
           userAgent: deviceInfo.userAgent,
-          fingerprint: deviceInfo.fingerprint,
-          lastActive: now
-        },
-        accessToken,
-        refreshToken,
-        operatedByUserId: operatedByUserId || null,
-        isActive: true,
-        expiresAt,
-        lastRefresh: now
-      });
+          deviceFingerprint: deviceInfo.fingerprint,
+          lastActiveAt: now,
+          accessToken,
+          refreshToken,
+          ...newBinding,
+          isActive: true,
+          expiresAt,
+          lastRefresh: now,
+        })
+        .returning(SESSION_COLUMNS);
 
-      await session.save();
       sessionCache.set(sessionId, session);
 
       // Log security event for new device (only if this is the first session on this device)
@@ -638,12 +889,18 @@ class SessionService {
       const sessionId = payload.sessionId;
 
       // First, try matching the current refresh token (fast path)
-      const session = await Session.findOne({
-        sessionId,
-        refreshToken,
-        isActive: true,
-        expiresAt: { $gt: new Date() }
-      });
+      const [session] = await getDb()
+        .select(SESSION_COLUMNS)
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.sessionId, sessionId),
+            eq(sessions.refreshToken, refreshToken),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, new Date())
+          )
+        )
+        .limit(1);
 
       // If no match on current token, check if this is a recently-rotated token (grace period).
       // This handles the multi-tab race condition: Tab A rotates the token, Tab B still holds
@@ -652,13 +909,20 @@ class SessionService {
         const now = new Date();
         const graceWindowStart = new Date(now.getTime() - TOKEN_ROTATION_GRACE_PERIOD_MS);
 
-        const graceSession = await Session.findOne({
-          sessionId,
-          previousRefreshToken: refreshToken,
-          tokenRotatedAt: { $gte: graceWindowStart },
-          isActive: true,
-          expiresAt: { $gt: now }
-        });
+        // Serves the partial index on (previous_refresh_token, token_rotated_at).
+        const [graceSession] = await getDb()
+          .select(SESSION_COLUMNS)
+          .from(sessions)
+          .where(
+            and(
+              eq(sessions.sessionId, sessionId),
+              eq(sessions.previousRefreshToken, refreshToken),
+              gte(sessions.tokenRotatedAt, graceWindowStart),
+              eq(sessions.isActive, true),
+              gt(sessions.expiresAt, now)
+            )
+          )
+          .limit(1);
 
         if (graceSession) {
           // A managed-account session must re-prove operator act_as on EVERY
@@ -696,35 +960,55 @@ class SessionService {
 
       // Standard rotation: generate new tokens and store the old one for grace period
       const now = new Date();
-      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateSessionTokens(
-        payload.userId || session.userId.toString(),
-        sessionId,
-        payload.deviceId || session.deviceId
-      );
+      // The rotation re-mints from the ROW's binding, not from the presented
+      // token's claims: a v1 refresh token carries none of them, and this is
+      // precisely how a session in the migration window graduates to v2.
+      const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateSessionTokens({
+        ...tokenBindingOf(session),
+        deviceId: payload.deviceId || session.deviceId,
+      });
 
-      session.previousRefreshToken = session.refreshToken;
-      session.tokenRotatedAt = now;
-      session.accessToken = newAccessToken;
-      session.refreshToken = newRefreshToken;
-      session.lastRefresh = now;
-      session.deviceInfo.lastActive = now;
-      // Sliding (idle) session window: a successful rotation is a USE of the
-      // session, so push the absolute expiry forward. In the zero-cookie
-      // device-first model the durable credential is the never-expiring
-      // deviceSecret; `expiresAt` must therefore be an IDLE timeout (a session
-      // dies only after SESSION_EXPIRES_IN of NO use), not a hard absolute cap
-      // measured from the last interactive sign-in. Renewed here alongside the
-      // token rotation so it is a single write.
-      session.expiresAt = new Date(now.getTime() + SESSION_EXPIRES_IN);
-      await session.save();
+      // Mongo mutated the document field by field and called `.save()`. Here it
+      // is ONE conditional update, and the condition is what makes the rotation
+      // single-use: it still requires the presented `refresh_token` to be the
+      // current one, so two tabs racing the same token cannot both rotate — the
+      // loser matches nothing and falls to the grace path on its next attempt.
+      const [rotated] = await getDb()
+        .update(sessions)
+        .set({
+          previousRefreshToken: session.refreshToken,
+          tokenRotatedAt: now,
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+          lastRefresh: now,
+          lastActiveAt: now,
+          // Sliding (idle) session window: a successful rotation is a USE of the
+          // session, so push the absolute expiry forward. In the zero-cookie
+          // device-first model the durable credential is the never-expiring
+          // deviceSecret; `expiresAt` must therefore be an IDLE timeout (a
+          // session dies only after SESSION_EXPIRES_IN of NO use), not a hard
+          // absolute cap measured from the last interactive sign-in. Renewed
+          // here alongside the token rotation so it is a single write.
+          expiresAt: new Date(now.getTime() + SESSION_EXPIRES_IN),
+        })
+        .where(
+          and(eq(sessions.id, session.id), eq(sessions.refreshToken, session.refreshToken))
+        )
+        .returning(SESSION_COLUMNS);
+
+      if (!rotated) {
+        // A concurrent rotation won. Never hand back a token pair this call did
+        // not actually persist.
+        return null;
+      }
 
       sessionCache.invalidate(sessionId);
-      sessionCache.set(sessionId, session);
+      sessionCache.set(sessionId, rotated);
 
       return {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
-        session
+        session: rotated
       };
     } catch (error) {
       logger.error('[SessionService] Failed to refresh tokens', error instanceof Error ? error : new Error(String(error)), {
@@ -746,17 +1030,21 @@ class SessionService {
    */
   async deactivateSession(sessionId: string): Promise<boolean> {
     try {
-      const result = await Session.updateOne(
-        { sessionId, isActive: true },
-        { $set: { isActive: false, updatedAt: new Date() } }
-      );
+      // `deactivate` never DELETES — only the expiry sweep removes a row, which
+      // is what keeps every `session_id` reference from another table
+      // lifecycle-independent.
+      const deactivated = await getDb()
+        .update(sessions)
+        .set({ isActive: false })
+        .where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true)))
+        .returning({ id: sessions.id });
 
       // Invalidate cache
       sessionCache.invalidate(sessionId);
       managedSessionRecheckAt.delete(sessionId);
 
       logger.info('[SessionService] Deactivated session', { sessionId: sessionId.substring(0, 8) });
-      return result.modifiedCount > 0;
+      return deactivated.length > 0;
     } catch (error) {
       logger.error('[SessionService] Failed to deactivate session', error instanceof Error ? error : new Error(String(error)), {
         component: 'SessionService',
@@ -780,21 +1068,23 @@ class SessionService {
    */
   async deactivateAllUserSessions(userId: string, excludeSessionId?: string): Promise<number> {
     try {
-      const filter: any = { userId, isActive: true };
-      if (excludeSessionId) {
-        filter.sessionId = { $ne: excludeSessionId };
-      }
-
-      const result = await Session.updateMany(
-        filter,
-        { $set: { isActive: false, updatedAt: new Date() } }
-      );
+      const deactivated = await getDb()
+        .update(sessions)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(sessions.userId, userId),
+            eq(sessions.isActive, true),
+            ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : [])
+          )
+        )
+        .returning({ id: sessions.id });
 
       // Invalidate all cached sessions for this user
       sessionCache.invalidateUserSessions(userId);
 
-      logger.info('[SessionService] Deactivated sessions for user', { count: result.modifiedCount, userId });
-      return result.modifiedCount;
+      logger.info('[SessionService] Deactivated sessions for user', { count: deactivated.length, userId });
+      return deactivated.length;
     } catch (error) {
       logger.error('[SessionService] Failed to deactivate all user sessions', error instanceof Error ? error : new Error(String(error)), {
         component: 'SessionService',
@@ -815,20 +1105,23 @@ class SessionService {
    * @param userId - The user ID to get sessions for
    * @returns Array of active sessions (empty array on error)
    */
-  async getUserActiveSessions(userId: string): Promise<ISession[]> {
+  async getUserActiveSessions(userId: string): Promise<CachedSession[]> {
     try {
-      const sessions = await Session.find({
-        userId,
-        isActive: true,
-        expiresAt: { $gt: new Date() }
-      })
-      .sort({ 
-        'deviceInfo.lastActive': -1, // Most recent first
-        'sessionId': 1 // Secondary sort by sessionId for stability
-      })
-      .lean();
-
-      return sessions as unknown as ISession[];
+      // Serves the (user_id, is_active, expires_at) index.
+      return await getDb()
+        .select(SESSION_COLUMNS)
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.userId, userId),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, new Date())
+          )
+        )
+        .orderBy(
+          desc(sessions.lastActiveAt), // Most recent first
+          asc(sessions.sessionId) // Secondary sort for stability
+        );
     } catch (error) {
       logger.error('[SessionService] Failed to get user active sessions', error instanceof Error ? error : new Error(String(error)), {
         component: 'SessionService',
@@ -853,7 +1146,7 @@ class SessionService {
   async validateSessionById(
     sessionId: string, 
     populateUser = true
-  ): Promise<{ session: ISession; user?: any } | null> {
+  ): Promise<{ session: CachedSession; user?: AccountDocument } | null> {
     try {
       if (populateUser) {
         const result = await this.getSessionWithUser(sessionId, { useCache: true });
@@ -896,16 +1189,64 @@ class SessionService {
    */
   async getAccessToken(sessionId: string): Promise<{ accessToken: string; expiresAt: Date } | null> {
     try {
-      const session = await this.getSession(sessionId, true);
+      // The ROW, never a cached copy — the same rule `refreshTokens` states for
+      // itself, and for the same reason: this is the seam that hands out a
+      // CREDENTIAL, so it may only ever serve what the row currently says.
+      //
+      // `sessionCache` checks its per-process local tier BEFORE Redis and holds
+      // an entry for its 5-minute TTL, so a Redis `invalidate` from another ECS
+      // task does not reach it. A cached copy of a session another task has
+      // since re-minted therefore carries a superseded token PAIR: the access
+      // token no longer describes the row, and the refresh token it would fall
+      // back to has been out of the 30s rotation grace for most of those five
+      // minutes — so the fallback resolves to nothing and a valid session mints
+      // no token at all. That is the `invalid_grant` on `POST
+      // /auth/session/claim`; it "healed" on its own only when the entry aged
+      // out. Two callers reach here, both mint paths (the device-flow claim and
+      // the per-account device token), so this costs one indexed read per mint.
+      const session = await this.getSession(sessionId, false);
       if (!session) {
         return null;
+      }
+
+      // A managed-account session re-proves the operator's `account:act_as`
+      // HERE too, and with `force` — a mint is rarer than a request, so it
+      // never rides the validate path's throttle.
+      //
+      // This branch used to be reached only BY ACCIDENT. `POST
+      // /auth/session/claim` carries no auth middleware and mints straight off
+      // `getAccessToken`, and the only reason a revoked operator was refused
+      // there is that the stored token disagreed with its row (`actor_mismatch`,
+      // the very defect above), which pushed the claim into `refreshTokens` —
+      // where the check lives. Making the token agree with the row removes that
+      // accident, so the check has to be stated at the seam that hands out the
+      // credential. Free for an ordinary session: no `operated_by_user_id`
+      // returns true before any lookup.
+      if (!(await this.ensureManagedSessionAuthorized(session, { force: true }))) {
+        return null;
+      }
+
+      // The stored token no longer describes its row — a v1 token minted before
+      // this session was bound, or one minted before `bindSessionToContext`
+      // wrote the device context on the login lane. Rotating is what upgrades
+      // it; handing it back would keep the session on v1 forever, since this
+      // branch is the one an unexpired session takes on every mint.
+      if (!storedTokenMatchesBinding(session)) {
+        const rebound = await this.refreshTokens(session.refreshToken);
+        if (!rebound) {
+          return null;
+        }
+        return {
+          accessToken: rebound.accessToken,
+          expiresAt: rebound.session.expiresAt,
+        };
       }
 
       // Check if access token is expired
       try {
         const decoded = jwt.verify(session.accessToken, process.env.ACCESS_TOKEN_SECRET!) as jwt.JwtPayload;
         const currentTime = Math.floor(Date.now() / 1000);
-        
+
         if (decoded.exp && decoded.exp < currentTime) {
           // Token expired, refresh it
           const refreshResult = await this.refreshTokens(session.refreshToken);
@@ -948,10 +1289,10 @@ class SessionService {
       // otherwise-valid mint — fall through and return the still-valid token.
       try {
         const slidExpiresAt = new Date(Date.now() + SESSION_EXPIRES_IN);
-        await Session.updateOne(
-          { sessionId, isActive: true },
-          { $set: { expiresAt: slidExpiresAt, updatedAt: new Date() } }
-        );
+        await getDb()
+          .update(sessions)
+          .set({ expiresAt: slidExpiresAt })
+          .where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true)));
         session.expiresAt = slidExpiresAt;
         sessionCache.set(sessionId, session);
       } catch (slideError) {

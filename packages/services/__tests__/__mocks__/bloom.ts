@@ -6,7 +6,7 @@
  * can spy on the exported `toast` object directly.
  */
 
-import { createElement, Fragment, useState, type ReactNode } from 'react';
+import { createContext, createElement, Fragment, useContext, useState, type ReactNode } from 'react';
 
 type ToastFn = (message: string, options?: Record<string, unknown>) => void;
 
@@ -39,35 +39,106 @@ export const Button = ({
 export const Loading = () => createElement('span', null, 'loading');
 
 /**
- * `@oxyhq/bloom/collapsible` stub — Bloom's uncontrolled disclosure. Mirrors the
- * real behaviour the auth chooser's "Having trouble?" affordance depends on: the
- * trigger is always rendered, and the CHILDREN are mounted only while open (so a
- * test can assert an alternative is genuinely absent until disclosed). Starts
- * from `defaultOpen`, exactly like the real component.
+ * `@oxyhq/bloom/accordion` stubs — Bloom's CONTROLLED disclosure, which replaced
+ * the deleted `Collapsible` in 1.0.0. Mirrors the behaviour the auth chooser's
+ * "Having trouble?" affordance depends on: the trigger is always rendered, and
+ * the CONTENT is mounted only while its item is open (so a test can assert an
+ * alternative is genuinely absent until disclosed).
+ *
+ * Open state is read from the parent's `value` and written through
+ * `onValueChange`, exactly like the real component — a stub holding its own
+ * state would pass even if a caller forgot to wire the controlled pair.
  */
-export const Collapsible = ({
-  title,
+const AccordionCtx = createContext<{
+  value: string | string[] | undefined;
+  onValueChange: (next: string | string[] | undefined) => void;
+} | null>(null);
+const AccordionItemCtx = createContext<string | null>(null);
+
+const isItemOpen = (value: string | string[] | undefined, item: string): boolean =>
+  Array.isArray(value) ? value.includes(item) : value === item;
+
+export const Accordion = ({
+  value,
+  onValueChange,
   children,
-  defaultOpen = false,
   testID,
 }: {
-  title?: string;
+  value?: string | string[];
+  onValueChange?: (next: string | string[] | undefined) => void;
   children?: ReactNode;
-  defaultOpen?: boolean;
   testID?: string;
-} & Record<string, unknown>) => {
-  const [open, setOpen] = useState(defaultOpen);
+} & Record<string, unknown>) =>
+  createElement(
+    AccordionCtx.Provider,
+    { value: { value, onValueChange: onValueChange ?? (() => {}) } },
+    createElement('div', { 'data-testid': testID }, children),
+  );
+
+export const AccordionItem = ({
+  value,
+  children,
+}: { value: string; children?: ReactNode } & Record<string, unknown>) =>
+  createElement(AccordionItemCtx.Provider, { value }, createElement('div', null, children));
+
+export const AccordionTrigger = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const ctx = useContext(AccordionCtx);
+  const item = useContext(AccordionItemCtx);
   return createElement(
-    'div',
-    { 'data-testid': testID },
-    createElement(
-      'button',
-      { type: 'button', key: 'trigger', onClick: () => setOpen(!open) },
-      title,
-    ),
-    open ? createElement(Fragment, { key: 'content' }, children) : null,
+    'button',
+    {
+      type: 'button',
+      onClick: () => {
+        if (!ctx || item === null) return;
+        ctx.onValueChange(isItemOpen(ctx.value, item) ? undefined : item);
+      },
+    },
+    children,
   );
 };
+
+export const AccordionContent = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const ctx = useContext(AccordionCtx);
+  const item = useContext(AccordionItemCtx);
+  if (!ctx || item === null || !isItemOpen(ctx.value, item)) return null;
+  return createElement(Fragment, null, children);
+};
+
+/**
+ * `@oxyhq/bloom/dropdown-menu` stubs — the family that replaced the deleted
+ * `./menu`. `asChild` renders the single child AS the trigger, so a test still
+ * queries the caller's own Button; the content mounts only while open.
+ */
+const DropdownMenuCtx = createContext<{ open: boolean; setOpen: (next: boolean) => void } | null>(null);
+
+export const DropdownMenu = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const [open, setOpen] = useState(false);
+  return createElement(DropdownMenuCtx.Provider, { value: { open, setOpen } }, children);
+};
+
+export const DropdownMenuTrigger = ({
+  children,
+  disabled,
+}: { children?: ReactNode; disabled?: boolean } & Record<string, unknown>) => {
+  const ctx = useContext(DropdownMenuCtx);
+  return createElement(
+    'button',
+    { type: 'button', disabled, onClick: () => ctx?.setOpen(!ctx.open) },
+    children,
+  );
+};
+
+export const DropdownMenuContent = ({ children }: { children?: ReactNode } & Record<string, unknown>) => {
+  const ctx = useContext(DropdownMenuCtx);
+  return ctx?.open ? createElement('div', null, children) : null;
+};
+
+export const DropdownMenuItem = ({
+  children,
+  onPress,
+  disabled,
+}: { children?: ReactNode; onPress?: () => void; disabled?: boolean } & Record<string, unknown>) =>
+  createElement('button', { type: 'button', disabled, onClick: () => onPress?.() }, children);
 
 /**
  * Minimal stubs for the Bloom primitives the account switchers render
@@ -116,16 +187,45 @@ export const Divider = () => createElement('hr', null);
 
 /**
  * `@oxyhq/bloom/theme` per-account color-scope stubs used by `OxyAccountDialog`.
- * `BloomColorScope` just renders its children (the real one merges scoped CSS
- * vars); the preset registry is empty so the dialog's accent resolves to the
- * theme fallback in tests.
+ *
+ * The real `BloomColorScope` merges scoped CSS vars, which jsdom cannot show —
+ * so the stub surfaces the preset it was handed as `data-color-preset`, the one
+ * observable that says WHICH account's colour a row was scoped to. Style props
+ * are unreachable here (the `react-native` stub drops `style` entirely), so this
+ * attribute is the only way a per-row accent can be asserted at all.
+ *
+ * The registry carries the real preset NAMES and stand-in hexes. It was empty,
+ * which made `toPreset` narrow everything to `undefined` and `resolveAccentHex`
+ * answer the theme fallback for every account — so a suite could not have told
+ * per-account theming from none, in either direction. The hex VALUES are not
+ * Bloom's and nothing should assert them; all that matters is that a name
+ * resolves and two names resolve differently.
  */
-export const BloomColorScope = ({ children }: { children?: ReactNode }) =>
-  createElement('div', null, children);
+export const BloomColorScope = ({
+  children,
+  colorPreset,
+}: { children?: ReactNode; colorPreset?: string }) =>
+  createElement('div', { 'data-color-preset': colorPreset }, children);
 
-export const APP_COLOR_NAMES: readonly string[] = [];
+export const APP_COLOR_NAMES: readonly string[] = [
+  'teal',
+  'blue',
+  'green',
+  'amber',
+  'yellow',
+  'red',
+  'purple',
+  'pink',
+  'sky',
+  'orange',
+  'mint',
+  'oxy',
+  'faircoin',
+];
 
-export const APP_COLOR_PRESETS: Record<string, { hex: string }> = {};
+export const APP_COLOR_PRESETS: Record<string, { hex: string }> = Object.fromEntries(
+  APP_COLOR_NAMES.map((name, index) => [name, { hex: `#0000${(index + 16).toString(16)}` }]),
+);
 
 /**
  * `@oxyhq/bloom/dialog` `<Dialog>` stub. The real component renders its own
@@ -203,23 +303,27 @@ const passthrough =
   ({ children, testID }: { children?: ReactNode; testID?: string } & Record<string, unknown>) =>
     createElement(tag, { 'data-testid': testID }, children);
 
-export const BloomDialogProvider = ({ children }: { children?: ReactNode }) =>
-  createElement(Fragment, null, children);
-
-export const ToastOutlet = () => null;
+/**
+ * Renders an empty marker node rather than `null` so a test can COUNT the
+ * outlets in a rendered tree. Both Bloom outlets read a module-level store, so
+ * two of either would render every toast / every surface twice — the marker is
+ * what lets `oxyProviderComposition.test.tsx` assert exactly one.
+ */
+export const ToastOutlet = () => createElement('div', { 'data-testid': 'bloom-toast-outlet' });
 
 /**
  * `@oxyhq/bloom/surfaces` stubs. The real stack renders each presented surface as
  * a stacked `<Dialog>`; here we only need the module surface so the SDK's
  * `navigation/surfaces.ts` + `OxyProvider` resolve. `present` returns a
  * never-settling promise (unit tests do not await surface dismissals) and
- * `SurfaceHost` renders nothing. The SDK's own surface behaviour is covered by
- * the browser-verification harness, not jsdom.
+ * `SurfaceHost` renders only a countable marker. The SDK's own surface behaviour
+ * is covered by the browser-verification harness, not jsdom.
  */
-export const SurfaceProvider = ({ children }: { children?: ReactNode }) =>
-  createElement(Fragment, null, children);
+export const SurfaceHost = () => createElement('div', { 'data-testid': 'bloom-surface-host' });
 
-export const SurfaceHost = () => null;
+// Mirrors the real provider, which renders `[children, <SurfaceHost/>]`.
+export const SurfaceProvider = ({ children }: { children?: ReactNode }) =>
+  createElement(Fragment, null, children, createElement(SurfaceHost));
 
 export const useSurface = (): { dismiss: (result?: unknown) => void; present: () => Promise<unknown> } => ({
   dismiss: () => {},
@@ -376,10 +480,6 @@ export const SearchInput = passthrough('input');
 export const IconCircle = passthrough('span');
 export const BenefitList = passthrough('div');
 export const BenefitRow = passthrough('div');
-export const Accordion = passthrough('div');
-export const AccordionItem = passthrough('div');
-export const AccordionTrigger = passthrough('button');
-export const AccordionContent = passthrough('div');
 export const SegmentedControl = passthrough('div');
 export const SegmentedControlItem = passthrough('button');
 

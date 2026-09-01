@@ -1,25 +1,42 @@
 /**
- * /users/resolve scope + binding tests (C4 regression coverage)
+ * `PUT /users/resolve` against a REAL Postgres.
  *
- * Walks the route through every rejection path:
- *  - missing scope on the service token
- *  - actorUri hostname does not match the asserted domain
- *  - agent/automated username collides with an existing local user
- *  - existing user has a different `type` (no silent type promotion)
+ * The federated/agent/automated upsert an internal service calls to bring a
+ * remote actor into the Oxy graph. Every guard on it is a trust boundary:
  *
- * The router is mounted on a minimal Express app and exercised via
- * `node:http` round-trips so we hit the real middleware chain.
+ *  - the `federation:write` scope gate,
+ *  - the actor-URI ↔ asserted-domain binding (a service must not be able to
+ *    claim `alice@mastodon.social` actually lives at `attacker.example`),
+ *  - the own-domain guard (`nate@oxy.so` is a NON-ENTITY; minting a
+ *    `type:'federated'` row for it would shadow the real local account),
+ *  - the local-username collision refusal (account takeover through the
+ *    federation pipeline),
+ *  - and type immutability (no silent federated→agent promotion).
+ *
+ * The old suite mocked `models/User` — which this route no longer imports — so
+ * every one of those guards ran against a database the suite never set up, and
+ * the assertions were about the arguments a `findOneAndUpdate` mock received.
+ * Here each guard is checked by what is, or is not, in `users` afterwards.
+ *
+ * That change is what surfaced the defect this rewrite also fixes: the display
+ * name was written with Mongo's `name.first` DOT PATH, and drizzle silently
+ * ignores a key that names no column — so every federated actor resolved through
+ * this route landed with a NULL display name. "persists the cleaned display
+ * name" below is the regression test.
+ *
+ * Two network boundaries stay mocked: `safeFetch` (the WebFinger probe) and
+ * `federationService.scheduleAvatarRefresh` (the off-request-path avatar
+ * download). Everything else — validation, the guards, the writes, the
+ * serializer, the user cache — is real.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
+import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 
-const mockServiceAuthMiddleware = jest.fn();
-const mockAuthMiddleware = jest.fn();
-const mockUserFindOne = jest.fn();
-const mockUserFindOneAndUpdate = jest.fn();
-const mockScheduleAvatarRefresh = jest.fn();
+
 const mockSafeFetch = jest.fn();
 
 class FakeSsrfRejection extends Error {
@@ -35,99 +52,78 @@ jest.mock('@oxyhq/core/server', () => ({
   SsrfRejection: FakeSsrfRejection,
 }));
 
-jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (...args: unknown[]) => mockAuthMiddleware(...args),
-  serviceAuthMiddleware: (...args: unknown[]) => mockServiceAuthMiddleware(...args),
-}));
+/** The scopes the mocked service-auth middleware grants. */
+let currentScopes: string[] = ['federation:write'];
 
-// `optionalAuth` is imported by the router (for POST /users/by-ids). Mock it so
-// the test does not pull in the real session/auth/mongoose module graph.
+jest.mock('../../middleware/auth', () => ({
+  authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
+  serviceAuthMiddleware: (
+    req: { serviceApp?: { type: string; appId: string; appName: string; scopes: string[] } },
+    _res: unknown,
+    next: () => void,
+  ) => {
+    req.serviceApp = {
+      type: 'service',
+      appId: 'app-1',
+      appName: 'fed-svc',
+      scopes: currentScopes,
+    };
+    next();
+  },
+}));
 jest.mock('../../middleware/optionalAuth', () => ({
   optionalUserOrServiceAuth: (_req: unknown, _res: unknown, next: () => void) => next(),
+  resolveViewerId: (): string | undefined => undefined,
 }));
-
-// Many of the existing user routes import services that need a real DB.
-// We stub all of them to no-op so importing the router doesn't crash.
+jest.mock('../../middleware/rateLimiter', () => ({
+  rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
+// Peripheral modules the users router imports for OTHER endpoints. Stubbed so
+// mounting it does not open an S3 client or the signed-export model graph;
+// none of them is on the `/resolve` path.
 jest.mock('../../services/email.service', () => ({
   emailService: { deleteAllUserData: jest.fn() },
-}));
-jest.mock('../../services/federation.service', () => ({
-  federationService: { scheduleAvatarRefresh: mockScheduleAvatarRefresh },
-  // Mirror the real predicate: own apex defaults to `oxy.so`. Used by the
-  // own-domain guard in PUT /users/resolve.
-  isOwnFederationDomain: (domain: string) => domain.trim().toLowerCase() === 'oxy.so',
 }));
 jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: { ensureOwnedAssetPublic: jest.fn().mockResolvedValue(undefined) },
   s3Service: {},
 }));
-jest.mock('../../services/user.service', () => ({
-  userService: {},
-}));
-// usersRouter now imports the signed-export service (which pulls in the identity
-// model graph). Stub it — this suite does not exercise GET /users/me/export.
 jest.mock('../../services/identityExport.service', () => ({
   buildExportBundle: jest.fn(),
 }));
-jest.mock('../../services/signature.service', () => ({
-  __esModule: true,
-  default: {},
-}));
-jest.mock('../../controllers/users.controller', () => ({
-  UsersController: class {
-    searchUsers = jest.fn();
-  },
-}));
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: { invalidate: jest.fn() },
-}));
-jest.mock('../../utils/validation', () => ({
-  resolveUserIdToObjectId: jest.fn(),
-}));
+jest.mock('../../services/signature.service', () => ({ __esModule: true, default: {} }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    findOne: mockUserFindOne,
-    findOneAndUpdate: mockUserFindOneAndUpdate,
-  },
-}));
-
-import usersRouter from '../users';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import { Readable } from 'stream';
-
-function makeSafeFetchResult(
-  status: number,
-  headers: Record<string, string>,
-  body: Buffer | string = Buffer.alloc(0),
-  finalUrl = 'https://example.com/.well-known/webfinger',
-) {
-  const buffer = typeof body === 'string' ? Buffer.from(body) : body;
-  const response = Readable.from([buffer]) as Readable & { destroy: jest.Mock };
-  response.destroy = jest.fn();
-  return { status, headers, finalUrl, response };
-}
+import { federationService } from '../../services/federation.service';
+import userCache from '../../utils/userCache';
+import usersRouter from '../users';
 
 interface JsonResponse {
   status: number;
-  body: { error?: string; message?: string; data?: unknown };
+  raw: string;
+  body: { error?: string; message?: string; data?: Record<string, unknown> };
 }
 
-async function requestJson(server: http.Server, method: string, path: string, payload: unknown): Promise<JsonResponse> {
+let server: http.Server;
+let scheduleAvatarRefreshSpy: jest.SpyInstance;
+let invalidateSpy: jest.SpyInstance;
+
+function resolveUser(payload: unknown): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const body = JSON.stringify(payload ?? {});
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
-        method,
+        method: 'PUT',
         host: '127.0.0.1',
         port: address.port,
-        path,
+        path: '/users/resolve',
         headers: {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
@@ -135,16 +131,17 @@ async function requestJson(server: http.Server, method: string, path: string, pa
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = raw.length > 0 ? JSON.parse(raw) : {};
-            resolve({ status: res.statusCode ?? 0, body: parsed });
-          } catch (err) {
-            reject(err);
-          }
+        res.on('data', (chunk) => {
+          raw += chunk;
         });
-      }
+        res.on('end', () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            raw,
+            body: raw.length > 0 ? JSON.parse(raw) : {},
+          }),
+        );
+      },
     );
     req.on('error', reject);
     req.write(body);
@@ -152,570 +149,678 @@ async function requestJson(server: http.Server, method: string, path: string, pa
   });
 }
 
-let server: http.Server;
+/** A `safeFetch` result carrying a WebFinger JRD body. */
+function webFingerResult(status: number, body: unknown) {
+  const buffer = Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
+  const response = Readable.from([buffer]) as Readable & { destroy: jest.Mock };
+  response.destroy = jest.fn();
+  return {
+    status,
+    headers: { 'content-type': 'application/jrd+json' },
+    finalUrl: 'https://example.com/.well-known/webfinger',
+    response,
+  };
+}
 
-beforeAll((done) => {
+function token(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 12);
+}
+
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
+}
+
+async function storedByActorUri(actorUri: string) {
+  const [row] = await getDb()
+    .select({
+      id: users.id,
+      username: users.username,
+      type: users.type,
+      nameFirst: users.nameFirst,
+      bio: users.bio,
+      avatar: users.avatar,
+      federationActorUri: users.federationActorUri,
+      federationDomain: users.federationDomain,
+      federationLastResolvedAt: users.federationLastResolvedAt,
+      federationUnavailableAt: users.federationUnavailableAt,
+      federationUnavailableReason: users.federationUnavailableReason,
+    })
+    .from(users)
+    .where(eq(users.federationActorUri, actorUri))
+    .limit(1);
+  return row;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/users', usersRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
-  mockUserFindOne.mockReset();
-  mockUserFindOneAndUpdate.mockReset();
-  // Default: serviceAuthMiddleware grants the federation:write scope.
-  mockServiceAuthMiddleware.mockImplementation(
-    (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
-      req.serviceApp = {
-        type: 'service',
-        appId: 'app-1',
-        appName: 'fed-svc',
-        scopes: ['federation:write'],
-      };
-      next();
-    }
-  );
+  currentScopes = ['federation:write'];
+  mockSafeFetch.mockReset();
+  mockSafeFetch.mockResolvedValue(webFingerResult(404, '{}'));
+  scheduleAvatarRefreshSpy = jest
+    .spyOn(federationService, 'scheduleAvatarRefresh')
+    .mockImplementation(() => undefined);
+  invalidateSpy = jest.spyOn(userCache, 'invalidate');
 });
 
-describe('PUT /users/resolve (C4)', () => {
-  it('rejects when the service token lacks federation:write scope', async () => {
-    // Override the default mock so this caller has no scopes.
-    mockServiceAuthMiddleware.mockImplementationOnce(
-      (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
-        req.serviceApp = {
-          type: 'service',
-          appId: 'app-1',
-          appName: 'limited-svc',
-          scopes: [],
-        };
-        next();
-      }
-    );
+afterEach(() => {
+  jest.restoreAllMocks();
+});
 
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
+describe('PUT /users/resolve — scope gate', () => {
+  it('rejects a service token without federation:write, and writes nothing', async () => {
+    currentScopes = [];
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
       type: 'federated',
-      username: 'alice@mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
+      username: `${handle}@mastodon.social`,
+      actorUri,
       domain: 'mastodon.social',
     });
 
     expect(res.status).toBe(403);
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(res.body.message).toMatch(/federation:write/i);
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
+  });
+});
+
+describe('PUT /users/resolve — body validation', () => {
+  it('400s an unsupported type', async () => {
+    const res = await resolveUser({ type: 'local', username: `x${token()}` });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/type must be/i);
   });
 
-  it('rejects when actorUri hostname does not match the asserted domain', async () => {
-    mockSafeFetch.mockResolvedValue(makeSafeFetchResult(404, {}, '{}'));
+  it('400s a missing username', async () => {
+    const res = await resolveUser({ type: 'federated' });
 
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/username is required/i);
+  });
+
+  it('400s a federated body with no actorUri', async () => {
+    const res = await resolveUser({
       type: 'federated',
-      username: 'mallory@mastodon.social',
-      // Hostname is `evil.example` — should be rejected.
-      actorUri: 'https://evil.example/users/mallory',
+      username: `a${token()}@mastodon.social`,
+      domain: 'mastodon.social',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/actorUri is required/i);
+  });
+
+  it('400s a malformed ownerId on an agent, and writes nothing', async () => {
+    const username = `bot${token()}`;
+
+    const res = await resolveUser({ type: 'agent', username, ownerId: 'owner-1' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/ownerId must be a valid user id/i);
+    const [row] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, username));
+    expect(row).toBeUndefined();
+  });
+
+  it('400s a username whose domain disagrees with the asserted domain', async () => {
+    const handle = `alice${token()}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@other.example`,
+      actorUri: `https://mastodon.social/users/${handle}`,
+      domain: 'mastodon.social',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/username domain does not match/i);
+  });
+});
+
+describe('PUT /users/resolve — actor-URI host binding', () => {
+  it('400s when the actor host does not match the domain and WebFinger does not vouch', async () => {
+    const handle = `mallory${token()}`;
+    const actorUri = `https://evil.example/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
       domain: 'mastodon.social',
     });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/actorUri hostname/i);
     expect(mockSafeFetch).toHaveBeenCalledWith(
-      'https://mastodon.social/.well-known/webfinger?resource=acct%3Amallory%40mastodon.social',
+      `https://mastodon.social/.well-known/webfinger?resource=${encodeURIComponent(`acct:${handle}@mastodon.social`)}`,
       expect.anything(),
     );
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
   });
 
-  it('rejects agent username that collides with an existing local user', async () => {
-    const leanResult = jest.fn().mockResolvedValue({ _id: 'local-id', type: 'local' });
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
+  /**
+   * A BRIDGE republishes another network's accounts under its own hostname, so
+   * for a bridged actor the host and the identity domain differ by design and
+   * WebFinger can never reconcile them (x.com publishes none). The reviewed
+   * trust list in `config/federationBridgeTrust` is what makes that difference
+   * legitimate — a decision THIS service makes, not one the caller asserts. The
+   * calling app's `createBridgeRelabeller([...])` entries are deliberately
+   * separate and fail closed in both directions.
+   */
+  it('accepts a bridged actor whose identity domain is the network it mirrors', async () => {
+    const handle = `wired${token()}`;
+    const actorUri = `https://bird.makeup/users/${handle}`;
 
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'agent',
-      username: 'alice',
-      ownerId: 'owner-1',
-    });
-
-    expect(res.status).toBe(409);
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
-  });
-
-  it('rejects when an existing user has a different type (no type promotion)', async () => {
-    // First findOne: collision check for agents/automated — no local user.
-    const leanResult1 = jest.fn().mockResolvedValue(null);
-    const selectResult1 = jest.fn().mockReturnValue({ lean: leanResult1 });
-    // Second findOne: existing user has type 'automated' but caller asserts 'agent'.
-    const leanResult2 = jest.fn().mockResolvedValue({ _id: 'u', type: 'automated' });
-    const selectResult2 = jest.fn().mockReturnValue({ lean: leanResult2 });
-    mockUserFindOne
-      .mockReturnValueOnce({ select: selectResult1 })
-      .mockReturnValueOnce({ select: selectResult2 });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'agent',
-      username: 'bot1',
-      ownerId: 'owner-1',
-    });
-
-    expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/cannot change.*type/i);
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
-  });
-
-  it('happy path: federated user is resolved when scope + bindings are valid', async () => {
-    const leanResult = jest.fn().mockResolvedValue(null);
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
-
-    const newUserDoc = { _id: 'new-user', username: 'alice@mastodon.social', type: 'federated' };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
+    const res = await resolveUser({
       type: 'federated',
-      username: 'alice@mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
-      domain: 'mastodon.social',
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledTimes(1);
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': 'https://mastodon.social/users/alice' },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          username: 'alice@mastodon.social',
-          'federation.actorUri': 'https://mastodon.social/users/alice',
-          'federation.domain': 'mastodon.social',
-          'federation.lastResolvedAt': expect.any(Date),
-        }),
-        $unset: expect.objectContaining({
-          'federation.unavailableAt': '',
-          'federation.unavailableReason': '',
-        }),
-      }),
-      expect.anything(),
-    );
-  });
-
-  it('strips the federated display name and strips tags from bio before persistence', async () => {
-    const leanResult = jest.fn().mockResolvedValue(null);
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
-
-    const newUserDoc = { _id: 'new-user', username: 'alice@mastodon.social', type: 'federated' };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'alice@mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
-      domain: 'mastodon.social',
-      displayName: '<img src=x onerror=alert("fediverse-xss")>',
-      bio: '<script>alert("bio")</script>',
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': 'https://mastodon.social/users/alice' },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          // Display name: disallowed characters stripped (never escaped).
-          'name.first': 'img src x onerror alert fediverse xss',
-          // Bio renders as text in clients: tags are stripped (no executable
-          // markup survives) and the value is NOT HTML-entity-escaped.
-          bio: 'alert("bio")',
-        }),
-      }),
-      expect.anything(),
-    );
-  });
-
-  it('allows actorUri on the www host while keeping the canonical federated username', async () => {
-    const leanResult = jest.fn().mockResolvedValue(null);
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
-
-    const newUserDoc = { _id: 'threads-user', username: 'mosseri@threads.net', type: 'federated' };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'mosseri@threads.net',
-      actorUri: 'https://www.threads.net/ap/users/mosseri/',
-      domain: 'threads.net',
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': 'https://www.threads.net/ap/users/mosseri/' },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          username: 'mosseri@threads.net',
-          'federation.actorUri': 'https://www.threads.net/ap/users/mosseri/',
-          'federation.domain': 'threads.net',
-          'federation.lastResolvedAt': expect.any(Date),
-        }),
-        $unset: expect.objectContaining({
-          'federation.unavailableAt': '',
-          'federation.unavailableReason': '',
-        }),
-      }),
-      expect.anything(),
-    );
-  });
-
-  it('allows non-www actor hosts only when WebFinger loops back to the actor URI', async () => {
-    const actorUri = 'https://ap.example.com/users/alice';
-    mockSafeFetch.mockResolvedValue(
-      makeSafeFetchResult(
-        200,
-        { 'content-type': 'application/jrd+json' },
-        JSON.stringify({
-          subject: 'acct:alice@example.com',
-          links: [
-            { rel: 'self', type: 'application/activity+json', href: actorUri },
-          ],
-        }),
-      ),
-    );
-
-    const leanResult = jest.fn().mockResolvedValue(null);
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
-
-    const newUserDoc = { _id: 'ap-user', username: 'alice@example.com', type: 'federated' };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'alice@example.com',
+      username: `${handle}@x.com`,
       actorUri,
-      domain: 'example.com',
+      domain: 'x.com',
     });
 
     expect(res.status).toBe(200);
-    expect(mockSafeFetch).toHaveBeenCalledWith(
-      'https://example.com/.well-known/webfinger?resource=acct%3Aalice%40example.com',
-      expect.anything(),
-    );
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': actorUri },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          username: 'alice@example.com',
-          'federation.actorUri': actorUri,
-          'federation.domain': 'example.com',
-        }),
-      }),
-      expect.anything(),
-    );
+    // The bridge policy is a local lookup, so no WebFinger round trip is spent.
+    expect(mockSafeFetch).not.toHaveBeenCalled();
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.username).toBe(`${handle}@x.com`);
+    expect(stored.federationDomain).toBe('x.com');
+    // The actor URI stays the address we actually reach the account at.
+    expect(stored.federationActorUri).toBe(actorUri);
   });
 
-  it('rejects non-matching actor hosts when WebFinger fetch is blocked by SSRF guard', async () => {
+  it('400s when a listed bridge claims a network it does not mirror', async () => {
+    const handle = `wired${token()}`;
+    const actorUri = `https://bird.makeup/users/${handle}`;
+
+    // bird.makeup mirrors X. Being a known bridge is not a licence to vouch for
+    // Instagram, so this falls through to WebFinger and is refused like any
+    // other mismatched pair.
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@instagram.com`,
+      actorUri,
+      domain: 'instagram.com',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/actorUri hostname/i);
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
+  });
+
+  it('400s when a host that is not a reviewed bridge claims a network domain', async () => {
+    const handle = `wired${token()}`;
+    const actorUri = `https://attacker.example/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@x.com`,
+      actorUri,
+      domain: 'x.com',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/actorUri hostname/i);
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
+  });
+
+  it('accepts an actor on the www host of the asserted domain without a WebFinger probe', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://www.mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockSafeFetch).not.toHaveBeenCalled();
+    const stored = await storedByActorUri(actorUri);
+    // The canonical handle is kept — the www host does not become the domain.
+    expect(stored.username).toBe(`${handle}@mastodon.social`);
+    expect(stored.federationDomain).toBe('mastodon.social');
+  });
+
+  it('accepts the SAME pair with www. on the domain side instead of the actor side', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@www.mastodon.social`,
+      actorUri,
+      domain: 'www.mastodon.social',
+    });
+
+    // The binding is a comparison, so it has to answer the same regardless of
+    // which side carries the `www.`. A rule applied to only one side (the shape
+    // this route shipped with) rejects this pair while accepting the mirrored
+    // one above — so the two cases have to be asserted together or the
+    // asymmetry reads as passing.
+    expect(res.status).toBe(200);
+    expect(mockSafeFetch).not.toHaveBeenCalled();
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.username).toBe(`${handle}@mastodon.social`);
+    expect(stored.federationDomain).toBe('mastodon.social');
+  });
+
+  it('accepts a foreign actor host when WebFinger loops the handle back to it', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://ap.mastodon.example/users/${handle}`;
+    mockSafeFetch.mockResolvedValue(
+      webFingerResult(200, {
+        subject: `acct:${handle}@mastodon.social`,
+        links: [{ rel: 'self', type: 'application/activity+json', href: actorUri }],
+      }),
+    );
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+    });
+
+    expect(res.status).toBe(200);
+    expect((await storedByActorUri(actorUri)).federationActorUri).toBe(actorUri);
+  });
+
+  it('400s a foreign actor host when the WebFinger probe is blocked by the SSRF guard', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://ap.mastodon.example/users/${handle}`;
     mockSafeFetch.mockRejectedValue(new FakeSsrfRejection('blocked'));
 
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
+    const res = await resolveUser({
       type: 'federated',
-      username: 'alice@example.com',
-      actorUri: 'https://ap.example.com/users/alice',
-      domain: 'example.com',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
     });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/actorUri hostname/i);
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
   });
 
-  // ----------------------------------------------------------------------
-  // AT Protocol (Bluesky) external actors are keyed by a hostless DID
-  // (`did:plc:…` / `did:web:…`), not an http(s) ActivityPub actor URL. The DID
-  // is accepted and stored verbatim as the federation dedup key; the URL parse
-  // + hostname/WebFinger host-binding (which are AP-only and impossible for a
-  // hostless identifier) MUST be skipped for it.
-  // ----------------------------------------------------------------------
+  it('stores a did:plc actor verbatim and never probes WebFinger for it', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `did:plc:${token()}`;
 
-  it('resolves a did:plc: actorUri verbatim and skips the AP host-binding/WebFinger check', async () => {
-    mockSafeFetch.mockClear();
-
-    const leanResult = jest.fn().mockResolvedValue(null);
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
-
-    const actorUri = 'did:plc:ewvi7nxzyoun6zhxrhs64oiz';
-    const newUserDoc = { _id: 'bsky-user', username: 'alice.bsky.social@bsky.social', type: 'federated' };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
+    const res = await resolveUser({
       type: 'federated',
-      username: 'alice.bsky.social@bsky.social',
+      username: `${handle}@bsky.social`,
       actorUri,
       domain: 'bsky.social',
     });
 
     expect(res.status).toBe(200);
-    // No WebFinger / host-binding network call for a DID actor.
     expect(mockSafeFetch).not.toHaveBeenCalled();
-    // DID stored verbatim as both the dedup filter key and the persisted value.
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': actorUri },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          username: 'alice.bsky.social@bsky.social',
-          'federation.actorUri': actorUri,
-          'federation.domain': 'bsky.social',
-          'federation.lastResolvedAt': expect.any(Date),
-        }),
-        $unset: expect.objectContaining({
-          'federation.unavailableAt': '',
-          'federation.unavailableReason': '',
-        }),
-      }),
-      expect.anything(),
-    );
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.federationActorUri).toBe(actorUri);
+    expect(stored.federationDomain).toBe('bsky.social');
   });
 
-  it('resolves a did:web: actorUri verbatim and skips the AP host-binding/WebFinger check', async () => {
-    mockSafeFetch.mockClear();
+  it('stores a did:web actor verbatim and never probes WebFinger for it', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `did:web:${handle}.example.com`;
 
-    const leanResult = jest.fn().mockResolvedValue(null);
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
-
-    const actorUri = 'did:web:example.com';
-    const newUserDoc = { _id: 'didweb-user', username: 'alice@example.com', type: 'federated' };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
+    const res = await resolveUser({
       type: 'federated',
-      username: 'alice@example.com',
+      username: `${handle}@example.com`,
       actorUri,
       domain: 'example.com',
     });
 
     expect(res.status).toBe(200);
     expect(mockSafeFetch).not.toHaveBeenCalled();
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': actorUri },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          username: 'alice@example.com',
-          'federation.actorUri': actorUri,
-          'federation.domain': 'example.com',
-        }),
-      }),
-      expect.anything(),
-    );
+    expect((await storedByActorUri(actorUri)).federationActorUri).toBe(actorUri);
+  });
+});
+
+describe('PUT /users/resolve — own-domain guard', () => {
+  it('400s an own-domain handle and never mints a federated shadow row', async () => {
+    const handle = `nate${token()}`;
+    const actorUri = `https://oxy.so/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@oxy.so`,
+      actorUri,
+      domain: 'oxy.so',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/own federation domain/i);
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
   });
 
-  it('refresh: schedules an off-request-path avatar download with force=true and returns immediately', async () => {
-    const newAvatarUrl = 'https://mastodon.social/avatars/alice.png';
+  it('400s an own-domain handle regardless of the local part', async () => {
+    const handle = `anyone${token()}`;
+    const actorUri = `https://oxy.so/users/${handle}`;
 
-    // First findOne: type-immutability check — no existing user found.
-    const immutabilityLean = jest.fn().mockResolvedValue(null);
-    const immutabilitySelect = jest.fn().mockReturnValue({ lean: immutabilityLean });
-    // Second findOne: avatar lookup — existing user already has a stored file id.
-    const avatarLean = jest.fn().mockResolvedValue({ avatar: 'file-abc' });
-    const avatarSelect = jest.fn().mockReturnValue({ lean: avatarLean });
-    mockUserFindOne
-      .mockReturnValueOnce({ select: immutabilitySelect })
-      .mockReturnValueOnce({ select: avatarSelect });
-
-    // The upsert returns the user with its PREVIOUS avatar — the new download
-    // happens off the request path and lands afterwards.
-    const newUserDoc = {
-      _id: 'new-user',
-      username: 'alice@mastodon.social',
+    const res = await resolveUser({
       type: 'federated',
-      avatar: 'file-abc',
-    };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
+      username: `${handle}@oxy.so`,
+      actorUri,
+      domain: 'oxy.so',
+    });
 
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
+    expect(res.status).toBe(400);
+    expect(await storedByActorUri(actorUri)).toBeUndefined();
+  });
+});
+
+describe('PUT /users/resolve — collision and type immutability', () => {
+  it('409s an agent username already held by a local user, and leaves that user alone', async () => {
+    const username = `taken${token()}`;
+    const localUserId = await account({ username, type: 'local' });
+
+    const res = await resolveUser({ type: 'agent', username });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/already taken/i);
+    const [row] = await getDb()
+      .select({ type: users.type })
+      .from(users)
+      .where(eq(users.id, localUserId));
+    expect(row.type).toBe('local');
+  });
+
+  it('409s when the existing row has a different type, and does not re-type it', async () => {
+    const username = `bot${token()}`;
+    const existingId = await account({ username, type: 'automated' });
+
+    const res = await resolveUser({ type: 'agent', username });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/cannot change.*type/i);
+    const [row] = await getDb()
+      .select({ type: users.type })
+      .from(users)
+      .where(eq(users.id, existingId));
+    expect(row.type).toBe('automated');
+  });
+});
+
+describe('PUT /users/resolve — persistence', () => {
+  it('creates the federated row, clears the tombstone and invalidates the user cache', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+    const before = Date.now();
+
+    const res = await resolveUser({
       type: 'federated',
-      username: 'alice@mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
+      username: `${handle}@mastodon.social`,
+      actorUri,
       domain: 'mastodon.social',
-      avatar: newAvatarUrl,
+    });
+
+    expect(res.status).toBe(200);
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.username).toBe(`${handle}@mastodon.social`);
+    expect(stored.type).toBe('federated');
+    expect(stored.federationDomain).toBe('mastodon.social');
+    expect(stored.federationLastResolvedAt?.getTime()).toBeGreaterThanOrEqual(before);
+    expect(stored.federationUnavailableAt).toBeNull();
+    expect(stored.federationUnavailableReason).toBeNull();
+    expect(res.body.data?.id).toBe(stored.id);
+    expect(invalidateSpy).toHaveBeenCalledWith(stored.id);
+  });
+
+  /**
+   * The federated namespace is not governed by the local username policy, and in
+   * particular not by the rule that a `bot` account's handle must end in `bot`
+   * (`botUsernameSchema`, `@oxyhq/contracts`).
+   *
+   * A remote bot is a bot on ANOTHER server. Its handle is stored as
+   * `handle@domain` — a shape the local policy rejects outright, label or no
+   * label — and there are ~74k such rows. Pointing either schema at this route
+   * would reject every one of them, so this is the control that says nobody did:
+   * an actor that is plainly a bot and carries no label resolves, and lands in
+   * `users` under exactly the handle it was given.
+   */
+  it('stores a remote BOT actor whose handle carries no local label', async () => {
+    const handle = `newsfeed${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      displayName: 'News Feed',
+    });
+
+    expect(res.status).toBe(200);
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.username).toBe(`${handle}@mastodon.social`);
+    expect(stored.username.endsWith('bot')).toBe(false);
+  });
+
+  it('clears an existing tombstone on re-resolve rather than leaving the actor dead', async () => {
+    const handle = `revived${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+    await account({
+      username: `${handle}@mastodon.social`,
+      type: 'federated',
+      federationActorUri: actorUri,
+      federationDomain: 'mastodon.social',
+      federationUnavailableAt: new Date('2026-01-01T00:00:00.000Z'),
+      federationUnavailableReason: 'gone',
+    });
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+    });
+
+    expect(res.status).toBe(200);
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.federationUnavailableAt).toBeNull();
+    expect(stored.federationUnavailableReason).toBeNull();
+  });
+
+  it('persists the cleaned display name — the dot-path regression', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      displayName: 'Alice 🌸 :verified:',
+    });
+
+    expect(res.status).toBe(200);
+    // Emoji and shortcodes are stripped by `cleanDisplayName`; what remains MUST
+    // reach the column. A Mongo dot-path key here writes nothing at all, and
+    // drizzle reports no error.
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.nameFirst).toBe('Alice');
+    expect(res.body.data?.name).toEqual(expect.objectContaining({ first: 'Alice' }));
+  });
+
+  it('strips tags from the bio before persisting it (stored-XSS regression)', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      bio: '<script>alert(1)</script>hello <b>world</b>',
+    });
+
+    expect(res.status).toBe(200);
+    const stored = await storedByActorUri(actorUri);
+    expect(stored.bio).not.toContain('<script>');
+    expect(stored.bio).not.toContain('<b>');
+    expect(stored.bio).toContain('hello');
+    expect(res.raw).not.toContain('<script>');
+  });
+
+  it('records an agent owner when the ownerId is a real account id', async () => {
+    const owner = await account({ username: `owner${token()}` });
+    const username = `bot${token()}`;
+
+    const res = await resolveUser({ type: 'agent', username, ownerId: owner });
+
+    expect(res.status).toBe(200);
+    const [row] = await getDb()
+      .select({ type: users.type, automationOwnerId: users.automationOwnerId })
+      .from(users)
+      .where(eq(users.username, username));
+    expect(row.type).toBe('agent');
+    expect(row.automationOwnerId).toBe(owner);
+  });
+});
+
+describe('PUT /users/resolve — avatar handling', () => {
+  it('stores a non-URL avatar synchronously and schedules no download', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      avatar: 'file_already_stored',
+    });
+
+    expect(res.status).toBe(200);
+    expect((await storedByActorUri(actorUri)).avatar).toBe('file_already_stored');
+    expect(scheduleAvatarRefreshSpy).not.toHaveBeenCalled();
+  });
+
+  it('schedules the initial download when a remote avatar URL arrives and nothing is stored', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+    const avatarUrl = 'https://mastodon.social/avatars/alice.png';
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      avatar: avatarUrl,
+    });
+
+    expect(res.status).toBe(200);
+    const stored = await storedByActorUri(actorUri);
+    // The download is scheduled, never awaited — the stored row carries no
+    // avatar yet, which is the documented one-cycle lag.
+    expect(stored.avatar).toBeNull();
+    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(stored.id, avatarUrl, undefined, {
+      force: false,
+    });
+  });
+
+  it('skips scheduling when a stored avatar already exists and no refresh was asked for', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+    await account({
+      username: `${handle}@mastodon.social`,
+      type: 'federated',
+      federationActorUri: actorUri,
+      federationDomain: 'mastodon.social',
+      avatar: 'file_existing',
+    });
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      avatar: 'https://mastodon.social/avatars/alice.png',
+    });
+
+    expect(res.status).toBe(200);
+    expect(scheduleAvatarRefreshSpy).not.toHaveBeenCalled();
+    expect((await storedByActorUri(actorUri)).avatar).toBe('file_existing');
+  });
+
+  it('forces a re-download with refresh: true, passing the existing file id through', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+    const avatarUrl = 'https://mastodon.social/avatars/alice.png';
+    const existingId = await account({
+      username: `${handle}@mastodon.social`,
+      type: 'federated',
+      federationActorUri: actorUri,
+      federationDomain: 'mastodon.social',
+      avatar: 'file_existing',
+    });
+
+    const res = await resolveUser({
+      type: 'federated',
+      username: `${handle}@mastodon.social`,
+      actorUri,
+      domain: 'mastodon.social',
+      avatar: avatarUrl,
       refresh: true,
     });
 
     expect(res.status).toBe(200);
-    // The download is scheduled, not awaited: the route never blocks on it.
-    expect(mockScheduleAvatarRefresh).toHaveBeenCalledWith(
-      'new-user',
-      newAvatarUrl,
-      'file-abc',
+    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(
+      existingId,
+      avatarUrl,
+      'file_existing',
       { force: true },
     );
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it('no refresh flag: skips scheduling when an existing stored avatar would make the worker a no-op', async () => {
-    const newAvatarUrl = 'https://mastodon.social/avatars/alice.png';
-
-    // First findOne: type-immutability check — no existing user found.
-    const immutabilityLean = jest.fn().mockResolvedValue(null);
-    const immutabilitySelect = jest.fn().mockReturnValue({ lean: immutabilityLean });
-    // Second findOne: avatar lookup — existing user already has a stored file id.
-    const avatarLean = jest.fn().mockResolvedValue({ avatar: 'file-abc' });
-    const avatarSelect = jest.fn().mockReturnValue({ lean: avatarLean });
-    mockUserFindOne
-      .mockReturnValueOnce({ select: immutabilitySelect })
-      .mockReturnValueOnce({ select: avatarSelect });
-
-    const newUserDoc = {
-      _id: 'new-user',
-      username: 'alice@mastodon.social',
+  it('accepts forceAvatarRefresh as the alias of refresh', async () => {
+    const handle = `alice${token()}`;
+    const actorUri = `https://mastodon.social/users/${handle}`;
+    const avatarUrl = 'https://mastodon.social/avatars/alice.png';
+    const existingId = await account({
+      username: `${handle}@mastodon.social`,
       type: 'federated',
-      avatar: 'file-abc',
-    };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'alice@mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
-      domain: 'mastodon.social',
-      avatar: newAvatarUrl,
+      federationActorUri: actorUri,
+      federationDomain: 'mastodon.social',
+      avatar: 'file_existing',
     });
 
-    expect(res.status).toBe(200);
-    expect(mockScheduleAvatarRefresh).not.toHaveBeenCalled();
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledTimes(1);
-  });
-
-  it('no refresh flag: schedules the initial avatar download when no stored avatar exists', async () => {
-    const newAvatarUrl = 'https://mastodon.social/avatars/alice.png';
-
-    // First findOne: type-immutability check — no existing user found.
-    const immutabilityLean = jest.fn().mockResolvedValue(null);
-    const immutabilitySelect = jest.fn().mockReturnValue({ lean: immutabilityLean });
-    // Second findOne: avatar lookup — no stored file id yet.
-    const avatarLean = jest.fn().mockResolvedValue({ avatar: undefined });
-    const avatarSelect = jest.fn().mockReturnValue({ lean: avatarLean });
-    mockUserFindOne
-      .mockReturnValueOnce({ select: immutabilitySelect })
-      .mockReturnValueOnce({ select: avatarSelect });
-
-    const newUserDoc = {
-      _id: 'new-user',
-      username: 'alice@mastodon.social',
+    await resolveUser({
       type: 'federated',
-    };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'alice@mastodon.social',
-      actorUri: 'https://mastodon.social/users/alice',
+      username: `${handle}@mastodon.social`,
+      actorUri,
       domain: 'mastodon.social',
-      avatar: newAvatarUrl,
+      avatar: avatarUrl,
+      forceAvatarRefresh: true,
     });
 
-    expect(res.status).toBe(200);
-    expect(mockScheduleAvatarRefresh).toHaveBeenCalledWith(
-      'new-user',
-      newAvatarUrl,
-      undefined,
-      { force: false },
+    expect(scheduleAvatarRefreshSpy).toHaveBeenCalledWith(
+      existingId,
+      avatarUrl,
+      'file_existing',
+      { force: true },
     );
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledTimes(1);
-  });
-
-  it('strips the federated displayName and strips tags from bio before persisting (stored-XSS regression)', async () => {
-    // Type-immutability check: no existing user.
-    const leanResult = jest.fn().mockResolvedValue(null);
-    const selectResult = jest.fn().mockReturnValue({ lean: leanResult });
-    mockUserFindOne.mockReturnValueOnce({ select: selectResult });
-
-    const newUserDoc = { _id: 'xss-user', username: 'mallory@evil.example', type: 'federated' };
-    const updateLean = jest.fn().mockResolvedValue(newUserDoc);
-    const updateSelect = jest.fn().mockReturnValue({ lean: updateLean });
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select: updateSelect });
-
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'mallory@evil.example',
-      actorUri: 'https://evil.example/users/mallory',
-      domain: 'evil.example',
-      displayName: '<img src=x onerror=alert(1)>',
-      bio: 'hi <script>steal()</script> & "friends"',
-    });
-
-    expect(res.status).toBe(200);
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledTimes(1);
-    const [, update] = mockUserFindOneAndUpdate.mock.calls[0];
-    const setFields = (update as { $set: Record<string, unknown> }).$set;
-    // Display names follow a strict char policy: disallowed characters
-    // (`<`, `>`, `=`, `(`, `)`, digits) are stripped, never escaped — the
-    // output can never carry an HTML/XSS vector.
-    expect(setFields['name.first']).toBe('img src x onerror alert');
-    expect(String(setFields['name.first'])).not.toMatch(/[<>&"]/);
-    // Bio renders as text: HTML tags are stripped (no <script> survives) but the
-    // value is NOT entity-escaped — apostrophes/ampersands stay literal so
-    // clients don't render `&amp;`/`&#x27;`.
-    expect(setFields.bio).toBe('hi steal() & "friends"');
-    expect(String(setFields.bio)).not.toContain('<script>');
-  });
-
-  // ----------------------------------------------------------------------
-  // Own-domain guard: `<localpart>@oxy.so` is a NON-ENTITY. On Oxy's own apex
-  // the only valid identity is the bare local handle (`nate`); the
-  // domain-qualified form must never be created or returned through the
-  // federated resolve path. The route REJECTS with 400 and NEVER mints a
-  // `type:'federated'` shadow row or resolves to the local user.
-  // ----------------------------------------------------------------------
-
-  it('rejects an own-domain handle with 400 and never mints a federated dup', async () => {
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'nate@oxy.so',
-      actorUri: 'https://oxy.so/ap/users/nate',
-      domain: 'oxy.so',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/own federation domain/i);
-    // Own-domain is a non-entity: the guard short-circuits before any DB work —
-    // no local lookup and no federated mint.
-    expect(mockUserFindOne).not.toHaveBeenCalled();
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
-  });
-
-  it('rejects any own-domain handle regardless of the local-part (own-domain is a non-entity)', async () => {
-    const res = await requestJson(server, 'PUT', '/users/resolve', {
-      type: 'federated',
-      username: 'ghost@oxy.so',
-      actorUri: 'https://oxy.so/ap/users/ghost',
-      domain: 'oxy.so',
-    });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/own federation domain/i);
-    expect(mockUserFindOne).not.toHaveBeenCalled();
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
   });
 });

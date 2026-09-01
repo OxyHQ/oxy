@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { View } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Text } from '@oxyhq/bloom/typography';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
@@ -11,6 +11,7 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useOxy } from '../context/OxyContext';
 import { surfaces } from '@oxyhq/bloom/surfaces';
+import { createPlatformStorage } from '../utils/storageHelpers';
 
 interface HistoryItem { id: string; query: string; type: 'search' | 'browse'; timestamp: Date; }
 
@@ -26,27 +27,11 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const getStorage = async () => {
-        const isRN = typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
-        if (isRN) {
-            try {
-                const mod = await import('@react-native-async-storage/async-storage');
-                const s = mod.default as unknown as { getItem: (k: string) => Promise<string | null>; setItem: (k: string, v: string) => Promise<void>; removeItem: (k: string) => Promise<void> };
-                return { getItem: s.getItem.bind(s), setItem: s.setItem.bind(s), removeItem: s.removeItem.bind(s) };
-            } catch (e) { if (__DEV__) console.error('AsyncStorage not available:', e); throw new Error('AsyncStorage required'); }
-        }
-        return {
-            getItem: async (k: string) => typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem(k) : null,
-            setItem: async (k: string, v: string) => { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem(k, v); },
-            removeItem: async (k: string) => { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.removeItem(k); },
-        };
-    };
-
     React.useEffect(() => {
         const load = async () => {
             try {
                 setIsLoading(true);
-                const storage = await getStorage();
+                const storage = await createPlatformStorage();
                 const stored = await storage.getItem(`history_${user?.id || 'guest'}`);
                 if (stored) { const parsed = JSON.parse(stored); setHistory(parsed.map((i: HistoryItem) => ({ ...i, timestamp: new Date(i.timestamp) }))); }
                 else setHistory([]);
@@ -58,7 +43,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
     const handleDeleteLast15Minutes = useCallback(async () => {
         const confirmed = await surfaces.confirm({
             title: t('history.deleteLast15Minutes.title') || 'Delete Last 15 Minutes',
-            message: t('history.deleteLast15Minutes.confirm') || 'Delete last 15 minutes of history?',
+            description: t('history.deleteLast15Minutes.confirm') || 'Delete last 15 minutes of history?',
             confirmLabel: t('common.actions.delete') || 'Delete',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -69,7 +54,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
             const cutoff = new Date(Date.now() - 15 * 60 * 1000);
             const filtered = history.filter(item => item.timestamp < cutoff);
             setHistory(filtered);
-            const storage = await getStorage();
+            const storage = await createPlatformStorage();
             await storage.setItem(`history_${user?.id || 'guest'}`, JSON.stringify(filtered));
             toast.success(t('history.deleteLast15Minutes.success') || 'Last 15 minutes deleted');
         } catch (e) { if (__DEV__) console.error('Failed to delete history:', e); toast.error(t('history.deleteLast15Minutes.error') || 'Failed to delete history'); }
@@ -79,7 +64,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
     const handleClearAll = useCallback(async () => {
         const confirmed = await surfaces.confirm({
             title: t('history.clearAll.title') || 'Clear All History',
-            message: t('history.clearAll.confirm') || 'Clear all history? This cannot be undone.',
+            description: t('history.clearAll.confirm') || 'Clear all history? This cannot be undone.',
             confirmLabel: t('history.clearAll.title') || 'Clear All',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -87,7 +72,7 @@ const HistoryViewScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => {
         if (!confirmed) return;
         try {
             setIsDeleting(true); setHistory([]);
-            const storage = await getStorage();
+            const storage = await createPlatformStorage();
             await storage.removeItem(`history_${user?.id || 'guest'}`);
             toast.success(t('history.clearAll.success') || 'History cleared');
         } catch (e) { if (__DEV__) console.error('Failed to clear history:', e); toast.error(t('history.clearAll.error') || 'Failed to clear history'); }

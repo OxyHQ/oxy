@@ -120,6 +120,17 @@ export interface InboundDelivery {
 
 /** Adapters + hooks an {@link InboundDispatcher} is built from. */
 export interface InboundDispatcherConfig {
+  /**
+   * The app's per-instance domain policy (`DomainPolicy.isBlockedDomain`) — our own
+   * ActivityPub domains, the Oxy identity apex, and every explicitly suspended
+   * instance. Applied to the host of the VERIFIED origin actor before an inbound
+   * activity is dispatched, so a suspended instance can create nothing here.
+   *
+   * REQUIRED, deliberately: an app that forgets to wire it would silently federate
+   * with every instance it has ever cached, which is exactly the failure this gate
+   * exists to prevent. A missing policy must be a compile error, not a quiet hole.
+   */
+  isBlockedDomain(host: string): boolean;
   /** Validate + extract the primary type of an untrusted inbound activity (app's zod schemas). */
   validateActivity(activity: Record<string, unknown>): InboundActivityValidation;
   /** The actor↔Oxy-user identity bridge. */
@@ -156,6 +167,19 @@ export interface InboundDispatcherConfig {
 export interface InboundDispatcher {
   /** Process one already-actor-verified inbound activity. */
   processInboxActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void>;
+}
+
+/**
+ * The lowercased host of an actor URI, or null when it is not a parseable absolute
+ * URL. Callers treat null as blocked: an origin whose host cannot be determined
+ * cannot be checked against the domain policy, so it fails closed.
+ */
+function actorUriHost(actorUri: string): string | null {
+  try {
+    return new URL(actorUri).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
 }
 
 /** Read the `object`'s referenced actor/target uri (a string, or an embedded `{ id }`). */
@@ -328,6 +352,26 @@ export function createInboundDispatcher(config: InboundDispatcherConfig): Inboun
   }
 
   async function processInboxActivity(activity: Record<string, unknown>, verifiedActorUri: string): Promise<void> {
+    // Instance domain policy, FIRST — before the payload is even parsed.
+    //
+    // This is the single chokepoint for inbound federation: every transport (the
+    // inbox route's inline path, the BullMQ inbox worker replaying a queued job,
+    // and any direct connector call) converges here, and every verb — Follow,
+    // Accept, Undo, Reject, and the app's content verbs — is dispatched below it.
+    // So one check here suspends an instance completely: no posts, no actors, no
+    // follows, no boosts, no notifications.
+    //
+    // It is keyed on `verifiedActorUri`, the origin the HTTP signature actually
+    // proved, which is also the identity every handler downstream trusts — so
+    // there is no second, weaker identity a hostile payload could be routed under.
+    const originHost = actorUriHost(verifiedActorUri);
+    if (originHost === null || config.isBlockedDomain(originHost)) {
+      logger.warn(
+        `[Federation] dropping inbound activity from blocked origin ${verifiedActorUri} (host=${originHost ?? 'unparseable'})`,
+      );
+      return;
+    }
+
     // Inbound JSON arrives from arbitrary, UNTRUSTED remote servers. Validate the
     // whole activity BEFORE any handler reads it. The validation never throws; a
     // malformed or hostile payload is rejected cleanly here.

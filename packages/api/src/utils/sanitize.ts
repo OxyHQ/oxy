@@ -147,7 +147,7 @@ export function sanitizeObject<T extends Record<string, unknown>>(
  * (URLs), linksMetadata, locations.
  *
  * `name` is intentionally skipped: display names are validated against a strict
- * letters/spaces/apostrophe policy upstream (see `utils/displayNameSanitize.ts`)
+ * letters/spaces/apostrophe/separator policy upstream (see `utils/displayNameSanitize.ts`)
  * and are already clean, so reprocessing them here is unnecessary.
  *
  * The skipped fields are NOT unnormalized — they are structured values (a name

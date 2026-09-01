@@ -85,3 +85,19 @@ export const assetsBySha256BodySchema = z.object({
     .min(1, 'sha256s must not be empty')
     .max(MAX_ASSETS_BY_SHA256, `Cannot request more than ${MAX_ASSETS_BY_SHA256} hashes at once`),
 });
+
+// POST /assets/:id/link — attach a file to an app entity.
+export const linkFileSchema = z.object({
+  app: z.string().min(1, 'App name is required'),
+  entityType: z.string().min(1, 'Entity type is required'),
+  entityId: z.string().min(1, 'Entity ID is required'),
+  visibility: z.enum(['private', 'public', 'unlisted']).optional(),
+  webhookUrl: z.string().url().optional(),
+});
+
+// POST /assets/:id/unlink — detach a file from an app entity.
+export const unlinkFileSchema = z.object({
+  app: z.string().min(1, 'App name is required'),
+  entityType: z.string().min(1, 'Entity type is required'),
+  entityId: z.string().min(1, 'Entity ID is required'),
+});

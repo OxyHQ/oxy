@@ -1,4 +1,5 @@
 import { createHmac } from 'node:crypto';
+import { and, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import {
   autonomyLevelSchema,
   type ActorRef,
@@ -10,15 +11,16 @@ import {
   type ResourceRef,
 } from '@oxyhq/contracts';
 import { issueCapabilityTicket, verifyCapabilityTicket } from '@oxyhq/core/server';
-import User from '../models/User';
-import { AccountCapabilityPolicy } from '../models/AccountCapabilityPolicy';
+import { getDb } from '../config/postgres';
 import {
-  DelegationCapability,
-  DelegationGrant,
-  DelegationLimit,
-  DelegationToolOverride,
-  type IDelegationGrant,
-} from '../models/DelegationGrant';
+  accountCapabilityPolicies,
+  delegationCapabilities,
+  delegationGrants,
+  delegationLimits,
+  delegationToolOverrides,
+  type DelegationGrantRow,
+} from '../db/schema/agency';
+import { users } from '../db/schema/users';
 import accountService from './account.service';
 import { activeCapabilityCatalog } from './capabilityCatalog.service';
 
@@ -52,7 +54,7 @@ export interface AuthorityResult {
 }
 
 interface GrantParts {
-  grant: IDelegationGrant;
+  grant: DelegationGrantRow;
   capabilities: string[];
   overrides: Array<{ tool: string; decision: 'allow' | 'deny' }>;
   limits: GrantLimit[];
@@ -88,8 +90,11 @@ function mergeLimits(primary: readonly GrantLimit[], narrowing: readonly GrantLi
     if (typeof current.value === 'number' && typeof limit.value === 'number') {
       merged.set(limit.key, { key: limit.key, value: Math.min(current.value, limit.value) });
     } else if (Array.isArray(current.value) && Array.isArray(limit.value)) {
-      const narrowingValues = limit.value;
-      merged.set(limit.key, { key: limit.key, value: current.value.filter((value) => narrowingValues.includes(value)) });
+      const allowedValues = limit.value;
+      merged.set(limit.key, {
+        key: limit.key,
+        value: current.value.filter((value) => allowedValues.includes(value)),
+      });
     } else if (current.value !== limit.value) {
       throw new Error(`Automation limit ${limit.key} conflicts with the delegation`);
     }
@@ -110,27 +115,39 @@ async function requesterCanOperate(requesterAccountId: string, accountId: string
 
 async function loadGrant(request: AuthorityRequest, now: Date): Promise<GrantParts | null> {
   if (request.actor.type !== 'agent') return null;
-  const grant = await DelegationGrant.findOne({
-    ownerAccountId: request.ownerAccountId,
-    actorAccountId: request.actor.accountId,
-    resourceAppId: request.resource.appId,
-    effectiveAccountId: request.resource.effectiveAccountId,
-    resourceType: request.resource.resourceType,
-    resourceId: request.resource.resourceId,
-    revokedAt: null,
-    $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
-  }).sort({ createdAt: -1 });
+  const db = getDb();
+  const [grant] = await db
+    .select()
+    .from(delegationGrants)
+    .where(and(
+      eq(delegationGrants.ownerAccountId, request.ownerAccountId),
+      eq(delegationGrants.actorAccountId, request.actor.accountId),
+      eq(delegationGrants.resourceApp, request.resource.appId),
+      eq(delegationGrants.effectiveAccountId, request.resource.effectiveAccountId),
+      eq(delegationGrants.resourceType, request.resource.resourceType),
+      eq(delegationGrants.resourceKey, request.resource.resourceId),
+      isNull(delegationGrants.revokedAt),
+      or(isNull(delegationGrants.expiresAt), gt(delegationGrants.expiresAt, now)),
+    ))
+    .orderBy(desc(delegationGrants.createdAt))
+    .limit(1);
   if (!grant) return null;
   const [capabilities, overrides, limits] = await Promise.all([
-    DelegationCapability.find({ grantId: grant._id }).lean(),
-    DelegationToolOverride.find({ grantId: grant._id }).lean(),
-    DelegationLimit.find({ grantId: grant._id }).lean(),
+    db.select({ capability: delegationCapabilities.capability })
+      .from(delegationCapabilities)
+      .where(eq(delegationCapabilities.grantId, grant.id)),
+    db.select({ tool: delegationToolOverrides.tool, decision: delegationToolOverrides.decision })
+      .from(delegationToolOverrides)
+      .where(eq(delegationToolOverrides.grantId, grant.id)),
+    db.select({ key: delegationLimits.key, value: delegationLimits.value })
+      .from(delegationLimits)
+      .where(eq(delegationLimits.grantId, grant.id)),
   ]);
   return {
     grant,
     capabilities: capabilities.map((entry) => entry.capability),
-    overrides: overrides.map((entry) => ({ tool: entry.tool, decision: entry.decision })),
-    limits: limits.map((entry) => ({ key: entry.key, value: entry.value })),
+    overrides,
+    limits,
   };
 }
 
@@ -157,10 +174,14 @@ export async function evaluateCapabilityAuthority(
   if (!tool || !tool.exposure.includes('internal')) return denied('tool_not_exposed_internally');
   if (!tool.resourceTypes.includes(request.resource.resourceType)) return denied('resource_type_mismatch');
 
-  const policy = await AccountCapabilityPolicy.findOne({
-    accountId: request.resource.effectiveAccountId,
-    appId: request.resource.appId,
-  }).lean();
+  const [policy] = await getDb()
+    .select()
+    .from(accountCapabilityPolicies)
+    .where(and(
+      eq(accountCapabilityPolicies.accountId, request.resource.effectiveAccountId),
+      eq(accountCapabilityPolicies.appSlug, request.resource.appId),
+    ))
+    .limit(1);
   if (policy?.deniedCapabilities.some((capability) => tool.requiredCapabilities.includes(capability))) {
     return denied('account_policy_denied_capability');
   }
@@ -171,8 +192,14 @@ export async function evaluateCapabilityAuthority(
   if (request.actor.type === 'alia') {
     if (request.actor.ownerAccountId !== request.ownerAccountId) return denied('alia_owner_mismatch');
   } else {
-    const actor = await User.findById(request.actor.accountId).select('kind accountStatus').lean();
-    if (!actor || actor.kind !== 'bot' || actor.accountStatus === 'archived') return denied('actor_is_not_an_active_bot_account');
+    const [actor] = await getDb()
+      .select({ kind: users.kind, accountStatus: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, request.actor.accountId))
+      .limit(1);
+    if (!actor || actor.kind !== 'bot' || actor.accountStatus === 'archived') {
+      return denied('actor_is_not_an_active_bot_account');
+    }
     grantParts = await loadGrant(request, now);
     if (!grantParts) return denied('agent_has_no_active_grant');
     if (!grantAllowsTool(tool, {
@@ -203,7 +230,7 @@ export async function evaluateCapabilityAuthority(
     allowed: true,
     reason: 'allowed_by_current_authority',
     effectiveAutonomy,
-    ...(grantParts ? { grantId: grantParts.grant._id.toString() } : {}),
+    ...(grantParts ? { grantId: grantParts.grant.id } : {}),
   };
   if (!options.issueTicket) return { decision };
 
@@ -213,7 +240,7 @@ export async function evaluateCapabilityAuthority(
     runId: request.runId,
     ...(request.stepId ? { stepId: request.stepId } : {}),
     ...(request.automationId ? { automationId: request.automationId } : {}),
-    ...(grantParts ? { grantId: grantParts.grant._id.toString() } : {}),
+    ...(grantParts ? { grantId: grantParts.grant.id } : {}),
     requesterAccountId: request.requesterAccountId,
     ownerAccountId: request.ownerAccountId,
     actor: request.actor,

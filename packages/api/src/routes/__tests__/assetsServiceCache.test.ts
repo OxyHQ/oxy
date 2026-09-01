@@ -28,6 +28,14 @@ const CACHE_FILE_ID = '64c0000000000000000000ff';
 const USER_FILE_ID = '64c0000000000000000000aa';
 const FEDERATED_OWNER_ID = '64d0000000000000000000bb';
 const LOCAL_OWNER_ID = '64e0000000000000000000cc';
+/**
+ * An id of the right SHAPE that names no account. The route used to reject this
+ * at a `isValidObjectId` gate; it now simply matches no row and takes the same
+ * "not an existing federated/local user" 403 the endpoint already gave, so the
+ * absent-owner case is exercised by an absent OWNER rather than by a mock
+ * returning null.
+ */
+const UNKNOWN_OWNER_ID = '64f0000000000000000000dd';
 
 // A body larger than the global 1 MiB JSON/urlencoded parser limit. If C1's
 // guard failed to bypass those parsers, the stream would be truncated/rejected.
@@ -47,7 +55,6 @@ const mockDeleteFile = jest.fn();
 const mockGetFilesByIds = jest.fn();
 const mockFindActiveFilesBySha256 = jest.fn();
 const mockGetPublicCdnUrl = jest.fn();
-const mockUserFindOne = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (...args: unknown[]) => mockAuthMiddleware(...args),
@@ -76,10 +83,6 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('../../utils/validation', () => ({
-  isValidObjectId: (id: string) => /^[a-fA-F0-9]{24}$/.test(id),
-}));
-
 jest.mock('../../services/assetServiceSingleton', () => ({
   assetService: {
     uploadCachedMediaStream: (...args: unknown[]) => mockUploadCachedMediaStream(...args),
@@ -96,13 +99,8 @@ jest.mock('../../services/assetServiceSingleton', () => ({
   s3Service: {},
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    findOne: (...args: unknown[]) => mockUserFindOne(...args),
-  },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { users } from '../../db/schema';
 import assetsRouter from '../assets';
 import { errorHandler } from '../../middleware/errorHandler';
 
@@ -205,6 +203,24 @@ beforeAll((done) => {
   server = app.listen(0, '127.0.0.1', done);
 });
 
+beforeAll(async () => {
+  await connectPostgres();
+  // `users.id` is `text`, so a test supplies the ids it asserts on. The route
+  // resolves the owner against these REAL rows — including `type`, which is the
+  // discriminator the two endpoints differ on.
+  await getDb()
+    .insert(users)
+    .values([
+      { id: FEDERATED_OWNER_ID, color: 'teal', type: 'federated' },
+      { id: LOCAL_OWNER_ID, color: 'teal', type: 'local' },
+    ])
+    .onConflictDoNothing();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 afterAll((done) => {
   server.close(done);
 });
@@ -224,11 +240,6 @@ beforeEach(() => {
       next();
     }
   );
-  mockUserFindOne.mockReturnValue({
-    select: () => ({
-      lean: () => Promise.resolve({ _id: FEDERATED_OWNER_ID, type: 'federated' }),
-    }),
-  });
   mockGetFilesByIds.mockResolvedValue([]);
   mockFindActiveFilesBySha256.mockResolvedValue([]);
   mockGetPublicCdnUrl.mockResolvedValue(null);
@@ -247,7 +258,7 @@ beforeEach(() => {
 
 describe('POST /assets/service/cache', () => {
   it('lets a service token upload to the cache namespace and returns { file: { id } }', async () => {
-    mockUploadCachedMediaStream.mockResolvedValueOnce({ _id: CACHE_FILE_ID, size: 1234 });
+    mockUploadCachedMediaStream.mockResolvedValueOnce({ id: CACHE_FILE_ID, size: 1234 });
 
     const res = await requestRaw(
       server,
@@ -325,7 +336,7 @@ describe('POST /assets/service/cache', () => {
       for await (const chunk of source) {
         bytesReceived += (chunk as Buffer).length;
       }
-      return { _id: CACHE_FILE_ID, size: bytesReceived };
+      return { id: CACHE_FILE_ID, size: bytesReceived };
     });
 
     const payload = Buffer.alloc(LARGE_BODY_BYTES, 0x61);
@@ -348,7 +359,7 @@ describe('POST /assets/service/cache', () => {
 describe('POST /assets/service/federation', () => {
   it('streams durable federated media owned by an existing federated user', async () => {
     mockUploadFederatedMediaStream.mockResolvedValueOnce({
-      _id: USER_FILE_ID,
+      id: USER_FILE_ID,
       sha256: 'a'.repeat(64),
       size: 4,
       mime: 'image/jpeg',
@@ -371,7 +382,6 @@ describe('POST /assets/service/federation', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data?.file?.id).toBe(USER_FILE_ID);
-    expect(mockUserFindOne).toHaveBeenCalledWith({ _id: FEDERATED_OWNER_ID, type: 'federated' });
     expect(mockUploadFederatedMediaStream).toHaveBeenCalledTimes(1);
     expect(mockUploadFederatedMediaStream.mock.calls[0][1]).toBe('image/jpeg');
     expect(mockUploadFederatedMediaStream.mock.calls[0][2]).toBe('photo.jpg');
@@ -411,17 +421,11 @@ describe('POST /assets/service/federation', () => {
   });
 
   it('rejects owners that are not existing federated users', async () => {
-    mockUserFindOne.mockReturnValueOnce({
-      select: () => ({
-        lean: () => Promise.resolve(null),
-      }),
-    });
-
     const res = await requestRaw(
       server,
       'POST',
       '/assets/service/federation',
-      { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': FEDERATED_OWNER_ID },
+      { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': UNKNOWN_OWNER_ID },
       Buffer.from('PNG!')
     );
 
@@ -433,16 +437,11 @@ describe('POST /assets/service/federation', () => {
 describe('POST /assets/service/user-media', () => {
   it('streams durable media owned by an existing local user', async () => {
     mockUploadUserMediaStream.mockResolvedValueOnce({
-      _id: USER_FILE_ID,
+      id: USER_FILE_ID,
       sha256: 'b'.repeat(64),
       size: 4,
       mime: 'image/jpeg',
       visibility: 'public',
-    });
-    mockUserFindOne.mockReturnValueOnce({
-      select: () => ({
-        lean: () => Promise.resolve({ _id: LOCAL_OWNER_ID, type: 'local' }),
-      }),
     });
 
     const res = await requestRaw(
@@ -460,17 +459,35 @@ describe('POST /assets/service/user-media', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data?.file?.id).toBe(USER_FILE_ID);
-    expect(mockUserFindOne).toHaveBeenCalledWith({ _id: LOCAL_OWNER_ID, type: 'local' });
     expect(mockUploadUserMediaStream).toHaveBeenCalledTimes(1);
     expect(mockUploadUserMediaStream.mock.calls[0][4]).toBe(LOCAL_OWNER_ID);
   });
 
   it('rejects owners that are not existing local users', async () => {
-    mockUserFindOne.mockReturnValueOnce({
-      select: () => ({
-        lean: () => Promise.resolve(null),
-      }),
-    });
+    const res = await requestRaw(
+      server,
+      'POST',
+      '/assets/service/user-media',
+      { 'content-type': 'image/png', 'content-length': '4', 'x-owner-user-id': UNKNOWN_OWNER_ID },
+      Buffer.from('PNG!')
+    );
+
+    expect(res.status).toBe(403);
+    expect(mockUploadUserMediaStream).not.toHaveBeenCalled();
+  });
+
+  it('requires privileged act-as authority in addition to files:write', async () => {
+    mockServiceAuthMiddleware.mockImplementationOnce(
+      (req: { serviceApp?: unknown }, _res: unknown, next: () => void) => {
+        req.serviceApp = {
+          type: 'service',
+          appId: 'unprivileged-app',
+          appName: 'unprivileged',
+          scopes: ['files:write'],
+        };
+        next();
+      }
+    );
 
     const res = await requestRaw(
       server,
@@ -532,12 +549,7 @@ describe('POST /assets/service/user-media', () => {
       for await (const chunk of source) {
         bytesReceived += (chunk as Buffer).length;
       }
-      return { _id: USER_FILE_ID, size: bytesReceived };
-    });
-    mockUserFindOne.mockReturnValueOnce({
-      select: () => ({
-        lean: () => Promise.resolve({ _id: LOCAL_OWNER_ID, type: 'local' }),
-      }),
+      return { id: USER_FILE_ID, size: bytesReceived };
     });
 
     const payload = Buffer.alloc(LARGE_BODY_BYTES, 0x61);
@@ -661,7 +673,7 @@ describe('POST /assets/service/by-ids', () => {
     grantFilesReadOnce();
     mockGetFilesByIds.mockResolvedValueOnce([
       {
-        _id: { toString: () => CACHE_FILE_ID },
+        id: CACHE_FILE_ID,
         sha256: 'a'.repeat(64),
         mime: 'image/png',
         size: 1234,
@@ -674,7 +686,7 @@ describe('POST /assets/service/by-ids', () => {
         links: [{ app: 'mention' }],
       },
       {
-        _id: { toString: () => USER_FILE_ID },
+        id: USER_FILE_ID,
         sha256: 'b'.repeat(64),
         mime: 'video/mp4',
         size: 9999,
@@ -715,7 +727,7 @@ describe('POST /assets/service/by-ids', () => {
     // Only one of the two requested ids resolves to a live file.
     mockGetFilesByIds.mockResolvedValueOnce([
       {
-        _id: { toString: () => CACHE_FILE_ID },
+        id: CACHE_FILE_ID,
         sha256: 'c'.repeat(64),
         mime: 'image/jpeg',
         size: 42,
@@ -803,7 +815,7 @@ describe('POST /assets/service/by-sha256', () => {
   it('resolves a known public sha to metadata + CDN url, and a private sha without url', async () => {
     grantFilesReadOnce();
     const publicFile = {
-      _id: { toString: () => CACHE_FILE_ID },
+      id: CACHE_FILE_ID,
       sha256: SHA_PUBLIC,
       mime: 'image/png',
       size: 1234,
@@ -816,7 +828,7 @@ describe('POST /assets/service/by-sha256', () => {
       variants: [{ type: 'thumb', key: 'k' }],
     };
     const privateFile = {
-      _id: { toString: () => USER_FILE_ID },
+      id: USER_FILE_ID,
       sha256: SHA_PRIVATE,
       mime: 'video/mp4',
       size: 9999,
@@ -866,7 +878,7 @@ describe('POST /assets/service/by-sha256', () => {
   it('does not 500 the batch when one hash CDN resolution throws', async () => {
     grantFilesReadOnce();
     const publicFile = {
-      _id: { toString: () => CACHE_FILE_ID },
+      id: CACHE_FILE_ID,
       sha256: SHA_PUBLIC,
       mime: 'image/png',
       size: 1234,
@@ -874,7 +886,7 @@ describe('POST /assets/service/by-sha256', () => {
       visibility: 'public',
     };
     const brokenFile = {
-      _id: { toString: () => USER_FILE_ID },
+      id: USER_FILE_ID,
       sha256: SHA_PRIVATE,
       mime: 'image/jpeg',
       size: 5678,
@@ -914,7 +926,7 @@ describe('POST /assets/service/by-sha256', () => {
     // Only one of the two requested hashes resolves to a live file.
     mockFindActiveFilesBySha256.mockResolvedValueOnce([
       {
-        _id: { toString: () => CACHE_FILE_ID },
+        id: CACHE_FILE_ID,
         sha256: SHA_PUBLIC,
         mime: 'image/jpeg',
         size: 42,

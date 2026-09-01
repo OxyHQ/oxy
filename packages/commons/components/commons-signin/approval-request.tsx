@@ -2,10 +2,11 @@ import React from 'react';
 import { View, Image, Pressable, StyleSheet } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LogoIcon } from '@oxyhq/services';
-import type {
-  CommonsApprovalInfo,
-  CommonsApprovalSubjectAccount,
-  PublicApplication,
+import {
+  getNormalizedUserHandle,
+  type CommonsApprovalInfo,
+  type CommonsApprovalSubjectAccount,
+  type PublicApplication,
 } from '@oxyhq/core';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
@@ -39,13 +40,18 @@ export interface ApprovalRequestProps {
   identityName: string | null;
   /** Why the local confirmation did not complete, when it did not. */
   confirmationIssue: ApprovalConfirmationIssue | null;
+  /** Dismiss without answering. A cancel, NOT a denial. */
+  onClose: () => void;
   onOpenLink: (url: string) => void;
 }
 
 /** How the delegated account is named: its display name, else its handle. */
 function subjectLabel(subject: CommonsApprovalSubjectAccount): string {
   const displayName = subject.displayName?.trim();
-  return displayName ? displayName : `@${subject.username}`;
+  if (displayName) return displayName;
+  const handle = getNormalizedUserHandle(subject);
+  if (!handle) return '—';
+  return handle.includes('@') ? handle : `@${handle}`;
 }
 
 /**
@@ -63,9 +69,10 @@ function scopeText(line: ScopeLine, t: TranslateFn): string {
 /**
  * The Commons approval surface (issue #691, Phase 5).
  *
- * This component owns only the request content. The parent Bloom `Dialog` owns
- * every action so its primary, destructive, cancel and loading states stay
- * consistent with every other bottom sheet.
+ * ONE primary action. `Confirm identity` invokes the device biometric/passcode
+ * prompt directly — there is no intermediate "Continue" step and no second
+ * confirmation screen. `This wasn't me` is the only other answer, and simply
+ * dismissing the sheet answers nothing at all.
  *
  * Everything shown about the request — the application's name, icon, developer,
  * official standing, bound origin, requesting client, scopes and delegated
@@ -95,6 +102,7 @@ export function ApprovalRequest({
   application,
   identityName,
   confirmationIssue,
+  onClose,
   onOpenLink,
 }: ApprovalRequestProps) {
   const colors = useColors();
@@ -114,9 +122,20 @@ export function ApprovalRequest({
   const termsUrl = application.termsUrl;
 
   return (
-    <View className="pb-2">
+    <View className="pb-7">
+      <Pressable
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel={t('common.close')}
+        testID="approval-close"
+        className="absolute right-3 top-3 h-9 w-9 items-center justify-center rounded-full"
+        style={{ backgroundColor: colors.backgroundSecondary }}
+      >
+        <MaterialCommunityIcons name="close" size={20} color={colors.textSecondary} />
+      </Pressable>
+
       {/* WHO IS ASKING — server-resolved identity, paired with the Oxy mark. */}
-      <View className="items-center pt-5">
+      <View className="items-center px-8 pt-12">
         <View className="flex-row items-center gap-3">
           <View
             className="h-14 w-14 items-center justify-center overflow-hidden rounded-2xl"
@@ -162,7 +181,14 @@ export function ApprovalRequest({
           </ThemedText>
         ) : null}
 
-        {!application.isOfficial && application.developerName ? (
+        {originVerified && application.isOfficial ? (
+          <View className="mt-1.5 flex-row items-center gap-1">
+            <MaterialCommunityIcons name="check-decagram" size={14} color={colors.tint} />
+            <ThemedText style={[styles.provenance, { color: colors.tint }]}>
+              {t('signInApproval.approve.officialBadge')}
+            </ThemedText>
+          </View>
+        ) : application.developerName ? (
           <ThemedText style={[styles.provenance, { color: colors.textTertiary }]}>
             {t('signInApproval.approve.developerBy', { developer: application.developerName })}
           </ThemedText>
@@ -170,7 +196,7 @@ export function ApprovalRequest({
       </View>
 
       {!originVerified ? (
-        <View className="pt-5">
+        <View className="px-5 pt-5">
           <ImportantBanner
             icon="alert"
             title={t('signInApproval.approve.unverifiedTitle')}
@@ -183,7 +209,7 @@ export function ApprovalRequest({
 
       {/* DELEGATION — rendered ONLY when the request delegates to an account. */}
       {subject ? (
-        <View className="pt-5">
+        <View className="px-5 pt-5">
           <View
             testID="approval-delegation"
             className="gap-3 rounded-3xl p-4"
@@ -221,7 +247,7 @@ export function ApprovalRequest({
       ) : null}
 
       {/* WHAT THE APP RECEIVES — server-resolved scopes, nothing implied. */}
-      <View testID="approval-scopes" className="gap-2 pt-5">
+      <View testID="approval-scopes" className="gap-2 px-5 pt-5">
         <ThemedText style={[styles.fieldLabel, { color: colors.textTertiary }]}>
           {t('signInApproval.approve.receivesTitle', { app: appName })}
         </ThemedText>
@@ -245,7 +271,7 @@ export function ApprovalRequest({
       </View>
 
       {confirmationIssue ? (
-        <View testID="approval-confirmation-issue" className="pt-3">
+        <View testID="approval-confirmation-issue" className="px-5 pt-3">
           <Callout tone={confirmationIssue.kind === 'declined' ? 'info' : 'danger'} icon="fingerprint">
             {t(confirmationIssueKey(confirmationIssue))}
           </Callout>
@@ -253,7 +279,7 @@ export function ApprovalRequest({
       ) : null}
 
       {hasLegalLinks ? (
-        <View className="flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-5">
+        <View className="flex-row flex-wrap items-center justify-center gap-x-4 gap-y-1 px-5 pt-5">
           {privacyPolicyUrl ? (
             <Pressable onPress={() => onOpenLink(privacyPolicyUrl)} accessibilityRole="link">
               <ThemedText style={[styles.legalLink, { color: colors.textTertiary }]}>

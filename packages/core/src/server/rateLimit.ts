@@ -3,6 +3,7 @@ import { isIPv4, isIPv6 } from 'node:net';
 import type { Request, RequestHandler } from 'express';
 import rateLimit, { type Store } from 'express-rate-limit';
 import type { OxyServices } from '../OxyServices';
+import { createOptionalOxyAuth } from './auth';
 
 /**
  * Server-only rate limiting for Oxy backends.
@@ -25,8 +26,9 @@ import type { OxyServices } from '../OxyServices';
  * WHAT IT PROVIDES
  * ----------------
  * `createOxyRateLimit(oxy, options)` returns a SINGLE composed middleware that:
- *   1. Resolves the user via `oxy.auth({ optional: true })` (idempotent — it
- *      skips re-verification if a prior middleware already set `req.user`).
+ *   1. Resolves the user via `createOptionalOxyAuth` (idempotent — it skips
+ *      resolution entirely if a prior middleware already resolved a user, so
+ *      the limiter can never erase an identity it did not create).
  *   2. Applies an `express-rate-limit` limiter keyed PER USER when
  *      authenticated, falling back to the (IPv6-safe) IP otherwise, with
  *      generous, media-app-realistic defaults and sensible exemptions.
@@ -203,11 +205,12 @@ function hashAnonymousIp(ip: string): string {
 /**
  * Resolve the trusted authenticated rate-limit key.
  *
- * `oxy.auth({ optional: true })` preserves legacy non-session user tokens by
- * decoding their JWT claims locally. Those claims are not cryptographically
- * verified and therefore MUST NOT influence abuse-control buckets. Only use
- * identities that came from a server-validated session or a verified service
- * token/delegation.
+ * Only identities that came from a server-validated session or a verified
+ * service token/delegation may pick a bucket. `req.sessionId` is the marker
+ * for the former: `oxy.auth()` sets it only after `validateSession()` came
+ * back valid, so requiring it here means an identity written by some OTHER
+ * middleware — which this package cannot vouch for — shares the anonymous
+ * per-IP bucket rather than getting the authenticated quota.
  */
 function resolveTrustedAuthenticatedKey(req: OxyAuthedRequest): string | null {
   const userId = req.userId ?? req.user?.id ?? req.user?._id;
@@ -260,7 +263,14 @@ export function createOxyRateLimit(
 
   // Idempotent optional-auth resolver. Reuses the SAME session resolution as
   // every protected route, so the limiter keys by the real user identity.
-  const resolveSession = oxy.auth({ ...auth, optional: true });
+  //
+  // `createOptionalOxyAuth` — NOT the raw `oxy.auth({ optional: true })` —
+  // because only the former skips resolution when a preceding middleware has
+  // already resolved a user. The raw middleware writes `req.userId = null` on
+  // every request it cannot authenticate, and because it mutates the shared
+  // `req` that erasure is visible to every handler downstream of the limiter,
+  // not just to the bucket calculation.
+  const resolveSession = createOptionalOxyAuth(oxy, { auth });
 
   const skip = (req: Request): boolean =>
     isBuiltInExempt(req) || (exempt ? exempt(req) : false);
@@ -278,6 +288,9 @@ export function createOxyRateLimit(
     standardHeaders: true,
     legacyHeaders: false,
     skip,
+    // hashAnonymousIp already buckets IPv6 to /56 before HMAC; disable the v8
+    // static source scan that false-positives on req.ip (ERR_ERL_KEY_GEN_IPV6).
+    validate: { keyGeneratorIpFallback: false },
   });
 
   return (req, res, next) => {

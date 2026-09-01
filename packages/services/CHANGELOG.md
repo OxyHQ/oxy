@@ -2,6 +2,53 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the full Ionicons and Material Community Icons assets reachable from
+  Services UI with exact-shape generated subsets. The consumer payload falls
+  from 1,697,384 bytes to 75,172 bytes for those two families. A build gate now
+  rejects stale subsets, changed source versions, unrecorded glyph names, or
+  reintroduced full-family imports.
+
+## [28.0.0] - 2026-08-06
+
+### Licence: AGPL-3.0-only becomes Apache-2.0
+
+**Breaking for anyone who tracks the licence, and for nobody else.**
+`@oxyhq/services` is now Apache-2.0. The code, the API surface and the
+behaviour are unchanged in this release. It exists to carry the licence change.
+
+This is a widening. Every right the AGPL granted you, Apache-2.0 grants too,
+and Apache-2.0 additionally drops the network copyleft and adds an express
+patent grant. Nobody has to do anything, and no existing use of this package
+becomes non-compliant.
+
+Versions published before this one keep the licence they were published under,
+permanently. `27.1.3` stays AGPL-3.0-only for anyone who already has it. A licence
+change binds future versions only.
+
+The major is bumped rather than the change being slipped into a patch, so that
+nobody on `^27.0.0` is moved to a new licence by a routine install. That is
+exactly what happened at `22.5.0`, and it is not happening again.
+
+### Also breaking: the `@oxyhq/core` peer range moves to `^20.0.0`
+
+Core's own relicensing bumped it to `20.0.0`, so the declared peer range has to
+follow. Bump `@oxyhq/core` alongside this package. Nothing in the services API
+surface changed.
+
+### Added
+
+- A `NOTICE` file, which Apache-2.0 section 4(d) requires downstream
+  redistributors to reproduce, and a verbatim `LICENSE`.
+
+## [25.0.0] - 2026-07-30
+
+### Changed
+- **BREAKING**: Raised the `@oxyhq/core` peer dependency to `^16.0.0`. Consumers
+  must bump core to 16.x when upgrading services — the services API surface is
+  unchanged, but the declared peer range was stale after core 16 shipped.
+
 ### Removed
 - **BREAKING**: Dropped the bundled Inter font family and the font-loading API.
   - Deleted the 7 static Inter TTFs (`src/assets/fonts/Inter/`, 2.41 MB) that shipped
@@ -31,8 +78,6 @@
 
 ### Fixed
 - The consent page no longer shows the literal platform string **"web"** for web consumers that did not pass a name. It now derives a correct brand name from the `storageKeyPrefix` or `document.title`, and only falls back to the platform when an app supplies none of those. (Mention #143)
-
-## [Unreleased]
 
 ### Fixed
 - **Fixed react-native imports in core modules** - Critical packaging bug fix

@@ -49,12 +49,7 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
   useOxy: () => ({ oxyServices: { listUserFiles }, activeSessionId: 's1' }),
 }));
 
-// The error state renders vector icons, which don't parse under ts-jest.
-jest.mock('@expo/vector-icons/Ionicons', () => ({ __esModule: true, default: () => null }));
-jest.mock('@expo/vector-icons/MaterialCommunityIcons', () => ({
-  __esModule: true,
-  default: () => null,
-}));
+// Vector icons are stubbed globally via jest.config.js moduleNameMapper.
 
 import { useFileUploadState } from '../../src/ui/screens/fileManagement/hooks/useFileUploadState';
 
@@ -253,6 +248,30 @@ describe('useFileUploadState optimistic lifecycle (query cache)', () => {
 
   afterEach(() => {
     Platform.OS = originalOS;
+  });
+
+  it('keeps the header-facing handlers referentially stable across re-renders', () => {
+    // FileManagementScreen feeds `handleFileUpload` into the picker header's
+    // `primaryAction` memo and `handleCancelUpload` into the upload-preview
+    // header's back NODE (`fmHeaderBack`). A node can only be compared by
+    // identity, so a handler re-created every render re-creates the node every
+    // render, which drives the surface-header bridge into an unbounded update
+    // loop (React error #185 — the profile-banner black screen).
+    const client = makeClient();
+    seedCache(client);
+    // Stable params, as the real screen supplies them (`t` from `useTranslation`).
+    const params = makeParams(jest.fn());
+
+    const { result, rerender } = renderHook(() => useFileUploadState(params), {
+      wrapper: wrapper(client),
+    });
+
+    const first = result.current;
+    rerender();
+    rerender();
+
+    expect(result.current.handleFileUpload).toBe(first.handleFileUpload);
+    expect(result.current.handleCancelUpload).toBe(first.handleCancelUpload);
   });
 
   it('shows the picked uri (never a temp asset URL) while uploading, then removes the temp entry when the response has no file payload', async () => {

@@ -3,15 +3,15 @@ import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import type { OxyProviderProps } from '../types/navigation';
-import { OxyContextProvider, type OxyContextProviderProps } from '../context/OxyContext';
+import { OxyRuntimeProvider, type OxyRuntimeProviderProps } from '../context/OxyContext';
 import { QueryClientProvider, focusManager, onlineManager } from '@tanstack/react-query';
-import { BloomDialogProvider } from '@oxyhq/bloom';
 import { SurfaceProvider } from '@oxyhq/bloom/surfaces';
 import { ToastOutlet } from '@oxyhq/bloom/toast';
 import { logger as loggerUtil } from '@oxyhq/core';
 import { RequireOxyAuth } from './RequireOxyAuth';
 import { attachQueryPersistence, createQueryClient } from '../hooks/queryClient';
 import { createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
+import { isNetConnectivityOnline } from '../utils/netConnectivity';
 
 /**
  * Background color shown for the brief window between mount and the
@@ -92,10 +92,11 @@ const OxyProvider: FC<OxyProviderProps> = ({
     authRedirectUri,
     authorizeBaseUrl,
     sessionMode = 'account',
-    webAuthMode = 'redirect',
+    webAuthMode = 'popup',
     queryClient: providedQueryClient,
     requireAuth = 'off',
-    hubSync = true,
+    backgroundSession = false,
+    deviceCredentialStorage = 'persistent',
 }) => {
 
     // Dynamic KeyboardProvider for native. Uses variable indirection
@@ -230,10 +231,10 @@ const OxyProvider: FC<OxyProviderProps> = ({
                     try {
                         const NetInfo = await import('@react-native-community/netinfo');
                         const state = await NetInfo.default.fetch();
-                        onlineManager.setOnline(state.isConnected ?? true);
+                        onlineManager.setOnline(isNetConnectivityOnline(state));
 
-                        const unsubscribe = NetInfo.default.addEventListener((state: { isConnected: boolean | null }) => {
-                            onlineManager.setOnline(state.isConnected ?? true);
+                        const unsubscribe = NetInfo.default.addEventListener((state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => {
+                            onlineManager.setOnline(isNetConnectivityOnline(state));
                         });
 
                         cleanup = () => unsubscribe();
@@ -282,30 +283,29 @@ const OxyProvider: FC<OxyProviderProps> = ({
     // duplicate scope that silently shadows the consumer's configuration.
     const coreContent = (
         <QueryClientProvider client={queryClient}>
-            <BloomDialogProvider>
-                <OxyContextProvider
-                    oxyServices={oxyServices as OxyContextProviderProps['oxyServices']}
-                    baseURL={baseURL}
-                    authWebUrl={authWebUrl}
-                    authRedirectUri={authRedirectUri}
-                    authorizeBaseUrl={authorizeBaseUrl}
-                    storageKeyPrefix={storageKeyPrefix}
-                    clientId={clientId}
-                    sessionMode={sessionMode}
-                    webAuthMode={webAuthMode}
-                    hubSync={hubSync}
-                    onAuthStateChange={onAuthStateChange as OxyContextProviderProps['onAuthStateChange']}
-                >
-                    <SurfaceProvider>
-                        {requireAuth === 'off' ? (
-                            children
-                        ) : (
-                            <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
-                        )}
-                    </SurfaceProvider>
-                    <ToastOutlet />
-                </OxyContextProvider>
-            </BloomDialogProvider>
+            <OxyRuntimeProvider
+                oxyServices={oxyServices as OxyRuntimeProviderProps['oxyServices']}
+                baseURL={baseURL}
+                authWebUrl={authWebUrl}
+                authRedirectUri={authRedirectUri}
+                authorizeBaseUrl={authorizeBaseUrl}
+                storageKeyPrefix={storageKeyPrefix}
+                clientId={clientId}
+                sessionMode={sessionMode}
+                webAuthMode={webAuthMode}
+                backgroundSession={backgroundSession}
+                deviceCredentialStorage={deviceCredentialStorage}
+                onAuthStateChange={onAuthStateChange as OxyRuntimeProviderProps['onAuthStateChange']}
+            >
+                <SurfaceProvider>
+                    {requireAuth === 'off' ? (
+                        children
+                    ) : (
+                        <RequireOxyAuth prompt={requireAuth}>{children}</RequireOxyAuth>
+                    )}
+                </SurfaceProvider>
+                <ToastOutlet />
+            </OxyRuntimeProvider>
         </QueryClientProvider>
     );
 

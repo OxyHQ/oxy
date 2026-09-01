@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import type { Request } from 'express';
-import Session from '../models/Session';
+import { and, asc, desc, eq, gt, ne } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { sessions } from '../db/schema/sessions';
+import { users } from '../db/schema/users';
 import { logger } from './logger';
 import { formatUserResponse } from './userTransform';
 import sessionCache from './sessionCache';
@@ -311,24 +314,24 @@ export const findExistingDeviceId = async (fingerprint: string, userId?: string)
   if (!fingerprint) return null;
 
   try {
-    const query: Record<string, unknown> = {
-      'deviceInfo.fingerprint': fingerprint,
-      isActive: true,
-      expiresAt: { $gt: new Date() }
-    };
-    
-    if (userId) {
-      query.userId = userId;
-    }
-    
-    const session = await Session.findOne(query)
-      .sort({ 'deviceInfo.lastActive': -1 })
-      .select('deviceId')
-      .lean()
-      .limit(1)
-      .exec();
-    
-    return session?.deviceId || null;
+    // `is_active` + `expires_at > now()` are filtered HERE, not left to the
+    // expiry sweep: the sweep lags one interval, and reusing a dead session's
+    // device id would silently regroup a new sign-in onto it.
+    const [session] = await getDb()
+      .select({ deviceId: sessions.deviceId })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.deviceFingerprint, fingerprint),
+          eq(sessions.isActive, true),
+          gt(sessions.expiresAt, new Date()),
+          ...(userId ? [eq(sessions.userId, userId)] : [])
+        )
+      )
+      .orderBy(desc(sessions.lastActiveAt))
+      .limit(1);
+
+    return session?.deviceId ?? null;
   } catch (error) {
     logger.error('[DeviceUtils] Error finding existing device ID', error instanceof Error ? error : new Error(String(error)));
     return null;
@@ -384,54 +387,78 @@ interface DeviceSessionEntry {
 export const getDeviceActiveSessions = async (deviceId: string, currentSessionId?: string) => {
   try {
     const now = new Date();
-    // Use lean() for better performance - returns plain JS objects instead of Mongoose documents
-    // Query optimized to use compound index: { deviceId: 1, isActive: 1, expiresAt: 1 }
-    const sessions = await Session.find({
-      deviceId,
-      isActive: true,
-      expiresAt: { $gt: now }
-    })
-    .populate('userId', 'username email avatar name color')
-    .lean()
-    .sort({ 
-      'deviceInfo.lastActive': -1, // Most recent first
-      'sessionId': 1 // Secondary sort by sessionId for stability
-    })
-    .limit(50) // Limit results to prevent excessive data transfer
-    .exec();
+    // Mongo's `.populate('userId', …)` becomes a real join. Columns are named
+    // explicitly rather than `select()`-ing whole tables: `sessions` carries two
+    // live bearer tokens and `users` carries the contact-discovery hashes, none
+    // of which this DTO may see (`db/schema/protectedColumns.ts`).
+    // Serves the `(device_id, is_active, expires_at)` index.
+    const rows = await getDb()
+      .select({
+        sessionId: sessions.sessionId,
+        deviceId: sessions.deviceId,
+        lastActiveAt: sessions.lastActiveAt,
+        createdAt: sessions.createdAt,
+        expiresAt: sessions.expiresAt,
+        userId: users.id,
+        username: users.username,
+        email: users.email,
+        avatar: users.avatar,
+        nameFirst: users.nameFirst,
+        nameLast: users.nameLast,
+        color: users.color,
+        publicKey: users.publicKey,
+      })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .where(
+        and(
+          eq(sessions.deviceId, deviceId),
+          eq(sessions.isActive, true),
+          gt(sessions.expiresAt, now)
+        )
+      )
+      // Most recent first; `session_id` breaks a tie so the page is stable.
+      .orderBy(desc(sessions.lastActiveAt), asc(sessions.sessionId))
+      .limit(50);
 
-    // Map sessions and deduplicate by userId - keep only most recent session per user
+    // Deduplicate by user — keep only the most recent session per user.
     const userSessionMap = new Map<string, DeviceSessionEntry>();
-    
-    for (const session of sessions) {
-      const user: unknown = session.userId;
-      if (!user || typeof user !== 'object') continue;
 
-      const formattedUser = formatUserResponse(user);
+    for (const row of rows) {
+      // `formatUserResponse` reads the flat Drizzle row directly (`id` +
+      // `nameFirst`/`nameLast`); it is the ONE serializer that owns
+      // `name.displayName`, so nothing is recomposed here.
+      const formattedUser = formatUserResponse({
+        id: row.userId,
+        username: row.username,
+        email: row.email,
+        avatar: row.avatar,
+        nameFirst: row.nameFirst,
+        nameLast: row.nameLast,
+        color: row.color,
+        publicKey: row.publicKey,
+      });
       if (!formattedUser?.id) continue;
 
       const userId = formattedUser.id;
 
-      // If we already have a session for this user, keep the one with more recent lastActive
       const existing = userSessionMap.get(userId);
       if (existing) {
         const existingTime = new Date(existing.lastActive || existing.createdAt || 0).getTime();
-        const currentTime = new Date(session.deviceInfo?.lastActive || session.createdAt || 0).getTime();
+        const currentTime = new Date(row.lastActiveAt || row.createdAt || 0).getTime();
         if (currentTime <= existingTime) {
           continue; // Keep existing (more recent)
         }
       }
-      
-      const userData = formattedUser;
 
       userSessionMap.set(userId, {
-        sessionId: session.sessionId,
-        user: userData,
-        lastActive: session.deviceInfo?.lastActive || session.createdAt || new Date().toISOString(),
-        createdAt: session.createdAt,
-        deviceId: session.deviceId,
-        expiresAt: session.expiresAt,
-        isCurrent: currentSessionId ? session.sessionId === currentSessionId : false
+        sessionId: row.sessionId,
+        user: formattedUser,
+        lastActive: row.lastActiveAt || row.createdAt || new Date().toISOString(),
+        createdAt: row.createdAt,
+        deviceId: row.deviceId,
+        expiresAt: row.expiresAt,
+        isCurrent: currentSessionId ? row.sessionId === currentSessionId : false
       });
     }
 
@@ -447,33 +474,32 @@ export const getDeviceActiveSessions = async (deviceId: string, currentSessionId
  */
 export const logoutAllDeviceSessions = async (deviceId: string, excludeSessionId?: string) => {
   try {
-    const query: any = {
-      deviceId,
-      isActive: true
-    };
-    
-    if (excludeSessionId) {
-      query.sessionId = { $ne: excludeSessionId };
+    const match = and(
+      eq(sessions.deviceId, deviceId),
+      eq(sessions.isActive, true),
+      ...(excludeSessionId ? [ne(sessions.sessionId, excludeSessionId)] : [])
+    );
+
+    // One statement instead of Mongo's read-then-updateMany: `returning` gives
+    // back exactly the rows this update deactivated, so the cache invalidation
+    // below can no longer act on a row a concurrent writer changed in between.
+    //
+    // The Mongo version also wrote `loggedOutAt` here. That field is on NO
+    // schema — Mongoose strict mode silently dropped it on every call, so it has
+    // never been persisted or read. There is deliberately no `logged_out_at`
+    // column; the write is dropped rather than reproduced.
+    const deactivated = await getDb()
+      .update(sessions)
+      .set({ isActive: false })
+      .where(match)
+      .returning({ sessionId: sessions.sessionId });
+
+    for (const row of deactivated) {
+      sessionCache.invalidate(row.sessionId);
     }
-    
-    // Get sessionIds before updating for cache invalidation
-    const sessions = await Session.find(query).select('sessionId').lean().exec();
-    const sessionIds = sessions.map(s => s.sessionId);
-    
-    const result = await Session.updateMany(query, {
-      $set: {
-        isActive: false,
-        loggedOutAt: new Date()
-      }
-    });
-    
-    // Invalidate session cache for all affected sessions
-    for (const sessionId of sessionIds) {
-      sessionCache.invalidate(sessionId);
-    }
-    
-    logger.info(`[DeviceUtils] Logged out ${result.modifiedCount} sessions for device: ${deviceId}`);
-    return result.modifiedCount;
+
+    logger.info(`[DeviceUtils] Logged out ${deactivated.length} sessions for device: ${deviceId}`);
+    return deactivated.length;
   } catch (error) {
     logger.error('[DeviceUtils] Error logging out device sessions:', error);
     return 0;
@@ -482,11 +508,16 @@ export const logoutAllDeviceSessions = async (deviceId: string, excludeSessionId
 
 // Helper functions for parsing user agent
 function parseUserAgentBrowser(userAgent: string): string {
-  if (userAgent.includes('Chrome')) return 'Chrome';
+  // ORDER IS SIGNIFICANT — same rationale as `parseUserAgentOS` below.
+  // Chromium Edge advertises `Edg/`, not `Edge`; Opera uses `OPR/`. All three
+  // also contain `Chrome`, so the generic Chrome bucket must come last.
+  if (userAgent.includes('Edg/')) return 'Edge';
+  if (userAgent.includes('OPR/') || userAgent.includes('Opera')) return 'Opera';
+  if (userAgent.includes('CriOS/')) return 'Chrome';
+  if (userAgent.includes('FxiOS/')) return 'Firefox';
   if (userAgent.includes('Firefox')) return 'Firefox';
-  if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) return 'Safari';
-  if (userAgent.includes('Edge')) return 'Edge';
-  if (userAgent.includes('Opera')) return 'Opera';
+  if (userAgent.includes('Chrome')) return 'Chrome';
+  if (userAgent.includes('Safari')) return 'Safari';
   return UNKNOWN_USER_AGENT_BUCKET;
 }
 

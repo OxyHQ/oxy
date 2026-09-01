@@ -1,10 +1,5 @@
 import { describe, expect, test, jest, beforeEach } from '@jest/globals';
-import {
-  tryCompleteOAuthReturn,
-  consumeHubSyncFailure,
-  replaceUrlAfterOAuthReturn,
-} from '../../src/ui/utils/oauthReturn';
-import { consumeSilentOAuthError } from '../../src/ui/utils/crossOriginRestore';
+import { tryCompleteOAuthReturn, replaceUrlAfterOAuthReturn } from '../../src/ui/utils/oauthReturn';
 import {
   OXY_OAUTH_RETURN_PATH_STORAGE_KEY,
   persistOAuthHandshake,
@@ -13,6 +8,7 @@ import {
 
 describe('tryCompleteOAuthReturn', () => {
   beforeEach(() => {
+    window.sessionStorage.clear();
     window.history.replaceState(null, '', '/?error=access_denied&state=abc');
   });
 
@@ -38,15 +34,17 @@ describe('tryCompleteOAuthReturn', () => {
     expect(window.sessionStorage.getItem('oxy_oauth_state')).toBeNull();
     replaceState.mockRestore();
   });
-});
 
-describe('consumeSilentOAuthError', () => {
-  beforeEach(() => {
-    window.sessionStorage.clear();
+  /**
+   * This is the ONLY cleanup path for an OAuth error landing on the URL now that
+   * `consumeSilentOAuthError` is gone (#691 phase 7b). A tab that was mid-flight
+   * through the deleted silent restore when the new bundle shipped comes back
+   * with `?error=login_required` — it must still be stripped, and the visitor
+   * must still land on the page they started on rather than the bare origin the
+   * IdP redirected to.
+   */
+  test('returns the visitor to the page they started on after a login_required landing', async () => {
     window.history.replaceState(null, '', '/?error=login_required&state=abc');
-  });
-
-  test('returns the visitor to the page they started on after silent restore fails', () => {
     persistOAuthReturnPath('/pricing');
     persistOAuthHandshake('state-abc', 'verifier-abc');
 
@@ -54,48 +52,16 @@ describe('consumeSilentOAuthError', () => {
       .spyOn(window.history, 'replaceState')
       .mockImplementation(() => undefined);
 
-    expect(consumeSilentOAuthError()).toBe('login_required');
+    const result = await tryCompleteOAuthReturn({
+      oxyServices: {} as never,
+      clientId: 'oxy_dk_test',
+      commitSession: jest.fn(),
+    });
+
+    expect(result).toBe(false);
     expect(String(replaceState.mock.calls[0]?.[2] ?? '')).toBe('/pricing');
     expect(window.sessionStorage.getItem('oxy_oauth_state')).toBeNull();
     replaceState.mockRestore();
-  });
-});
-
-describe('consumeHubSyncFailure', () => {
-  beforeEach(() => {
-    window.history.replaceState(null, '', '/?hub_sync=failed');
-  });
-
-  test('strips hub_sync=failed from the URL and returns true', () => {
-    const replaceState = jest
-      .spyOn(window.history, 'replaceState')
-      .mockImplementation(() => undefined);
-
-    const result = consumeHubSyncFailure();
-
-    expect(result).toBe(true);
-    expect(replaceState).toHaveBeenCalled();
-    const cleanedUrl = String(replaceState.mock.calls[0]?.[2] ?? '');
-    expect(cleanedUrl).not.toContain('hub_sync=');
-    replaceState.mockRestore();
-  });
-
-  test('dispatches popstate when hub sync failure lands on a different path', () => {
-    persistOAuthReturnPath('/pricing');
-    window.history.replaceState(null, '', '/?hub_sync=failed');
-    const seen: string[] = [];
-    const onPopState = () => seen.push('popstate');
-    window.addEventListener('popstate', onPopState);
-
-    consumeHubSyncFailure();
-
-    expect(seen).toEqual(['popstate']);
-    window.removeEventListener('popstate', onPopState);
-  });
-
-  test('returns false when hub_sync param is absent', () => {
-    window.history.replaceState(null, '', '/');
-    expect(consumeHubSyncFailure()).toBe(false);
   });
 });
 
@@ -190,6 +156,38 @@ describe('deep-link preservation across the authorize round trip', () => {
     expect(exchangeOAuthCode).toHaveBeenCalled();
     expect(commitSession).toHaveBeenCalled();
     expect(String(replaceState.mock.calls[0]?.[2] ?? '')).toBe('/newsroom');
+    replaceState.mockRestore();
+  });
+
+  test('replays the exact path-qualified redirect_uri stored in the handshake', async () => {
+    window.sessionStorage.clear();
+    const redirectUri = 'https://app.example/oauth/callback';
+    persistOAuthHandshake('state-xyz', 'verifier-abc', redirectUri);
+    persistOAuthReturnPath('/newsroom');
+    window.history.replaceState(null, '', '/oauth/callback?code=auth-code&state=state-xyz');
+
+    const replaceState = jest
+      .spyOn(window.history, 'replaceState')
+      .mockImplementation(() => undefined);
+    const commitSession = jest.fn().mockResolvedValue(undefined);
+    const exchangeOAuthCode = jest.fn().mockResolvedValue({
+      sessionId: 'sess-1',
+      accessToken: 'token',
+      deviceId: 'dev-1',
+      deviceSecret: 'secret',
+      user: { id: 'user-1' },
+    });
+
+    const result = await tryCompleteOAuthReturn({
+      oxyServices: { exchangeOAuthCode } as never,
+      clientId: 'oxy_dk_test',
+      commitSession,
+    });
+
+    expect(result).toBe(true);
+    expect(exchangeOAuthCode).toHaveBeenCalledWith(
+      expect.objectContaining({ redirectUri }),
+    );
     replaceState.mockRestore();
   });
 });

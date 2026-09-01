@@ -4,7 +4,7 @@
  * Centralized type definitions for asset-related operations.
  */
 
-import type { FileVisibility } from '../models/File';
+import type { FileVisibility } from './file.types';
 
 export interface AssetInitResponse {
   uploadUrl: string;

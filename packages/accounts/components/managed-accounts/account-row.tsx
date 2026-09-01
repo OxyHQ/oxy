@@ -1,22 +1,24 @@
 import React, { useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import type { AccountNode, AccountRole, OxyServices } from '@oxyhq/core';
-import { getAccountFallbackHandle, getAccountDisplayName } from '@oxyhq/core';
+import {
+  getAccountFallbackHandle,
+  getAccountDisplayName,
+  getNormalizedUserHandle,
+  canSwitchIntoAccount,
+} from '@oxyhq/core';
 import { useColors, type AppColors } from '@/hooks/useColors';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';
 import type { GroupedItem } from '@/components/sections/types';
 
-// Roles whose membership carries the `account:act_as` capability — the only
-// roles that can SWITCH INTO the account (selecting it makes the whole app
-// become that account). Mirrors the account role set (owner/admin/editor).
-const SWITCHABLE_ROLES: readonly AccountRole[] = ['owner', 'admin', 'editor'];
-// Roles that may manage membership + sharing of the account.
-const MANAGE_MEMBER_ROLES: readonly AccountRole[] = ['owner', 'admin'];
-// Roles that may edit the account's profile.
-const EDIT_ROLES: readonly AccountRole[] = ['owner', 'admin', 'editor'];
+function hasCallerPermission(node: AccountNode, permissions: string[]): boolean {
+  const granted = node.callerMembership?.permissions;
+  if (!granted) return false;
+  return permissions.some((permission) => granted.includes(permission));
+}
 
 function getRoleBadgeColor(role: AccountRole, colors: AppColors): string {
   switch (role) {
@@ -44,6 +46,7 @@ function getNodeRole(node: AccountNode): AccountRole {
   if (node.callerMembership?.role) return node.callerMembership.role;
   return node.relationship === 'member' ? 'viewer' : 'owner';
 }
+
 
 interface AccountRowContentProps {
   node: AccountNode;
@@ -78,10 +81,17 @@ function AccountRowContent({
 
   const role = getNodeRole(node);
   const badgeColor = getRoleBadgeColor(role, colors);
-  const canSwitchInto = SWITCHABLE_ROLES.includes(role);
-  const canManageMembers = MANAGE_MEMBER_ROLES.includes(role);
-  const canEdit = EDIT_ROLES.includes(role);
-  const canArchive = role === 'owner';
+  // Two independent conditions, both required: the caller's effective permissions
+  // must include `account:act_as` (grants/revokes may override the role baseline),
+  // and the ACCOUNT must be something anybody can become at all.
+  const canSwitchInto = canSwitchIntoAccount(node);
+  const canManageMembers = hasCallerPermission(node, [
+    'members:invite',
+    'members:update',
+    'members:remove',
+  ]);
+  const canEdit = hasCallerPermission(node, ['account:update']);
+  const canArchive = hasCallerPermission(node, ['account:delete']);
 
   return (
     <View style={styles.accountActions}>
@@ -192,13 +202,15 @@ export function useAccountRowBuilder({
   const { t, locale } = useTranslation();
 
   return useCallback((node: AccountNode): GroupedItem => {
-    const name = getAccountDisplayName(node.account ?? null, locale);
+    const name =
+      node.account?.name?.displayName ??
+      getNormalizedUserHandle(node.account) ??
+      getAccountDisplayName(null, locale);
     const username = node.account?.username;
     // When an account has no username yet (e.g. mid-provisioning) fall back to
     // a truncated `publicKey` handle so the row still reads as identifiable
     // rather than showing "No username set".
     const fallbackHandle = getAccountFallbackHandle(node.account ?? null);
-    const role = getNodeRole(node);
     // "Current" = the account the app is currently signed in as. The personal/
     // self account is not listed here.
     const isCurrent = currentAccountId === node.accountId;
@@ -206,8 +218,14 @@ export function useAccountRowBuilder({
     const avatarUri = node.account?.avatar
       ? oxyServices.getFileDownloadUrl(node.account.avatar, 'thumb')
       : undefined;
-    const canSwitchInto = SWITCHABLE_ROLES.includes(role);
-    const canManageMembers = MANAGE_MEMBER_ROLES.includes(role);
+    // Same two conditions as `AccountRowContent`'s switch button above — the
+    // whole row is that button's larger tap target, so the two must agree.
+    const canSwitchInto = canSwitchIntoAccount(node);
+    const canManageMembers = hasCallerPermission(node, [
+      'members:invite',
+      'members:update',
+      'members:remove',
+    ]);
 
     return {
       id: node.accountId,

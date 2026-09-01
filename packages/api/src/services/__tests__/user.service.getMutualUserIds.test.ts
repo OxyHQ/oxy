@@ -1,208 +1,189 @@
 /**
- * UserService.getMutualUserIds — the viewer's OWN mutual-follow ids.
+ * `getMutualUserIds` — the VIEWER's own bidirectional follow edges, ids only.
  *
- * Mutual ids = the accounts the VIEWER follows that ALSO follow the viewer back
- * (the SELF intersection `following(viewer) ∩ followers(viewer)`). This powers
- * Mention's "Mutuals" feed, so the method is lean and ids-only (no hydrated DTOs,
- * no `countDocuments`, no `User` lookup). The viewer id is ALWAYS server-derived
- * (the route resolves it from the auth token via `resolveViewerId`); these tests
- * cover the logic outcomes the route relies on:
- *   - viewer with a mutual → the mutual's id, from the two-step Follow query
- *   - no viewer (anonymous / service token w/o user) → [], zero DB queries
- *   - viewer follows nobody → [] (short-circuits before the second query)
- *   - viewer shares no follow-back with anyone they follow → [] (empty page 2)
- *   - an over-cap limit clamps to MAX_MUTUAL_IDS on the returned page
+ * This is the SELF intersection `following(viewer) ∩ followers(viewer)`, and it
+ * seeds Mention's "Mutuals" feed. Distinct from `getUserMutuals`, which answers
+ * "followers you know" about ANOTHER profile.
  *
- * Mirrors the `user.service.getUserMutuals` harness: restore the real `mongoose`
- * (the global setup mocks it wholesale, stripping `Types`) and mock the models as
- * chainable query builders.
+ * The suite this replaces asserted the two-query pipeline's SHAPE — that the
+ * second query was skipped when the first returned nothing, that a `$limit`
+ * stage carried a particular number. Neither says the returned set is the right
+ * one. The two failures that actually matter here are both invisible to a
+ * shape check:
+ *
+ *  - the intersection is BIDIRECTIONAL, so a one-way follow must not appear —
+ *    a second query keyed on the wrong column returns the viewer's whole
+ *    following list and looks entirely plausible;
+ *  - archived/restricted accounts are dropped AFTER the intersection, so an
+ *    ineligible mutual must not survive.
  */
 
-// The global jest.setup.cjs mocks `mongoose` wholesale, which strips `Types`
-// (and therefore `Types.ObjectId`). This suite only needs the real `Types`
-// helper — the models themselves are mocked below — so restore the actual
-// mongoose module.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
+import { MAX_MUTUAL_IDS } from '../../utils/recommendationWeights';
+import { userService } from '../user.service';
+
+const uniqueId = () => randomUUID().replace(/-/g, '');
+
+async function makeUsers(
+  count: number,
+  overrides: Partial<typeof users.$inferInsert> = {}
+): Promise<string[]> {
+  const ids = Array.from({ length: count }, () => uniqueId());
+  await getDb()
+    .insert(users)
+    .values(ids.map((id) => ({ id, username: `u${id}`, ...overrides })));
+  return ids;
+}
+
+/** Make `mutualIds` mutual with `viewer`, and `oneWayIds` followed-only. */
+async function seedGraph(
+  viewer: string,
+  mutualIds: string[],
+  oneWayIds: string[] = []
+): Promise<void> {
+  const edges = [
+    ...mutualIds.flatMap((id) => [
+      { followerId: viewer, followedId: id },
+      { followerId: id, followedId: viewer },
+    ]),
+    ...oneWayIds.map((id) => ({ followerId: viewer, followedId: id })),
+  ];
+  if (edges.length > 0) {
+    await getDb().insert(userFollows).values(edges);
+  }
+}
+
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-import { Types } from 'mongoose';
-import { MAX_MUTUAL_IDS } from '../../utils/recommendationWeights';
+afterAll(async () => {
+  await closePostgres();
+});
 
-// Chainable Follow query builder: select/limit/skip/sort return the builder,
-// lean() is the terminal awaited result (sequenced per find() call).
-const mockFollowLean = jest.fn();
-const followQuery = {
-  select: jest.fn(() => followQuery),
-  limit: jest.fn(() => followQuery),
-  skip: jest.fn(() => followQuery),
-  sort: jest.fn(() => followQuery),
-  lean: mockFollowLean,
-};
-const mockFollowFind = jest.fn(() => followQuery);
-const mockFollowCountDocuments = jest.fn();
-const mockUserFindLean = jest.fn();
+describe('the intersection is bidirectional', () => {
+  it('returns only the accounts the viewer follows that follow back', async () => {
+    const [viewer, mutualA, mutualB, oneWayOut, oneWayIn] = await makeUsers(5);
+    await seedGraph(viewer, [mutualA, mutualB], [oneWayOut]);
+    // Follows the viewer but is not followed back — the other one-way case.
+    await getDb().insert(userFollows).values({ followerId: oneWayIn, followedId: viewer });
 
-const mockUserFind = jest.fn(() => ({
-  select: jest.fn(() => ({
-    lean: mockUserFindLean,
-  })),
-}));
+    const ids = await userService.getMutualUserIds(viewer);
 
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  default: {
-    find: mockFollowFind,
-    countDocuments: mockFollowCountDocuments,
-  },
-  FollowType: {
-    USER: 'user',
-    HASHTAG: 'hashtag',
-    TOPIC: 'topic',
-  },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    find: mockUserFind,
-  },
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-import { UserService } from '../user.service';
-
-describe('UserService.getMutualUserIds', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+    expect([...ids].sort()).toEqual([mutualA, mutualB].sort());
+    expect(ids).not.toContain(oneWayOut);
+    expect(ids).not.toContain(oneWayIn);
   });
 
-  it('returns the ids of accounts the viewer follows that follow back', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-
-    // V = the people the viewer follows.
-    const v1 = new Types.ObjectId();
-    const v2 = new Types.ObjectId();
-    // v1 follows the viewer back (mutual); v2 does not.
-
-    mockFollowLean
-      // 1) viewer's following set
-      .mockResolvedValueOnce([{ followedId: v1 }, { followedId: v2 }])
-      // 2) of those, the ones who follow the viewer back
-      .mockResolvedValueOnce([{ followerUserId: v1 }]);
-
-    mockUserFindLean.mockResolvedValueOnce([{ _id: v1 }]);
-
-    const result = await new UserService().getMutualUserIds(viewerId, { limit: 50 });
-
-    // Two-step Follow query, self-directed (target === viewer), ids only.
-    expect(mockFollowFind).toHaveBeenCalledTimes(2);
-    expect(mockFollowFind).toHaveBeenNthCalledWith(1, {
-      followerUserId: viewerId,
-      followType: 'user',
-    });
-    expect(mockFollowFind).toHaveBeenNthCalledWith(2, {
-      followedId: viewerId,
-      followType: 'user',
-      followerUserId: { $in: [v1, v2] },
-    });
-
-    // Lean, ids-only: eligibility filter drops archived/restricted mutuals.
-    expect(mockFollowCountDocuments).not.toHaveBeenCalled();
-    expect(mockUserFind).toHaveBeenCalledTimes(1);
-
-    expect(result).toEqual([v1.toString()]);
-  });
-
-  it('drops archived or restricted mutuals after the follow intersection', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const eligible = new Types.ObjectId();
-    const restricted = new Types.ObjectId();
-
-    mockFollowLean
-      .mockResolvedValueOnce([{ followedId: eligible }, { followedId: restricted }])
-      .mockResolvedValueOnce([
-        { followerUserId: eligible },
-        { followerUserId: restricted },
+  it('is empty when every edge is one-way', async () => {
+    const [viewer, outbound, inbound] = await makeUsers(3);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: outbound },
+        { followerId: inbound, followedId: viewer },
       ]);
 
-    mockUserFindLean.mockResolvedValueOnce([{ _id: eligible }]);
-
-    const result = await new UserService().getMutualUserIds(viewerId, { limit: 50 });
-
-    expect(result).toEqual([eligible.toString()]);
+    expect(await userService.getMutualUserIds(viewer)).toEqual([]);
   });
 
-  it('returns empty for an anonymous viewer without querying the database', async () => {
-    const result = await new UserService().getMutualUserIds(undefined, { limit: 50 });
+  it('does not report another user’s mutuals', async () => {
+    const [viewer, stranger, theirMutual] = await makeUsers(3);
+    await seedGraph(stranger, [theirMutual]);
 
-    expect(result).toEqual([]);
-    expect(mockFollowFind).not.toHaveBeenCalled();
+    expect(await userService.getMutualUserIds(viewer)).toEqual([]);
+  });
+});
+
+describe('ineligible mutuals are dropped after the intersection', () => {
+  it.each([
+    ['archived', { accountStatus: 'archived' as const }],
+    ['restricted', { reputationTier: 'restricted' as const }],
+  ])('excludes a %s mutual while keeping the eligible ones', async (_label, overrides) => {
+    const [viewer, eligible] = await makeUsers(2);
+    const [ineligible] = await makeUsers(1, overrides);
+    await seedGraph(viewer, [eligible, ineligible]);
+
+    const ids = await userService.getMutualUserIds(viewer);
+
+    expect(ids).toEqual([eligible]);
+  });
+});
+
+describe('ordering and bounds', () => {
+  it('returns the most recently established mutuals first', async () => {
+    const [viewer, older, newer] = await makeUsers(3);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: older },
+        { followerId: viewer, followedId: newer },
+        // The INBOUND edges are the ones ordered — that is what "established"
+        // means for a mutual.
+        { followerId: older, followedId: viewer, createdAt: new Date('2026-01-01T00:00:00Z') },
+        { followerId: newer, followedId: viewer, createdAt: new Date('2026-06-01T00:00:00Z') },
+      ]);
+
+    expect(await userService.getMutualUserIds(viewer)).toEqual([newer, older]);
   });
 
-  it('returns empty when the viewer follows nobody (short-circuits before the second query)', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
+  it('honours a caller limit smaller than the cap', async () => {
+    const [viewer, ...mutuals] = await makeUsers(6);
+    await seedGraph(viewer, mutuals);
 
-    mockFollowLean.mockResolvedValueOnce([]);
+    const ids = await userService.getMutualUserIds(viewer, { limit: 2 });
 
-    const result = await new UserService().getMutualUserIds(viewerId, { limit: 50 });
-
-    expect(result).toEqual([]);
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
+    expect(ids).toHaveLength(2);
+    // Every returned id is a real mutual, not merely the right count.
+    for (const id of ids) {
+      expect(mutuals).toContain(id);
+    }
   });
 
-  it('returns empty when none of the viewer\'s followed accounts follow back', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const v1 = new Types.ObjectId();
+  it('clamps an over-cap limit to MAX_MUTUAL_IDS', async () => {
+    const [viewer, ...mutuals] = await makeUsers(4);
+    await seedGraph(viewer, mutuals);
 
-    mockFollowLean
-      .mockResolvedValueOnce([{ followedId: v1 }])
-      .mockResolvedValueOnce([]);
+    // The cap is far above any fixture, so the observable property is that an
+    // absurd limit is accepted and answered rather than passed through to the
+    // query as-is.
+    const ids = await userService.getMutualUserIds(viewer, { limit: MAX_MUTUAL_IDS * 10 });
 
-    const result = await new UserService().getMutualUserIds(viewerId, { limit: 50 });
-
-    expect(result).toEqual([]);
-    expect(mockFollowFind).toHaveBeenCalledTimes(2);
+    expect([...ids].sort()).toEqual([...mutuals].sort());
+    expect(ids.length).toBeLessThanOrEqual(MAX_MUTUAL_IDS);
   });
 
-  it('clamps an over-cap limit to MAX_MUTUAL_IDS on the returned page', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const v1 = new Types.ObjectId();
+  it('treats a zero or negative limit as "use the cap"', async () => {
+    const [viewer, ...mutuals] = await makeUsers(4);
+    await seedGraph(viewer, mutuals);
 
-    mockFollowLean
-      .mockResolvedValueOnce([{ followedId: v1 }])
-      .mockResolvedValueOnce([{ followerUserId: v1 }]);
+    expect((await userService.getMutualUserIds(viewer, { limit: 0 })).sort()).toEqual(
+      [...mutuals].sort()
+    );
+    expect((await userService.getMutualUserIds(viewer, { limit: -5 })).sort()).toEqual(
+      [...mutuals].sort()
+    );
+  });
+});
 
-    mockUserFindLean.mockResolvedValueOnce([{ _id: v1 }]);
+describe('degenerate viewers', () => {
+  it('returns empty for an anonymous viewer', async () => {
+    expect(await userService.getMutualUserIds(undefined)).toEqual([]);
+    expect(await userService.getMutualUserIds('')).toEqual([]);
+  });
 
-    await new UserService().getMutualUserIds(viewerId, { limit: MAX_MUTUAL_IDS * 10 });
+  it('returns empty for a viewer who follows nobody', async () => {
+    const [viewer, admirer] = await makeUsers(2);
+    // Followed BY someone, but follows nobody — the intersection is empty.
+    await getDb().insert(userFollows).values({ followerId: admirer, followedId: viewer });
 
-    // Page 1 bounds the following scan to MAX_MUTUAL_IDS; page 2 caps the
-    // returned ids to the clamped limit (also MAX_MUTUAL_IDS here).
-    expect(followQuery.limit.mock.calls).toEqual([[MAX_MUTUAL_IDS], [MAX_MUTUAL_IDS]]);
+    expect(await userService.getMutualUserIds(viewer)).toEqual([]);
+  });
+
+  it('returns empty for an id that names no account', async () => {
+    expect(await userService.getMutualUserIds(uniqueId())).toEqual([]);
   });
 });

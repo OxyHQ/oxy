@@ -1,0 +1,419 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1785479815675,
+      "tag": "0000_groovy_colossus",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785483344527,
+      "tag": "0001_worthless_zarda",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785502093448,
+      "tag": "0002_messy_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785503278455,
+      "tag": "0003_eminent_luke_cage",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785503463571,
+      "tag": "0004_nebulous_warbound",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785503463572,
+      "tag": "0005_transparency_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785504661556,
+      "tag": "0006_workable_blonde_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785527071622,
+      "tag": "0007_billing_payment_intent_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785527614823,
+      "tag": "0008_billing_subscription_all_stripe_statuses",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785527614824,
+      "tag": "0009_signed_records_fork_mirror",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785552684467,
+      "tag": "0010_icy_madame_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785694898075,
+      "tag": "0011_account_kind_channel",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785701517753,
+      "tag": "0012_users_name_display",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785760203479,
+      "tag": "0013_users_account_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785763616556,
+      "tag": "0014_account_member_permission_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1785763616557,
+      "tag": "0015_application_follow_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1785805127625,
+      "tag": "0016_follow_graph",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1785812000000,
+      "tag": "0018_follow_namespaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1785813000000,
+      "tag": "0019_follow_enum_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785814925471,
+      "tag": "0020_follow_events_claim",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785887052731,
+      "tag": "0021_signed_records_author_feed_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785897904255,
+      "tag": "0022_signed_records_accept_app_record",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785965355279,
+      "tag": "0023_timestamp_millisecond_defaults",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785991962923,
+      "tag": "0024_applications_chain_namespaces",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785992496055,
+      "tag": "0025_chains_write_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785994401863,
+      "tag": "0026_chains_read_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786138918454,
+      "tag": "0027_app_store_listings_and_reviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786350532586,
+      "tag": "0028_device_principals_and_contexts",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786361328335,
+      "tag": "0029_session_token_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786448414910,
+      "tag": "0030_browser_hub_handle",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786817114753,
+      "tag": "0031_inference_scope_family",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786821860516,
+      "tag": "0032_machine_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786829541848,
+      "tag": "0033_inference_ledger_and_usage_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786829542848,
+      "tag": "0034_inference_ledger_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786831813559,
+      "tag": "0035_inference_catalogue",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1786831814559,
+      "tag": "0036_inference_revision_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1786900000000,
+      "tag": "0037_inbox_delivery_and_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1786900000001,
+      "tag": "0038_inbox_snapshot_sync_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1786900000002,
+      "tag": "0039_inference_routing_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1786900000003,
+      "tag": "0040_inference_routing_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1786900000004,
+      "tag": "0041_inference_provider_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1786900000005,
+      "tag": "0042_inference_provider_connection_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1786900000006,
+      "tag": "0043_application_credential_audit_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1786900000007,
+      "tag": "0044_account_billing_and_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1786900000008,
+      "tag": "0045_account_billing_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1786900000009,
+      "tag": "0046_billing_ledger_actor",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1786952738898,
+      "tag": "0047_retire_developer_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1786952738899,
+      "tag": "0048_staff_capabilities_and_spend_anomalies",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1786976748698,
+      "tag": "0049_inference_provider_connection_actor",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1786976748699,
+      "tag": "0050_inference_model_provenance_marking",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1786990670440,
+      "tag": "0051_retire_account_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1787003267146,
+      "tag": "0052_inference_token_anomalies",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1787044057601,
+      "tag": "0053_inference_model_release_ingestion",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1787048076199,
+      "tag": "0054_provider_secret_ref_grammar",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1787542502222,
+      "tag": "0055_service_acting_as_scopes",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1787545357870,
+      "tag": "0056_service_acting_as_revocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1787616672279,
+      "tag": "0057_service_account_switch_scope",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1787684497529,
+      "tag": "0058_revoke_person_sessions_on_bots_and_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1788302024100,
+      "tag": "0059_delegated_capability_architecture",
+      "breakpoints": true
+    }
+  ]
+}

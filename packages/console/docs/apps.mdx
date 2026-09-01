@@ -16,23 +16,31 @@ From the console:
 2. Fill in name, description, homepage URL, support email.
 3. Add **Redirect URIs**. Every URI is exact-matched at the OAuth2 callback step — no wildcards, no trailing-slash flexibility. Add one entry per environment (`https://app.example.com/callback`, `http://localhost:5173/callback`, etc.).
 4. Pick **Scopes** the app needs. The consent screen shows the union of scopes; users can accept or deny individually.
-5. On save the console mints two credentials:
+5. On save the console mints one credential, which has two halves:
 
 ```text
-apiKey:    oxy_dk_live_abc123…          (public)
-apiSecret: secret_live_x1y2z3…          (shown once)
+clientId:     oxy_dk_…      public identifier — the OAuth client_id
+clientSecret: …             secret, shown once
 ```
 
 Store the secret immediately. Lost secrets cannot be recovered — only rotated.
 
+## The client id is not a key
+
+`oxy_dk_…` is `ApplicationCredential.publicKey`, and it is exactly what its name says: **public**. It is the OAuth `client_id`, it is designed to ship inside mobile apps and browser bundles, and Oxy hands it out unauthenticated at `GET /auth/oauth/client/:clientId` so a consent screen can render your app's name and logo.
+
+It therefore proves nothing on its own. Sending `Authorization: Bearer oxy_dk_…` is rejected everywhere, and must stay rejected — a public identifier that authenticated would be a credential every user of your app already has a copy of.
+
 ## Public vs confidential clients
 
-| Client type | Credentials | Used by | Auth flow |
-|-------------|-------------|---------|-----------|
-| **Public** | `apiKey` only | Mobile apps, SPAs, native desktop | OAuth2 authorization code + PKCE |
-| **Confidential** | `apiKey` + `apiSecret` | Server-side apps, daemons, CLIs | OAuth2 authorization code or client credentials |
+| Client type | Proves possession with | Used by | Auth flow |
+|-------------|------------------------|---------|-----------|
+| **Public** | a PKCE `code_verifier` — it holds no secret and cannot keep one | Mobile apps, SPAs, native desktop | OAuth2 authorization code + PKCE |
+| **Confidential** | its `clientSecret`, sent from a backend | Server-side apps, daemons, CLIs | OAuth2 authorization code, or the client-credentials exchange at `POST /auth/service-token` |
 
-The console infers the type from the app's runtime — apps with at least one mobile bundle id or origin without server-side capability are flagged public and refuse to use the client-credentials grant.
+A public client still sends its `clientId` — that is how the server knows which application is asking. What makes the request trustworthy is the PKCE verifier, not the identifier.
+
+The credential's `type` (`public`, `confidential` or `service`) is set when you create it, and only a `confidential` or `service` credential is issued a secret at all.
 
 ## Scopes
 
@@ -63,11 +71,13 @@ Internal apps require manual database seeding; the console UI does not expose th
 
 ## Credentials at rest
 
-The platform stores hashed secrets, never raw. Lookups are `bcrypt`-compared. The console UI never re-displays a secret after creation; lost secrets can be rotated from **Settings → Credentials**, which:
+The platform stores a SHA-256 hash of each secret, never the raw value, and compares in constant time. The console UI never re-displays a secret after creation; lost secrets can be rotated from **Settings → Credentials**, which:
 
-- Mints a fresh secret, shown once.
-- Marks the old secret as `deprecated` for 24 hours (still accepted, so deploys do not go down).
-- Hard-revokes the old secret after the grace period.
+- Mints a fresh credential, its secret shown once.
+- Marks the old credential as `deprecated` for a 7-day grace window (still accepted, so deploys do not go down).
+- Stops accepting the old credential once the window closes.
+
+Revocation is immediate and has no grace window — use it, not rotation, when a secret has leaked.
 
 Rotate after every team turnover, every CI compromise scare, and on a 90-day cadence regardless.
 
@@ -76,6 +86,6 @@ Rotate after every team turnover, every CI compromise scare, and on a 90-day cad
 Deletion is two-step:
 
 1. **Mark for deletion** — the app is hidden from the user-facing apps list and stops accepting new tokens. Existing user grants are revoked.
-2. After 30 days, the app is hard-deleted and the `apiKey` is freed for re-use.
+2. After 30 days, the app is hard-deleted and its `clientId` is freed for re-use.
 
 The 30-day quarantine lets you cancel a mistaken deletion without losing user grants or app history.

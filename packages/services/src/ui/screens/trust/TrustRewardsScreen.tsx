@@ -3,7 +3,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { H1, H4, H5, Text } from '@oxyhq/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';
@@ -26,7 +26,7 @@ interface Achievement {
 }
 
 /**
- * Per-achievement identity tints. Like the trust-tier palette in `trustTier.ts`,
+ * Per-achievement identity tints. Like the trust-tier palette in `trustTierLabels`,
  * these are data, not theme surfaces — they brand each badge regardless of theme.
  */
 const ACHIEVEMENT_TINT = {
@@ -97,7 +97,7 @@ const TrustRewardsScreen: React.FC<BaseScreenProps> = () => {
             return;
         }
         setIsLoading(true);
-        oxyServices.getReputationBalance(user.id)
+        oxyServices.getMyReputationBalance()
             .then((balance) => {
                 setReputationTotal(balance.total || 0);
             })

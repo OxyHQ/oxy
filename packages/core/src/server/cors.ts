@@ -15,6 +15,7 @@
  *     one-label subdomains such as `auth.oxy.so`, `api.oxy.so`,
  *     `accounts.oxy.so`, `console.oxy.so`, and `inbox.oxy.so`,
  *   - allows the caller's explicit `appOrigins`,
+ *   - REFUSES the opaque origin on both sides (see `OPAQUE_ORIGIN`),
  *   - DENIES everything else (no reflection, never a wildcard with credentials),
  *   - echoes back the EXACT matched origin (so credentialed requests work) and
  *     sets `Vary: Origin` for correct caching,
@@ -24,7 +25,10 @@
  */
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { createLogger } from '../logger';
 import { CENTRAL_IDP_APEX } from '../utils/authWebUrl';
+
+const log = createLogger('OxyCors');
 
 /** Default HTTP methods allowed across origins. */
 const DEFAULT_ALLOWED_METHODS = ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'];
@@ -52,6 +56,11 @@ export interface OxyCorsOptions {
    * `https://app.example.com`, `http://localhost:3000`). These are allowed IN
    * ADDITION TO the built-in HTTPS Oxy apex origin family. Each is normalized
    * via `new URL().origin`.
+   *
+   * An entry that is not a URL, or whose origin is the opaque origin
+   * (`exp://…`, `capacitor://…`, `chrome-extension://…`, `file:`, `data:`), is
+   * DROPPED with an error log rather than admitted — see `OPAQUE_ORIGIN` for
+   * why one such entry would otherwise admit every other one.
    */
   appOrigins?: string[];
   /**
@@ -94,6 +103,30 @@ function isOxyFamilyOrigin(candidate: string): boolean {
   }
 }
 
+/**
+ * The URL standard's serialization of an OPAQUE origin: the literal string
+ * `"null"`, which `new URL(x).origin` returns for every scheme that has no
+ * origin to speak of — `exp:`, `capacitor:`, `chrome-extension:`,
+ * `vscode-webview:`, and also `file:`, `data:` and `about:`.
+ *
+ * This value is why an allowlist may never store it. Every such scheme
+ * normalizes to the SAME `"null"`, so a set built by normalization cannot tell
+ * them apart: ONE opaque entry admits ALL of them. With credentials on and the
+ * raw header echoed back, a single `myapp://` in `appOrigins` turned this
+ * helper into "allow any custom-scheme browsing context" — measured live, an
+ * `exp://localhost:8150` entry answered `Origin: vscode-webview://…` with
+ * `access-control-allow-origin: vscode-webview://…` and
+ * `access-control-allow-credentials: true`.
+ *
+ * There is deliberately no escape hatch that matches such an origin by raw
+ * string instead. Admitting a custom-scheme browsing context to a CREDENTIALED
+ * allowlist is a distinct decision with its own threat model, and it must not
+ * arrive as a side effect of someone adding one line to `appOrigins`. Note
+ * also that a native client is not subject to CORS at all — React Native sends
+ * no `Origin` header — so a mobile app never needs an entry here.
+ */
+const OPAQUE_ORIGIN = 'null';
+
 /** Normalize a raw origin string to its canonical `scheme://host[:port]` form. */
 function normalizeOrigin(raw: string): string | null {
   try {
@@ -104,21 +137,63 @@ function normalizeOrigin(raw: string): string | null {
 }
 
 /**
- * Build the origin-matching predicate: true iff `origin` is in the built-in
- * HTTPS Oxy apex family OR exactly matches one of the configured app origins.
+ * Normalize the configured `appOrigins` into the exact-match set — the
+ * CONFIGURE-SIDE half of the opaque-origin guard.
+ *
+ * An entry that is not a URL, or whose origin is opaque, is dropped and named
+ * in an error log. Dropped rather than thrown on because `appOrigins` is
+ * deployment configuration — at least one Oxy backend reads it from the
+ * environment — and a typo there must cost that one origin its CORS headers,
+ * never the whole service its boot. Both failure modes are equally SAFE (the
+ * entry is absent from the set either way), so the choice is purely about
+ * blast radius, and dropping keeps it to one origin whose requests then fail
+ * visibly in the browser.
+ *
+ * Exported for `__tests__/cors.socket.test.ts` and NOT re-exported from
+ * `server/index.ts`, so it is not part of the package's public surface. The
+ * two halves of the guard are separately exported because they are separately
+ * testable only that way: with this half in place the match-side half is
+ * unreachable through `createOxyCors`, so a test driving the public API alone
+ * would measure this function twice and the other one never.
  */
-function buildOriginAllowed(appOrigins: string[]): (origin: string) => boolean {
+export function normalizeAppOrigins(appOrigins: string[]): Set<string> {
   const explicit = new Set<string>();
   for (const raw of appOrigins) {
     const normalized = normalizeOrigin(raw);
-    if (normalized) explicit.add(normalized);
+    if (normalized === null) {
+      log.error('CORS allowlist entry ignored: it is not a URL', undefined, { entry: raw });
+      continue;
+    }
+    if (normalized === OPAQUE_ORIGIN) {
+      log.error('CORS allowlist entry ignored: it has no origin to match against', undefined, {
+        entry: raw,
+      });
+      continue;
+    }
+    explicit.add(normalized);
   }
-  return (origin: string): boolean => {
-    const normalized = normalizeOrigin(origin);
-    if (normalized === null) return false;
-    if (explicit.has(normalized)) return true;
-    return isOxyFamilyOrigin(normalized);
-  };
+  return explicit;
+}
+
+/**
+ * Whether `origin` may be echoed back: it is in the built-in HTTPS Oxy apex
+ * family, or it exactly matches one of the configured app origins.
+ *
+ * The opaque-origin refusal here is the MATCH-SIDE half of the guard, and it
+ * is what makes the property hold regardless of how `explicit` was built — a
+ * set that somehow contains `"null"` still matches nothing, because no
+ * incoming origin ever normalizes past this line. `normalizeAppOrigins` is
+ * what stops such a set existing today; this is what stops it mattering.
+ *
+ * Exported for the same reason as `normalizeAppOrigins`, and likewise absent
+ * from `server/index.ts`.
+ */
+export function matchesAllowedOrigin(explicit: ReadonlySet<string>, origin: string): boolean {
+  const normalized = normalizeOrigin(origin);
+  if (normalized === null) return false;
+  if (normalized === OPAQUE_ORIGIN) return false;
+  if (explicit.has(normalized)) return true;
+  return isOxyFamilyOrigin(normalized);
 }
 
 /**
@@ -139,7 +214,7 @@ export function createOxyCors(options: OxyCorsOptions = {}): RequestHandler {
     maxAgeSeconds = DEFAULT_MAX_AGE_SECONDS,
   } = options;
 
-  const isOriginAllowed = buildOriginAllowed(appOrigins);
+  const explicitOrigins = normalizeAppOrigins(appOrigins);
   const methodsHeader = methods.join(', ');
   const allowedHeadersHeader = allowedHeaders.join(', ');
   const exposedHeadersHeader = exposedHeaders.join(', ');
@@ -161,7 +236,7 @@ export function createOxyCors(options: OxyCorsOptions = {}): RequestHandler {
     // Origin is present. Caching correctness: this response varies by Origin.
     res.setHeader('Vary', 'Origin');
 
-    if (!isOriginAllowed(origin)) {
+    if (!matchesAllowedOrigin(explicitOrigins, origin)) {
       // DENY: do NOT reflect the origin, do NOT emit a wildcard. The browser
       // will block the cross-origin read. Preflights for denied origins get a
       // 204 with no CORS headers (the actual request then fails CORS).

@@ -20,7 +20,7 @@ import type { CommonsDeliveryPlatform } from '../../utils/commonsDelivery';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';
-import { selectCommonsDelivery } from '../../utils/commonsDelivery';
+import { selectCommonsDelivery, pushTargetsFromDelivery } from '../../utils/commonsDelivery';
 
 const challengeFixture: ChallengeResponse = {
   challenge: 'chal-xyz',
@@ -184,6 +184,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       expect(result).toEqual({
         authorized: true,
         sessionId: 's1',
+        purpose: 'device_sign_in',
         pushSentAt: null,
         openedAt: null,
       });
@@ -208,6 +209,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       expect(result).toEqual({
         authorized: false,
         status: 'pending',
+        purpose: 'device_sign_in',
         pushSentAt: '2026-07-27T10:00:00.000Z',
         openedAt: '2026-07-27T10:00:12.000Z',
       });
@@ -273,9 +275,22 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       expect(result).toEqual({
         authorized: false,
         status: 'pending',
+        purpose: 'device_sign_in',
         pushSentAt: null,
         openedAt: null,
       });
+    });
+
+    it('parses purpose from the status response', async () => {
+      makeRequestSpy.mockResolvedValue({
+        authorized: false,
+        status: 'pending',
+        purpose: 'oauth_authorization',
+      });
+
+      const result = await oxy.pollCommonsSignIn('secret-session-token');
+
+      expect(result.purpose).toBe('oauth_authorization');
     });
 
     it.each([
@@ -318,7 +333,7 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       expect(selectCommonsDelivery({
         platform: 'desktop',
         commonsAvailable: false,
-        pushTargets: result.targets,
+        pushTargets: pushTargetsFromDelivery(result),
       })).toBe('qr');
     });
 
@@ -330,8 +345,21 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       expect(selectCommonsDelivery({
         platform: 'desktop',
         commonsAvailable: false,
-        pushTargets: result.targets,
+        pushTargets: pushTargetsFromDelivery(result),
       })).toBe('await-push');
+    });
+
+    it('falls back to QR when delivery failed despite eligible targets', async () => {
+      makeRequestSpy.mockResolvedValue({ delivered: false, targets: 1 });
+
+      const result = await oxy.deliverCommonsSignIn('code-1');
+
+      expect(result).toEqual({ delivered: false, targets: 1 });
+      expect(selectCommonsDelivery({
+        platform: 'desktop',
+        commonsAvailable: false,
+        pushTargets: pushTargetsFromDelivery(result),
+      })).toBe('qr');
     });
 
     it.each([

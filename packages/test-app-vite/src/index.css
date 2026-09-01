@@ -1,7 +1,10 @@
-@import "tailwindcss";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "nativewind/theme";
+@import "@oxyhq/bloom/design-tokens/theme.css";
 @import "@fontsource-variable/inter";
 
 /*

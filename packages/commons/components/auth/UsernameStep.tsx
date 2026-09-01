@@ -5,9 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useUsernameValidation } from '@/hooks/auth/useUsernameValidation';
-import { sanitizeUsernameInput } from '@/utils/auth/usernameUtils';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { stripDisallowedUsernameCharacters } from '@oxyhq/contracts';
 import type { OxyServices } from '@oxyhq/core';
+import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useTranslation } from '@/lib/i18n';
 import telescopeAnimation from '@/assets/lottie/telescope.json';
 
@@ -117,7 +117,7 @@ export function UsernameStep({
   ) && !validation.isChecking && !isConfirming;
 
   const handleTextChange = (text: string) => {
-    const sanitized = sanitizeUsernameInput(text);
+    const sanitized = stripDisallowedUsernameCharacters(text);
     onUsernameChange(sanitized);
   };
 

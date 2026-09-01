@@ -11,6 +11,17 @@ import React from 'react';
 
 type PlatformOS = 'ios' | 'android' | 'web' | 'windows' | 'macos';
 
+/**
+ * NOTE: `OS` defaults to `'web'`. A test that does not set it is testing WEB.
+ *
+ * That is a fine default for the UI, but it silently mis-aims any test of
+ * native-only behaviour: ten tests written for a native code path passed while
+ * exercising its web branch, and only went red once that branch gained a real
+ * `Platform.OS === 'web'` guard (`ui/session/backgroundSession.ts`). Nothing about
+ * such a test looks wrong, so set `Platform.OS` explicitly — per test, restoring
+ * or re-importing after `jest.resetModules()` — whenever the code under test
+ * branches on the platform.
+ */
 export const Platform: {
   OS: PlatformOS;
   select: <T>(obj: Partial<Record<PlatformOS | 'default' | 'native', T>>) => T | undefined;

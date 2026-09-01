@@ -3,7 +3,7 @@ import {
   formatInfluenceMultiplier,
   formatReliabilityPercent,
 } from '@/lib/civic/reputation-standing';
-import type { ReputationInfluence, ReputationReliability } from '@oxyhq/core';
+import type { ReputationInfluence, ReputationReliability } from '@oxyhq/contracts';
 
 function influence(defaultWeight: number): ReputationInfluence {
   return {

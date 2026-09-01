@@ -8,6 +8,25 @@
  * already lives in `@oxyhq/core`; core may never import an `expo-*` module, and
  * this adapter is the Expo-side half that closes that gap.
  *
+ * ## Reached through its OWN entry point, never the root barrel
+ *
+ * ```ts
+ * import { getExpoPushToken } from '@oxyhq/services/notifications';
+ * ```
+ *
+ * This is the only module in the package that depends on peers an app which
+ * does not use push genuinely never installs, and a barrel export would put it
+ * in EVERY consumer's import graph. `tsc` resolves the specifier of an
+ * `import()` even when the call is lazy and inside a try/catch, so a barrel
+ * export turned "optional peer" into a hard requirement: consumers with no
+ * interest in push failed to type-check with TS2307. The subpath is what keeps
+ * the optionality honest — see the note in `src/index.ts`.
+ *
+ * Metro is the resolver that behaves differently here, and in the useful
+ * direction: an unresolvable DYNAMIC `import()` bundles fine (the `catch` below
+ * takes over at runtime), where a static import fails the build outright. That
+ * is why the runtime shape below must stay dynamic-and-guarded.
+ *
  * ## Native-only by construction
  *
  * Every entry point resolves its null/no-op result from `Platform.OS` BEFORE the
@@ -296,6 +315,69 @@ export type ForegroundPresentation = 'show' | 'suppress';
  * into.
  */
 let foregroundHandlerAttempted = false;
+
+/** How prominently Android surfaces a channel's notifications. */
+export type NotificationChannelImportance = 'default' | 'high';
+
+/** An Android notification channel this app delivers on. */
+export interface NotificationChannelSpec {
+  /**
+   * The channel id. It MUST match the id the sender attaches: Android 8+ drops
+   * a notification whose channel the app has not created, silently and with no
+   * error on either side, which is the hardest push symptom there is to
+   * diagnose. Ids that cross the wire belong in `@oxyhq/contracts`, not in a
+   * string typed on both sides.
+   */
+  id: string;
+  /** User-visible channel name — app copy, so the caller localizes it. */
+  name: string;
+  /** User-visible description shown in Android's notification settings. */
+  description?: string;
+  importance?: NotificationChannelImportance;
+}
+
+/**
+ * Create (or update) an Android notification channel.
+ *
+ * A no-op everywhere but Android: iOS has no channels, and web never loads the
+ * native module. Call it BEFORE registering a push token, so the very first
+ * notification the server sends already has a channel to land on.
+ *
+ * Failure is non-fatal and logged: a missing channel costs visibility, and
+ * refusing to register a token over it would cost the feature entirely.
+ *
+ * @returns Whether the channel was actually created (`false` off Android, or
+ *   when the native module is unavailable, or when creation failed).
+ */
+export async function ensureNotificationChannel(
+  spec: NotificationChannelSpec,
+): Promise<boolean> {
+  if (Platform.OS !== 'android') {
+    return false;
+  }
+  const notifications = await loadNotifications();
+  if (!notifications) {
+    return false;
+  }
+  try {
+    await notifications.setNotificationChannelAsync(spec.id, {
+      name: spec.name,
+      importance:
+        spec.importance === 'high'
+          ? notifications.AndroidImportance.HIGH
+          : notifications.AndroidImportance.DEFAULT,
+      ...(spec.description ? { description: spec.description } : {}),
+    });
+    return true;
+  } catch (error) {
+    log.warn(
+      'could not create the notification channel',
+      { method: 'ensureNotificationChannel', channelId: spec.id },
+      error,
+    );
+    return false;
+  }
+}
 
 /**
  * Install the ONE process-wide handler that decides whether an incoming

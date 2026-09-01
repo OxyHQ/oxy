@@ -5,6 +5,8 @@ export interface ManagedAccountGroups {
   organizations: AccountNode[];
   projects: AccountNode[];
   bots: AccountNode[];
+  /** Publishing identities — operable via membership, never switchable. */
+  channels: AccountNode[];
   shared: AccountNode[];
 }
 
@@ -15,8 +17,9 @@ export interface UseManagedAccountGroupsResult {
 
 /**
  * Partitions the accessible account forest into the managed-accounts screen's
- * groups: owned accounts split by kind (organizations / projects / bots) plus
- * accounts shared with the caller via membership. The caller's own personal
+ * groups: owned accounts split by kind (organizations / projects / bots /
+ * channels) plus accounts shared with the caller via membership. The caller's
+ * own personal
  * (`self`) account is naturally excluded — it is neither a managed kind nor a
  * `member` relationship.
  *
@@ -29,12 +32,17 @@ export function useManagedAccountGroups(accounts: AccountNode[]): UseManagedAcco
       organizations: owned.filter((a) => a.kind === 'organization'),
       projects: owned.filter((a) => a.kind === 'project'),
       bots: owned.filter((a) => a.kind === 'bot'),
+      channels: owned.filter((a) => a.kind === 'channel'),
       shared: accounts.filter((a) => a.relationship === 'member'),
     };
   }, [accounts]);
 
   const totalCount =
-    groups.organizations.length + groups.projects.length + groups.bots.length + groups.shared.length;
+    groups.organizations.length
+    + groups.projects.length
+    + groups.bots.length
+    + groups.channels.length
+    + groups.shared.length;
 
   return { groups, totalCount };
 }

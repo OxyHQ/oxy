@@ -1,0 +1,10 @@
+# @oxyhq/protocol is a JEST package — see jest.config.cjs.
+#
+# `bun test` (bun's own runner) is NOT a supported way to run this suite: it
+# ignores jest.config.cjs, so it drops the `@oxyhq/contracts` moduleNameMapper
+# and the jest module registry the tests depend on, then reports a plausible
+# partial pass/fail count (134 pass / 3 fail against jest's 139/139). This
+# preload aborts that run with an explanation instead. `bun run test` — the
+# declared script — is unaffected: [test].preload applies only to `bun test`.
+[test]
+preload = ["../../scripts/refuse-bun-test.ts"]

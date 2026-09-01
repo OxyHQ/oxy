@@ -88,10 +88,10 @@ export interface RefreshDeps {
  * The outcome of ONE device-secret mint attempt (arm 1). Discriminated so both
  * the re-mint handler and the cold boot can react per the transport contract
  * without re-classifying the raw error:
- *  - `ok` — minted, persisted the rotated secret, planted the token.
+ *  - `ok` — minted, persisted `nextDeviceSecret`, planted the token.
  *  - `no-secret` — the store holds no `deviceId` + `deviceSecret` to mint from.
  *  - `invalid-secret` — 401 `invalid_device_secret`: the presented secret
- *    diverged (another tab/device rotated it past the grace window).
+ *    no longer matches the server's stored hash.
  *  - `no-session` — 401 `no_active_session`: the device is known but has no live
  *    session (authoritative signed-out).
  *  - `account-not-on-device` — 401 `account_not_on_device` for a PINNED mint: the
@@ -99,10 +99,10 @@ export interface RefreshDeps {
  *    The device secret is FINE — it is the identity binding that went stale, so
  *    the caller must re-establish from the local key, never drop the credential.
  *  - `transient` — network / 5xx; keep the secret, a later attempt can succeed.
- *  - `persist-failed` — the mint succeeded (the SERVER rotated the secret) but
- *    the rotated `nextDeviceSecret` could NOT be durably persisted. The token is
- *    deliberately NOT planted: advertising a healthy session on a secret that
- *    will not survive a reload is exactly the divergence that logs users out.
+ *  - `persist-failed` — the mint succeeded but `nextDeviceSecret` could NOT be
+ *    durably persisted. The token is deliberately NOT planted: advertising a
+ *    healthy session on a secret that will not survive a reload is exactly the
+ *    divergence that logs users out.
  */
 export type DeviceSecretMintOutcome =
   | { status: 'ok'; token: string; sessionId: string; userId: string }
@@ -114,19 +114,14 @@ export type DeviceSecretMintOutcome =
   | { status: 'persist-failed' };
 
 /**
- * Arm 1 — the rotating device-secret mint, run under the owning client's
- * PROCESS-WIDE single-flight (`httpService.runSingleFlightDeviceSecretMint`).
+ * Arm 1 — the device-secret mint, run under the owning client's PROCESS-WIDE
+ * single-flight (`httpService.runSingleFlightDeviceSecretMint`).
  *
- * The server ROTATES the presented `deviceSecret` on every successful mint and
- * the just-presented secret is valid only for a short grace window. If two lanes
- * (cold boot, the proactive scheduler, a request-time preflight, a 401 retry,
- * the socket token transport, or a tab-focus reconcile) minted concurrently they
- * would double-rotate the server and the durable store could converge on the
- * SUPERSEDED secret — after the grace window the next cold boot mint 401s and the
- * user is signed out. Routing EVERY lane through this one single-flight makes
- * concurrent callers await the SAME in-flight mint and all receive its result, so
- * there is exactly one rotation and the store always converges on the true
- * `current` secret.
+ * Concurrent lanes (cold boot, the proactive scheduler, a request-time preflight,
+ * a 401 retry, the socket token transport, or a tab-focus reconcile) must not
+ * each persist a different view of the mint response. Routing EVERY lane through
+ * this one single-flight makes concurrent callers await the SAME in-flight mint
+ * and all receive its result, so the durable store converges on one credential.
  *
  * On success it persists `nextDeviceSecret` (read-back-verified) BEFORE planting
  * the access token; a failed durable persist yields `persist-failed` WITHOUT
@@ -200,8 +195,8 @@ export async function refreshDeviceSecretArm(deps: {
       expiresAt: mint.expiresAt,
       ...(bound ? { sessionId: bound.sessionId, userId: bound.accountId } : {}),
     };
-    // Rotation-in-use anti-loss: persist the NEXT secret and read-back-VERIFY it
-    // landed BEFORE planting the token. A failed durable persist must NOT plant.
+    // Persist nextDeviceSecret (read-back-verified) BEFORE planting the token.
+    // A failed durable persist must NOT plant.
     const persistedOk = await store.save(next);
     if (!persistedOk) {
       return { status: 'persist-failed' };

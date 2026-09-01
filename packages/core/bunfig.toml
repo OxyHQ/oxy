@@ -1,0 +1,11 @@
+# @oxyhq/core is a JEST package — see jest.config.cjs.
+#
+# `bun test` (bun's own runner) is NOT a supported way to run this suite, and
+# core is the worst case in the monorepo: `bun run test` reports 1282/1282 pass,
+# `bun test` reports 1183 pass / 38 fail, and nothing in that output names a
+# runner problem — the only `error:` lines are fixtures' own expected messages,
+# so it reads as a genuine regression in a 1200-test suite. This preload aborts
+# that run with an explanation instead. `bun run test` — the declared script —
+# is unaffected: [test].preload applies only to `bun test`.
+[test]
+preload = ["../../scripts/refuse-bun-test.ts"]

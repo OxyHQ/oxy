@@ -7,17 +7,14 @@
  * request would cause repeated S3 client setup and defeat the in-memory
  * fileCache used by AssetService.getFile. Instead, every consumer imports
  * this shared instance.
+ *
+ * The S3 client itself lives in `s3ServiceSingleton`. Importing THIS module
+ * constructs an AssetService, which anything inside `assetService.ts`'s own
+ * import graph cannot do without forming a cycle — so storage-only consumers
+ * import that module instead.
  */
 
 import { AssetService } from './assetService';
-import { createS3Service } from './s3Service';
-
-export const s3Service = createS3Service({
-  region: process.env.AWS_REGION || 'us-east-1',
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  bucketName: process.env.AWS_S3_BUCKET || '',
-  endpointUrl: process.env.AWS_ENDPOINT_URL,
-});
+import { s3Service } from './s3ServiceSingleton';
 
 export const assetService = new AssetService(s3Service);

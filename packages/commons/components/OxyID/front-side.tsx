@@ -93,7 +93,7 @@ export const FrontSide: React.FC<FrontSideProps> = ({
                 <View style={styles.primaryCol}>
                     <Text style={styles.fieldLabel}>NAME</Text>
                     <Text style={styles.primaryValue} numberOfLines={2}>
-                        {displayName || publicKeyShort || '—'}
+                        {displayName || (username ? `@${username}` : publicKeyShort) || '—'}
                     </Text>
                     <Text style={styles.fieldLabel}>TYPE</Text>
                     <Text style={styles.fieldValueSmall}>SELF-CUSTODY</Text>

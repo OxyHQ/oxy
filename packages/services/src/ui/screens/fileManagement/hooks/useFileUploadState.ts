@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import type { AssetUploadInput, FileMetadata } from '@oxyhq/core';
 import type { useUploadFile } from '../../../hooks/mutations/useAccountMutations';
 import { queryKeys } from '../../../hooks/queries/queryKeys';
@@ -411,7 +411,11 @@ export const useFileUploadState = ({
         }
     };
 
-    const handleCancelUpload = () => {
+    // Memoized because the orchestrator builds the upload-preview header's back
+    // NODE from it (`fmHeaderBack`): a node can only be compared by identity, so
+    // a fresh closure here re-creates the node every render and thrashes the
+    // surface-header bridge into an unbounded update loop (React error #185).
+    const handleCancelUpload = useCallback(() => {
         clearPostSelectTimer();
 
         // Cleanup preview URLs
@@ -420,7 +424,7 @@ export const useFileUploadState = ({
         }
         setPendingFiles([]);
         setShowUploadPreview(false);
-    };
+    }, [clearPostSelectTimer, pendingFiles]);
 
     const removePendingFile = (id: string) => {
         const file = pendingFiles.find((pf) => pf.id === id);
@@ -438,8 +442,13 @@ export const useFileUploadState = ({
     /**
      * Handle file upload - opens document picker and processes selected files
      * Expo 54 compatible - works on web, iOS, and Android
+     *
+     * Memoized because the orchestrator feeds it to the picker header's
+     * `primaryAction` (the Upload CTA) through a `useMemo`: a fresh closure each
+     * render invalidates that memo every render, which is the input the
+     * surface-header bridge is guarding against.
      */
-    const handleFileUpload = async () => {
+    const handleFileUpload = useCallback(async () => {
         // Prevent concurrent document picker calls
         if (isPickingDocument) {
             toast.error(t('fileManagement.toasts.waitForSelection'));
@@ -538,7 +547,7 @@ export const useFileUploadState = ({
             // Always reset the picking state, even if there was an error
             setIsPickingDocument(false);
         }
-    };
+    }, [isPickingDocument, imagesOnly, handleFileSelection, t]);
 
     return {
         isPickingDocument,

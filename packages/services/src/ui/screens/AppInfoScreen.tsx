@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { packageInfo } from '@oxyhq/core';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import OxyServicesLogo from '../../assets/icons/OxyServices';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useTheme } from '@oxyhq/bloom/theme';

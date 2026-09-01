@@ -1,8 +1,8 @@
 import express, { type Request, type Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { requireStaff } from '../middleware/requireStaff';
-import { topicService } from '../services/TopicService.js';
-import { Topic, TopicType } from '../models/Topic.js';
+import { topicService, type TopicType } from '../services/TopicService.js';
+import { TOPIC_TYPES } from '../db/schema/topics';
 
 const router = express.Router();
 
@@ -21,8 +21,11 @@ router.get('/', async (req: Request, res: Response) => {
     const limit = Math.min(Number(req.query.limit) || 50, 100);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
 
-    if (type && !Object.values(TopicType).includes(type)) {
-      return res.status(400).json({ error: 'INVALID_TYPE', message: `type must be one of: ${Object.values(TopicType).join(', ')}` });
+    // `TOPIC_TYPES` is the same `const` tuple the column's `enum` and its CHECK
+    // constraint are built from, so this 400 cannot drift from what the
+    // database would accept.
+    if (type && !TOPIC_TYPES.includes(type)) {
+      return res.status(400).json({ error: 'INVALID_TYPE', message: `type must be one of: ${TOPIC_TYPES.join(', ')}` });
     }
 
     const { topics, total } = await topicService.list({ type, query, limit, offset });
@@ -124,24 +127,26 @@ router.post('/resolve', requireStaff, async (req: Request, res: Response) => {
 router.patch('/:slug', requireStaff, async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-    const allowedFields = ['description', 'translations', 'icon', 'image', 'aliases', 'displayName'];
-    const update: Record<string, unknown> = {};
-
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        update[field] = req.body[field];
-      }
+    // An explicit per-column whitelist, never a spread of `req.body`: drizzle
+    // keys `set()` by column PROPERTY and silently ignores an unknown key, so a
+    // loop over a string array would fail open on a renamed column rather than
+    // erroring.
+    const body = req.body as Record<string, unknown>;
+    const update: Parameters<typeof topicService.updateBySlug>[1] = {};
+    if (typeof body.description === 'string') update.description = body.description;
+    if (typeof body.displayName === 'string') update.displayName = body.displayName;
+    if (typeof body.icon === 'string') update.icon = body.icon;
+    if (typeof body.image === 'string') update.image = body.image;
+    if (Array.isArray(body.aliases) && body.aliases.every((a) => typeof a === 'string')) {
+      update.aliases = body.aliases;
     }
+    if (body.translations !== undefined) update.translations = body.translations;
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ error: 'EMPTY_UPDATE', message: 'No valid fields to update' });
     }
 
-    const topic = await Topic.findOneAndUpdate(
-      { slug, isActive: true },
-      { $set: update },
-      { new: true }
-    ).lean();
+    const topic = await topicService.updateBySlug(slug, update);
 
     if (!topic) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Topic not found' });

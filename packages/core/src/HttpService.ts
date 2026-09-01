@@ -16,7 +16,7 @@
 import { TTLCache, registerCacheForCleanup } from './utils/cache';
 import { RequestDeduplicator, RequestQueue, SimpleLogger } from './utils/requestUtils';
 import { retryAsync } from './utils/asyncUtils';
-import { handleHttpError } from './utils/errorUtils';
+import { handleHttpError, parseHttpErrorBody } from './utils/errorUtils';
 import { jwtDecode } from 'jwt-decode';
 import { isNative, getPlatformOS } from './utils/platform';
 import { isReactNative } from '@oxyhq/protocol';
@@ -143,11 +143,31 @@ const CSRF_FETCH_RETRY_DELAY_MS = 500;
 
 /**
  * Cooldown (ms) applied after a failed access-token refresh before another
- * refresh is attempted. Prevents a refresh storm (and server hammering) when
+ * refresh is attempted while the CURRENT token is still valid (a proactive,
+ * near-expiry refresh). Prevents a refresh storm (and server hammering) when
  * the auth refresh handler is failing — every in-flight request that
- * hits a 401 would otherwise trigger its own refresh.
+ * hits a 401 would otherwise trigger its own refresh. A still-valid token can
+ * afford to wait this out; the request keeps carrying it in the meantime.
  */
 const TOKEN_REFRESH_COOLDOWN_MS = 15000;
+
+/**
+ * Cooldown (ms) applied after a failed refresh when the CURRENT access token is
+ * already past its `exp`. Much shorter than {@link TOKEN_REFRESH_COOLDOWN_MS}:
+ * an expired token is UNUSABLE, so the client must re-mint as soon as the mint
+ * endpoint is reachable again (e.g. a few seconds after an ECS rolling-deploy
+ * blip drains/restarts a task) instead of waiting out the full proactive
+ * cooldown while every request forwards or omits a stale bearer → server 401.
+ *
+ * Still NON-ZERO on purpose: it bounds the request-driven retry rate to at most
+ * one attempt per this interval so a PROLONGED outage cannot become a tight
+ * network storm. Combined with the process-wide single-flight below (concurrent
+ * requests coalesce to one in-flight mint) and the refresh handler's own
+ * terminal-state handling (a genuinely revoked session clears its device
+ * credential and stops issuing network mints), this recovers a transient blip
+ * ~15× faster without weakening the storm guard.
+ */
+const EXPIRED_TOKEN_REFRESH_COOLDOWN_MS = 1000;
 
 /**
  * Lead time (seconds) before access-token expiry at which a preflight refresh
@@ -247,7 +267,15 @@ export class HttpService {
   private logger: SimpleLogger;
   private config: OxyConfig;
   private tokenRefreshPromise: Promise<string | null> | null = null;
-  private tokenRefreshCooldownUntil = 0;
+  /**
+   * Epoch ms of the last FAILED refresh (0 = none since the last success). The
+   * post-failure cooldown is measured from here; its length depends on whether
+   * the current token is still valid ({@link TOKEN_REFRESH_COOLDOWN_MS}) or
+   * already expired ({@link EXPIRED_TOKEN_REFRESH_COOLDOWN_MS}), so an expired
+   * token recovers promptly the instant it crosses `exp` — without storing a
+   * fixed deadline that could not shrink once the token expired mid-cooldown.
+   */
+  private lastRefreshFailureAt = 0;
   private authRefreshHandler: AuthRefreshHandler | null = null;
   private accessTokenProvider: AccessTokenProvider | null = null;
   private deviceSecretMintInFlight: Promise<DeviceSecretMintOutcome> | null = null;
@@ -345,10 +373,9 @@ export class HttpService {
    *
    * Why we explicitly reject `URLSearchParams`:
    *  - `URLSearchParams` ALSO exposes `append` / `get` / `has`, so the
-   *    duck-type fallback below would have misidentified it as FormData.
-   *  - We want urlencoded payloads to take the JSON-stringify path so the
-   *    server receives them as `application/x-www-form-urlencoded` instead
-   *    of an empty multipart body.
+   *    duck-type fallback below would have misidentified it as FormData and
+   *    sent an empty multipart body.
+   *  - It has its own encoding path instead — see {@link isUrlSearchParams}.
    */
   private isFormData(data: unknown): data is FormDataLike {
     if (!data || typeof data !== 'object') {
@@ -387,6 +414,19 @@ export class HttpService {
       typeof candidate.getAll === 'function' &&
       typeof candidate.delete === 'function'
     );
+  }
+
+  /**
+   * True for an `application/x-www-form-urlencoded` payload.
+   *
+   * Needed because a handful of endpoints are defined by a standard that fixes
+   * their request encoding rather than by our own JSON conventions — today
+   * `POST /auth/oauth/token`, whose encoding RFC 6749 §4.1.3 mandates. Passing
+   * a `URLSearchParams` as `data` selects that encoding; everything else is
+   * still JSON.
+   */
+  private isUrlSearchParams(data: unknown): data is URLSearchParams {
+    return typeof URLSearchParams !== 'undefined' && data instanceof URLSearchParams;
   }
 
   /**
@@ -454,6 +494,7 @@ export class HttpService {
 
         // Determine if data is FormData using robust detection
         const isFormData = this.isFormData(data);
+        const isUrlEncoded = this.isUrlSearchParams(data);
 
         // Make fetch request
         const controller = new AbortController();
@@ -469,7 +510,9 @@ export class HttpService {
         };
 
         // Only set Content-Type for non-FormData requests (FormData sets it automatically with boundary)
-        if (!isFormData) {
+        if (isUrlEncoded) {
+          headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
+        } else if (!isFormData) {
           headers['Content-Type'] = 'application/json';
         }
 
@@ -517,8 +560,11 @@ export class HttpService {
           });
         }
 
+        // `URLSearchParams` is serialised explicitly rather than handed to
+        // `fetch` as-is: RN's fetch does not consistently encode it, and doing
+        // it here keeps the body identical across every platform.
         const bodyValue = method !== 'GET' && data
-            ? (isFormData ? data : JSON.stringify(data))
+            ? (isFormData ? data : isUrlEncoded ? data.toString() : JSON.stringify(data))
             : undefined;
 
         // React Native FormData workaround:
@@ -586,30 +632,44 @@ export class HttpService {
             }
           }
 
-          // Try to parse error response (handle empty/malformed JSON)
-          let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
+          // Read the error body (may be absent, non-JSON, empty or malformed).
+          // Anything unreadable leaves `errorBody` undefined and degrades to the
+          // status-based message — an error path that throws its own error is
+          // worse than the error it was reporting.
+          let errorBody: unknown;
+          const errorContentType = response.headers.get('content-type');
+          if (errorContentType?.includes('application/json')) {
             try {
-              const errorData = await response.json() as { message?: string; error?: string } | null;
-              // Accept either structured error field from API responses.
-              if (errorData?.message) {
-                errorMessage = errorData.message;
-              } else if (errorData?.error) {
-                errorMessage = errorData.error;
-              }
+              errorBody = await response.json();
             } catch (parseError) {
               // Malformed JSON or empty response - use status text
               this.logger.warn('Failed to parse error response JSON:', parseError);
             }
           }
 
-          const error = new Error(errorMessage) as Error & {
+          // `parseHttpErrorBody` handles every envelope in use, including the
+          // nested `{ error: { code, message } }` shape — assigning that nested
+          // OBJECT as the message is what produced `"[object Object]"`.
+          const parsed = parseHttpErrorBody(errorBody);
+          const error = new Error(
+            parsed.message ?? `HTTP ${response.status}: ${response.statusText}`,
+          ) as Error & {
             status?: number;
-            response?: { status: number; statusText: string }
+            code?: string;
+            details?: Record<string, unknown>;
+            response?: { status: number; statusText: string; data?: unknown };
           };
           error.status = response.status;
-          error.response = { status: response.status, statusText: response.statusText };
+          error.response = { status: response.status, statusText: response.statusText, data: errorBody };
+          // Only set `code`/`details` when the server actually sent them.
+          // Assigning `undefined` would still create the property, which changes
+          // how `handleHttpError` classifies the error downstream.
+          if (parsed.code !== undefined) {
+            error.code = parsed.code;
+          }
+          if (parsed.details !== undefined) {
+            error.details = parsed.details;
+          }
           throw error;
         }
 
@@ -854,6 +914,19 @@ export class HttpService {
   private static readonly CACHE_IDENTITY_DELIM = ' id=';
 
   /**
+   * The keys whose presence beside `data` makes a body a PAGE rather than a
+   * payload — see {@link unwrapResponse} for why this list is narrow.
+   *
+   *  - `pagination` — the offset-paginated house envelope (`sendPaginated`).
+   *  - `nextCursor` — the keyset-paginated one (the account audit trails).
+   *
+   * Membership is decided by key PRESENCE, never by value: the last page sends
+   * `nextCursor: null`, and an envelope that collapsed into a bare payload
+   * exactly when the stream ended would be a worse bug than the one this fixes.
+   */
+  private static readonly PAGE_ENVELOPE_KEYS: readonly string[] = ['pagination', 'nextCursor'];
+
+  /**
    * Derive a stable, non-sensitive identity discriminator for cache scoping.
    *
    * Thin instance wrapper over the pure {@link computeIdentityTag} helper —
@@ -1058,7 +1131,16 @@ export class HttpService {
       return null;
     }
 
-    if (Date.now() < this.tokenRefreshCooldownUntil) {
+    // Post-failure cooldown. A genuinely EXPIRED current token uses a much
+    // shorter cooldown than a still-valid (proactive, near-expiry) one: an
+    // expired token is unusable, so re-mint as soon as the endpoint is reachable
+    // again rather than waiting out the full window while requests carry a stale
+    // bearer. Both cooldowns are measured from the last failure, so the moment a
+    // still-valid token crosses `exp` mid-cooldown the shorter window applies.
+    const cooldownMs = this.isAccessTokenExpired()
+      ? EXPIRED_TOKEN_REFRESH_COOLDOWN_MS
+      : TOKEN_REFRESH_COOLDOWN_MS;
+    if (Date.now() - this.lastRefreshFailureAt < cooldownMs) {
       return null;
     }
 
@@ -1066,19 +1148,22 @@ export class HttpService {
       this.tokenRefreshPromise = this.authRefreshHandler(reason)
         .then((newToken) => {
           if (!newToken) {
-            this.tokenRefreshCooldownUntil = Date.now() + TOKEN_REFRESH_COOLDOWN_MS;
+            this.lastRefreshFailureAt = Date.now();
             return null;
           }
           if (this.tokenStore.getAccessToken() !== newToken) {
             this.tokenStore.setTokens(newToken);
             this.notifyTokenChange();
           }
+          // A success clears the failure timestamp so the next refresh is never
+          // throttled by a stale cooldown.
+          this.lastRefreshFailureAt = 0;
           this.logger.debug('Token refreshed via the auth refresh handler');
           return newToken;
         })
         .catch((error) => {
           this.logger.warn('Token refresh failed:', error);
-          this.tokenRefreshCooldownUntil = Date.now() + TOKEN_REFRESH_COOLDOWN_MS;
+          this.lastRefreshFailureAt = Date.now();
           return null;
         })
         .finally(() => {
@@ -1087,6 +1172,27 @@ export class HttpService {
     }
 
     return this.tokenRefreshPromise;
+  }
+
+  /**
+   * Whether the CURRENT stored access token is already past its `exp`. Drives
+   * the shorter post-failure refresh cooldown ({@link EXPIRED_TOKEN_REFRESH_COOLDOWN_MS}):
+   * a still-valid (near-expiry) token can wait out the full cooldown, but an
+   * expired one must re-mint promptly. Returns `false` for an absent or
+   * opaque/no-`exp` token — no proof it is expired, so keep the conservative
+   * (longer) cooldown and avoid an unnecessary retry loop.
+   */
+  private isAccessTokenExpired(): boolean {
+    const token = this.tokenStore.getAccessToken();
+    if (!token) {
+      return false;
+    }
+    try {
+      const decoded = jwtDecode<JwtPayload>(token);
+      return typeof decoded.exp === 'number' && decoded.exp <= Math.floor(Date.now() / 1000);
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -1119,21 +1225,48 @@ export class HttpService {
   }
 
   /**
-   * Unwrap standardized API response format
+   * Unwrap the standardized API response envelope — EXCEPT when the envelope is
+   * a page, in which case it travels whole.
+   *
+   * `{ data: <payload> }` is the house success envelope (`sendSuccess`), and
+   * reducing it to `<payload>` is what every call site in the SDK expects. But
+   * the reduction DISCARDS every sibling key, silently, and a page's siblings
+   * are the only thing that says where the next page starts. That is how
+   * `GET /accounts/:id/audit` lost its `nextCursor`: the caller received a bare
+   * array, `getNextPageParam` read `undefined`, and pagination was dead past the
+   * first page with nothing to show that it was.
+   *
+   * ## Why the rule is narrow, and not "any sibling key survives"
+   *
+   * "An object carrying `data` plus anything else is not an envelope" is the
+   * tempting general rule, and it is wrong here: this API already answers
+   * `{ data, count }` on ~15 routes, plus `{ data, source }`, `{ data, reason }`
+   * and `{ data, secretDestroyed }`, and a dozen measured Console call sites
+   * type those as the bare payload (`Array<ProviderConnection>`,
+   * `AccountBillingState | null`, …). Preserving those envelopes would hand every
+   * one of them an object where it expects its payload — at runtime only, since
+   * the response type is a call-site assertion. So the rule names PAGINATION
+   * specifically: `data` beside {@link PAGE_ENVELOPE_KEYS} is a page.
+   *
+   * A route whose sibling key genuinely matters to its caller belongs in that
+   * list, or should not be a sibling of `data` at all — the cursor-paginated
+   * surfaces already in the SDK (`{ follows, nextCursor }`,
+   * `{ records, nextCursor }`) sidestep this by never using `data`.
    */
   private unwrapResponse(responseData: unknown): unknown {
-    // Handle paginated responses: { data: [...], pagination: {...} }
-    if (responseData && typeof responseData === 'object' && 'data' in responseData && 'pagination' in responseData) {
+    if (!responseData || typeof responseData !== 'object' || !('data' in responseData)) {
+      // Not the success envelope (or not an object at all) — as-is.
       return responseData;
     }
-    
-    // Handle regular success responses: { data: ... }
-    if (responseData && typeof responseData === 'object' && 'data' in responseData && !Array.isArray(responseData)) {
-      return responseData.data;
+
+    // A page travels whole: its cursor/pagination sibling is unrecoverable
+    // information, not decoration.
+    if (HttpService.PAGE_ENVELOPE_KEYS.some((key) => key in responseData)) {
+      return responseData;
     }
-    
-    // Return as-is for responses that don't use sendSuccess wrapper
-    return responseData;
+
+    // Regular success envelope: `{ data: ... }` -> the payload.
+    return Array.isArray(responseData) ? responseData : responseData.data;
   }
 
   /**

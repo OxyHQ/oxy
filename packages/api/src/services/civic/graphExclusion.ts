@@ -7,26 +7,32 @@
  * here so both paths apply identical rules.
  *
  * Two signals:
- *  1. SOCIAL GRAPH — a directed/undirected edge via `Follow` (user follows) or
- *     `Block` (either direction), within a configurable hop radius (1 = direct
- *     neighbour; 2 = shares a common neighbour). Two-hop is computed as the
- *     intersection of the two users' direct-neighbour sets (bounded, no BFS
- *     blow-up).
- *  2. SHARED DEVICE — an overlap in the `deviceId` of the two users' active
+ *  1. SOCIAL GRAPH — a directed/undirected edge via `user_follows` (user
+ *     follows) or `blocks` (either direction), within a configurable hop radius
+ *     (1 = direct neighbour; 2 = shares a common neighbour). Two-hop is computed
+ *     as the intersection of the two users' direct-neighbour sets (bounded, no
+ *     BFS blow-up).
+ *  2. SHARED DEVICE — an overlap in the `device_id` of the two users' active
  *     sessions (a classic multi-account signal). IP is deliberately NOT a
  *     signal: the platform stores no user IP addresses at rest (privacy
  *     invariant — see docs/superpowers/specs/2026-07-14-no-ip-storage-design.md).
  *     `deviceInfo.fingerprint` is also NOT a device signal here — see
- *     `sessionDeviceIds`.
+ *     {@link sessionDeviceIds}.
  *
- * `Contact` is intentionally NOT used: it keys on email, not a resolved Oxy
+ * `contacts` is intentionally NOT used: it keys on email, not a resolved Oxy
  * user id, so it does not yield a user↔user edge without a privacy-sensitive
  * email join — left out of the v1 exclusion set.
+ *
+ * The Mongo `Follow` model carried a `followType` discriminator because one
+ * collection held user AND topic follows; `user_follows` is user-follows only,
+ * so the discriminator has no counterpart and its filter does not travel.
  */
 
-import Follow, { FollowType } from '../../models/Follow';
-import Block from '../../models/Block';
-import Session from '../../models/Session';
+import { and, eq, inArray } from 'drizzle-orm';
+import { getDb } from '../../config/postgres';
+import { blocks } from '../../db/schema/blocks';
+import { sessions } from '../../db/schema/sessions';
+import { userFollows } from '../../db/schema/userFollows';
 
 /** Why two users were judged related (for audit + a machine-readable reason). */
 export type ExclusionReason = 'self' | 'graph_neighbor' | 'shared_device';
@@ -41,17 +47,24 @@ export type ExclusionResult =
  */
 async function directNeighbors(userId: string): Promise<Set<string>> {
   const [followsOut, followsIn, blocksOut, blocksIn] = await Promise.all([
-    Follow.find({ followerUserId: userId, followType: FollowType.USER }).select('followedId').lean(),
-    Follow.find({ followType: FollowType.USER, followedId: userId }).select('followerUserId').lean(),
-    Block.find({ userId }).select('blockedId').lean(),
-    Block.find({ blockedId: userId }).select('userId').lean(),
+    getDb()
+      .select({ id: userFollows.followedId })
+      .from(userFollows)
+      .where(eq(userFollows.followerId, userId)),
+    getDb()
+      .select({ id: userFollows.followerId })
+      .from(userFollows)
+      .where(eq(userFollows.followedId, userId)),
+    getDb().select({ id: blocks.blockedId }).from(blocks).where(eq(blocks.userId, userId)),
+    getDb().select({ id: blocks.userId }).from(blocks).where(eq(blocks.blockedId, userId)),
   ]);
 
   const set = new Set<string>();
-  for (const f of followsOut) set.add(String(f.followedId));
-  for (const f of followsIn) set.add(String(f.followerUserId));
-  for (const b of blocksOut) set.add(String(b.blockedId));
-  for (const b of blocksIn) set.add(String(b.userId));
+  for (const rows of [followsOut, followsIn, blocksOut, blocksIn]) {
+    for (const row of rows) {
+      set.add(row.id);
+    }
+  }
   return set;
 }
 
@@ -104,20 +117,41 @@ export async function areGraphRelated(a: string, b: string, hops = 1): Promise<b
  * user-scoped and can never collide across users — so a genuine
  * multi-account-on-one-device pair still overlaps on `deviceId`. */
 export async function sessionDeviceIds(userId: string): Promise<Set<string>> {
-  const sessions = await Session.find({ userId, isActive: true })
-    .select('deviceId')
-    .lean();
-  const devices = new Set<string>();
-  for (const session of sessions) {
-    const record = session as { deviceId?: string };
-    if (record.deviceId) devices.add(record.deviceId);
+  return sessionDeviceIdsFor([userId]).then((byUser) => byUser.get(userId) ?? new Set<string>());
+}
+
+/**
+ * The active-session device ids of SEVERAL accounts, in one round trip.
+ *
+ * The sybil clustering asks this for a subject plus every one of their vouchers,
+ * which under the Mongo shape was one query per account. `device_id` is
+ * `NOT NULL` on `sessions`, so a row always contributes an id.
+ */
+export async function sessionDeviceIdsFor(userIds: string[]): Promise<Map<string, Set<string>>> {
+  const byUser = new Map<string, Set<string>>();
+  for (const userId of userIds) {
+    byUser.set(userId, new Set<string>());
   }
-  return devices;
+  if (userIds.length === 0) {
+    return byUser;
+  }
+
+  const rows = await getDb()
+    .select({ userId: sessions.userId, deviceId: sessions.deviceId })
+    .from(sessions)
+    .where(and(inArray(sessions.userId, userIds), eq(sessions.isActive, true)));
+
+  for (const row of rows) {
+    byUser.get(row.userId)?.add(row.deviceId);
+  }
+  return byUser;
 }
 
 /** True when `a` and `b` share an active-session deviceId. */
 export async function shareDevice(a: string, b: string): Promise<boolean> {
-  const [da, db] = await Promise.all([sessionDeviceIds(a), sessionDeviceIds(b)]);
+  const byUser = await sessionDeviceIdsFor([a, b]);
+  const da = byUser.get(a) ?? new Set<string>();
+  const db = byUser.get(b) ?? new Set<string>();
   for (const device of da) {
     if (db.has(device)) {
       return true;

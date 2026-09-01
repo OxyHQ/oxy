@@ -18,6 +18,7 @@
 
 import { formatUserResponse, toThemePreference } from '../userTransform';
 import {
+  ACCOUNT_CATEGORY_IDS,
   userResponseSchema,
   safeParseContract,
   resolveUserId,
@@ -37,7 +38,7 @@ interface LeanUserDoc {
   avatar?: string | null;
   color?: string | null;
   name?: { first?: string; last?: string; full?: string };
-  organizationCategory?: string;
+  accountCategories?: unknown;
 }
 
 function leanDoc(id: string, overrides: Partial<Omit<LeanUserDoc, '_id'>> = {}): LeanUserDoc {
@@ -71,18 +72,71 @@ describe('formatUserResponse → @oxyhq/contracts userResponseSchema (producer c
     expect(parsed && resolveUserId(parsed)).toBe('507f1f77bcf86cd799439011');
   });
 
-  it('forwards organizationCategory when present and parses against the contract', () => {
+  /**
+   * The serializer is the last place the ORDER can be lost, and losing it loses
+   * which category is primary — silently, with a DTO that still parses. The
+   * fixture is three long and its primary (`news`) is neither alphabetically
+   * first nor first in the declared vocabulary, so a sort on either key changes
+   * the result; an accidentally-ordered fixture would pass against both.
+   */
+  it('forwards account categories in order, primary first', () => {
+    const chosen = ['news', 'art', 'film'];
+    expect([...chosen].sort()).not.toEqual(chosen);
+    expect(
+      [...chosen].sort(
+        (a, b) =>
+          (ACCOUNT_CATEGORY_IDS as readonly string[]).indexOf(a) -
+          (ACCOUNT_CATEGORY_IDS as readonly string[]).indexOf(b)
+      )
+    ).not.toEqual(chosen);
+
     const formatted = formatUserResponse(
       leanDoc('507f1f77bcf86cd799439013', {
         username: 'acme',
         name: { first: 'Acme', last: 'Realty' },
-        organizationCategory: 'agency',
+        accountCategories: chosen,
       })
     );
 
-    expect(formatted?.organizationCategory).toBe('agency');
+    expect(formatted?.accountCategories).toEqual(chosen);
     const parsed = safeParseContract(userResponseSchema, formatted);
-    expect(parsed?.organizationCategory).toBe('agency');
+    expect(parsed?.accountCategories).toEqual(chosen);
+    expect(parsed?.accountCategories?.[0]).toBe('news');
+  });
+
+  /**
+   * An empty list is OMITTED, not emitted as `[]` — the contract says a renderer
+   * reads `accountCategories ?? []`, and every personal account would otherwise
+   * grow an empty array on every bulk fetch.
+   */
+  it('omits account categories when there are none', () => {
+    const formatted = formatUserResponse(
+      leanDoc('507f1f77bcf86cd799439014', {
+        username: 'nate',
+        name: { first: 'Nate' },
+        accountCategories: [],
+      })
+    );
+    expect(formatted?.accountCategories).toBeUndefined();
+    expect(safeParseContract(userResponseSchema, formatted)).not.toBeNull();
+  });
+
+  /**
+   * A value the vocabulary does not define is DROPPED rather than passed
+   * through. Emitting it would fail the consumer's parse of the WHOLE payload
+   * over an id no client could render — its label key would not exist.
+   */
+  it('drops an unknown category id but keeps the known ones in order', () => {
+    const formatted = formatUserResponse(
+      leanDoc('507f1f77bcf86cd799439015', {
+        username: 'legacy',
+        name: { first: 'Legacy' },
+        accountCategories: ['news', 'broker', 'art'],
+      })
+    );
+    expect(formatted?.accountCategories).toEqual(['news', 'art']);
+    const parsed = safeParseContract(userResponseSchema, formatted);
+    expect(parsed?.accountCategories).toEqual(['news', 'art']);
   });
 
   it('composes name.full from a FIRST-ONLY name (no requirement of both)', () => {

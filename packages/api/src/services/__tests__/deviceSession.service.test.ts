@@ -1,24 +1,30 @@
-import * as nodeCrypto from 'crypto';
+/**
+ * `deviceSession.service` against a REAL Postgres.
+ *
+ * This is the server authority for what is signed in on a device, so every
+ * assertion here runs the real service against the throwaway database rather
+ * than against a mocked driver — the previous suite mocked the Mongoose model
+ * and therefore asserted on `$set`/`$unset` payload SHAPES, which proved the
+ * call was built as expected but never that the stored row ended up correct.
+ *
+ * `session.service` IS mocked: it is a collaborator (token minting, session
+ * validation/deactivation), not the subject, and its own port is a separate
+ * file. Nothing about MongoDB is mocked here.
+ *
+ * Every test mints its own device id and its own `users` rows, so no assertion
+ * depends on a table being empty — the suite shares one database with the rest
+ * of the run, and `device_session_accounts` carries real foreign keys to
+ * `users`.
+ */
 
-const mockFindOne = jest.fn();
-const mockFind = jest.fn();
-const mockFindOneAndUpdate = jest.fn();
-const mockUpdateOne = jest.fn();
-const mockCreate = jest.fn();
+import { randomUUID } from 'node:crypto';
+import * as nodeCrypto from 'crypto';
+import { and, eq } from 'drizzle-orm';
+
 const mockDeactivate = jest.fn();
 const mockGetAccessToken = jest.fn();
 const mockValidateSessionById = jest.fn();
 
-jest.mock('../../models/DeviceSession', () => ({
-  __esModule: true,
-  default: {
-    findOne: (...a: unknown[]) => mockFindOne(...a),
-    find: (...a: unknown[]) => mockFind(...a),
-    findOneAndUpdate: (...a: unknown[]) => mockFindOneAndUpdate(...a),
-    updateOne: (...a: unknown[]) => mockUpdateOne(...a),
-    create: (...a: unknown[]) => mockCreate(...a),
-  },
-}));
 jest.mock('../session.service', () => ({
   __esModule: true,
   default: {
@@ -27,24 +33,77 @@ jest.mock('../session.service', () => ({
     validateSessionById: (...a: unknown[]) => mockValidateSessionById(...a),
   },
 }));
-jest.mock('../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
-jest.mock('../oauthCode.service', () => {
-  const nodeCrypto = jest.requireActual<typeof import('crypto')>('crypto');
-  return {
-    sha256Hex: (value: string) => nodeCrypto.createHash('sha256').update(value).digest('hex'),
-    base64UrlEncode: (buf: Buffer) => buf.toString('base64url'),
-    timingSafeStringEqual: (a: string, b: string) => {
-      const ab = Buffer.from(a);
-      const bb = Buffer.from(b);
-      if (ab.length !== bb.length) return false;
-      return nodeCrypto.timingSafeEqual(ab, bb);
-    },
-  };
-});
 
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { deviceAccountContexts } from '../../db/schema/deviceAccountContexts';
+import { devicePrincipals } from '../../db/schema/devicePrincipals';
+import { deviceSessions } from '../../db/schema/deviceSessions';
+import { users } from '../../db/schema/users';
 import deviceSessionService, { projectState } from '../deviceSession.service';
 
-const lean = (v: unknown) => ({ lean: () => Promise.resolve(v) });
+/** A real `users` row — `device_session_accounts.account_id` has a real FK. */
+async function account(): Promise<string> {
+  const [row] = await getDb().insert(users).values({}).returning({ id: users.id });
+  return row.id;
+}
+
+/** A device id unique to one test, so the shared database never cross-talks. */
+function deviceId(): string {
+  return `dev-${randomUUID()}`;
+}
+
+/** The stored device row, read straight from Postgres (not through the service). */
+async function storedDevice(device: string) {
+  const [row] = await getDb()
+    .select()
+    .from(deviceSessions)
+    .where(eq(deviceSessions.deviceId, device))
+    .limit(1);
+  return row;
+}
+
+/**
+ * The stored account rows for a device, in the service's own read order.
+ *
+ * Read straight from Postgres, never through the service — which is the whole
+ * point of this helper, and why it names `device_principals` and
+ * `device_account_contexts` since issue #937 moved the storage there.
+ *
+ * `operatedByUserId` is DERIVED from the stored principal (a context whose
+ * principal is somebody other than the account it names IS the delegated case),
+ * so an assertion on it still proves the operator was persisted: the value comes
+ * out of a `device_principals` row, not out of the service's projection.
+ */
+async function storedAccounts(device: string) {
+  const row = await storedDevice(device);
+  const contexts = await getDb()
+    .select({
+      accountId: deviceAccountContexts.accountId,
+      sessionId: deviceAccountContexts.sessionId,
+      authuser: devicePrincipals.authuser,
+      principalUserId: devicePrincipals.userId,
+    })
+    .from(deviceAccountContexts)
+    .innerJoin(devicePrincipals, eq(deviceAccountContexts.principalId, devicePrincipals.id))
+    .where(eq(deviceAccountContexts.deviceSessionId, row.id))
+    .orderBy(deviceAccountContexts.addedAt, devicePrincipals.authuser, deviceAccountContexts.id);
+  return contexts.map((context) => ({
+    ...context,
+    operatedByUserId:
+      context.principalUserId === context.accountId ? null : context.principalUserId,
+  }));
+}
+
+const sha256 = (value: string) =>
+  nodeCrypto.createHash('sha256').update(value).digest('hex');
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -52,15 +111,25 @@ beforeEach(() => {
 });
 
 describe('projectState', () => {
-  it('maps a doc to DeviceSessionState with string ids', () => {
-    const doc = {
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 2,
-      updatedAt: new Date(1720000000000),
-    };
-    expect(projectState(doc as never)).toEqual({
+  it('maps a row to DeviceSessionState and omits operatedByUserId for a personal account', () => {
+    expect(
+      projectState({
+        id: 'row1',
+        deviceId: 'd1',
+        activeAccountId: 'a1',
+        secretHash: null,
+        prevSecretHash: null,
+        prevSecretExpiresAt: null,
+        backgroundSecretHash: null,
+        backgroundSecretAccountId: null,
+        backgroundSecretExpiresAt: null,
+        revision: 2,
+        updatedAt: new Date(1720000000000),
+        accounts: [
+          { accountId: 'a1', sessionId: 's1', authuser: 0, operatedByUserId: null },
+        ],
+      })
+    ).toEqual({
       deviceId: 'd1',
       accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
       activeAccountId: 'a1',
@@ -68,748 +137,907 @@ describe('projectState', () => {
       updatedAt: 1720000000000,
     });
   });
+
+  it('surfaces operatedByUserId for a DELEGATED account', () => {
+    const state = projectState({
+      id: 'row1',
+      deviceId: 'd1',
+      activeAccountId: 'org1',
+      secretHash: null,
+      prevSecretHash: null,
+      prevSecretExpiresAt: null,
+      backgroundSecretHash: null,
+      backgroundSecretAccountId: null,
+      backgroundSecretExpiresAt: null,
+      revision: 1,
+      updatedAt: new Date(1720000000000),
+      accounts: [
+        { accountId: 'org1', sessionId: 's-org', authuser: 0, operatedByUserId: 'op1' },
+      ],
+    });
+    expect(state.accounts[0].operatedByUserId).toBe('op1');
+  });
+});
+
+describe('getState', () => {
+  it('creates an empty device row on first read and is idempotent', async () => {
+    const device = deviceId();
+    const first = await deviceSessionService.getState(device);
+    expect(first).toEqual({
+      deviceId: device,
+      accounts: [],
+      activeAccountId: null,
+      revision: 0,
+      updatedAt: expect.any(Number),
+    });
+
+    const second = await deviceSessionService.getState(device);
+    expect(second.revision).toBe(0);
+    // Still exactly one row — the create path is an upsert, not a duplicate.
+    const rows = await getDb()
+      .select({ id: deviceSessions.id })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, device));
+    expect(rows).toHaveLength(1);
+  });
 });
 
 describe('addAccount', () => {
-  it('adds a new account at authuser 0, sets it active, bumps revision (changed)', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 0 }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 1,
-      updatedAt: new Date(1720000000000),
-    }));
-    const { state, changed } = await deviceSessionService.addAccount('d1', { accountId: 'a1', sessionId: 's1' });
+  it('adds a new account at authuser 0, sets it active, bumps revision', async () => {
+    const device = deviceId();
+    const a1 = await account();
+
+    const { state, changed } = await deviceSessionService.addAccount(device, {
+      accountId: a1,
+      sessionId: 's1',
+    });
+
     expect(changed).toBe(true);
-    expect(state.activeAccountId).toBe('a1');
-    expect(state.accounts[0].authuser).toBe(0);
+    expect(state.activeAccountId).toBe(a1);
+    expect(state.accounts).toEqual([{ accountId: a1, sessionId: 's1', authuser: 0 }]);
     expect(state.revision).toBe(1);
+
+    const stored = await storedDevice(device);
+    expect(stored.activeAccountId).toBe(a1);
+    expect(stored.revision).toBe(1);
   });
 
-  it('persists operatedByUserId onto the stored account and projected state', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 0 }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'org1' }, sessionId: 's-org', authuser: 0, operatedByUserId: { toString: () => 'op1' } }],
-      activeAccountId: { toString: () => 'org1' },
-      revision: 1,
-      updatedAt: new Date(1720000000000),
-    }));
-    const { state, changed } = await deviceSessionService.addAccount('d1', { accountId: 'org1', sessionId: 's-org', operatedByUserId: 'op1' });
+  it('PERSISTS operatedByUserId onto the stored row, not merely the projection', async () => {
+    const device = deviceId();
+    const op1 = await account();
+    const org1 = await account();
+
+    const { state } = await deviceSessionService.addAccount(device, {
+      accountId: org1,
+      sessionId: 's-org',
+      operatedByUserId: op1,
+    });
+
+    expect(state.accounts[0].operatedByUserId).toBe(op1);
+    const [row] = await storedAccounts(device);
+    expect(row.operatedByUserId).toBe(op1);
+  });
+
+  it('stores NULL — never an empty string — for a personal account', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+
+    const [row] = await storedAccounts(device);
+    // The delegated/personal distinction IS this null. `''` would be a value
+    // that reads as a delegated entry owned by nobody.
+    expect(row.operatedByUserId).toBeNull();
+  });
+
+  it('assigns the lowest free authuser across existing accounts', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    const a3 = await account();
+
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    const { state } = await deviceSessionService.addAccount(device, {
+      accountId: a3,
+      sessionId: 's3',
+    });
+
+    expect(state.accounts.map((a) => a.authuser)).toEqual([0, 1, 2]);
+  });
+
+  it('re-adding the same account with a DIFFERENT sessionId replaces it and deactivates the displaced session', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const b1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's-old' });
+    await deviceSessionService.addAccount(device, { accountId: b1, sessionId: 's-b' });
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue({ session: {} });
+
+    const { state, changed } = await deviceSessionService.addAccount(device, {
+      accountId: a1,
+      sessionId: 's-new',
+    });
+
     expect(changed).toBe(true);
-    expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
-      { deviceId: 'd1' },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          accounts: expect.arrayContaining([expect.objectContaining({ accountId: 'org1', sessionId: 's-org', operatedByUserId: 'op1' })]),
-        }),
-      }),
-      expect.anything(),
-    );
-    expect(state.accounts[0].operatedByUserId).toBe('op1');
-  });
-
-  it('re-adding the same account with a DIFFERENT sessionId replaces the session, sets active, bumps revision, deactivates the displaced session (changed)', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'a1' }, sessionId: 's-old', authuser: 0, operatedByUserId: null },
-        { accountId: { toString: () => 'b1' }, sessionId: 's-b', authuser: 1, operatedByUserId: null },
-      ],
-      activeAccountId: { toString: () => 'b1' },
-      revision: 5,
-    }));
-    mockDeactivate.mockResolvedValueOnce(true);
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'b1' }, sessionId: 's-b', authuser: 1, operatedByUserId: null },
-        { accountId: { toString: () => 'a1' }, sessionId: 's-new', authuser: 0, operatedByUserId: null },
-      ],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 6,
-      updatedAt: new Date(1720000000000),
-    }));
-    const { state, changed } = await deviceSessionService.addAccount('d1', { accountId: 'a1', sessionId: 's-new' });
     expect(mockDeactivate).toHaveBeenCalledWith('s-old');
-    expect(changed).toBe(true);
-    expect(state.activeAccountId).toBe('a1');
-    expect(state.revision).toBe(6);
+    expect(state.activeAccountId).toBe(a1);
+    // Exactly one row per account — the unique constraint plus the delete-then-
+    // insert must not leave the account listed twice with two session ids.
+    const rows = await storedAccounts(device);
+    expect(rows.filter((r) => r.accountId === a1)).toHaveLength(1);
+    expect(rows.find((r) => r.accountId === a1)?.sessionId).toBe('s-new');
   });
 
-  it('idempotent re-register: re-adding the same account with the SAME sessionId is a pure no-op (no deactivate, no write, no revision bump, changed=false)', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 1,
-      updatedAt: new Date(1720000000000),
-    }));
-    const { state, changed } = await deviceSessionService.addAccount('d1', { accountId: 'a1', sessionId: 's1' });
+  it('idempotent re-register with the SAME sessionId is a pure no-op (no deactivate, no revision bump)', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    const before = await storedDevice(device);
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue({ session: {} });
+
+    const { state, changed } = await deviceSessionService.addAccount(device, {
+      accountId: a1,
+      sessionId: 's1',
+    });
+
     expect(changed).toBe(false);
     expect(mockDeactivate).not.toHaveBeenCalled();
-    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
-    expect(state.activeAccountId).toBe('a1');
-    expect(state.revision).toBe(1);
+    expect(state.revision).toBe(before.revision);
+    const after = await storedDevice(device);
+    expect(after.revision).toBe(before.revision);
   });
 
-  it('REGRESSION: an idempotent re-register of a NON-active account never steals active from the current active account (the reload-handoff bug)', async () => {
-    // Device: A (active session s-A) was switched away from — B is now active.
-    // The cold-boot handoff re-registers the still-restored A session on reload.
-    // A must NOT become active again; the switch to B must survive.
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'A' }, sessionId: 's-A', authuser: 0, operatedByUserId: null },
-        { accountId: { toString: () => 'B' }, sessionId: 's-B', authuser: 1, operatedByUserId: null },
-      ],
-      activeAccountId: { toString: () => 'B' },
-      revision: 77,
-      updatedAt: new Date(1720000000000),
-    }));
-    const { state, changed } = await deviceSessionService.addAccount('d1', { accountId: 'A', sessionId: 's-A' });
+  it('REGRESSION: an idempotent re-register of a NON-active account never steals active (the reload-handoff bug)', async () => {
+    const device = deviceId();
+    const A = await account();
+    const B = await account();
+    await deviceSessionService.addAccount(device, { accountId: A, sessionId: 's-A' });
+    await deviceSessionService.addAccount(device, { accountId: B, sessionId: 's-B' });
+    // B is active. The cold-boot handoff re-registers the still-restored A.
+    const { state, changed } = await deviceSessionService.addAccount(device, {
+      accountId: A,
+      sessionId: 's-A',
+    });
+
     expect(changed).toBe(false);
-    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
-    expect(state.activeAccountId).toBe('B');
-    expect(state.revision).toBe(77);
+    expect(state.activeAccountId).toBe(B);
+    expect((await storedDevice(device)).activeAccountId).toBe(B);
+  });
+
+  it("'if-empty' does NOT flip the active account when one already exists", async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+
+    const { state } = await deviceSessionService.addAccount(
+      device,
+      { accountId: a2, sessionId: 's2' },
+      { activate: 'if-empty' }
+    );
+
+    expect(state.activeAccountId).toBe(a1);
+    expect((await storedDevice(device)).activeAccountId).toBe(a1);
+  });
+
+  it("'if-empty' DOES set active when the device has no active account", async () => {
+    const device = deviceId();
+    const a2 = await account();
+    await deviceSessionService.getState(device); // create the empty device row
+
+    const { state } = await deviceSessionService.addAccount(
+      device,
+      { accountId: a2, sessionId: 's2' },
+      { activate: 'if-empty' }
+    );
+
+    expect(state.activeAccountId).toBe(a2);
+  });
+
+  it("default 'always' sets the new account active", async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+
+    const { state } = await deviceSessionService.addAccount(device, {
+      accountId: a2,
+      sessionId: 's2',
+    });
+
+    expect(state.activeAccountId).toBe(a2);
+  });
+});
+
+describe('switchActive', () => {
+  it('returns not_found when the account is not on the device, without validating', async () => {
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    expect(await deviceSessionService.switchActive(device, 'ghost')).toEqual({
+      ok: false,
+      reason: 'not_found',
+    });
+    expect(mockValidateSessionById).not.toHaveBeenCalled();
+  });
+
+  it('switches active and bumps revision when the target session validates', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    const before = await storedDevice(device);
+
+    const result = await deviceSessionService.switchActive(device, a1);
+
+    expect(mockValidateSessionById).toHaveBeenCalledWith('s1', false);
+    expect(result).toEqual({
+      ok: true,
+      state: expect.objectContaining({ activeAccountId: a1, revision: before.revision + 1 }),
+    });
+    expect((await storedDevice(device)).activeAccountId).toBe(a1);
+  });
+
+  it('heals a revoked DELEGATED target: drops it from the set and does NOT commit the switch', async () => {
+    const device = deviceId();
+    const op1 = await account();
+    const org1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: op1, sessionId: 's-op' });
+    await deviceSessionService.addAccount(device, {
+      accountId: org1,
+      sessionId: 's-org',
+      operatedByUserId: op1,
+    });
+    await deviceSessionService.switchActive(device, op1);
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue(null); // target session revoked
+
+    const result = await deviceSessionService.switchActive(device, org1);
+
+    expect(mockDeactivate).toHaveBeenCalledWith('s-org');
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected the switch to be refused');
+    expect(result.reason).toBe('unauthorized');
+    expect(result.state.accounts.map((a) => a.accountId)).toEqual([op1]);
+    // The switch itself was never committed.
+    expect(result.state.activeAccountId).toBe(op1);
+    expect((await storedDevice(device)).activeAccountId).toBe(op1);
+  });
+});
+
+describe('getState self-heals a revoked managed active account', () => {
+  it('drops the active DELEGATED account when its session fails validation and re-elects', async () => {
+    const device = deviceId();
+    const op1 = await account();
+    const org1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: op1, sessionId: 's-op' });
+    await deviceSessionService.addAccount(device, {
+      accountId: org1,
+      sessionId: 's-org',
+      operatedByUserId: op1,
+    });
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue(null);
+
+    const state = await deviceSessionService.getState(device);
+
+    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false);
+    expect(mockDeactivate).toHaveBeenCalledWith('s-org');
+    expect(state.accounts.map((a) => a.accountId)).toEqual([op1]);
+    expect(state.activeAccountId).toBe(op1);
+  });
+
+  it('keeps a DELEGATED active account whose session still validates', async () => {
+    const device = deviceId();
+    const op1 = await account();
+    const org1 = await account();
+    await deviceSessionService.addAccount(device, {
+      accountId: org1,
+      sessionId: 's-org',
+      operatedByUserId: op1,
+    });
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue({ session: {} });
+
+    const state = await deviceSessionService.getState(device);
+
+    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false);
+    expect(mockDeactivate).not.toHaveBeenCalled();
+    expect(state.activeAccountId).toBe(org1);
+  });
+
+  it('NEVER touches a PERSONAL active account — no validation call at all', async () => {
+    const device = deviceId();
+    const op1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: op1, sessionId: 's-op' });
+    jest.clearAllMocks();
+
+    const state = await deviceSessionService.getState(device);
+
+    // This is the delegated/personal distinction on the read path: a personal
+    // entry (operated_by_user_id IS NULL) is not re-checked, so a transient
+    // validation failure can never drop it.
+    expect(mockValidateSessionById).not.toHaveBeenCalled();
+    expect(mockDeactivate).not.toHaveBeenCalled();
+    expect(state.activeAccountId).toBe(op1);
   });
 });
 
 describe('signout', () => {
   it('revokes the account session and drops it from the set', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0 }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 1,
-    }));
-    mockDeactivate.mockResolvedValueOnce(true);
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: null, revision: 2, updatedAt: new Date(1720000000000),
-    }));
-    const state = await deviceSessionService.signout('d1', { accountId: 'a1' });
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+
+    const state = await deviceSessionService.signout(device, { accountId: a1 });
+
     expect(mockDeactivate).toHaveBeenCalledWith('s1');
     expect(state.accounts).toHaveLength(0);
     expect(state.activeAccountId).toBeNull();
-    expect(state.revision).toBe(2);
+    expect(await storedAccounts(device)).toHaveLength(0);
   });
 
-  it('cascades: signing out the operator also removes accounts it operates, deactivating both sessions, and never elects the operated account as next-active', async () => {
-    // Device has the operator's personal account (op1, active) and an org
-    // account (org1) the operator switched into (operatedByUserId: op1).
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'op1' }, sessionId: 's-op', authuser: 0, operatedByUserId: null },
-        { accountId: { toString: () => 'org1' }, sessionId: 's-org', authuser: 1, operatedByUserId: { toString: () => 'op1' } },
-      ],
-      activeAccountId: { toString: () => 'org1' },
-      revision: 3,
-    }));
-    mockDeactivate.mockResolvedValue(true);
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: null, revision: 4, updatedAt: new Date(1720000000000),
-    }));
-    const state = await deviceSessionService.signout('d1', { accountId: 'op1' });
+  it('CASCADES: signing out an operator also removes the accounts it operates, and never elects one as next-active', async () => {
+    const device = deviceId();
+    const op1 = await account();
+    const org1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: op1, sessionId: 's-op' });
+    await deviceSessionService.addAccount(device, {
+      accountId: org1,
+      sessionId: 's-org',
+      operatedByUserId: op1,
+    });
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue({ session: {} });
+
+    const state = await deviceSessionService.signout(device, { accountId: op1 });
+
     expect(mockDeactivate).toHaveBeenCalledWith('s-op');
     expect(mockDeactivate).toHaveBeenCalledWith('s-org');
     expect(mockDeactivate).toHaveBeenCalledTimes(2);
-    const [, updatePayload] = mockFindOneAndUpdate.mock.calls[0];
-    expect(updatePayload.$set.accounts).toEqual([]);
-    // Neither removed account (the just-signed-out operator nor the cascaded
-    // org account, which was also the previously-active account) may be
-    // elected as the next active account.
-    expect(updatePayload.$set.activeAccountId).toBeNull();
     expect(state.accounts).toHaveLength(0);
     expect(state.activeAccountId).toBeNull();
+    expect(await storedAccounts(device)).toHaveLength(0);
   });
 
   it('does not cascade beyond one level and leaves unrelated accounts untouched', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'op1' }, sessionId: 's-op', authuser: 0, operatedByUserId: null },
-        { accountId: { toString: () => 'org1' }, sessionId: 's-org', authuser: 1, operatedByUserId: { toString: () => 'op1' } },
-        { accountId: { toString: () => 'other' }, sessionId: 's-other', authuser: 2, operatedByUserId: null },
-      ],
-      activeAccountId: { toString: () => 'other' },
-      revision: 3,
-    }));
-    mockDeactivate.mockResolvedValue(true);
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'other' }, sessionId: 's-other', authuser: 2, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'other' },
-      revision: 4,
-      updatedAt: new Date(1720000000000),
-    }));
-    const state = await deviceSessionService.signout('d1', { accountId: 'op1' });
+    const device = deviceId();
+    const op1 = await account();
+    const org1 = await account();
+    const other = await account();
+    await deviceSessionService.addAccount(device, { accountId: op1, sessionId: 's-op' });
+    await deviceSessionService.addAccount(device, {
+      accountId: org1,
+      sessionId: 's-org',
+      operatedByUserId: op1,
+    });
+    await deviceSessionService.addAccount(device, { accountId: other, sessionId: 's-other' });
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue({ session: {} });
+
+    const state = await deviceSessionService.signout(device, { accountId: op1 });
+
     expect(mockDeactivate).toHaveBeenCalledWith('s-op');
     expect(mockDeactivate).toHaveBeenCalledWith('s-org');
     expect(mockDeactivate).not.toHaveBeenCalledWith('s-other');
-    expect(state.accounts).toHaveLength(1);
-    expect(state.activeAccountId).toBe('other');
-  });
-});
-
-describe('switchActive', () => {
-  it('returns not_found when the account is not on the device', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 0 }));
-    expect(await deviceSessionService.switchActive('d1', 'ghost')).toEqual({ ok: false, reason: 'not_found' });
-    expect(mockValidateSessionById).not.toHaveBeenCalled();
+    expect(state.accounts.map((a) => a.accountId)).toEqual([other]);
+    expect(state.activeAccountId).toBe(other);
   });
 
-  it('switches active account and bumps revision when the target session validates', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'other' },
-      revision: 1,
-    }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 2,
-      updatedAt: new Date(1720000000000),
-    }));
-    const result = await deviceSessionService.switchActive('d1', 'a1');
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s1', false);
-    expect(result).toEqual({ ok: true, state: expect.objectContaining({ activeAccountId: 'a1', revision: 2 }) });
-  });
+  it('is a no-op for an account that is not on the device', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    const before = await storedDevice(device);
+    jest.clearAllMocks();
 
-  it('heals a revoked target: removes the account from the device set and returns the healed state (does NOT commit the switch)', async () => {
-    const doc = {
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'op1' }, sessionId: 's-op', authuser: 0, operatedByUserId: null },
-        { accountId: { toString: () => 'org1' }, sessionId: 's-org', authuser: 1, operatedByUserId: { toString: () => 'op1' } },
-      ],
-      activeAccountId: { toString: () => 'op1' },
-      revision: 1,
-    };
-    mockFindOne.mockReturnValueOnce(lean(doc)); // switchActive's initial load
-    mockValidateSessionById.mockResolvedValueOnce(null); // target session revoked
-    mockFindOne.mockReturnValueOnce(lean(doc)); // signout()'s own reload
-    mockDeactivate.mockResolvedValueOnce(true);
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'op1' }, sessionId: 's-op', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'op1' },
-      revision: 2,
-      updatedAt: new Date(1720000000000),
-    }));
-    const result = await deviceSessionService.switchActive('d1', 'org1');
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false);
-    // The revoked account's session is deactivated and the account dropped from
-    // the set; the healed state is returned so the route can broadcast it. The
-    // switch itself is NOT committed (activeAccountId stays on op1).
-    expect(mockDeactivate).toHaveBeenCalledWith('s-org');
-    expect(result).toEqual({
-      ok: false,
-      reason: 'unauthorized',
-      state: expect.objectContaining({
-        accounts: [expect.objectContaining({ accountId: 'op1' })],
-        activeAccountId: 'op1',
-      }),
-    });
-  });
-});
+    const state = await deviceSessionService.signout(device, { accountId: 'ghost' });
 
-describe('getState self-heals a revoked managed active account', () => {
-  it('drops the active managed account when its session fails validateSessionById and re-elects the next remaining account', async () => {
-    const doc = {
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'op1' }, sessionId: 's-op', authuser: 0, operatedByUserId: null },
-        { accountId: { toString: () => 'org1' }, sessionId: 's-org', authuser: 1, operatedByUserId: { toString: () => 'op1' } },
-      ],
-      activeAccountId: { toString: () => 'org1' },
-      revision: 3,
-    };
-    mockFindOne.mockReturnValueOnce(lean(doc)); // getState's initial load
-    mockValidateSessionById.mockResolvedValueOnce(null); // heal check on org1's session fails
-    mockFindOne.mockReturnValueOnce(lean(doc)); // signout()'s own reload
-    mockDeactivate.mockResolvedValueOnce(true);
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'op1' }, sessionId: 's-op', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'op1' },
-      revision: 4,
-      updatedAt: new Date(1720000000000),
-    }));
-    const state = await deviceSessionService.getState('d1');
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false);
-    expect(mockDeactivate).toHaveBeenCalledWith('s-org');
-    expect(state.accounts).toHaveLength(1);
-    expect(state.accounts[0].accountId).toBe('op1');
-    expect(state.activeAccountId).toBe('op1');
-  });
-
-  it('keeps a managed active account whose session still validates', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'org1' }, sessionId: 's-org', authuser: 0, operatedByUserId: { toString: () => 'op1' } }],
-      activeAccountId: { toString: () => 'org1' },
-      revision: 1,
-      updatedAt: new Date(1720000000000),
-    }));
-    const state = await deviceSessionService.getState('d1');
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s-org', false);
     expect(mockDeactivate).not.toHaveBeenCalled();
-    expect(state.activeAccountId).toBe('org1');
-  });
-
-  it('does not touch a personal (non-managed) active account, even without a validateSessionById call', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'op1' }, sessionId: 's-op', authuser: 0, operatedByUserId: null }],
-      activeAccountId: { toString: () => 'op1' },
-      revision: 1,
-      updatedAt: new Date(1720000000000),
-    }));
-    const state = await deviceSessionService.getState('d1');
-    expect(mockValidateSessionById).not.toHaveBeenCalled();
-    expect(mockDeactivate).not.toHaveBeenCalled();
-    expect(state.activeAccountId).toBe('op1');
+    expect(state.revision).toBe(before.revision);
   });
 });
 
-describe('resolveActiveToken', () => {
-  const STATE = { deviceId: 'd1', accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }], activeAccountId: 'a1', revision: 1, updatedAt: 1720000000000 };
-  it('mints the active account token after re-validating the session', async () => {
-    mockGetAccessToken.mockResolvedValueOnce({ accessToken: 'jwt', expiresAt: new Date('2026-07-07T00:00:00.000Z') });
-    expect(await deviceSessionService.resolveActiveToken(STATE as never)).toEqual({ accessToken: 'jwt', expiresAt: '2026-07-07T00:00:00.000Z' });
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s1', false);
-    expect(mockGetAccessToken).toHaveBeenCalledWith('s1');
-  });
-  it('returns null when there is no active account', async () => {
-    expect(await deviceSessionService.resolveActiveToken({ ...STATE, activeAccountId: null } as never)).toBeNull();
-  });
-  it('returns null when the session cannot mint a token', async () => {
-    mockGetAccessToken.mockResolvedValueOnce(null);
-    expect(await deviceSessionService.resolveActiveToken(STATE as never)).toBeNull();
-  });
-  it('returns null without minting a token when validateSessionById rejects the session (e.g. revoked act_as membership)', async () => {
-    mockValidateSessionById.mockResolvedValueOnce(null);
-    expect(await deviceSessionService.resolveActiveToken(STATE as never)).toBeNull();
-    expect(mockGetAccessToken).not.toHaveBeenCalled();
-  });
-});
+describe('signout — device-secret cleanup', () => {
+  /*
+   * These assertions read the STORED ROW, not an update payload. Clearing this
+   * material is what stops a retained secret from minting a token after a
+   * signout, so the property that matters is the column's value afterwards —
+   * and specifically that it is NULL rather than `''`, which would be a real
+   * value occupying the unique `secret_hash` slot while still reading as
+   * "no secret" to `getStateBySecret`.
+   */
+  it('signout-ALL clears every secret column, device AND background, to NULL', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.issueDeviceSecret(device);
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt', expiresAt: new Date() });
+    await deviceSessionService.issueBackgroundCredential(device, a1);
 
-describe('resolveTokenForAccount', () => {
-  // a1 is the device's active account; a2 is a second registered account (the
-  // one an identity-bound client pins to).
-  const STATE = {
-    deviceId: 'd1',
-    accounts: [
-      { accountId: 'a1', sessionId: 's1', authuser: 0 },
-      { accountId: 'a2', sessionId: 's2', authuser: 1 },
-    ],
-    activeAccountId: 'a1',
-    revision: 7,
-    updatedAt: 1720000000000,
-  };
+    const before = await storedDevice(device);
+    expect(before.secretHash).not.toBeNull();
+    expect(before.backgroundSecretHash).not.toBeNull();
 
-  it('mints the token of a NON-active member account after re-validating its session', async () => {
-    mockGetAccessToken.mockResolvedValueOnce({ accessToken: 'jwt-a2', expiresAt: new Date('2026-07-07T00:00:00.000Z') });
-    expect(await deviceSessionService.resolveTokenForAccount(STATE as never, 'a2')).toEqual({
-      accessToken: 'jwt-a2',
-      expiresAt: '2026-07-07T00:00:00.000Z',
-    });
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s2', false);
-    expect(mockGetAccessToken).toHaveBeenCalledWith('s2');
+    await deviceSessionService.signout(device, { all: true });
+
+    const after = await storedDevice(device);
+    expect(after.secretHash).toBeNull();
+    expect(after.prevSecretHash).toBeNull();
+    expect(after.prevSecretExpiresAt).toBeNull();
+    expect(after.backgroundSecretHash).toBeNull();
+    expect(after.backgroundSecretAccountId).toBeNull();
+    expect(after.backgroundSecretExpiresAt).toBeNull();
   });
 
-  it('is READ-ONLY: resolving a pinned account performs no device-doc write at all', async () => {
-    mockGetAccessToken.mockResolvedValueOnce({ accessToken: 'jwt-a2', expiresAt: new Date('2026-07-07T00:00:00.000Z') });
-    await deviceSessionService.resolveTokenForAccount(STATE as never, 'a2');
-    // No activeAccountId write, no revision bump — nothing another app on this
-    // device could observe.
-    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
-    expect(mockUpdateOne).not.toHaveBeenCalled();
+  it('single-account signout does NOT clear the device secret (other accounts still mint with it)', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    await deviceSessionService.issueDeviceSecret(device);
+    const before = await storedDevice(device);
+
+    await deviceSessionService.signout(device, { accountId: a1 });
+
+    const after = await storedDevice(device);
+    expect(after.secretHash).toBe(before.secretHash);
   });
 
-  it('returns null for an account that is not registered on the device, without validating or minting', async () => {
-    expect(await deviceSessionService.resolveTokenForAccount(STATE as never, 'ghost')).toBeNull();
-    expect(mockValidateSessionById).not.toHaveBeenCalled();
-    expect(mockGetAccessToken).not.toHaveBeenCalled();
+  it('single-account signout DOES clear a background credential bound to the removed account', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    await deviceSessionService.issueDeviceSecret(device);
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt', expiresAt: new Date() });
+    await deviceSessionService.issueBackgroundCredential(device, a1);
+
+    await deviceSessionService.signout(device, { accountId: a1 });
+
+    const after = await storedDevice(device);
+    expect(after.backgroundSecretHash).toBeNull();
+    expect(after.backgroundSecretAccountId).toBeNull();
+    // The DEVICE secret survives — a2 is still here and legitimately mints.
+    expect(after.secretHash).not.toBeNull();
   });
 
-  it('returns null for a member account whose session no longer validates (never mints)', async () => {
-    mockValidateSessionById.mockResolvedValueOnce(null);
-    expect(await deviceSessionService.resolveTokenForAccount(STATE as never, 'a2')).toBeNull();
-    expect(mockGetAccessToken).not.toHaveBeenCalled();
-  });
+  it('single-account signout leaves a background credential bound to a DIFFERENT account alone', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt', expiresAt: new Date() });
+    await deviceSessionService.issueBackgroundCredential(device, a2);
+    const before = await storedDevice(device);
 
-  it('returns null when the member session cannot mint a token', async () => {
-    mockGetAccessToken.mockResolvedValueOnce(null);
-    expect(await deviceSessionService.resolveTokenForAccount(STATE as never, 'a2')).toBeNull();
-  });
+    await deviceSessionService.signout(device, { accountId: a1 });
 
-  it('resolveActiveToken is the active-account case of it (same session lookup path)', async () => {
-    mockGetAccessToken.mockResolvedValueOnce({ accessToken: 'jwt-a1', expiresAt: new Date('2026-07-07T00:00:00.000Z') });
-    expect(await deviceSessionService.resolveActiveToken(STATE as never)).toEqual({
-      accessToken: 'jwt-a1',
-      expiresAt: '2026-07-07T00:00:00.000Z',
-    });
-    expect(mockValidateSessionById).toHaveBeenCalledWith('s1', false);
-  });
-});
-
-describe('detachMigratedAccount', () => {
-  it('drops the account entry WITHOUT deactivating the migrated (preserved) session', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'oldDevice',
-      accounts: [
-        { accountId: { toString: () => 'a1' }, sessionId: 'migrated-sess', authuser: 0 },
-        { accountId: { toString: () => 'a2' }, sessionId: 's2', authuser: 1 },
-      ],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 3,
-    }));
-
-    await deviceSessionService.detachMigratedAccount('oldDevice', 'a1', 'migrated-sess');
-
-    // The migrated session lives on its new device — never deactivated here.
-    expect(mockDeactivate).not.toHaveBeenCalled();
-    // The account entry is pulled and active reassigned to the remaining one.
-    expect(mockUpdateOne).toHaveBeenCalledTimes(1);
-    const [filter, update] = mockUpdateOne.mock.calls[0] as [
-      Record<string, unknown>,
-      { $set: { accounts: Array<{ sessionId: string }>; activeAccountId: string | null }; $inc: { revision: number } },
-    ];
-    expect(filter).toEqual({ deviceId: 'oldDevice' });
-    expect(update.$set.accounts.map((a) => a.sessionId)).toEqual(['s2']);
-    expect(update.$set.activeAccountId).toBe('a2');
-    expect(update.$inc).toEqual({ revision: 1 });
-  });
-
-  it('deactivates a DIFFERENT stale session the old doc referenced for that account', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'oldDevice',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 'stale-sess', authuser: 0 }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 1,
-    }));
-
-    await deviceSessionService.detachMigratedAccount('oldDevice', 'a1', 'migrated-sess');
-
-    expect(mockDeactivate).toHaveBeenCalledWith('stale-sess');
-    expect(mockUpdateOne).toHaveBeenCalledWith(
-      { deviceId: 'oldDevice' },
-      { $set: { accounts: [], activeAccountId: null }, $inc: { revision: 1 } },
-    );
-  });
-
-  it('is a no-op when the device doc is absent', async () => {
-    mockFindOne.mockReturnValueOnce(lean(null));
-    await deviceSessionService.detachMigratedAccount('oldDevice', 'a1', 'migrated-sess');
-    expect(mockDeactivate).not.toHaveBeenCalled();
-    expect(mockUpdateOne).not.toHaveBeenCalled();
-  });
-
-  it('is a no-op when the account is not listed on the doc', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'oldDevice',
-      accounts: [{ accountId: { toString: () => 'other' }, sessionId: 's-other', authuser: 0 }],
-      activeAccountId: { toString: () => 'other' },
-      revision: 1,
-    }));
-    await deviceSessionService.detachMigratedAccount('oldDevice', 'a1', 'migrated-sess');
-    expect(mockDeactivate).not.toHaveBeenCalled();
-    expect(mockUpdateOne).not.toHaveBeenCalled();
-  });
-});
-
-describe('addAccount — activate option', () => {
-  it("'if-empty' does NOT flip the active account when one already exists", async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0 }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 3,
-    }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: { toString: () => 'a1' }, revision: 4,
-    }));
-
-    await deviceSessionService.addAccount('d1', { accountId: 'a2', sessionId: 's2' }, { activate: 'if-empty' });
-
-    const update = mockFindOneAndUpdate.mock.calls[0][1];
-    // Active stays a1 — the add-only lane never steals the active selection.
-    expect(update.$set.activeAccountId).toBe('a1');
-  });
-
-  it("'if-empty' DOES set active when the device has no active account", async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: null, revision: 0,
-    }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: { toString: () => 'a2' }, revision: 1,
-    }));
-
-    await deviceSessionService.addAccount('d1', { accountId: 'a2', sessionId: 's2' }, { activate: 'if-empty' });
-
-    const update = mockFindOneAndUpdate.mock.calls[0][1];
-    expect(update.$set.activeAccountId).toBe('a2');
-  });
-
-  it("default 'always' sets the new account active (existing callers unchanged)", async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0 }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 3,
-    }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: { toString: () => 'a2' }, revision: 4,
-    }));
-
-    await deviceSessionService.addAccount('d1', { accountId: 'a2', sessionId: 's2' });
-
-    const update = mockFindOneAndUpdate.mock.calls[0][1];
-    expect(update.$set.activeAccountId).toBe('a2');
+    const after = await storedDevice(device);
+    expect(after.backgroundSecretHash).toBe(before.backgroundSecretHash);
+    expect(after.backgroundSecretAccountId).toBe(a2);
   });
 });
 
 describe('issueDeviceSecret', () => {
-  it('mints a fresh secret and stores only its hash — no prior secret means no prev fields', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 0 }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({ deviceId: 'd1' }));
+  it('mints a fresh secret, stores only its hash, and leaves no prev on first issuance', async () => {
+    const device = deviceId();
+    await deviceSessionService.getState(device);
 
-    const secret = await deviceSessionService.issueDeviceSecret('d1');
+    const secret = await deviceSessionService.issueDeviceSecret(device);
 
     expect(typeof secret).toBe('string');
     expect((secret as string).length).toBeGreaterThan(20);
-    const [filter, update] = mockFindOneAndUpdate.mock.calls[0];
-    // CAS filter: first issuance requires no secret to exist yet.
-    expect(filter).toEqual({ deviceId: 'd1', secretHash: { $exists: false } });
-    // Only the HASH of the returned secret is stored, never the raw value.
-    expect(update.$set.secretHash).toBe(nodeCrypto.createHash('sha256').update(secret as string).digest('hex'));
-    expect(update.$set.secretHash).not.toBe(secret);
-    // First issuance → no previous secret to grace.
-    expect(update.$set.prevSecretHash).toBeUndefined();
-    expect(update.$set.prevSecretExpiresAt).toBeUndefined();
+    const stored = await storedDevice(device);
+    // Only the HASH is stored, never the raw value.
+    expect(stored.secretHash).toBe(sha256(secret as string));
+    expect(stored.secretHash).not.toBe(secret);
+    expect(stored.prevSecretHash).toBeNull();
+    expect(stored.prevSecretExpiresAt).toBeNull();
   });
 
-  it('rotates: moves the existing secret to prev with a ~60s grace expiry and sets the new secret', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 0, secretHash: 'OLDHASH' }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({ deviceId: 'd1' }));
+  it('binds the FIRST secret on a row whose secret_hash is NULL', async () => {
+    // The CAS guard for a never-bound device is `secret_hash IS NULL`. Mongo
+    // expressed it as `{$exists: false}` only because a sparse unique index
+    // collides on nulls; comparing against `''` here would match nothing and
+    // silently never bind a first secret.
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    expect((await storedDevice(device)).secretHash).toBeNull();
+
+    expect(await deviceSessionService.issueDeviceSecret(device)).not.toBeNull();
+    expect((await storedDevice(device)).secretHash).not.toBeNull();
+  });
+
+  it('rotates: moves the existing secret to prev with a ~60s grace and sets the new one', async () => {
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    const first = await deviceSessionService.issueDeviceSecret(device);
+    const firstHash = sha256(first as string);
 
     const before = Date.now();
-    const secret = await deviceSessionService.issueDeviceSecret('d1');
+    const second = await deviceSessionService.issueDeviceSecret(device);
     const after = Date.now();
 
-    const [, update] = mockFindOneAndUpdate.mock.calls[0];
-    // The just-superseded secret stays valid for a short grace (rotation-in-use).
-    expect(update.$set.prevSecretHash).toBe('OLDHASH');
-    expect(update.$set.prevSecretExpiresAt).toBeInstanceOf(Date);
-    const graceExpiry = (update.$set.prevSecretExpiresAt as Date).getTime();
-    expect(graceExpiry).toBeGreaterThanOrEqual(before + 60_000);
-    expect(graceExpiry).toBeLessThanOrEqual(after + 60_000);
-    expect(update.$set.secretHash).toBe(nodeCrypto.createHash('sha256').update(secret as string).digest('hex'));
-    // The new secret differs from the old hash it replaced.
-    expect(update.$set.secretHash).not.toBe('OLDHASH');
-  });
-
-  it('two successive mints return DIFFERENT secrets (each mint rotates)', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], revision: 0 }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({ deviceId: 'd1' }));
-    const first = await deviceSessionService.issueDeviceSecret('d1');
-
-    // Second mint sees the (now-stored) first secret as current.
-    const firstHash = nodeCrypto.createHash('sha256').update(first as string).digest('hex');
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], revision: 0, secretHash: firstHash }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({ deviceId: 'd1' }));
-    const second = await deviceSessionService.issueDeviceSecret('d1');
-
     expect(second).not.toBe(first);
-    // The first secret is preserved as prev (grace) so a lagging tab still mints.
-    const [, secondUpdate] = mockFindOneAndUpdate.mock.calls[1];
-    expect(secondUpdate.$set.prevSecretHash).toBe(firstHash);
+    const stored = await storedDevice(device);
+    expect(stored.prevSecretHash).toBe(firstHash);
+    expect(stored.secretHash).toBe(sha256(second as string));
+    const grace = stored.prevSecretExpiresAt as Date;
+    expect(grace.getTime()).toBeGreaterThanOrEqual(before + 60_000);
+    expect(grace.getTime()).toBeLessThanOrEqual(after + 60_000);
   });
 
-  it('returns null when the device doc does not exist (never mints a secret bound to a phantom device)', async () => {
-    mockFindOne.mockReturnValueOnce(lean(null));
-    expect(await deviceSessionService.issueDeviceSecret('ghost')).toBeNull();
-    expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
+  it('returns null for a device row that does not exist (never binds a phantom device)', async () => {
+    expect(await deviceSessionService.issueDeviceSecret(deviceId())).toBeNull();
   });
 
-  it('returns null when the doc vanished between read and write (CAS retry re-reads, doc gone)', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], revision: 0 }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean(null));
-    // Retry re-reads; doc is gone → give up.
-    mockFindOne.mockReturnValueOnce(lean(null));
-    expect(await deviceSessionService.issueDeviceSecret('d1')).toBeNull();
-    expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(1);
-  });
-
-  it('lost CAS race retries once against the concurrent winner hash and succeeds', async () => {
-    // Attempt 1 reads OLDHASH but a concurrent mint wins the CAS → write matches nothing.
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], revision: 0, secretHash: 'OLDHASH' }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean(null));
-    // Attempt 2 re-reads the winner's hash and rotates on top of it.
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], revision: 0, secretHash: 'WINNERHASH' }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({ deviceId: 'd1' }));
-
-    const secret = await deviceSessionService.issueDeviceSecret('d1');
-
-    expect(typeof secret).toBe('string');
-    expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(2);
-    const [retryFilter, retryUpdate] = mockFindOneAndUpdate.mock.calls[1];
-    // The retry's CAS guard targets the hash it re-read, not the stale one.
-    expect(retryFilter).toEqual({ deviceId: 'd1', secretHash: 'WINNERHASH' });
-    expect(retryUpdate.$set.prevSecretHash).toBe('WINNERHASH');
-    expect(retryUpdate.$set.secretHash).toBe(nodeCrypto.createHash('sha256').update(secret as string).digest('hex'));
-  });
-
-  it('gives up after two lost CAS races (no unbounded retry loop)', async () => {
-    mockFindOne.mockReturnValue(lean({ deviceId: 'd1', accounts: [], revision: 0, secretHash: 'H' }));
-    mockFindOneAndUpdate.mockReturnValue(lean(null));
-    expect(await deviceSessionService.issueDeviceSecret('d1')).toBeNull();
-    expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(2);
+  it('two devices can both sit at a NULL secret_hash — NULLs are distinct in Postgres', async () => {
+    // The sparse-unique workaround did not travel. If NULL were replaced by
+    // `''` this would violate `device_sessions_secret_hash_key`.
+    const one = deviceId();
+    const two = deviceId();
+    await deviceSessionService.getState(one);
+    await deviceSessionService.getState(two);
+    expect((await storedDevice(one)).secretHash).toBeNull();
+    expect((await storedDevice(two)).secretHash).toBeNull();
   });
 });
 
 describe('getStateBySecret', () => {
-  const rawSecret = 'raw-device-secret-value';
-  const secretHash = nodeCrypto.createHash('sha256').update(rawSecret).digest('hex');
+  it('returns the projected state for the current secret', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    const secret = await deviceSessionService.issueDeviceSecret(device);
 
-  it('returns the projected state when the secret matches the current secretHash (constant-time)', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0 }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 2,
-      updatedAt: new Date(1720000000000),
-      secretHash,
-    }));
-    const state = await deviceSessionService.getStateBySecret('d1', rawSecret);
-    expect(state?.deviceId).toBe('d1');
-    expect(state?.activeAccountId).toBe('a1');
-    // Looked up by deviceId; the raw secret is never part of the query.
-    expect(mockFindOne).toHaveBeenCalledWith({ deviceId: 'd1' });
+    const state = await deviceSessionService.getStateBySecret(device, secret as string);
+
+    expect(state?.deviceId).toBe(device);
+    expect(state?.activeAccountId).toBe(a1);
   });
 
   it('accepts the PREVIOUS secret within the grace window', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: null, revision: 1, updatedAt: new Date(1720000000000),
-      secretHash: 'CURRENTHASH', prevSecretHash: secretHash, prevSecretExpiresAt: new Date(Date.now() + 30_000),
-    }));
-    const state = await deviceSessionService.getStateBySecret('d1', rawSecret);
-    expect(state?.deviceId).toBe('d1');
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    const first = await deviceSessionService.issueDeviceSecret(device);
+    await deviceSessionService.issueDeviceSecret(device); // rotate
+
+    const state = await deviceSessionService.getStateBySecret(device, first as string);
+    expect(state?.deviceId).toBe(device);
   });
 
   it('rejects the previous secret once the grace window has expired', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: null, revision: 1, updatedAt: new Date(),
-      secretHash: 'CURRENTHASH', prevSecretHash: secretHash, prevSecretExpiresAt: new Date(Date.now() - 1_000),
-    }));
-    expect(await deviceSessionService.getStateBySecret('d1', rawSecret)).toBeNull();
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    const first = await deviceSessionService.issueDeviceSecret(device);
+    await deviceSessionService.issueDeviceSecret(device);
+    // Expire the grace directly in the database rather than waiting 60s.
+    await getDb()
+      .update(deviceSessions)
+      .set({ prevSecretExpiresAt: new Date(Date.now() - 1000) })
+      .where(eq(deviceSessions.deviceId, device));
+
+    expect(await deviceSessionService.getStateBySecret(device, first as string)).toBeNull();
   });
 
-  it('returns null on a secret mismatch', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1', accounts: [], activeAccountId: null, revision: 1, updatedAt: new Date(),
-      secretHash: 'A-DIFFERENT-HASH',
-    }));
-    expect(await deviceSessionService.getStateBySecret('d1', rawSecret)).toBeNull();
+  it('returns null on a secret mismatch, for a secret-less row, and for an unknown device', async () => {
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    // No secret bound yet.
+    expect(await deviceSessionService.getStateBySecret(device, 'nope')).toBeNull();
+
+    await deviceSessionService.issueDeviceSecret(device);
+    expect(await deviceSessionService.getStateBySecret(device, 'wrong-secret')).toBeNull();
+    expect(await deviceSessionService.getStateBySecret(deviceId(), 'anything')).toBeNull();
   });
 
-  it('returns null when the doc carries no secretHash at all', async () => {
-    mockFindOne.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 1, updatedAt: new Date() }));
-    expect(await deviceSessionService.getStateBySecret('d1', rawSecret)).toBeNull();
-  });
-
-  it('returns null for an unknown device, and short-circuits (no query) for empty inputs', async () => {
-    mockFindOne.mockReturnValueOnce(lean(null));
-    expect(await deviceSessionService.getStateBySecret('d1', rawSecret)).toBeNull();
-    // Empty deviceId / empty secret never touch the DB.
-    expect(await deviceSessionService.getStateBySecret('d1', '')).toBeNull();
-    expect(await deviceSessionService.getStateBySecret('', rawSecret)).toBeNull();
-    expect(mockFindOne).toHaveBeenCalledTimes(1);
+  it('short-circuits on empty inputs', async () => {
+    const device = deviceId();
+    await deviceSessionService.getState(device);
+    await deviceSessionService.issueDeviceSecret(device);
+    expect(await deviceSessionService.getStateBySecret(device, '')).toBeNull();
+    expect(await deviceSessionService.getStateBySecret('', 'x')).toBeNull();
   });
 });
 
-describe('signout — device-secret cleanup (2c)', () => {
-  it('signout-ALL unsets secretHash/prevSecretHash/prevSecretExpiresAt', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0 }],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 2,
-    }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 3 }));
+describe('background credential', () => {
+  it('provisions for a member account and mints without rotating the secret', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    mockGetAccessToken.mockResolvedValue({
+      accessToken: 'jwt',
+      expiresAt: new Date('2026-07-07T00:00:00.000Z'),
+    });
 
-    await deviceSessionService.signout('d1', { all: true });
+    const issued = await deviceSessionService.issueBackgroundCredential(device, a1);
+    expect(issued?.accountId).toBe(a1);
+    const stored = await storedDevice(device);
+    expect(stored.backgroundSecretHash).toBe(sha256(issued?.secret as string));
 
-    const [, update] = mockFindOneAndUpdate.mock.calls[0];
-    expect(update.$unset).toEqual({ secretHash: '', prevSecretHash: '', prevSecretExpiresAt: '' });
+    const minted = await deviceSessionService.mintFromBackgroundSecret(
+      device,
+      issued?.secret as string
+    );
+    expect(minted).toEqual({
+      ok: true,
+      accessToken: 'jwt',
+      expiresAt: '2026-07-07T00:00:00.000Z',
+      accountId: a1,
+    });
+    // NEVER rotates the presented secret.
+    expect((await storedDevice(device)).backgroundSecretHash).toBe(stored.backgroundSecretHash);
   });
 
-  it('single-account signout does NOT unset the device secret (other accounts on the device still use it)', async () => {
-    mockFindOne.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [
-        { accountId: { toString: () => 'a1' }, sessionId: 's1', authuser: 0 },
-        { accountId: { toString: () => 'a2' }, sessionId: 's2', authuser: 1 },
-      ],
-      activeAccountId: { toString: () => 'a1' },
-      revision: 2,
-    }));
-    mockFindOneAndUpdate.mockReturnValueOnce(lean({
-      deviceId: 'd1',
-      accounts: [{ accountId: { toString: () => 'a2' }, sessionId: 's2', authuser: 1 }],
-      activeAccountId: { toString: () => 'a2' },
-      revision: 3,
-    }));
+  it('refuses to provision for an account that is not on the device', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const ghost = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    expect(await deviceSessionService.issueBackgroundCredential(device, ghost)).toBeNull();
+  });
 
-    await deviceSessionService.signout('d1', { accountId: 'a1' });
+  it('rejects an invalid or expired credential', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt', expiresAt: new Date() });
+    const issued = await deviceSessionService.issueBackgroundCredential(device, a1);
 
-    const [, update] = mockFindOneAndUpdate.mock.calls[0];
-    expect(update.$unset).toBeUndefined();
+    expect(await deviceSessionService.mintFromBackgroundSecret(device, 'wrong')).toEqual({
+      ok: false,
+      reason: 'background_credential_invalid',
+    });
+
+    await getDb()
+      .update(deviceSessions)
+      .set({ backgroundSecretExpiresAt: new Date(Date.now() - 1000) })
+      .where(eq(deviceSessions.deviceId, device));
+    expect(
+      await deviceSessionService.mintFromBackgroundSecret(device, issued?.secret as string)
+    ).toEqual({ ok: false, reason: 'background_credential_invalid' });
+  });
+
+  it('distinguishes a live credential whose bound account left the device', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt', expiresAt: new Date() });
+    const issued = await deviceSessionService.issueBackgroundCredential(device, a2);
+    // Remove a2 WITHOUT going through signout, so the credential survives and
+    // the bound account is simply absent from the set.
+    const row = await storedDevice(device);
+    await getDb()
+      .delete(deviceAccountContexts)
+      .where(
+        and(
+          eq(deviceAccountContexts.deviceSessionId, row.id),
+          eq(deviceAccountContexts.accountId, a2)
+        )
+      );
+
+    expect(
+      await deviceSessionService.mintFromBackgroundSecret(device, issued?.secret as string)
+    ).toEqual({ ok: false, reason: 'account_not_on_device' });
+  });
+});
+
+describe('resolveTokenForAccount / resolveActiveToken', () => {
+  it("mints a NON-active member account token, from that account's own session", async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    await deviceSessionService.switchActive(device, a1);
+    const state = await deviceSessionService.getState(device);
+    jest.clearAllMocks();
+    mockGetAccessToken.mockResolvedValue({
+      accessToken: 'jwt-a2',
+      expiresAt: new Date('2026-07-07T00:00:00.000Z'),
+    });
+
+    expect(await deviceSessionService.resolveTokenForAccount(state, a2)).toEqual({
+      accessToken: 'jwt-a2',
+      expiresAt: '2026-07-07T00:00:00.000Z',
+    });
+    // `s2`, not the ACTIVE account's `s1` — and `getAccessToken` is the only
+    // session call, because it is itself the re-validation (see the method).
+    expect(mockGetAccessToken).toHaveBeenCalledWith('s2');
+    expect(mockValidateSessionById).not.toHaveBeenCalled();
+  });
+
+  it('is READ-ONLY: resolving a pinned account performs no device-row write at all', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    const state = await deviceSessionService.getState(device);
+    const before = await storedDevice(device);
+    mockGetAccessToken.mockResolvedValue({ accessToken: 'jwt', expiresAt: new Date() });
+
+    await deviceSessionService.resolveTokenForAccount(state, a1);
+
+    const after = await storedDevice(device);
+    // Nothing another app on this device could observe.
+    expect(after.revision).toBe(before.revision);
+    expect(after.activeAccountId).toBe(before.activeAccountId);
+    expect(after.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+  });
+
+  it('returns null for a non-member, and for a session that cannot mint', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    const state = await deviceSessionService.getState(device);
+
+    jest.clearAllMocks();
+    // A non-member is refused off the device state alone — the session service
+    // is never reached, so an unknown accountId cannot mint anything.
+    expect(await deviceSessionService.resolveTokenForAccount(state, 'ghost')).toBeNull();
+    expect(mockGetAccessToken).not.toHaveBeenCalled();
+
+    // A revoked session and a session that cannot mint are ONE case here:
+    // `getAccessToken` answers null for both, and the caller must not be able
+    // to tell them apart (see the pinned mint route).
+    mockGetAccessToken.mockResolvedValueOnce(null);
+    expect(await deviceSessionService.resolveTokenForAccount(state, a1)).toBeNull();
+  });
+
+  it('resolveActiveToken is the active-account case, and null with no active account', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    const state = await deviceSessionService.getState(device);
+    mockGetAccessToken.mockResolvedValue({
+      accessToken: 'jwt-a1',
+      expiresAt: new Date('2026-07-07T00:00:00.000Z'),
+    });
+
+    expect(await deviceSessionService.resolveActiveToken(state)).toEqual({
+      accessToken: 'jwt-a1',
+      expiresAt: '2026-07-07T00:00:00.000Z',
+    });
+    expect(
+      await deviceSessionService.resolveActiveToken({ ...state, activeAccountId: null })
+    ).toBeNull();
+  });
+});
+
+describe('detachMigratedAccount', () => {
+  it('drops the entry WITHOUT deactivating the migrated (preserved) session', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 'migrated-sess' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+    await deviceSessionService.switchActive(device, a1);
+    jest.clearAllMocks();
+
+    await deviceSessionService.detachMigratedAccount(device, a1, 'migrated-sess');
+
+    expect(mockDeactivate).not.toHaveBeenCalled();
+    const rows = await storedAccounts(device);
+    expect(rows.map((r) => r.sessionId)).toEqual(['s2']);
+    expect((await storedDevice(device)).activeAccountId).toBe(a2);
+  });
+
+  it('deactivates a DIFFERENT stale session the old row referenced', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 'stale-sess' });
+    jest.clearAllMocks();
+
+    await deviceSessionService.detachMigratedAccount(device, a1, 'migrated-sess');
+
+    expect(mockDeactivate).toHaveBeenCalledWith('stale-sess');
+    expect(await storedAccounts(device)).toHaveLength(0);
+    expect((await storedDevice(device)).activeAccountId).toBeNull();
+  });
+
+  it('is a no-op when the device row is absent or the account is not listed', async () => {
+    const absent = deviceId();
+    await deviceSessionService.detachMigratedAccount(absent, 'a1', 'migrated-sess');
+    expect(mockDeactivate).not.toHaveBeenCalled();
+    expect(await storedDevice(absent)).toBeUndefined();
+
+    const device = deviceId();
+    const other = await account();
+    await deviceSessionService.addAccount(device, { accountId: other, sessionId: 's-other' });
+    const before = await storedDevice(device);
+    jest.clearAllMocks();
+
+    await deviceSessionService.detachMigratedAccount(device, 'a1', 'migrated-sess');
+
+    expect(mockDeactivate).not.toHaveBeenCalled();
+    expect((await storedDevice(device)).revision).toBe(before.revision);
   });
 });
 
 describe('purgeAccountFromAllDevices', () => {
-  beforeEach(() => {
-    mockFind.mockReset();
-    mockFindOne.mockReset();
-    mockFindOneAndUpdate.mockReset();
-    mockDeactivate.mockReset();
+  it('signs the account out of every device that lists it, and touches no other device', async () => {
+    const d1 = deviceId();
+    const d2 = deviceId();
+    const untouched = deviceId();
+    const u1 = await account();
+    const other = await account();
+    await deviceSessionService.addAccount(d1, { accountId: u1, sessionId: 's1' });
+    await deviceSessionService.addAccount(d2, { accountId: u1, sessionId: 's2' });
+    await deviceSessionService.addAccount(untouched, { accountId: other, sessionId: 's3' });
+    const untouchedBefore = await storedDevice(untouched);
+    jest.clearAllMocks();
+    mockValidateSessionById.mockResolvedValue({ session: {} });
+
+    await deviceSessionService.purgeAccountFromAllDevices(u1);
+
+    expect(mockDeactivate).toHaveBeenCalledWith('s1');
+    expect(mockDeactivate).toHaveBeenCalledWith('s2');
+    expect(mockDeactivate).toHaveBeenCalledTimes(2);
+    expect(await storedAccounts(d1)).toHaveLength(0);
+    expect(await storedAccounts(d2)).toHaveLength(0);
+    expect((await storedDevice(untouched)).revision).toBe(untouchedBefore.revision);
+  });
+});
+
+describe('foreign keys enforce what the service assumes', () => {
+  it('deleting an ACCOUNT removes its entry from every device (ON DELETE CASCADE)', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    const a2 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    await deviceSessionService.addAccount(device, { accountId: a2, sessionId: 's2' });
+
+    await getDb().delete(users).where(eq(users.id, a1));
+
+    const rows = await storedAccounts(device);
+    expect(rows.map((r) => r.accountId)).toEqual([a2]);
   });
 
-  it('signs the account out of every device session that lists it', async () => {
-    mockFind.mockReturnValueOnce({
-      select: jest.fn().mockReturnValue({
-        lean: jest.fn().mockResolvedValue([{ deviceId: 'd1' }, { deviceId: 'd2' }]),
-      }),
+  it('deleting an OPERATOR deletes the delegated ENTRY — it is never laundered into a personal one', async () => {
+    /*
+     * `operated_by_user_id` is ON DELETE CASCADE, deliberately not SET NULL.
+     * NULL there means "not a delegated session", so SET NULL would leave the
+     * managed account sitting on the device as an ordinary entry — mintable
+     * with no `account:act_as` re-check at all. This test is the guard on that:
+     * it fails if the constraint is ever weakened to SET NULL, because the row
+     * would survive with a NULL operator instead of disappearing.
+     */
+    const device = deviceId();
+    const op1 = await account();
+    const org1 = await account();
+    await deviceSessionService.addAccount(device, {
+      accountId: org1,
+      sessionId: 's-org',
+      operatedByUserId: op1,
     });
+    expect((await storedAccounts(device))).toHaveLength(1);
 
-    mockFindOne
-      .mockReturnValueOnce(lean({
-        deviceId: 'd1',
-        accounts: [{ accountId: { toString: () => 'u1' }, sessionId: 's1', authuser: 0 }],
-        activeAccountId: { toString: () => 'u1' },
-        revision: 1,
-      }))
-      .mockReturnValueOnce(lean({
-        deviceId: 'd2',
-        accounts: [{ accountId: { toString: () => 'u1' }, sessionId: 's2', authuser: 0 }],
-        activeAccountId: { toString: () => 'u1' },
-        revision: 1,
-      }));
+    await getDb().delete(users).where(eq(users.id, op1));
 
-    mockFindOneAndUpdate
-      .mockReturnValueOnce(lean({ deviceId: 'd1', accounts: [], activeAccountId: null, revision: 2 }))
-      .mockReturnValueOnce(lean({ deviceId: 'd2', accounts: [], activeAccountId: null, revision: 2 }));
+    const rows = await storedAccounts(device);
+    expect(rows).toHaveLength(0);
+    expect(rows.find((r) => r.accountId === org1)).toBeUndefined();
+  });
 
-    await deviceSessionService.purgeAccountFromAllDevices('u1');
+  it('deleting the ACTIVE account nulls active_account_id without deleting the device (ON DELETE SET NULL)', async () => {
+    const device = deviceId();
+    const a1 = await account();
+    await deviceSessionService.addAccount(device, { accountId: a1, sessionId: 's1' });
+    expect((await storedDevice(device)).activeAccountId).toBe(a1);
 
-    expect(mockFind).toHaveBeenCalledWith({ 'accounts.accountId': 'u1' });
-    expect(mockDeactivate).toHaveBeenCalledTimes(2);
-    expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(2);
+    await getDb().delete(users).where(eq(users.id, a1));
+
+    const after = await storedDevice(device);
+    expect(after).toBeDefined();
+    expect(after.activeAccountId).toBeNull();
   });
 });

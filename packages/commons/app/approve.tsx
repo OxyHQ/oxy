@@ -10,6 +10,7 @@ import { useCommonsApproval } from '@/hooks/commons-signin/useCommonsApproval';
 import { ApprovalRequest } from '@/components/commons-signin/approval-request';
 import { resolveApprovedAction } from '@/lib/commons-signin/approval-return';
 import { ErrorFallback } from '@/components/error-fallback';
+import { getDisplayNameOrNull } from '@/utils/date-utils';
 
 /** How long the success confirmation lingers before we return / close. */
 const APPROVED_RETURN_DELAY_MS = 1000;
@@ -28,8 +29,8 @@ const APPROVED_RETURN_DELAY_MS = 1000;
  *   - the in-app QR scanner (`/(scan)`) replaces into `/approve` (threads `source=scanner`)
  *   - a same-device deep link `oxycommons://approve?...` / `commons://approve?...`
  *
- * Rendered with Bloom Dialog's default detached bottom-sheet presentation —
- * the same floating, rounded surface used by the other Commons prompts. The screen owns only
+ * Rendered as a Bloom bottom sheet (`<Dialog placement="bottom">`) — the same
+ * Bloom surface `@oxyhq/services`' `OxyAccountDialog` uses. The screen owns only
  * the sheet, the request lifecycle, and the terminal states; the request itself
  * is rendered by `ApprovalRequest`, which is the concise one-primary-action
  * surface issue #691 Phase 5 asks for: `Confirm identity` opens the device
@@ -94,8 +95,8 @@ export default function ApproveSignInScreen() {
     void approve();
   }, [approve]);
 
-  // Only the explicit destructive action records a suspicious denial. A
-  // regular sheet dismissal remains a cancel and answers nothing.
+  // The sheet reports WHICH answer was given; this only forwards it. A
+  // dismissal never reaches here — it is a cancel, and denies nothing.
   const reject = useCallback(() => {
     void deny('not_me');
   }, [deny]);
@@ -120,8 +121,7 @@ export default function ApproveSignInScreen() {
   // The LOCAL vault identity that would approve. Read from this device's own
   // session — never from the request — because Commons stays the identity no
   // matter which account the requesting app ends up acting as.
-  const identityName = user?.name?.displayName?.trim() || user?.username?.trim() || null;
-
+  const identityName = user ? getDisplayNameOrNull(user) : null;
   const confirming = state === 'confirming' || state === 'approving';
   const rejecting = state === 'denying';
   const busy = confirming || rejecting;
@@ -200,23 +200,30 @@ export default function ApproveSignInScreen() {
         application={info.application}
         identityName={identityName}
         confirmationIssue={confirmationIssue}
+        onClose={dismiss}
         onOpenLink={openLink}
       />
     );
     actions = [
       {
-        label: t('signInApproval.approve.confirm'),
+        label: t(
+          confirming
+            ? 'signInApproval.approve.confirming'
+            : 'signInApproval.approve.confirm',
+        ),
         onPress: confirm,
         shouldCloseOnPress: false,
-        loading: confirming,
         disabled: busy,
       },
       {
-        label: t('signInApproval.approve.reject'),
+        label: t(
+          rejecting
+            ? 'signInApproval.approve.rejecting'
+            : 'signInApproval.approve.reject',
+        ),
         onPress: reject,
         shouldCloseOnPress: false,
         color: 'destructive',
-        loading: rejecting,
         disabled: busy,
       },
       {
@@ -231,6 +238,7 @@ export default function ApproveSignInScreen() {
     <Dialog
       control={control}
       onClose={navigateAway}
+      placement="bottom"
       label={t('signInApproval.approve.heading')}
       actions={actions}
     >

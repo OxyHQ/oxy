@@ -6,7 +6,7 @@ import {
     TouchableOpacity,
     type TextInputProps,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import type { BaseScreenProps } from '../types/navigation';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Text } from '@oxyhq/bloom/typography';
@@ -19,8 +19,8 @@ import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { SurfaceHeaderAction } from '../components/SurfaceHeaderAction';
 import { useOxy } from '../context/OxyContext';
 import { useProfileEditing } from '../hooks/useProfileEditing';
-import { toast } from '@oxyhq/bloom';
-import { EMAIL_REGEX, isValidDisplayName } from '@oxyhq/core';
+import { toast } from '@oxyhq/bloom/toast';
+import { EMAIL_REGEX, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName } from '@oxyhq/core';
 import { getLinkTitle, getLinkDescription, linksToListItems } from './linkFormat';
 
 /**
@@ -202,7 +202,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                                 isValidDisplayName(value)
                                     ? undefined
                                     : (t('editProfile.items.displayName.invalidChars')
-                                        || 'Use letters and spaces only'),
+                                        || DISPLAY_NAME_INVALID_MESSAGE),
                         },
                         {
                             key: 'lastName',
@@ -212,7 +212,7 @@ const EditProfileFieldScreen: React.FC<EditProfileFieldScreenProps> = ({
                                 isValidDisplayName(value)
                                     ? undefined
                                     : (t('editProfile.items.displayName.invalidChars')
-                                        || 'Use letters and spaces only'),
+                                        || DISPLAY_NAME_INVALID_MESSAGE),
                         },
                     ],
                 };

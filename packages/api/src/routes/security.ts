@@ -17,10 +17,16 @@ const router = express.Router();
  *       - Security
  *     summary: Account activity log with pagination
  *     description: >
- *       Return security-relevant events for the authenticated user — sign-in
- *       attempts, password changes, 2FA toggles, private-key exports, backup
- *       creations, suspicious activity flags. Used to power the activity
- *       history screen.
+ *       Return security-relevant events for the authenticated user — sign-ins,
+ *       email changes, device add/remove, private-key exports, backup
+ *       creations, suspicious activity flags. Always scoped to the bearer's own
+ *       account; there is no parameter that widens it to another user.
+ *       Used to power the activity history screen.
+ *
+ *
+ *       No event carries an IP address, a country or any other network-derived
+ *       location: the platform stores no user IPs at rest, in any form. Do not
+ *       add such a field here or to the underlying table.
  *     parameters:
  *       - name: limit
  *         in: query
@@ -30,40 +36,85 @@ const router = express.Router();
  *           minimum: 1
  *           maximum: 100
  *           default: 50
- *       - name: cursor
+ *       - name: offset
  *         in: query
  *         required: false
+ *         description: Rows to skip. Offset/limit paging — there is no cursor.
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *       - name: eventType
+ *         in: query
+ *         required: false
+ *         description: Restrict to one event type. An unknown value is a 400.
  *         schema:
  *           type: string
- *           description: Opaque pagination cursor returned by the previous page.
+ *           enum:
+ *             - sign_in
+ *             - sign_out
+ *             - email_changed
+ *             - profile_updated
+ *             - device_added
+ *             - device_removed
+ *             - account_recovery
+ *             - security_settings_changed
+ *             - private_key_exported
+ *             - backup_created
+ *             - suspicious_activity
  *     responses:
  *       200:
- *         description: Activity events.
+ *         description: Activity events, newest first.
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 events:
+ *                 data:
  *                   type: array
  *                   items:
  *                     type: object
  *                     properties:
  *                       id:
  *                         type: string
- *                       type:
+ *                       userId:
  *                         type: string
- *                         example: SIGN_IN
- *                       deviceName:
+ *                       eventType:
  *                         type: string
- *                       ip:
+ *                         example: sign_in
+ *                       eventDescription:
  *                         type: string
+ *                       metadata:
+ *                         type: object
+ *                         additionalProperties: true
+ *                       userAgent:
+ *                         type: [string, "null"]
+ *                       deviceId:
+ *                         type: [string, "null"]
+ *                       timestamp:
+ *                         type: string
+ *                         format: date-time
+ *                         description: When the EVENT happened.
+ *                       severity:
+ *                         type: string
+ *                         enum: [low, medium, high, critical]
  *                       createdAt:
  *                         type: string
  *                         format: date-time
- *                 nextCursor:
- *                   type: string
- *                   nullable: true
+ *                         description: When the row was written.
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     offset:
+ *                       type: integer
+ *                     hasMore:
+ *                       type: boolean
+ *       400:
+ *         description: Unknown eventType.
  *       401:
  *         description: Missing or invalid bearer token.
  */

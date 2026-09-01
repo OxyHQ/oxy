@@ -46,3 +46,18 @@ export const commonsDenyReasonSchema = z.enum(COMMONS_DENY_REASONS);
 
 /** Why the approver denied a "Sign in with Oxy" request. */
 export type CommonsDenyReason = z.infer<typeof commonsDenyReasonSchema>;
+
+/**
+ * Android notification channel id the identity-approval push is sent on.
+ *
+ * A wire contract for the same reason the deny set is: Android 8+ DROPS a
+ * notification whose channel id the app has not created, silently and with no
+ * client-side error. The API attaches this id when it sends, and the vault
+ * creates the channel with it before registering a push token — two hand-typed
+ * copies of that string would fail as "the notification never arrived", which
+ * is the single hardest push symptom to diagnose.
+ *
+ * The channel's user-visible NAME and description are deliberately NOT here:
+ * those are localized app copy, and the vault owns them.
+ */
+export const IDENTITY_APPROVAL_PUSH_CHANNEL = 'auth-approval';

@@ -34,7 +34,6 @@ export const ProfileScreen = noopComponent;
 
 // Stores (return empty objects)
 export const useAuthStore = noopHook;
-export const useAccountStore = noopHook;
 
 // Toast (noop)
 export const toast = Object.assign(

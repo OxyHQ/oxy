@@ -13,16 +13,57 @@
  * Domain verification proves ownership via a DNS-TXT record OR a `/.well-known`
  * file fetched through `safeFetch` (SSRF-safe — never a raw fetch of the
  * user-supplied domain).
+ *
+ * ## The cutover bug this port removes
+ *
+ * Five public read routes opened by running `userId` through the legacy 24-hex
+ * id predicate in `utils/validation.ts` and throwing a 404 on a miss. That
+ * predicate is `/^[0-9a-f]{24}$/i` and rejects the **uuid v7 every account
+ * created after the Postgres cutover carries** (`@oxyhq/db`'s
+ * `generatedId()`), so each answered 404 BEFORE ANY QUERY RAN for such an
+ * account.
+ *
+ * `GET /identity/records/:userId/chain/head` is the severe one: `@oxyhq/core`
+ * fetches it immediately before signing EVERY v2 record (`OxyServices.civic.ts`
+ * `_signMyCivicRecordV2`, `OxyServices.nodes.ts` `registerMyNode`) to learn the
+ * `seq`/`prev` it must sign over. A 404 there is not a degraded read — it aborts
+ * the signature, so a post-cutover account could publish no civic record and
+ * register no personal data node at all.
+ *
+ * All five guards are DELETED rather than widened. Each existed only to stop a
+ * malformed string reaching Mongoose as a `CastError`; every id here is now a
+ * `text` column compared against a bound parameter, so a malformed id is a value
+ * that matches no row. The two record routes reach the IDENTICAL 404 by querying
+ * (`getLatestRecord` returns null → `Record not found`); the three chain/log
+ * routes now answer a malformed id exactly as they already answered an unknown
+ * well-formed one — the empty chain — which is the consistency the guard broke,
+ * since neither route ever checked that the account existed.
+ *
+ * ## Storage (Postgres)
+ *
+ * `User.verifiedDomains[]` is the child table `user_verified_domains` and
+ * `DomainVerification` is `domain_verifications`, so "push onto the array" is an
+ * INSERT and "filter the array" is a DELETE. Two consequences the Mongo version
+ * could not have:
+ *
+ * - **Proving a domain is ONE transaction.** The badge write and the burn of the
+ *   pending challenge commit together, so a crash between them can no longer
+ *   leave a still-spendable token beside a granted badge.
+ * - **A second live challenge for one (account, domain) is unrepresentable.**
+ *   `domain_verifications_user_id_lower_domain_key` is a unique index on
+ *   `(user_id, lower(domain))`, so the re-request path is a real upsert rather
+ *   than a hope.
  */
 
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
 import dns from 'dns';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { BadRequestError, NotFoundError, UnauthorizedError } from '../utils/error';
 import { validate } from '../middleware/validate';
-import { isValidObjectId } from '../utils/validation';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { logger } from '../utils/logger';
@@ -35,9 +76,10 @@ import {
   type ChainHeadResponse,
   type LogPageResponse,
 } from '@oxyhq/contracts';
-import { User } from '../models/User';
-import type { VerifiedDomainMethod } from '../models/User';
-import DomainVerification from '../models/DomainVerification';
+import { getDb } from '../config/postgres';
+import { domainVerifications } from '../db/schema/domainVerifications';
+import { users } from '../db/schema/users';
+import { userVerifiedDomains, VERIFIED_DOMAIN_METHODS } from '../db/schema/userVerifiedDomains';
 import userCache from '../utils/userCache';
 import {
   verifyAndStoreRecord,
@@ -111,6 +153,22 @@ function normalizeDomain(raw: string): string | null {
   if (domain.length === 0 || domain.length > 253) return null;
   if (!DOMAIN_PATTERN.test(domain)) return null;
   return domain;
+}
+
+/**
+ * `lower(<domain column>) = $1` — the spelling that matches the expression
+ * unique indexes both domain tables are built on
+ * (`domain_verifications_user_id_lower_domain_key`,
+ * `user_verified_domains_user_id_lower_domain_key`).
+ *
+ * A plain `domain = $1` is correct-looking, case-sensitive, and would not use
+ * either index. Mongoose's `lowercase: true` setter is what used to make the
+ * naive comparison work and it has no Postgres counterpart;
+ * {@link normalizeDomain} already lower-cased the bound parameter, so this makes
+ * the STORED side agree too.
+ */
+function domainMatches(column: PgColumn, domain: string): SQL {
+  return sql`lower(${column}) = ${domain}`;
 }
 
 /** Read up to `maxBytes` of a response stream as UTF-8, then stop. */
@@ -222,15 +280,17 @@ router.post(
  *  - no chain yet: `{ headRecordId: null, seq: -1, recordCount: 0 }`
  *
  * Registered BEFORE `/:type` so the literal `chain/head` path is unambiguous.
+ *
+ * There is deliberately NO id-shape precheck: the one that used to stand here
+ * 404'd every post-cutover account, which aborts client-side signing of every v2
+ * record (see the module header). An unknown account and a malformed id both
+ * resolve to the empty chain, which is what this route has always answered for
+ * an account that exists but has published nothing.
  */
 router.get(
   '/records/:userId/chain/head',
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('Record not found');
-    }
-
     const head = await getHead(userId);
     const payload: ChainHeadResponse = head
       ? { headRecordId: head.headRecordId, seq: head.seq, recordCount: head.recordCount }
@@ -255,9 +315,6 @@ router.get(
   nodeLogLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('User not found');
-    }
 
     let sinceSeq = -1;
     const sinceRaw = typeof req.query.since === 'string' ? req.query.since.trim() : '';
@@ -294,10 +351,6 @@ router.get(
   nodeHeadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('User not found');
-    }
-
     const head = await getHead(userId);
     const payload: ChainHeadResponse = head
       ? { headRecordId: head.headRecordId, seq: head.seq, recordCount: head.recordCount }
@@ -313,9 +366,6 @@ router.get(
   '/records/:userId/:type',
   asyncHandler(async (req: Request, res: Response) => {
     const { userId, type } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('Record not found');
-    }
     if (type !== 'identity' && type !== 'profile') {
       throw new BadRequestError('type must be "identity" or "profile"');
     }
@@ -334,9 +384,6 @@ router.get(
   '/records/:userId/:type/verify',
   asyncHandler(async (req: Request, res: Response) => {
     const { userId, type } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('Record not found');
-    }
     if (type !== 'identity' && type !== 'profile') {
       throw new BadRequestError('type must be "identity" or "profile"');
     }
@@ -346,8 +393,18 @@ router.get(
       throw new NotFoundError('Record not found');
     }
 
-    const subjectUser = await User.findById(userId).select('publicKey authMethods').lean();
-    if (!subjectUser) {
+    // The subject must still exist for a re-verification to mean anything: the
+    // verdict is computed against the account's CURRENT verification methods, so
+    // a record whose subject is gone is reported as absent rather than as
+    // unverifiable. Only `id` is read — this is an existence check, and a
+    // whole-row select would pull the account's protected columns into a public
+    // route for nothing (`db/schema/protectedColumns.ts`).
+    const [subject] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (!subject) {
       throw new NotFoundError('Record not found');
     }
 
@@ -384,11 +441,36 @@ router.post(
     const token = crypto.randomBytes(16).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    await DomainVerification.findOneAndUpdate(
-      { userId, domain },
-      { userId, domain, token, status: 'pending', expiresAt, $unset: { method: '' } },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
-    );
+    // Upsert: one in-flight challenge per (account, domain), so re-requesting
+    // REPLACES the token rather than issuing a second valid one.
+    //
+    // `onConflictDoNothing()` carries no target because the index it must infer
+    // is an EXPRESSION index (`(user_id, lower(domain))`) and drizzle's
+    // `onConflictDoUpdate` target accepts columns only — it calls `escapeName`
+    // on each entry, so an `sql` expression throws before a query is built. The
+    // untargeted form needs no inference and the table's only other unique index
+    // is the primary key, which a freshly generated uuid v7 cannot collide with.
+    //
+    // The follow-up UPDATE cannot miss: `DO NOTHING` waits on a concurrent
+    // inserter and applies only once that transaction COMMITS the conflicting
+    // row (had it rolled back, this insert would have succeeded instead), so
+    // reaching here means the row is committed and visible.
+    const inserted = await getDb()
+      .insert(domainVerifications)
+      .values({ userId, domain, token, expiresAt })
+      .onConflictDoNothing()
+      .returning({ id: domainVerifications.id });
+    if (inserted.length === 0) {
+      await getDb()
+        .update(domainVerifications)
+        .set({ token, expiresAt })
+        .where(
+          and(
+            eq(domainVerifications.userId, userId),
+            domainMatches(domainVerifications.domain, domain),
+          ),
+        );
+    }
 
     const instructions = domainVerificationInstructionsSchema.parse({
       domain,
@@ -411,12 +493,19 @@ router.get(
       throw new UnauthorizedError('Authentication required');
     }
 
-    const user = await User.findById(userId).select('verifiedDomains').lean();
-    const domains = (user?.verifiedDomains ?? []).map((entry) => ({
-      domain: entry.domain,
-      verifiedAt: entry.verifiedAt,
-      method: entry.method,
-    }));
+    // Ordered so the badge list is stable between calls: `created_at` is the
+    // meaningful form of the Mongo array's insertion order (re-verifying a
+    // domain updates `verified_at` in place, exactly as the array entry was
+    // updated in place), with the time-ordered uuid v7 `id` as a total tiebreak.
+    const domains = await getDb()
+      .select({
+        domain: userVerifiedDomains.domain,
+        verifiedAt: userVerifiedDomains.verifiedAt,
+        method: userVerifiedDomains.method,
+      })
+      .from(userVerifiedDomains)
+      .where(eq(userVerifiedDomains.userId, userId))
+      .orderBy(userVerifiedDomains.createdAt, userVerifiedDomains.id);
 
     res.json({ domains });
   }),
@@ -438,12 +527,26 @@ router.post(
       throw new BadRequestError('Invalid domain');
     }
 
-    const pending = await DomainVerification.findOne({ userId, domain });
+    const [pending] = await getDb()
+      .select({ id: domainVerifications.id, token: domainVerifications.token, expiresAt: domainVerifications.expiresAt })
+      .from(domainVerifications)
+      .where(
+        and(
+          eq(domainVerifications.userId, userId),
+          domainMatches(domainVerifications.domain, domain),
+        ),
+      )
+      .limit(1);
+    // The expiry comparison is ported VERBATIM. `db/expiry.ts` sweeps this table
+    // on an interval, so the row can outlive its own deadline by up to one
+    // sweep; dropping the check because "the sweep handles it" would turn a
+    // bounded lag into a live credential (`schema/CONVENTIONS.md`, "Expiry",
+    // class (A)).
     if (!pending || pending.expiresAt.getTime() <= Date.now()) {
       throw new BadRequestError('No active verification challenge for this domain. Request one first.');
     }
 
-    let method: VerifiedDomainMethod | null = null;
+    let method: (typeof VERIFIED_DOMAIN_METHODS)[number] | null = null;
     if (await checkDnsProof(domain, pending.token)) {
       method = 'dns-txt';
     } else if (await checkWellKnownProof(domain, pending.token)) {
@@ -454,26 +557,40 @@ router.post(
       throw new BadRequestError('Domain ownership could not be verified. Publish the DNS-TXT record or well-known file and try again.');
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new NotFoundError('User not found');
-    }
-
     const verifiedAt = new Date();
-    if (!user.verifiedDomains) {
-      user.verifiedDomains = [];
-    }
-    const existing = user.verifiedDomains.find((entry) => entry.domain === domain);
-    if (existing) {
-      existing.verifiedAt = verifiedAt;
-      existing.method = method;
-    } else {
-      user.verifiedDomains.push({ domain, verifiedAt, method });
-    }
-
-    await user.save();
+    // Granting the badge and burning the challenge commit together. Mongo could
+    // only do them in sequence, so a failure between the two left a proven
+    // domain beside a token that was still spendable.
+    //
+    // No account-existence check precedes this: `domain_verifications.user_id`
+    // references `users` with `ON DELETE CASCADE`, so finding a pending
+    // challenge for this account IS proof the account exists — the branch that
+    // used to answer `User not found` here is unreachable by construction.
+    await getDb().transaction(async (tx) => {
+      const inserted = await tx
+        .insert(userVerifiedDomains)
+        .values({ userId, domain, verifiedAt, method })
+        .onConflictDoNothing()
+        .returning({ id: userVerifiedDomains.id });
+      if (inserted.length === 0) {
+        // Re-verifying an already-proven domain refreshes it in place, exactly
+        // as the Mongo array entry was updated in place — never a second badge.
+        // Untargeted `DO NOTHING` for the same reason as the challenge upsert:
+        // the unique index here is on `(user_id, lower(domain))`, an expression
+        // drizzle's conflict target cannot express.
+        await tx
+          .update(userVerifiedDomains)
+          .set({ verifiedAt, method })
+          .where(
+            and(
+              eq(userVerifiedDomains.userId, userId),
+              domainMatches(userVerifiedDomains.domain, domain),
+            ),
+          );
+      }
+      await tx.delete(domainVerifications).where(eq(domainVerifications.id, pending.id));
+    });
     userCache.invalidate(userId);
-    await DomainVerification.deleteOne({ _id: pending._id });
 
     res.json({ verified: true, domain: { domain, verifiedAt, method } });
   }),
@@ -494,20 +611,36 @@ router.delete(
       throw new BadRequestError('Invalid domain');
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new NotFoundError('User not found');
-    }
-
-    const before = user.verifiedDomains?.length ?? 0;
-    user.verifiedDomains = (user.verifiedDomains ?? []).filter((entry) => entry.domain !== domain);
-    if (user.verifiedDomains.length === before) {
+    // The DELETE is the existence check: it removes the badge and reports
+    // whether there was one, so "no such badge" needs no separate read. An
+    // account with no row and a domain that was never proven are the same "there
+    // is nothing to remove" outcome — and the row could not exist without the
+    // account, which the foreign key enforces.
+    const removed = await getDb()
+      .delete(userVerifiedDomains)
+      .where(
+        and(
+          eq(userVerifiedDomains.userId, userId),
+          domainMatches(userVerifiedDomains.domain, domain),
+        ),
+      )
+      .returning({ id: userVerifiedDomains.id });
+    if (removed.length === 0) {
       throw new NotFoundError('Domain is not verified for this account');
     }
 
-    await user.save();
     userCache.invalidate(userId);
-    await DomainVerification.deleteOne({ userId, domain });
+    // Drop any challenge still outstanding for the domain, so re-adding it later
+    // starts from a fresh token rather than one issued before the badge was
+    // revoked.
+    await getDb()
+      .delete(domainVerifications)
+      .where(
+        and(
+          eq(domainVerifications.userId, userId),
+          domainMatches(domainVerifications.domain, domain),
+        ),
+      );
 
     res.json({ success: true });
   }),

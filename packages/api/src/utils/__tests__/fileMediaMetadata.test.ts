@@ -1,4 +1,4 @@
-import type { IFile } from '../../models/File';
+import type { FileRecord } from '../../types/file.types';
 import {
   applyCanonicalMediaMetadata,
   computeAspectRatio,
@@ -6,9 +6,9 @@ import {
   resolveFileMediaMetadata,
 } from '../fileMediaMetadata';
 
-function makeFile(partial: Partial<IFile>): IFile {
+function makeFile(partial: Partial<FileRecord>): FileRecord {
   return {
-    _id: 'file1',
+    id: 'file1',
     sha256: 'a'.repeat(64),
     size: 1000,
     mime: 'video/mp4',
@@ -22,9 +22,8 @@ function makeFile(partial: Partial<IFile>): IFile {
     variants: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-    usageCount: 0,
     ...partial,
-  } as IFile;
+  } as FileRecord;
 }
 
 describe('fileMediaMetadata', () => {

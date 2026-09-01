@@ -309,8 +309,9 @@ describe('KeyManager safety invariants', () => {
       (KeyManager as unknown as { cachedPublicKey: unknown; cachedHasIdentity: unknown }).cachedHasIdentity = null;
 
       // Manually generate a different phrase
-      const bip39 = await import('bip39');
-      const otherPhrase = bip39.generateMnemonic(128);
+      const { generateMnemonic } = await import('@scure/bip39');
+      const { wordlist } = await import('@scure/bip39/wordlists/english');
+      const otherPhrase = generateMnemonic(wordlist, 128);
       // Sanity check phrases are different
       expect(otherPhrase).not.toBe(a.phrase);
 

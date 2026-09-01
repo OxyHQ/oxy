@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isAccountIdFormat } from '../utils/validation';
 
 /**
  * Schemas for the federation sign-on-behalf routes (`/federation/...`).
@@ -66,11 +67,44 @@ export const signRequestSchema = z.object({
     }),
 });
 
-/** A MongoDB ObjectId rendered as a 24-character hex string. */
-const objectIdSchema = z
+/**
+ * An Oxy account id, in EITHER of the two shapes that are live.
+ *
+ * This used to be `/^[a-f0-9]{24}$/i` — a MongoDB ObjectId, and nothing else.
+ * Per `db/MIGRATION-CONTRACT.md` the pre-cutover ids are preserved verbatim but
+ * every account created SINCE is given a **uuid v7** (`@oxyhq/db`'s
+ * `generatedId()`), so that regex rejected the id of every new account. It ran
+ * inside `validate({ body })`, i.e. BEFORE the handler, so `POST /federation/follow`,
+ * `/actor-gone` and `/actor-delete` all answered 400 for a post-cutover account
+ * without ever looking one up: a remote Follow could not be mirrored, and a dead
+ * federated actor could not be archived or deleted.
+ *
+ * The validation is KEPT rather than deleted — unlike the `ObjectId.isValid`
+ * guards the contract retires, a 400 here is the documented answer to a
+ * malformed body on a service-to-service bridge, and `validate` is where this
+ * route family reports one. What changes is only which strings are malformed:
+ * {@link isAccountIdFormat} accepts both live shapes and is the single place
+ * that knows what they are.
+ */
+const accountIdSchema = z
   .string()
   .trim()
-  .regex(/^[a-f0-9]{24}$/i, 'must be a 24-character hex ObjectId');
+  .refine(isAccountIdFormat, 'must be an Oxy account id');
+
+/**
+ * A ROW id used as a pagination cursor — not an account id, though it validates
+ * the same way.
+ *
+ * `main` wrote this as `objectIdSchema`, which the port retired: after the
+ * cutover a row's id is a uuid v7, so a 24-hex refinement would reject every
+ * cursor the endpoint itself had just issued. `isAccountIdFormat` is the single
+ * place that knows both live shapes; the separate name is so a reader does not
+ * conclude this field carries an account.
+ */
+const entityIdSchema = z
+  .string()
+  .trim()
+  .refine(isAccountIdFormat, 'must be a live entity id');
 
 /**
  * POST /federation/follow
@@ -81,8 +115,8 @@ const objectIdSchema = z
  * user being followed; the route enforces those type constraints.
  */
 export const federationFollowSchema = z.object({
-  followerUserId: objectIdSchema,
-  targetUserId: objectIdSchema,
+  followerUserId: accountIdSchema,
+  targetUserId: accountIdSchema,
   action: z.enum(['follow', 'unfollow']),
 });
 
@@ -97,7 +131,7 @@ export const federationFollowSchema = z.object({
  * before archiving (a local/agent/automated account is never archivable here).
  */
 export const federationActorGoneSchema = z.object({
-  oxyUserId: objectIdSchema,
+  oxyUserId: accountIdSchema,
 });
 
 /**
@@ -113,7 +147,43 @@ export const federationActorGoneSchema = z.object({
  * re-asserts `type:'federated'` atomically so a real account can never be hit.
  */
 export const federationActorDeleteSchema = z.object({
-  oxyUserId: objectIdSchema,
+  oxyUserId: accountIdSchema,
+});
+
+/**
+ * POST /federation/domain-purge
+ *
+ * Removes what Oxy holds for a fediverse instance an app has blocked. The app
+ * owns the blocklist; Oxy is handed ONE domain at a time and never stores which
+ * domains are blocked (see `services/federation/blockedDomainPurge.service.ts`).
+ *
+ * `dryRun` DEFAULTS TO TRUE: the safe value is the one you get by omission, so
+ * a caller that forgets the field plans instead of deleting. Deleting requires
+ * sending `dryRun: false` explicitly AND an armed deployment.
+ *
+ * `domain` is a bare host — no scheme, no port, no path — because that is what
+ * the federation engine's canonicaliser consumes. A value containing any of
+ * those is rejected here rather than being silently canonicalised into
+ * something that matches the wrong rows.
+ */
+export const federationDomainPurgeSchema = z.object({
+  domain: z
+    .string()
+    .trim()
+    .min(1, 'domain is required')
+    .max(253, 'domain exceeds the maximum DNS name length')
+    .refine((value) => !/[/:@\s]/.test(value), {
+      message: 'domain must be a bare host (no scheme, port, path or whitespace)',
+    }),
+  dryRun: z.boolean().default(true),
+  limit: z.number().int().min(1).max(1000).optional(),
+  /**
+   * Continuation cursor from the previous response's `nextCursor`. Progress is
+   * driven by this rather than by rows disappearing, because a dry run and a
+   * retained row both leave every row in place — a caller looping on "anything
+   * left?" would never terminate.
+   */
+  afterId: entityIdSchema.optional(),
 });
 
 export type PublicKeyParams = z.infer<typeof publicKeyParamsSchema>;
@@ -122,3 +192,4 @@ export type SignRequestBody = z.infer<typeof signRequestSchema>;
 export type FederationFollowBody = z.infer<typeof federationFollowSchema>;
 export type FederationActorGoneBody = z.infer<typeof federationActorGoneSchema>;
 export type FederationActorDeleteBody = z.infer<typeof federationActorDeleteSchema>;
+export type FederationDomainPurgeBody = z.infer<typeof federationDomainPurgeSchema>;

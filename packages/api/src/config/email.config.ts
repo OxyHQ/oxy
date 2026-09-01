@@ -97,6 +97,18 @@ export const AI_LABELING_CONFIG = {
   // Inbound email is unauthenticated, so AI labeling must be explicitly enabled
   // and bounded to avoid turning public SMTP traffic into unbounded AI calls.
   enabled: getEnvBoolean('AI_LABELING_ENABLED', false),
+  // `alia-lite` is one of the four ids ADR 0008 retired, and it is CORRECT here.
+  // The retirement is of those strings as **Oxy model identities** — in the Oxy
+  // catalogue and in Oxy's public examples. This value never goes near either: it
+  // is the `model` field of a request to Alia's OWN API
+  // (`services/aiLabeling.service.ts` targets `https://api.alia.onl/v1` with
+  // `ALIA_API_KEY`), where `alia-lite` is a real identifier of an Alia product
+  // tier. Rewriting it to a canonical `<publisher>/<model>` would name something
+  // Alia's API does not recognise, and this repository does not know a live Alia
+  // model id to substitute — inventing one would silently stop labelling working.
+  // Written out here because the next person to grep `alia-lite` lands on this
+  // line, not on the record: `docs/inference/migration.md`,
+  // "`AI_LABELING_MODEL` is not one of these".
   model: getEnvVar('AI_LABELING_MODEL', 'alia-lite'),
   timeout: getEnvNumber('AI_LABELING_TIMEOUT', 10000),
   maxBodyChars: getEnvNumber('AI_LABELING_MAX_BODY_CHARS', 1500),

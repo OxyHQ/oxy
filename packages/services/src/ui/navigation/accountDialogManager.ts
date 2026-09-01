@@ -12,6 +12,14 @@
 
 import type { AccountDialogView } from '@oxyhq/core';
 
+/** An app-owned action rendered inside the shared account menu. */
+export interface AccountDialogMenuItem {
+  key: string;
+  label: string;
+  icon?: string;
+  onPress: () => void;
+}
+
 /**
  * Live open/close handles registered by the mounted provider. `open` presents
  * the `AccountDialog` surface (and points its view); `close` dismisses it. Both
@@ -31,11 +39,19 @@ export interface AccountDialogConsumerHooks {
   onNavigateManage?: () => void;
   onAddAccount?: () => void;
   onNavigateProfile?: () => void;
+  menuItems?: readonly AccountDialogMenuItem[];
 }
 
 let controls: AccountDialogControls | null = null;
 let consumerHooks: AccountDialogConsumerHooks | null = null;
 const visibilityListeners = new Set<(visible: boolean) => void>();
+const consumerHookListeners = new Set<() => void>();
+
+function notifyConsumerHookListeners(): void {
+  for (const listener of consumerHookListeners) {
+    listener();
+  }
+}
 
 export function registerAccountDialogControls(next: AccountDialogControls): () => void {
   controls = next;
@@ -51,15 +67,25 @@ export function registerAccountDialogConsumerHooks(
   next: AccountDialogConsumerHooks | null,
 ): () => void {
   consumerHooks = next;
+  notifyConsumerHookListeners();
   return () => {
     if (consumerHooks === next) {
       consumerHooks = null;
+      notifyConsumerHookListeners();
     }
   };
 }
 
 export function getAccountDialogConsumerHooks(): AccountDialogConsumerHooks | null {
   return consumerHooks;
+}
+
+/** Subscribe to consumer-hook registration changes (menu items, manage/add overrides). */
+export function subscribeToAccountDialogConsumerHooks(listener: () => void): () => void {
+  consumerHookListeners.add(listener);
+  return () => {
+    consumerHookListeners.delete(listener);
+  };
 }
 
 /** Open the account dialog on `view` (default `accounts`). No-op before mount. */

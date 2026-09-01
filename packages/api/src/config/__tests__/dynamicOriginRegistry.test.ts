@@ -1,5 +1,5 @@
 /**
- * dynamicOriginRegistry tests.
+ * dynamicOriginRegistry against a REAL Postgres.
  *
  * The registry derives the CORS allowlist from the Application registry:
  *  - trusted apps (official/internal/system/first_party) → credentialed lane;
@@ -7,29 +7,53 @@
  *  - everything else → denied.
  *
  * The boot seed (bootstrap-core ∪ OXY_EXTRA_ALLOWED_ORIGINS) keeps first-party
- * origins trusted even before/without a refresh. `refresh()` is fail-soft: a
- * Mongo error keeps the previous snapshot.
+ * origins trusted even before/without a refresh, and `refresh()` FAILS SAFE:
+ * every failure path leaves the previous snapshot standing rather than
+ * publishing a narrower one.
+ *
+ * The suite this replaces mocked `mongoose.connection.readyState` and
+ * `Application.find`, so the "trusted vs third-party" routing was decided over
+ * literals a test author typed — it could not have caught a `where` clause that
+ * failed to filter `status`, because no row ever had a status.
+ *
+ * Every test registers its own applications under UNIQUE hosts and asserts only
+ * on those, so rows another test (or another suite sharing this database)
+ * leaves behind can only add origins nothing here looks at.
  */
 
-const mockFind = jest.fn();
 const mockError = jest.fn();
 
-jest.mock('mongoose', () => ({
-  __esModule: true,
-  default: { connection: { readyState: 1 } },
-  connection: { readyState: 1 },
-}));
+/**
+ * `getDb` is the real one until a test arms `failDatabaseRead` — the ONE way to
+ * make the query itself throw against a live database, which is the path the
+ * fail-soft `catch` exists for. Everything else in this file runs against real
+ * rows.
+ */
+let failDatabaseRead = false;
 
-jest.mock('../../models/Application', () => ({
-  __esModule: true,
-  Application: { find: (...args: unknown[]) => mockFind(...args) },
-  default: { find: (...args: unknown[]) => mockFind(...args) },
-}));
+jest.mock('../postgres', () => {
+  const actual = jest.requireActual<typeof import('../postgres')>('../postgres');
+  return {
+    ...actual,
+    getDb: () => {
+      if (failDatabaseRead) throw new Error('database down');
+      return actual.getDb();
+    },
+  };
+});
 
 jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: (...args: unknown[]) => mockError(...args), info: jest.fn(), debug: jest.fn() },
+  logger: {
+    warn: jest.fn(),
+    error: (...args: unknown[]) => mockError(...args),
+    info: jest.fn(),
+    debug: jest.fn(),
+  },
 }));
 
+import { closePostgres, connectPostgres } from '../postgres';
+import { applications } from '../../db/schema/applications';
+import { users } from '../../db/schema/users';
 import {
   isTrustedOrigin,
   getCorsDecision,
@@ -42,33 +66,49 @@ import {
 } from '../dynamicOriginRegistry';
 import { isLoopbackOrigin } from '../../utils/origin';
 
-interface AppRow {
-  redirectUris?: string[];
-  isOfficial?: boolean;
-  isInternal?: boolean;
-  type?: string;
+/** A `users` row to own an application. */
+async function account(): Promise<string> {
+  const { getDb } = jest.requireActual<typeof import('../postgres')>('../postgres');
+  const [row] = await getDb().insert(users).values({}).returning({ id: users.id });
+  return row.id;
 }
 
-function findResult(apps: AppRow[]) {
-  const docs = apps.map((app) => ({
-    ...app,
-    save: jest.fn().mockResolvedValue(undefined),
-  }));
-  return {
-    select: () => ({
-      lean: () => Promise.resolve(apps),
-      then: (
-        onFulfilled?: (value: typeof docs) => unknown,
-        onRejected?: (reason: unknown) => unknown,
-      ) => Promise.resolve(docs).then(onFulfilled, onRejected),
-    }),
-  };
+/**
+ * Register an application. `status` defaults to `active` — the value the
+ * registry's own `where` filters on.
+ *
+ * Rows are NEVER deleted afterwards. The throwaway database is shared by the
+ * whole run, and suites that bracket a global COUNT (`platformStats`) assume
+ * counts only grow — a cleanup delete makes the service's count fall below the
+ * bracket's floor and fails a suite this file has nothing to do with. Isolation
+ * comes from UNIQUE ORIGINS instead: every assertion below names a host no
+ * other test registers, so an application another test left behind can only add
+ * origins nothing here looks at.
+ */
+async function registerApp(
+  fields: Partial<typeof applications.$inferInsert> & { redirectUris: string[] }
+): Promise<string> {
+  const { getDb } = jest.requireActual<typeof import('../postgres')>('../postgres');
+  const [row] = await getDb()
+    .insert(applications)
+    .values({
+      name: 'Test App',
+      ownerAccountId: await account(),
+      ...fields,
+    })
+    .returning({ id: applications.id });
+  return row.id;
 }
 
 const ORIGINAL_EXTRA = process.env.OXY_EXTRA_ALLOWED_ORIGINS;
 
-afterAll(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
   stopOriginRegistry();
+  await closePostgres();
   if (ORIGINAL_EXTRA === undefined) {
     delete process.env.OXY_EXTRA_ALLOWED_ORIGINS;
   } else {
@@ -77,7 +117,7 @@ afterAll(() => {
 });
 
 beforeEach(() => {
-  mockFind.mockReset();
+  failDatabaseRead = false;
   mockError.mockReset();
   resetOriginRegistryForTests();
 });
@@ -101,15 +141,11 @@ describe('boot seed (no refresh)', () => {
 
 describe('refresh() — trusted vs third-party routing', () => {
   it('routes trusted apps to the credentialed lane and third-party apps to the bearer lane', async () => {
-    mockFind.mockImplementation(() =>
-      findResult([
-        { type: 'third_party', redirectUris: ['https://third.example.com/cb'] },
-        { isOfficial: true, redirectUris: ['https://official.example.com/cb'] },
-        { type: 'internal', redirectUris: ['https://internal.example.com/callback'] },
-        { type: 'first_party', redirectUris: ['https://first.example.com/x'] },
-        { type: 'system', redirectUris: ['https://system.example.com/x'] },
-      ])
-    );
+    await registerApp({ type: 'third_party', redirectUris: ['https://third.example.com/cb'] });
+    await registerApp({ isOfficial: true, redirectUris: ['https://official.example.com/cb'] });
+    await registerApp({ type: 'internal', redirectUris: ['https://internal.example.com/callback'] });
+    await registerApp({ type: 'first_party', redirectUris: ['https://first.example.com/x'] });
+    await registerApp({ type: 'system', redirectUris: ['https://system.example.com/x'] });
 
     await refreshOriginRegistry();
 
@@ -135,10 +171,28 @@ describe('refresh() — trusted vs third-party routing', () => {
     expect(getCorsDecision('https://oxy.so')).toEqual({ allow: true, credentials: true });
   });
 
+  it('ignores an application that is not active', async () => {
+    await registerApp({
+      isOfficial: true,
+      status: 'suspended',
+      redirectUris: ['https://suspended.example.com/cb'],
+    });
+
+    await refreshOriginRegistry();
+
+    // `status: 'active'` is a WHERE clause, not a post-read comparison — a
+    // suspended official app must not reach the credentialed lane.
+    expect(getCorsDecision('https://suspended.example.com')).toEqual({
+      allow: false,
+      credentials: false,
+    });
+  });
+
   it('normalises redirectUris to origins (drops path/query, lowercases host)', async () => {
-    mockFind.mockImplementation(() =>
-      findResult([{ type: 'third_party', redirectUris: ['https://App.Example.com:8443/cb?x=1'] }])
-    );
+    await registerApp({
+      type: 'third_party',
+      redirectUris: ['https://App.Example.com:8443/cb?x=1'],
+    });
 
     await refreshOriginRegistry();
 
@@ -149,14 +203,10 @@ describe('refresh() — trusted vs third-party routing', () => {
   });
 
   it('lets trusted win when a third-party app registers a trusted/bootstrap origin', async () => {
-    mockFind.mockImplementation(() =>
-      findResult([
-        // A third-party app maliciously/accidentally registers a bootstrap origin.
-        { type: 'third_party', redirectUris: ['https://oxy.so/cb'] },
-        { isOfficial: true, redirectUris: ['https://shared.example.com/cb'] },
-        { type: 'third_party', redirectUris: ['https://shared.example.com/other'] },
-      ])
-    );
+    // A third-party app maliciously/accidentally registers a bootstrap origin.
+    await registerApp({ type: 'third_party', redirectUris: ['https://oxy.so/cb'] });
+    await registerApp({ isOfficial: true, redirectUris: ['https://shared.example.com/cb'] });
+    await registerApp({ type: 'third_party', redirectUris: ['https://shared.example.com/other'] });
 
     await refreshOriginRegistry();
 
@@ -171,9 +221,10 @@ describe('refresh() — trusted vs third-party routing', () => {
   });
 
   it('skips malformed redirectUris without throwing', async () => {
-    mockFind.mockImplementation(() =>
-      findResult([{ type: 'third_party', redirectUris: ['not a url', '', 'https://ok.example.com/cb'] }])
-    );
+    await registerApp({
+      type: 'third_party',
+      redirectUris: ['not a url', '', 'https://ok.example.com/cb'],
+    });
 
     await refreshOriginRegistry();
 
@@ -181,22 +232,41 @@ describe('refresh() — trusted vs third-party routing', () => {
   });
 });
 
-describe('refresh() — fail-soft', () => {
-  it('keeps the previous snapshot and logs when the Mongo read throws', async () => {
-    mockFind.mockImplementation(() =>
-      findResult([{ isOfficial: true, redirectUris: ['https://keep.example.com/cb'] }])
-    );
+describe('refresh() — fails SAFE', () => {
+  it('keeps the previous snapshot and logs when the database read throws', async () => {
+    await registerApp({ isOfficial: true, redirectUris: ['https://keep.example.com/cb'] });
     await refreshOriginRegistry();
     expect(isTrustedOrigin('https://keep.example.com')).toBe(true);
 
-    // Next refresh fails — previous snapshot must be retained.
-    mockFind.mockReturnValueOnce({
-      select: () => ({ lean: () => Promise.reject(new Error('mongo down')) }),
-    });
-    await refreshOriginRegistry();
+    // Next refresh fails — previous snapshot must be retained. `refresh()` is
+    // called directly rather than through `refreshOriginRegistry`, whose
+    // second half (the redirect-URI reconcile) is not fail-soft by design.
+    failDatabaseRead = true;
+    const registry = (await import('../dynamicOriginRegistry')).default;
+    await registry.refresh();
 
     expect(isTrustedOrigin('https://keep.example.com')).toBe(true);
     expect(mockError).toHaveBeenCalled();
+  });
+
+  it('never NARROWS the allowlist when the database is unreachable', async () => {
+    await registerApp({ isOfficial: true, redirectUris: ['https://survivor.example.com/cb'] });
+    await refreshOriginRegistry();
+
+    failDatabaseRead = true;
+    const registry = (await import('../dynamicOriginRegistry')).default;
+    await registry.refresh();
+
+    // The direction is the whole point: an empty trusted set would deny the
+    // credentialed lane to every first-party frontend at once, so a database
+    // outage must never be able to publish one.
+    expect(getCorsDecision('https://survivor.example.com')).toEqual({
+      allow: true,
+      credentials: true,
+    });
+    for (const origin of BOOTSTRAP_CORE_ORIGINS) {
+      expect(getCorsDecision(origin)).toEqual({ allow: true, credentials: true });
+    }
   });
 });
 
@@ -212,7 +282,6 @@ describe('OXY_EXTRA_ALLOWED_ORIGINS', () => {
 
   it('unions validated extra origins into the trusted snapshot on refresh', async () => {
     process.env.OXY_EXTRA_ALLOWED_ORIGINS = 'https://extra.example.com';
-    mockFind.mockImplementation(() => findResult([]));
     await refreshOriginRegistry();
     expect(getCorsDecision('https://extra.example.com')).toEqual({
       allow: true,

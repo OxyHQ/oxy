@@ -15,23 +15,86 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import { and, eq, ne } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError, ErrorCodes, InternalServerError, NotFoundError, UnauthorizedError } from '../utils/error';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
-import { isValidObjectId } from '../utils/validation';
-import { getUserNode, removeNode, provisionManagedVault } from '../services/nodeRegistry.service';
+import { getDb } from '../config/postgres';
+import { userNodes } from '../db/schema/userNodes';
+import {
+  getUserNode,
+  removeNode,
+  provisionManagedVault,
+  type UserNodeRecord,
+} from '../services/nodeRegistry.service';
 import { enqueueNodeIngest } from '../queue/nodeIngest.queue';
-import UserNode, { type IUserNode } from '../models/UserNode';
 
 const router = Router();
 
-/** Per-authenticated-user key (falls back to IP pre-auth). */
-function userScopedKey(scope: string) {
-  return (req: AuthRequest): string => {
+/**
+ * The keying half of a per-authenticated-user budget: the key generator and the
+ * `skip` that pairs with it, built together so the two can never disagree about
+ * what "no key" means.
+ *
+ * ## The account key only exists AFTER `authMiddleware`, so the limiter runs after it
+ *
+ * That ordering is the whole mechanism rather than a detail. All three limiters
+ * below used to be mounted BEFORE `authMiddleware` on their routes, and Express
+ * runs middleware in declaration order — so `req.user` was undefined every single
+ * time a key was computed and the old `: ${scope}:ip:${hashedIpKey(req)}` arm was
+ * not a fallback, it was the only branch that ever ran. The per-user budget each
+ * of them advertises was unreachable: every caller behind one NAT egress shared
+ * one 120/20/10-per-minute bucket, and a single flood took out everybody on it.
+ *
+ * No user IP leaked from that — `hashedIpKey` is the sanctioned transient path
+ * (IPv6 bucketed to /56, HMAC'd under an `rl|` namespace, alive only as a Redis
+ * key with the limiter's TTL) — so this was a dead budget, not the privacy breach
+ * the same shape caused in `routes/store.ts`. It is fixed the same way regardless.
+ *
+ * ## Why there is no IP arm left at all, hashed or otherwise
+ *
+ * A request whose account did not resolve is SKIPPED rather than bucketed under a
+ * shared key. If one of these limiters is ever reordered in front of
+ * `authMiddleware` again, the degradation is then a visible "no per-user budget"
+ * instead of silently collapsing every caller into one bucket again — the exact
+ * failure above, which stayed invisible precisely because the IP arm made it look
+ * like the limiter was still working.
+ *
+ * ## What covers the pre-auth lane, since these no longer do
+ *
+ * Every route using this keying is `authMiddleware`-gated, so an unauthenticated
+ * request 401s before it reaches any node state. Two global middlewares in
+ * `server.ts`, registered before any router, cover that lane; neither skips
+ * `/nodes` (their skip lists are `/files/upload` and the service-to-service
+ * paths), and both key through `hashedIpKey`:
+ *
+ *   - `rateLimiter` (`rl:general:`, 1000/15min in production) — the per-IP ceiling
+ *     every unauthenticated request on this API is subject to.
+ *   - `bruteForceProtection` (`slowDown`, +500ms after 100/15min) — a progressive
+ *     delay on the same key.
+ *
+ * The one route in this file that is unauthenticated BY DESIGN —
+ * `POST /nodes/ingest/notify/:userId` — is unaffected: it keeps its own
+ * `nodeIngestNotifyLimiter` mounted pre-auth, because it has no principal to key
+ * on and `hashedIpKey` is all there is.
+ */
+function userScopedKeying(scope: string) {
+  const keyGenerator = (req: AuthRequest): string => {
     const userId = req.user?.id;
-    return userId ? `${scope}:${userId}` : `${scope}:ip:${hashedIpKey(req)}`;
+    return userId ? `${scope}:${userId}` : '';
+  };
+  return {
+    keyGenerator,
+    /**
+     * The NEGATION of "the key exists", never a policy decision — anything that
+     * decides whether a caller deserves a limit belongs in the route. It CALLS
+     * the generator instead of restating its test, so a change to what counts as
+     * a principal cannot leave the two disagreeing and a request bucketed under
+     * the empty string.
+     */
+    skip: (req: AuthRequest): boolean => keyGenerator(req) === '',
   };
 }
 
@@ -40,7 +103,7 @@ const nodeReadLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
   message: 'Too many node status requests. Please slow down.',
-  keyGenerator: userScopedKey('nodes:read'),
+  ...userScopedKeying('nodes:read'),
 });
 
 const nodeAdminLimiter = rateLimit({
@@ -48,7 +111,7 @@ const nodeAdminLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
   message: 'Too many node management requests. Please slow down.',
-  keyGenerator: userScopedKey('nodes:admin'),
+  ...userScopedKeying('nodes:admin'),
 });
 
 /**
@@ -62,7 +125,7 @@ const nodeManagedLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
   message: 'Too many managed vault requests. Please slow down.',
-  keyGenerator: userScopedKey('nodes:managed'),
+  ...userScopedKeying('nodes:managed'),
 });
 
 /**
@@ -80,8 +143,8 @@ const nodeIngestNotifyLimiter = rateLimit({
   keyGenerator: (req: Request): string => `nodes:ingest:ip:${hashedIpKey(req)}`,
 });
 
-/** Public projection of a node row (drops Mongo internals). */
-function serializeNode(node: IUserNode): Record<string, unknown> {
+/** Public projection of a node row. */
+function serializeNode(node: UserNodeRecord): Record<string, unknown> {
   return {
     nodeDid: node.nodeDid,
     endpoint: node.endpoint,
@@ -103,8 +166,8 @@ function serializeNode(node: IUserNode): Record<string, unknown> {
 /** GET /nodes/me — the caller's registered node (or `{ node: null }`). */
 router.get(
   '/me',
-  nodeReadLimiter,
   authMiddleware,
+  nodeReadLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?._id?.toString();
     if (!userId) {
@@ -119,8 +182,8 @@ router.get(
 /** DELETE /nodes/me — revoke the caller's node registration. */
 router.delete(
   '/me',
-  nodeAdminLimiter,
   authMiddleware,
+  nodeAdminLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?._id?.toString();
     if (!userId) {
@@ -148,8 +211,8 @@ router.delete(
  */
 router.post(
   '/managed',
-  nodeManagedLimiter,
   authMiddleware,
+  nodeManagedLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?._id?.toString();
     if (!userId) {
@@ -184,17 +247,27 @@ router.post(
  * Unauthenticated by design (it only re-pulls the user's OWN node and changes
  * nothing without cryptographic verification), but rate-limited hard by IP. The
  * read path is untouched — this only schedules background work.
+ *
+ * The `isValidObjectId` pre-filter is DELETED, not ported. It existed to keep a
+ * non-ObjectId path param out of a Mongoose `CastError`; here `user_id` is
+ * `text`, so an unknown or malformed id simply selects no row. Keeping it would
+ * have been worse than useless: every account minted since the cutover carries a
+ * uuid v7, which the 24-hex predicate rejects — the notify would have silently
+ * enqueued nothing for exactly those accounts, with a 202 either way. Same trap
+ * the chain-head route hit (`routes/__tests__/chainHead.test.ts`).
  */
 router.post(
   '/ingest/notify/:userId',
   nodeIngestNotifyLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    if (isValidObjectId(userId)) {
-      const hasNode = await UserNode.exists({ userId, status: { $ne: 'revoked' } });
-      if (hasNode) {
-        enqueueNodeIngest(userId);
-      }
+    const [node] = await getDb()
+      .select({ userId: userNodes.userId })
+      .from(userNodes)
+      .where(and(eq(userNodes.userId, userId), ne(userNodes.status, 'revoked')))
+      .limit(1);
+    if (node) {
+      enqueueNodeIngest(userId);
     }
     res.status(202).json({ accepted: true });
   }),

@@ -15,16 +15,42 @@
  *
  * No self-award: jurors submit signed verdicts; THIS service tallies quorum and
  * calls `reputationService.award` in-process for the subject + correct jurors.
+ *
+ * ## The open-request dedup is a DATABASE constraint again
+ *
+ * `ValidationRequest.ts` recorded that the dedup "is enforced in the service —
+ * partialFilterExpression does not portably support `$in`". That was a MongoDB
+ * limitation, and `openValidationRequest` paid for it with a `findOne` → `create`
+ * check-then-act: two concurrent callers could both find nothing and both open a
+ * jury for one action, splitting the juror pool across two requests that could
+ * each only expire. Postgres expresses it directly —
+ * `unique (source_action_id) where status in ('pending', 'quorum_met')` — so the
+ * friendly lookup stays (returning the existing request is the nice path) and
+ * the INDEX is the guarantee: the loser of the race reads the winner back
+ * instead of opening a second jury.
+ *
+ * ## `selected_validator_ids[]` is a junction table
+ *
+ * The Mongo array of juror ids is `validation_request_validators`, with real
+ * foreign keys and the draw `position` preserved — so a seat can no longer name
+ * an account that does not exist, and the juror inbox is an indexed join rather
+ * than a multikey scan.
  */
 
 import crypto from 'crypto';
+import { and, asc, desc, eq, gt, inArray, lte, notInArray, sql } from 'drizzle-orm';
 import { canonicalize, verifyEnvelopeSignature } from '@oxyhq/protocol';
 import { validationVerdictRecordSchema, type ValidationVerdict } from '@oxyhq/contracts';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-import { ReputationBalance } from '../../models/ReputationBalance';
-import ValidationRequest, { type IValidationRequest } from '../../models/ValidationRequest';
-import ValidationVote, { type IValidationVote } from '../../models/ValidationVote';
-import ValidatorAffinity from '../../models/ValidatorAffinity';
+import { getDb } from '../../config/postgres';
+import { isUniqueViolation } from '@oxyhq/db';
+import { reputationBalances } from '../../db/schema/reputationBalances';
+import {
+  validationRequestValidators,
+  validationRequests,
+} from '../../db/schema/validationRequests';
+import { validationVotes } from '../../db/schema/validationVotes';
+import { validatorAffinities } from '../../db/schema/validatorAffinities';
 import { isSockPuppetRelation } from './graphExclusion';
 import { verifyAndStoreRecord } from '../signedRecord.service';
 import { reputationService } from '../reputation.service';
@@ -45,6 +71,30 @@ import {
   PERSONHOOD_AUDIT_ACTION,
 } from '../../utils/civic.constants';
 import { logger } from '../../utils/logger';
+
+/** A stored validation request. */
+export type ValidationRequestRow = typeof validationRequests.$inferSelect;
+
+/**
+ * A request plus its jury.
+ *
+ * The jury lived on the document as `selectedValidatorIds[]`; it is a junction
+ * table now, so a reader that needs both asks for this rather than re-joining at
+ * each call site.
+ */
+export interface ValidationRequestView extends ValidationRequestRow {
+  selectedValidatorIds: string[];
+}
+
+/** A stored juror verdict. */
+export type ValidationVoteRow = typeof validationVotes.$inferSelect;
+
+/** The partial unique index that makes "one open request per source action" true. */
+const OPEN_SOURCE_ACTION_UNIQUE = 'validation_requests_open_source_action_key';
+/** One vote per juror per request. */
+const REQUEST_VALIDATOR_UNIQUE = 'validation_votes_request_validator_key';
+/** The two statuses in which a request is still open and holds the dedup slot. */
+const OPEN_STATUSES = ['pending', 'quorum_met'] as const;
 
 /* -------------------------------------------------------------------------- */
 /*  Weighting + deterministic RNG                                             */
@@ -74,7 +124,14 @@ function hashUnit(seed: string, id: string): number {
   return u <= 0 ? Number.MIN_VALUE : u;
 }
 
-/** Canonical (sorted) pair for a ValidatorAffinity lookup. */
+/**
+ * Canonical (sorted) pair for a `validator_affinities` lookup.
+ *
+ * The table now carries `check (validator_a < validator_b)`, so the canonical
+ * form is the ONLY representable one — Mongo allowed `(b, a)` as a second,
+ * invisible row that silently halved every co-vote count it should have been
+ * part of.
+ */
 function affinityPair(a: string, b: string): { validatorA: string; validatorB: string } {
   return a < b ? { validatorA: a, validatorB: b } : { validatorA: b, validatorB: a };
 }
@@ -96,6 +153,12 @@ export interface ValidatorSelection {
  * device). The remaining candidates are ranked by a seeded weighted-reservoir
  * key; the top `VALIDATOR_COUNT` are taken, skipping any candidate with high
  * co-vote affinity to an already-selected juror.
+ *
+ * KNOWN STRUCTURAL GAP, deliberately unchanged by this port: nothing here checks
+ * that the surviving pool still clears `VALIDATOR_QUORUM`, so an undersized
+ * panel opens and can only ever expire. The port makes the check expressible —
+ * `selected.length` is right here — but adding it would change behaviour, which
+ * is not this task's call to make.
  */
 export async function selectValidators(
   subjectUserId: string,
@@ -103,15 +166,16 @@ export async function selectValidators(
 ): Promise<ValidatorSelection> {
   const rngSeed = opts.rngSeed ?? crypto.randomBytes(32).toString('hex');
 
-  const balances = await ReputationBalance.find({ trustTier: { $in: VALIDATOR_POOL_TIERS } })
-    .select('userId trustTier')
-    .limit(VALIDATOR_POOL_CAP)
-    .lean<Array<{ userId: unknown; trustTier: string }>>();
+  const balances = await getDb()
+    .select({ userId: reputationBalances.userId, trustTier: reputationBalances.trustTier })
+    .from(reputationBalances)
+    .where(inArray(reputationBalances.trustTier, [...VALIDATOR_POOL_TIERS]))
+    .limit(VALIDATOR_POOL_CAP);
 
   // Exclude the subject + sock-puppets; snapshot the eligible candidate pool.
   const candidates: Array<{ userId: string; weight: number }> = [];
   for (const balance of balances) {
-    const candidateId = String(balance.userId);
+    const candidateId = balance.userId;
     if (candidateId === subjectUserId) {
       continue;
     }
@@ -146,12 +210,49 @@ export async function selectValidators(
 /** True when `candidate` has met the co-vote affinity ceiling with any `selected`. */
 async function hasHighAffinity(candidate: string, selected: string[]): Promise<boolean> {
   for (const other of selected) {
-    const edge = await ValidatorAffinity.findOne(affinityPair(candidate, other)).lean<{ coVoteCount?: number } | null>();
-    if (edge && (edge.coVoteCount ?? 0) >= AFFINITY_MAX_COVOTES) {
+    const pair = affinityPair(candidate, other);
+    const [edge] = await getDb()
+      .select({ coVoteCount: validatorAffinities.coVoteCount })
+      .from(validatorAffinities)
+      .where(
+        and(
+          eq(validatorAffinities.validatorA, pair.validatorA),
+          eq(validatorAffinities.validatorB, pair.validatorB),
+        ),
+      )
+      .limit(1);
+    if (edge && edge.coVoteCount >= AFFINITY_MAX_COVOTES) {
       return true;
     }
   }
   return false;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Reading a request with its jury                                           */
+/* -------------------------------------------------------------------------- */
+
+/** The juror ids of one request, in draw order. */
+async function juryOf(requestId: string): Promise<string[]> {
+  const seats = await getDb()
+    .select({ userId: validationRequestValidators.userId })
+    .from(validationRequestValidators)
+    .where(eq(validationRequestValidators.requestId, requestId))
+    .orderBy(asc(validationRequestValidators.position));
+  return seats.map((seat) => seat.userId);
+}
+
+/** A request plus its jury, or `null` when there is no such request. */
+export async function getValidationRequest(requestId: string): Promise<ValidationRequestView | null> {
+  const [request] = await getDb()
+    .select()
+    .from(validationRequests)
+    .where(eq(validationRequests.id, requestId))
+    .limit(1);
+  if (!request) {
+    return null;
+  }
+  return { ...request, selectedValidatorIds: await juryOf(request.id) };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -167,15 +268,35 @@ export interface OpenValidationInput {
   highValue?: boolean;
 }
 
+/** The open request for a source action, with its jury, or `null`. */
+async function findOpenRequest(sourceActionId: string): Promise<ValidationRequestView | null> {
+  const [existing] = await getDb()
+    .select()
+    .from(validationRequests)
+    .where(
+      and(
+        eq(validationRequests.sourceActionId, sourceActionId),
+        inArray(validationRequests.status, [...OPEN_STATUSES]),
+      ),
+    )
+    .limit(1);
+  if (!existing) {
+    return null;
+  }
+  return { ...existing, selectedValidatorIds: await juryOf(existing.id) };
+}
+
 /**
  * Open a validation request: select the jury, snapshot the selection rationale,
- * and persist. Idempotent on `sourceActionId` while an open request exists.
+ * and persist. Idempotent on `sourceActionId` while an open request exists — the
+ * lookup answers the common case and the partial unique index answers the race,
+ * so two concurrent callers can never split one action's jury across two
+ * requests.
  */
-export async function openValidationRequest(input: OpenValidationInput): Promise<IValidationRequest> {
-  const existing = await ValidationRequest.findOne({
-    sourceActionId: input.sourceActionId,
-    status: { $in: ['pending', 'quorum_met'] },
-  });
+export async function openValidationRequest(
+  input: OpenValidationInput,
+): Promise<ValidationRequestView> {
+  const existing = await findOpenRequest(input.sourceActionId);
   if (existing) {
     return existing;
   }
@@ -184,24 +305,51 @@ export async function openValidationRequest(input: OpenValidationInput): Promise
   const payloadHash = crypto.createHash('sha256').update(canonicalize(input.payload)).digest('hex');
   const highValue = input.highValue ?? false;
 
-  const request = await ValidationRequest.create({
-    subjectUserId: input.subjectUserId,
-    actionType: input.actionType,
-    applicationId: input.applicationId,
-    sourceActionId: input.sourceActionId,
-    payload: input.payload,
-    payloadHash,
-    status: 'pending',
-    selectedValidatorIds: selection.validatorIds,
-    quorum: VALIDATOR_QUORUM,
-    threshold: highValue ? VALIDATOR_SUPERMAJORITY : VALIDATOR_QUORUM,
-    highValue,
-    rngSeed: selection.rngSeed,
-    candidateSnapshot: selection.candidateSnapshot,
-    expiresAt: new Date(Date.now() + VALIDATION_TTL_MS),
-  });
+  try {
+    return await getDb().transaction(async (tx) => {
+      const [request] = await tx
+        .insert(validationRequests)
+        .values({
+          subjectUserId: input.subjectUserId,
+          actionType: input.actionType,
+          applicationId: input.applicationId,
+          sourceActionId: input.sourceActionId,
+          payload: input.payload,
+          payloadHash,
+          status: 'pending',
+          quorum: VALIDATOR_QUORUM,
+          threshold: highValue ? VALIDATOR_SUPERMAJORITY : VALIDATOR_QUORUM,
+          highValue,
+          rngSeed: selection.rngSeed,
+          candidateSnapshot: selection.candidateSnapshot,
+          expiresAt: new Date(Date.now() + VALIDATION_TTL_MS),
+        })
+        .returning();
 
-  return request;
+      if (selection.validatorIds.length > 0) {
+        await tx.insert(validationRequestValidators).values(
+          selection.validatorIds.map((userId, position) => ({
+            requestId: request.id,
+            userId,
+            position,
+          })),
+        );
+      }
+
+      return { ...request, selectedValidatorIds: selection.validatorIds };
+    });
+  } catch (error) {
+    // The race the index exists for: a concurrent caller took the open slot for
+    // this source action between our lookup and our insert. Read their request
+    // back rather than opening a second jury.
+    if (isUniqueViolation(error, OPEN_SOURCE_ACTION_UNIQUE)) {
+      const winner = await findOpenRequest(input.sourceActionId);
+      if (winner) {
+        return winner;
+      }
+    }
+    throw error;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -222,13 +370,8 @@ export type VoteRejectionReason =
   | 'store_failed';
 
 export type VoteResult =
-  | { ok: true; verdict: ValidationVerdict; status: IValidationRequest['status'] }
+  | { ok: true; verdict: ValidationVerdict; status: ValidationRequestRow['status'] }
   | { ok: false; reason: VoteRejectionReason };
-
-/** True when an error is a MongoDB duplicate-key (E11000) error. */
-function isDuplicateKeyError(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && (error as { code?: number }).code === 11000;
-}
 
 /**
  * Record a juror's SIGNED verdict on a request and (re)tally. The verdict is a
@@ -240,7 +383,7 @@ export async function submitVote(
   validatorUserId: string,
   envelope: SignedRecordEnvelope,
 ): Promise<VoteResult> {
-  const request = await ValidationRequest.findById(requestId);
+  const request = await getValidationRequest(requestId);
   if (!request) {
     return { ok: false, reason: 'request_not_found' };
   }
@@ -250,7 +393,7 @@ export async function submitVote(
   if (request.expiresAt.getTime() <= Date.now()) {
     return { ok: false, reason: 'request_closed' };
   }
-  if (!request.selectedValidatorIds.some((id) => id.toString() === validatorUserId)) {
+  if (!request.selectedValidatorIds.includes(validatorUserId)) {
     return { ok: false, reason: 'not_selected' };
   }
 
@@ -279,24 +422,31 @@ export async function submitVote(
     return { ok: false, reason: 'bad_signature' };
   }
 
+  // A `validation_verdict` must be a v2 (chained) envelope — `oxyStorePolicy`
+  // enforces that — so the returned content address always names a stored row,
+  // which is what `validation_votes.record_id`'s foreign key requires.
   const stored = await verifyAndStoreRecord(envelope, validatorUserId);
   if (!stored.ok) {
     return { ok: false, reason: 'store_failed' };
   }
 
-  const balance = await ReputationBalance.findOne({ userId: validatorUserId }).select('trustTier').lean<{ trustTier?: string } | null>();
+  const [balance] = await getDb()
+    .select({ trustTier: reputationBalances.trustTier })
+    .from(reputationBalances)
+    .where(eq(reputationBalances.userId, validatorUserId))
+    .limit(1);
   try {
-    await ValidationVote.create({
+    await getDb().insert(validationVotes).values({
       requestId,
       validatorUserId,
       verdict,
       envelope,
       publicKey: envelope.publicKey,
-      recordId: stored.record.recordId ?? '',
+      recordId: stored.record.recordId,
       stakeWeight: validatorWeight(balance?.trustTier ?? 'trusted'),
     });
   } catch (error) {
-    if (isDuplicateKeyError(error)) {
+    if (isUniqueViolation(error, REQUEST_VALIDATOR_UNIQUE)) {
       return { ok: false, reason: 'already_voted' };
     }
     throw error;
@@ -334,10 +484,10 @@ function decideOutcome(
  * Tally a request. Resolves (awards the subject + rewards correct jurors) when a
  * side reaches threshold, on full participation, or on expiry with quorum; marks
  * `expired` when it lapses without quorum; otherwise leaves it pending. The
- * status transition is an atomic CAS so it resolves at most once.
+ * status transition is an atomic compare-and-set so it resolves at most once.
  */
-export async function tallyAndResolve(requestId: string): Promise<IValidationRequest['status']> {
-  const request = await ValidationRequest.findById(requestId);
+export async function tallyAndResolve(requestId: string): Promise<ValidationRequestRow['status']> {
+  const request = await getValidationRequest(requestId);
   if (!request) {
     return 'expired';
   }
@@ -345,7 +495,10 @@ export async function tallyAndResolve(requestId: string): Promise<IValidationReq
     return request.status;
   }
 
-  const votes = await ValidationVote.find({ requestId }).lean<IValidationVote[]>();
+  const votes = await getDb()
+    .select()
+    .from(validationVotes)
+    .where(eq(validationVotes.requestId, requestId));
   const valid = votes.filter((v) => v.verdict === 'valid');
   const invalid = votes.filter((v) => v.verdict === 'invalid');
   const total = votes.length;
@@ -354,9 +507,19 @@ export async function tallyAndResolve(requestId: string): Promise<IValidationReq
 
   if (total < request.quorum) {
     if (expired) {
-      request.status = 'expired';
-      await request.save();
-      return 'expired';
+      // Same compare-and-set as the resolution below: only one sweeper may
+      // retire a request, and only from an OPEN status.
+      const lapsed = await getDb()
+        .update(validationRequests)
+        .set({ status: 'expired' })
+        .where(
+          and(
+            eq(validationRequests.id, requestId),
+            inArray(validationRequests.status, [...OPEN_STATUSES]),
+          ),
+        )
+        .returning({ status: validationRequests.status });
+      return lapsed[0]?.status ?? request.status;
     }
     return request.status;
   }
@@ -364,18 +527,28 @@ export async function tallyAndResolve(requestId: string): Promise<IValidationReq
   const outcome = decideOutcome(valid.length, invalid.length, request.threshold, allVoted, expired);
   if (!outcome) {
     if (request.status !== 'quorum_met') {
-      request.status = 'quorum_met';
-      await request.save();
+      await getDb()
+        .update(validationRequests)
+        .set({ status: 'quorum_met' })
+        .where(and(eq(validationRequests.id, requestId), eq(validationRequests.status, 'pending')));
+      return 'quorum_met';
     }
     return request.status;
   }
 
-  // Atomic claim: only one resolver advances past pending/quorum_met.
-  const claimed = await ValidationRequest.findOneAndUpdate(
-    { _id: requestId, status: { $in: ['pending', 'quorum_met'] } },
-    { $set: { status: outcome, outcome } },
-    { new: true },
-  );
+  // Atomic claim: only one resolver advances past pending/quorum_met. `status`
+  // and `outcome` move in ONE statement because the table's terminal CHECK
+  // requires them to agree.
+  const [claimed] = await getDb()
+    .update(validationRequests)
+    .set({ status: outcome, outcome })
+    .where(
+      and(
+        eq(validationRequests.id, requestId),
+        inArray(validationRequests.status, [...OPEN_STATUSES]),
+      ),
+    )
+    .returning();
   if (!claimed) {
     return request.status;
   }
@@ -390,12 +563,12 @@ export async function tallyAndResolve(requestId: string): Promise<IValidationReq
     await resolvePersonhoodAuditOutcome(
       claimed,
       outcome,
-      winners.map((v) => v.validatorUserId.toString()),
+      winners.map((v) => v.validatorUserId),
     );
   } else {
     await resolveAwards(claimed, outcome, valid, votes);
   }
-  await bumpAffinity(winners.map((v) => v.validatorUserId.toString()));
+  await bumpAffinity(winners.map((v) => v.validatorUserId));
 
   logger.info('Validation request resolved', {
     component: 'civic.validator',
@@ -410,37 +583,41 @@ export async function tallyAndResolve(requestId: string): Promise<IValidationReq
 
 /** On a `validated` outcome, award the subject + reward the correct jurors. */
 async function resolveAwards(
-  request: IValidationRequest,
+  request: ValidationRequestRow,
   outcome: 'validated' | 'rejected',
-  validVotes: IValidationVote[],
-  allVotes: IValidationVote[],
+  validVotes: ValidationVoteRow[],
+  allVotes: ValidationVoteRow[],
 ): Promise<void> {
   if (outcome !== 'validated') {
     return;
   }
 
-  const subjectUserId = request.subjectUserId.toString();
   const txn = await reputationService.award({
-    userId: subjectUserId,
+    userId: request.subjectUserId,
     actionType: PEER_VALIDATED_ACTION,
-    sourceActionId: request._id.toString(),
+    sourceActionId: request.id,
     reason: 'Validated by a randomly-selected jury of peers',
     metadata: {
-      requestId: request._id.toString(),
-      voterUserIds: allVotes.map((v) => v.validatorUserId.toString()),
+      requestId: request.id,
+      voterUserIds: allVotes.map((v) => v.validatorUserId),
     },
     emitAttestation: true,
-    sourceEnvelopeIds: validVotes.map((v) => v.recordId).filter((id) => id.length > 0),
+    // Every vote row's `record_id` is a foreign key onto a stored record, so the
+    // `.filter(id => id.length > 0)` the Mongo version needed is gone with the
+    // `?? ''` that made it necessary.
+    sourceEnvelopeIds: validVotes.map((v) => v.recordId),
   });
-  request.resolvedTxnId = txn._id;
-  await request.save();
+  await getDb()
+    .update(validationRequests)
+    .set({ resolvedTxnId: txn.id })
+    .where(eq(validationRequests.id, request.id));
 
   // Reward each juror who voted with the resolving majority.
   for (const vote of validVotes) {
     await reputationService.award({
-      userId: vote.validatorUserId.toString(),
+      userId: vote.validatorUserId,
       actionType: VALIDATION_CORRECT_ACTION,
-      sourceActionId: `${request._id.toString()}:${vote.validatorUserId.toString()}`,
+      sourceActionId: `${request.id}:${vote.validatorUserId}`,
       reason: 'Voted with the resolving majority on a peer validation',
     });
   }
@@ -451,11 +628,16 @@ async function bumpAffinity(winnerIds: string[]): Promise<void> {
   for (let i = 0; i < winnerIds.length; i += 1) {
     for (let j = i + 1; j < winnerIds.length; j += 1) {
       const pair = affinityPair(winnerIds[i], winnerIds[j]);
-      await ValidatorAffinity.findOneAndUpdate(
-        pair,
-        { $inc: { coVoteCount: 1 }, $set: { lastCoVoteAt: new Date() } },
-        { upsert: true },
-      );
+      await getDb()
+        .insert(validatorAffinities)
+        .values({ ...pair, coVoteCount: 1, lastCoVoteAt: new Date() })
+        .onConflictDoUpdate({
+          target: [validatorAffinities.validatorA, validatorAffinities.validatorB],
+          set: {
+            coVoteCount: sql`${validatorAffinities.coVoteCount} + 1`,
+            lastCoVoteAt: new Date(),
+          },
+        });
     }
   }
 }
@@ -471,21 +653,34 @@ export type DenyResult =
  * reach quorum). Replacement-juror selection is a future enhancement.
  */
 export async function denyValidation(requestId: string, validatorUserId: string): Promise<DenyResult> {
-  const request = await ValidationRequest.findById(requestId);
+  const [request] = await getDb()
+    .select({ status: validationRequests.status })
+    .from(validationRequests)
+    .where(eq(validationRequests.id, requestId))
+    .limit(1);
   if (!request) {
     return { ok: false, reason: 'request_not_found' };
   }
   if (request.status !== 'pending' && request.status !== 'quorum_met') {
     return { ok: false, reason: 'request_closed' };
   }
-  if (!request.selectedValidatorIds.some((id) => id.toString() === validatorUserId)) {
+
+  // The delete IS the membership check: it removes the seat and reports whether
+  // there was one, so a recusal cannot race a concurrent one into a false
+  // "removed" answer the way a read-then-write could.
+  const removed = await getDb()
+    .delete(validationRequestValidators)
+    .where(
+      and(
+        eq(validationRequestValidators.requestId, requestId),
+        eq(validationRequestValidators.userId, validatorUserId),
+      ),
+    )
+    .returning({ userId: validationRequestValidators.userId });
+  if (removed.length === 0) {
     return { ok: false, reason: 'not_selected' };
   }
 
-  request.selectedValidatorIds = request.selectedValidatorIds.filter(
-    (id) => id.toString() !== validatorUserId,
-  );
-  await request.save();
   await tallyAndResolve(requestId);
   return { ok: true };
 }
@@ -495,29 +690,36 @@ export async function denyValidation(requestId: string, validatorUserId: string)
 /* -------------------------------------------------------------------------- */
 
 /** The pending requests a juror still needs to vote on. */
-export async function getValidatorInbox(validatorUserId: string): Promise<IValidationRequest[]> {
-  const requests = await ValidationRequest.find({
-    selectedValidatorIds: validatorUserId,
-    status: { $in: ['pending', 'quorum_met'] },
-    expiresAt: { $gt: new Date() },
-  })
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .lean<IValidationRequest[]>();
+export async function getValidatorInbox(validatorUserId: string): Promise<ValidationRequestView[]> {
+  // The juror's own votes, as a NOT IN sub-select: the "drop what I already
+  // voted on" step was a second round trip and an in-memory filter under Mongo,
+  // which could not join a multikey array to another collection at all.
+  const alreadyVoted = getDb()
+    .select({ requestId: validationVotes.requestId })
+    .from(validationVotes)
+    .where(eq(validationVotes.validatorUserId, validatorUserId));
 
-  if (requests.length === 0) {
-    return [];
-  }
+  const rows = await getDb()
+    .select({ request: validationRequests })
+    .from(validationRequests)
+    .innerJoin(
+      validationRequestValidators,
+      eq(validationRequestValidators.requestId, validationRequests.id),
+    )
+    .where(
+      and(
+        eq(validationRequestValidators.userId, validatorUserId),
+        inArray(validationRequests.status, [...OPEN_STATUSES]),
+        gt(validationRequests.expiresAt, new Date()),
+        notInArray(validationRequests.id, alreadyVoted),
+      ),
+    )
+    .orderBy(desc(validationRequests.createdAt))
+    .limit(100);
 
-  // Drop the ones this juror has already voted on.
-  const votedRequestIds = await ValidationVote.find({
-    validatorUserId,
-    requestId: { $in: requests.map((r) => r._id) },
-  })
-    .select('requestId')
-    .lean<Array<{ requestId: unknown }>>();
-  const voted = new Set(votedRequestIds.map((v) => String(v.requestId)));
-  return requests.filter((r) => !voted.has(r._id.toString()));
+  return Promise.all(
+    rows.map(async (row) => ({ ...row.request, selectedValidatorIds: await juryOf(row.request.id) })),
+  );
 }
 
 /**
@@ -527,16 +729,19 @@ export async function getValidatorInbox(validatorUserId: string): Promise<IValid
  * is nothing to do.
  */
 export async function sweepValidations(): Promise<number> {
-  const stale = await ValidationRequest.find({
-    status: { $in: ['pending', 'quorum_met'] },
-    expiresAt: { $lte: new Date() },
-  })
-    .select('_id')
-    .limit(200)
-    .lean<Array<{ _id: { toString(): string } }>>();
+  const stale = await getDb()
+    .select({ id: validationRequests.id })
+    .from(validationRequests)
+    .where(
+      and(
+        inArray(validationRequests.status, [...OPEN_STATUSES]),
+        lte(validationRequests.expiresAt, new Date()),
+      ),
+    )
+    .limit(200);
 
   for (const request of stale) {
-    await tallyAndResolve(request._id.toString());
+    await tallyAndResolve(request.id);
   }
   return stale.length;
 }

@@ -1,6 +1,7 @@
-import { Link, createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { Link, createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { useAuth } from '@oxyhq/services';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
@@ -13,8 +14,8 @@ import {
   Mail01Icon,
   UserMultiple02Icon,
 } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom';
-import type {AccountMember, AccountRole, AssignableAccountRole} from '@/hooks/use-account';
+import { toast } from '@oxyhq/bloom/toast';
+import type { AccountMember, AccountRole, AssignableAccountRole } from '@/hooks/use-account';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,15 +52,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  
-  
-  
   useAccount,
   useAccountMembers,
   useInviteAccountMember,
   useRemoveAccountMember,
   useTransferAccountOwnership,
-  useUpdateAccountMember
+  useUpdateAccountMember,
 } from '@/hooks/use-account';
 import {
   USER_NOT_FOUND_MESSAGE,
@@ -97,9 +95,12 @@ function shortUserId(userId: string): string {
 }
 
 function AccountSettingsPage() {
+  const navigate = useNavigate();
   const { user, oxyServices } = useAuth();
   const {
+    accounts,
     currentAccount,
+    setCurrentAccount,
     updateAccount,
     archiveAccount,
     canEditAccount,
@@ -114,7 +115,8 @@ function AccountSettingsPage() {
 
   // The display label for the account: its canonical `name.displayName`, falling
   // back to the handle. Used in the header and delete confirmation.
-  const accountLabel = accountUser?.name?.displayName ?? accountUser?.username ?? '';
+  const accountLabel =
+    accountUser?.name?.displayName ?? getNormalizedUserHandle(accountUser) ?? '';
 
   // Personal accounts show the signed-in user's avatar (read-only — it is
   // managed in the user's Oxy account). Resolved the same way as `nav-user.tsx`.
@@ -125,11 +127,15 @@ function AccountSettingsPage() {
   })();
 
   const userInitials = ((): string => {
-    const name = user?.name as { first?: string; last?: string } | undefined;
-    if (name?.first && name?.last) {
-      return `${name.first[0]}${name.last[0]}`.toUpperCase();
+    const label = user?.name?.displayName ?? getNormalizedUserHandle(user);
+    if (label) {
+      const parts = label.split(/\s+/).filter(Boolean);
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      }
+      return label.slice(0, 2).toUpperCase();
     }
-    return (name?.first?.[0] || user?.username?.[0] || 'U').toUpperCase();
+    return 'U';
   })();
 
   // Members are fetched only for non-personal accounts with permission to read.
@@ -139,7 +145,14 @@ function AccountSettingsPage() {
   const members = membersQuery.data ?? [];
   const activeMembers = members.filter((m) => m.status === 'active');
   const pendingInvites = members.filter((m) => m.status === 'invited');
-  const ownerCount = activeMembers.filter((m) => m.role === 'owner').length;
+  // DIRECT owners only. The list also carries members whose row lives on an
+  // ancestor account, and the last-owner rule this count feeds is about the rows
+  // on THIS account — which is what the server's own guard counts. Including an
+  // inherited owner would make a child with no owner of its own look like it has
+  // exactly one, and silently disable removing anybody.
+  const ownerCount = activeMembers.filter(
+    (m) => m.role === 'owner' && (m.source ?? 'direct') === 'direct',
+  ).length;
 
   const inviteMemberMutation = useInviteAccountMember();
   const updateMemberMutation = useUpdateAccountMember();
@@ -154,6 +167,15 @@ function AccountSettingsPage() {
   const [bio, setBio] = useState(() => currentAccount?.account.bio ?? '');
   const [avatar, setAvatar] = useState(() => currentAccount?.account.avatar ?? '');
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!currentAccount) {
+      return;
+    }
+    setName(currentAccount.account.name?.displayName ?? '');
+    setBio(currentAccount.account.bio ?? '');
+    setAvatar(currentAccount.account.avatar ?? '');
+  }, [currentAccount?.accountId, currentAccount?.account.bio, currentAccount?.account.avatar, currentAccount?.account.name?.displayName]);
 
   // Invite dialog state
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -315,9 +337,16 @@ function AccountSettingsPage() {
     setIsDeleting(true);
     try {
       await archiveAccount(accountId);
+      if (user?.id === accountId) {
+        const personal = accounts.find((node) => node.relationship === 'self');
+        if (personal) {
+          await setCurrentAccount(personal);
+        }
+      }
       toast.success('Account archived');
       setShowDeleteDialog(false);
       setDeleteConfirmation('');
+      void navigate({ to: '/dashboard' });
     } catch (error) {
       // The API returns 409 when the account still owns applications.
       toast.error(
@@ -459,9 +488,16 @@ function AccountSettingsPage() {
               {activeMembers.map((member) => {
                 const isOwner = member.role === 'owner';
                 const isLastOwner = isOwner && ownerCount <= 1;
-                const canEditThisRole = canManage && !isOwner;
-                const canRemoveThisMember = canManage && !isOwner && !isLastOwner;
-                const canTransferToThis = canTransfer && !isOwner;
+                // An INHERITED entry's row lives on an ancestor account, and every
+                // member mutation is scoped to rows on the account in the path — so
+                // offering to edit, remove or promote one would be offering a
+                // request the server answers 404. It is changed where it lives, on
+                // that ancestor's own members screen.
+                const isEditableHere = (member.source ?? 'direct') === 'direct';
+                const canEditThisRole = canManage && isEditableHere && !isOwner;
+                const canRemoveThisMember =
+                  canManage && isEditableHere && !isOwner && !isLastOwner;
+                const canTransferToThis = canTransfer && isEditableHere && !isOwner;
 
                 return (
                   <div
@@ -482,6 +518,11 @@ function AccountSettingsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {!isEditableHere ? (
+                        <Badge variant="outline" title="Granted on a parent account">
+                          Inherited
+                        </Badge>
+                      ) : null}
                       {isOwner ? (
                         <Badge variant="secondary" className="gap-1">
                           <HugeiconsIcon icon={CrownIcon} size={12} />

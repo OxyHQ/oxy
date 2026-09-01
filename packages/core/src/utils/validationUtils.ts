@@ -7,17 +7,24 @@ import {
   DISPLAY_NAME_COMBINING_MARKS_RANGES,
   DISPLAY_NAME_SPACE_SEPARATORS_RANGES,
   DISPLAY_NAME_LETTERS_RANGES,
+  DISPLAY_NAME_NAME_SEPARATORS_RANGES,
 } from './displayNamePolicyRanges.generated';
+import { usernameSchema } from '@oxyhq/contracts';
+
+/**
+ * Maximum stored length of a display name, in code units after cleaning.
+ * Shared by the API write path and client input surfaces.
+ */
+export const MAX_DISPLAY_NAME_LENGTH = 80;
+
+/** Shared 400 / inline-validation copy for native display-name policy rejections. */
+export const DISPLAY_NAME_INVALID_MESSAGE =
+  'Name may only contain letters, spaces, apostrophes, and name separators (·, ־, ་, ・).';
 
 /**
  * Email validation regex
  */
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/**
- * Username validation regex (alphanumeric, underscores, and hyphens, 3-30 chars)
- */
-export const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
 
 /**
  * Password validation regex (at least 8 chars, 1 uppercase, 1 lowercase, 1 number)
@@ -30,13 +37,6 @@ export const PASSWORD_REGEX = /^.{8,}$/;
  */
 export function isValidEmail(email: string): boolean {
   return EMAIL_REGEX.test(email);
-}
-
-/**
- * Validate username format
- */
-export function isValidUsername(username: string): boolean {
-  return USERNAME_REGEX.test(username);
 }
 
 /**
@@ -61,7 +61,16 @@ export function isValidPassword(password: string): boolean {
  *     ideographic space, …) — but NOT control whitespace such as tab, newline,
  *     or carriage return, which would break layout or enable multi-line
  *     spoofing,
- *   - the straight apostrophe (`'`, e.g. "O'Brien").
+ *   - the straight apostrophe (`'`, e.g. "O'Brien"),
+ *   - four name SEPARATORS — `·` U+00B7, `־` U+05BE, `་` U+0F0B, `・` U+30FB —
+ *     but ONLY directly between two letters (`Codeur·euses`, `お坐・エガード`,
+ *     `אברמסקי־קרוננברג`, `འོད་ཟེར`). Every one is General_Category P, so the
+ *     letters intersection strips them by default; they are re-admitted because
+ *     stripping them SPLITS a real name in two. The flanking condition is not a
+ *     refinement but the whole point: the same characters are also used as
+ *     ornament (a trailing `Roberto ·`), and unconditional admission would let
+ *     that through. See {@link DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE}. The
+ *     ASCII hyphen is NOT among them — `Jean-Luc` stays rejected.
  *
  * Everything else is rejected: emoji (🐧), symbols (⁂ ⏚), `:emoji:` shortcodes,
  * digits, hyphens, dots, control whitespace (tab/newline/CR), letters from
@@ -71,13 +80,44 @@ export function isValidPassword(password: string): boolean {
  *
  * The allowlist is expressed with Unicode Script_Extensions (scx=…) so a letter
  * shared by several scripts (e.g. a Han ideograph used in both Chinese and
- * Japanese) still matches. It is the set of scripts Unicode UTS #39 marks
+ * Japanese) still matches, INTERSECTED with General_Category L so only the
+ * scripts' LETTERS are admitted. That intersection is load-bearing, not a
+ * refinement: `scx=X` also carries script X's own digits, punctuation and
+ * symbols, so the un-intersected allowlist admitted 1831 non-letter code points
+ * — script digits (`٠١٢`, `०१२`), 1082 symbols (`֍ ۞ ৳`), 180 punctuation marks
+ * (`։ ، ؛ ।`), and 9 INVISIBLE format/control characters, among them U+061C
+ * ARABIC LETTER MARK (a bidi control that can visually reorder a name) and
+ * U+180E MONGOLIAN VOWEL SEPARATOR. Without it the rejections listed above held
+ * for ASCII input only. It is the set of scripts Unicode UTS #39 marks
  * "Recommended" for general interchange / identifiers, plus Cherokee and
  * Mongolian (both in real modern name use). "Common" script is deliberately
  * EXCLUDED — that is where ASCII digits and general punctuation live, and this
  * policy excludes those; the space separators, combining marks, and apostrophe a
  * name needs are added back explicitly. Limited-use / excluded / historic
  * scripts (Batak, Runic, Deseret, Adlam, …) are simply absent.
+ *
+ * CODE-POINT DENYLIST — a character policy classifies FORM, never MEANING, so a
+ * code point can be a perfectly ordinary letter to Unicode and a hate symbol to
+ * a reader. `卐` U+5350 and `卍` U+534D are the case in point: both are CJK
+ * Unified Ideographs (General_Category Lo, Script_Extensions Han), i.e. the same
+ * kind of thing as `山` in `山田太郎`, so NO script-level or category-level rule
+ * can separate them — every rule that would exclude these two also excludes Han
+ * itself, rejecting every real Chinese, Japanese and Korean name. They are
+ * therefore enumerated and SUBTRACTED from the allowlist at generation time (see
+ * `SYMBOL_LETTER_DENYLIST` in `scripts/generateDisplayNamePolicyRanges.mjs`).
+ * Because the subtraction happens inside the one emitted allowlist, every
+ * consumer enforces it with no extra probe and none can forget it; the generator
+ * additionally REFUSES an entry that an existing lever already excludes (e.g.
+ * the Tibetan svasti signs U+0FD5–U+0FD8, General_Category So, already dropped
+ * by the intersection above), so the list cannot silently accumulate dead
+ * weight.
+ *
+ * REMAINING LIMIT — that closes the "letter that reads as a symbol" gap, not the
+ * other one: slurs and abusive phrasing spelled in ordinary allowlisted letters
+ * pass by construction, because they are built from exactly the characters every
+ * real name needs. No character-level rule — allowlist, intersection, or
+ * denylist — can reject them; that needs a word-level moderation layer, which is
+ * deliberately not attempted here.
  *
  * HERMES / RANGES: the class bodies below are built from explicit Unicode
  * code-point RANGES ({@link DISPLAY_NAME_ALLOWED_SCRIPTS_RANGES} et al. from
@@ -100,21 +140,28 @@ export function isValidPassword(password: string): boolean {
 
 /**
  * The curated allowlist of Unicode scripts permitted in a display name, as a
- * character-class body of explicit code-point ranges (the compressed union of
- * the 30 allowlisted Script_Extensions, generated on V8). Interpolated into the
- * negated class below.
+ * character-class body of explicit code-point ranges: the union of the 30
+ * allowlisted Script_Extensions, INTERSECTED with General_Category L (so letters
+ * only), MINUS the symbol-letter denylist — 120823 code points. Interpolated
+ * into the negated class below, which is why both the reject gate here and the
+ * `@oxyhq/api` strip path inherit the denylist without a second pattern.
  */
 export const DISPLAY_NAME_ALLOWED_SCRIPTS = DISPLAY_NAME_ALLOWED_SCRIPTS_RANGES;
 
 /**
  * Source of the disallowed-character pattern: the negation of the full allowed
  * set (allowlisted scripts + combining marks + space separators + the straight
- * apostrophe). Consumers compile this with the `u` flag (and `g` for a global
- * strip). The whitespace class is space separators only (General_Category Zs),
- * NOT `\s` — the latter would admit tab/newline/carriage return, which break
- * layout and enable multi-line spoofing.
+ * apostrophe + the name separators). Consumers compile this with the `u` flag
+ * (and `g` for a global strip). The whitespace class is space separators only
+ * (General_Category Zs), NOT `\s` — the latter would admit tab/newline/carriage
+ * return, which break layout and enable multi-line spoofing.
+ *
+ * The name separators are admitted here only as CHARACTERS. Their position rule
+ * is a separate pattern ({@link DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE}), for
+ * the same reason combining marks are: a negated character class cannot express
+ * "allowed only in this context". Both halves must be applied together.
  */
-export const DISPLAY_NAME_DISALLOWED_SOURCE = `[^${DISPLAY_NAME_ALLOWED_SCRIPTS}${DISPLAY_NAME_COMBINING_MARKS_RANGES}${DISPLAY_NAME_SPACE_SEPARATORS_RANGES}']`;
+export const DISPLAY_NAME_DISALLOWED_SOURCE = `[^${DISPLAY_NAME_ALLOWED_SCRIPTS}${DISPLAY_NAME_COMBINING_MARKS_RANGES}${DISPLAY_NAME_SPACE_SEPARATORS_RANGES}${DISPLAY_NAME_NAME_SEPARATORS_RANGES}']`;
 
 /**
  * Source of the orphaned combining-mark pattern: a run of combining marks NOT
@@ -129,29 +176,68 @@ export const DISPLAY_NAME_DISALLOWED_SOURCE = `[^${DISPLAY_NAME_ALLOWED_SCRIPTS}
  */
 export const DISPLAY_NAME_ORPHANED_MARK_SOURCE = `(?<![${DISPLAY_NAME_LETTERS_RANGES}${DISPLAY_NAME_COMBINING_MARKS_RANGES}])[${DISPLAY_NAME_COMBINING_MARKS_RANGES}]+`;
 
+/**
+ * Source of the unflanked name-separator pattern — the positional half of the
+ * name-separator rule, and the exact counterpart of
+ * {@link DISPLAY_NAME_ORPHANED_MARK_SOURCE}: a combining mark is allowed only
+ * when it rides a base letter, and a name separator is allowed only when it JOINS
+ * two letters. Matches a separator that is missing a letter on either side, so
+ * consumers can reject it (non-global probe) or strip it (`g` flag).
+ *
+ * Two alternatives, one per side, because JS has no "not surrounded by" atom:
+ *   - `(?<![letters][marks])[sep]` — nothing letter-like immediately BEFORE.
+ *   - `[sep](?![letters])`        — no letter immediately AFTER.
+ *
+ * The left-hand class deliberately includes combining marks as well as letters:
+ * a base letter can carry an accent (`Renée·euses`, or a decomposed `e`+◌́), and
+ * that mark sits between the letter and the separator. Treating a mark as
+ * letter-like is what stops an accent from defeating the flanking test — the
+ * same reason the orphaned-mark lookbehind uses the identical pair of classes.
+ * The right-hand class is letters only: a mark AFTER a separator has no base and
+ * is removed by the orphaned-mark rule, so the separator is genuinely unflanked.
+ *
+ * Both lookarounds are single-character (no variable-length lookbehind), and the
+ * classes are explicit code-point ranges, so the compiled regex is within what
+ * Hermes accepts.
+ *
+ * `Codeur·euses` and `お坐・エガード` match NOTHING here and survive. A leading
+ * `·Roberto`, a trailing `Roberto ·`, and a doubled `a··b` each match and are
+ * stripped — which is what keeps a decorative middle dot from riding in on the
+ * back of the orthographic one.
+ */
+export const DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE = `(?<![${DISPLAY_NAME_LETTERS_RANGES}${DISPLAY_NAME_COMBINING_MARKS_RANGES}])[${DISPLAY_NAME_NAME_SEPARATORS_RANGES}]|[${DISPLAY_NAME_NAME_SEPARATORS_RANGES}](?![${DISPLAY_NAME_LETTERS_RANGES}])`;
+
 /** Non-global probe for the presence of a disallowed character. */
 const DISALLOWED_PROBE = new RegExp(DISPLAY_NAME_DISALLOWED_SOURCE, 'u');
 
 /** Non-global probe for the presence of an orphaned combining mark. */
 const ORPHANED_MARK_PROBE = new RegExp(DISPLAY_NAME_ORPHANED_MARK_SOURCE, 'u');
 
+/** Non-global probe for the presence of an unflanked name separator. */
+const UNFLANKED_SEPARATOR_PROBE = new RegExp(DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE, 'u');
+
 /**
  * Whether `raw` already satisfies the display-name policy, i.e. it contains no
- * disallowed characters AND no orphaned combining marks. Used to REJECT native
- * (signup / profile edit) names with a 400 rather than silently stripping them,
- * and to validate inline in the client editor.
+ * disallowed characters, no orphaned combining marks, and no unflanked name
+ * separator. Used to REJECT native (signup / profile edit) names with a 400
+ * rather than silently stripping them, and to validate inline in the client
+ * editor.
  *
- * The orphaned-mark probe runs on the NFC-normalized form so a legitimate
- * decomposed accent (`e`+◌́) — which normalization recomposes into `é` — is NOT
- * rejected, while a lone, base-less mark (e.g. `"༘"`) IS.
+ * The two positional probes run on the NFC-normalized form, the character probe
+ * on the raw input. Normalization matters for both: a legitimate decomposed
+ * accent (`e`+◌́) recomposes into `é`, so it is NOT rejected as an orphaned mark,
+ * and a separator after that accent sees a base letter rather than a mark.
  *
- * The function only checks the character set; an empty or whitespace-only string
- * is considered valid (`true`). Call sites that require a non-empty name enforce
- * that separately.
+ * The function only checks the character set and separator placement; an empty
+ * or whitespace-only string is considered valid (`true`). Call sites that require
+ * a non-empty name enforce that separately.
  */
 export function isValidDisplayName(raw: string): boolean {
+  const normalized = raw.normalize('NFC');
   return (
-    !DISALLOWED_PROBE.test(raw) && !ORPHANED_MARK_PROBE.test(raw.normalize('NFC'))
+    !DISALLOWED_PROBE.test(raw) &&
+    !ORPHANED_MARK_PROBE.test(normalized) &&
+    !UNFLANKED_SEPARATOR_PROBE.test(normalized)
   );
 }
 
@@ -281,7 +367,10 @@ export function validateAndSanitizeUserInput(input: unknown, type: 'string' | 'e
     case 'email':
       return isValidEmail(sanitized) ? sanitized : null;
     case 'username':
-      return isValidUsername(sanitized) ? sanitized : null;
+      // The ONE policy, from `@oxyhq/contracts`. This module used to declare a
+      // second one (`^[a-zA-Z0-9_-]{3,30}$`) that the server did not enforce, so
+      // the SDK could call a name valid and the API 400 it.
+      return usernameSchema.safeParse(sanitized).success ? sanitized : null;
     case 'string':
       return isRequiredString(sanitized) ? sanitized : null;
     default:

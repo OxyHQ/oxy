@@ -101,6 +101,9 @@ export async function commitDeviceSetAndResolve(
       }
       fullUser = fallbackUser;
     }
+    if (!fullUser) {
+      fullUser = fallbackUser;
+    }
     if (fullUser) {
       loginSuccess(fullUser);
       onAuthStateChange?.(fullUser);

@@ -54,7 +54,7 @@ import {
   PERSONHOOD_REAL_LIFE_COMPONENT,
   PERSONHOOD_BIOMETRIC_COMPONENT,
 } from './civic.constants';
-import type { PersonhoodBreakdown } from '../models/PersonhoodStatus';
+import type { PersonhoodBreakdown } from '../db/schema/personhoodStatuses';
 
 /** Raw, aggregated personhood inputs for a single user. */
 export interface PersonhoodInputs {

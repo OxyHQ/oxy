@@ -1,13 +1,16 @@
 import express, { type Request, type Response } from 'express';
-import type { Model, Document } from 'mongoose';
-import User from "../models/User";
-import Block from "../models/Block";
-import Restricted from "../models/Restricted";
+import { and, eq } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
+import { getDb } from '../config/postgres';
+import { blocks } from '../db/schema/blocks';
+import { restrictions } from '../db/schema/restrictions';
+import { users } from '../db/schema/users';
 import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { BadRequestError, NotFoundError, ConflictError, UnauthorizedError } from '../utils/error';
 import { resolveUserIdToObjectId } from '../utils/validation';
-import userCache from '../utils/userCache';
+import { accountService } from '../services/account.service';
+import { userService } from '../services/user.service';
 import blockCache, { restrictCache } from '../utils/blockCache';
 import graphCache from '../utils/graphCache';
 import { validate } from '../middleware/validate';
@@ -38,11 +41,11 @@ const getPrivacySettings = asyncHandler(async (req: Request, res: Response) => {
     throw new BadRequestError('Not authorized to view these settings');
   }
 
-  const user = await User.findById(objectId).select('privacySettings').lean();
-  if (!user) {
+  const settings = await userService.readPrivacySettings(objectId);
+  if (!settings) {
     throw new NotFoundError('User not found');
   }
-  res.json(user.privacySettings);
+  res.json(settings);
 });
 
 // Update privacy settings
@@ -62,49 +65,121 @@ const updatePrivacySettings = asyncHandler(async (req: Request, res: Response) =
     throw new BadRequestError('Not authorized to update these settings');
   }
 
-  const setOps: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(settings)) {
-    setOps[`privacySettings.${key}`] = value;
-  }
+  // Merges only the supplied keys; the service owns the wire-key -> column map
+  // and the userCache invalidation that keeps the next session read fresh.
+  const updated = await userService.updatePrivacySettings(objectId, settings);
 
-  const user = await User.findByIdAndUpdate(
-    objectId,
-    Object.keys(setOps).length > 0 ? { $set: setOps } : {},
-    { new: true }
-  ).select('privacySettings');
-
-  if (!user) {
+  if (!updated) {
     throw new NotFoundError('User not found');
   }
 
-  // Bust the in-memory user cache so the next getUserBySession serves the
-  // fresh privacy settings instead of the stale snapshot. Without this the
-  // client refetch on mutation success silently reverts the toggle.
-  userCache.invalidate(objectId);
-
-  res.json(user.privacySettings);
+  res.json(updated);
 });
 
-// Generic handler factory for user management operations
-const createUserListHandler = <T extends Document>(
-  UserModel: Model<T>,
-  fieldName: 'blockedId' | 'restrictedId'
-) => {
-  return asyncHandler(async (req: Request, res: Response) => {
-    const authUser = (req as AuthenticatedRequest).user;
-    const users = await UserModel.find({ userId: authUser?.id })
-      .populate(fieldName, 'username avatar')
-      .lean();
-    res.json(users);
-  });
+/**
+ * One of the two symmetric "user A has flagged user B" relations.
+ *
+ * The Mongo version parameterised its three handlers by MODEL plus a field
+ * NAME, which meant the field name was a string the type system never checked
+ * against the model. Here the descriptor carries the real columns, so a
+ * mismatched pair does not compile.
+ */
+interface UserRelation {
+  table: typeof blocks | typeof restrictions;
+  /** The column holding the acting user. */
+  owner: PgColumn;
+  /** The column holding the user acted upon. */
+  counterparty: PgColumn;
+  /** The wire key the counterparty is emitted under. */
+  responseKey: 'blockedId' | 'restrictedId';
+}
+
+const BLOCK_RELATION: UserRelation = {
+  table: blocks,
+  owner: blocks.userId,
+  counterparty: blocks.blockedId,
+  responseKey: 'blockedId',
 };
 
-const createUserActionHandler = <T extends Document>(
-  UserModel: Model<T>,
-  fieldName: 'blockedId' | 'restrictedId',
-  actionName: string
-) => {
-  return asyncHandler(async (req: Request, res: Response) => {
+const RESTRICT_RELATION: UserRelation = {
+  table: restrictions,
+  owner: restrictions.userId,
+  counterparty: restrictions.restrictedId,
+  responseKey: 'restrictedId',
+};
+
+/**
+ * List the caller's relation rows with the counterparty profile embedded.
+ *
+ * The `.populate(field, 'username avatar name')` this replaces was a SECOND
+ * query Mongo issued behind the call; here it is one join, and the three
+ * embedded fields are named explicitly rather than by a projection string.
+ */
+const createUserListHandler = (relation: UserRelation) =>
+  asyncHandler(async (req: Request, res: Response) => {
+    const authUser = (req as AuthenticatedRequest).user;
+    if (!authUser?.id) {
+      throw new UnauthorizedError('Authentication required');
+    }
+
+    const rows = await getDb()
+      .select({
+        id: relation.table.id,
+        userId: relation.owner,
+        counterpartyId: relation.counterparty,
+        username: users.username,
+        avatar: users.avatar,
+        nameFirst: users.nameFirst,
+        nameLast: users.nameLast,
+        createdAt: relation.table.createdAt,
+      })
+      .from(relation.table)
+      .innerJoin(users, eq(users.id, relation.counterparty))
+      .where(eq(relation.owner, authUser.id));
+
+    res.json(
+      rows.map((row) => ({
+        _id: row.id,
+        userId: row.userId,
+        [relation.responseKey]: {
+          _id: row.counterpartyId,
+          username: row.username ?? undefined,
+          avatar: row.avatar ?? undefined,
+          name: { first: row.nameFirst ?? undefined, last: row.nameLast ?? undefined },
+        },
+        createdAt: row.createdAt,
+      }))
+    );
+  });
+
+/**
+ * Take a relation out on `targetId`.
+ *
+ * ## Neither of these may be pointed at an account the caller operates
+ *
+ * The self-refusal below is the whole truth only for a personal login. A
+ * channel, organization, project or bot is never the caller's own id, so the id
+ * comparison answers "no" for all four and used to let an operator block or
+ * restrict an account they themselves speak with — an act with no coherent
+ * meaning (block is symmetric, so it half-severs the operator from their own
+ * account's audience) and one no client offers. Making it *impossible* rather
+ * than merely hidden is the point: `oxyServices.blockUser` reaches this route
+ * directly, so a guard anywhere else is bypassed by the request the app already
+ * makes.
+ *
+ * `accountService.operatesAccount` is the single authority for "operates" —
+ * shared with `POST /accounts/:id/switch` and with the consuming apps that ask
+ * the same question over the wire — and it answers `false` for everything it
+ * cannot positively confirm, so an unresolvable membership lets the protective
+ * action through rather than stranding somebody who needs it. See that method
+ * for why this direction is the opposite of the one `verifyActingAs` takes.
+ *
+ * BOTH actions, not just block. Restrict is the same shape of decision aimed at
+ * the same target — a self-directed moderation action against your own voice —
+ * and it costs the operator the same nothing to be refused.
+ */
+const createUserActionHandler = (relation: UserRelation, actionName: string) =>
+  asyncHandler(async (req: Request, res: Response) => {
     const { targetId } = req.params;
     const authUser = (req as AuthenticatedRequest).user;
 
@@ -112,20 +187,26 @@ const createUserActionHandler = <T extends Document>(
       throw new BadRequestError(`Invalid ${actionName} request`);
     }
 
-    const existing = await UserModel.findOne({
-      userId: authUser.id,
-      [fieldName]: targetId
-    });
-
-    if (existing) {
-      throw new ConflictError(`User already ${actionName === 'block' ? 'blocked' : 'restricted'}`);
+    // 400 and not 403, matching the self-refusal above: this is a request that
+    // does not mean anything, not a right the caller lacks. 403 would signal the
+    // opposite of the truth — they hold MORE authority over this account than a
+    // stranger does, not less. Naming the reason leaks nothing, since being told
+    // you operate an account you operate tells you what you already knew.
+    if (await accountService.operatesAccount(authUser.id, targetId)) {
+      throw new BadRequestError(`You cannot ${actionName} an account you operate`);
     }
 
-    const record = new UserModel({
-      userId: authUser.id,
-      [fieldName]: targetId
-    });
-    await record.save();
+    // The compound unique is the arbiter of "already flagged": a concurrent
+    // duplicate returns no row rather than racing a read-then-write.
+    const inserted = await getDb()
+      .insert(relation.table)
+      .values({ userId: authUser.id, [relation.responseKey]: targetId })
+      .onConflictDoNothing()
+      .returning({ id: relation.table.id });
+
+    if (inserted.length === 0) {
+      throw new ConflictError(`User already ${actionName === 'block' ? 'blocked' : 'restricted'}`);
+    }
 
     // The media-access block check (mediaPrivacyService.isUserBlocked) caches
     // the block relationship in `blockCache` (60s TTL) keyed by (ownerId,
@@ -133,7 +214,7 @@ const createUserActionHandler = <T extends Document>(
     // depending on which side owns the media being viewed, so bust both keys —
     // otherwise a just-blocked user keeps seeing the blocker's media until the
     // TTL lapses.
-    if (fieldName === 'blockedId') {
+    if (relation.responseKey === 'blockedId') {
       blockCache.invalidate(authUser.id, targetId);
       blockCache.invalidate(targetId, authUser.id);
 
@@ -144,22 +225,21 @@ const createUserActionHandler = <T extends Document>(
         graphCache.invalidate(authUser.id),
         graphCache.invalidate(targetId),
       ]);
-    } else if (fieldName === 'restrictedId') {
+    } else {
       // Restrict is asymmetric: only the restricter's media is hidden from the
       // restricted user, so bust the single (owner, viewer) cache key.
       restrictCache.invalidate(authUser.id, targetId);
+
+      // The restriction changed the restricter's cached `restrictedIds`. Only
+      // their own graph carries it (asymmetric), so bust just that one.
+      await graphCache.invalidate(authUser.id);
     }
 
     res.json({ message: `User ${actionName === 'block' ? 'blocked' : 'restricted'} successfully` });
   });
-};
 
-const createUserRemoveHandler = <T extends Document>(
-  UserModel: Model<T>,
-  fieldName: 'blockedId' | 'restrictedId',
-  actionName: string
-) => {
-  return asyncHandler(async (req: Request, res: Response) => {
+const createUserRemoveHandler = (relation: UserRelation, actionName: string) =>
+  asyncHandler(async (req: Request, res: Response) => {
     const { targetId } = req.params;
     const authUser = (req as AuthenticatedRequest).user;
 
@@ -167,19 +247,19 @@ const createUserRemoveHandler = <T extends Document>(
       throw new UnauthorizedError("Authentication required");
     }
 
-    const result = await UserModel.deleteOne({
-      userId: authUser.id,
-      [fieldName]: targetId
-    });
+    const deleted = await getDb()
+      .delete(relation.table)
+      .where(and(eq(relation.owner, authUser.id), eq(relation.counterparty, targetId)))
+      .returning({ id: relation.table.id });
 
-    if (result.deletedCount === 0) {
+    if (deleted.length === 0) {
       throw new NotFoundError(`${actionName === 'unblock' ? 'Block' : 'Restriction'} not found`);
     }
 
     // Symmetric to blockUser: drop both cached directions so the unblocked user
     // regains access to the formerly-blocking user's media immediately instead
     // of waiting out the blockCache TTL.
-    if (fieldName === 'blockedId') {
+    if (relation.responseKey === 'blockedId') {
       blockCache.invalidate(authUser.id, targetId);
       blockCache.invalidate(targetId, authUser.id);
 
@@ -189,23 +269,23 @@ const createUserRemoveHandler = <T extends Document>(
         graphCache.invalidate(authUser.id),
         graphCache.invalidate(targetId),
       ]);
-    } else if (fieldName === 'restrictedId') {
+    } else {
       restrictCache.invalidate(authUser.id, targetId);
+      await graphCache.invalidate(authUser.id);
     }
 
     res.json({ message: `User ${actionName === 'unblock' ? 'unblocked' : 'unrestricted'} successfully` });
   });
-};
 
 // Blocked users handlers
-const getBlockedUsers = createUserListHandler(Block, 'blockedId');
-const blockUser = createUserActionHandler(Block, 'blockedId', 'block');
-const unblockUser = createUserRemoveHandler(Block, 'blockedId', 'unblock');
+const getBlockedUsers = createUserListHandler(BLOCK_RELATION);
+const blockUser = createUserActionHandler(BLOCK_RELATION, 'block');
+const unblockUser = createUserRemoveHandler(BLOCK_RELATION, 'unblock');
 
 // Restricted users handlers
-const getRestrictedUsers = createUserListHandler(Restricted, 'restrictedId');
-const restrictUser = createUserActionHandler(Restricted, 'restrictedId', 'restrict');
-const unrestrictUser = createUserRemoveHandler(Restricted, 'restrictedId', 'unrestrict');
+const getRestrictedUsers = createUserListHandler(RESTRICT_RELATION);
+const restrictUser = createUserActionHandler(RESTRICT_RELATION, 'restrict');
+const unrestrictUser = createUserRemoveHandler(RESTRICT_RELATION, 'unrestrict');
 
 /**
  * @openapi
@@ -324,6 +404,13 @@ router.get("/blocked", getBlockedUsers);
  *     responses:
  *       200:
  *         description: User blocked.
+ *       400:
+ *         description: >
+ *           The target is the caller, or an account the caller operates — an
+ *           active member of a channel, or a member of an organization /
+ *           project / bot holding `account:act_as`.
+ *       409:
+ *         description: Already blocked.
  */
 router.post("/blocked/:targetId", validate({ params: targetIdParams }), blockUser);
 
@@ -379,6 +466,12 @@ router.get("/restricted", getRestrictedUsers);
  *     responses:
  *       200:
  *         description: User restricted.
+ *       400:
+ *         description: >
+ *           The target is the caller, or an account the caller operates — same
+ *           rule as `POST /privacy/blocked/{targetId}`.
+ *       409:
+ *         description: Already restricted.
  */
 router.post("/restricted/:targetId", validate({ params: targetIdParams }), restrictUser);
 

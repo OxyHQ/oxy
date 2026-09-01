@@ -6,7 +6,7 @@ import { AccountCard, ScreenHeader } from '@/components/ui';
 import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
 import { useOxy } from '@oxyhq/services';
 import { formatDate } from '@/utils/date-utils';
-import { getAccountDisplayName } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { AccountInfoGrid, type AccountInfoCard } from '@/components/account-info-grid';
 import { Section } from '@/components/section';
@@ -33,7 +33,10 @@ export default function PersonalInfoScreen() {
   }, [showBottomSheet]);
 
   // Compute current-account profile data.
-  const displayName = useMemo(() => getAccountDisplayName(user), [user]);
+  const displayName = useMemo(
+    () => user?.name?.displayName ?? getNormalizedUserHandle(user) ?? '',
+    [user],
+  );
   const userUsername = useMemo(() => user?.username ?? null, [user?.username]);
   const userEmail = useMemo(() => user?.email ?? t('personalInfo.fields.noEmail'), [user?.email, t]);
   const extendedUser = user as ExtendedUser | undefined;

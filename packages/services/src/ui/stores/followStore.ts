@@ -27,7 +27,7 @@ interface FollowState {
   // requested within the same tick into ONE `getFollowStatuses` call. Ids that
   // are already known/seeded or already in flight are skipped.
   resolveFollowStatuses: (userIds: string[], oxyServices: OxyServices) => void;
-  toggleFollowUser: (userId: string, oxyServices: OxyServices, isCurrentlyFollowing: boolean) => Promise<void>;
+  toggleFollowUser: (userId: string, oxyServices: OxyServices, isCurrentlyFollowing: boolean) => Promise<boolean>;
   // Bulk follow — follows MANY users in one network call; never unfollows.
   followManyUsers: (userIds: string[], oxyServices: OxyServices) => Promise<BulkFollowResult>;
   // Bulk unfollow — unfollows MANY users in one network call; idempotent, never follows.
@@ -237,6 +237,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
           return { followerCounts };
         });
       }
+      return true;
     } catch (error: unknown) {
       // Roll back to the prior value (or back to UNKNOWN if there was none).
       set((state) => {
@@ -252,6 +253,7 @@ export const useFollowStore = create<FollowState>((set, get) => ({
           errors: { ...state.errors, [userId]: (error instanceof Error ? error.message : null) || 'Failed to update follow status' },
         };
       });
+      return false;
     }
   },
   followManyUsers: async (userIds: string[], oxyServices: OxyServices): Promise<BulkFollowResult> => {

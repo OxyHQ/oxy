@@ -106,7 +106,8 @@ export interface OxySignInButtonProps {
      *   onOAuthResult={({ redirectUrl, state, codeVerifier }) => {
      *     if (!redirectUrl) return;
      *     const code = new URL(redirectUrl).searchParams.get('code');
-     *     // → POST /auth/oauth/token { code, code_verifier: codeVerifier, state }
+     *     // → POST /auth/oauth/token, form-urlencoded:
+     *     //   grant_type=authorization_code&code=…&redirect_uri=…&client_id=…&code_verifier=…
      *   }}
      * />
      * ```
@@ -203,7 +204,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
 
     // A press that cannot reach a sign-in surface must SAY so. Without this the
     // only trace of an aborted sign-in was a console line, so the button read as
-    // simply dead — the SDK owns this, so no relying party has to wire it up.
+    // simply dead — the SDK owns this so no relying party has to wire it up.
     // `ToastOutlet` is already mounted by `OxyProvider`.
     const notifyNotConfigured = useCallback(
         (appName: string) => {
@@ -302,10 +303,11 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
     );
 
     // Resolve the Application once, then route: third-party → OAuth; first-party
-    // / official / unresolved → the in-app dialog. Resolution failure NEVER
-    // breaks an official app's sign-in — it falls back to the dialog. Every path
-    // that does NOT reach the OAuth lane closes the pre-opened popup, so a
-    // mis-routed press can never leave an empty window on screen.
+    // / official → the in-app dialog. An unresolved client must fail closed:
+    // opening the privileged device-session dialog without a known first-party
+    // classification could downgrade a third-party OAuth + PKCE flow. Every path
+    // that does NOT reach the OAuth lane closes the pre-opened popup, so an
+    // aborted press can never leave an empty window on screen.
     const routeSignIn = useCallback(
         async (popup: OAuthPopupHandle | null): Promise<void> => {
             if (routingRef.current) {
@@ -326,11 +328,11 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                 } catch (error) {
                     closeOAuthPopup(popup);
                     logger.warn(
-                        'OxySignInButton: could not resolve the application; opening the sign-in dialog',
+                        'OxySignInButton: could not resolve the application; sign-in aborted',
                         { component: 'OxySignInButton', clientId },
                         error,
                     );
-                    startOfficialSignIn();
+                    notifyFailed();
                     return;
                 }
                 if (app.type === 'third_party' && !app.isOfficial) {

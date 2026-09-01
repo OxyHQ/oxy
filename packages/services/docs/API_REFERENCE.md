@@ -83,19 +83,20 @@ await oxyServices.logout();
 
 ---
 
-### `setTokens(accessToken, refreshToken?)`
+### `setTokens(accessToken)`
 
-Manually set authentication tokens.
+Manually set the authentication access token.
 
 ```typescript
-oxyServices.setTokens('access_token_here', 'refresh_token_here');
+oxyServices.setTokens('access_token_here');
 ```
 
 **Parameters:**
 - `accessToken` (string): JWT access token
-- `refreshToken` (string, optional): Refresh token
 
-**Returns:** `Promise<void>`
+**Returns:** `void`
+
+> Session restore uses the zero-cookie device credential (`deviceId` + `deviceSecret`) via `POST /session/device/token`, not a refresh token.
 
 ---
 

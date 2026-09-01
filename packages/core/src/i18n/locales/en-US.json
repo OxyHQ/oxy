@@ -396,13 +396,22 @@
       "remoteSignOutFailed": "There was a problem signing out from the device. Please try again.",
       "noOtherDeviceSessions": "No other device sessions found to sign out from.",
       "signOutOthersSuccess": "Signed out from all other devices successfully!",
-      "signOutOthersFailed": "There was a problem signing out from other devices. Please try again."
+      "signOutOthersFailed": "There was a problem signing out from other devices. Please try again.",
+      "contextRemoved": "Removed {{account}}",
+      "contextRemoveFailed": "There was a problem removing that account. Please try again.",
+      "principalRemoved": "Signed {{name}} out of this device",
+      "principalRemoveFailed": "There was a problem signing that person out. Please try again.",
+      "activateFailed": "There was a problem switching accounts. Please try again."
     },
     "confirms": {
       "remove": "Are you sure you want to remove {{displayName}} from this device? You'll need to sign in again to access this account.",
       "logoutAll": "Are you sure you want to sign out of all accounts? This will remove all saved accounts from this device.",
       "remoteLogout": "Are you sure you want to sign out from \"{{deviceName}}\"? This will end the session on that device.",
-      "logoutOthers": "Are you sure you want to sign out from all {{count}} other device(s)? This will end sessions on all other devices except this one."
+      "logoutOthers": "Are you sure you want to sign out from all {{count}} other device(s)? This will end sessions on all other devices except this one.",
+      "removeContextTitle": "Remove this account?",
+      "removeContext": "Stop {{person}} acting as {{account}} on this device? Anyone else who reaches {{account}} here keeps their access.",
+      "removePrincipalTitle": "Sign out of this device?",
+      "removePrincipal": "Sign {{name}} out of this device? Every account they reach here is removed. Nobody else is affected."
     },
     "device": {
       "loadingTitle": "Loading device sessions...",
@@ -439,6 +448,14 @@
       "openedInCommons": "Opened in Commons",
       "confirming": "Confirming identity",
       "confirmed": "Identity confirmed"
+    },
+    "context": {
+      "unavailable": "Unavailable right now",
+      "operatedBy": "Operated by {{name}}",
+      "remove": "Remove {{account}} from {{person}}"
+    },
+    "principal": {
+      "signOut": "Sign {{name}} out of this device"
     }
   },
   "reputation": {
@@ -684,7 +701,7 @@
         "firstNamePlaceholder": "Enter first name",
         "lastName": "Last Name",
         "lastNamePlaceholder": "Enter last name (optional)",
-        "invalidChars": "Use letters and spaces only"
+        "invalidChars": "Use letters, spaces, apostrophes, and name separators only"
       },
       "username": {
         "title": "Username",
@@ -1748,17 +1765,60 @@
         "description": "A programmatic account with service credentials"
       }
     },
-    "organizationCategory": {
+    "accountCategory": {
+      "news": "News",
+      "politics": "Politics & policy",
+      "business": "Business",
+      "startup": "Startups & entrepreneurship",
+      "finance": "Finance & investing",
+      "crypto": "Crypto & web3",
+      "marketplace": "Marketplace & classifieds",
+      "retail": "Retail & ecommerce",
+      "real_estate": "Real estate",
       "agency": "Real estate agency",
+      "landlord": "Landlord & property management",
       "cooperative": "Housing cooperative",
-      "landlord": "Landlord / property manager",
-      "other": "Other organization"
+      "architecture": "Architecture & construction",
+      "technology": "Technology",
+      "software": "Software & development",
+      "ai": "AI & machine learning",
+      "security": "Security & privacy",
+      "automation": "Automation & tools",
+      "science": "Science & research",
+      "education": "Education & training",
+      "books": "Books & writing",
+      "health": "Health & medicine",
+      "fitness": "Fitness & wellbeing",
+      "sports": "Sports",
+      "gaming": "Gaming & esports",
+      "music": "Music",
+      "film": "Film & TV",
+      "podcast": "Podcasts & audio",
+      "art": "Art & design",
+      "photography": "Photography",
+      "comedy": "Comedy",
+      "food": "Food & drink",
+      "travel": "Travel & places",
+      "fashion": "Fashion & beauty",
+      "home_garden": "Home & garden",
+      "diy": "DIY & making",
+      "automotive": "Cars & motoring",
+      "animals": "Animals & pets",
+      "family": "Family & parenting",
+      "nonprofit": "Non-profit & charity",
+      "government": "Government & public sector",
+      "community": "Local community",
+      "activism": "Activism & advocacy",
+      "environment": "Environment & sustainability",
+      "religion": "Religion & spirituality",
+      "other": "Other"
     },
     "create": {
       "title": "Create account",
       "subtitle": "Create an account you control. It will have its own profile, members, and apps.",
       "displayName": {
-        "label": "Display name"
+        "label": "Display name",
+        "invalidChars": "Use letters, spaces, apostrophes, and name separators only"
       },
       "bio": {
         "label": "Bio (optional)"
@@ -1769,10 +1829,12 @@
         "taken": "Username is taken",
         "tooShort": "Username must be at least 3 characters",
         "invalidChars": "Only letters, numbers, hyphens, and underscores",
+        "mustEndInBot": "A bot account’s username must end in “bot”",
         "checkFailed": "Could not check availability"
       },
-      "organizationCategory": {
-        "label": "Organization type"
+      "accountCategory": {
+        "label": "Categories",
+        "hint": "Pick up to {{max}}. The first one is your main category."
       },
       "toasts": {
         "success": "Account created",
@@ -1795,6 +1857,7 @@
       "title": "Members",
       "subtitle": "People with access to this account.",
       "empty": "No members yet.",
+      "inherited": "Inherited",
       "actions": {
         "remove": "Remove member",
         "transfer": "Transfer ownership"
@@ -1835,7 +1898,8 @@
       "subtitle": "Manage this account’s profile, members, and access.",
       "save": "Save changes",
       "displayName": {
-        "label": "Display name"
+        "label": "Display name",
+        "invalidChars": "Use letters, spaces, apostrophes, and name separators only"
       },
       "bio": {
         "label": "Bio (optional)"
@@ -2073,8 +2137,13 @@
       "filesWrite": "Upload and modify your files",
       "filesDelete": "Delete your files",
       "webhooksReceive": "Receive webhooks",
-      "chatCompletions": "Use AI chat on your behalf",
-      "modelsRead": "List available AI models",
+      "inferenceInvoke": "Run AI requests on your behalf",
+      "inferenceModelsRead": "List available AI models",
+      "inferenceUsageRead": "Read its AI usage and costs",
+      "inferenceRoutingRead": "Read how AI requests are routed",
+      "inferenceRoutingWrite": "Change how AI requests are routed",
+      "inferenceProvidersRead": "Read its connected AI providers",
+      "inferenceProvidersWrite": "Manage its connected AI providers",
       "federationWrite": "Act across federated services"
     },
     "account": {

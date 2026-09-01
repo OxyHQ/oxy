@@ -21,7 +21,8 @@
  * key (dev / pre-prod) simply skips emission, exactly like the signed export.
  */
 
-import type { SignedRecordEnvelope } from '@oxyhq/contracts';
+import { createHash } from 'node:crypto';
+import type { ModerationSeverity, SignedRecordEnvelope } from '@oxyhq/contracts';
 import { signedRecordSigningInput } from '@oxyhq/protocol';
 import SignatureService from '../signature.service';
 import { buildUserDid, OXY_DID } from '../did.service';
@@ -40,8 +41,8 @@ const MAX_ATTESTATION_ATTEMPTS = 4;
 
 /** The minimal transaction shape an attestation references. */
 export interface AttestableTransaction {
-  _id: unknown;
-  userId: unknown;
+  id: string;
+  userId: string;
   actionType: string;
   points: number;
   category: string;
@@ -71,8 +72,8 @@ export async function attestAward(
     return null;
   }
 
-  const subjectUserId = String(txn.userId);
-  const txnId = String(txn._id);
+  const subjectUserId = txn.userId;
+  const txnId = txn.id;
   const subjectDid = buildUserDid(subjectUserId);
 
   // Idempotency: at most one attestation per txn (keyed by rkey = txnId).
@@ -140,6 +141,139 @@ export async function attestAward(
     component: 'civic.attestation',
     txnId,
     subjectUserId,
+  });
+  return null;
+}
+
+/** AtProto-style collection (NSID) for moderation-conduct effect attestations. */
+export const MODERATION_EFFECT_ATTESTATION_COLLECTION = 'app.oxy.moderationEffect';
+
+/** What a moderation attestation is allowed to know. */
+export interface ModerationEffectAttestationInput {
+  /** The ledger transaction the attestation covers; also the record's `rkey`. */
+  transactionId: string;
+  /** The subject whose chain the record lands on. */
+  subjectUserId: string;
+  /** Severity BAND only — never the taxonomy code. */
+  severityBand: ModerationSeverity;
+  /** Signed points, already multiplied and capped. */
+  points: number;
+  /** Hash of the PRIVATE decision document. Provenance without contents. */
+  decisionHash: string;
+  /** The Oxy conduct policy version the consequence was derived under. */
+  policyVersion: string;
+  /** The effect's idempotency key, stored HASHED — see below. */
+  sourceActionId: string;
+}
+
+/**
+ * Emit an Oxy-signed attestation for a moderation conduct effect.
+ *
+ * SEPARATE from {@link attestAward} on purpose, and the difference is the whole
+ * reason this function exists: a reputation attestation is exportable and may end
+ * up on a public chain, so a moderation one must be a MINIMAL PROOF rather than a
+ * description. It carries a severity BAND, the points, the hash of the private
+ * decision and the policy version — and nothing else:
+ *
+ *  - NO taxonomy code. `harassment.targeted_abuse` in an exportable record turns
+ *    a reputation chain into a published charge sheet.
+ *  - NO victim, reporter or juror identifier. Naming them would put the people a
+ *    moderation system protects into its most durable artefact.
+ *  - NO content, no evidence reference, no case id.
+ *  - The `sourceActionId` is stored as a SHA-256 hash, not in the clear: the key
+ *    embeds the incident id, which correlates across effects and would let a
+ *    holder of two records infer they concern the same case. The hash still
+ *    proves which effect the attestation covers to anyone who already knows the
+ *    key.
+ *
+ * A verifier who holds the private decision can recompute `decisionHash` and
+ * confirm the chain; a verifier who does not learns only that a consequence of
+ * some band occurred. That asymmetry is the design.
+ *
+ * Best-effort and non-fatal, exactly like {@link attestAward}: a missing Oxy key
+ * skips emission, and a signing failure never blocks or rolls back the
+ * consequence.
+ */
+export async function attestModerationEffect(
+  input: ModerationEffectAttestationInput,
+): Promise<SignedRecordEnvelope | null> {
+  const privateKey = process.env.OXY_PRIVATE_KEY;
+  const publicKey = process.env.OXY_PUBLIC_KEY;
+  if (!privateKey || !publicKey) {
+    logger.warn(
+      'Moderation attestation skipped: OXY_PRIVATE_KEY/OXY_PUBLIC_KEY not configured',
+      { component: 'civic.attestation' },
+    );
+    return null;
+  }
+
+  const subjectDid = buildUserDid(input.subjectUserId);
+
+  // Idempotency: at most one attestation per transaction.
+  const existing = await materializeCurrent(
+    input.subjectUserId,
+    MODERATION_EFFECT_ATTESTATION_COLLECTION,
+    input.transactionId,
+  );
+  if (existing) {
+    return existing;
+  }
+
+  const record: Record<string, unknown> = {
+    actionType: 'moderation_conduct_effect',
+    severityBand: input.severityBand,
+    points: input.points,
+    decisionHash: input.decisionHash,
+    policyVersion: input.policyVersion,
+    sourceActionIdHash: createHash('sha256').update(input.sourceActionId).digest('hex'),
+  };
+
+  for (let attempt = 0; attempt < MAX_ATTESTATION_ATTEMPTS; attempt += 1) {
+    const head = await getHead(input.subjectUserId);
+    const seq = head ? head.seq + 1 : 0;
+    const prev = head ? head.headRecordId : null;
+
+    const fields: Omit<SignedRecordEnvelope, 'signature'> = {
+      version: 2,
+      type: 'reputation_attestation',
+      subject: subjectDid,
+      issuer: OXY_DID,
+      record,
+      issuedAt: Date.now(),
+      seq,
+      prev,
+      collection: MODERATION_EFFECT_ATTESTATION_COLLECTION,
+      rkey: input.transactionId,
+      publicKey,
+      alg: ALG,
+    };
+    const signature = SignatureService.signMessage(signedRecordSigningInput(fields), privateKey);
+    const envelope: SignedRecordEnvelope = { ...fields, signature };
+
+    const result = await verifyAndStoreRecord(envelope, input.subjectUserId);
+    if (result.ok) {
+      return envelope;
+    }
+
+    if (
+      result.reason === 'chain_conflict' ||
+      result.reason === 'bad_seq' ||
+      result.reason === 'chain_fork'
+    ) {
+      continue;
+    }
+
+    logger.warn('Moderation attestation rejected (non-fatal)', {
+      component: 'civic.attestation',
+      reason: result.reason,
+      transactionId: input.transactionId,
+    });
+    return null;
+  }
+
+  logger.warn('Moderation attestation abandoned after chain-race retries', {
+    component: 'civic.attestation',
+    transactionId: input.transactionId,
   });
   return null;
 }

@@ -1,5 +1,3 @@
-import { IFile } from '../models/File';
-
 export interface MediaAccessContext {
   app?: string;
   entityType?: string;

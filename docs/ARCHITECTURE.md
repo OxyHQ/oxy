@@ -126,7 +126,7 @@ See [architecture/overview.md](./architecture/overview.md) for the full monorepo
 |                                |                                  |
 |                                v                                  |
 |   +---------------------------------------------------------+    |
-|   |                       MongoDB                            |    |
+|   |                      PostgreSQL                          |    |
 |   |  Users, Sessions, DeviceSessions, Applications, Grants   |    |
 |   +---------------------------------------------------------+    |
 +-----------------------------------------------------------------+
@@ -321,7 +321,7 @@ for the consent surface. Full walkthrough:
 
 `auth.oxy.so` (packages/auth) is the OAuth authorize/consent IdP. It mounts
 `OxyProvider` from `@oxyhq/services` device-first like every Oxy app (normal
-cold boot from its own `{deviceId, deviceSecret}`, `useSwitchableAccounts`
+cold boot from its own `{deviceId, deviceSecret}`, `useDeviceSwitcher`
 chooser, `signInWithPassword`/`completeTwoFactorSignIn`/`handleWebSession`
 funnels). It stays a SHELL that emits the OAuth code after authenticating —
 NOT a Relying Party. Account management lives exclusively on
@@ -418,7 +418,8 @@ POST /auth/session/deny/:authorizeCode        # Deny/cancel
 
 ```
 POST   /auth/oauth/authorize      # Mint single-use authorization code (IdP, Bearer)
-POST   /auth/oauth/token          # Code → tokens (PKCE or confidential)
+POST   /auth/oauth/token          # Code → tokens, RFC 6749 §4.1.3 (PKCE or confidential)
+GET    /auth/oauth/userinfo       # OpenID Connect claims for the bearer (GET or POST)
 GET    /auth/oauth/consent        # Consent decision for the current user + client
 GET    /auth/oauth/client/:clientId  # Public Application metadata
 GET    /auth/grants               # Connected apps

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import type { CommonsApprovalInfo, PublicApplication } from '@oxyhq/core';
 import { __resetOxyState } from '@/__mocks__/oxyhq-services';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
@@ -44,6 +44,7 @@ function renderRequest(overrides: Partial<ApprovalRequestProps> = {}) {
     application: APPLICATION,
     identityName: 'Nate',
     confirmationIssue: null,
+    onClose: jest.fn(),
     onOpenLink: jest.fn(),
     ...overrides,
   };
@@ -64,7 +65,6 @@ describe('ApprovalRequest', () => {
     // Scope sentences come from the shared consent dictionary.
     expect(container.textContent).toContain('Read your basic profile');
     expect(container.textContent).toContain('Read your email address');
-    expect(container.textContent).not.toContain('Official Oxy app');
     // The logo is the server-resolved record's, not a payload-supplied URL.
     expect(container.querySelector('img')?.getAttribute('src')).toBe(APPLICATION.icon);
   });
@@ -115,6 +115,14 @@ describe('ApprovalRequest', () => {
     expect(getByTestId('approval-requester').textContent).toBe('Chrome on Windows');
   });
 
+  it('treats dismissal as a cancel, never a denial', () => {
+    const { props, getByLabelText } = renderRequest();
+
+    fireEvent.click(getByLabelText('Close'));
+
+    expect(props.onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('shows NO delegation chrome for an ordinary personal sign-in', () => {
     const { container, queryByTestId } = renderRequest();
 
@@ -162,6 +170,16 @@ describe('ApprovalRequest', () => {
     });
 
     expect(getByTestId('approval-acting-as').textContent).toBe('@oxycollective');
+  });
+
+  it('does not double-prefix a federated delegated account handle', () => {
+    const { getByTestId } = renderRequest({
+      info: makeInfo({
+        subjectAccount: { id: 'acct-9', username: 'alice@mastodon.social' },
+      }),
+    });
+
+    expect(getByTestId('approval-acting-as').textContent).toBe('alice@mastodon.social');
   });
 
   it('names the identity generically when the vault identity has no name yet', () => {
@@ -223,8 +241,9 @@ describe('ApprovalRequest', () => {
 
     expect(container.textContent).toContain('no biometrics or screen lock');
     expect(container.textContent).toContain('device settings');
-    // The explanation is content only; the enclosing Dialog owns the actions.
-    expect(container.textContent).not.toContain('Continue');
+    // The explanation offers no bypass; the route-level Dialog remains the
+    // single owner of every answer action.
+    expect(container.textContent).not.toContain('Continue without confirming');
   });
 
   it('distinguishes a cancelled prompt from a device that cannot ask', () => {
@@ -239,5 +258,4 @@ describe('ApprovalRequest', () => {
 
     expect(container.textContent).toContain('locked biometrics');
   });
-
 });

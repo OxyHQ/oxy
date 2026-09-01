@@ -4,20 +4,27 @@
  * `image` / `favicon` come only from the Oxy-hosted columns.
  */
 import { serializeLinkPreview } from '../linkPreviewSerializer';
-import type { ILinkPreview } from '../../../models/LinkPreview';
+import type { SerializableLinkPreview } from '../linkPreviewSerializer';
 
-function doc(over: Partial<ILinkPreview>): ILinkPreview {
+/**
+ * Typed as {@link SerializableLinkPreview} — the NARROW pick the serializer
+ * accepts, which by construction cannot name `originImageUrl` /
+ * `originFaviconUrl`. A fixture that could set them would be testing a call the
+ * type system already refuses.
+ */
+function doc(over: Partial<SerializableLinkPreview>): SerializableLinkPreview {
   return {
-    _id: 'hash',
     requestedUrl: 'https://example.com/a',
     canonicalUrl: 'https://example.com/a',
     status: 'resolved',
-    version: 1,
     resolvedAt: new Date('2026-01-01T00:00:00.000Z'),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    title: null,
+    description: null,
+    siteName: null,
+    favicon: null,
+    imageUrl: null,
     ...over,
-  } as ILinkPreview;
+  };
 }
 
 describe('serializeLinkPreview', () => {

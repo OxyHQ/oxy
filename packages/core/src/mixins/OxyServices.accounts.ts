@@ -33,10 +33,12 @@
  * registers the switched session into the operator's device-set directly).
  */
 import type { User } from '../models/interfaces';
-import type { OrganizationCategory } from '@oxyhq/contracts';
+import type { AccountCategoryId, AccountKind, ChildAccountKind } from '@oxyhq/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyServicesBase } from '../OxyServices.base';
 import { normalizeUserIdentity } from '../utils/userIdentity';
+import { evictOxyIdentityCache } from '../utils/identityCacheSweep';
+import { evictOxyAccountForestCache, oxyAccountDetailCacheKey, OXY_ACCOUNT_PER_ACCOUNT_CACHE_PREFIX } from '../utils/accountCacheSweep';
 import { CACHE_TIMES } from './mixinHelpers';
 
 // ---------------------------------------------------------------------------
@@ -46,14 +48,24 @@ import { CACHE_TIMES } from './mixinHelpers';
 /**
  * Account classification, orthogonal to the federation `type`
  * (`local|federated|agent|automated`). `personal` accounts have a direct login;
- * `organization` / `project` / `bot` accounts are operated via `AccountMember`
- * and have no direct login.
+ * `organization` / `project` / `bot` / `channel` accounts are operated via
+ * `AccountMember` and have no direct login. Of those, only the first three may
+ * be acted AS by an application (`isDelegatedActAsEligibleKind`), and only the
+ * first two may be SWITCHED INTO by a person (`isOperatorSwitchTargetKind`).
+ *
+ * Single source of truth is `@oxyhq/contracts`.
  */
-export type AccountKind = 'personal' | 'organization' | 'project' | 'bot';
-
-/** Real-estate / team taxonomy for `kind: 'organization'` accounts. */
-export type { OrganizationCategory } from '@oxyhq/contracts';
-export { ORGANIZATION_CATEGORIES } from '@oxyhq/contracts';
+export type { AccountCategoryId, AccountKind } from '@oxyhq/contracts';
+export {
+  ACCOUNT_CATEGORY_IDS,
+  ACCOUNT_KINDS,
+  MAX_ACCOUNT_CATEGORIES,
+  SELECTABLE_ACCOUNT_CATEGORY_IDS,
+  isDelegatedActAsEligibleKind,
+  isOperatorSwitchTargetKind,
+  isSelectableAccountCategoryId,
+  kindAcceptsAccountCategories,
+} from '@oxyhq/contracts';
 
 /**
  * The calling user's relationship to an account node, as resolved by the API:
@@ -78,8 +90,8 @@ export type AccountMemberStatus = 'active' | 'invited' | 'removed';
 export type AccountMemberSource = 'direct' | 'inherited';
 
 /**
- * Client-facing AccountMember shape. `permissions` is derived from `role` on the
- * server at write time.
+ * Client-facing AccountMember shape. `permissions` is the effective permission
+ * set (role baseline plus `permissionGrants` minus `permissionRevokes`).
  */
 export interface AccountMember {
   _id: string;
@@ -89,6 +101,10 @@ export interface AccountMember {
   memberUserId: string;
   role: AccountRole;
   permissions: string[];
+  /** Permissions granted beyond the role baseline. */
+  permissionGrants?: string[];
+  /** Permissions revoked from the role baseline. */
+  permissionRevokes?: string[];
   /**
    * Whether this membership cascades to the account's subtree. `true` (default)
    * lets descendants inherit this role unless a nearer row overrides it; `false`
@@ -97,12 +113,20 @@ export interface AccountMember {
   inherit: boolean;
   status: AccountMemberStatus;
   /**
-   * Origin of the membership when the API resolves an effective role. Present on
-   * a resolved `callerMembership` to indicate whether the caller's access is
-   * `direct` on the account or `inherited` from an ancestor. Absent on plain
-   * member-list rows (which are always direct rows on the account).
+   * Where this membership COMES FROM relative to the account it is being
+   * reported for: `direct` when the row lives on that account, `inherited` when
+   * it lives on an ancestor whose `inherit` flag cascades it down.
+   *
+   * Present on every membership the API serialises — a resolved
+   * `callerMembership` and every entry of a member list alike. It is not
+   * decoration: an `inherited` entry's `accountId` is the ANCESTOR's, and the
+   * member-mutation endpoints are scoped to rows on the account named in the
+   * path, so `PATCH`/`DELETE .../members/<that row's _id>` against the
+   * descendant 404s. **Branch on `source === 'direct'` before offering to edit,
+   * remove or transfer to a member**, and count owners for a last-owner check
+   * over direct entries only.
    */
-  source?: AccountMemberSource;
+  source: AccountMemberSource;
   invitedByUserId?: string | null;
   joinedAt?: string | null;
   createdAt: string;
@@ -148,8 +172,21 @@ export interface ListAccountsOptions {
 
 /** Input accepted by `createAccount`. */
 export interface CreateAccountInput {
-  /** Classification of the new account. `personal` accounts are not created here. */
-  kind: AccountKind;
+  /**
+   * Classification of the new account. Every CHILD kind is creatable here with
+   * the caller's own bearer, `channel` included: a signed-in person has already
+   * proven who they are, and minting a child under their own tree is the same
+   * operation whichever kind it is.
+   *
+   * `channel` used to be excluded, on the reasoning that channels are
+   * service-provisioned only. What actually makes a channel safe does not depend
+   * on who creates it: `createChildAccount` writes no auth method, so it is born
+   * with no login, and `POST /accounts/:id/switch` refuses it via
+   * both act-as predicates, so no session can ever have a channel as its subject
+   * and therefore no bearer exists that could add one. `personal` is excluded
+   * because it is a human login, minted at signup.
+   */
+  kind: ChildAccountKind;
   /**
    * Parent account `_id` to nest the new account under. Omitted → the API roots
    * it under the caller's personal account.
@@ -157,21 +194,117 @@ export interface CreateAccountInput {
   parentAccountId?: string;
   /** Unique handle for the account (shares the `User.username` unique index). */
   username: string;
-  name?: { first?: string; last?: string };
+  /**
+   * A managed account (organization / project / bot / channel) has a TITLE, not
+   * a given-and-family name, so it sets `displayName` — the explicit
+   * `name_display` column — and leaves `first`/`last` unset. Splitting a title
+   * on whitespace into `first`/`last` is what this replaced.
+   */
+  name?: { first?: string; last?: string; displayName?: string };
   bio?: string;
   avatar?: string;
-  /** Meaningful only when `kind` is `organization`. */
-  organizationCategory?: OrganizationCategory;
+  /**
+   * Named color preset KEY — `'blue'`, `'mint'`, … — never a hex value. The
+   * account graph's half of `User.color`, which every account DTO already
+   * carries; this is how one gets WRITTEN for an account you administer.
+   *
+   * Set it HERE rather than after the fact. For a managed account the colour is
+   * a visual identity, and an account that is discoverable without one and
+   * acquires it on a second request is a face that changes by itself.
+   *
+   * Omitted is not "no colour": the platform assigns a random preset, exactly as
+   * it did before this field existed. A reserved preset is refused unless the
+   * account has a claim to it — the administrator's own entitlements are not the
+   * ones weighed.
+   */
+  color?: string;
+  /**
+   * What the account is about. ORDERED — the FIRST element is the primary
+   * category, so a picker must submit them in the order the user arranged them
+   * and must not sort. Stable ids, never labels: render each one through the
+   * `accounts.accountCategory.<id>` translation key.
+   *
+   * Offer `SELECTABLE_ACCOUNT_CATEGORY_IDS`, not `ACCOUNT_CATEGORY_IDS` — the
+   * latter still contains withdrawn ids so that accounts already carrying one
+   * keep working. At most `MAX_ACCOUNT_CATEGORIES`, no duplicates.
+   */
+  accountCategories?: AccountCategoryId[];
+  /**
+   * Create the account already opted OUT of discovery — kept out of people
+   * search, the follow-graph lists, `/similar` and the recommendation pools,
+   * with non-public media follower-gated.
+   *
+   * Pass `true` when the account is not something its owner has published yet:
+   * an agent, an unlaunched project, an organization for something unannounced.
+   * OMITTED IS NOT `false` IN MEANING, only in effect — saying nothing leaves
+   * the platform default, which is discoverable, and that default is not
+   * changed by this option existing.
+   *
+   * Setting it later is `PUT /users/:userId/privacy`, which needs the ACCOUNT's
+   * own bearer. Passing it here is the only way to have the account never be
+   * discoverable at all, rather than discoverable until a second call lands.
+   */
+  isPrivateAccount?: boolean;
 }
 
 /** Input accepted by `updateAccount`. Tree placement changes go through `/move`. */
 export interface UpdateAccountInput {
   username?: string;
-  name?: { first?: string; last?: string };
+  /**
+   * Same shape as `CreateAccountInput['name']`. On update, an EMPTY STRING in
+   * `displayName` clears the explicit name and falls back to the composed
+   * `first`/`last`; omitting the key leaves the stored value untouched. The two
+   * are not interchangeable.
+   */
+  name?: { first?: string; last?: string; displayName?: string };
   bio?: string | null;
   avatar?: string | null;
-  /** Clears the category when `null`; only valid on `kind: 'organization'`. */
-  organizationCategory?: OrganizationCategory | null;
+  /**
+   * Named color preset KEY, same vocabulary as `CreateAccountInput['color']`.
+   *
+   * NOT nullable, unlike `bio` and `avatar`: the column is `NOT NULL` with a
+   * default, so an account always HAS a colour and there is no "clear" to
+   * express. Sending the value the account already carries is always accepted,
+   * so a client may PATCH back the object it was served.
+   */
+  color?: string;
+  /**
+   * Replaces the WHOLE list, in the order given — there is no add/remove verb,
+   * because a partial edit cannot express a re-ordering and the order is what
+   * names the primary category. `[]` clears it.
+   *
+   * Not nullable, unlike `bio` and `avatar`: the empty case already has a
+   * spelling of its own, so a second one could only ever disagree with it.
+   *
+   * Rejected for a `personal` account, and rejected when it ADDS a withdrawn
+   * id the account did not already carry — keeping or re-ordering one it has is
+   * always allowed.
+   */
+  accountCategories?: AccountCategoryId[];
+}
+
+/** Input accepted by `provisionChannelAccount` (service token + `accounts:provision`). */
+export interface ProvisionChannelInput {
+  /** Personal account `_id` whose tree owns the new channel. */
+  ownerUserId: string;
+  username: string;
+  name?: { first?: string; last?: string; displayName?: string };
+  bio?: string;
+  description?: string;
+  avatar?: string;
+}
+
+/** Input accepted by `provisionChannelMember` (service token + `accounts:provision`). */
+export interface ProvisionChannelMemberInput {
+  memberUserId: string;
+  role: Exclude<AccountRole, 'owner'>;
+  inherit?: boolean;
+}
+
+/** Result of `provisionChannelAccount`. */
+export interface ProvisionChannelResult {
+  account: User;
+  membership: AccountMember;
 }
 
 /** Input accepted by `inviteAccountMember`. The owner role cannot be invited. */
@@ -186,78 +319,15 @@ export interface InviteAccountMemberInput {
 
 /** Input accepted by `updateAccountMember`. The owner role cannot be assigned. */
 export interface UpdateAccountMemberInput {
-  role: Exclude<AccountRole, 'owner'>;
+  role?: Exclude<AccountRole, 'owner'>;
+  inherit?: boolean;
+  permissionGrants?: string[];
+  permissionRevokes?: string[];
 }
 
 /** Input accepted by `transferAccountOwnership`. */
 export interface TransferAccountOwnershipInput {
   userId: string;
-}
-
-// ---------------------------------------------------------------------------
-// Bot (account) service-credential types
-// ---------------------------------------------------------------------------
-
-/** Credential kind. Account (bot) credentials are always `service` tokens. */
-export type AccountCredentialType = 'service';
-
-/** Deployment environment a bot credential is scoped to. */
-export type AccountCredentialEnvironment = 'development' | 'staging' | 'production';
-
-/** Bot credential lifecycle status. */
-export type AccountCredentialStatus = 'active' | 'deprecated' | 'revoked';
-
-/** Input accepted by `createAccountCredential`. Credential `type` is always `service`. */
-export interface CreateAccountCredentialInput {
-  name: string;
-  environment: AccountCredentialEnvironment;
-  scopes?: string[];
-}
-
-/**
- * Client-facing AccountCredential shape (a bot account's service token). The raw
- * secret is NEVER part of this shape — it is returned exactly once, separately,
- * at creation/rotation.
- */
-export interface AccountCredential {
-  _id: string;
-  /** The bot account this credential authenticates as (account `_id`). */
-  accountId: string;
-  name: string;
-  publicKey: string;
-  type: AccountCredentialType;
-  environment: AccountCredentialEnvironment;
-  scopes: string[];
-  status: AccountCredentialStatus;
-  lastUsedAt?: string;
-  expiresAt?: string;
-  /**
-   * Audit link to the credential this one was rotated FROM. Populated on
-   * credentials created via rotation; absent on original credentials.
-   */
-  rotatedFromCredentialId?: string;
-  createdByUserId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** Result of creating a bot credential — `secret` is returned ONCE. */
-export interface AccountCredentialWithSecret {
-  credential: AccountCredential;
-  secret: string;
-}
-
-/**
- * Result of rotating a bot credential. Extends the create result with audit
- * fields: the new plaintext `secret` is returned ONCE, plus `rotatedFrom` (the
- * previous credential's `credentialId`) and `graceExpiresAt` (ISO string marking
- * when the old credential stops being honoured during the rotation grace window).
- */
-export interface RotateAccountCredentialResult extends AccountCredentialWithSecret {
-  /** The previous credential's `credentialId` that this rotation supersedes. */
-  rotatedFrom: string;
-  /** ISO timestamp at which the rotated-from credential's grace window ends. */
-  graceExpiresAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -273,8 +343,18 @@ export type ApplicationType = 'first_party' | 'third_party' | 'internal' | 'syst
 /** Lifecycle status of an application. */
 export type ApplicationStatus = 'active' | 'suspended' | 'deleted' | 'pending_review';
 
-/** OAuth credential kind. `service` credentials mint service tokens. */
-export type ApplicationCredentialType = 'public' | 'confidential' | 'service';
+/**
+ * Credential kind.
+ *
+ * The first three are OAuth clients: the `oxy_dk_…` `publicKey` is the
+ * `client_id`, and any secret is presented BESIDE it. `service` credentials
+ * additionally mint service tokens.
+ *
+ * `machine` is the OpenAI-SDK-compatible API key (issue #972 §2.3): its
+ * credential material is ONE `oxy_sk_…` bearer string returned in `token`
+ * exactly once on create/rotate, never in `secret`.
+ */
+export type ApplicationCredentialType = 'public' | 'confidential' | 'service' | 'machine';
 
 /** Deployment environment an application credential is scoped to. */
 export type ApplicationEnvironment = 'development' | 'staging' | 'production';
@@ -334,6 +414,12 @@ export interface ApplicationCredential {
   applicationId: string;
   name: string;
   publicKey: string;
+  /**
+   * `oxy_sk_<id>` — the PUBLIC lookup half of a `machine` credential's bearer
+   * token, present only on that type. Safe to render: the secret half is 256
+   * bits that were shown exactly once and are never returned again.
+   */
+  tokenPrefix?: string;
   type: ApplicationCredentialType;
   environment: ApplicationEnvironment;
   scopes: string[];
@@ -392,25 +478,70 @@ export interface CreateApplicationCredentialInput {
   type: ApplicationCredentialType;
   environment: ApplicationEnvironment;
   scopes?: string[];
+  /**
+   * Lifetime of a `machine` credential, in seconds — 60 to 730 days. Omit for a
+   * key that does not expire on its own.
+   *
+   * **`machine` only.** On every other credential type `expires_at` means the
+   * rotation grace deadline, so a caller setting it at creation would make a
+   * brand-new credential indistinguishable from a rotated one. The server
+   * REJECTS it for those types rather than ignoring it, so sending it with the
+   * wrong `type` is a 400, not a silently dropped field.
+   */
+  expiresInSeconds?: number;
 }
 
-/** Result of creating an application credential — `secret` is returned ONCE. */
+/** Input accepted by `rotateAppCredential`. */
+export interface RotateApplicationCredentialInput {
+  /**
+   * How long the superseded `machine` token keeps working, in seconds — 1 to 30
+   * days. Omitting it revokes the previous token the instant the replacement is
+   * minted, which is the safe default for a leaked key.
+   *
+   * **`machine` only, and opt-in.** `confidential`/`service` credentials always
+   * retire on the platform's fixed seven-day grace and the server REJECTS this
+   * field for them, so their contract is unchanged.
+   */
+  graceSeconds?: number;
+}
+
+/**
+ * Result of creating an application credential — credential material is returned
+ * ONCE and can never be read back.
+ *
+ * Exactly one of the two fields carries it, decided by
+ * {@link ApplicationCredentialType}: `secret` for a `confidential`/`service`
+ * client, `token` for a `machine` API key, and NEITHER for a `public` client
+ * (`secret` is `null`). They are separate fields rather than one, so a surface
+ * that renders "the secret" cannot silently render an API key's bearer token
+ * under the wrong label, or a `null` where a token should be.
+ */
 export interface ApplicationCredentialWithSecret {
   credential: ApplicationCredential;
-  secret: string;
+  /** The OAuth client secret. `null` for `public` and `machine` credentials. */
+  secret: string | null;
+  /** The full `oxy_sk_…` bearer token. Present ONLY for a `machine` credential. */
+  token?: string;
 }
 
 /**
  * Result of rotating an application credential. Extends the create result with
- * audit fields: the new plaintext `secret` is returned ONCE, plus `rotatedFrom`
- * (the previous credential's `credentialId`) and `graceExpiresAt` (ISO string
- * marking when the old credential stops being honoured during the grace window).
+ * audit fields: the new credential material is returned ONCE, plus `rotatedFrom`
+ * (the previous credential's `credentialId`) and `graceExpiresAt`.
  */
 export interface RotateApplicationCredentialResult extends ApplicationCredentialWithSecret {
   /** The previous credential's `credentialId` that this rotation supersedes. */
   rotatedFrom: string;
-  /** ISO timestamp at which the rotated-from credential's grace window ends. */
-  graceExpiresAt: string;
+  /**
+   * ISO timestamp at which the rotated-from credential stops being honoured, or
+   * `null` when no grace window was configured and it was revoked outright.
+   *
+   * Nullable because a `machine` credential's grace is OPT-IN (issue #972 §2.3):
+   * rotating an API key without asking for a window kills the old token
+   * immediately, and there is then no deadline to report. The OAuth/service
+   * types always carry their fixed seven-day deadline.
+   */
+  graceExpiresAt: string | null;
 }
 
 /** Time window for application usage statistics. */
@@ -481,6 +612,17 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
     constructor(...args: any[]) {
       super(...(args as [any]));
     }
+
+    /**
+     * Inherited from the auth mixin at runtime. Declared here so service-scoped
+     * account provisioning methods can call it with correct typing.
+     */
+    declare makeServiceRequest: <R = unknown>(
+      method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+      url: string,
+      data?: unknown,
+      userId?: string,
+    ) => Promise<R>;
 
     // =========================================================================
     // Accounts
@@ -613,8 +755,61 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
         );
         // A new account changes the accessible forest — bust every cached list
         // (flat + tree) so it appears on the next `listAccounts()` read.
-        this._invalidateAccountLists();
+        evictOxyAccountForestCache(this);
         return res.account;
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Mint a `channel` account under `ownerUserId` via service auth
+     * (`accounts:provision` scope). Requires `configureServiceAuth` first.
+     */
+    async provisionChannelAccount(data: ProvisionChannelInput): Promise<ProvisionChannelResult> {
+      try {
+        return await this.makeServiceRequest<ProvisionChannelResult>(
+          'POST',
+          '/accounts/service/channels',
+          data,
+        );
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Grant membership on a channel account via service auth
+     * (`accounts:provision` scope).
+     */
+    async provisionChannelMember(
+      channelAccountId: string,
+      data: ProvisionChannelMemberInput,
+    ): Promise<{ member: AccountMember }> {
+      try {
+        return await this.makeServiceRequest<{ member: AccountMember }>(
+          'POST',
+          `/accounts/service/channels/${encodeURIComponent(channelAccountId)}/members`,
+          data,
+        );
+      } catch (error) {
+        throw this.handleError(error);
+      }
+    }
+
+    /**
+     * Revoke membership on a channel account via service auth
+     * (`accounts:provision` scope).
+     */
+    async revokeChannelMember(
+      channelAccountId: string,
+      memberUserId: string,
+    ): Promise<AccountSuccessResult> {
+      try {
+        return await this.makeServiceRequest<AccountSuccessResult>(
+          'DELETE',
+          `/accounts/service/channels/${encodeURIComponent(channelAccountId)}/members/${encodeURIComponent(memberUserId)}`,
+        );
       } catch (error) {
         throw this.handleError(error);
       }
@@ -623,6 +818,18 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
     /**
      * Update an account's mutable profile fields. Tree placement changes
      * (reparenting) go through the dedicated move endpoint, not here.
+     *
+     * An account IS a user, so this write changes identity — and a profile
+     * screen never reads `/accounts/<id>`. It reads `GET /users/<id>` and
+     * `GET /profiles/username/<handle>`, both cached for 5 minutes in the
+     * CALLER'S OWN process, so busting only the account-graph keys left every
+     * profile surface serving the pre-edit avatar and name for the full TTL
+     * with a perfectly healthy server (the cross-service `oxy:user:invalidate`
+     * signal does not help: it evicts BACKEND caches, and cannot reach a cache
+     * living in a browser tab). {@link evictOxyIdentityCache} owns that key
+     * list — see its docs for why the handle-keyed entries are prefix-swept
+     * (a RENAME leaves the old handle's entry unreachable by any targeted key).
+     *
      * @param accountId - The account's Mongo `_id`.
      * @param data - Subset of updatable profile fields.
      */
@@ -639,8 +846,17 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
         );
         // Bust the cached detail and every list (which embeds account profile
         // data) so neither serves the pre-update snapshot.
-        this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}`);
-        this._invalidateAccountLists();
+        evictOxyAccountForestCache(this, accountId);
+        // The parent's children list embeds this account's profile and is keyed
+        // by the PARENT id, so it is reachable only from the response node.
+        const parentAccountId = res.account?.parentAccountId;
+        if (parentAccountId) {
+          this.clearCacheEntry(
+            `GET:/accounts/${encodeURIComponent(parentAccountId)}/children`,
+          );
+        }
+        // Every identity read of this account, whichever key it lands under.
+        evictOxyIdentityCache(this, accountId);
         return res.account;
       } catch (error) {
         throw this.handleError(error);
@@ -662,10 +878,9 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
           { cache: false },
         );
         // Bust every cached representation of the archived account.
-        this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}`);
         this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}/members`);
         this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}/credentials`);
-        this._invalidateAccountLists();
+        evictOxyAccountForestCache(this, accountId);
         return result;
       } catch (error) {
         throw this.handleError(error);
@@ -695,7 +910,27 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
     // =========================================================================
 
     /**
-     * List members of an account (direct membership rows on the account).
+     * List the members of an account: the membership rows ON it, plus the rows
+     * on its ancestors that cascade into it. Each entry carries `source`
+     * (`direct` | `inherited`) saying which it is.
+     *
+     * Inherited entries are members in every sense the server enforces — an
+     * ancestor row with `inherit: true` resolves through
+     * `resolveEffectiveAccess` and confers every account permission on the
+     * descendant, `account:act_as` included — so a roster that omitted them
+     * answered `[]` for accounts several people could act on.
+     *
+     * Two things follow for a caller. An entry's `accountId` is the account its
+     * ROW lives on, so an inherited entry names an ancestor rather than the
+     * account you asked about; and the member-mutation endpoints only accept
+     * rows on the account in the path, so gate any edit/remove/transfer
+     * affordance on `source === 'direct'`.
+     *
+     * Asking what the CALLER holds over an account is a different question, and
+     * scanning this list for yourself is the wrong way to answer it — use
+     * {@link OxyServicesAccountsMixin.getAccount}, whose `callerMembership` is
+     * the server's own resolution.
+     *
      * @param accountId - The account's Mongo `_id`.
      */
     async listAccountMembers(accountId: string): Promise<AccountMember[]> {
@@ -804,107 +1039,7 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
         // Ownership change alters roles in the member list AND the detail, and
         // can change which accounts the caller "owns" in the list view.
         this._invalidateAccountMembership(accountId);
-        this._invalidateAccountLists();
-        return result;
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    // =========================================================================
-    // Bot (account) service credentials  —  /accounts/:id/credentials
-    // =========================================================================
-
-    /**
-     * List a bot account's service credentials. The response NEVER includes
-     * secrets.
-     * @param accountId - The account's Mongo `_id`.
-     */
-    async listAccountCredentials(accountId: string): Promise<AccountCredential[]> {
-      try {
-        const res = await this.makeRequest<{ credentials?: AccountCredential[] }>(
-          'GET',
-          `/accounts/${encodeURIComponent(accountId)}/credentials`,
-          undefined,
-          { cache: true, cacheTTL: CACHE_TIMES.MEDIUM },
-        );
-        return res.credentials ?? [];
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Create a service credential for a bot account. The plaintext `secret` is
-     * returned exactly ONCE; the server stores only a hash and will never return
-     * it again.
-     * @param accountId - The account's Mongo `_id`.
-     * @param data - Credential configuration (`type` is always `service`).
-     */
-    async createAccountCredential(
-      accountId: string,
-      data: CreateAccountCredentialInput,
-    ): Promise<AccountCredentialWithSecret> {
-      try {
-        const result = await this.makeRequest<AccountCredentialWithSecret>(
-          'POST',
-          `/accounts/${encodeURIComponent(accountId)}/credentials`,
-          data,
-          { cache: false },
-        );
-        this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}/credentials`);
-        return result;
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Rotate a bot credential's secret. The new plaintext `secret` is returned
-     * exactly ONCE, along with audit fields: `rotatedFrom` (the previous
-     * credentialId) and `graceExpiresAt` (ISO string for the grace window during
-     * which the old credential is still honoured).
-     * @param accountId - The account's Mongo `_id`.
-     * @param credentialId - The credential's Mongo `_id`.
-     */
-    async rotateAccountCredential(
-      accountId: string,
-      credentialId: string,
-    ): Promise<RotateAccountCredentialResult> {
-      try {
-        const result = await this.makeRequest<RotateAccountCredentialResult>(
-          'POST',
-          `/accounts/${encodeURIComponent(accountId)}/credentials/${encodeURIComponent(credentialId)}/rotate`,
-          undefined,
-          { cache: false },
-        );
-        // Rotation changes credential status/audit fields surfaced by the list.
-        this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}/credentials`);
-        return result;
-      } catch (error) {
-        throw this.handleError(error);
-      }
-    }
-
-    /**
-     * Revoke a bot credential (`status='revoked'`). Revoked credentials can no
-     * longer authenticate.
-     * @param accountId - The account's Mongo `_id`.
-     * @param credentialId - The credential's Mongo `_id`.
-     */
-    async revokeAccountCredential(
-      accountId: string,
-      credentialId: string,
-    ): Promise<AccountSuccessResult> {
-      try {
-        const result = await this.makeRequest<AccountSuccessResult>(
-          'DELETE',
-          `/accounts/${encodeURIComponent(accountId)}/credentials/${encodeURIComponent(credentialId)}`,
-          undefined,
-          { cache: false },
-        );
-        // Revocation flips the credential's status in the cached list.
-        this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}/credentials`);
+        evictOxyAccountForestCache(this);
         return result;
       } catch (error) {
         throw this.handleError(error);
@@ -1075,16 +1210,20 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
      * which the old credential is still honoured).
      * @param applicationId - The application's Mongo `_id`.
      * @param credentialId - The credential's Mongo `_id`.
+     * @param options - `graceSeconds` keeps a superseded `machine` token working
+     *   for that long. Omitted, the previous token dies the moment the
+     *   replacement is minted.
      */
     async rotateAppCredential(
       applicationId: string,
       credentialId: string,
+      options?: RotateApplicationCredentialInput,
     ): Promise<RotateApplicationCredentialResult> {
       try {
         const result = await this.makeRequest<RotateApplicationCredentialResult>(
           'POST',
           `/applications/${encodeURIComponent(applicationId)}/credentials/${encodeURIComponent(credentialId)}/rotate`,
-          undefined,
+          options,
           { cache: false },
         );
         // Rotation changes credential status/audit fields surfaced by the list.
@@ -1146,36 +1285,29 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
     // =========================================================================
 
     /**
-     * Bust every cached account list. `listAccounts({tree?})` keys the flat list
-     * as `GET:/accounts` and the tree variant as `GET:/accounts?tree=true` (the
-     * query string is part of the URL path). A change to the accessible forest
-     * (create/archive/ownership transfer) invalidates both, so we clear the
-     * unscoped entry plus every `?`-query variant via a prefix sweep. The prefix
-     * `GET:/accounts?` matches only the query-string list variants, never the
-     * `GET:/accounts/<id>…` detail/sub-resource keys.
-     *
-     * Internal helper (leading underscore); not part of the supported public
-     * surface. Public rather than `private` because mixins compose into an
-     * exported anonymous class, where TypeScript cannot represent a private
-     * member in the emitted declaration file (TS4094).
-     */
-    _invalidateAccountLists(): void {
-      this.clearCacheEntry('GET:/accounts');
-      this.clearCacheByPrefix('GET:/accounts?');
-    }
-
-    /**
      * Bust the cached member list and detail for an account after a membership
      * mutation. The member list (`listAccountMembers`) and the detail
      * (`getAccount`, which can embed the caller's membership) both go stale when
      * the member set or a member's role changes.
      *
-     * Internal helper (leading underscore); see `_invalidateAccountLists` for why
-     * this is public rather than `private`.
+     * Internal helper (leading underscore); not part of the supported public
+     * surface. Public rather than `private` because mixins compose into an
+     * exported anonymous class, where TypeScript cannot represent a private
+     * member in the emitted declaration file (TS4094).
+     *
+     * The forest keys themselves are NOT owned here — see
+     * `utils/accountCacheSweep`, which the user mixin has to reach as well.
      */
     _invalidateAccountMembership(accountId: string): void {
       this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}/members`);
-      this.clearCacheEntry(`GET:/accounts/${encodeURIComponent(accountId)}`);
+      this.clearCacheEntry(oxyAccountDetailCacheKey(accountId));
+      // Inherited rows on descendant rosters are derived from this account's
+      // membership table — a targeted clear of only the mutated account's keys
+      // leaves every other cached `…/members` list serving stale inherited
+      // roles until MEDIUM TTL. Sweep all per-account sub-resource keys instead;
+      // the forest list keys (`GET:/accounts`, `GET:/accounts?…`) are excluded
+      // by the trailing slash on the prefix (see accountCacheSweep).
+      this.clearCacheByPrefix(OXY_ACCOUNT_PER_ACCOUNT_CACHE_PREFIX);
     }
 
     /**
@@ -1187,8 +1319,8 @@ export function OxyServicesAccountsMixin<T extends typeof OxyServicesBase>(Base:
      * query-string list variants, never the `GET:/applications/<id>…`
      * detail/sub-resource keys.
      *
-     * Internal helper (leading underscore); see `_invalidateAccountLists` for why
-     * this is public rather than `private`.
+     * Internal helper (leading underscore); see `_invalidateAccountMembership`
+     * for why this is public rather than `private`.
      */
     _invalidateAppLists(): void {
       this.clearCacheEntry('GET:/applications');

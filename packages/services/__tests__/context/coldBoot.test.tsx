@@ -5,7 +5,9 @@
  *
  *   1. A signed-out boot resolves to `isAuthResolved: true` / `isAuthenticated:
  *      false` WITHOUT any navigation — the app renders its own "Sign in with
- *      Oxy" affordance instead of being bounced.
+ *      Oxy" affordance instead of being bounced. This is the DEFAULT provider
+ *      (no `webAuthMode` prop): phase 7b deleted the cross-origin silent restore
+ *      that used to bounce this exact case to `auth.oxy.so?prompt=none`.
  *   2. A returning device (a persisted zero-cookie device credential —
  *      `deviceId` + `deviceSecret`) restores the session on boot: the credential
  *      mints a fresh access token, the account is handed off to the SessionClient
@@ -21,12 +23,7 @@
 import React from 'react';
 import { render, waitFor, act, type RenderResult } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  AUTH_STATE_STORAGE_KEY,
-  OXY_CROSS_ORIGIN_RESTORE_ATTEMPTED_KEY,
-  OXY_SILENT_OAUTH_ATTEMPTED_KEY,
-  type User,
-} from '@oxyhq/core';
+import { AUTH_STATE_STORAGE_KEY, type User } from '@oxyhq/core';
 
 const redirectToAuthorize = jest.fn();
 jest.mock('../../src/ui/components/oauthNavigation', () => ({
@@ -40,6 +37,15 @@ const fakeSessionClientHost = {
 };
 const fakeSessionClient = {
   getState: jest.fn(() => null),
+  // The dialog controller reads the directory on every snapshot build, and the
+  // runtime reaches the context lane through the same client, so a stand-in
+  // that omits these is not a SessionClient. Null is the honest answer for a
+  // fake that was never given a directory.
+  getDirectory: jest.fn(() => null),
+  refreshDirectory: jest.fn(async () => undefined),
+  activateContext: jest.fn(async () => undefined),
+  signOutContext: jest.fn(async () => undefined),
+  signOutPrincipal: jest.fn(async () => undefined),
   subscribe: jest.fn(() => () => undefined),
   start: jest.fn(async () => undefined),
   bootstrap: jest.fn(async () => undefined),
@@ -59,7 +65,7 @@ jest.mock('../../src/ui/session', () => {
   };
 });
 
-import { OxyContextProvider, useOxy } from '../../src/ui/context/OxyContext';
+import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 
@@ -127,9 +133,9 @@ function renderProvider(oxyServices: unknown): RenderResult {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyContextProvider oxyServices={oxyServices as never} baseURL={API_BASE_URL} clientId="oxy_test_client">
+      <OxyRuntimeProvider oxyServices={oxyServices as never} baseURL={API_BASE_URL} clientId="oxy_test_client">
         <Capture />
-      </OxyContextProvider>
+      </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }
@@ -146,7 +152,11 @@ describe('OxyContext cold boot (device-first)', () => {
     fakeSessionClientHost.setCurrentAccountId.mockClear();
   });
 
-  it('a signed-out boot on an official app without a device id starts silent OAuth once', async () => {
+  it('a signed-out boot on an official app resolves SIGNED OUT and never navigates the tab', async () => {
+    // The default provider — no `webAuthMode` prop — on an official Oxy origin
+    // (`https://app.oxy.so/`) with no persisted device credential. Before phase
+    // 7b this was the exact shape that triggered the `prompt=none` bounce to
+    // auth.oxy.so; it must now settle in place.
     const { stub } = buildStub();
 
     renderProvider(stub);
@@ -155,10 +165,20 @@ describe('OxyContext cold boot (device-first)', () => {
 
     expect(capturedContext?.isAuthenticated).toBe(false);
     expect(stub.mintFromDeviceSecret).not.toHaveBeenCalled();
-    expect(redirectToAuthorize).toHaveBeenCalledTimes(1);
-    expect(redirectToAuthorize.mock.calls[0]?.[0]).toContain('prompt=none');
-    expect(window.sessionStorage.getItem(OXY_SILENT_OAUTH_ATTEMPTED_KEY)).toBe('1');
-    expect(window.sessionStorage.getItem(OXY_CROSS_ORIGIN_RESTORE_ATTEMPTED_KEY)).toBe('1');
+    expect(redirectToAuthorize).not.toHaveBeenCalled();
+    // Nothing was written to sessionStorage either: the silent-restore loop
+    // guards went away with the lane they guarded.
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it('defaults webAuthMode to popup, so interactive sign-in opens a window from the gesture', async () => {
+    const { stub } = buildStub();
+
+    renderProvider(stub);
+
+    await waitFor(() => expect(capturedContext?.isAuthResolved).toBe(true));
+
+    expect(capturedContext?.webAuthMode).toBe('popup');
   });
 
   it('plants a still-valid persisted warm token as-is and skips the device-secret mint', async () => {
@@ -257,7 +277,6 @@ describe('OxyContext cold boot (device-first)', () => {
     await waitFor(() => expect(capturedContext?.isAuthenticated).toBe(true));
 
     expect(stub.mintFromDeviceSecret).toHaveBeenCalledWith('dev-legacy', 'legacy.secret');
-    expect(window.sessionStorage.getItem(OXY_SILENT_OAUTH_ATTEMPTED_KEY)).toBeNull();
     expect(redirectToAuthorize).not.toHaveBeenCalled();
   });
 });

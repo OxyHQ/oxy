@@ -1,4 +1,30 @@
-import type { IApplication, ApplicationType } from '../models/Application';
+import type { ApplicationType } from '../db/schema/applications';
+
+/**
+ * The fields this serializer reads off an application row.
+ *
+ * Keyed on `id: string` — the Drizzle `applications` row shape — NOT on
+ * `Pick<IApplication, '_id' | …>`. A clean cut, deliberately with no dual
+ * `_id`/`id` acceptance: `applications` is a Postgres table now, there is
+ * exactly one shape to serialize, and accepting both would keep a dead Mongoose
+ * branch alive in the one place that decides what a consent screen displays.
+ *
+ * Structural rather than a `Pick<>` of the table type, so it stays independent
+ * of whether the caller selected the whole row or an explicit column subset.
+ */
+export interface SerializableApplication {
+  id: string;
+  name: string;
+  description?: string | null;
+  icon?: string | null;
+  websiteUrl?: string | null;
+  privacyPolicyUrl?: string | null;
+  termsUrl?: string | null;
+  type: ApplicationType;
+  isOfficial: boolean;
+  isInternal: boolean;
+  scopes?: string[] | null;
+}
 
 /**
  * Public, sanitized projection of an {@link IApplication} suitable for the
@@ -44,24 +70,11 @@ export interface PublicApplication {
  * `null`/`undefined`, keeping the payload tight for the consent UI.
  */
 export function serializePublicApplication(
-  app: Pick<
-    IApplication,
-    | '_id'
-    | 'name'
-    | 'description'
-    | 'icon'
-    | 'websiteUrl'
-    | 'privacyPolicyUrl'
-    | 'termsUrl'
-    | 'type'
-    | 'isOfficial'
-    | 'isInternal'
-    | 'scopes'
-  >,
+  app: SerializableApplication,
   developerName?: string
 ): PublicApplication {
   const result: PublicApplication = {
-    id: app._id.toString(),
+    id: app.id,
     name: app.name,
     type: app.type,
     isOfficial: app.isOfficial,

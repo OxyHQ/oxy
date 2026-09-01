@@ -1,0 +1,115 @@
+============================================================================
+ NOTICE
+ @oxyhq/api
+ Copyright (c) 2025-present The Oxy Collective, Inc.
+============================================================================
+
+This product is licensed under the Breathe License 1.0, license identifier
+LicenseRef-Breathe-1.0. See the LICENSE file in this directory. Commercial
+terms are available at
+https://github.com/OxyHQ/.github/blob/main/LICENSE-COMMERCIAL.md
+
+Attribution under Section 3.1 of the Breathe License is required of
+everyone, including paying commercial licensees, and cannot be waived.
+
+----------------------------------------------------------------------------
+ THIRD PARTY COMPONENTS
+----------------------------------------------------------------------------
+
+The Breathe License and the Commercial Terms cover only the parts of this
+work that The Oxy Collective, Inc. owns. The components listed below are
+authored by third parties and remain governed by their own licenses. Nothing
+in the Oxy terms overrides those licenses or reduces the rights they grant
+you.
+
+----------------------------------------------------------------------------
+ Separately licensed binaries invoked as separate programs
+----------------------------------------------------------------------------
+
+  Component:   ffmpeg-static (bundled ffmpeg and ffprobe binaries)
+  Version:     5.x
+  License:     GPL-3.0-or-later
+  How used:    Declared as an optionalDependency and invoked as a separate
+               executable process for video asset variants. It is NOT
+               linked into this work, in process or otherwise, and this
+               work is not a derivative of it. Running two programs
+               alongside each other is aggregation.
+  Obligation:  The binary itself remains under the GPL. Corresponding
+               source for the distributed ffmpeg build is available from
+               https://ffmpeg.org/download.html and from the ffmpeg-static
+               project at https://github.com/eugeneware/ffmpeg-static, and
+               will be provided on request to licensing@oxy.so for at least
+               three years from the date of distribution.
+
+  WARNING, and the reason this entry is first: the Breathe License is NOT
+  compatible with the GPL. The arrangement above is lawful ONLY because
+  ffmpeg runs as its own process. If anyone ever links libav*, or any other
+  GPL library, INTO this process, that combination becomes a GPL derivative
+  and this work can no longer be distributed under these terms at all. Do
+  not do it.
+
+----------------------------------------------------------------------------
+ Dynamically linked libraries under the LGPL
+----------------------------------------------------------------------------
+
+  Component:   libvips, via @img/sharp-libvips-*
+  License:     LGPL-3.0-or-later
+  How used:    Loaded as a native shared library by the sharp Node addon,
+               not statically linked into this work.
+  Obligation:  You may modify libvips and relink it with this work. The
+               object files or the means to relink are available on request
+               at licensing@oxy.so.
+
+  sharp itself is Apache-2.0 and needs no notice beyond this entry for the
+  native library it loads.
+
+----------------------------------------------------------------------------
+ Dual licensed components: the election Oxy has made
+----------------------------------------------------------------------------
+
+  Where a component is offered under more than one license, this is the one
+  Oxy has chosen to receive it under. Recording the election matters: an
+  unrecorded election is what an audit flags, and in each case below the
+  alternative is a GPL license this work cannot accept.
+
+  Component:   node-forge
+  Offered as:  BSD-3-Clause OR GPL-2.0
+  Elected:     BSD-3-Clause
+
+  Component:   jszip
+  Offered as:  MIT OR GPL-3.0-or-later
+  Elected:     MIT
+
+  Component:   @zone-eu/mailsplit
+  Offered as:  MIT OR EUPL-1.1+
+  Elected:     MIT
+
+----------------------------------------------------------------------------
+ What this file does not do
+----------------------------------------------------------------------------
+
+This file records components that sit alongside Oxy's own code. It cannot,
+and does not attempt to, separate Oxy's code from a work that is a
+derivative of copyleft licensed code. If GPL or AGPL code were combined into
+this work such that the combination is a derivative of it, that copyleft
+license would govern the whole combination, and no notice file would change
+that.
+
+That is why this package must not take on a GPL or AGPL dependency that is
+linked in process. If you are adding one, stop and read
+https://github.com/OxyHQ/.github/blob/main/licensing/README.md
+
+----------------------------------------------------------------------------
+ How to regenerate
+----------------------------------------------------------------------------
+
+  bunx license-checker-rseidelsohn --production --summary
+  bunx license-checker-rseidelsohn --production --json > /tmp/licenses.json
+
+Then curate by hand. Do not commit the raw tool output: it lists hundreds of
+transitive dependencies, most of which need no notice, and it does not
+record dual license elections or the obligations above, which are the parts
+that matter.
+
+Review this file whenever a direct dependency is added or a major version is
+released.

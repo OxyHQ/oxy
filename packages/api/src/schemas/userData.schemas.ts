@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { APP_DATA_IDENTIFIER_PATTERN } from '../models/UserAppData';
+import { APP_DATA_IDENTIFIER_PATTERN } from '../db/schema/userAppData';
 
 /**
  * Schemas for `/users/me/app-data/...`.

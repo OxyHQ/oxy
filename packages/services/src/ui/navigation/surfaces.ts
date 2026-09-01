@@ -13,6 +13,7 @@ import {
   type SurfaceRouteConfig,
 } from './surfaceRegistry';
 import { createSurfaceNavStack, type SurfaceNavStack } from './surfaceNavStack';
+import SurfaceScreen from '../components/SurfaceScreen';
 
 /**
  * The SDK's typed surface API — a route registry layered on top of Bloom's
@@ -153,15 +154,11 @@ function presentInternal<K extends RouteName>(
   const config = getSurfaceConfig(route, props);
   const bloomOpts: PresentOptions = { label: route, ...bloomOptionsFor(config), ...opts };
 
-  // Lazy-resolved to break the surfaces.ts <-> SurfaceScreen module cycle: a
-  // mounted SurfaceScreen presents further surfaces (it imports these presenters),
-  // while presenting one renders a SurfaceScreen. Deferring the component to call
-  // time (both modules are initialized by then) makes the import graph one-way —
-  // the same idiom `routes.ts` uses to lazy-load screen components.
-  const SurfaceScreen = (
-    require('../components/SurfaceScreen') as typeof import('../components/SurfaceScreen')
-  ).default;
-
+  // `SurfaceScreen` is statically imported but only READ here, at presentation
+  // time. That keeps the surfaces.ts <-> SurfaceScreen cycle safe (a mounted
+  // SurfaceScreen imports these presenters, while presenting one renders a
+  // SurfaceScreen) without a `require()` — which ESM output must never contain,
+  // see the note on `screenComponents` in `./routes`.
   const result = bloomSurfaces.present<SurfaceResult<K>>((surface: SurfaceControls) =>
     createElement(SurfaceScreen, {
       navStack,

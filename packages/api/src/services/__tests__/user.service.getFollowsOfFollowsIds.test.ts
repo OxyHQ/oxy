@@ -1,230 +1,244 @@
 /**
- * UserService.getFollowsOfFollowsIds — the viewer's bounded follows-of-follows ids.
+ * `getFollowsOfFollowsIds` — the viewer's bounded two-hop follow walk.
  *
- * Follows-of-follows = the union of the accounts followed by the accounts the
- * VIEWER follows (a two-hop walk of the follow graph), MINUS the viewer's own
- * follows and the viewer themselves. This SEEDS Mention's friends-of-friends
- * feed, so the method is lean and ids-only (no hydrated DTOs, no `countDocuments`,
- * no `User` lookup). The viewer id is ALWAYS server-derived (the route resolves
- * it from the auth token via `resolveViewerId`); these tests cover the logic
- * outcomes the route relies on:
- *   - viewer with follows-of-follows → the candidate ids, excluding own
- *     follows/self, ranked by frequency then recency (as the aggregation returns)
- *   - no viewer (anonymous / service token w/o user) → [], zero DB queries
- *   - viewer follows nobody → [] (short-circuits before the aggregation)
- *   - the second hop is seeded by only the MAX_FOF_FIRST_HOP most-recent follows
- *   - an over-cap limit clamps to MAX_FOLLOWS_OF_FOLLOWS_IDS on the returned page
+ * Candidates are the accounts followed by the accounts the viewer follows,
+ * MINUS the viewer's own follows and the viewer, ranked by how many of the
+ * sampled first-hop follows follow each candidate (frequency), then recency.
  *
- * Mirrors the `user.service.getMutualUserIds` harness: restore the real
- * `mongoose` (the global setup mocks it wholesale, stripping `Types`) and mock
- * the models as chainable query builders.
+ * The suite this replaces asserted the `$limit` stages of the aggregation —
+ * "seeds the second hop with only the MAX_FOF_FIRST_HOP most-recent follows"
+ * was checked by reading a number out of a pipeline stage. That is the
+ * definition restated, not a measurement: a `$limit` placed after the grouping
+ * instead of before it carries the same number and bounds nothing.
+ *
+ * The ordering is the part that carries product meaning and the part a shape
+ * check cannot see, so the fixtures below build a candidate set whose expected
+ * RANK is known and assert the sequence.
  */
 
-// The global jest.setup.cjs mocks `mongoose` wholesale, which strips `Types`
-// (and therefore `Types.ObjectId`). This suite only needs the real `Types`
-// helper — the models themselves are mocked below — so restore the actual
-// mongoose module.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
-});
-
-import { Types } from 'mongoose';
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
 import {
-  MAX_FOLLOWS_OF_FOLLOWS_IDS,
   MAX_FOF_FIRST_HOP,
+  MAX_FOLLOWS_OF_FOLLOWS_IDS,
 } from '../../utils/recommendationWeights';
+import { userService } from '../user.service';
 
-// Chainable Follow query builder: select/limit/skip/sort return the builder,
-// lean() is the terminal awaited result (sequenced per find() call).
-const mockFollowLean = jest.fn();
-const followQuery = {
-  select: jest.fn(() => followQuery),
-  limit: jest.fn(() => followQuery),
-  skip: jest.fn(() => followQuery),
-  sort: jest.fn(() => followQuery),
-  lean: mockFollowLean,
-};
-const mockFollowFind = jest.fn(() => followQuery);
-const mockFollowAggregate = jest.fn();
-const mockFollowCountDocuments = jest.fn();
+const uniqueId = () => randomUUID().replace(/-/g, '');
 
-const mockUserFind = jest.fn();
-
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  default: {
-    find: mockFollowFind,
-    aggregate: mockFollowAggregate,
-    countDocuments: mockFollowCountDocuments,
-  },
-  FollowType: {
-    USER: 'user',
-    HASHTAG: 'hashtag',
-    TOPIC: 'topic',
-  },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    find: mockUserFind,
-  },
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-import { UserService } from '../user.service';
-
-interface AggregatePipelineStage {
-  $match?: {
-    followerUserId?: { $in?: Types.ObjectId[] };
-    followType?: string;
-    followedId?: { $nin?: Types.ObjectId[] };
-    'user.accountStatus'?: { $ne?: string };
-    'user.reputationTier'?: { $ne?: string };
-  };
-  $lookup?: { from?: string };
-  $limit?: number;
+async function makeUsers(
+  count: number,
+  overrides: Partial<typeof users.$inferInsert> = {}
+): Promise<string[]> {
+  const ids = Array.from({ length: count }, () => uniqueId());
+  await getDb()
+    .insert(users)
+    .values(ids.map((id) => ({ id, username: `u${id}`, ...overrides })));
+  return ids;
 }
 
-describe('UserService.getFollowsOfFollowsIds', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('the two-hop walk', () => {
+  it('returns the union of second-hop accounts, excluding self and own follows', async () => {
+    const [viewer, hopA, hopB, candidate, alsoFollowedByViewer] = await makeUsers(5);
+
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: hopA },
+        { followerId: viewer, followedId: hopB },
+        { followerId: viewer, followedId: alsoFollowedByViewer },
+        // Second hop.
+        { followerId: hopA, followedId: candidate },
+        // Already followed by the viewer — not a recommendation.
+        { followerId: hopB, followedId: alsoFollowedByViewer },
+        // The viewer themselves — never a recommendation.
+        { followerId: hopA, followedId: viewer },
+      ]);
+
+    const ids = await userService.getFollowsOfFollowsIds(viewer);
+
+    expect(ids).toEqual([candidate]);
+    expect(ids).not.toContain(viewer);
+    expect(ids).not.toContain(hopA);
+    expect(ids).not.toContain(alsoFollowedByViewer);
   });
 
-  it('returns the union of follows-of-follows, excluding own follows and self', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
+  it('ranks by how many of the viewer’s follows follow each candidate', async () => {
+    const [viewer, hopA, hopB, hopC, popular, twice, once] = await makeUsers(7);
 
-    // The people the viewer follows (first hop).
-    const v1 = new Types.ObjectId();
-    const v2 = new Types.ObjectId();
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: hopA },
+        { followerId: viewer, followedId: hopB },
+        { followerId: viewer, followedId: hopC },
+        // `popular` is followed by all three first-hop accounts.
+        { followerId: hopA, followedId: popular },
+        { followerId: hopB, followedId: popular },
+        { followerId: hopC, followedId: popular },
+        // `twice` by two of them.
+        { followerId: hopA, followedId: twice },
+        { followerId: hopB, followedId: twice },
+        // `once` by one.
+        { followerId: hopC, followedId: once },
+      ]);
 
-    // Two candidates surfaced by the second-hop aggregation (already filtered by
-    // the pipeline: v1/v2/self are $nin-excluded server-side by Mongo).
-    const fof1 = new Types.ObjectId();
-    const fof2 = new Types.ObjectId();
-
-    mockFollowLean.mockResolvedValueOnce([{ followedId: v1 }, { followedId: v2 }]);
-    mockFollowAggregate.mockResolvedValueOnce([
-      { _id: fof1, followerCount: 2, lastFollowedAt: new Date() },
-      { _id: fof2, followerCount: 1, lastFollowedAt: new Date() },
-    ]);
-
-    const result = await new UserService().getFollowsOfFollowsIds(viewerId, { limit: 50 });
-
-    // One find (the viewer's following) + one aggregate (the second hop).
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowFind).toHaveBeenCalledWith({
-      followerUserId: viewerId,
-      followType: 'user',
-    });
-    expect(followQuery.sort).toHaveBeenCalledWith({ createdAt: -1 });
-    expect(mockFollowAggregate).toHaveBeenCalledTimes(1);
-
-    // Lean, ids-only: no hydration and no count query.
-    expect(mockFollowCountDocuments).not.toHaveBeenCalled();
-    expect(mockUserFind).not.toHaveBeenCalled();
-
-    // The aggregation seeds the second hop with the viewer's follows and excludes
-    // the viewer + everything the viewer already follows.
-    const pipeline = mockFollowAggregate.mock.calls[0][0] as AggregatePipelineStage[];
-    const matchStage = pipeline[0].$match;
-    expect(matchStage?.followerUserId?.$in).toEqual([v1, v2]);
-    expect(matchStage?.followType).toBe('user');
-    const ninIds = (matchStage?.followedId?.$nin ?? []).map((id) => id.toString());
-    expect(ninIds).toContain(viewerId);
-    expect(ninIds).toContain(v1.toString());
-    expect(ninIds).toContain(v2.toString());
-
-    // Frequency-then-recency order preserved from the aggregation output.
-    expect(result).toEqual([fof1.toString(), fof2.toString()]);
+    // The exact sequence: frequency is the product signal, and a query that
+    // merely returns the right SET would satisfy a membership assertion.
+    expect(await userService.getFollowsOfFollowsIds(viewer)).toEqual([popular, twice, once]);
   });
 
-  it('returns empty for an anonymous viewer without querying the database', async () => {
-    const result = await new UserService().getFollowsOfFollowsIds(undefined, { limit: 50 });
+  it('breaks a frequency tie with the most recent second-hop edge', async () => {
+    const [viewer, hop, older, newer] = await makeUsers(4);
 
-    expect(result).toEqual([]);
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(mockFollowAggregate).not.toHaveBeenCalled();
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: hop },
+        {
+          followerId: hop,
+          followedId: older,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+        {
+          followerId: hop,
+          followedId: newer,
+          createdAt: new Date('2026-06-01T00:00:00Z'),
+        },
+      ]);
+
+    expect(await userService.getFollowsOfFollowsIds(viewer)).toEqual([newer, older]);
   });
 
-  it('returns empty when the viewer follows nobody (short-circuits before the aggregation)', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
+  it('excludes an archived or restricted-tier candidate', async () => {
+    const [viewer, hop, visible] = await makeUsers(3);
+    const [archived] = await makeUsers(1, { accountStatus: 'archived' });
+    const [restricted] = await makeUsers(1, { reputationTier: 'restricted' });
 
-    mockFollowLean.mockResolvedValueOnce([]);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: hop },
+        { followerId: hop, followedId: visible },
+        { followerId: hop, followedId: archived },
+        { followerId: hop, followedId: restricted },
+      ]);
 
-    const result = await new UserService().getFollowsOfFollowsIds(viewerId, { limit: 50 });
-
-    expect(result).toEqual([]);
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowAggregate).not.toHaveBeenCalled();
+    expect(await userService.getFollowsOfFollowsIds(viewer)).toEqual([visible]);
   });
+});
 
+describe('bounds', () => {
   it('seeds the second hop with only the MAX_FOF_FIRST_HOP most-recent follows', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
+    // The real cap, measured. The viewer follows one more account than the
+    // first-hop sample admits; the OLDEST of those follows is the one dropped,
+    // so the candidate reachable only through it must not appear while a
+    // candidate reachable through a sampled follow must.
+    const hopCount = MAX_FOF_FIRST_HOP + 1;
+    const [viewer, reachable, unreachable] = await makeUsers(3);
+    const hops = await makeUsers(hopCount);
 
-    // Viewer follows more accounts than the first-hop cap.
-    const following = Array.from({ length: MAX_FOF_FIRST_HOP + 25 }, () => ({
-      followedId: new Types.ObjectId(),
-    }));
+    const base = Date.now();
+    await getDb()
+      .insert(userFollows)
+      .values(
+        hops.map((hopId, index) => ({
+          followerId: viewer,
+          followedId: hopId,
+          // Index 0 is the OLDEST, so it falls outside the most-recent sample.
+          createdAt: new Date(base + index * 1000),
+        }))
+      );
 
-    mockFollowLean.mockResolvedValueOnce(following);
-    mockFollowAggregate.mockResolvedValueOnce([]);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: hops[0], followedId: unreachable },
+        { followerId: hops[hopCount - 1], followedId: reachable },
+      ]);
 
-    await new UserService().getFollowsOfFollowsIds(viewerId, { limit: 50 });
+    const ids = await userService.getFollowsOfFollowsIds(viewer);
 
-    // The following scan is bounded to the following cap...
-    expect(followQuery.limit).toHaveBeenCalledWith(MAX_FOLLOWS_OF_FOLLOWS_IDS);
+    expect(ids).toContain(reachable);
+    // The discriminating half: without the first-hop bound this id comes back.
+    expect(ids).not.toContain(unreachable);
+  }, 60_000);
 
-    // ...and only the most-recent MAX_FOF_FIRST_HOP of them seed the second hop.
-    const pipeline = mockFollowAggregate.mock.calls[0][0] as AggregatePipelineStage[];
-    expect(pipeline[0].$match?.followerUserId?.$in).toHaveLength(MAX_FOF_FIRST_HOP);
-    // The exclusion set is the FULL (bounded) following set, not just the sample.
-    expect(pipeline[0].$match?.followedId?.$nin).toHaveLength(following.length + 1);
+  it('honours a caller limit smaller than the cap, keeping the highest-ranked', async () => {
+    const [viewer, hopA, hopB, popular, single] = await makeUsers(5);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: hopA },
+        { followerId: viewer, followedId: hopB },
+        { followerId: hopA, followedId: popular },
+        { followerId: hopB, followedId: popular },
+        { followerId: hopA, followedId: single },
+      ]);
+
+    // A limit that truncates must keep the TOP of the ranking, not an arbitrary
+    // row — otherwise the bound quietly degrades the recommendation.
+    expect(await userService.getFollowsOfFollowsIds(viewer, { limit: 1 })).toEqual([popular]);
   });
 
-  it('clamps an over-cap limit to MAX_FOLLOWS_OF_FOLLOWS_IDS on the returned page', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const v1 = new Types.ObjectId();
+  it('clamps an over-cap limit to MAX_FOLLOWS_OF_FOLLOWS_IDS', async () => {
+    const [viewer, hop, candidate] = await makeUsers(3);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: hop },
+        { followerId: hop, followedId: candidate },
+      ]);
 
-    mockFollowLean.mockResolvedValueOnce([{ followedId: v1 }]);
-    mockFollowAggregate.mockResolvedValueOnce([]);
-
-    await new UserService().getFollowsOfFollowsIds(viewerId, {
+    const ids = await userService.getFollowsOfFollowsIds(viewer, {
       limit: MAX_FOLLOWS_OF_FOLLOWS_IDS * 10,
     });
 
-    // The aggregation's $limit stage caps the returned page to the clamped limit.
-    const pipeline = mockFollowAggregate.mock.calls[0][0] as AggregatePipelineStage[];
-    const limitStage = pipeline.find((stage) => stage.$limit !== undefined);
-    expect(limitStage?.$limit).toBe(MAX_FOLLOWS_OF_FOLLOWS_IDS);
+    expect(ids).toEqual([candidate]);
+    expect(ids.length).toBeLessThanOrEqual(MAX_FOLLOWS_OF_FOLLOWS_IDS);
+  });
 
-    const eligibilityStage = pipeline.find(
-      (stage) => stage.$match?.['user.reputationTier']?.$ne === 'restricted',
-    );
-    expect(eligibilityStage).toBeDefined();
+  it('treats a zero or negative limit as "use the cap"', async () => {
+    const [viewer, hop, candidate] = await makeUsers(3);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: hop },
+        { followerId: hop, followedId: candidate },
+      ]);
+
+    expect(await userService.getFollowsOfFollowsIds(viewer, { limit: 0 })).toEqual([candidate]);
+    expect(await userService.getFollowsOfFollowsIds(viewer, { limit: -3 })).toEqual([candidate]);
+  });
+});
+
+describe('degenerate viewers', () => {
+  it('returns empty for an anonymous viewer', async () => {
+    expect(await userService.getFollowsOfFollowsIds(undefined)).toEqual([]);
+    expect(await userService.getFollowsOfFollowsIds('')).toEqual([]);
+  });
+
+  it('returns empty for a viewer who follows nobody', async () => {
+    const [viewer, admirer] = await makeUsers(2);
+    await getDb().insert(userFollows).values({ followerId: admirer, followedId: viewer });
+
+    expect(await userService.getFollowsOfFollowsIds(viewer)).toEqual([]);
+  });
+
+  it('returns empty when the first hop leads nowhere', async () => {
+    const [viewer, hop] = await makeUsers(2);
+    await getDb().insert(userFollows).values({ followerId: viewer, followedId: hop });
+
+    expect(await userService.getFollowsOfFollowsIds(viewer)).toEqual([]);
   });
 });

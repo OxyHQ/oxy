@@ -7,7 +7,7 @@
  * here so the anti-sybil knobs stay in one auditable place.
  */
 
-import type { TrustTier } from './reputation.constants';
+import type { TrustTier } from '@oxyhq/contracts';
 
 /* -------------------------------------------------------------------------- */
 /*  Real-life counterparty attestation (Part A)                               */

@@ -1,0 +1,16 @@
+============================================================================
+ NOTICE
+ @oxyhq/expo-splash
+ Copyright (c) 2025-present The Oxy Collective, Inc.
+============================================================================
+
+This product is licensed under the Apache License, Version 2.0. See the
+LICENSE file in this directory.
+
+----------------------------------------------------------------------------
+ THIRD PARTY COMPONENTS
+----------------------------------------------------------------------------
+
+This package contains no third party source. Its dependencies are resolved
+and installed by the package manager and remain governed by their own
+licenses.

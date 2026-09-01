@@ -8,6 +8,10 @@ permissions:
 
 jobs:
   dns:
+    # workflow_dispatch can target arbitrary refs. Keep the DNS-editing token
+    # behind both the protected main ref and the production environment.
+    if: github.ref == 'refs/heads/main'
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - name: Create mcp.mention.earth DNS + ACM validation

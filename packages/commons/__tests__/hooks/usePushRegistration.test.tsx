@@ -11,6 +11,16 @@ import {
 } from '@/__mocks__/oxyhq-services';
 import { OXY_CLIENT_ID } from '@/constants/oxy';
 import { usePushRegistration } from '@/hooks/notifications/usePushRegistration';
+import { LocaleProvider } from '@/lib/i18n';
+
+/**
+ * The hook localizes the Android channel's user-visible name, so it needs the
+ * locale context the app always provides at the root. Rendering it bare would
+ * only be testing a provider omission that cannot happen in the real tree.
+ */
+function renderPushRegistration(): void {
+  renderHook(() => usePushRegistration(), { wrapper: LocaleProvider });
+}
 
 interface PushMocks {
   registerPushToken: jest.Mock;
@@ -55,7 +65,7 @@ describe('usePushRegistration', () => {
   it('does not register before a session exists', async () => {
     const services = installSession({ canUsePrivateApi: false });
 
-    renderHook(() => usePushRegistration());
+    renderPushRegistration();
 
     // Give any stray async work a chance to run before asserting the negative.
     await act(async () => {
@@ -67,7 +77,7 @@ describe('usePushRegistration', () => {
   it('registers once the session resolves, scoped to the Commons client id', async () => {
     const services = installSession({ canUsePrivateApi: false });
 
-    renderHook(() => usePushRegistration());
+    renderPushRegistration();
     expect(services.registerPushToken).not.toHaveBeenCalled();
 
     act(() => {
@@ -85,7 +95,7 @@ describe('usePushRegistration', () => {
   it("threads the device session's deviceId when one is available", async () => {
     const services = installSession({ canUsePrivateApi: true, deviceId: 'device-9' });
 
-    renderHook(() => usePushRegistration());
+    renderPushRegistration();
 
     await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
     expect(services.registerPushToken).toHaveBeenCalledWith(
@@ -97,7 +107,7 @@ describe('usePushRegistration', () => {
     hasNotificationPermission.mockResolvedValue(false);
     const services = installSession({ canUsePrivateApi: true });
 
-    renderHook(() => usePushRegistration());
+    renderPushRegistration();
 
     await act(async () => {
       await Promise.resolve();
@@ -108,7 +118,7 @@ describe('usePushRegistration', () => {
   it('never prompts for the permission — onboarding owns the single dialog', async () => {
     const services = installSession({ canUsePrivateApi: true });
 
-    renderHook(() => usePushRegistration());
+    renderPushRegistration();
 
     await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
     expect(hasNotificationPermission).toHaveBeenCalled();
@@ -123,7 +133,7 @@ describe('usePushRegistration', () => {
     pushTokenPlatform.mockReturnValue(null);
     const services = installSession({ canUsePrivateApi: true });
 
-    renderHook(() => usePushRegistration());
+    renderPushRegistration();
 
     await act(async () => {
       await Promise.resolve();
@@ -139,7 +149,7 @@ describe('usePushRegistration', () => {
     getExpoPushToken.mockResolvedValue(null);
     const services = installSession({ canUsePrivateApi: true });
 
-    renderHook(() => usePushRegistration());
+    renderPushRegistration();
 
     await act(async () => {
       await Promise.resolve();
@@ -150,7 +160,7 @@ describe('usePushRegistration', () => {
   it('registers at most once per identity, across re-renders', async () => {
     const services = installSession({ canUsePrivateApi: true });
 
-    const { rerender } = renderHook(() => usePushRegistration());
+    const { rerender } = renderHook(() => usePushRegistration(), { wrapper: LocaleProvider });
     await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
 
     rerender();
@@ -166,7 +176,7 @@ describe('usePushRegistration', () => {
     const services = installSession({ canUsePrivateApi: true });
     services.registerPushToken.mockRejectedValue(new Error('offline'));
 
-    const { result } = renderHook(() => usePushRegistration());
+    const { result } = renderHook(() => usePushRegistration(), { wrapper: LocaleProvider });
 
     await waitFor(() => expect(services.registerPushToken).toHaveBeenCalledTimes(1));
     expect(result.current).toBeUndefined();

@@ -1,3 +1,5 @@
+import { getPlatformOS } from './platform';
+
 /**
  * Automatic "Sign in with Oxy" delivery selection (issue #691, Phase 4).
  *
@@ -97,4 +99,34 @@ export function selectCommonsDelivery(facts: CommonsDeliveryFacts): CommonsDeliv
     return 'await-push';
   }
   return 'qr';
+}
+
+/**
+ * Map a `deliverCommonsSignIn` result onto the `pushTargets` fact for
+ * {@link selectCommonsDelivery}. The server reports eligible install *count*
+ * separately from whether any push was accepted — a transport failure can leave
+ * `delivered: false` with `targets > 0`, which must NOT park the user on
+ * "check your phone".
+ */
+export function pushTargetsFromDelivery(result: {
+  delivered: boolean;
+  targets: number;
+}): number {
+  return result.delivered ? result.targets : 0;
+}
+
+/**
+ * Classify the current runtime surface for delivery selection. Callers that
+ * cannot confidently detect the platform should not use this — pass
+ * `'unknown'` explicitly instead.
+ */
+export function commonsDeliveryPlatform(): CommonsDeliveryPlatform {
+  const os = getPlatformOS();
+  if (os === 'ios' || os === 'android') {
+    return 'mobile';
+  }
+  if (os === 'web') {
+    return 'desktop';
+  }
+  return 'unknown';
 }

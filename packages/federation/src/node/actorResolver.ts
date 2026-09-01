@@ -19,6 +19,13 @@
  * document.
  */
 
+import { canonicalFederationHost, isSameFederationHost } from '../apUri';
+import {
+  readProxyDeclarations,
+  type DeriveNetworkIdentity,
+  type NetworkIdentity,
+  type NetworkIdentityCandidate,
+} from '../networkIdentity';
 import type { NormalizedExternalActor } from '../index';
 import type { SignedFetch } from './signedFetch';
 import type { ReportActorGoneOutcome } from './identityBridge';
@@ -86,6 +93,18 @@ export interface FederatedActorUpsert {
   featuredUrl?: string;
   featuredTagsUrl?: string;
   alsoKnownAs?: string[];
+  /**
+   * The `<handle>@<network-domain>` identity this actor was re-labelled onto, when
+   * it came from a bridge; absent for the ordinary actor whose identity is simply
+   * its acct.
+   *
+   * Persisted rather than re-derived on demand because it is the key two rows are
+   * the SAME PERSON on: the same X account mirrored by two different bridges
+   * produces two actor rows with different URIs and different accts, and this is
+   * the only field on which they match. An app that de-duplicates bridged
+   * identities queries it; one that does not can ignore it.
+   */
+  networkAcct?: string;
   remoteCreatedAt?: Date;
   followersCount: number;
   followingCount: number;
@@ -133,6 +152,25 @@ export interface ActorTextAdapter {
   sanitizeFieldValue(html: string): string;
   /** Multiline HTML → plain text (the actor bio/summary). */
   htmlToPlainText(html: string): string;
+  /**
+   * Qualify the bare `@handle`s an actor wrote in its own bio with the network
+   * they belong to — `@openai` on an X-relabelled actor means `@openai@x.com`.
+   *
+   * A handle is only meaningful beside the network it was written on, and that
+   * context is exactly what is lost when the text crosses over: copied verbatim,
+   * `@openai` reads on the receiving server as a LOCAL name, pointing readers at
+   * whoever holds it there.
+   *
+   * OPTIONAL, and the engine does not care whether an app supplies it: the rule
+   * for what may be a handle is the app's (Mention scans with the same entity
+   * scanner its composer and renderer use, so a URL's `@handle`, an email and an
+   * already-qualified handle are all left alone by construction). An app that
+   * omits it gets the previous behaviour exactly.
+   *
+   * Applied ONCE, where the bio is settled — so the stored actor row and the Oxy
+   * profile cannot disagree, and no renderer is left to re-derive it.
+   */
+  qualifyHandles?(text: string, instanceDomain: string): string;
 }
 
 /** A parsed WebFinger JRD (only the `links` we read). */
@@ -169,6 +207,11 @@ export interface ActorResolverConfig<TActor extends FederatedActorRecordBase> {
   domainFromAcct: (acct: string) => string | undefined;
   /** Recursively find the first absolute http(s) URL in a value (icon/image). */
   firstStringUrl: (value: unknown) => string | undefined;
+  /**
+   * Optional re-labelling of a bridged actor onto its real network. Absent means
+   * every actor keeps the identity of the host it was fetched from.
+   */
+  deriveNetworkIdentity?: DeriveNetworkIdentity;
   /** The app's actor cache store. */
   store: FederatedActorStore<TActor>;
   /** The actor↔Oxy-user identity bridge. */
@@ -191,7 +234,11 @@ function asString(value: unknown): string | undefined {
 
 function sameOriginUrl(a: string, b: string): boolean {
   try {
-    return new URL(a).origin.toLowerCase() === new URL(b).origin.toLowerCase();
+    const urlA = new URL(a);
+    const urlB = new URL(b);
+    return urlA.protocol === urlB.protocol
+      && urlA.port === urlB.port
+      && isSameFederationHost(urlA.hostname, urlB.hostname);
   } catch {
     return false;
   }
@@ -222,12 +269,26 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
 
   constructor(private readonly config: ActorResolverConfig<TActor>) {}
 
+  /**
+   * Whether an actor URI's host is refused by the instance domain policy. An
+   * unparseable URI has no host to check, so it is refused too — the policy is a
+   * safety gate and fails closed rather than letting a malformed URI slip past it.
+   */
+  private isBlockedActorUri(actorUri: string): boolean {
+    let host: string;
+    try {
+      host = new URL(actorUri).hostname.toLowerCase();
+    } catch {
+      return true;
+    }
+    return this.config.isBlockedDomain(host);
+  }
+
   private acctMatchesActorHost(acct: string | undefined, actorHost: string): acct is string {
     if (!acct) return false;
-    const domain = this.config.domainFromAcct(acct)?.toLowerCase();
+    const domain = this.config.domainFromAcct(acct);
     if (!domain) return false;
-    const normalizedActorHost = actorHost.toLowerCase();
-    return domain === normalizedActorHost || normalizedActorHost === `www.${domain}`;
+    return isSameFederationHost(domain, actorHost);
   }
 
   /**
@@ -419,13 +480,46 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       const rawDisplayName = typeof actor.name === 'string' ? actor.name : '';
       const displayName = this.config.text.inlineDisplayName(rawDisplayName) || username;
 
+      const alsoKnownAs = Array.isArray(actor.alsoKnownAs)
+        ? actor.alsoKnownAs.filter((v): v is string => typeof v === 'string')
+        : undefined;
+
+      // The IDENTITY the actor is stored under in Oxy, which is not necessarily the
+      // host it was fetched from — see `DeriveNetworkIdentity`. Everything below
+      // that addresses the actor over the PROTOCOL (`acct`, `uri`, `domain`) is
+      // deliberately left alone.
+      const networkIdentity = this.resolveNetworkIdentity({
+        host: actorHost,
+        acct,
+        preferredUsername: username,
+        actorUri: actorId,
+        actorType: asString(actor.type) || 'Person',
+        alsoKnownAs: alsoKnownAs ?? [],
+        fields,
+        // FEP-fffd: an actor's own machine-readable statement of what it proxies.
+        // Parsed here so a derivation rule never re-reads the raw document — and
+        // deliberately only ever CONSULTED by a reviewed entry, since every field
+        // in it is asserted by the untrusted actor itself.
+        proxyOf: readProxyDeclarations(actor.proxyOf),
+        bio: summary,
+      });
+      const identityUsername = networkIdentity?.federatedUsername ?? acct;
+      const identityDomain = networkIdentity?.instanceDomain ?? domain;
+      // Qualified HERE, at the one point both writes below read from: the stored
+      // row's `summary` and the Oxy profile's `bio` are the same value, so they
+      // cannot drift into disagreeing about what the actor said.
+      const resolvedBio = networkIdentity?.bio ?? summary;
+      const identityBio = this.config.text.qualifyHandles
+        ? this.config.text.qualifyHandles(resolvedBio, identityDomain)
+        : resolvedBio;
+
       const update: FederatedActorUpsert = {
         protocol: 'activitypub',
         uri: actorId,
         username,
         domain,
         acct,
-        summary,
+        summary: identityBio,
         avatarUrl,
         headerUrl,
         inboxUrl: actorInbox,
@@ -443,9 +537,8 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
         fields,
         featuredUrl: asString(actor.featured) || undefined,
         featuredTagsUrl: asString(actor.featuredTags) || undefined,
-        alsoKnownAs: Array.isArray(actor.alsoKnownAs)
-          ? actor.alsoKnownAs.filter((v): v is string => typeof v === 'string')
-          : undefined,
+        alsoKnownAs,
+        networkAcct: networkIdentity?.federatedUsername,
         remoteCreatedAt: typeof actor.published === 'string' ? new Date(actor.published) : undefined,
         followersCount,
         followingCount,
@@ -465,14 +558,24 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
             network: 'activitypub',
             externalId: actorId,
             handle: acct,
-            // For AP the acct IS the canonical `user@domain` Oxy username, and
-            // `domain` is its instance host — both already verified above.
-            federatedUsername: acct,
-            instanceDomain: domain,
+            // For an ordinary AP actor the acct IS the canonical `user@domain` Oxy
+            // username and `domain` is its instance host — both verified above. For
+            // a BRIDGED actor these two carry the re-labelled network identity
+            // instead, while `handle` above stays the protocol address.
+            federatedUsername: identityUsername,
+            instanceDomain: identityDomain,
             displayName,
             avatarUrl,
             bannerUrl: headerUrl,
-            bio: summary || undefined,
+            // Sent even when EMPTY, and that is the whole point. oxy-api writes
+            // this field only when it receives a string, so omitting it means
+            // "keep whatever you already stored" — which is exactly wrong for the
+            // two ways a bio legitimately becomes empty: a bridged actor whose
+            // bio was nothing but the bridge's boilerplate (stripped above), and
+            // any actor who simply deleted theirs upstream. Coalescing the empty
+            // string away made both of those unrepresentable, so the stale text
+            // survived every later refresh with nothing in the logs.
+            bio: identityBio,
             followersCount,
             followingCount,
             postsCount,
@@ -492,6 +595,48 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
       this.config.logger.warn(`Failed to fetch remote actor ${currentUri}:`, err);
       return null;
     }
+  }
+
+  /**
+   * Run the app's {@link DeriveNetworkIdentity} hook and REFUSE any result the
+   * identity bridge could not bind.
+   *
+   * oxy-api binds a federated username to its domain, so a `federatedUsername`
+   * that does not end with `@${instanceDomain}` would be rejected downstream — or
+   * worse, mint an identity under a domain it does not name. Validating here means
+   * no app can produce that shape, and a hook that gets it wrong degrades to the
+   * actor's real protocol acct (the pre-hook behaviour) instead of losing the
+   * actor. The refusal is logged: it is a bug in the app's rule, not a normal
+   * outcome, and it must not pass silently.
+   */
+  private resolveNetworkIdentity(
+    candidate: NetworkIdentityCandidate,
+  ): NetworkIdentity | undefined {
+    const derived = this.config.deriveNetworkIdentity?.(candidate);
+    if (!derived) return undefined;
+
+    const domain = derived.instanceDomain.trim().toLowerCase();
+    const federatedUsername = derived.federatedUsername.trim().toLowerCase();
+    // Everything before the FIRST `@` is the local part; the whole value must then
+    // be exactly `<local>@<domain>`. Stated as one equality rather than a list of
+    // separate shape checks, so a value that is malformed in a way nobody thought
+    // of — a second `@`, a missing one, a different separator — fails by default
+    // instead of needing its own clause.
+    const atIndex = federatedUsername.indexOf('@');
+    const localPart = atIndex > 0 ? federatedUsername.slice(0, atIndex) : '';
+    if (
+      domain.length === 0
+      || localPart.length === 0
+      || federatedUsername !== `${localPart}@${domain}`
+    ) {
+      this.config.logger.warn(
+        `[FedSync] refusing network identity for ${candidate.actorUri}: `
+        + `"${derived.federatedUsername}" is not bindable to domain "${derived.instanceDomain}"`,
+      );
+      return undefined;
+    }
+
+    return { federatedUsername, instanceDomain: domain, bio: derived.bio };
   }
 
   /**
@@ -542,6 +687,15 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
    * a completely missing actor triggers a blocking fetch.
    */
   async getOrFetchActor(actorUri: string): Promise<TActor | null> {
+    // The domain policy governs BOTH branches below, not just the fetching one.
+    // `fetchRemoteActor` refuses a blocked host, but the cache hit above it used to
+    // return early — so for any instance we had ever stored an actor for (i.e. every
+    // instance that has ever reached us), blocking its domain changed nothing. That
+    // made the blocklist inert for exactly the hosts it is added for.
+    if (this.isBlockedActorUri(actorUri)) {
+      this.config.logger.info(`[FedSync] getOrFetchActor refusing own/blocked domain for ${actorUri}`);
+      return null;
+    }
     const existing = await this.config.store.findActorByUri(actorUri);
     if (existing) {
       const isStale = !existing.lastFetchedAt || Date.now() - existing.lastFetchedAt.getTime() > ACTOR_STALE_MS;
@@ -597,7 +751,17 @@ export class ActorResolver<TActor extends FederatedActorRecordBase> {
     return actor?.oxyUserId ?? null;
   }
 
-  /** Fetch a public key by keyId (used for HTTP signature verification). */
+  /**
+   * Fetch a public key by keyId (used for HTTP signature verification).
+   *
+   * Deliberately NOT domain-policy gated on the cached branch: this answers "what
+   * key signs for this keyId", a question about authenticity, not about whether we
+   * federate with the answer. Suspending an instance is enforced where the activity
+   * is dispatched (`createInboundDispatcher`), so a blocked instance's signature is
+   * still evaluated honestly and its activity is then dropped as policy, rather
+   * than being reported as a forged signature. The uncached branch still refuses,
+   * because resolving it would mean network I/O toward a blocked host.
+   */
   async fetchPublicKey(keyId: string): Promise<{ publicKeyPem: string; actorUri: string } | null> {
     // keyId is typically the actor URI with #main-key appended
     const actorUri = keyId.replace(/#.*$/, '');

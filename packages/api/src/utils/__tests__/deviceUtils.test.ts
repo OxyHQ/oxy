@@ -11,11 +11,8 @@ jest.mock('../logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-// Session model isn't reachable from the unit under test (we only call the
-// pure `deriveStableDeviceId`), but `deviceUtils.ts` imports it at top
-// level. Stub it so the global mongoose mock in `jest.setup.cjs` (which
-// doesn't expose `Schema.Types.ObjectId`) doesn't blow up the import chain.
-jest.mock('../../models/Session', () => ({ __esModule: true, default: {} }));
+// Only the pure `deriveStableDeviceId` is under test here, so `deviceUtils.ts`'s
+// sibling imports are stubbed to keep this a unit test rather than a database one.
 jest.mock('../sessionCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
 jest.mock('../userTransform', () => ({ formatUserResponse: jest.fn() }));
 
@@ -255,6 +252,22 @@ describe('deriveCoarseClientLabel', () => {
       // Android UAs also contain "Linux"; the mobile platform must win.
       'Chrome on Android',
       'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
+    ],
+    [
+      'Edge on Windows',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0',
+    ],
+    [
+      'Opera on Windows',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 OPR/112.0.0.0',
+    ],
+    [
+      'Chrome on iOS',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.6478.69 Mobile/15E148 Safari/604.1',
+    ],
+    [
+      'Firefox on iOS',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/127.0 Mobile/15E148 Safari/605.1.15',
     ],
   ])('derives %s', (expected, userAgent) => {
     expect(deriveCoarseClientLabel(userAgent)).toBe(expected);

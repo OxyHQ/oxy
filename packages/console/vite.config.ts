@@ -55,12 +55,6 @@ const config = defineConfig(({ mode }) => ({
       // Deep native-only internals that monorepo hoisting can pull in
       // transitively and that have no web implementation.
       { find: /^react-native\/Libraries\/.*/, replacement: emptyModule },
-      // Native-only navigation primitives used by Bloom's overlay
-      // FullWindowOverlay, which on web renders straight through (see shim).
-      {
-        find: 'react-native-screens',
-        replacement: resolve(__dirname, './src/shims/react-native-screens.js'),
-      },
       // react-native-svg asset resolution reaches for RN's Flow-typed CJS asset
       // registry; on web the one true registry is react-native-web's (ESM, same
       // registerAsset/getAssetByID API).

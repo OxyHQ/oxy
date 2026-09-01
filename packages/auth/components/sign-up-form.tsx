@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import { toast } from "@oxyhq/bloom"
+import { toast } from "@oxyhq/bloom/toast"
 import { Check, KeyRound, X, Loader2 } from "lucide-react"
 import { useOxy } from "@oxyhq/services"
 

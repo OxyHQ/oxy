@@ -9,18 +9,20 @@
  *
  * Scoping rationale: a leaked or abused service token must NEVER be able to
  * read or delete user-owned media. Every asset created through the cache path
- * is forced onto the reserved owner {@link FEDERATION_CACHE_OWNER_ID} AND
- * tagged with {@link FEDERATION_MEDIA_CACHE_PURPOSE}. The delete endpoint
- * re-loads the asset and rejects anything that is not in this namespace, so
- * the blast radius of the service token is bounded to cache objects only.
+ * is forced onto the `__federation_media_cache__` system owner
+ * (`files.system_owner`, one of `FILE_SYSTEM_OWNERS`) AND tagged with
+ * {@link FEDERATION_MEDIA_CACHE_PURPOSE}. The delete endpoint re-loads the asset
+ * and rejects anything that is not in this namespace, so the blast radius of the
+ * service token is bounded to cache objects only.
+ *
+ * The owner id used to live here as `FEDERATION_CACHE_OWNER_ID`, a sentinel
+ * STRING written into the same column that holds real user ids. It is now a
+ * value of its own `system_owner` column, declared once in `schema/files.ts`.
+ * Its doc comment claimed the sentinel was safe "because the media-privacy block
+ * checks short-circuit it" — that short-circuit was the fail-open guard in
+ * `mediaPrivacyService`, which skipped block and restrict enforcement for ANY id
+ * that was not 24-hex, not just this one. Both are gone.
  */
-
-/**
- * Reserved synthetic owner id for all federation-cached media. Not a valid
- * Mongo ObjectId, so it can never collide with a real user `_id` and the
- * media-privacy block checks short-circuit it (see `mediaPrivacyService`).
- */
-export const FEDERATION_CACHE_OWNER_ID = '__federation_media_cache__';
 
 /**
  * `purpose` tag stamped onto every File created via the cache path. The delete

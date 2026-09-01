@@ -25,8 +25,10 @@
  * bounded by `SYBIL_VOUCHER_SCAN_CAP` so the cost stays O(vouchers).
  */
 
-import { sessionDeviceIds } from './graphExclusion';
-import PersonhoodVouch from '../../models/PersonhoodVouch';
+import { and, eq, inArray } from 'drizzle-orm';
+import { sessionDeviceIdsFor } from './graphExclusion';
+import { getDb } from '../../config/postgres';
+import { personhoodVouches } from '../../db/schema/personhoodVouches';
 import { clamp } from '../../utils/reputation.constants';
 import {
   SYBIL_PENALTY_CAP,
@@ -49,31 +51,38 @@ const NO_SYBIL: SybilSignal = { penalty: 0, sharedFingerprintFraction: 0, ringDe
 
 /** The active voucher ids for a subject (capped). */
 async function activeVoucherIds(subjectUserId: string): Promise<string[]> {
-  const vouches = await PersonhoodVouch.find({ subjectUserId, status: 'active' })
-    .select('voucherUserId')
-    .limit(SYBIL_VOUCHER_SCAN_CAP)
-    .lean<Array<{ voucherUserId: unknown }>>();
-  return vouches.map((v) => String(v.voucherUserId));
+  const vouches = await getDb()
+    .select({ voucherUserId: personhoodVouches.voucherUserId })
+    .from(personhoodVouches)
+    .where(
+      and(
+        eq(personhoodVouches.subjectUserId, subjectUserId),
+        eq(personhoodVouches.status, 'active'),
+      ),
+    )
+    .limit(SYBIL_VOUCHER_SCAN_CAP);
+  return vouches.map((vouch) => vouch.voucherUserId);
 }
 
 /**
  * Shared-device cluster signal: the fraction of {subject ∪ vouchers} whose
  * active-session deviceIds overlap with at least one OTHER account in the
- * set. Each account's device set is fetched once; overlap is computed by an
- * in-memory inverted index (deviceId → owning accounts), so the cost is
- * O(accounts) queries with no pairwise blow-up.
+ * set. Overlap is computed by an in-memory inverted index (deviceId → owning
+ * accounts) over ONE batched read, so the cost no longer grows a query per
+ * voucher the way the per-account Mongo lookup did.
  */
 async function computeSharedFingerprintSignal(
   subjectUserId: string,
   voucherIds: string[],
 ): Promise<number> {
   const accounts = [subjectUserId, ...voucherIds];
+  const devicesByAccount = await sessionDeviceIdsFor(accounts);
   // fingerprint → set of account ids that present it.
   const owners = new Map<string, Set<string>>();
   const accountPrints = new Map<string, string[]>();
 
   for (const accountId of accounts) {
-    const devices = await sessionDeviceIds(accountId);
+    const devices = devicesByAccount.get(accountId) ?? new Set<string>();
     const prints = [...devices].map((d) => `d:${d}`);
     accountPrints.set(accountId, prints);
     for (const print of prints) {
@@ -119,11 +128,17 @@ async function computeVouchRingSignal(
   }
   const incoming = new Set(incomingVoucherIds);
 
-  const outgoing = await PersonhoodVouch.find({ voucherUserId: subjectUserId, status: 'active' })
-    .select('subjectUserId')
-    .limit(SYBIL_VOUCHER_SCAN_CAP)
-    .lean<Array<{ subjectUserId: unknown }>>();
-  const outgoingIds = outgoing.map((v) => String(v.subjectUserId));
+  const outgoing = await getDb()
+    .select({ subjectUserId: personhoodVouches.subjectUserId })
+    .from(personhoodVouches)
+    .where(
+      and(
+        eq(personhoodVouches.voucherUserId, subjectUserId),
+        eq(personhoodVouches.status, 'active'),
+      ),
+    )
+    .limit(SYBIL_VOUCHER_SCAN_CAP);
+  const outgoingIds = outgoing.map((vouch) => vouch.subjectUserId);
   const outgoingSet = new Set(outgoingIds);
 
   // 2-cycles: subject vouches back for an incoming voucher.
@@ -138,15 +153,18 @@ async function computeVouchRingSignal(
   // S→X→Y→S). Bounded by the capped outgoing/incoming sets.
   let triads = 0;
   if (outgoingIds.length > 0) {
-    const bridges = await PersonhoodVouch.find({
-      voucherUserId: { $in: outgoingIds },
-      subjectUserId: { $in: incomingVoucherIds },
-      status: 'active',
-    })
-      .select('subjectUserId')
-      .limit(SYBIL_VOUCHER_SCAN_CAP)
-      .lean<Array<{ subjectUserId: unknown }>>();
-    triads = bridges.filter((b) => incoming.has(String(b.subjectUserId))).length;
+    const bridges = await getDb()
+      .select({ subjectUserId: personhoodVouches.subjectUserId })
+      .from(personhoodVouches)
+      .where(
+        and(
+          inArray(personhoodVouches.voucherUserId, outgoingIds),
+          inArray(personhoodVouches.subjectUserId, incomingVoucherIds),
+          eq(personhoodVouches.status, 'active'),
+        ),
+      )
+      .limit(SYBIL_VOUCHER_SCAN_CAP);
+    triads = bridges.filter((bridge) => incoming.has(bridge.subjectUserId)).length;
   }
 
   return clamp((reciprocal + triads) / incomingVoucherIds.length, 0, 1);

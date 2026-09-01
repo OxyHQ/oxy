@@ -4,7 +4,7 @@ import { __resetOxyState, __setOxyState } from '@/__mocks__/oxyhq-services';
 import { __resetAsyncStorage } from '@/__mocks__/async-storage';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import { ActivityList } from '@/components/reputation/ActivityList';
-import type { ReputationTransaction } from '@oxyhq/core';
+import type { ReputationTransaction } from '@oxyhq/contracts';
 
 const TRANSACTIONS: ReputationTransaction[] = [
   {

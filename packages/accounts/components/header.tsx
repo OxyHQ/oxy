@@ -5,11 +5,12 @@ import { useNavigation, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { LogoIcon , useOxy } from '@oxyhq/services';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useScrollContext } from '@/contexts/scroll-context';
-import { getAccountDisplayName } from '@oxyhq/core';
+import { getAccountDisplayName, getNormalizedUserHandle } from '@oxyhq/core';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { darkenColor } from '@/utils/color-utils';
 import { useTranslation } from '@/lib/i18n';
@@ -27,7 +28,7 @@ interface HeaderProps {
 
 const DOUBLE_PRESS_DELAY = 300;
 
-export function Header({ }: HeaderProps) {
+export function Header(_props: HeaderProps) {
     const navigation = useNavigation<DrawerNavigation>();
     const router = useRouter();
     const colors = useColors();
@@ -46,7 +47,10 @@ export function Header({ }: HeaderProps) {
     const lastPressRef = useRef<number>(0);
     const pressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const displayName = useMemo(() => getAccountDisplayName(user), [user]);
+    const displayName = useMemo(
+        () => user?.name?.displayName ?? getNormalizedUserHandle(user) ?? getAccountDisplayName(null),
+        [user],
+    );
     const avatarUrl = useMemo(() => {
         if (user?.avatar && oxyServices) {
             return oxyServices.getFileDownloadUrl(user.avatar, 'thumb');

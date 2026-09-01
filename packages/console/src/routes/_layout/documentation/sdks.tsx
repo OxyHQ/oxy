@@ -2,10 +2,13 @@ import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, Copy01Icon, Tick02Icon } from '@hugeicons/core-free-icons';
 import { useState } from 'react';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
+import { ModelPlaceholderNotice } from '@/components/model-placeholder-notice';
+import { MODEL_ID_PLACEHOLDER } from '@/lib/model-reference';
 
 export const Route = createFileRoute('/_layout/documentation/sdks')({
   component: SDKsPage,
@@ -68,14 +71,25 @@ function SDKsPage() {
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">OpenAI SDK Compatibility</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          The Oxy API is fully compatible with OpenAI's SDK. You can use any OpenAI-compatible
-          library by simply changing the base URL to <code className="text-xs bg-muted px-1 py-0.5 rounded">https://api.oxy.so/v1</code>.
+          The Oxy API is compatible with OpenAI's SDK. You can use any OpenAI-compatible
+          library by changing the base URL to <code className="text-xs bg-muted px-1 py-0.5 rounded">https://api.oxy.so/v1</code>.
+        </p>
+        <p className="text-sm text-muted-foreground mb-4">
+          These SDKs call their credential field <code className="text-xs bg-muted px-1 py-0.5 rounded">apiKey</code>,
+          but it is simply what goes into
+          the <code className="text-xs bg-muted px-1 py-0.5 rounded">Authorization: Bearer</code> header —
+          so pass a <strong className="text-foreground">token</strong>, never
+          your <code className="text-xs bg-muted px-1 py-0.5 rounded">oxy_dk_</code> client id. See
+          the <Link to="/documentation/authentication" className="text-primary hover:underline">authentication guide</Link> for
+          how to obtain one.
         </p>
         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
           <p className="text-sm text-primary">
             This means you can migrate existing OpenAI integrations to Oxy with minimal code changes!
           </p>
         </div>
+        <InferenceAvailabilityNotice className="mt-4" />
+        <ModelPlaceholderNotice className="mt-4" />
       </div>
 
       {/* Installation */}
@@ -120,13 +134,13 @@ function SDKsPage() {
               code={`import OpenAI from 'openai';
 
 const client = new OpenAI({
-  apiKey: process.env.OXY_API_KEY,
+  apiKey: process.env.OXY_ACCESS_TOKEN,
   baseURL: 'https://api.oxy.so/v1',
 });
 
 async function main() {
   const completion = await client.chat.completions.create({
-    model: 'alia-v1',
+    model: '${MODEL_ID_PLACEHOLDER}',
     messages: [
       { role: 'system', content: 'You are a helpful assistant.' },
       { role: 'user', content: 'Hello!' },
@@ -147,12 +161,12 @@ main();`}
 import os
 
 client = OpenAI(
-    api_key=os.environ.get("OXY_API_KEY"),
+    api_key=os.environ.get("OXY_ACCESS_TOKEN"),
     base_url="https://api.oxy.so/v1",
 )
 
 completion = client.chat.completions.create(
-    model="alia-v1",
+    model="${MODEL_ID_PLACEHOLDER}",
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Hello!"},
@@ -167,10 +181,10 @@ print(completion.choices[0].message.content)`}
             <CodeBlock
               title="Request"
               code={`curl https://api.oxy.so/v1/chat/completions \\
-  -H "Authorization: Bearer $OXY_API_KEY" \\
+  -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "alia-v1",
+    "model": "${MODEL_ID_PLACEHOLDER}",
     "messages": [
       {"role": "system", "content": "You are a helpful assistant."},
       {"role": "user", "content": "Hello!"}
@@ -196,13 +210,13 @@ print(completion.choices[0].message.content)`}
               code={`import OpenAI from 'openai';
 
 const client = new OpenAI({
-  apiKey: process.env.OXY_API_KEY,
+  apiKey: process.env.OXY_ACCESS_TOKEN,
   baseURL: 'https://api.oxy.so/v1',
 });
 
 async function main() {
   const stream = await client.chat.completions.create({
-    model: 'alia-v1',
+    model: '${MODEL_ID_PLACEHOLDER}',
     messages: [{ role: 'user', content: 'Tell me a story' }],
     stream: true,
   });
@@ -224,12 +238,12 @@ main();`}
 import os
 
 client = OpenAI(
-    api_key=os.environ.get("OXY_API_KEY"),
+    api_key=os.environ.get("OXY_ACCESS_TOKEN"),
     base_url="https://api.oxy.so/v1",
 )
 
 stream = client.chat.completions.create(
-    model="alia-v1",
+    model="${MODEL_ID_PLACEHOLDER}",
     messages=[{"role": "user", "content": "Tell me a story"}],
     stream=True,
 )
@@ -258,13 +272,13 @@ for chunk in stream:
                 code={`import { createOpenAI } from '@ai-sdk/openai';
 
 const oxy = createOpenAI({
-  apiKey: process.env.OXY_API_KEY,
+  apiKey: process.env.OXY_ACCESS_TOKEN,
   baseURL: 'https://api.oxy.so/v1',
 });
 
 // Use with streamText, generateText, etc.
 const result = await streamText({
-  model: oxy('alia-v1'),
+  model: oxy('${MODEL_ID_PLACEHOLDER}'),
   prompt: 'Hello!',
 });`}
               />
@@ -281,10 +295,11 @@ const result = await streamText({
             <CardContent>
               <CodeBlock
                 code={`from langchain_openai import ChatOpenAI
+import os
 
 llm = ChatOpenAI(
-    model="alia-v1",
-    api_key="your-api-key",
+    model="${MODEL_ID_PLACEHOLDER}",
+    api_key=os.environ.get("OXY_ACCESS_TOKEN"),
     base_url="https://api.oxy.so/v1",
 )
 
@@ -300,11 +315,15 @@ print(response.content)`}
       <div className="px-6 py-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Environment Variables</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          We recommend storing your API key in an environment variable:
+          Store the credential pair, and mint the token your code passes as
+          the SDK's <code className="text-xs bg-muted px-1 py-0.5 rounded">apiKey</code> at runtime.
+          The <code className="text-xs bg-muted px-1 py-0.5 rounded">clientId</code> is a public
+          identifier and is rejected if you send it as a bearer.
         </p>
         <CodeBlock
           title=".env"
-          code={`OXY_API_KEY=oxy_dk_your_api_key_here
+          code={`OXY_CLIENT_ID=oxy_dk_your_client_id
+OXY_CLIENT_SECRET=shown_once_when_you_create_the_credential
 OXY_BASE_URL=https://api.oxy.so/v1`}
         />
       </div>

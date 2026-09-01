@@ -53,6 +53,18 @@ export function createUrlBuilders(domain: string, actorDomain: string = domain):
   };
 }
 
+/**
+ * The reserved local-part of the instance-wide server actor (`Application`).
+ *
+ * This actor signs the engine's own outbound GETs; it is NOT an Oxy user, has no
+ * profile page and no fediverse-sharing consent record. Both the actor route and
+ * the WebFinger route must answer for it, and Mastodon compares the WebFinger
+ * `self` href against the actor `id` byte-for-byte before it will trust a signed
+ * fetch — so the two routers derive that URL from THIS constant through the same
+ * {@link UrlBuilders.actor} builder rather than each spelling the name themselves.
+ */
+export const INSTANCE_ACTOR_USERNAME = 'instance';
+
 /** Normalize a local actor username from a path segment or WebFinger acct local-part. */
 export function normalizeActorUsername(username: string): string {
   return username.trim().toLowerCase();

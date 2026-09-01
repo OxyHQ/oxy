@@ -17,6 +17,7 @@ import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { normalizeInlineText } from '@oxyhq/core';
+import { and, eq, not, sql } from 'drizzle-orm';
 import { simpleParser } from 'mailparser';
 import type { ParsedMail } from 'mailparser';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -25,9 +26,10 @@ import { emailService } from '../services/email.service';
 import { spamService } from '../services/spam.service';
 import { EMAIL_DOMAIN, extractUsername, extractAliasTag } from '../config/email.config';
 import { getEnvVar } from '../config/env';
-import User from '../models/User';
-import { Message } from '../models/Message';
-import { Mailbox } from '../models/Mailbox';
+import { getDb } from '../config/postgres';
+import { mailboxes } from '../db/schema/mailboxes';
+import { messages } from '../db/schema/messages';
+import { users } from '../db/schema/users';
 import { logger } from '../utils/logger';
 import { getIO } from '../utils/socket';
 import type { EmailNewEvent, EmailUnreadCountEvent } from '../types/socketEvents';
@@ -66,9 +68,8 @@ function buildSnippet(text?: string, html?: string): string {
 }
 
 interface StoredIncomingMessage {
-  id?: string;
-  _id?: { toString(): string };
-  mailboxId: { toString(): string };
+  id: string;
+  mailboxId: string;
   receivedAt?: Date | string;
   date?: Date | string;
 }
@@ -108,18 +109,20 @@ async function emitInboxSocketEvents(args: {
       return;
     }
 
-    const messageId = args.stored.id ?? args.stored._id?.toString();
+    const messageId = args.stored.id;
     if (!messageId) {
       logger.warn('Inbox socket emit skipped: stored message missing id');
       return;
     }
 
-    const mailboxIdStr = args.stored.mailboxId.toString();
+    const mailboxIdStr = args.stored.mailboxId;
     const room = `user:${args.userId}`;
 
-    const mailbox = await Mailbox.findById(mailboxIdStr)
-      .select('name specialUse')
-      .lean<{ name?: string; specialUse?: string }>();
+    const [mailbox] = await getDb()
+      .select({ name: mailboxes.name, specialUse: mailboxes.specialUse })
+      .from(mailboxes)
+      .where(eq(mailboxes.id, mailboxIdStr))
+      .limit(1);
 
     const receivedAtRaw = args.stored.receivedAt ?? args.stored.date ?? new Date();
     const receivedAt = receivedAtRaw instanceof Date
@@ -143,10 +146,14 @@ async function emitInboxSocketEvents(args: {
 
     io.to(room).emit('email:new', emailNewPayload);
 
-    const unread = await Message.countDocuments({
-      mailboxId: mailboxIdStr,
-      'flags.seen': false,
-    });
+    // The count `mailboxes.unseen_messages` used to cache. The partial index
+    // `messages_unseen_idx` (`where not seen`) makes it an index-only scan over
+    // just the unread rows.
+    const [unreadRow] = await getDb()
+      .select({ unread: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(and(eq(messages.mailboxId, mailboxIdStr), not(messages.seen)));
+    const unread = unreadRow?.unread ?? 0;
 
     const unreadPayload: EmailUnreadCountEvent = {
       mailboxId: mailboxIdStr,
@@ -221,8 +228,27 @@ export function verifyEmailInboundWebhookSecret(req: Request, res: Response, nex
 router.post(
   '/',
   asyncHandler(async (req: Request, res: Response) => {
-    const rawMessage = req.body as Buffer;
-    if (!rawMessage || rawMessage.length === 0) {
+    // `req.body` is a Buffer only because `server.ts` mounts `express.raw` on
+    // this path AHEAD of the global JSON parser. That is configuration, not a
+    // type guarantee, so the runtime shape is checked here rather than asserted
+    // with a cast:
+    //   - body-parser's `raw` assigns `{}`, not an empty Buffer, for a request
+    //     that carries no body at all — a shape reachable TODAY, on which
+    //     `.length` is `undefined` and the empty-body guard silently passes.
+    //   - if the parser ordering ever drifts (AGENTS.md calls this out), the
+    //     JSON parser wins and hands this handler a parsed object or array.
+    //     An array even has a plausible `.length`, so the message would flow on
+    //     to the spam check and `simpleParser` as a non-Buffer.
+    const rawMessage: unknown = req.body;
+    if (!Buffer.isBuffer(rawMessage)) {
+      // Loud, because the silent-failure mode this replaces is exactly the one
+      // AGENTS.md warns about: inbound mail disappearing with a 400 nobody reads.
+      logger.error('Inbound webhook: body is not a Buffer — raw body parser did not run', undefined, {
+        bodyType: Array.isArray(rawMessage) ? 'array' : typeof rawMessage,
+      });
+      return res.status(400).json({ error: 'Empty message body' });
+    }
+    if (rawMessage.length === 0) {
       return res.status(400).json({ error: 'Empty message body' });
     }
 
@@ -242,7 +268,12 @@ router.post(
       const username = extractUsername(addr);
       if (!username) continue;
 
-      const user = await User.findOne({ username }).select('_id').lean<{ _id: { toString(): string } }>();
+      // `lower(btrim(username))`, matching `users_lower_username_key`.
+      const [user] = await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
+        .limit(1);
       if (!user) {
         logger.info('Inbound webhook: recipient not found', { address: addr });
         continue;
@@ -251,7 +282,7 @@ router.post(
       validRecipients.push({
         address: addr,
         username,
-        userId: user._id.toString(),
+        userId: user.id,
         aliasTag: extractAliasTag(addr) ?? undefined,
       });
     }

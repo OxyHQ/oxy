@@ -8,7 +8,7 @@ import { useColors } from '@/hooks/useColors';
 import { useThemeMode } from '@/contexts/theme-mode-context';
 import { DesktopSidebar, DrawerContent, BottomActionBar } from '@/components/ui';
 import { Header } from '@/components/header';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useScrollContext } from '@/contexts/scroll-context';
 import { useOxy } from '@oxyhq/services';
 import { useHapticPress } from '@/hooks/use-haptic-press';

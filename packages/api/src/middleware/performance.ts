@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { isPostgresConnected } from '../config/postgres';
 import { performanceMonitor } from '../utils/performanceMonitor';
 import { logger } from '../utils/logger';
 
@@ -36,26 +37,6 @@ export const performanceMiddleware = (req: Request, res: Response, next: NextFun
 };
 
 /**
- * Database query monitoring middleware
- * Wraps mongoose queries to track performance
- */
-export const monitorDatabaseQuery = async <T>(
-  operation: string,
-  queryFn: () => Promise<T>
-): Promise<T> => {
-  const endTimer = performanceMonitor.startTimer(`db:${operation}`);
-  
-  try {
-    const result = await queryFn();
-    endTimer({ success: true });
-    return result;
-  } catch (error) {
-    endTimer({ success: false, error: error instanceof Error ? error.message : String(error) });
-    throw error;
-  }
-};
-
-/**
  * Get memory usage statistics
  */
 export const getMemoryStats = () => {
@@ -70,20 +51,46 @@ export const getMemoryStats = () => {
 };
 
 /**
- * Get MongoDB connection pool statistics
+ * Which database this process is pointed at, for `GET /metrics`.
+ *
+ * Replaces `getConnectionPoolStats(mongoose.connection)`. Two of its three
+ * fields survive because they describe the SERVER, not the driver: `host` and
+ * `name`. `readyState` does not — it was a mongoose enum (0–3) with no Postgres
+ * counterpart, and inventing one would be exactly the Mongo baggage the
+ * migration contract forbids. `connected` answers the question `readyState` was
+ * actually read for, in the vocabulary of the pool that now exists.
+ *
+ * `connected` is `isPostgresConnected()`, so this reports whether a pool is
+ * OPEN, not whether the server answers. Liveness is `GET /health`, which issues
+ * a real round trip; two probes with the same answer would be one probe too
+ * many, and the health one is the ALB's.
+ *
+ * Parsed from `DATABASE_URL` rather than read off the pool: `postgres.js`
+ * exposes no such accessor, and a URL parse cannot accidentally surface the
+ * password the way a driver-options dump can.
  */
-export const getConnectionPoolStats = (mongooseConnection: any) => {
-  if (!mongooseConnection || !mongooseConnection.db) {
+export const getDatabaseStats = () => {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
     return null;
   }
 
+  let host: string;
+  let name: string;
+  try {
+    const parsed = new URL(url);
+    host = parsed.hostname;
+    name = parsed.pathname.replace(/^\//, '');
+  } catch {
+    // A malformed DATABASE_URL is a startup problem the health endpoint already
+    // reports; a metrics read must not become the thing that throws.
+    return { connected: isPostgresConnected(), host: null, name: null };
+  }
+
   return {
-    readyState: mongooseConnection.readyState,
-    host: mongooseConnection.host,
-    name: mongooseConnection.name,
-    // Note: MongoDB driver doesn't expose pool stats directly in older versions
-    // Connection pool size is configured but not exposed via API
-    // Use MongoDB monitoring tools or connection events for detailed stats
+    connected: isPostgresConnected(),
+    host,
+    name,
   };
 };
 

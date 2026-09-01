@@ -1,144 +1,277 @@
 /**
- * Graph-exclusion tests (civic / Fase 2 anti-sybil core).
+ * `graphExclusion` — the shared sock-puppet test, against a REAL Postgres.
  *
- * Asserts the shared sock-puppet test used by BOTH the real-life flow and the
- * jury selection: related users (follow/block edge, common neighbour at 2 hops,
- * shared device) are EXCLUDED; unrelated users are not. IP is NOT a signal
- * (privacy invariant — no user IPs at rest). The Follow/Block/Session models are
- * driven by a tiny in-memory graph fixture so the rules are exercised
- * deterministically.
+ * This is the anti-sybil gate BOTH the real-life attestation flow and the jury
+ * selection delegate to, so a false NEGATIVE here is a farm of fake accounts
+ * attesting each other and a false POSITIVE is two strangers who can never
+ * attest at all. The suite it replaces drove `Follow`/`Block`/`Session` through
+ * an in-memory fixture keyed on the exact query shape the Mongoose code emitted,
+ * which meant it re-stated the queries rather than the RULE — it could not tell
+ * a predicate on the wrong column of `blocks` (both columns are user ids) from a
+ * correct one, and it could not see the `is_active` filter at all because the
+ * fixture never modelled an inactive session.
+ *
+ * So every case below writes real rows and asserts the verdict. The two that
+ * carry the most weight:
+ *
+ *  - **A shared `device_fingerprint` must NOT yield `shared_device`.** The
+ *    fingerprint is a sha256 of a client-supplied environment blob with ZERO
+ *    device-unique inputs on React Native, so two DISTINCT phones on the same
+ *    locale produce the same value — a prod incident. The fixture is
+ *    discriminating: both accounts carry the SAME fingerprint and DIFFERENT
+ *    device ids, so a rule that reads the fingerprint goes red.
+ *  - **An expired/revoked session must not link two accounts.** `is_active` is
+ *    the only thing separating "these two are on one phone right now" from
+ *    "these two once signed in on a phone that has since been signed out".
  */
 
-interface GraphEntry {
-  follows: string[];
-  followedBy: string[];
-  blocks: string[];
-  blockedBy: string[];
-  devices: string[];
-  /** Coarse client-supplied `deviceInfo.fingerprint` values (environment hash,
-   * NOT device-unique — must never produce a `shared_device` verdict). */
-  fingerprints: string[];
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { blocks } from '../../db/schema/blocks';
+import { sessions } from '../../db/schema/sessions';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
+import {
+  areGraphRelated,
+  isSockPuppetRelation,
+  sessionDeviceIds,
+  sessionDeviceIdsFor,
+  shareDevice,
+} from '../civic/graphExclusion';
+
+const unique = () => randomUUID();
+
+/** Fresh accounts. Every id is per-test, so nothing depends on an empty table. */
+async function accounts(count: number): Promise<string[]> {
+  const rows = await getDb()
+    .insert(users)
+    .values(Array.from({ length: count }, () => ({ username: `u-${unique().slice(0, 18)}` })))
+    .returning({ id: users.id });
+  return rows.map((row) => row.id);
 }
 
-const graph: Record<string, Partial<GraphEntry>> = {};
-
-function entry(id: string): GraphEntry {
-  const e = graph[id] ?? {};
-  return {
-    follows: e.follows ?? [],
-    followedBy: e.followedBy ?? [],
-    blocks: e.blocks ?? [],
-    blockedBy: e.blockedBy ?? [],
-    devices: e.devices ?? [],
-    fingerprints: e.fingerprints ?? [],
-  };
+/** A session row for `userId` on `deviceId`. Active unless told otherwise. */
+async function session(
+  userId: string,
+  deviceId: string,
+  overrides: { isActive?: boolean; deviceFingerprint?: string } = {}
+): Promise<void> {
+  const token = unique();
+  await getDb().insert(sessions).values({
+    sessionId: `s-${token}`,
+    userId,
+    deviceId,
+    deviceType: 'mobile',
+    platform: 'ios',
+    accessToken: `at-${token}`,
+    refreshToken: `rt-${token}`,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    isActive: overrides.isActive ?? true,
+    deviceFingerprint: overrides.deviceFingerprint,
+  });
 }
 
-function chain<T>(rows: T[]) {
-  return { select: () => ({ lean: async () => rows }) };
-}
-
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  FollowType: { USER: 'user', HASHTAG: 'hashtag', TOPIC: 'topic' },
-  default: {
-    find: (q: Record<string, unknown>) => {
-      if ('followerUserId' in q) {
-        return chain(entry(String(q.followerUserId)).follows.map((id) => ({ followedId: id })));
-      }
-      return chain(entry(String(q.followedId)).followedBy.map((id) => ({ followerUserId: id })));
-    },
-  },
-}));
-jest.mock('../../models/Block', () => ({
-  __esModule: true,
-  default: {
-    find: (q: Record<string, unknown>) => {
-      if ('userId' in q) {
-        return chain(entry(String(q.userId)).blocks.map((id) => ({ blockedId: id })));
-      }
-      return chain(entry(String(q.blockedId)).blockedBy.map((id) => ({ userId: id })));
-    },
-  },
-}));
-jest.mock('../../models/Session', () => ({
-  __esModule: true,
-  default: {
-    find: (q: Record<string, unknown>) => {
-      const e = entry(String(q.userId));
-      const rows = [
-        ...e.devices.map((d, i) => ({ deviceId: d, deviceInfo: { fingerprint: e.fingerprints[i] } })),
-        ...e.fingerprints.slice(e.devices.length).map((fp) => ({ deviceInfo: { fingerprint: fp } })),
-      ];
-      return chain(rows);
-    },
-  },
-}));
-
-import { isSockPuppetRelation, areGraphRelated } from '../civic/graphExclusion';
-
-const A = 'a'.repeat(24);
-const B = 'b'.repeat(24);
-const X = 'c'.repeat(24);
-
-beforeEach(() => {
-  for (const k of Object.keys(graph)) delete graph[k];
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-describe('isSockPuppetRelation', () => {
-  it('excludes a user from themselves (self)', async () => {
-    expect(await isSockPuppetRelation(A, A)).toEqual({ excluded: true, reason: 'self' });
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('isSockPuppetRelation — the social-graph signal', () => {
+  it('excludes an account from itself', async () => {
+    const [a] = await accounts(1);
+    expect(await isSockPuppetRelation(a, a)).toEqual({ excluded: true, reason: 'self' });
   });
 
-  it('excludes a direct follow edge (A follows B)', async () => {
-    graph[A] = { follows: [B] };
-    graph[B] = { followedBy: [A] };
-    expect(await isSockPuppetRelation(A, B)).toEqual({ excluded: true, reason: 'graph_neighbor' });
+  it('excludes a follow edge in EITHER direction', async () => {
+    const [a, b, c, d] = await accounts(4);
+    await getDb().insert(userFollows).values({ followerId: a, followedId: b });
+    await getDb().insert(userFollows).values({ followerId: d, followedId: c });
+
+    // a → b (outgoing for a, incoming for b): both orders must exclude.
+    expect(await isSockPuppetRelation(a, b)).toEqual({
+      excluded: true,
+      reason: 'graph_neighbor',
+    });
+    expect(await isSockPuppetRelation(b, a)).toEqual({
+      excluded: true,
+      reason: 'graph_neighbor',
+    });
+    // d → c: the same, seeded the other way round so neither direction of the
+    // read can be the one that happens to work.
+    expect(await isSockPuppetRelation(c, d)).toEqual({
+      excluded: true,
+      reason: 'graph_neighbor',
+    });
   });
 
-  it('excludes a block edge (B blocked A)', async () => {
-    graph[A] = { blockedBy: [B] };
-    graph[B] = { blocks: [A] };
-    expect(await isSockPuppetRelation(A, B)).toEqual({ excluded: true, reason: 'graph_neighbor' });
+  it('excludes a block edge in EITHER direction', async () => {
+    // `blocks` has two user-id columns, so a predicate on the wrong one reports
+    // the inverse relationship with no type error. Both orders are stated.
+    const [a, b, c, d] = await accounts(4);
+    await getDb().insert(blocks).values({ userId: a, blockedId: b });
+    await getDb().insert(blocks).values({ userId: d, blockedId: c });
+
+    expect(await isSockPuppetRelation(a, b)).toEqual({
+      excluded: true,
+      reason: 'graph_neighbor',
+    });
+    expect(await isSockPuppetRelation(b, a)).toEqual({
+      excluded: true,
+      reason: 'graph_neighbor',
+    });
+    expect(await isSockPuppetRelation(c, d)).toEqual({
+      excluded: true,
+      reason: 'graph_neighbor',
+    });
   });
 
-  it('excludes a shared deviceId (true multi-account on one install)', async () => {
-    graph[A] = { devices: ['dev-1'] };
-    graph[B] = { devices: ['dev-1'] };
-    expect(await isSockPuppetRelation(A, B)).toEqual({ excluded: true, reason: 'shared_device' });
+  it('does not exclude two accounts with no edge and no shared device', async () => {
+    const [a, b, other] = await accounts(3);
+    // Each has real edges and real sessions — just not with each other, so a
+    // rule that answered "excluded" on the mere PRESENCE of rows goes red.
+    await getDb().insert(userFollows).values({ followerId: a, followedId: other });
+    await getDb().insert(blocks).values({ userId: b, blockedId: other });
+    await session(a, `dev-${unique()}`);
+    await session(b, `dev-${unique()}`);
+
+    expect(await isSockPuppetRelation(a, b)).toEqual({ excluded: false });
+  });
+
+  it('reports the graph reason FIRST when an account is both a neighbour and a co-device', async () => {
+    const [a, b] = await accounts(2);
+    const device = `dev-${unique()}`;
+    await getDb().insert(userFollows).values({ followerId: a, followedId: b });
+    await session(a, device);
+    await session(b, device);
+
+    expect(await isSockPuppetRelation(a, b)).toEqual({
+      excluded: true,
+      reason: 'graph_neighbor',
+    });
+  });
+});
+
+describe('isSockPuppetRelation — the device signal', () => {
+  it('excludes two accounts signed in on the SAME device id', async () => {
+    const [a, b] = await accounts(2);
+    const device = `dev-${unique()}`;
+    await session(a, device);
+    await session(b, device);
+
+    expect(await isSockPuppetRelation(a, b)).toEqual({
+      excluded: true,
+      reason: 'shared_device',
+    });
   });
 
   it('does NOT exclude two distinct installs that share only the coarse environment fingerprint', async () => {
-    // Regression (prod incident): two DISTINCT physical phones — separate
-    // per-install deviceIds — produced the IDENTICAL client `deviceInfo.fingerprint`
-    // (environment hash of ua/platform/language/timezone: no device-unique input
-    // on React Native). The fingerprint must NOT yield a `shared_device` verdict.
-    graph[A] = { devices: ['dev-a'], fingerprints: ['same-env-fp'] };
-    graph[B] = { devices: ['dev-b'], fingerprints: ['same-env-fp'] };
-    expect(await isSockPuppetRelation(A, B)).toEqual({ excluded: false });
+    // The prod incident: `device_fingerprint` is sha256 of {userAgent, platform,
+    // language, timezone, screen} — no device-unique input on React Native — so
+    // two separate phones on the same locale hash identically. Discriminating by
+    // construction: identical fingerprint, different device id.
+    const [a, b] = await accounts(2);
+    const sharedFingerprint = `fp-${unique()}`;
+    await session(a, `dev-${unique()}`, { deviceFingerprint: sharedFingerprint });
+    await session(b, `dev-${unique()}`, { deviceFingerprint: sharedFingerprint });
+
+    expect(await isSockPuppetRelation(a, b)).toEqual({ excluded: false });
+    expect(await shareDevice(a, b)).toBe(false);
   });
 
-  it('still excludes a shared deviceId even when fingerprints differ', async () => {
-    graph[A] = { devices: ['dev-1'], fingerprints: ['fp-a'] };
-    graph[B] = { devices: ['dev-1'], fingerprints: ['fp-b'] };
-    expect(await isSockPuppetRelation(A, B)).toEqual({ excluded: true, reason: 'shared_device' });
+  it('still excludes a shared device id when the fingerprints DIFFER', async () => {
+    // The other half of the same rule: the fingerprint neither creates nor
+    // suppresses a verdict. `device_id` alone decides.
+    const [a, b] = await accounts(2);
+    const device = `dev-${unique()}`;
+    await session(a, device, { deviceFingerprint: `fp-${unique()}` });
+    await session(b, device, { deviceFingerprint: `fp-${unique()}` });
+
+    expect(await isSockPuppetRelation(a, b)).toEqual({
+      excluded: true,
+      reason: 'shared_device',
+    });
   });
 
-  it('does NOT exclude unrelated users', async () => {
-    graph[A] = { follows: [X], devices: ['dev-a'] };
-    graph[B] = { follows: ['z'.repeat(24)], devices: ['dev-b'] };
-    expect(await isSockPuppetRelation(A, B)).toEqual({ excluded: false });
+  it('ignores an INACTIVE session on the shared device', async () => {
+    // Dropping the `is_active` predicate would make a signed-out session link
+    // two accounts forever — the whole difference between "on one phone now"
+    // and "once signed in on a phone".
+    const [a, b] = await accounts(2);
+    const device = `dev-${unique()}`;
+    await session(a, device, { isActive: false });
+    await session(b, device);
+
+    expect(await isSockPuppetRelation(a, b)).toEqual({ excluded: false });
+    expect(await sessionDeviceIds(a)).toEqual(new Set());
+    expect(await sessionDeviceIds(b)).toEqual(new Set([device]));
   });
 });
 
 describe('areGraphRelated — hop radius', () => {
-  it('treats a common neighbour as related at 2 hops but NOT at 1 hop', async () => {
-    // A follows X; B follows X — A and B share neighbour X (no direct edge).
-    graph[A] = { follows: [X] };
-    graph[B] = { follows: [X] };
-    graph[X] = { followedBy: [A, B] };
+  it('treats a common neighbour as related at 2 hops but NOT at 1', async () => {
+    const [a, b, x] = await accounts(3);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: a, followedId: x },
+        { followerId: b, followedId: x },
+      ]);
 
-    expect(await areGraphRelated(A, B, 1)).toBe(false);
-    expect(await areGraphRelated(A, B, 2)).toBe(true);
+    expect(await areGraphRelated(a, b, 1)).toBe(false);
+    expect(await areGraphRelated(a, b, 2)).toBe(true);
+  });
+
+  it('finds a direct edge at ANY radius, including the default', async () => {
+    const [a, b] = await accounts(2);
+    await getDb().insert(userFollows).values({ followerId: a, followedId: b });
+
+    expect(await areGraphRelated(a, b)).toBe(true);
+    expect(await areGraphRelated(a, b, 1)).toBe(true);
+    expect(await areGraphRelated(a, b, 2)).toBe(true);
+  });
+
+  it('leaves two accounts three hops apart unrelated even at 2 hops', async () => {
+    // a → x → y ← b: no shared DIRECT neighbour, so the 2-hop intersection is
+    // empty. Without this, "2 hops" could quietly mean "reachable at all".
+    const [a, b, x, y] = await accounts(4);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: a, followedId: x },
+        { followerId: x, followedId: y },
+        { followerId: b, followedId: y },
+      ]);
+
+    expect(await areGraphRelated(a, b, 2)).toBe(false);
+    // …and the two pairs that ARE one hop apart still are.
+    expect(await areGraphRelated(a, x, 1)).toBe(true);
+    expect(await areGraphRelated(b, y, 1)).toBe(true);
+  });
+});
+
+describe('sessionDeviceIdsFor — the batched read the sybil clustering runs on', () => {
+  it('keys every account to its OWN devices and nobody else’s', async () => {
+    const [a, b, c] = await accounts(3);
+    const deviceA1 = `dev-${unique()}`;
+    const deviceA2 = `dev-${unique()}`;
+    const deviceB = `dev-${unique()}`;
+    await session(a, deviceA1);
+    await session(a, deviceA2);
+    await session(b, deviceB);
+
+    const byUser = await sessionDeviceIdsFor([a, b, c]);
+
+    expect(byUser.get(a)).toEqual(new Set([deviceA1, deviceA2]));
+    expect(byUser.get(b)).toEqual(new Set([deviceB]));
+    // An account with no session is PRESENT with an empty set, not absent — the
+    // clustering indexes by account and a missing key would read as a miss.
+    expect(byUser.get(c)).toEqual(new Set());
+  });
+
+  it('returns an empty map for no accounts', async () => {
+    expect(await sessionDeviceIdsFor([])).toEqual(new Map());
   });
 });

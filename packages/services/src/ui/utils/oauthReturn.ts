@@ -3,7 +3,7 @@ import {
   clearOAuthHandshake,
   consumeOAuthReturnPath,
   logger,
-  normalizeOAuthRedirectUri,
+  canonicalizeOAuthRedirectUri,
   readOAuthHandshake,
 } from '@oxyhq/core';
 import { completeOAuthCode } from '../oauth/completeOAuthCode';
@@ -14,12 +14,21 @@ import { isWebBrowser } from './isWebBrowser';
  * When the RP lands with `?code=` after signing in at auth.oxy.so, exchange the
  * code for a device-first session before cold boot runs.
  *
- * This is the REDIRECT transport's return leg. It owns only what is specific to
- * a full-page round trip — reading the code off the URL, recovering the
- * handshake `sessionStorage` carried across the navigation, and cleaning both up
- * afterwards — and delegates state validation, the PKCE exchange, and the
- * session commit to `completeOAuthCode`, the same function the popup transport
- * runs.
+ * This is the REDIRECT transport's return leg. The SDK never starts a full-page
+ * authorize navigation on its own any more (#691 phase 7b), but this lane is
+ * still load-bearing: a browser-BLOCKED sign-in popup falls back to a full-page
+ * redirect (`startWebOAuthSignIn`), and that redirect comes back here.
+ *
+ * It owns only what is specific to a full-page round trip — reading the code off
+ * the URL, recovering the handshake `sessionStorage` carried across the
+ * navigation, and cleaning both up afterwards — and delegates state validation,
+ * the PKCE exchange, and the session commit to `completeOAuthCode`, the same
+ * function the popup transport runs.
+ *
+ * It is also the SINGLE cleanup path for an OAuth `error` landing on the URL:
+ * any `?error=…` (including an `error=login_required` left over from the
+ * now-deleted silent restore) is stripped along with `state` /
+ * `error_description`, and the stale PKCE handshake is cleared.
  */
 export async function tryCompleteOAuthReturn(opts: {
   oxyServices: OxyServices;
@@ -49,13 +58,18 @@ export async function tryCompleteOAuthReturn(opts: {
     return false;
   }
 
+  const handshake = readOAuthHandshake();
+  const redirectUri = canonicalizeOAuthRedirectUri(
+    handshake?.redirectUri ?? opts.authRedirectUri ?? location.origin,
+  );
+
   const result = await completeOAuthCode({
     oxyServices: opts.oxyServices,
     clientId,
     code,
     returnedState: params.get('state'),
-    handshake: readOAuthHandshake(),
-    redirectUri: normalizeOAuthRedirectUri(opts.authRedirectUri ?? location.origin),
+    handshake,
+    redirectUri,
     commitSession: opts.commitSession,
     // Strip the params before the commit so a stale `?code=` cannot re-enter the
     // exchange loop, and read the return path FIRST — clearOAuthHandshake drops
@@ -120,29 +134,5 @@ function stripOAuthParamsFromUrl(): void {
   url.searchParams.delete('state');
   url.searchParams.delete('error');
   url.searchParams.delete('error_description');
-  url.searchParams.delete('hub_sync');
   replaceUrlAfterOAuthReturn(`${url.pathname}${url.search}${url.hash}`);
-}
-
-/**
- * When auth.oxy.so hub-sync redeem fails, the IdP redirects back with
- * `?hub_sync=failed`. Strip the param and log so cold boot can continue
- * without leaving a stale query string.
- */
-export function consumeHubSyncFailure(): boolean {
-  if (!isWebBrowser()) return false;
-  const location = (globalThis as { location?: Location }).location;
-  if (!location) return false;
-
-  const params = new URLSearchParams(location.search);
-  if (params.get('hub_sync') !== 'failed') return false;
-
-  logger.warn('Hub sync failed — IdP device session may be out of sync', {
-    component: 'hubSync',
-  });
-
-  const url = new URL(location.href);
-  url.searchParams.delete('hub_sync');
-  replaceUrlAfterOAuthReturn(`${url.pathname}${url.search}${url.hash}`);
-  return true;
 }

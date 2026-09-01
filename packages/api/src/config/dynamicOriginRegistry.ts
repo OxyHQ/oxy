@@ -26,10 +26,10 @@
  * credentialed lane.
  *
  * Why a snapshot: `isAllowedOrigin` (CORS middleware, CSRF Origin guard,
- * Socket.IO config) is SYNCHRONOUS, but the trust set lives in Mongo. The
- * snapshot is refreshed in the background (boot + 60s interval + on-demand from
- * Application create/update/delete) and read synchronously. Fail-soft: a Mongo
- * error keeps the previous snapshot.
+ * Socket.IO config) is SYNCHRONOUS, but the trust set lives in the database.
+ * The snapshot is refreshed in the background (boot + 60s interval + on-demand
+ * from Application create/update/delete) and read synchronously. Fail-soft: a
+ * database error keeps the previous snapshot.
  *
  * This module OWNS {@link BOOTSTRAP_CORE_ORIGINS} and the
  * `OXY_EXTRA_ALLOWED_ORIGINS` parser (rather than importing them from
@@ -38,8 +38,10 @@
  * read its data synchronously at module load with no partial-export hazard.
  */
 
-import mongoose from 'mongoose';
-import type { ApplicationType } from '../models/Application';
+import { eq } from 'drizzle-orm';
+import { getDb } from './postgres';
+import { isDatabaseConnected } from '../utils/dbConnection';
+import { applications } from '../db/schema/applications';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { normaliseOrigin, isLoopbackOrigin } from '../utils/origin';
 import { isValidHostname } from './env';
@@ -47,7 +49,7 @@ import { logger } from '../utils/logger';
 
 /**
  * Fail-safe core origins. Every first-party Oxy frontend + apex + CDN that must
- * keep working even if Mongo is unreachable at boot or the Application registry
+ * keep working even if the database is unreachable at boot or the Application registry
  * has not been populated yet. The dynamic refresh UNIONS the trusted-app
  * origins on top of this set — it never removes a core origin — so the
  * migration to a fully registry-driven allowlist can never drop an origin that
@@ -82,6 +84,7 @@ export const BOOTSTRAP_CORE_ORIGINS: ReadonlySet<string> = new Set([
   'https://alia.onl',
   'https://api.alia.onl',
   'https://auth.alia.onl',
+  'https://canvas.alia.onl',
   // ── Syra ──
   'https://syra.fm',
   // ── Allo ──
@@ -154,13 +157,20 @@ export interface CorsDecision {
 /** Refresh cadence for the background snapshot rebuild. */
 const REFRESH_INTERVAL_MS = 60_000;
 
-/** Shape of an active Application row as read for origin derivation. */
-interface ActiveAppOriginRow {
-  redirectUris?: string[];
-  isOfficial?: boolean;
-  isInternal?: boolean;
-  type?: ApplicationType;
-}
+/**
+ * The four `applications` columns origin derivation reads.
+ *
+ * Named explicitly rather than `select()`-ing the table: the three trust fields
+ * plus `redirect_uris` are the whole input to {@link isTrustedApplication} and
+ * the origin split, and a whole-row read would hand this module every other
+ * column of an application it has no business seeing.
+ */
+const ORIGIN_COLUMNS = {
+  redirectUris: applications.redirectUris,
+  isOfficial: applications.isOfficial,
+  isInternal: applications.isInternal,
+  type: applications.type,
+} as const;
 
 /**
  * Holds the two origin snapshots and the background refresh timer. A single
@@ -175,7 +185,7 @@ class DynamicOriginRegistry {
   constructor() {
     // Boot seed: trusted = bootstrap-core ∪ validated extra origins. This makes
     // the very first synchronous read safe before the first async refresh
-    // resolves (or if Mongo is unreachable at boot).
+    // resolves (or if the database is unreachable at boot).
     this.trustedOrigins = this.seedTrusted();
     this.thirdPartyOrigins = new Set<string>();
 
@@ -196,33 +206,39 @@ class DynamicOriginRegistry {
 
   /**
    * Rebuild both snapshots from the Application registry. Atomic: builds fresh
-   * Sets, then swaps them in. Fail-soft: on a Mongo error the previous
+   * Sets, then swaps them in. Fail-soft: on a database error the previous
    * snapshots are kept (logged), so a transient DB hiccup never collapses the
    * allowlist.
+   *
+   * FAIL SAFE, and the direction matters: every failure path here LEAVES THE
+   * PREVIOUS SNAPSHOT IN PLACE — it never publishes a partial or empty one. An
+   * empty trusted set would deny the credentialed CORS lane to every
+   * first-party frontend at once, so "the database is unreachable" must never
+   * be able to narrow the allowlist. The boot seed
+   * ({@link BOOTSTRAP_CORE_ORIGINS} ∪ validated extras) is the floor a
+   * never-successful refresh leaves standing.
    */
   async refresh(): Promise<void> {
-    // Skip work when Mongo is not connected (e.g. unit tests with a mocked
-    // model, or before the first connection). The boot seed already covers the
-    // synchronous readers, and the next tick / connect will refresh. This guard
-    // also keeps the Application model out of the module graph at import time:
-    // it is lazy-loaded below ONLY when actually refreshing, so importing this
-    // registry (transitively via the CORS / CSRF Origin primitives) never
-    // builds the Mongoose schema.
-    if (mongoose.connection.readyState !== 1) {
+    // Skip work before the pool is open (module import happens long before
+    // startup connects, and unit tests import this transitively via the CORS /
+    // CSRF Origin primitives). `getDb()` THROWS when called early, and throwing
+    // through the interval callback below would be an unhandled rejection, so
+    // the synchronous check is the guard rather than the catch.
+    if (!isDatabaseConnected()) {
       return;
     }
     try {
-      const { Application } = await import('../models/Application.js');
-      const apps = await Application.find({ status: 'active' })
-        .select('redirectUris isOfficial isInternal type')
-        .lean<ActiveAppOriginRow[]>();
+      const apps = await getDb()
+        .select(ORIGIN_COLUMNS)
+        .from(applications)
+        .where(eq(applications.status, 'active'));
 
       const nextTrusted = this.seedTrusted();
       const nextThirdParty = new Set<string>();
 
       for (const app of apps) {
         const trusted = isTrustedApplication(app);
-        for (const uri of app.redirectUris ?? []) {
+        for (const uri of app.redirectUris) {
           const origin = normaliseOrigin(uri);
           if (!origin) continue;
           if (trusted) {

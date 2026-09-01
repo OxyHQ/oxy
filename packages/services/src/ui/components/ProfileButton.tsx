@@ -7,16 +7,17 @@ import {
     type ViewStyle,
 } from 'react-native';
 import { View, Pressable } from 'react-native-css/components';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
 import { Text } from '@oxyhq/bloom/typography';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { getAccountDisplayName, getAccountFallbackHandle } from '@oxyhq/core';
+import { getAccountDisplayName, getAccountFallbackHandle, getNormalizedUserHandle } from '@oxyhq/core';
 import { useAuth } from '../hooks/useAuth';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { registerAccountDialogConsumerHooks } from '../navigation/accountDialogManager';
+import type { AccountDialogMenuItem } from '../navigation/accountDialogManager';
 
 const isWeb = Platform.OS === 'web';
 
@@ -29,7 +30,6 @@ const isWeb = Platform.OS === 'web';
  */
 const BG_TRANSITION_MS = 150;
 const AVATAR_TRANSITION_MS = 250;
-const OPACITY_TRANSITION_MS = 150;
 const LEAVE_DELAY_MS = 50;
 
 /** Shrunk-avatar scale on hover, matching Bluesky's `scale: 2/3`. */
@@ -63,6 +63,8 @@ export interface ProfileButtonProps {
     onAddAccount?: () => void;
     /** Optional: navigate to the signed-in user's own profile. */
     onNavigateProfile?: () => void;
+    /** App-owned actions rendered in the shared account menu. */
+    menuItems?: readonly AccountDialogMenuItem[];
     /**
      * Retained for source compatibility. The trigger now opens the unified
      * `OxyAccountDialogScreen` (a centered / bottom-sheet modal) rather than an
@@ -105,6 +107,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
     onNavigateManage,
     onAddAccount,
     onNavigateProfile,
+    menuItems,
     className,
     style,
 }) => {
@@ -131,15 +134,16 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
     }, [openAccountDialog]);
 
     useEffect(() => {
-        if (!onNavigateManage && !onAddAccount && !onNavigateProfile) {
+        if (!onNavigateManage && !onAddAccount && !onNavigateProfile && !menuItems?.length) {
             return undefined;
         }
         return registerAccountDialogConsumerHooks({
             onNavigateManage,
             onAddAccount,
             onNavigateProfile,
+            menuItems,
         });
-    }, [onNavigateManage, onAddAccount, onNavigateProfile]);
+    }, [onNavigateManage, onAddAccount, onNavigateProfile, menuItems]);
 
     const avatarUrl = useMemo(
         () => (user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined),
@@ -200,7 +204,10 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
     }
 
     // ── Signed in: avatar + identity + chevron. ─────────────────────────────
-    const displayName = getAccountDisplayName(user, locale);
+    const displayName =
+        user?.name?.displayName ??
+        getNormalizedUserHandle(user) ??
+        getAccountDisplayName(null, locale);
     const handle = getAccountFallbackHandle(user);
     const handleLine = handle ? `@${handle}` : null;
 
@@ -297,22 +304,11 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
         }
         : undefined;
 
+    // Expanded mode always shows identity + chevron (console/inbox wide sidebar).
+    // Hover only animates the row background and avatar shrink — not text visibility.
     const identityStyle: ViewStyle | undefined = isWeb
         ? {
             marginLeft: -resolvedAvatarSize / 2,
-            opacity: active ? 1 : 0,
-            transitionProperty: 'opacity',
-            transitionDuration: `${OPACITY_TRANSITION_MS}ms`,
-            transitionDelay: active ? '0ms' : `${LEAVE_DELAY_MS}ms`,
-        }
-        : undefined;
-
-    const chevronStyle: ViewStyle | undefined = isWeb
-        ? {
-            opacity: active ? 1 : 0,
-            transitionProperty: 'opacity',
-            transitionDuration: `${OPACITY_TRANSITION_MS}ms`,
-            transitionDelay: active ? '0ms' : `${LEAVE_DELAY_MS}ms`,
         }
         : undefined;
 
@@ -342,7 +338,7 @@ const ProfileButton: React.FC<ProfileButtonProps> = ({
                         </Text>
                     ) : null}
                 </View>
-                <View style={chevronStyle}>
+                <View>
                     <MaterialCommunityIcons
                         name="dots-horizontal"
                         size={18}

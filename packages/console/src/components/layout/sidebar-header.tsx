@@ -10,8 +10,9 @@ import {
   UserMultiple02Icon,
 } from '@hugeicons/core-free-icons';
 import { useAuth } from '@oxyhq/services';
-import { toast } from '@oxyhq/bloom';
-import type {AccountKind, AccountNode, AccountRole} from '@/hooks/use-account';
+import { toast } from '@oxyhq/bloom/toast';
+import { buildWorkspaceTree } from './workspace-tree';
+import type { AccountKind, AccountNode, AccountRole } from '@/hooks/use-account';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,12 +40,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import {
-  
-  
-  
-  useAccount
-} from '@/hooks/use-account';
+import { accountLabel, useAccount } from '@/hooks/use-account';
 
 const roleLabels: Record<AccountRole, string> = {
   owner: 'Owner',
@@ -60,12 +56,8 @@ const kindSubtitles: Record<AccountKind, string> = {
   organization: 'Organization workspace',
   project: 'Project workspace',
   bot: 'Bot workspace',
+  channel: 'Channel',
 };
-
-/** Canonical display label: the account's `name.displayName`, else its handle. */
-function accountLabel(node: AccountNode): string {
-  return node.account.name?.displayName ?? node.account.username ?? 'Account';
-}
 
 /** First-letter initials for the avatar fallback. */
 function accountInitials(node: AccountNode): string {
@@ -106,24 +98,10 @@ export function SidebarHeaderBrand() {
   const [newAccountHandle, setNewAccountHandle] = React.useState('');
   const [isCreating, setIsCreating] = React.useState(false);
 
-  // Build a relationship-grouped, two-level tree from the flat account list. A
-  // node is top-level when its parent is not in the accessible set; its direct
-  // children nest one level beneath it. "Your accounts" holds `self`/`owner`
-  // roots; "Shared with you" holds accounts shared via membership.
-  const { yourAccounts, sharedAccounts, childrenOf } = React.useMemo(() => {
-    const present = new Set(accounts.map((a) => a.accountId));
-    const isTopLevel = (a: AccountNode) =>
-      !a.parentAccountId || !present.has(a.parentAccountId);
-    const topLevel = accounts.filter(isTopLevel);
-    return {
-      yourAccounts: topLevel.filter(
-        (a) => a.relationship === 'self' || a.relationship === 'owner'
-      ),
-      sharedAccounts: topLevel.filter((a) => a.relationship === 'member'),
-      childrenOf: (accountId: string) =>
-        accounts.filter((a) => a.parentAccountId === accountId),
-    };
-  }, [accounts]);
+  const { yourAccounts, sharedAccounts, childrenOf } = React.useMemo(
+    () => buildWorkspaceTree(accounts),
+    [accounts]
+  );
 
   const handleCreateAccount = async () => {
     const name = newAccountName.trim();
@@ -155,9 +133,16 @@ export function SidebarHeaderBrand() {
     }
   };
 
-  const handleSelectAccount = (account: AccountNode) => {
-    setCurrentAccount(account);
-    toast.success(`Switched to ${accountLabel(account)}`);
+  const handleSelectAccount = async (account: AccountNode) => {
+    if (account.accountId === currentAccount?.accountId) {
+      return;
+    }
+    try {
+      await setCurrentAccount(account);
+      toast.success(`Switched to ${accountLabel(account)}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to switch account');
+    }
   };
 
   if (isLoading || !currentAccount) {

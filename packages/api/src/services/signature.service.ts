@@ -73,7 +73,7 @@ export class SignatureService {
       const key = ec.keyFromPublic(publicKey, 'hex');
       const messageHash = SignatureService.hashMessage(message);
       return key.verify(messageHash, signature);
-    } catch (error) {
+    } catch {
       return false;
     }
   }

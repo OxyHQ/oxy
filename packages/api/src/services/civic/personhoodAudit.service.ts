@@ -18,9 +18,15 @@
  * the same unref'd-interval guard.
  */
 
-import ValidationRequest, { type IValidationRequest } from '../../models/ValidationRequest';
-import PersonhoodStatus from '../../models/PersonhoodStatus';
-import { openValidationRequest } from './validator.service';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { getDb } from '../../config/postgres';
+import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
+import { validationRequests } from '../../db/schema/validationRequests';
+import {
+  openValidationRequest,
+  type ValidationRequestRow,
+  type ValidationRequestView,
+} from './validator.service';
 import {
   recomputePersonhood,
   slashVouchersForFakeSubject,
@@ -45,7 +51,7 @@ function auditSourceActionId(subjectUserId: string): string {
  * the same subject is already open (the underlying `openValidationRequest`
  * dedups on `sourceActionId`).
  */
-export async function openPersonhoodAudit(subjectUserId: string): Promise<IValidationRequest> {
+export async function openPersonhoodAudit(subjectUserId: string): Promise<ValidationRequestView> {
   return openValidationRequest({
     subjectUserId,
     actionType: PERSONHOOD_AUDIT_ACTION,
@@ -60,7 +66,11 @@ export async function openPersonhoodAudit(subjectUserId: string): Promise<IValid
  * when there are no real persons. Best-effort: individual failures are logged.
  */
 export async function sweepPersonhoodAudits(): Promise<number> {
-  const total = await PersonhoodStatus.countDocuments({ isRealPerson: true });
+  const [totals] = await getDb()
+    .select({ total: count() })
+    .from(personhoodStatuses)
+    .where(eq(personhoodStatuses.isRealPerson, true));
+  const total = totals?.total ?? 0;
   if (total === 0) {
     return 0;
   }
@@ -70,26 +80,33 @@ export async function sweepPersonhoodAudits(): Promise<number> {
     Math.max(1, Math.ceil(total * PERSONHOOD_AUDIT_SAMPLE_RATE)),
   );
 
-  const sampled = await PersonhoodStatus.aggregate<{ userId: unknown }>([
-    { $match: { isRealPerson: true } },
-    { $sample: { size: sampleSize } },
-    { $project: { userId: 1 } },
-  ]);
-  const subjectIds = sampled.map((doc) => String(doc.userId));
+  // Mongo's `$sample` becomes `order by random() limit N`. Both are a full pass
+  // over the matching set; the sample is small and the sweep runs on an
+  // unref'd interval, so the cost is the same order it always was.
+  const sampled = await getDb()
+    .select({ userId: personhoodStatuses.userId })
+    .from(personhoodStatuses)
+    .where(eq(personhoodStatuses.isRealPerson, true))
+    .orderBy(sql`random()`)
+    .limit(sampleSize);
+  const subjectIds = sampled.map((row) => row.userId);
   if (subjectIds.length === 0) {
     return 0;
   }
 
   // Skip subjects who already have an open audit (avoids churning duplicate
   // requests across sweeps).
-  const openExisting = await ValidationRequest.find({
-    actionType: PERSONHOOD_AUDIT_ACTION,
-    subjectUserId: { $in: subjectIds },
-    status: { $in: ['pending', 'quorum_met'] },
-  })
-    .select('subjectUserId')
-    .lean<Array<{ subjectUserId: unknown }>>();
-  const alreadyOpen = new Set(openExisting.map((r) => String(r.subjectUserId)));
+  const openExisting = await getDb()
+    .select({ subjectUserId: validationRequests.subjectUserId })
+    .from(validationRequests)
+    .where(
+      and(
+        eq(validationRequests.actionType, PERSONHOOD_AUDIT_ACTION),
+        inArray(validationRequests.subjectUserId, subjectIds),
+        inArray(validationRequests.status, ['pending', 'quorum_met']),
+      ),
+    );
+  const alreadyOpen = new Set(openExisting.map((row) => row.subjectUserId));
 
   let opened = 0;
   for (const subjectId of subjectIds) {
@@ -117,18 +134,18 @@ export async function sweepPersonhoodAudits(): Promise<number> {
  * best-effort so a reward/slash failure never 500s the last voter's request.
  */
 export async function resolvePersonhoodAuditOutcome(
-  request: IValidationRequest,
+  request: ValidationRequestRow,
   outcome: 'validated' | 'rejected',
   winningValidatorIds: string[],
 ): Promise<void> {
-  const subjectUserId = request.subjectUserId.toString();
+  const subjectUserId = request.subjectUserId;
 
   for (const validatorId of winningValidatorIds) {
     try {
       await reputationService.award({
         userId: validatorId,
         actionType: VALIDATION_CORRECT_ACTION,
-        sourceActionId: `${request._id.toString()}:${validatorId}:audit`,
+        sourceActionId: `${request.id}:${validatorId}:audit`,
         reason: 'Voted with the resolving majority on a personhood audit',
       });
     } catch (error) {

@@ -12,333 +12,41 @@
  * their `active` transactions, augmented with a trust tier, capped influence
  * weights, and reliability signals.
  *
+ * A balance is served in TWO views (see `ReputationBalanceView`): the subject
+ * and platform staff get the whole thing, a third party gets the public trust
+ * signal only. The two are distinct types so a caller cannot read a field the
+ * server did not send them.
+ *
+ * EVERY type on this surface is owned by `@oxyhq/contracts`, which the API's
+ * serializers are annotated and validated against. This mixin declares none of
+ * them and re-exports none of them: consumers import the types straight from
+ * `@oxyhq/contracts`, so the wire shape has exactly one definition and a
+ * server-side change to a serializer cannot compile while the type still
+ * promises the old shape.
+ *
  * Reference users by their Mongo `_id` (or publicKey, which the API resolves),
  * transactions by their `id`, and disputes by their `id`.
  */
+import type {
+  AwardReputationInput,
+  CreateReputationDisputeInput,
+  ReputationBalance,
+  ReputationBalanceView,
+  ReputationDispute,
+  ReputationInfluenceContext,
+  ReputationInfluenceResult,
+  ReputationLeaderboardEntry,
+  ReputationRule,
+  ReputationTransaction,
+  ResolveReputationDisputeInput,
+  ReverseReputationTransactionInput,
+  ReverseReputationTransactionResult,
+  UpsertReputationRuleInput,
+} from '@oxyhq/contracts';
+import { isFullReputationBalance } from '@oxyhq/contracts';
 import type { OxyServicesBase } from '../OxyServices.base';
-import type { User } from '../models/interfaces';
+import { OxyAuthenticationError } from '../OxyServices.errors';
 import { CACHE_TIMES } from './mixinHelpers';
-
-// =============================================================================
-// UNION TYPES (mirror packages/api/src/utils/reputation.constants.ts)
-// =============================================================================
-
-/**
- * Category bucket a reputation transaction falls into. Drives the per-category
- * balance breakdown.
- */
-export type ReputationCategory =
-  | 'content'
-  | 'social'
-  | 'trust'
-  | 'moderation'
-  | 'physical'
-  | 'penalty'
-  | 'other';
-
-/** Trust tiers, lowest → highest (plus the punitive `restricted`). */
-export type TrustTier = 'new' | 'trusted' | 'high_trust' | 'verified' | 'restricted';
-
-/**
- * Transaction lifecycle status. Only `active` transactions count toward the
- * balance; `disputed` still counts until the dispute resolves; `reversed` and
- * `voided` are excluded.
- */
-export type ReputationTransactionStatus = 'active' | 'disputed' | 'reversed' | 'voided';
-
-/** Kind of entity a transaction may target. */
-export type ReputationTargetEntityType =
-  | 'post'
-  | 'comment'
-  | 'report'
-  | 'purchase'
-  | 'event'
-  | 'check_in'
-  | 'manual_review'
-  | 'user'
-  | 'other';
-
-/** Dispute lifecycle status. */
-export type ReputationDisputeStatus = 'open' | 'accepted' | 'rejected' | 'needs_review';
-
-/** Influence context selecting which capped weight axis to return. */
-export type ReputationInfluenceContext = 'default' | 'report' | 'moderation' | 'ranking';
-
-// =============================================================================
-// ENTITY SHAPES (mirror the server models; ids are strings, dates ISO strings)
-// =============================================================================
-
-/**
- * A single immutable entry in the reputation ledger. Ids are emitted as strings
- * and dates as ISO strings by the API.
- */
-export interface ReputationTransaction {
-  /** The transaction's Mongo `_id` as a string. */
-  id: string;
-  /** Subject of the reputation change — the user whose balance moves. */
-  userId: string;
-  /** Signed point delta. Positive awards, negative penalties/reversals. */
-  points: number;
-  /** The rule/action key that produced this transaction (e.g. `post_created`). */
-  actionType: string;
-  /** Category bucket the points fall into. */
-  category: ReputationCategory;
-  /** Canonical source application that reported the action, if any. */
-  applicationId?: string;
-  /** The specific credential used by the source application, if any. */
-  credentialId?: string;
-  /** Opaque id of the originating action in the source system (idempotency key). */
-  sourceActionId?: string;
-  /** Source-system action type (e.g. `report_confirmed`, `event_check_in`). */
-  sourceActionType?: string;
-  /** Id of the entity the action targeted (post id, report id, etc.). */
-  targetEntityId?: string;
-  /** Kind of the targeted entity. */
-  targetEntityType?: ReputationTargetEntityType;
-  /** Lifecycle status — only `active` transactions count toward the balance. */
-  status: ReputationTransactionStatus;
-  /**
-   * Set ONLY on a compensating reversal transaction; references the original
-   * transaction it reverses. The original carries `status: 'reversed'`.
-   */
-  reversedTransactionId?: string;
-  /** Human-readable reason / note. */
-  reason?: string;
-  /** Free-form structured metadata from the source system. */
-  metadata?: Record<string, unknown>;
-  /** The user who caused this change (the liker, the reporting user, staff). */
-  createdByUserId?: string;
-  /** Staff/service principal who reviewed (reversed/voided) this transaction. */
-  reviewedByUserId?: string;
-  /** ISO timestamp the transaction was reviewed at, if reviewed. */
-  reviewedAt?: string;
-  /** ISO creation timestamp. */
-  createdAt: string;
-  /** ISO last-update timestamp. */
-  updatedAt: string;
-}
-
-/**
- * Per-category sums of a user's ACTIVE transactions. `penalties` is the
- * absolute sum of every negative-point transaction; the named buckets carry the
- * signed sum of transactions in that category.
- */
-export interface ReputationBalanceBreakdown {
-  content: number;
-  social: number;
-  trust: number;
-  moderation: number;
-  physical: number;
-  penalties: number;
-}
-
-/**
- * Capped influence weights (#219). Every weight is clamped to a configured
- * range; restricted users are floored on every axis. Downstream systems
- * (ranking, moderation, reporting) consume these to weight a user's
- * contributions without letting any single user dominate.
- */
-export interface ReputationInfluence {
-  /** General-purpose trust weight derived from the lifetime total. */
-  defaultWeight: number;
-  /** Weight applied to this user's reports (scales with report accuracy). */
-  reportWeight: number;
-  /** Weight applied to this user's moderation actions (scales with tier). */
-  moderationWeight: number;
-  /** Damped weight applied to this user's ranking feedback. */
-  rankingFeedbackWeight: number;
-}
-
-/**
- * Reliability signals (#219) derived from the user's moderation track record in
- * the ledger.
- */
-export interface ReputationReliability {
-  /** Count of active transactions stamped `report_confirmed`. */
-  accurateReports: number;
-  /** Count of active transactions stamped `report_rejected`. */
-  rejectedReports: number;
-  /** accurate / (accurate + rejected), or the neutral 0.5 when no history. */
-  reportAccuracyScore: number;
-  /** Smoothed 0..1 abuse signal; high values force the `restricted` tier. */
-  abuseScore: number;
-}
-
-/**
- * Cached, recomputable snapshot of a user's reputation. Shape mirrors the
- * `/reputation/:userId/balance` response (which omits internal `lastTransactionId`
- * and `createdAt`).
- */
-export interface ReputationBalance {
-  userId: string;
-  /** Net lifetime total across all active transactions. */
-  total: number;
-  /** Sum of positive points only. */
-  positive: number;
-  /** Sum of negative points only (a negative number). */
-  negative: number;
-  breakdown: ReputationBalanceBreakdown;
-  trustTier: TrustTier;
-  influence: ReputationInfluence;
-  reliability: ReputationReliability;
-  /** ISO timestamp the snapshot was last recomputed at. */
-  recalculatedAt: string;
-  /** ISO last-update timestamp. */
-  updatedAt: string;
-}
-
-/**
- * A user-initiated dispute against a specific reputation transaction. Ids are
- * strings and dates ISO strings.
- */
-export interface ReputationDispute {
-  /** The dispute's Mongo `_id` as a string. */
-  id: string;
-  /** The transaction being disputed. */
-  transactionId: string;
-  /** The user raising the dispute. */
-  userId: string;
-  /** Why the user believes the transaction is wrong. */
-  reason: string;
-  status: ReputationDisputeStatus;
-  /** Optional supporting evidence (URLs / references). */
-  evidence?: string[];
-  /** ISO timestamp the dispute was resolved at, if resolved. */
-  resolvedAt?: string;
-  /** Staff principal who resolved the dispute, if resolved. */
-  resolvedByUserId?: string;
-  /** ISO creation timestamp. */
-  createdAt: string;
-  /** ISO last-update timestamp. */
-  updatedAt: string;
-}
-
-/**
- * A configurable reputation award/penalty rule. The `/reputation/rules`
- * response shape: `id` is the rule's `_id`; no timestamps are emitted.
- */
-export interface ReputationRule {
-  /** The rule's Mongo `_id` as a string. */
-  id: string;
-  /** Unique action key (e.g. `post_created`). */
-  actionType: string;
-  /** Signed points the rule awards (may be negative for penalties). */
-  points: number;
-  /** Category the resulting transaction is filed under. */
-  category: ReputationCategory;
-  description: string;
-  /** Per (user, actionType) cooldown in minutes; 0 disables the cooldown. */
-  cooldownInMinutes: number;
-  isEnabled: boolean;
-}
-
-/**
- * A single leaderboard entry. `user` is the populated user document the API
- * returns alongside the lifetime total, derived trust tier, and 1-based rank.
- */
-export interface ReputationLeaderboardEntry {
-  /** The populated user (id, username, name, avatar, publicKey). */
-  user: Pick<User, 'id' | 'username' | 'name' | 'avatar' | 'publicKey'> & Partial<User>;
-  /** Net lifetime total. */
-  total: number;
-  /** Derived trust tier. */
-  trustTier: TrustTier;
-  /** 1-based rank within the leaderboard (`offset + index + 1`). */
-  rank: number;
-}
-
-/**
- * Result of `getReputationInfluence` — the requested context, the single capped
- * weight for that context, and the full influence block.
- */
-export interface ReputationInfluenceResult {
-  context: ReputationInfluenceContext;
-  weight: number;
-  influence: ReputationInfluence;
-}
-
-/**
- * Result of `reverseReputationTransaction` — the now-`reversed` original plus
- * the compensating `active` reversal entry.
- */
-export interface ReverseReputationTransactionResult {
-  original: ReputationTransaction;
-  reversal: ReputationTransaction;
-}
-
-// =============================================================================
-// INPUT TYPES (mirror packages/api/src/schemas/reputation.schemas.ts)
-// =============================================================================
-
-/**
- * Input for `awardReputation`. Awarding is restricted to service tokens (the
- * canonical path) and platform staff; regular users may NOT award reputation.
- * When called with a service token, `applicationId` / `credentialId` are
- * resolved from the token and any client-supplied values are ignored.
- */
-export interface AwardReputationInput {
-  /** The subject whose reputation changes (`_id` or publicKey). */
-  userId: string;
-  /** The enabled rule's action key (e.g. `post_created`). */
-  actionType: string;
-  /** Source application id (ignored for service tokens). */
-  applicationId?: string;
-  /** Source credential id (ignored for service tokens). */
-  credentialId?: string;
-  /** Opaque originating-action id used as the idempotency key. */
-  sourceActionId?: string;
-  /** Source-system action type. */
-  sourceActionType?: string;
-  /** Id of the targeted entity. */
-  targetEntityId?: string;
-  /** Kind of the targeted entity. */
-  targetEntityType?: ReputationTargetEntityType;
-  /** Optional human-readable reason (max 500 chars). */
-  reason?: string;
-  /** Free-form structured metadata from the source system. */
-  metadata?: Record<string, unknown>;
-}
-
-/** Input for `createReputationDispute`. The disputer is the authenticated user. */
-export interface CreateReputationDisputeInput {
-  /** The transaction being disputed. */
-  transactionId: string;
-  /** Why the transaction is believed to be wrong (1..1000 chars). */
-  reason: string;
-  /** Optional supporting evidence (URLs / references; max 20). */
-  evidence?: string[];
-}
-
-/** Input for `resolveReputationDispute` (staff). */
-export interface ResolveReputationDisputeInput {
-  /** Accepting reverses the disputed transaction; rejecting restores it. */
-  status: 'accepted' | 'rejected';
-}
-
-/** Input for `upsertReputationRule` (staff). Keyed by `actionType`. */
-export interface UpsertReputationRuleInput {
-  /** Unique action key (e.g. `post_created`). */
-  actionType: string;
-  /** Signed points the rule awards (may be negative). */
-  points: number;
-  /** Category the resulting transaction is filed under. */
-  category: ReputationCategory;
-  /** Human-readable description (1..500 chars). */
-  description: string;
-  /** Per (user, actionType) cooldown in minutes; defaults to 0. */
-  cooldownInMinutes?: number;
-  /** Whether the rule is active; defaults to true. */
-  isEnabled?: boolean;
-}
-
-/**
- * Input for `reverseReputationTransaction` / `voidReputationTransaction`
- * (staff). The reviewing principal is the authenticated user.
- */
-export interface ReverseReputationTransactionInput {
-  /** Optional human-readable reason (max 500 chars). */
-  reason?: string;
-}
 
 /** Cache-key prefix for every cached `GET /reputation/...` response. */
 const REPUTATION_CACHE_PREFIX = 'GET:/reputation/';
@@ -350,13 +58,21 @@ export function OxyServicesReputationMixin<T extends typeof OxyServicesBase>(Bas
     }
 
     /**
-     * Get a user's cached reputation balance — derived totals, per-category
-     * breakdown, trust tier, capped influence weights, and reliability signals.
+     * Get ANY user's reputation balance, in whichever view the server serves the
+     * caller.
+     *
+     * A third party gets `userId`, `total` and `trustTier` and nothing else, so
+     * the return type is a {@link ReputationBalanceView} union: narrow it with
+     * {@link isFullReputationBalance} before touching `breakdown`, `influence`
+     * or `reliability`. To read your OWN balance, call
+     * {@link getMyReputationBalance} instead — it returns the full shape with no
+     * narrowing.
+     *
      * @param userId - The subject user's `_id` or publicKey.
      */
-    async getReputationBalance(userId: string): Promise<ReputationBalance> {
+    async getReputationBalance(userId: string): Promise<ReputationBalanceView> {
       try {
-        return await this.makeRequest<ReputationBalance>(
+        return await this.makeRequest<ReputationBalanceView>(
           'GET',
           `/reputation/${encodeURIComponent(userId)}/balance`,
           undefined,
@@ -365,6 +81,48 @@ export function OxyServicesReputationMixin<T extends typeof OxyServicesBase>(Bas
       } catch (error) {
         throw this.handleError(error);
       }
+    }
+
+    /**
+     * Get the SIGNED-IN user's own reputation balance, in full.
+     *
+     * The subject view is the only one carrying `breakdown`, `influence` and
+     * `reliability`, and the subject is the common caller, so this is the
+     * ergonomic path: no id to pass, no narrowing to do.
+     *
+     * Throws rather than returning a half-populated object when the request was
+     * not authenticated as the subject — with no signed-in user, and when the
+     * server answered `200` with the public view anyway (which it does for an
+     * absent or lapsed token, since the endpoint's auth is optional). Both mean
+     * the private blocks are simply absent, and a thrown error is the only
+     * honest report of that.
+     */
+    async getMyReputationBalance(): Promise<ReputationBalance> {
+      const userId = this.getCurrentUserId();
+      if (!userId) {
+        throw new OxyAuthenticationError(
+          'Reading your own reputation balance requires a signed-in user',
+        );
+      }
+
+      let balance: ReputationBalanceView;
+      try {
+        balance = await this.makeRequest<ReputationBalanceView>(
+          'GET',
+          `/reputation/${encodeURIComponent(userId)}/balance`,
+          undefined,
+          { cache: true, cacheTTL: CACHE_TIMES.MEDIUM },
+        );
+      } catch (error) {
+        throw this.handleError(error);
+      }
+
+      if (!isFullReputationBalance(balance)) {
+        throw new OxyAuthenticationError(
+          'The reputation balance came back as the public view — the request was not authenticated as its subject',
+        );
+      }
+      return balance;
     }
 
     /**
@@ -604,6 +362,10 @@ export function OxyServicesReputationMixin<T extends typeof OxyServicesBase>(Bas
     /**
      * Force a recompute of a user's balance snapshot from their active ledger
      * (staff only). Invalidates cached reputation reads.
+     *
+     * Staff-gated, so the response is always the full subject view — no
+     * narrowing needed.
+     *
      * @param userId - The subject user's `_id` or publicKey.
      */
     async recalculateReputation(userId: string): Promise<ReputationBalance> {

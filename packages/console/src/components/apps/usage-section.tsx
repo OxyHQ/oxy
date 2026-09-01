@@ -1,12 +1,8 @@
 import { useState } from 'react';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
-import type {Application, CallerAccess} from '@/hooks/use-applications';
+import type { Application, CallerAccess } from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
-import {
-  
-  
-  useApplicationUsage
-} from '@/hooks/use-applications';
+import { useApplicationUsage } from '@/hooks/use-applications';
 
 const PERIODS = [
   { value: '24h', label: '24h' },
@@ -21,7 +17,7 @@ interface UsageSectionProps {
 }
 
 export function UsageSection({ application, access }: UsageSectionProps) {
-  const canRead = access.can('apps:read');
+  const canRead = access.can('usage:read');
   const [period, setPeriod] = useState('7d');
   const { data: usage, isLoading } = useApplicationUsage(application._id, period, canRead);
 
@@ -37,8 +33,19 @@ export function UsageSection({ application, access }: UsageSectionProps) {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Usage</h2>
-          <p className="text-sm text-muted-foreground">API usage for this application.</p>
+          <h2 className="text-sm font-semibold text-foreground">Platform API usage</h2>
+          {/*
+            Named for what it is, because a second usage view now exists beside
+            it. These are the legacy per-credential counters over the whole
+            platform API, and "credits" here is the product credit unit — not
+            money, and not the inference ledger. Inference units and inference
+            spend are under Inference → Usage and spend, which reads
+            `/inference/reporting` and says which of its figures is a bill.
+          */}
+          <p className="text-sm text-muted-foreground">
+            Platform API calls made with this application's credentials. Inference units and spend
+            are under Inference → Usage and spend.
+          </p>
         </div>
         <div className="flex gap-1">
           {PERIODS.map((p) => (

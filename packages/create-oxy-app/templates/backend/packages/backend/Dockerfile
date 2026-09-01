@@ -39,6 +39,12 @@ COPY --from=builder /app/packages/frontend/package.json packages/frontend/
 COPY --from=builder /app/packages/shared-types/dist/ packages/shared-types/dist/
 COPY --from=builder /app/packages/backend/dist/ packages/backend/dist/
 
+# The SQL migrations, beside packages/backend/package.json — which is how
+# src/db/migrationsFolder.ts resolves them. Needed by the one-shot migration
+# task AND by every serving task, because readiness reads this journal to
+# decide whether the database is current with the image (GET /ready).
+COPY --from=builder /app/packages/backend/drizzle/ packages/backend/drizzle/
+
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
 USER appuser

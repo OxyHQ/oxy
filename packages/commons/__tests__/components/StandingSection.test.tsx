@@ -5,7 +5,7 @@ import { __resetAsyncStorage } from '@/__mocks__/async-storage';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
 import { StandingSection } from '@/components/reputation/StandingSection';
 import { deriveReputationSources } from '@/lib/civic/reputation-sources';
-import type { ReputationBalance } from '@oxyhq/core';
+import type { ReputationBalance } from '@oxyhq/contracts';
 
 const BALANCE: ReputationBalance = {
   userId: 'me',

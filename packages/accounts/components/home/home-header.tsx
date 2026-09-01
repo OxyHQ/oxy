@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import LottieView from 'lottie-react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import lottieAnimation from '@/assets/lottie/welcomeheader_background_op1.json';
 import { ThemedText } from '@/components/themed-text';

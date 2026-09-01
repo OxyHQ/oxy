@@ -1,11 +1,13 @@
 import type { Response } from 'express';
-import mongoose from 'mongoose';
-import { File } from '../models/File';
-import Subscription from '../models/Subscription';
+import { and, eq, sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { fileVariants, files } from '../db/schema';
+import { resolveUserSubscriptionPlan } from '../utils/subscriptionPlan';
 import type { AuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 
-type StorageCategory = 'documents' | 'photosVideos' | 'recordings' | 'other';
+const STORAGE_CATEGORIES = ['documents', 'photosVideos', 'recordings', 'other'] as const;
+type StorageCategory = (typeof STORAGE_CATEGORIES)[number];
 
 const GB = 1024 * 1024 * 1024;
 const TB = 1024 * 1024 * 1024 * 1024;
@@ -22,6 +24,49 @@ const getPlanStorageLimitBytes = (plan: string | undefined): number => {
   }
 };
 
+/**
+ * Which bucket a file counts towards, from its MIME type.
+ *
+ * The Mongo original was a `$switch` over three `$regexMatch` branches with a
+ * `default`; this is the same ladder as a `CASE`, in the same order (the order
+ * matters — `application/` must not shadow `video/`). `~` is case-sensitive, as
+ * `$regexMatch` was with these patterns.
+ */
+const CATEGORY = sql<StorageCategory>`case
+  when ${files.mime} ~ '^(image|video)/' then 'photosVideos'
+  when ${files.mime} ~ '^audio/' then 'recordings'
+  when ${files.mime} ~ '^(text|application)/' then 'documents'
+  else 'other'
+end`;
+
+/**
+ * Bytes a file occupies INCLUDING its renditions.
+ *
+ * Mongo summed a nested array inside the same document
+ * (`$add: ['$size', { $ifNull: [{ $sum: '$variants.size' }, 0] }]`); the
+ * renditions are their own table now, so the inner sum is a correlated
+ * subquery. `coalesce` reproduces `$ifNull` exactly: `sum` over no rows — or
+ * over rows whose `size` is NULL, which a still-encoding rendition has — is
+ * NULL, not 0, and `bigint + NULL` would make the whole file's contribution
+ * vanish rather than count its original bytes.
+ *
+ * **The correlated reference is the dangerous part, and it was checked rather
+ * than assumed.** A drizzle column interpolated into `sql` can render BARE when
+ * its table is not in the statement's `FROM`, in which case
+ * `where "file_id" = "id"` resolves BOTH names against `file_variants`, matches
+ * nothing, and returns a plausible-looking total with the renditions silently
+ * missing — no error (`CONVENTIONS.md`, "Trap, second guise"). Interpolating the
+ * Column objects into a raw `sql` template with the outer `files` in scope
+ * renders `"file_variants"."file_id" = "files"."id"`, fully qualified. The
+ * behavioural guard is `__tests__/storage.controller.test.ts`, which adds a
+ * rendition to an existing file and requires the total to MOVE.
+ */
+const TOTAL_BYTES = sql<string>`${files.size} + coalesce((
+  select sum(${fileVariants.size})
+  from ${fileVariants}
+  where ${fileVariants.fileId} = ${files.id}
+), 0)`;
+
 export const getStorageUsage = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user?._id?.toString() || req.user?.id;
@@ -29,67 +74,20 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Authentication required' });
     }
 
-    // Subscription is keyed by ObjectId; tolerate non-ObjectId (shouldn’t happen, but keep it safe)
-    let subscriptionPlan: 'basic' | 'pro' | 'business' | undefined;
-    try {
-      const subscription = await Subscription.findOne({ userId: new mongoose.Types.ObjectId(userId) }).lean();
-      subscriptionPlan = subscription?.plan || 'basic';
-    } catch {
-      subscriptionPlan = 'basic';
-    }
-
+    const subscriptionPlan = await resolveUserSubscriptionPlan(userId);
     const totalLimitBytes = getPlanStorageLimitBytes(subscriptionPlan);
 
-    const results = await File.aggregate<{
-      _id: StorageCategory;
-      bytes: number;
-      count: number;
-    }>([
-      { $match: { ownerUserId: userId, status: 'active' } },
-      {
-        $project: {
-          mime: 1,
-          totalSize: {
-            $add: [
-              '$size',
-              {
-                $ifNull: [{ $sum: '$variants.size' }, 0],
-              },
-            ],
-          },
-        },
-      },
-      {
-        $addFields: {
-          category: {
-            $switch: {
-              branches: [
-                {
-                  case: { $regexMatch: { input: '$mime', regex: /^(image|video)\// } },
-                  then: 'photosVideos',
-                },
-                {
-                  case: { $regexMatch: { input: '$mime', regex: /^audio\// } },
-                  then: 'recordings',
-                },
-                {
-                  case: { $regexMatch: { input: '$mime', regex: /^(text|application)\// } },
-                  then: 'documents',
-                },
-              ],
-              default: 'other',
-            },
-          },
-        },
-      },
-      {
-        $group: {
-          _id: '$category',
-          bytes: { $sum: '$totalSize' },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+    // `sum`/`count` over `bigint` come back as strings from postgres.js — a byte
+    // total can exceed 2^53, so the driver refuses to guess. Parse once, here.
+    const results = await getDb()
+      .select({
+        category: CATEGORY,
+        bytes: sql<string>`sum(${TOTAL_BYTES})`,
+        count: sql<string>`count(*)`,
+      })
+      .from(files)
+      .where(and(eq(files.ownerUserId, userId), eq(files.status, 'active')))
+      .groupBy(CATEGORY);
 
     const breakdown: Record<StorageCategory, { bytes: number; count: number }> = {
       documents: { bytes: 0, count: 0 },
@@ -99,7 +97,7 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
     };
 
     for (const row of results) {
-      breakdown[row._id] = { bytes: row.bytes ?? 0, count: row.count ?? 0 };
+      breakdown[row.category] = { bytes: Number(row.bytes ?? 0), count: Number(row.count ?? 0) };
     }
 
     const totalUsedBytes =
@@ -131,8 +129,3 @@ export const getStorageUsage = async (req: AuthRequest, res: Response) => {
     });
   }
 };
-
-
-
-
-

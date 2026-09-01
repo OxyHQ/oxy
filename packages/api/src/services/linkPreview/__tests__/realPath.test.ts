@@ -6,7 +6,8 @@
  * REAL resolver provider chain + REAL serializer and validate the returned value
  * against `linkPreviewSchema` exactly the way the route does — so a status-less
  * value would fail here just as it did in prod. Only the network (`safeFetch`),
- * the model, the asset service, and the warm queue are mocked.
+ * the asset service, and the warm queue are mocked; `link_previews` is a real
+ * Postgres table.
  */
 import { Readable } from 'stream';
 import { linkPreviewSchema } from '@oxyhq/contracts';
@@ -17,9 +18,6 @@ const mockSafeFetch = jest.fn();
 const mockUpload = jest.fn();
 const mockGetPublicCdnUrl = jest.fn();
 const mockEnqueueWarm = jest.fn();
-const mockFindById = jest.fn();
-const mockFindByIdAndUpdate = jest.fn();
-const mockFind = jest.fn();
 
 jest.mock('@oxyhq/core/server', () => ({
   safeFetch: (...a: unknown[]) => mockSafeFetch(...a),
@@ -34,15 +32,8 @@ jest.mock('../../assetServiceSingleton', () => ({
 jest.mock('../../../queue/linkPreviewWarm.queue', () => ({
   enqueueLinkPreviewWarm: (...a: unknown[]) => mockEnqueueWarm(...a),
 }));
-jest.mock('../../../models/LinkPreview', () => ({
-  LinkPreview: {
-    findById: (...a: unknown[]) => mockFindById(...a),
-    findByIdAndUpdate: (...a: unknown[]) => mockFindByIdAndUpdate(...a),
-    find: (...a: unknown[]) => mockFind(...a),
-  },
-}));
-
 // REAL resolver + serializer + cache (cache is a no-op without REDIS_URL).
+import { closePostgres, connectPostgres } from '../../../config/postgres';
 import { linkPreviewService } from '../linkPreviewService';
 
 function jsonResp(body: unknown): unknown {
@@ -70,23 +61,21 @@ function imgResp(): unknown {
   };
 }
 
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 beforeEach(() => {
   jest.clearAllMocks();
-  // Realistic upsert echo: apply $set, drop $unset (mirrors `new:true`).
-  mockFindByIdAndUpdate.mockImplementation(
-    (id: string, update: { $set?: Record<string, unknown>; $unset?: Record<string, string> }) => {
-      const doc: Record<string, unknown> = { _id: id, ...(update.$set ?? {}) };
-      for (const key of Object.keys(update.$unset ?? {})) delete doc[key];
-      return Promise.resolve(doc);
-    },
-  );
   mockUpload.mockImplementation((src: Readable) => {
     src.resume();
-    return Promise.resolve({ _id: 'file123' });
+    return Promise.resolve({ id: 'file123' });
   });
   mockGetPublicCdnUrl.mockResolvedValue('https://cloud.oxy.so/content/x.png');
-  mockFindById.mockResolvedValue(null);
-  mockFind.mockResolvedValue([]);
 });
 
 describe('YouTube (oEmbed + description-enrichment path)', () => {
@@ -134,7 +123,9 @@ describe('YouTube (oEmbed + description-enrichment path)', () => {
 
 describe('batch miss', () => {
   it('returns a SCHEMA-VALID pending preview (with status) for every requested url', async () => {
-    const url = 'https://youtu.be/mYDSSRS-B5U';
+    // A url no earlier case resolved: the store is REAL now, so reusing the
+    // YouTube url above would read back its stored row instead of a miss.
+    const url = 'https://youtu.be/never-resolved-here';
     const data = await linkPreviewService.getBatch([url, 'https://example.com/a']);
 
     for (const key of Object.keys(data)) {

@@ -11,7 +11,7 @@ There is **no session cookie of any kind** — no `oxy_device` cookie, no refres
 | Credential | Lifetime | Storage | Validation |
 |-------|----------|---------|------------|
 | Access token | Short-lived | Memory / `Authorization: Bearer` header | Server-side session check |
-| Device secret | Rotating (in-use, short grace) | First-party per-origin (localStorage / SecureStore) | `sha256` match against `DeviceSession.secretHash` (constant-time) |
+| Device secret | Stable on mint; rotates on sign-in (short grace for the prior hash) | First-party per-origin (localStorage / SecureStore) | `sha256` match against `DeviceSession.secretHash` (constant-time) |
 | Service token | 1 hour | Memory (cached) | Stateless JWT signature verification |
 
 The device secret is the SOLE restore credential; possession of it proves device ownership. Only its `sha256` hash is stored server-side, so a database dump cannot forge it.
@@ -44,7 +44,7 @@ Client -> POST /session/device/token { deviceId, deviceSecret }
 Server -> { accessToken, expiresAt, nextDeviceSecret, state }
 ```
 
-The secret rotates in use: persist `nextDeviceSecret` **before** using the returned access token (multi-tab anti-loss). The just-superseded secret stays valid for a short grace so concurrent tabs don't lock out. The SDK cold boot (`runSessionColdBoot` in `@oxyhq/core`) owns this end to end — apps never implement local session restore.
+The mint echoes the proven secret as `nextDeviceSecret` (stable — multiple origins sharing one device can refresh concurrently). Persist `nextDeviceSecret` **before** using the returned access token so a reload never diverges from the server. Sign-in rotates the secret in-use (the prior hash stays valid for a short grace). The SDK cold boot (`runSessionColdBoot` in `@oxyhq/core`) owns this end to end — apps never implement local session restore.
 
 ## CSRF
 

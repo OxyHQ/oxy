@@ -1,13 +1,31 @@
 import { Router, type Request, type Response } from 'express';
-import mongoose from 'mongoose';
-import Stripe from 'stripe';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
+import type Stripe from 'stripe';
+import { getStripe } from '../utils/stripeClient';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
-import { UserCredits } from '../models/UserCredits';
-import BillingSubscription from '../models/BillingSubscription';
-import BillingTransaction from '../models/BillingTransaction';
+import { getDb } from '../config/postgres';
+import { addCredits } from '../db/credits';
+import { billingSubscriptions } from '../db/schema/billingSubscriptions';
+import {
+  billingTransactions,
+  creditPurchaseIdempotencyPredicate,
+  subscriptionPeriodIdempotencyPredicate,
+} from '../db/schema/billingTransactions';
+import { userCredits } from '../db/schema/userCredits';
 import { getOrCreateUserCredits } from './credits';
+import {
+  getOrCreateAccountStripeCustomer,
+  handleBalanceTopUpCompleted,
+  handleBalanceTopUpPaymentIntent,
+  BALANCE_TOP_UP_METADATA_TYPE,
+} from '../services/stripeAccountBilling.service';
+import {
+  type BillingSubscriptionResponse,
+  type BillingTransactionResponse,
+  toBillingSubscriptionResponse,
+  toBillingTransactionResponse,
+} from '../utils/billingResponse';
 import { logger } from '../utils/logger';
-import { isValidObjectId } from '../utils/validation';
 import { isAllowedRedirect } from '../utils/redirectAllowlist';
 import { validate } from '../middleware/validate';
 import {
@@ -16,6 +34,17 @@ import {
   portalSchema,
   transactionsQuerySchema,
 } from '../schemas/billing.schemas';
+
+/** The statuses that count as "the user has a live subscription right now". */
+const LIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing'] as const;
+
+/**
+ * How close to a period boundary a `customer.subscription.updated` event must
+ * land to be read as a RENEWAL rather than an ordinary edit. Carried across from
+ * the Mongo original unchanged; the idempotency index is what actually stops a
+ * double grant, this only decides whether to attempt one at all.
+ */
+const RENEWAL_GRANT_WINDOW_SECONDS = 300;
 
 const INVALID_REDIRECT_RESPONSE = {
   error: 'INVALID_REDIRECT_URL',
@@ -29,18 +58,6 @@ const INVALID_RETURN_URL_RESPONSE = {
 
 const router = Router();
 
-let stripeInstance: Stripe | null = null;
-
-function getStripe(): Stripe {
-  if (!stripeInstance) {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY is not defined');
-    }
-    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
-  }
-  return stripeInstance;
-}
-
 function getWebhookSecret(): string {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) {
@@ -49,31 +66,17 @@ function getWebhookSecret(): string {
   return secret;
 }
 
-// Helper to get or create Stripe customer
-async function getOrCreateStripeCustomer(userId: string, email?: string): Promise<string> {
-  const userCredits = await getOrCreateUserCredits(userId);
-  let customerId = userCredits.stripeCustomerId;
-
-  if (customerId) {
-    try {
-      await getStripe().customers.retrieve(customerId);
-      return customerId;
-    } catch {
-      customerId = undefined;
-    }
-  }
-
-  const customer = await getStripe().customers.create({
-    email,
-    metadata: { userId },
-  });
-
-  userCredits.stripeCustomerId = customer.id;
-  await userCredits.save();
-  logger.info(`Created Stripe customer ${customer.id} for user ${userId}`);
-
-  return customer.id;
-}
+/*
+ * The Stripe-customer resolver that used to live here is now
+ * `getOrCreateAccountStripeCustomer` in `services/stripeAccountBilling.service.ts`
+ * (issue #972 section 7.4), and the three call sites below import it directly.
+ *
+ * `users` IS the account table, so "the Stripe customer for this user" and "the
+ * Stripe customer for this account" were always one question. Two resolvers
+ * would eventually differ on the "Stripe forgot this customer" branch, and the
+ * account that lost its customer id is the account whose payments stop
+ * reconciling.
+ */
 
 const CREDIT_PACKAGES = [
   { id: 'credits_1000', name: '1,000 Credits', credits: 1000, price: 500, currency: 'usd' },
@@ -126,7 +129,7 @@ router.post('/checkout/credits', authMiddleware, validate({ body: checkoutCredit
     if (!pkg) return res.status(400).json({ error: 'Invalid package ID' });
 
     const email = req.user?.email;
-    const customerId = await getOrCreateStripeCustomer(userId, email);
+    const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
@@ -175,7 +178,7 @@ router.post('/checkout/subscription', authMiddleware, validate({ body: checkoutS
     if (!plan || !plan.stripePriceId) return res.status(400).json({ error: 'Invalid plan ID' });
 
     const email = req.user?.email;
-    const customerId = await getOrCreateStripeCustomer(userId, email);
+    const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
     const session = await getStripe().checkout.sessions.create({
       customer: customerId,
@@ -202,10 +205,23 @@ router.get('/subscription', authMiddleware, async (req: AuthRequest, res: Respon
     const userId = req.user?._id?.toString();
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const subscription = await BillingSubscription.findOne({
-      userId,
-      status: { $in: ['active', 'trialing'] },
-    });
+    const [row] = await getDb()
+      .select()
+      .from(billingSubscriptions)
+      .where(
+        and(
+          eq(billingSubscriptions.userId, userId),
+          inArray(billingSubscriptions.status, LIVE_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1);
+
+    // `null`, not `undefined`: the Mongoose `findOne` returned null and
+    // `res.json` emitted `"subscription": null`. Dropping the key entirely is a
+    // different shape.
+    const subscription: BillingSubscriptionResponse | null = row
+      ? toBillingSubscriptionResponse(row)
+      : null;
 
     res.json({ subscription });
   } catch (error) {
@@ -224,10 +240,17 @@ router.post('/subscription/cancel', authMiddleware, async (req: AuthRequest, res
     const userId = req.user?._id?.toString();
     if (!userId) return res.status(401).json({ error: 'Authentication required' });
 
-    const subscription = await BillingSubscription.findOne({
-      userId,
-      status: { $in: ['active', 'trialing'] },
-    });
+    const db = getDb();
+    const [subscription] = await db
+      .select()
+      .from(billingSubscriptions)
+      .where(
+        and(
+          eq(billingSubscriptions.userId, userId),
+          inArray(billingSubscriptions.status, LIVE_SUBSCRIPTION_STATUSES)
+        )
+      )
+      .limit(1);
 
     if (!subscription) return res.status(404).json({ error: 'No active subscription found' });
 
@@ -235,10 +258,18 @@ router.post('/subscription/cancel', authMiddleware, async (req: AuthRequest, res
       cancel_at_period_end: true,
     });
 
-    subscription.cancelAtPeriodEnd = true;
-    await subscription.save();
+    // Stripe is the authority and has accepted the change; mirror it locally and
+    // answer with the row as it now stands, not with the pre-update copy.
+    const [updated] = await db
+      .update(billingSubscriptions)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(billingSubscriptions.id, subscription.id))
+      .returning();
 
-    res.json({ message: 'Subscription will be canceled at end of billing period', subscription });
+    res.json({
+      message: 'Subscription will be canceled at end of billing period',
+      subscription: toBillingSubscriptionResponse(updated),
+    });
   } catch (error) {
     logger.error('Error canceling subscription:', error);
     res.status(500).json({ error: 'Failed to cancel subscription' });
@@ -256,13 +287,25 @@ router.get('/transactions', authMiddleware, validate({ query: transactionsQueryS
 
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
-    const transactions = await BillingTransaction.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .skip(offset);
-    const total = await BillingTransaction.countDocuments({ userId });
 
-    res.json({ transactions, total });
+    const db = getDb();
+    const [rows, [totals]] = await Promise.all([
+      db
+        .select()
+        .from(billingTransactions)
+        .where(eq(billingTransactions.userId, userId))
+        .orderBy(desc(billingTransactions.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ value: count() })
+        .from(billingTransactions)
+        .where(eq(billingTransactions.userId, userId)),
+    ]);
+
+    const transactions: BillingTransactionResponse[] = rows.map(toBillingTransactionResponse);
+
+    res.json({ transactions, total: totals.value });
   } catch (error) {
     logger.error('Error fetching transactions:', error);
     res.status(500).json({ error: 'Failed to fetch transactions' });
@@ -287,7 +330,7 @@ router.post('/portal', authMiddleware, validate({ body: portalSchema }), async (
     }
 
     const email = req.user?.email;
-    const customerId = await getOrCreateStripeCustomer(userId, email);
+    const customerId = await getOrCreateAccountStripeCustomer(userId, email);
 
     const session = await getStripe().billingPortal.sessions.create({
       customer: customerId,
@@ -339,6 +382,22 @@ router.post('/webhook', async (req: Request, res: Response) => {
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
+      case 'payment_intent.succeeded': {
+        // The off-session auto-recharge path creates a PaymentIntent directly,
+        // so no checkout session ever completes for it. A hosted checkout emits
+        // BOTH events; both handlers compose the same idempotency key from the
+        // same intent id, so the second one writes nothing.
+        const result = await handleBalanceTopUpPaymentIntent(
+          event.data.object as Stripe.PaymentIntent
+        );
+        if (result.status === 'ignored' && result.reason !== 'not-a-balance-top-up') {
+          logger.warn('Balance top-up intent ignored', {
+            paymentIntentId: (event.data.object as Stripe.PaymentIntent).id,
+            reason: result.reason,
+          });
+        }
+        break;
+      }
     }
     res.json({ received: true });
   } catch (error) {
@@ -347,14 +406,54 @@ router.post('/webhook', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Grant a one-off credit purchase, EXACTLY ONCE per Stripe charge.
+ *
+ * Stripe retries `checkout.session.completed` by design — on its own timer, and
+ * again whenever a delivery is not acknowledged — and this handler previously
+ * had no idempotency guard of any kind: every replay ran `addCredits` again and
+ * wrote a second receipt. The account ended up with two, three, N times the
+ * credits it paid for, and the only trace was a duplicate row nothing looked at.
+ *
+ * The fix has two halves, and neither is sufficient alone:
+ *
+ *   1. **`billing_transactions_payment_intent_key`** — a partial unique index on
+ *      `(stripe_payment_intent_id, type)` for `credit_purchase` rows. This is
+ *      what makes the claim ATOMIC. A guard written only in JavaScript would be a
+ *      read-then-write: two concurrent replays would both find nothing and both
+ *      grant, which is precisely the shape Stripe's retry behaviour produces.
+ *   2. **The receipt is written FIRST and the grant is conditional on it.**
+ *      `onConflictDoNothing().returning()` yields a row only for the caller that
+ *      won the index; a replay gets nothing back and returns without granting.
+ *      Same shape `handleSubscriptionUpdate` already uses for renewals.
+ *
+ * Both live inside ONE transaction, so a crash between the claim and the grant
+ * cannot leave a receipt with no credits behind it — which would be worse than
+ * the bug, since the receipt would then permanently suppress the retry that
+ * would have delivered them.
+ */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const metadata = session.metadata;
-  if (!metadata?.userId || metadata.type !== 'credit_purchase') return;
 
-  if (!isValidObjectId(metadata.userId)) {
-    logger.warn('Webhook checkout: invalid userId in metadata', { userId: metadata.userId, sessionId: session.id });
+  // TWO products complete through this one webhook, and they must never be
+  // reachable from one another. `credit_purchase` buys API CREDITS — whole,
+  // indivisible counts of a prepaid entitlement. `balance_top_up` funds the
+  // account's pay-as-you-go INFERENCE balance, an exact decimal amount in a
+  // currency. ADR 0009 and ADR 0014 both turn on keeping the two apart; a
+  // top-up that granted credits, or a credit purchase that funded the balance,
+  // would merge them in the one place a customer's money actually moves.
+  if (metadata?.type === BALANCE_TOP_UP_METADATA_TYPE) {
+    const result = await handleBalanceTopUpCompleted(session);
+    if (result.status === 'ignored') {
+      logger.warn('Balance top-up webhook ignored', {
+        sessionId: session.id,
+        reason: result.reason,
+      });
+    }
     return;
   }
+
+  if (!metadata?.userId || metadata.type !== 'credit_purchase') return;
 
   // Re-validate credits against known packages to prevent metadata manipulation
   const pkg = CREDIT_PACKAGES.find((p) => p.id === metadata.packageId);
@@ -374,31 +473,85 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
+  const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
+  if (!paymentIntentId) {
+    // No payment intent means no idempotency key, and granting without one is
+    // how the original bug paid out twice. Refuse rather than grant unguarded.
+    logger.warn('Webhook checkout: no payment intent on the session; refusing to grant credits', {
+      sessionId: session.id,
+      userId: metadata.userId,
+    });
+    return;
+  }
+
   const credits = pkg.credits;
+  const userId = metadata.userId;
+  const db = getDb();
 
-  const userCredits = await getOrCreateUserCredits(metadata.userId);
-  await userCredits.addCredits(credits, 'paid');
-  logger.info(`Added ${credits} credits to user ${metadata.userId}`);
+  await db.transaction(async (tx) => {
+    await getOrCreateUserCredits(tx, userId);
 
-  await BillingTransaction.create({
-    userId: metadata.userId,
-    stripeCustomerId: session.customer as string,
-    stripePaymentIntentId: session.payment_intent as string,
-    type: 'credit_purchase',
-    amount: session.amount_total || 0,
-    currency: session.currency || 'usd',
-    credits,
-    status: 'completed',
-    description: `Purchased ${credits.toLocaleString()} credits`,
+    const [receipt] = await tx
+      .insert(billingTransactions)
+      .values({
+        userId,
+        stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
+        stripePaymentIntentId: paymentIntentId,
+        type: 'credit_purchase',
+        amountMinorUnits: session.amount_total ?? 0,
+        currency: session.currency ?? 'usd',
+        credits,
+        status: 'completed',
+        description: `Purchased ${credits.toLocaleString()} credits`,
+      })
+      .onConflictDoNothing({
+        target: [billingTransactions.stripePaymentIntentId, billingTransactions.type],
+        // The index's own predicate, so Postgres can infer WHICH partial unique
+        // index this conflict is against. Shared with the index declaration —
+        // see `creditPurchaseIdempotencyPredicate`.
+        where: creditPurchaseIdempotencyPredicate(billingTransactions),
+      })
+      .returning({ id: billingTransactions.id });
+
+    if (!receipt) {
+      logger.info('Skipping duplicate credit purchase grant', {
+        paymentIntentId,
+        sessionId: session.id,
+        userId,
+      });
+      return;
+    }
+
+    // The receipt is now the idempotency CLAIM: while it stands, every replay is
+    // refused. So a grant that silently failed here would suppress its own
+    // retries forever — the customer pays and never receives the credits. Throw
+    // instead: the transaction rolls back, the claim is released, and Stripe's
+    // next redelivery tries again.
+    if (!(await addCredits(tx, userId, credits, 'paid'))) {
+      throw new Error(
+        `Credit grant did not apply for user ${userId} (payment intent ${paymentIntentId})`
+      );
+    }
+    logger.info(`Added ${credits} credits to user ${userId}`);
   });
 }
 
 async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription) {
   const customerId = stripeSubscription.customer as string;
-  const userCredits = await UserCredits.findOne({ stripeCustomerId: customerId });
-  if (!userCredits) return;
+  const db = getDb();
 
-  const priceId = stripeSubscription.items.data[0].price.id;
+  // `user_credits.stripe_customer_id` carries a partial UNIQUE index, so this
+  // resolves at most one account — the uniqueness the Mongoose `findOne` assumed
+  // without stating.
+  const [account] = await db
+    .select({ userId: userCredits.userId })
+    .from(userCredits)
+    .where(eq(userCredits.stripeCustomerId, customerId))
+    .limit(1);
+  if (!account) return;
+
+  const subscriptionItem = stripeSubscription.items.data[0];
+  const priceId = subscriptionItem.price.id;
   const plan = SUBSCRIPTION_PLANS.find((p) => p.stripePriceId === priceId);
   if (!plan) {
     logger.warn('Unrecognized subscription price ID', {
@@ -409,82 +562,94 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
     return;
   }
 
-  const subscriptionItem = stripeSubscription.items.data[0];
-
-  await BillingSubscription.findOneAndUpdate(
-    { stripeSubscriptionId: stripeSubscription.id },
-    {
-      userId: userCredits._id,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: stripeSubscription.id,
-      stripePriceId: subscriptionItem.price.id,
-      status: stripeSubscription.status,
-      currentPeriodStart: new Date(subscriptionItem.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscriptionItem.current_period_end * 1000),
-      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
-      plan: { name: plan.name, creditsPerMonth: plan.creditsPerMonth, price: plan.price, currency: plan.currency },
-    },
-    { upsert: true, new: true }
-  );
+  // The Mongo upsert keyed on `stripeSubscriptionId`, which is the table's
+  // unique key here too — so it is one statement, not a read-then-write.
+  const mirror = {
+    userId: account.userId,
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: stripeSubscription.id,
+    stripePriceId: priceId,
+    status: stripeSubscription.status,
+    currentPeriodStart: new Date(subscriptionItem.current_period_start * 1000),
+    currentPeriodEnd: new Date(subscriptionItem.current_period_end * 1000),
+    cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+    planName: plan.name,
+    planCreditsPerMonth: plan.creditsPerMonth,
+    planPriceMinorUnits: plan.price,
+    planCurrency: plan.currency,
+  };
+  await db
+    .insert(billingSubscriptions)
+    .values(mirror)
+    .onConflictDoUpdate({
+      target: billingSubscriptions.stripeSubscriptionId,
+      set: mirror,
+    });
 
   // Add credits on subscription renewal
-  if (stripeSubscription.status === 'active') {
-    const now = Date.now() / 1000;
-    if (Math.abs(now - subscriptionItem.current_period_start) < 300) {
-      const periodStart = new Date(subscriptionItem.current_period_start * 1000);
-      const session = await mongoose.startSession();
-      try {
-        await session.withTransaction(async () => {
-          const transactionResult = await BillingTransaction.updateOne(
-            {
-              type: 'subscription_payment',
-              stripeSubscriptionId: stripeSubscription.id,
-              stripeSubscriptionPeriodStart: periodStart,
-            },
-            {
-              $setOnInsert: {
-                userId: userCredits._id,
-                stripeCustomerId: customerId,
-                stripeSubscriptionId: stripeSubscription.id,
-                stripeSubscriptionPeriodStart: periodStart,
-                type: 'subscription_payment',
-                amount: plan.price,
-                currency: plan.currency,
-                credits: plan.creditsPerMonth,
-                status: 'completed',
-                description: `${plan.name} subscription credits`,
-              },
-            },
-            { upsert: true, session }
-          );
+  if (stripeSubscription.status !== 'active') return;
+  const now = Date.now() / 1000;
+  if (Math.abs(now - subscriptionItem.current_period_start) >= RENEWAL_GRANT_WINDOW_SECONDS) return;
 
-          if (transactionResult.upsertedCount === 0) {
-            logger.info('Skipping duplicate subscription credit grant', {
-              subscriptionId: stripeSubscription.id,
-              periodStart: periodStart.toISOString(),
-              userId: userCredits._id,
-            });
-            return;
-          }
+  const periodStart = new Date(subscriptionItem.current_period_start * 1000);
+  await db.transaction(async (tx) => {
+    // Same shape as `handleCheckoutCompleted`: the receipt is the idempotency
+    // claim, `billing_transactions_subscription_period_key` makes winning it
+    // atomic, and the grant is conditional on having won.
+    const [receipt] = await tx
+      .insert(billingTransactions)
+      .values({
+        userId: account.userId,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: stripeSubscription.id,
+        stripeSubscriptionPeriodStart: periodStart,
+        type: 'subscription_payment',
+        amountMinorUnits: plan.price,
+        currency: plan.currency,
+        credits: plan.creditsPerMonth,
+        status: 'completed',
+        description: `${plan.name} subscription credits`,
+      })
+      .onConflictDoNothing({
+        // Named rather than left bare: an untargeted DO NOTHING would silently
+        // swallow a violation of ANY constraint this table grows later, and a
+        // swallowed constraint on a money table is a grant that vanishes without
+        // a trace. Shared with the index declaration — see
+        // `subscriptionPeriodIdempotencyPredicate`.
+        target: [
+          billingTransactions.stripeSubscriptionId,
+          billingTransactions.stripeSubscriptionPeriodStart,
+          billingTransactions.type,
+        ],
+        where: subscriptionPeriodIdempotencyPredicate(billingTransactions),
+      })
+      .returning({ id: billingTransactions.id });
 
-          await UserCredits.updateOne(
-            { _id: userCredits._id },
-            { $inc: { 'credits.paid': plan.creditsPerMonth } },
-            { session }
-          );
-        });
-      } finally {
-        await session.endSession();
-      }
+    if (!receipt) {
+      logger.info('Skipping duplicate subscription credit grant', {
+        subscriptionId: stripeSubscription.id,
+        periodStart: periodStart.toISOString(),
+        userId: account.userId,
+      });
+      return;
     }
-  }
+
+    // Same reasoning as the one-off path: the receipt suppresses every replay,
+    // so a silently-failed grant would never be retried.
+    if (!(await addCredits(tx, account.userId, plan.creditsPerMonth, 'paid'))) {
+      throw new Error(
+        `Renewal credit grant did not apply for user ${account.userId} ` +
+        `(subscription ${stripeSubscription.id})`
+      );
+    }
+  });
 }
 
 async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription) {
-  await BillingSubscription.findOneAndUpdate(
-    { stripeSubscriptionId: stripeSubscription.id },
-    { status: 'canceled' }
-  );
+  await getDb()
+    .update(billingSubscriptions)
+    .set({ status: 'canceled' })
+    .where(eq(billingSubscriptions.stripeSubscriptionId, stripeSubscription.id));
 }
 
 export default router;

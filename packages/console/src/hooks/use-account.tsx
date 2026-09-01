@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {  useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import type {UseQueryResult} from '@tanstack/react-query';
 import type {
   AccountKind,
@@ -14,6 +15,7 @@ import type {
   CreateAccountInput,
   UpdateAccountInput,
 } from '@oxyhq/core';
+import { hasImplicitOwnership } from '@/lib/account-access';
 
 // ===========================================================================
 // Types — re-exported from @oxyhq/core so the Console shares the single
@@ -63,10 +65,15 @@ export type AccountPermission =
   | 'billing:read'
   | 'billing:manage'
   | 'ownership:transfer'
-  // Application-scoped permission surfaced on an application's `callerMembership`
-  // (derived from the caller's account role). Gates the Updates surface, which
-  // the API guards with the same `updates:manage` permission.
-  | 'updates:manage';
+  // The inference lane (#972 workstream 3). `inference:usage:read` is UNITS;
+  // money stays on `billing:read`/`billing:manage`, which is why there is no
+  // `inference:billing:*`.
+  | 'inference:invoke'
+  | 'inference:routing:read'
+  | 'inference:routing:write'
+  | 'inference:providers:read'
+  | 'inference:providers:write'
+  | 'inference:usage:read';
 
 /** Roles assignable via invite/update — everything except `owner`. */
 export type AssignableAccountRole = Exclude<AccountRole, 'owner'>;
@@ -78,16 +85,21 @@ interface AccountContextValue {
   isLoading: boolean;
 
   // Account CRUD
-  setCurrentAccount: (account: AccountNode) => void;
+  setCurrentAccount: (account: AccountNode) => Promise<void>;
   createAccount: (data: CreateAccountInput) => Promise<AccountNode>;
   updateAccount: (accountId: string, data: UpdateAccountInput) => Promise<AccountNode>;
   archiveAccount: (accountId: string) => Promise<AccountSuccessResult>;
 
-  // Permissions — derived from the node's embedded `callerMembership`.
+  // Permissions — the node's embedded `callerMembership`, plus the implicit
+  // ownership of one's own personal account (which carries no membership row).
+  canReadAccount: (account: AccountNode) => boolean;
   canEditAccount: (account: AccountNode) => boolean;
   canManageMembers: (account: AccountNode) => boolean;
   canTransferOwnership: (account: AccountNode) => boolean;
   canArchiveAccount: (account: AccountNode) => boolean;
+  canCreateApplications: (account: AccountNode) => boolean;
+  canReadBilling: (account: AccountNode) => boolean;
+  canManageBilling: (account: AccountNode) => boolean;
   getUserRole: (account: AccountNode) => AccountRole | null;
 }
 
@@ -98,6 +110,7 @@ const CURRENT_ACCOUNT_KEY = 'oxy-current-account-id';
 const accountQueryKeys = {
   all: ['accounts'] as const,
   members: (accountId: string) => ['account-members', accountId] as const,
+  membersAll: ['account-members'] as const,
 };
 
 function readStoredAccountId(): string | null {
@@ -128,8 +141,32 @@ function pickDefaultAccount(accounts: Array<AccountNode>): AccountNode | null {
   return accounts.find((a) => a.kind === 'personal') ?? accounts[0];
 }
 
-/** An account permission check that reads the embedded `callerMembership`. */
+/**
+ * The account's display label: its `name.displayName`, else its handle.
+ *
+ * The `displayName ?? handle` pattern the identity contract mandates, and
+ * nothing longer — `displayName` is optional on the wire, and rebuilding a
+ * multi-field chain here is how a frontend comes to disagree with the
+ * serializer about what somebody is called.
+ */
+export function accountLabel(node: AccountNode): string {
+  return node.account.name?.displayName ?? getNormalizedUserHandle(node.account) ?? 'Account';
+}
+
+/**
+ * An account permission check that reads the embedded `callerMembership`.
+ *
+ * The caller's OWN personal account has no membership row — ownership there is
+ * implicit and the API says so with `relationship: 'self'` beside a null
+ * `callerMembership`, while granting every owner permission. Reading only the
+ * membership therefore refused the owner of a personal account everything, which
+ * is the account the Console defaults to; `hasImplicitOwnership` is the client's
+ * half of the server's own short-circuit. See `lib/account-access.ts`.
+ */
 function hasPermission(account: AccountNode, permissions: Array<AccountPermission>): boolean {
+  if (hasImplicitOwnership(account)) {
+    return true;
+  }
   const granted = account.callerMembership?.permissions;
   if (!granted) {
     return false;
@@ -138,7 +175,7 @@ function hasPermission(account: AccountNode, permissions: Array<AccountPermissio
 }
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
-  const { oxyServices, isAuthenticated, isReady } = useAuth();
+  const { oxyServices, switchToAccount, user, isAuthenticated, isReady } = useAuth();
   const queryClient = useQueryClient();
 
   const accountsQuery = useQuery({
@@ -175,17 +212,39 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentAccount, selectedId]);
 
-  const setCurrentAccount = React.useCallback((account: AccountNode): void => {
-    setSelectedId(account.accountId);
-    persistAccountId(account.accountId);
-  }, []);
+  const setCurrentAccount = React.useCallback(
+    async (account: AccountNode): Promise<void> => {
+      if (account.accountId !== currentAccount?.accountId) {
+        await switchToAccount(account.accountId);
+      }
+      setSelectedId(account.accountId);
+      persistAccountId(account.accountId);
+    },
+    [currentAccount?.accountId, switchToAccount],
+  );
+
+  // Keep console account context aligned when the device session changes via
+  // ProfileButton / OxyAccountDialog (outside the header org switcher).
+  React.useEffect(() => {
+    if (!user?.id || accounts.length === 0) {
+      return;
+    }
+    const sessionAccount = accounts.find((a) => a.accountId === user.id);
+    if (!sessionAccount || sessionAccount.accountId === selectedId) {
+      return;
+    }
+    setSelectedId(sessionAccount.accountId);
+    persistAccountId(sessionAccount.accountId);
+  }, [accounts, selectedId, user?.id]);
 
   const createAccountMutation = useMutation({
     mutationFn: (data: CreateAccountInput): Promise<AccountNode> => oxyServices.createAccount(data),
     onSuccess: (created) => {
+      queryClient.setQueryData<Array<AccountNode>>(accountQueryKeys.all, (existing) =>
+        existing ? [...existing, created] : [created],
+      );
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
-      setSelectedId(created.accountId);
-      persistAccountId(created.accountId);
+      void setCurrentAccount(created);
     },
   });
 
@@ -226,6 +285,24 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  /**
+   * `account:read` on one account node.
+   *
+   * Baseline for every role, so it reads as always-true — which is exactly why it
+   * needs a named predicate rather than an inline check. It is REMOVABLE by a
+   * per-member revoke, and the two application sections that gate an
+   * account-scoped read on it were comparing the raw `permissions` string array
+   * instead. `permissions` is typed `string[]` on the wire, so a typo in that
+   * comparison was neither a compile error nor visible to
+   * `scripts/check-permission-vocabulary.mjs`, whose subject is the union
+   * DECLARATIONS and not the call sites. Going through `hasPermission` types the
+   * argument as `AccountPermission`, so the same typo now fails to compile.
+   */
+  const canReadAccount = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['account:read']),
+    []
+  );
+
   const canEditAccount = React.useCallback(
     (account: AccountNode): boolean => hasPermission(account, ['account:update']),
     []
@@ -247,6 +324,37 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  /**
+   * Creating an application is an ACCOUNT permission, held by owner, admin and
+   * editor and by nobody else — a developer, a billing member and a viewer are
+   * all refused server-side. Offering the affordance regardless turns a
+   * guaranteed 403 into an error toast after the user has filled in a form.
+   */
+  const canCreateApplications = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['apps:create']),
+    []
+  );
+
+  /**
+   * The two billing rights, read off the membership the API serves rather than
+   * re-derived from the role name.
+   *
+   * They are genuinely different: `billing:read` sees the balance, the charges
+   * and the budgets; `billing:manage` moves money — a top-up, a portal session,
+   * a budget ceiling. Both are baseline for `owner`, `admin`, `editor` and the
+   * `billing` role, absent from `developer` and `viewer`, and removable by a
+   * per-member revoke, which is exactly why the client must not infer them.
+   */
+  const canReadBilling = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['billing:read']),
+    []
+  );
+
+  const canManageBilling = React.useCallback(
+    (account: AccountNode): boolean => hasPermission(account, ['billing:manage']),
+    []
+  );
+
   const value = React.useMemo<AccountContextValue>(
     () => ({
       accounts,
@@ -256,10 +364,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       updateAccount,
       archiveAccount,
+      canReadAccount,
       canEditAccount,
       canManageMembers,
       canTransferOwnership,
       canArchiveAccount,
+      canCreateApplications,
+      canReadBilling,
+      canManageBilling,
       getUserRole,
     }),
     [
@@ -270,10 +382,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       createAccount,
       updateAccount,
       archiveAccount,
+      canReadAccount,
       canEditAccount,
       canManageMembers,
       canTransferOwnership,
       canArchiveAccount,
+      canCreateApplications,
+      canReadBilling,
+      canManageBilling,
       getUserRole,
     ]
   );
@@ -326,8 +442,8 @@ export function useInviteAccountMember() {
       role: AssignableAccountRole;
     }): Promise<AccountMember> =>
       oxyServices.inviteAccountMember(accountId, { usernameOrEmail, role }),
-    onSuccess: (member) => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.members(member.accountId) });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
     },
   });
 }
@@ -346,8 +462,8 @@ export function useUpdateAccountMember() {
       memberId: string;
       role: AssignableAccountRole;
     }): Promise<AccountMember> => oxyServices.updateAccountMember(accountId, memberId, { role }),
-    onSuccess: (member) => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.members(member.accountId) });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
     },
   });
 }
@@ -367,8 +483,8 @@ export function useRemoveAccountMember() {
       await oxyServices.removeAccountMember(accountId, memberId);
       return { accountId, memberId };
     },
-    onSuccess: ({ accountId }) => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.members(accountId) });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
     },
   });
 }
@@ -386,8 +502,8 @@ export function useTransferAccountOwnership() {
       userId: string;
     }): Promise<AccountSuccessResult> =>
       oxyServices.transferAccountOwnership(accountId, { userId }),
-    onSuccess: (_data, { accountId }) => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.members(accountId) });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
       queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
     },
   });

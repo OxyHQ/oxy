@@ -104,9 +104,13 @@ const en: LocaleDict = {
       'By continuing, {{app}} will be able to sign in with your Oxy account. You can manage connected apps anytime in your Oxy account settings.',
     expiresAt: 'Request expires at {{time}}.',
     signingIn: 'Signing you in…',
-    silentFailedTitle: 'Sign-in could not be completed',
-    silentFailedDesc:
-      'Return to the app and sign in there. If this keeps happening, try signing out and back in.',
+    // Popup delivery reported a failure to the app that opened this window.
+    relayFailedTitle: 'Sign-in could not be completed',
+    // A request that asked to be completed without showing anything
+    // (`prompt=none`). Oxy never authorizes without asking, so it is refused.
+    silentUnsupportedTitle: 'Oxy always asks you first',
+    silentUnsupportedDesc:
+      'This app asked to sign you in without showing you anything. Oxy does not authorize access that way. Go back to the app and start sign-in again.',
     requestTitle: 'Authorization request',
     requestUnavailable: "We couldn't load the details of this request.",
     completeTitle: 'Authorization complete',

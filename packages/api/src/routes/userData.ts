@@ -15,9 +15,26 @@
  *     keyed on the authenticated user ID).
  *   - At most 128 keys per namespace and 1024 keys per user.
  *   - Namespace and key must match `[a-z0-9_-]{1,64}`.
+ *
+ * ## Postgres port notes
+ *
+ * `value` is `jsonb` and genuinely shape-less — the one honest `jsonb` in the
+ * batch (`schema/userAppData.ts`). Two consequences the routes depend on:
+ *
+ *   - **`{}` is a VALUE, not an absence.** Mongoose set `minimize: false` here
+ *     precisely so an empty object survived the round trip; `jsonb` preserves it
+ *     natively, and the response contract (`{ value }`) must never collapse it
+ *     to `null`.
+ *   - **A stored JSON `null` and an absent row are both reported as `null`.**
+ *     That is the pre-existing contract — this endpoint does not 404 on a
+ *     missing entry — and it is unchanged.
+ *
+ * Every read and write is SCOPED to the authenticated account in the same
+ * `WHERE`, so there is no shape of request that reaches another user's row.
  */
 
 import { Router, type Response } from 'express';
+import { and, count, eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -26,7 +43,8 @@ import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ApiError, ConflictError, UnauthorizedError } from '../utils/error';
 import { logger } from '../utils/logger';
-import UserAppData from '../models/UserAppData';
+import { getDb } from '../config/postgres';
+import { userAppData } from '../db/schema/userAppData';
 import {
   appDataKeyParamsSchema,
   appDataNamespaceParamsSchema,
@@ -38,15 +56,31 @@ import {
 const router = Router();
 
 async function enforceAppDataKeyQuotas(userId: string, namespace: string, key: string): Promise<void> {
-  const existing = await UserAppData.exists({ userId, namespace, key }).exec();
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: userAppData.id })
+    .from(userAppData)
+    .where(
+      and(
+        eq(userAppData.userId, userId),
+        eq(userAppData.namespace, namespace),
+        eq(userAppData.key, key),
+      ),
+    )
+    .limit(1);
   if (existing) {
     return;
   }
 
-  const [namespaceKeyCount, userKeyCount] = await Promise.all([
-    UserAppData.countDocuments({ userId, namespace }).exec(),
-    UserAppData.countDocuments({ userId }).exec(),
+  const [namespaceRows, userRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(userAppData)
+      .where(and(eq(userAppData.userId, userId), eq(userAppData.namespace, namespace))),
+    db.select({ n: count() }).from(userAppData).where(eq(userAppData.userId, userId)),
   ]);
+  const namespaceKeyCount = namespaceRows[0]?.n ?? 0;
+  const userKeyCount = userRows[0]?.n ?? 0;
 
   if (namespaceKeyCount >= APP_DATA_MAX_NAMESPACE_KEYS) {
     throw new ConflictError('App-data namespace key quota exceeded', {
@@ -141,14 +175,19 @@ router.get(
       throw new UnauthorizedError('Authentication required');
     }
     const { namespace, key } = req.params;
-    const doc = await UserAppData.findOne(
-      { userId: req.user.id, namespace, key },
-      { value: 1 },
-    )
-      .lean()
-      .exec();
+    const [row] = await getDb()
+      .select({ value: userAppData.value })
+      .from(userAppData)
+      .where(
+        and(
+          eq(userAppData.userId, req.user.id),
+          eq(userAppData.namespace, namespace),
+          eq(userAppData.key, key),
+        ),
+      )
+      .limit(1);
 
-    return res.json({ value: doc ? doc.value ?? null : null });
+    return res.json({ value: row ? row.value ?? null : null });
   }),
 );
 
@@ -214,16 +253,20 @@ router.put(
 
     await enforceAppDataKeyQuotas(req.user.id, namespace, key);
 
-    const now = new Date();
-    const doc = await UserAppData.findOneAndUpdate(
-      { userId: req.user.id, namespace, key },
-      { $set: { value, updatedAt: now }, $setOnInsert: { createdAt: now } },
-      { upsert: true, new: true, projection: { value: 1 } },
-    )
-      .lean()
-      .exec();
+    // `$setOnInsert: { createdAt }` needs no counterpart: `created_at` is absent
+    // from the conflict arm, so an existing row keeps its original. `updated_at`
+    // is bumped by the column's own `$onUpdate`, the port of what Mongoose's
+    // `timestamps` did.
+    const [row] = await getDb()
+      .insert(userAppData)
+      .values({ userId: req.user.id, namespace, key, value })
+      .onConflictDoUpdate({
+        target: [userAppData.userId, userAppData.namespace, userAppData.key],
+        set: { value },
+      })
+      .returning({ value: userAppData.value });
 
-    return res.json({ value: doc ? doc.value ?? null : value });
+    return res.json({ value: row ? row.value ?? null : value });
   }),
 );
 
@@ -263,7 +306,15 @@ router.delete(
       throw new UnauthorizedError('Authentication required');
     }
     const { namespace, key } = req.params;
-    await UserAppData.deleteOne({ userId: req.user.id, namespace, key }).exec();
+    await getDb()
+      .delete(userAppData)
+      .where(
+        and(
+          eq(userAppData.userId, req.user.id),
+          eq(userAppData.namespace, namespace),
+          eq(userAppData.key, key),
+        ),
+      );
     return res.status(204).send();
   }),
 );
@@ -309,15 +360,18 @@ router.get(
       throw new UnauthorizedError('Authentication required');
     }
     const { namespace } = req.params;
-    const docs = await UserAppData.find(
-      { userId: req.user.id, namespace },
-      { key: 1, value: 1 },
-    )
-      .limit(APP_DATA_MAX_NAMESPACE_KEYS + 1)
-      .lean()
-      .exec();
+    // Ordered by key: a `LIMIT` without an `ORDER BY` leaves WHICH rows come
+    // back unspecified in Postgres, so the over-quota probe below would be
+    // reading an arbitrary subset. Mongo's natural order was equally arbitrary
+    // but the map response makes row order invisible either way.
+    const rows = await getDb()
+      .select({ key: userAppData.key, value: userAppData.value })
+      .from(userAppData)
+      .where(and(eq(userAppData.userId, req.user.id), eq(userAppData.namespace, namespace)))
+      .orderBy(userAppData.key)
+      .limit(APP_DATA_MAX_NAMESPACE_KEYS + 1);
 
-    if (docs.length > APP_DATA_MAX_NAMESPACE_KEYS) {
+    if (rows.length > APP_DATA_MAX_NAMESPACE_KEYS) {
       throw new ApiError(
         413,
         'App-data namespace exceeds the maximum list response size',
@@ -327,10 +381,8 @@ router.get(
     }
 
     const entries: Record<string, unknown> = {};
-    for (const doc of docs) {
-      if (typeof doc.key === 'string') {
-        entries[doc.key] = doc.value ?? null;
-      }
+    for (const row of rows) {
+      entries[row.key] = row.value ?? null;
     }
     return res.json({ entries });
   }),

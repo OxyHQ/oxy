@@ -7,8 +7,9 @@
  * `useUserWalletTransactions`) expose precise types instead of `any`.
  *
  * Source of truth (API):
- *  - Subscription:  GET /subscription/:userId   -> `Subscription` model JSON,
- *                   or the fallback `{ plan: 'basic' }` when none exists.
+ *  - Subscription:  GET /subscription/:userId   -> billing-first normalized
+ *                   subscription JSON (Stripe `BillingSubscription` with legacy
+ *                   `Subscription` fallback), or `{ plan: 'basic' }` when none.
  *  - Payments:      GET /payments/user          -> `Payment[]` (sendSuccess).
  *  - Wallet:        GET /wallet/:userId         -> `Wallet` (sendSuccess).
  *  - Transactions:  GET /wallet/transactions/:userId

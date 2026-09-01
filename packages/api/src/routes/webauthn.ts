@@ -18,11 +18,25 @@
  * `buildSessionAuthResponse` → `finalizeDeviceLogin`) → return the same
  * `AuthSuccess` shape as `POST /auth/verify`. No session/device-secret minting is
  * reinvented here.
+ *
+ * ## Storage (Postgres)
+ *
+ * `webauthn_credentials`, `webauthn_challenges`, `user_auth_methods` and `users`
+ * are Drizzle tables. Two things the Mongo version could not do, and now does:
+ *
+ * - **Signup is ONE transaction** (account + credential + auth method). The
+ *   compensating `User.findByIdAndDelete` that used to unwind a half-created
+ *   account existed only because Mongo gave this path no transaction; it is
+ *   deleted rather than translated.
+ * - **A duplicate is identified by the CONSTRAINT that rejected it**
+ *   (`uniqueViolationConstraint`) rather than by which statement threw, so one
+ *   `catch` around the transaction still tells "username taken" apart from
+ *   "passkey already registered" and returns the same two 409s as before.
  */
 
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
-import { Types } from 'mongoose';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -38,33 +52,45 @@ import {
   webauthnLoginOptionsRequestSchema,
   webauthnRegisterVerifyRequestSchema,
   webauthnLoginVerifyRequestSchema,
+  isValidUsername,
+  USERNAME_INVALID_MESSAGE,
 } from '@oxyhq/contracts';
-import { User, buildAuthMethod } from '../models/User';
-import WebauthnCredential from '../models/WebauthnCredential';
-import WebauthnChallenge from '../models/WebauthnChallenge';
-import Notification from '../models/Notification';
+import { getDb } from '../config/postgres';
+import { notifications } from '../db/schema/notifications';
+import { userAuthMethods } from '../db/schema/userAuthMethods';
+import { users } from '../db/schema/users';
+import { webauthnChallenges } from '../db/schema/webauthnChallenges';
+import { webauthnCredentials } from '../db/schema/webauthnCredentials';
 import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
 import { asyncHandler } from '../utils/asyncHandler';
-import { BadRequestError, ConflictError, UnauthorizedError, InternalServerError } from '../utils/error';
+import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError, InternalServerError } from '../utils/error';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { isOxyApexOrigin } from '../utils/origin';
 import { getWebauthnRpId } from '../config/env';
-import { normalizeUsername, USERNAME_PATTERN, INVALID_USERNAME_MESSAGE } from '../utils/username';
-import { exactCaseInsensitiveUsernameRegex } from '../utils/resolveUserIdentifier';
+import { normalizeUsername } from '../utils/username';
 import { buildSessionAuthResponse, sessionCreateOptionsFromBody } from '../controllers/session.controller';
 import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import securityActivityService from '../services/securityActivityService';
 import type { SessionAuthResponse } from '../types/session';
-import type { UserLike } from '../utils/userTransform';
 
 const router = Router();
 
 const RP_NAME = 'Oxy';
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_CREDENTIAL_NAME = 'Passkey';
+
+/** SQLSTATE for a unique-constraint violation. */
+const UNIQUE_VIOLATION = '23505';
+/** The unique index that rejects a second account claiming one username. */
+const USERNAME_UNIQUE_CONSTRAINT = 'users_lower_username_key';
+/** The two unique indexes a second registration of one passkey can collide with. */
+const CREDENTIAL_UNIQUE_CONSTRAINTS = new Set([
+  'webauthn_credentials_credential_id_key',
+  'user_auth_methods_method_credential_id_key',
+]);
 
 const registerOptionsLimiter = rateLimit({ prefix: 'rl:webauthn:register-options:', windowMs: 60_000, max: 20 });
 const registerVerifyLimiter = rateLimit({ prefix: 'rl:webauthn:register-verify:', windowMs: 60_000, max: 10 });
@@ -76,6 +102,43 @@ interface DeviceEnvelope {
   deviceName?: string;
   deviceFingerprint?: string;
   deviceId?: string;
+}
+
+/**
+ * The `users` columns this route needs to mint a session: exactly the three
+ * `buildSessionAuthResponse` projects onto the wire (`id`, `username`,
+ * `avatar`). Selecting them by name rather than reading the whole row also
+ * keeps the protected columns (`phone`, the contact hashes, `refresh_token`)
+ * out of the query entirely.
+ */
+interface WebauthnAccount {
+  id: string;
+  username: string | null;
+  avatar: string | null;
+}
+
+/** Managed accounts are operated only through the audited account-switch flow. */
+function isPersonalAccount(kind: string): boolean {
+  return kind === 'personal';
+}
+
+/**
+ * The `sessions` fields the mint tail reads, declared structurally.
+ *
+ * `session.service` returns a FLAT `sessions` row — `deviceName` / `deviceType`
+ * / `platform` are columns, not a nested `deviceInfo` subdocument. Naming the
+ * shape here rather than importing the service's row type states exactly what
+ * this route depends on, and is what makes the flat read explicit at the
+ * boundary instead of implied by a property access.
+ */
+interface MintedSession {
+  sessionId: string;
+  deviceId: string;
+  expiresAt: Date;
+  accessToken?: string;
+  deviceName?: string | null;
+  deviceType?: string | null;
+  platform?: string | null;
 }
 
 /**
@@ -91,6 +154,55 @@ function resolveOptionalBearerUserId(req: Request): string | null {
     return null;
   }
   return typeof decoded.userId === 'string' && decoded.userId.length > 0 ? decoded.userId : null;
+}
+
+/**
+ * Read a field off a driver error. Drizzle wraps a postgres.js failure in its
+ * own error, so `code` and `constraint_name` live on the `cause` — walking the
+ * chain is what keeps the check "THIS constraint fired" rather than "something
+ * threw"; the wrapper's own message carries only the SQL.
+ *
+ * `cause` is read through `Reflect.get` rather than `error.cause`: this package
+ * compiles against the `es6` lib, where `Error.cause` is not declared.
+ */
+function pgField(error: unknown, field: string): string | undefined {
+  for (let current: unknown = error; current instanceof Error; current = Reflect.get(current, 'cause')) {
+    const value: unknown = Reflect.get(current, field);
+    if (typeof value === 'string') return value;
+  }
+  return undefined;
+}
+
+/**
+ * The name of the unique index that rejected a statement, or null when the
+ * failure was not a unique violation at all (in which case it is rethrown).
+ */
+function uniqueViolationConstraint(error: unknown): string | null {
+  if (pgField(error, 'code') !== UNIQUE_VIOLATION) return null;
+  return pgField(error, 'constraint_name') ?? '';
+}
+
+/**
+ * `where lower(btrim(username)) = lower(btrim($1))` — the ONLY spelling that
+ * both matches case-insensitively and uses `users_lower_username_key`. A plain
+ * `username = $1` is correct-looking, case-sensitive, and would not use the
+ * index.
+ */
+function usernameMatches(candidate: string) {
+  return sql`lower(btrim(${users.username})) = lower(btrim(${candidate}))`;
+}
+
+/**
+ * The transports a stored credential advertises, in the shape
+ * `@simplewebauthn/server` takes. NULL means "the authenticator gave no hint".
+ *
+ * The assertion is deliberate and unchanged from the Mongo version: the column
+ * is a plain `text[]` and `AuthenticatorTransportFuture` grows with the spec, so
+ * FILTERING to the values we know today would silently drop a transport a newer
+ * authenticator reported and make its credential harder to invoke.
+ */
+function toTransports(value: string[] | null): AuthenticatorTransportFuture[] | undefined {
+  return value === null ? undefined : (value as AuthenticatorTransportFuture[]);
 }
 
 /**
@@ -111,10 +223,11 @@ function readCeremonyResponse<T>(body: unknown): T {
 
 /**
  * Guard that a value pulled from the (Zod-unvalidated) browser ceremony response
- * is a string before it reaches a MongoDB query. Browser response fields are
- * attacker-controlled; without this a caller could pass an object such as
- * `{ $ne: null }` and inject a Mongo query operator. Throwing here makes every
- * value that reaches a query provably a plain string.
+ * really is a string. These values are attacker-controlled and each is compared
+ * against a `text` column AND handed to the WebAuthn verifier as the expected
+ * challenge / credential id, so a non-string is a malformed ceremony and must be
+ * a 400 rather than something the driver silently stringifies into a query that
+ * matches nothing.
  */
 function requireString(value: unknown, label: string): string {
   if (typeof value !== 'string') {
@@ -139,7 +252,7 @@ function decodeAndGuardClientData(clientDataJSON: unknown): { origin: string; ch
   } catch {
     throw new BadRequestError('Malformed WebAuthn clientDataJSON');
   }
-  // `clientData` is attacker-controlled JSON; both fields flow into Mongo queries
+  // `clientData` is attacker-controlled JSON; both fields flow into a query
   // (the origin gate below and the challenge burn), so pin them to strings first.
   const origin = requireString(clientData.origin, 'ceremony origin');
   const challenge = requireString(clientData.challenge, 'ceremony challenge');
@@ -150,24 +263,38 @@ function decodeAndGuardClientData(clientDataJSON: unknown): { origin: string; ch
 }
 
 /**
- * Atomically burn the ceremony's stored challenge. A single `findOneAndUpdate`
+ * Atomically burn the ceremony's stored challenge. A single conditional `update`
  * flips `used` only if the row is still unused and unexpired — a burned/expired/
- * unknown challenge returns null so the ceremony is rejected (no replay). `match`
- * additionally binds the challenge to its intended flow (a linking challenge to
- * its user, a signup challenge to no user) so one flow's challenge cannot be
- * redirected into another.
+ * unknown challenge updates nothing, so the ceremony is rejected (no replay).
+ * `owner` additionally binds the challenge to its intended flow: a string binds
+ * it to that account (a linking challenge, or a username-first login challenge),
+ * `null` binds it to a flow with no account (signup, or a discoverable login).
+ *
+ * The expiry predicate is NOT delegated to the `db/expiry.ts` sweep: the sweep
+ * lags an interval, and a challenge that outlives its deadline is a live
+ * credential for that whole window.
  */
 async function burnChallenge(
   challenge: string,
   type: 'registration' | 'authentication',
-  match: Record<string, unknown>,
+  owner: string | null,
 ): Promise<boolean> {
-  const burned = await WebauthnChallenge.findOneAndUpdate(
-    { challenge, type, used: false, expiresAt: { $gt: new Date() }, ...match },
-    { $set: { used: true } },
-    { new: false },
-  ).lean();
-  return burned !== null;
+  const burned = await getDb()
+    .update(webauthnChallenges)
+    .set({ used: true })
+    .where(
+      and(
+        eq(webauthnChallenges.challenge, challenge),
+        eq(webauthnChallenges.type, type),
+        eq(webauthnChallenges.used, false),
+        gt(webauthnChallenges.expiresAt, new Date()),
+        owner === null
+          ? isNull(webauthnChallenges.userId)
+          : eq(webauthnChallenges.userId, owner),
+      ),
+    )
+    .returning({ id: webauthnChallenges.id });
+  return burned.length > 0;
 }
 
 /**
@@ -233,9 +360,9 @@ function decoyKeystream(salt: string, message: string, byteLength: number): Buff
  *   the same keystream so they land within the spread of real authenticator
  *   credential ids/transports rather than at a fixed tell-tale size/shape.
  *
- * The paired challenge is bound by the caller to a throwaway ObjectId that maps to
- * no user, so no real assertion can ever satisfy it: `login/verify` then fails with
- * the same generic error a wrong/unknown passkey produces.
+ * The paired challenge is stored PRE-BURNED by the caller, so no assertion by any
+ * authenticator can ever satisfy it: `login/verify` then fails with the same
+ * generic error a wrong/unknown passkey produces.
  */
 function decoyAllowCredentials(
   normalizedUsername: string,
@@ -282,38 +409,43 @@ function decoyAllowCredentials(
 async function mintWebauthnSession(
   req: Request,
   res: Response,
-  user: UserLike & { _id: { toString(): string } },
+  account: WebauthnAccount,
   envelope: DeviceEnvelope,
 ): Promise<void> {
-  const userId = user._id.toString();
-  const session = await sessionService.createSession(
-    userId,
+  const session: MintedSession = await sessionService.createSession(
+    account.id,
     req,
     sessionCreateOptionsFromBody(envelope),
   );
 
-  const baseResponse = buildSessionAuthResponse(session, user);
+  // `buildSessionAuthResponse` projects exactly `id`, `username` and `avatar`
+  // onto the wire, which is why those are the three columns selected above.
+  const baseResponse = buildSessionAuthResponse(session, {
+    _id: account.id,
+    username: account.username ?? undefined,
+    avatar: account.avatar ?? undefined,
+  });
   if (!baseResponse) {
     throw new InternalServerError('Failed to format user data');
   }
   const response: SessionAuthResponse & { deviceSecret?: string } = baseResponse;
 
-  const deviceExtras = await finalizeDeviceLogin({ session, userId });
+  const deviceExtras = await finalizeDeviceLogin({ session, userId: account.id });
   if (deviceExtras.deviceSecret) {
     response.deviceSecret = deviceExtras.deviceSecret;
   }
 
   try {
-    await securityActivityService.logSignIn(userId, req, session.deviceId, {
-      deviceName: envelope.deviceName || session.deviceInfo?.deviceName,
-      deviceType: session.deviceInfo?.deviceType,
-      platform: session.deviceInfo?.platform,
+    await securityActivityService.logSignIn(account.id, req, session.deviceId, {
+      deviceName: envelope.deviceName || session.deviceName || undefined,
+      deviceType: session.deviceType ?? undefined,
+      platform: session.platform ?? undefined,
     });
   } catch (error) {
     logger.error(
       'Failed to log security event for webauthn sign-in',
       error instanceof Error ? error : new Error(String(error)),
-      { component: 'webauthn', method: 'mintWebauthnSession', userId },
+      { component: 'webauthn', method: 'mintWebauthnSession', userId: account.id },
     );
   }
 
@@ -338,30 +470,39 @@ router.post(
       throw new BadRequestError('Invalid request body');
     }
 
+    const db = getDb();
     const rpID = getWebauthnRpId();
     const bearerUserId = resolveOptionalBearerUserId(req);
 
     let userName: string;
     let userHandle: string;
-    let challengeUserId: string | undefined;
+    let challengeUserId: string | null = null;
     let excludeCredentials: { id: string; transports?: AuthenticatorTransportFuture[] }[] = [];
 
     if (bearerUserId) {
       // Linking branch: the signed-in account adds another passkey.
-      const user = await User.findById(bearerUserId).select('username').lean();
-      if (!user) {
+      const [account] = await db
+        .select({ id: users.id, username: users.username, kind: users.kind })
+        .from(users)
+        .where(eq(users.id, bearerUserId))
+        .limit(1);
+      if (!account) {
         throw new UnauthorizedError('User not found');
       }
-      userName = user.username || bearerUserId;
+      if (!isPersonalAccount(account.kind)) {
+        throw new ForbiddenError('Passkeys can only be linked to personal accounts');
+      }
+      userName = account.username || bearerUserId;
       userHandle = bearerUserId;
       challengeUserId = bearerUserId;
 
-      const existing = await WebauthnCredential.find({ userId: bearerUserId })
-        .select('credentialID transports')
-        .lean();
+      const existing = await db
+        .select({ credentialID: webauthnCredentials.credentialID, transports: webauthnCredentials.transports })
+        .from(webauthnCredentials)
+        .where(eq(webauthnCredentials.userId, bearerUserId));
       excludeCredentials = existing.map((cred) => ({
         id: cred.credentialID,
-        transports: cred.transports as AuthenticatorTransportFuture[] | undefined,
+        transports: toTransports(cred.transports),
       }));
     } else {
       // Signup branch: validate username availability but DON'T create the user.
@@ -370,12 +511,14 @@ router.post(
         throw new BadRequestError('username is required to register a new account');
       }
       const normalizedUsername = normalizeUsername(requestedUsername);
-      if (!USERNAME_PATTERN.test(normalizedUsername)) {
-        throw new BadRequestError(INVALID_USERNAME_MESSAGE);
+      if (!isValidUsername(normalizedUsername)) {
+        throw new BadRequestError(USERNAME_INVALID_MESSAGE);
       }
-      const taken = await User.findOne({ username: exactCaseInsensitiveUsernameRegex(normalizedUsername) })
-        .select('_id')
-        .lean();
+      const [taken] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(usernameMatches(normalizedUsername))
+        .limit(1);
       if (taken) {
         throw new ConflictError('Username already taken');
       }
@@ -383,7 +526,7 @@ router.post(
       // Throwaway per-ceremony handle: the real account id does not exist yet and
       // the credential is resolved by its own id at login, so this is opaque.
       userHandle = crypto.randomUUID();
-      challengeUserId = undefined;
+      challengeUserId = null;
     }
 
     const options = await generateRegistrationOptions({
@@ -415,10 +558,10 @@ router.post(
       },
     });
 
-    await WebauthnChallenge.create({
+    await db.insert(webauthnChallenges).values({
       challenge: options.challenge,
       type: 'registration',
-      ...(challengeUserId ? { userId: challengeUserId } : {}),
+      userId: challengeUserId,
       expiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
       used: false,
     });
@@ -446,16 +589,15 @@ router.post(
     const envelope = parsedEnvelope.data;
     const response = readCeremonyResponse<RegistrationResponseJSON>(req.body);
 
+    const db = getDb();
     const rpID = getWebauthnRpId();
     const bearerUserId = resolveOptionalBearerUserId(req);
 
     const { origin, challenge } = decodeAndGuardClientData(response.response.clientDataJSON);
 
     // Bind the challenge to its flow: a linking challenge to its user, a signup
-    // challenge to no user (`{ userId: null }` also matches a missing field).
-    const burned = await burnChallenge(challenge, 'registration', {
-      userId: bearerUserId ?? null,
-    });
+    // challenge to no user.
+    const burned = await burnChallenge(challenge, 'registration', bearerUserId);
     if (!burned) {
       throw new UnauthorizedError('Invalid or expired registration challenge');
     }
@@ -497,36 +639,50 @@ router.post(
 
     if (bearerUserId) {
       // ---- Linking branch --------------------------------------------------
-      const user = await User.findById(bearerUserId);
-      if (!user) {
+      const [account] = await db
+        .select({ id: users.id, kind: users.kind })
+        .from(users)
+        .where(eq(users.id, bearerUserId))
+        .limit(1);
+      if (!account) {
         throw new UnauthorizedError('User not found');
       }
+      if (!isPersonalAccount(account.kind)) {
+        throw new ForbiddenError('Passkeys can only be linked to personal accounts');
+      }
 
+      // The credential row and its `user_auth_methods` row describe ONE fact, so
+      // they are written together: a committed credential with no auth method
+      // would be invisible to `GET /auth/methods` and to the unlink guard.
       try {
-        await WebauthnCredential.create({
-          userId: user._id,
-          credentialID: credential.id,
-          credentialPublicKey: Buffer.from(credential.publicKey),
-          counter: credential.counter,
-          transports: credential.transports,
-          deviceType: credentialDeviceType,
-          backedUp: credentialBackedUp,
-          userVerified,
-          name: credentialName,
+        await db.transaction(async (tx) => {
+          await tx.insert(webauthnCredentials).values({
+            userId: account.id,
+            credentialID: credential.id,
+            credentialPublicKey: Buffer.from(credential.publicKey),
+            counter: credential.counter,
+            transports: credential.transports,
+            deviceType: credentialDeviceType,
+            backedUp: credentialBackedUp,
+            userVerified,
+            name: credentialName,
+          });
+          await tx.insert(userAuthMethods).values({
+            userId: account.id,
+            type: 'webauthn',
+            methodCredentialId: credential.id,
+            methodName: credentialName,
+          });
         });
       } catch (error) {
-        if (isDuplicateKeyError(error)) {
+        const constraint = uniqueViolationConstraint(error);
+        if (constraint !== null && CREDENTIAL_UNIQUE_CONSTRAINTS.has(constraint)) {
           throw new ConflictError('This passkey is already registered');
         }
         throw error;
       }
 
-      if (!user.authMethods) {
-        user.authMethods = [];
-      }
-      user.authMethods.push(buildAuthMethod('webauthn', { credentialID: credential.id, name: credentialName }));
-      await user.save();
-      userCache.invalidate(user._id.toString());
+      userCache.invalidate(account.id);
 
       res.json({ success: true, message: 'Passkey registered successfully' });
       return;
@@ -538,78 +694,83 @@ router.post(
       throw new BadRequestError('username is required to register a new account');
     }
     const normalizedUsername = normalizeUsername(requestedUsername);
-    if (!USERNAME_PATTERN.test(normalizedUsername)) {
-      throw new BadRequestError(INVALID_USERNAME_MESSAGE);
+    if (!isValidUsername(normalizedUsername)) {
+      throw new BadRequestError(USERNAME_INVALID_MESSAGE);
     }
-    const taken = await User.findOne({ username: exactCaseInsensitiveUsernameRegex(normalizedUsername) })
-      .select('_id')
-      .lean();
+    const [taken] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(usernameMatches(normalizedUsername))
+      .limit(1);
     if (taken) {
       throw new ConflictError('Username already taken');
     }
 
-    const user = new User({
-      username: normalizedUsername,
-      authMethods: [buildAuthMethod('webauthn', { credentialID: credential.id, name: credentialName })],
-    });
+    // The account, its credential and its auth method are created in ONE
+    // transaction, so a failed credential insert can no longer orphan a username
+    // with no usable auth method. Mongo needed a compensating delete here purely
+    // because it had no transaction on this path; that delete is gone.
+    let account: WebauthnAccount;
     try {
-      await user.save();
-    } catch (error) {
-      if (isDuplicateKeyError(error)) {
-        throw new ConflictError('Username already taken');
-      }
-      throw error;
-    }
-
-    try {
-      await WebauthnCredential.create({
-        userId: user._id,
-        credentialID: credential.id,
-        credentialPublicKey: Buffer.from(credential.publicKey),
-        counter: credential.counter,
-        transports: credential.transports,
-        deviceType: credentialDeviceType,
-        backedUp: credentialBackedUp,
-        userVerified,
-        name: credentialName,
+      account = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(users)
+          .values({ username: normalizedUsername })
+          .returning({ id: users.id, username: users.username, avatar: users.avatar });
+        await tx.insert(webauthnCredentials).values({
+          userId: created.id,
+          credentialID: credential.id,
+          credentialPublicKey: Buffer.from(credential.publicKey),
+          counter: credential.counter,
+          transports: credential.transports,
+          deviceType: credentialDeviceType,
+          backedUp: credentialBackedUp,
+          userVerified,
+          name: credentialName,
+        });
+        await tx.insert(userAuthMethods).values({
+          userId: created.id,
+          type: 'webauthn',
+          methodCredentialId: credential.id,
+          methodName: credentialName,
+        });
+        return created;
       });
     } catch (error) {
-      // Roll back the just-created account so a failed credential insert never
-      // orphans a username with no usable auth method.
-      try {
-        await User.findByIdAndDelete(user._id);
-      } catch (cleanupError) {
-        logger.error(
-          'Failed to roll back user after webauthn credential insert failure',
-          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
-          { component: 'webauthn', method: 'register/verify', userId: user._id.toString() },
-        );
+      // Which unique index rejected the write is what distinguishes the two
+      // 409s — the statement that threw no longer can, now that all three
+      // inserts share one transaction.
+      const constraint = uniqueViolationConstraint(error);
+      if (constraint === USERNAME_UNIQUE_CONSTRAINT) {
+        throw new ConflictError('Username already taken');
       }
-      if (isDuplicateKeyError(error)) {
+      if (constraint !== null && CREDENTIAL_UNIQUE_CONSTRAINTS.has(constraint)) {
         throw new ConflictError('This passkey is already registered');
       }
       throw error;
     }
 
-    // Welcome notification — best-effort, mirrors SessionController.signUp.
+    // Welcome notification — best-effort, mirrors SessionController.signUp. It is
+    // deliberately OUTSIDE the transaction above: a notification failure must not
+    // undo a completed signup.
     try {
-      await new Notification({
-        recipientId: user._id,
-        actorId: user._id,
+      await db.insert(notifications).values({
+        recipientId: account.id,
+        actorId: account.id,
         type: 'welcome',
-        entityId: user._id,
+        entityId: account.id,
         entityType: 'profile',
         read: false,
-      }).save();
+      });
     } catch (notificationError) {
       logger.error(
         'Failed to create welcome notification during webauthn signup',
         notificationError instanceof Error ? notificationError : new Error(String(notificationError)),
-        { component: 'webauthn', method: 'register/verify', userId: user._id.toString() },
+        { component: 'webauthn', method: 'register/verify', userId: account.id },
       );
     }
 
-    await mintWebauthnSession(req, res, user, envelope);
+    await mintWebauthnSession(req, res, account, envelope);
   }),
 );
 
@@ -631,11 +792,12 @@ router.post(
  * ANTI-ENUMERATION (this is why the M1 empty-allow-list existed — do NOT regress
  * it): a username that does NOT resolve to an account-with-a-passkey (unknown, or a
  * real account with no credential) returns a DETERMINISTIC decoy allow-credential
- * of the same shape (see `decoyAllowCredentials`), bound to a throwaway id that
- * maps to no user. Every branch does the SAME work — resolve the user, compute the
- * decoy, run one credential query — and returns the SAME response shape, so an
- * unknown username is indistinguishable from a known one by RESPONSE CONTENT and by
- * TIMING. There are no account-existence-dependent early returns.
+ * of the same shape (see `decoyAllowCredentials`), paired with a challenge that
+ * nothing can spend. Every branch does the SAME work — resolve the user, compute
+ * the decoy, run one credential query, insert one challenge row — and returns the
+ * SAME response shape, so an unknown username is indistinguishable from a known one
+ * by RESPONSE CONTENT and by TIMING. There are no account-existence-dependent early
+ * returns.
  */
 router.post(
   '/login/options',
@@ -646,42 +808,59 @@ router.post(
       throw new BadRequestError('Invalid request body');
     }
 
+    const db = getDb();
     const rpID = getWebauthnRpId();
     const requestedUsername = parsed.data.username;
 
     let allowCredentials: { id: string; transports?: AuthenticatorTransportFuture[] }[] = [];
-    let challengeUserId: Types.ObjectId | undefined;
+    let challengeUserId: string | null = null;
+    // A decoy's challenge is stored ALREADY BURNED — see the branch below.
+    let challengeSpent = false;
 
     if (requestedUsername) {
       const normalizedUsername = normalizeUsername(requestedUsername);
       // Always resolve the user (an unparseable/nonexistent username simply finds
       // nothing — never a distinct rejection that would leak "no such account").
-      const user = await User.findOne({ username: exactCaseInsensitiveUsernameRegex(normalizedUsername) })
-        .select('_id')
-        .lean();
+      const [account] = await db
+        .select({ id: users.id, kind: users.kind })
+        .from(users)
+        .where(usernameMatches(normalizedUsername))
+        .limit(1);
       // Always compute the decoy, whether or not it is ultimately used, so the
       // found and not-found paths do the same work.
       const decoy = decoyAllowCredentials(normalizedUsername);
       // Always issue exactly one credential query. For a missing user a throwaway
       // id keeps the query shape/cost identical while returning no rows.
-      const probeUserId = user?._id ?? new Types.ObjectId();
-      const credentials = await WebauthnCredential.find({ userId: probeUserId })
-        .select('credentialID transports')
-        .lean();
+      const personalAccount = account && isPersonalAccount(account.kind) ? account : undefined;
+      const probeUserId = personalAccount?.id ?? crypto.randomUUID();
+      const credentials = await db
+        .select({ credentialID: webauthnCredentials.credentialID, transports: webauthnCredentials.transports })
+        .from(webauthnCredentials)
+        .where(eq(webauthnCredentials.userId, probeUserId));
 
-      if (user && credentials.length > 0) {
+      if (personalAccount && credentials.length > 0) {
         allowCredentials = credentials.map((cred) => ({
           id: cred.credentialID,
-          transports: cred.transports as AuthenticatorTransportFuture[] | undefined,
+          transports: toTransports(cred.transports),
         }));
         // Bind the challenge to the resolved account — verify asserts the presented
         // credential's owner equals this id (user A's challenge ≠ user B's key).
-        challengeUserId = user._id;
+        challengeUserId = personalAccount.id;
       } else {
-        // Unknown username OR an account with no passkey → decoy. Bind the challenge
-        // to a throwaway id that maps to no user, so it can never be satisfied.
+        // Unknown username OR an account with no passkey → decoy. Its challenge is
+        // stored PRE-BURNED (`used: true`) instead of bound to a throwaway account
+        // id as it was under Mongo: `webauthn_challenges.user_id` now carries a real
+        // foreign key, so an id that maps to no user is no longer storable. Pre-burned
+        // is the same guarantee by a different mechanism — the burn in `login/verify`
+        // requires `used = false`, so no assertion by ANY owner can satisfy it, and the
+        // rejection is the same generic 401 a wrong passkey produces. Storing it
+        // unbound (`user_id = null`) instead would be a live enumeration oracle: the
+        // discoverable-fallback burn accepts a null-bound challenge from any owner, so
+        // an attacker holding their own passkey would get 200 for a decoy and 401 for a
+        // real account with passkeys.
         allowCredentials = decoy;
-        challengeUserId = new Types.ObjectId();
+        challengeUserId = null;
+        challengeSpent = true;
       }
     }
 
@@ -695,12 +874,12 @@ router.post(
       userVerification: 'preferred',
     });
 
-    await WebauthnChallenge.create({
+    await db.insert(webauthnChallenges).values({
       challenge: options.challenge,
       type: 'authentication',
-      ...(challengeUserId ? { userId: challengeUserId } : {}),
+      userId: challengeUserId,
       expiresAt: new Date(Date.now() + CHALLENGE_TTL_MS),
-      used: false,
+      used: challengeSpent,
     });
 
     res.json(options);
@@ -727,13 +906,25 @@ router.post(
     const envelope = parsedEnvelope.data;
     const response = readCeremonyResponse<AuthenticationResponseJSON>(req.body);
 
+    const db = getDb();
     const rpID = getWebauthnRpId();
 
     // Resolve the credential by its PUBLIC base64url id (plain equality).
     // `response.id` is attacker-controlled and Zod-unvalidated; pin it to a
-    // string so an object like `{ $ne: null }` cannot inject a query operator.
+    // string before it is compared against a `text` column.
     const credentialId = requireString(response.id, 'credential id');
-    const credential = await WebauthnCredential.findOne({ credentialID: credentialId });
+    const [credential] = await db
+      .select({
+        id: webauthnCredentials.id,
+        userId: webauthnCredentials.userId,
+        credentialID: webauthnCredentials.credentialID,
+        credentialPublicKey: webauthnCredentials.credentialPublicKey,
+        counter: webauthnCredentials.counter,
+        transports: webauthnCredentials.transports,
+      })
+      .from(webauthnCredentials)
+      .where(eq(webauthnCredentials.credentialID, credentialId))
+      .limit(1);
     if (!credential) {
       throw new UnauthorizedError('Unknown passkey');
     }
@@ -745,17 +936,17 @@ router.post(
     //   1. Username-first: the challenge was stored bound to an account id, so it is
     //      only burned when that id EQUALS this credential's owner. A challenge
     //      issued for user A is therefore unusable by user B's credential (the match
-    //      fails), and a decoy challenge (bound to a throwaway id that maps to no
-    //      user) is unusable by anyone — both fall through to the same generic error.
-    //   2. Discoverable: the challenge carries no account id (`{ userId: null }`
-    //      matches the missing field); any owner may satisfy it. (Unchanged.)
-    // Because the owner constraint lives INSIDE the atomic `findOneAndUpdate`, the
+    //      fails), and a decoy challenge (stored already burned) is unusable by
+    //      anyone — both fall through to the same generic error.
+    //   2. Discoverable: the challenge carries no account id; any owner may satisfy
+    //      it. (Unchanged.)
+    // Because the owner constraint lives INSIDE the conditional `update`, the
     // cross-user rejection cannot race the burn.
-    const owner = credential.userId.toString();
-    const usernameFirstBurned = await burnChallenge(challenge, 'authentication', { userId: owner });
+    const owner = credential.userId;
+    const usernameFirstBurned = await burnChallenge(challenge, 'authentication', owner);
     const discoverableBurned = usernameFirstBurned
       ? false
-      : await burnChallenge(challenge, 'authentication', { userId: null });
+      : await burnChallenge(challenge, 'authentication', null);
     if (!usernameFirstBurned && !discoverableBurned) {
       throw new UnauthorizedError('Invalid or expired authentication challenge');
     }
@@ -774,7 +965,7 @@ router.post(
           id: credential.credentialID,
           publicKey: new Uint8Array(credential.credentialPublicKey),
           counter: credential.counter,
-          transports: credential.transports as AuthenticatorTransportFuture[] | undefined,
+          transports: toTransports(credential.transports),
         },
       });
     } catch (error) {
@@ -811,38 +1002,39 @@ router.post(
       throw new UnauthorizedError('Passkey authentication rejected');
     }
 
-    credential.counter = newCounter;
-    credential.lastUsedAt = new Date();
-    // Refresh the assurance level: a credential that enrolled UV-capable but
-    // authenticated presence-only (or vice versa) reflects its most recent ceremony.
-    // CAVEAT (same as register/verify): `userVerified` is authenticator-SELF-ASSERTED
-    // — verify runs with `requireUserVerification: false` and no attestation, so this
-    // is only the UV bit the authenticator reported for this assertion. It is an
-    // assurance/telemetry marker, NOT an attestation-proven fact, and must NOT gate a
-    // hard step-up boundary without attestation.
-    credential.userVerified = userVerified;
-    await credential.save();
+    await db
+      .update(webauthnCredentials)
+      .set({
+        counter: newCounter,
+        lastUsedAt: new Date(),
+        // Refresh the assurance level: a credential that enrolled UV-capable but
+        // authenticated presence-only (or vice versa) reflects its most recent ceremony.
+        // CAVEAT (same as register/verify): `userVerified` is authenticator-SELF-ASSERTED
+        // — verify runs with `requireUserVerification: false` and no attestation, so this
+        // is only the UV bit the authenticator reported for this assertion. It is an
+        // assurance/telemetry marker, NOT an attestation-proven fact, and must NOT gate a
+        // hard step-up boundary without attestation.
+        userVerified,
+      })
+      .where(eq(webauthnCredentials.id, credential.id));
 
-    const user = await User.findById(owner);
-    if (!user) {
+    const [account] = await db
+      .select({ id: users.id, username: users.username, avatar: users.avatar, kind: users.kind })
+      .from(users)
+      .where(eq(users.id, owner))
+      .limit(1);
+    if (!account) {
       throw new UnauthorizedError('User not found');
     }
+    if (!isPersonalAccount(account.kind)) {
+      // Managed accounts must remain bound to an operator session whose
+      // `account:act_as` permission is revalidated; a passkey cannot encode that
+      // delegation, so direct authentication is deliberately unavailable.
+      throw new UnauthorizedError('Invalid passkey');
+    }
 
-    await mintWebauthnSession(req, res, user, envelope);
+    await mintWebauthnSession(req, res, account, envelope);
   }),
 );
-
-/**
- * Narrow a thrown value to a MongoDB duplicate-key (E11000) error without an
- * `any` cast — used to translate a unique-index collision into a 409.
- */
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === 11000
-  );
-}
 
 export default router;

@@ -11,7 +11,7 @@ import {
   SlidersHorizontalIcon,
   Undo02Icon,
 } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import type { Application } from '@/hooks/use-applications';
 import type { CallerAccess } from '@/hooks/use-applications';
 import type { Channel, Update } from '@/hooks/use-updates';

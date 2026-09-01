@@ -11,36 +11,53 @@
  * into an AES-256-GCM cipher; ONLY the encrypted form is emitted (so it can be
  * exfiltrated safely via task logs and decrypted out-of-band with the key).
  *
- * Idempotency: if a usable (`isCredentialUsable`) service production credential
- * already exists for the app, it is REUSED — no new credential is minted. The
- * existing secret is NOT recoverable (only its hash is stored), so `secretEnc`
- * is `null` on reuse; rotate the credential if a fresh secret is required.
+ * Idempotency: if a usable (`isCredentialUsable`) service credential already
+ * exists for the app IN THE REQUESTED ENVIRONMENT, it is REUSED — no new
+ * credential is minted. The existing secret is NOT recoverable (only its hash is
+ * stored), so `secretEnc` is `null` on reuse; rotate the credential if a fresh
+ * secret is required.
+ *
+ * ## One environment per invocation, on purpose
+ *
+ * `application_credentials.environment` is a real isolation boundary — a service
+ * token carries it as a verified claim (`middleware/serviceToken.ts`) — so
+ * development, staging and production credentials of one application are three
+ * separate rows. This script mints ONE of them per run, named by `ENVIRONMENT`,
+ * rather than all three: each run emits exactly one secret, and a secret that
+ * has to reach one deployment environment should not be sitting in the same
+ * output as the two that must not.
  *
  * Safety:
  *   - Never creates an Application — it must already exist and be `active`.
- *   - No deletes, no drops, no modification of unrelated documents.
+ *   - No deletes, no drops, no modification of unrelated rows.
  *   - DRY_RUN=true reports the plan without writing and without emitting a secret.
  *
  * Run (inside the oxy-api image, working dir /app):
  *   bun run packages/api/scripts/create-service-credential.ts
  *
  * Env:
- *   MONGODB_URI            required (injected by ECS from SSM)
+ *   DATABASE_URL           required (injected by ECS from SSM)
  *   APP_NAME               required, e.g. "Mention"
  *   OWNER_USERNAME         owner username to resolve (default 'oxy')
  *   SCOPES                 required, comma-separated, e.g. "federation:write,user:read"
- *   CREDENTIAL_NAME        credential name (default 'Service')
+ *   ENVIRONMENT            development | staging | production (default 'production')
+ *   CREDENTIAL_NAME        credential name (default 'Service (<environment>)')
  *   OUTPUT_ENCRYPTION_KEY  required, 64 hex chars (32 bytes) — AES-256-GCM key
  *   DRY_RUN=true           plan only, no writes, no secret emitted
  */
 
 import crypto from 'crypto';
-import mongoose from 'mongoose';
-import { Application } from '../src/models/Application';
-import { ApplicationCredential } from '../src/models/ApplicationCredential';
+import { and, eq, ne } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../src/config/postgres';
+import {
+  APPLICATION_CREDENTIAL_ENVIRONMENTS,
+  applicationCredentials,
+  type ApplicationCredentialEnvironment,
+} from '../src/db/schema/applicationCredentials';
+import { applications } from '../src/db/schema/applications';
+import { users } from '../src/db/schema/users';
 import { APPLICATION_SCOPES } from '../src/utils/applicationScopes';
 import { isCredentialUsable } from '../src/utils/credentialUsability';
-import { User } from '../src/models/User';
 import { logger } from '../src/utils/logger';
 
 // ── Mirror routes/applications.ts credential generation EXACTLY ──────────────
@@ -110,6 +127,28 @@ function parseAndValidateScopes(raw: string | undefined): string[] {
   return Array.from(new Set(scopes));
 }
 
+/**
+ * Narrow `ENVIRONMENT` against the column's own closed set.
+ *
+ * Refuses an unrecognised value rather than defaulting to production. The
+ * dangerous typo is the one that reads like a smaller blast radius — `dev`,
+ * `prod`, `staging-2` — and silently mints the credential a real deployment then
+ * authenticates with.
+ */
+function parseAndValidateEnvironment(raw: string | undefined): ApplicationCredentialEnvironment {
+  if (raw === undefined || raw.trim().length === 0) {
+    return 'production';
+  }
+  const value = raw.trim();
+  const allowed: readonly string[] = APPLICATION_CREDENTIAL_ENVIRONMENTS;
+  if (!allowed.includes(value)) {
+    throw new Error(
+      `Invalid ENVIRONMENT "${value}". Allowed: ${APPLICATION_CREDENTIAL_ENVIRONMENTS.join(', ')}.`
+    );
+  }
+  return value as ApplicationCredentialEnvironment;
+}
+
 interface ResultRow {
   app: string;
   applicationId: string;
@@ -118,7 +157,7 @@ interface ResultRow {
   credentialId: string | null;
   publicKey: string | null;
   type: 'service';
-  environment: 'production';
+  environment: ApplicationCredentialEnvironment;
   scopes: string[];
   reused: boolean;
   secretEnc: SecretEnvelope | null;
@@ -132,7 +171,11 @@ async function run(): Promise<void> {
   const dryRun = process.env.DRY_RUN === 'true';
   const ownerUsername = process.env.OWNER_USERNAME || 'oxy';
   const appName = process.env.APP_NAME;
-  const credentialName = process.env.CREDENTIAL_NAME || 'Service';
+  const environment = parseAndValidateEnvironment(process.env.ENVIRONMENT);
+  // Defaulted from the environment so three credentials of one application are
+  // distinguishable in Console, where the only other thing telling them apart is
+  // a column an operator has to go looking for.
+  const credentialName = process.env.CREDENTIAL_NAME || `Service (${environment})`;
   const encryptionKeyHex = process.env.OUTPUT_ENCRYPTION_KEY;
 
   if (dryRun) {
@@ -152,25 +195,39 @@ async function run(): Promise<void> {
   }
 
   const scopes = parseAndValidateScopes(process.env.SCOPES);
-  logger.info('Validated requested scopes', { scopes });
+  logger.info('Validated requested scopes', { scopes, environment });
+
+  const db = getDb();
 
   // ── 1. Resolve owner user ──
-  const owner = await User.findOne({ username: ownerUsername }).select('_id username').lean();
-  if (!owner?._id) {
+  const [owner] = await db
+    .select({ id: users.id, username: users.username })
+    .from(users)
+    .where(eq(users.username, ownerUsername))
+    .limit(1);
+  if (!owner) {
     throw new Error(
       `Owner user "${ownerUsername}" not found — refusing to proceed. ` +
         `Set OWNER_USERNAME to the correct platform owner username.`,
     );
   }
-  const ownerId = owner._id as mongoose.Types.ObjectId;
-  logger.info('Resolved owner user', { username: ownerUsername, ownerId: ownerId.toString() });
+  logger.info('Resolved owner user', { username: ownerUsername, ownerId: owner.id });
 
   // ── 2. Resolve the EXISTING Application (must already exist + be active) ──
-  const application = await Application.findOne({
-    name: appName,
-    createdByUserId: ownerId,
-    status: { $ne: 'deleted' },
-  });
+  const [application] = await db
+    .select({
+      id: applications.id,
+      status: applications.status,
+    })
+    .from(applications)
+    .where(
+      and(
+        eq(applications.name, appName),
+        eq(applications.createdByUserId, owner.id),
+        ne(applications.status, 'deleted'),
+      ),
+    )
+    .limit(1);
 
   if (!application) {
     throw new Error(`Active Application "${appName}" not found for owner "${ownerUsername}".`);
@@ -179,7 +236,7 @@ async function run(): Promise<void> {
   if (application.status !== 'active') {
     logger.warn('Application is not active', {
       app: appName,
-      applicationId: application._id.toString(),
+      applicationId: application.id,
       status: application.status,
     });
     throw new Error(
@@ -188,25 +245,38 @@ async function run(): Promise<void> {
     );
   }
 
-  const applicationId = application._id;
   logger.info('Resolved active Application', {
     app: appName,
-    applicationId: applicationId.toString(),
+    applicationId: application.id,
   });
 
   // ── 3. Idempotency: reuse an existing usable service production credential ──
-  const existing = await ApplicationCredential.findOne({
-    applicationId,
-    type: 'service',
-    environment: 'production',
-    status: { $ne: 'revoked' },
-  });
+  const existingRows = await db
+    .select({
+      id: applicationCredentials.id,
+      publicKey: applicationCredentials.publicKey,
+      scopes: applicationCredentials.scopes,
+      status: applicationCredentials.status,
+      expiresAt: applicationCredentials.expiresAt,
+    })
+    .from(applicationCredentials)
+    .where(
+      and(
+        eq(applicationCredentials.applicationId, application.id),
+        eq(applicationCredentials.type, 'service'),
+        eq(applicationCredentials.environment, environment),
+        ne(applicationCredentials.status, 'revoked'),
+      ),
+    )
+    .limit(1);
 
+  const existing = existingRows[0];
   if (existing && isCredentialUsable(existing)) {
     logger.info('Reusing existing usable service credential — NOT minting a new one', {
-      applicationId: applicationId.toString(),
-      credentialId: existing._id.toString(),
+      applicationId: application.id,
+      credentialId: existing.id,
       publicKey: existing.publicKey,
+      environment,
     });
     logger.info(
       'NOTE: the secret of an existing credential is not recoverable (only its hash is stored). ' +
@@ -215,13 +285,13 @@ async function run(): Promise<void> {
 
     const reusedResult: ResultRow = {
       app: appName,
-      applicationId: applicationId.toString(),
+      applicationId: application.id,
       ownerUsername,
-      ownerId: ownerId.toString(),
-      credentialId: existing._id.toString(),
+      ownerId: owner.id,
+      credentialId: existing.id,
       publicKey: existing.publicKey,
       type: 'service',
-      environment: 'production',
+      environment,
       scopes: existing.scopes,
       reused: true,
       secretEnc: null,
@@ -235,20 +305,21 @@ async function run(): Promise<void> {
   if (dryRun) {
     logger.info('DRY RUN — would mint a new service credential', {
       app: appName,
-      applicationId: applicationId.toString(),
+      applicationId: application.id,
       credentialName,
       scopes,
+      environment,
     });
 
     const planResult: ResultRow = {
       app: appName,
-      applicationId: applicationId.toString(),
+      applicationId: application.id,
       ownerUsername,
-      ownerId: ownerId.toString(),
+      ownerId: owner.id,
       credentialId: null,
       publicKey: null,
       type: 'service',
-      environment: 'production',
+      environment,
       scopes,
       reused: false,
       secretEnc: null,
@@ -260,24 +331,35 @@ async function run(): Promise<void> {
 
   const { publicKey, secret, secretHash } = generateCredentialMaterial();
 
-  const credential = await ApplicationCredential.create({
-    applicationId,
-    name: credentialName,
-    publicKey,
-    secretHash,
-    type: 'service',
-    environment: 'production',
-    scopes,
-    status: 'active',
-    createdByUserId: ownerId,
-  });
+  const [credential] = await db
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: credentialName,
+      publicKey,
+      secretHash,
+      type: 'service',
+      environment,
+      scopes,
+      status: 'active',
+      createdByUserId: owner.id,
+    })
+    .returning({
+      id: applicationCredentials.id,
+      publicKey: applicationCredentials.publicKey,
+    });
+
+  if (!credential) {
+    throw new Error('Failed to insert service credential');
+  }
 
   logger.info('Service credential created', {
     app: appName,
-    applicationId: applicationId.toString(),
-    credentialId: credential._id.toString(),
+    applicationId: application.id,
+    credentialId: credential.id,
     publicKey: credential.publicKey,
     scopes,
+    environment,
   });
 
   // Encrypt the plaintext secret — it is NEVER logged in plaintext anywhere.
@@ -285,13 +367,13 @@ async function run(): Promise<void> {
 
   const result: ResultRow = {
     app: appName,
-    applicationId: applicationId.toString(),
+    applicationId: application.id,
     ownerUsername,
-    ownerId: ownerId.toString(),
-    credentialId: credential._id.toString(),
+    ownerId: owner.id,
+    credentialId: credential.id,
     publicKey: credential.publicKey,
     type: 'service',
-    environment: 'production',
+    environment,
     scopes,
     reused: false,
     secretEnc,
@@ -301,20 +383,19 @@ async function run(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    logger.error('MONGODB_URI is required');
+  if (!process.env.DATABASE_URL) {
+    logger.error('DATABASE_URL is required');
     process.exit(1);
   }
 
-  await mongoose.connect(uri);
-  logger.info('Connected to MongoDB');
+  await connectPostgres();
+  logger.info('Connected to Postgres');
 
   try {
     await run();
   } finally {
-    await mongoose.connection.close();
-    logger.info('MongoDB connection closed');
+    await closePostgres();
+    logger.info('Postgres connection closed');
   }
 }
 

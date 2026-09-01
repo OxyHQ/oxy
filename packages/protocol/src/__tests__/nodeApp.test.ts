@@ -8,6 +8,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { connect, type AddressInfo } from 'node:net';
 import request from 'supertest';
 import { createNodeApp, type NodeAppConfig } from '../node/nodeApp';
 import { computeRecordId } from '../envelope/recordId';
@@ -246,6 +248,80 @@ describe('createNodeApp', () => {
       .send(realBytes);
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ error: 'hash_mismatch' });
+  });
+
+  it('PUT /blobs/:hash rejects a request with no body framing at all (400 empty_blob)', async () => {
+    // `express.raw` assigns `{}` — not an empty Buffer — when the request
+    // carries no body framing (`typeis.hasBody(req)` is false), so `.length` on
+    // it is `undefined` and an emptiness check alone would let it through to
+    // `store.putBlob` and to `size: bytes.length` in the 201 payload. CodeQL
+    // flags that `.length` (js/type-confusion-through-parameter-tampering,
+    // alert #473) because it does not model `Buffer.isBuffer` as a narrowing
+    // guard; this pins the guard that makes the flag a false positive.
+    //
+    // The request is written onto a raw socket because neither supertest nor
+    // `http.request` can express it — both add a `Content-Length` or a
+    // `Transfer-Encoding`, either of which makes `hasBody` true and produces an
+    // empty Buffer instead, exercising only the other half of the guard.
+    const { app, store } = buildApp(owner);
+    const bytes = Buffer.from('a blob that never gets sent');
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    const auth = await signBlobPin(hash, owner);
+
+    const server = createServer(app);
+    await new Promise<void>((resolve) => { server.listen(0, '127.0.0.1', resolve); });
+    const { port } = server.address() as AddressInfo;
+
+    const raw = await new Promise<string>((resolve, reject) => {
+      const socket = connect(port, '127.0.0.1', () => {
+        socket.write(
+          [
+            `PUT /blobs/${hash} HTTP/1.1`,
+            'Host: 127.0.0.1',
+            `x-oxy-node-public-key: ${auth.publicKey}`,
+            `x-oxy-node-signature: ${auth.signature}`,
+            `x-oxy-node-timestamp: ${auth.timestamp}`,
+            'Connection: close',
+            '',
+            '',
+          ].join('\r\n')
+        );
+      });
+      let received = '';
+      socket.setEncoding('utf8');
+      socket.on('data', (chunk: string) => { received += chunk; });
+      socket.on('error', reject);
+      socket.on('end', () => resolve(received));
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+
+    expect(raw).toContain('HTTP/1.1 400');
+    expect(raw).toContain('empty_blob');
+    // And nothing was pinned under that address.
+    expect(await store.getBlob(hash)).toBeNull();
+  });
+
+  it('PUT /blobs/:hash rejects an empty body (400 empty_blob)', async () => {
+    const { app, store } = buildApp(owner);
+    const bytes = Buffer.from('another blob that never gets sent');
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    const auth = await signBlobPin(hash, owner);
+
+    const res = await request(app)
+      .put(`/blobs/${hash}`)
+      .set({
+        'x-oxy-node-public-key': auth.publicKey,
+        'x-oxy-node-signature': auth.signature,
+        'x-oxy-node-timestamp': String(auth.timestamp),
+      })
+      .set('Content-Type', 'application/octet-stream')
+      .send(Buffer.alloc(0));
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'empty_blob' });
+    expect(await store.getBlob(hash)).toBeNull();
   });
 
   it('PUT /blobs/:hash rejects a non-owner signature (403)', async () => {

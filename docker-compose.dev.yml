@@ -1,0 +1,60 @@
+##
+## Docker Compose — local development backing services
+##
+## Separate from `docker-compose.yml`, which builds and runs the API itself
+## behind Caddy. This file holds only the databases a developer needs running
+## next to `bun run api:dev`.
+##
+## Usage:
+##   docker compose -f docker-compose.dev.yml up -d postgres
+##   docker compose -f docker-compose.dev.yml logs -f postgres
+##   docker compose -f docker-compose.dev.yml down -v      # wipe (data is disposable)
+##
+## Then in packages/api/.env:
+##   DATABASE_URL=postgres://oxy:oxy@127.0.0.1:5432/oxy_dev
+##
+## SWITCHING FROM postgres:17-alpine: the image change alone does not add PostGIS
+## to an EXISTING data volume — `postgis` ships as files under
+## `/usr/share/postgresql/…/extension`, and the running server only gains them by
+## being the new image. An already-initialised volume keeps its old databases,
+## which have no `postgis` entry in `pg_extension`. `bun run db:migrate` creates
+## it per database (`packages/api/src/db/extensions.ts`), so a plain
+## `docker compose up -d` with the new image is enough; a full reset is
+## `docker compose -f docker-compose.dev.yml down -v` (data is disposable).
+##
+
+services:
+  postgres:
+    # PostGIS, not plain Postgres: `user_locations.geo` is a generated
+    # `geography` column with a GiST index, so `CREATE EXTENSION postgis` has to
+    # succeed before the migration that names the type. `postgis/postgis` is the
+    # PostGIS project's own image and is pinned on BOTH versions — Postgres 17
+    # (matching what RDS runs) and PostGIS 3.5 — because a floating PostGIS minor
+    # is a floating set of function volatilities, and this schema depends on
+    # `ST_MakePoint` and the `geography` cast being IMMUTABLE.
+    #
+    # `.github/workflows/ci.yml` pins the SAME image, so a developer's database
+    # and CI's cannot disagree about what is installed.
+    #
+    # Debian-based rather than alpine: PostGIS publishes no alpine variant, and
+    # the base image is a local dev dependency, not a shipped artefact.
+    image: postgis/postgis:17-3.5
+    container_name: oxy-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oxy
+      POSTGRES_PASSWORD: oxy
+      POSTGRES_DB: oxy_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oxy -d oxy_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

@@ -31,6 +31,7 @@ const GRAPH: ViewerGraph = {
   followingIds: ['f1', 'f2'],
   mutualIds: ['m1'],
   blockedIds: ['b1'],
+  restrictedIds: ['r1'],
 };
 
 const KEY = 'viewergraph:v1:viewer-1';
@@ -102,6 +103,20 @@ describe('graphCache — Redis configured', () => {
   it('get returns null for a malformed/legacy cached value', async () => {
     const redis = makeRedis();
     redis.get.mockResolvedValueOnce(JSON.stringify({ followingIds: ['f1'] }));
+    redisHandle = redis;
+
+    expect(await graphCache.get('viewer-1')).toBeNull();
+  });
+
+  it('get returns null for a pre-restrictedIds cached graph', async () => {
+    const redis = makeRedis();
+    redis.get.mockResolvedValueOnce(
+      JSON.stringify({
+        followingIds: ['f1'],
+        mutualIds: ['m1'],
+        blockedIds: ['b1'],
+      }),
+    );
     redisHandle = redis;
 
     expect(await graphCache.get('viewer-1')).toBeNull();

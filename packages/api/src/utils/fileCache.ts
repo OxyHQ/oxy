@@ -1,7 +1,7 @@
-import type { IFile } from '../models/File';
+import type { FileRecord } from '../types/file.types';
 
 interface CachedFile {
-  file: IFile;
+  file: FileRecord;
   timestamp: number;
   ttl: number;
 }
@@ -28,7 +28,7 @@ class FileCache {
     this.startCleanupTimer();
   }
 
-  get(fileId: string): IFile | null {
+  get(fileId: string): FileRecord | null {
     if (!fileId) return null;
 
     const cached = this.cache.get(fileId);
@@ -46,7 +46,7 @@ class FileCache {
     return cached.file;
   }
 
-  set(fileId: string, file: IFile, ttl?: number): void {
+  set(fileId: string, file: FileRecord, ttl?: number): void {
     if (!fileId || !file) return;
 
     if (this.cache.size >= this.config.maxSize) {

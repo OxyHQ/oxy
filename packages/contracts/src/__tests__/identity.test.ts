@@ -447,6 +447,42 @@ describe('exportBundleSchema', () => {
             following: ['did:web:oxy.so:u:aaa'],
             followers: ['did:web:oxy.so:u:bbb', 'did:web:oxy.so:u:ccc'],
         },
+        financial: {
+            receipts: [
+                {
+                    receiptId: 'rcpt_1',
+                    requestId: 'req_1',
+                    settledAt: '2026-06-26T11:59:00.000Z',
+                    // An exact decimal STRING. A JSON number cannot carry it, and a
+                    // bill the subject re-adds must reproduce what Oxy charged.
+                    billedAmount: '0.000002100000',
+                    currency: 'USD',
+                    outcome: 'completed',
+                    resolvedModelReference: 'oxy/small-1',
+                    servingProvider: 'oxy-hosted',
+                    platformFeeOnly: false,
+                },
+            ],
+            ledgerEntries: [
+                {
+                    entryId: 'led_1',
+                    kind: 'settlement',
+                    currency: 'USD',
+                    createdAt: '2026-06-26T11:59:00.000Z',
+                },
+            ],
+            reservations: [
+                {
+                    reservationId: 'resv_1',
+                    requestId: 'req_1',
+                    status: 'settled',
+                    reservedAmount: '0.000010000000',
+                    currency: 'USD',
+                    createdAt: '2026-06-26T11:58:00.000Z',
+                    expiresAt: '2026-06-26T12:03:00.000Z',
+                },
+            ],
+        },
         attestation,
     };
 
@@ -490,6 +526,38 @@ describe('exportBundleSchema', () => {
     it('rejects a bundle missing the embedded DID document', () => {
         const { didDocument: _omit, ...rest } = bundle;
         const parsed = safeParseContract(exportBundleSchema, rest);
+        expect(parsed).toBeNull();
+    });
+
+    /**
+     * The financial section is REQUIRED, and empty arrays are the normal answer
+     * (#972 section 12).
+     *
+     * Required rather than optional so a producer cannot answer a subject-access
+     * request by omitting the section — an absent key and "you were charged
+     * nothing" are the same bytes to a reader, and only one of them is a claim
+     * anybody made.
+     */
+    it('rejects a bundle with no financial section, and accepts three empty arrays', () => {
+        const { financial: _omit, ...rest } = bundle;
+        expect(safeParseContract(exportBundleSchema, rest)).toBeNull();
+
+        const empty = safeParseContract(exportBundleSchema, {
+            ...bundle,
+            financial: { receipts: [], ledgerEntries: [], reservations: [] },
+        });
+        expect(empty).not.toBeNull();
+        expect(empty?.financial.receipts).toEqual([]);
+    });
+
+    it('rejects a billed amount expressed as a JSON number', () => {
+        const parsed = safeParseContract(exportBundleSchema, {
+            ...bundle,
+            financial: {
+                ...bundle.financial,
+                receipts: [{ ...bundle.financial.receipts[0], billedAmount: 0.0000021 }],
+            },
+        });
         expect(parsed).toBeNull();
     });
 });

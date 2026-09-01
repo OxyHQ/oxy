@@ -23,7 +23,7 @@
 ##   docker run --env-file .env -p 4000:4000 -v oxy-node-data:/data oxy-node
 ##
 
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 # python3/make/g++: better-sqlite3 compiles a native addon at install time.
 RUN apk add --no-cache python3 make g++
@@ -44,7 +44,7 @@ WORKDIR /app
 # monorepo lockfile (the subset does not match the full-repo lock — bun resolves
 # deterministically from the package.json versions). Mirrors the api Dockerfile.
 COPY package.json ./
-RUN node -e "const p=require('./package.json'); p.workspaces=['packages/contracts','packages/protocol','packages/core','packages/node']; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
+RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/core','packages/node']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 
 # package.json files first for dependency resolution caching
 COPY packages/node/package.json packages/node/
@@ -68,7 +68,7 @@ RUN bun run --filter @oxyhq/core build
 RUN cd packages/node && bunx tsc
 
 # ── Production image ──────────────────────────────────────────────
-FROM node:20-alpine
+FROM node:24-alpine
 
 RUN apk add --no-cache python3 make g++ curl
 RUN npm install -g bun
@@ -82,7 +82,7 @@ ENV npm_config_node_gyp=/usr/local/lib/node_modules/node-gyp/bin/node-gyp.js
 WORKDIR /app
 
 COPY package.json ./
-RUN node -e "const p=require('./package.json'); p.workspaces=['packages/contracts','packages/protocol','packages/core','packages/node']; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
+RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/core','packages/node']; p.workspaces=catalog?{packages,catalog}:packages; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 COPY packages/node/package.json packages/node/
 COPY packages/core/package.json packages/core/
 COPY packages/protocol/package.json packages/protocol/

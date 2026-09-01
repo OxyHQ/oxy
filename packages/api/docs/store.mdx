@@ -1,0 +1,191 @@
+---
+title: App store
+description: The storefront's public reads, the reviews people write, and the endpoints a publisher uses to put an app on a shelf.
+order: 1
+---
+
+# App store
+
+The store is a module **over** the platform, not part of it. `applications` answers "may this program act for this person?"; a **listing** answers "should this person choose it?". Turn the store off and OAuth still works, which is the test that keeps the two separable.
+
+That split is why the endpoints live under two prefixes:
+
+- **`/store`** — the storefront. What a visitor reads, and the reviews they write.
+- **`/applications/:appId/listing`** — the publisher's side, beside credentials and webhooks, because that is where the permission guarding it already lives.
+
+<Callout>
+A listing carries no name, icon or legal links. `applications` holds those and the storefront joins them in, so a store page and a consent screen cannot disagree about what an app is called.
+</Callout>
+
+## Two envelopes
+
+Single objects come back under `data`. Pages come back under `data` with their counts under **`pagination`** — not under `meta`.
+
+```json
+// GET /store/apps/mention
+{ "data": { "slug": "mention", "name": "Mention", … } }
+
+// GET /store/apps
+{ "data": [ … ], "pagination": { "total": 42, "limit": 24, "offset": 0, "hasMore": true } }
+```
+
+The publisher's listing endpoints answer with the object itself and **no envelope at all** — they are mounted under `/applications`, which predates the store and does not wrap.
+
+## The storefront
+
+No authentication. Every row served is already public, and a storefront is what somebody looks at before they have an account.
+
+Only `published` listings and `visible` reviews are served. A draft, a rejected page and a hidden review are **absent** rather than marked, so no client has to be trusted to filter them — and an unpublished page answers `404` exactly as an unknown slug does, because whether a draft exists under a name is not something a visitor gets to learn.
+
+| Method | Path | |
+|--------|------|--|
+| `GET` | `/store/categories` | The shelves, in curated order. |
+| `GET` | `/store/apps` | Published listings, newest first. `?category=<slug>&limit=&offset=` |
+| `GET` | `/store/apps/:slug` | One page, with screenshots and the rating breakdown. |
+| `GET` | `/store/apps/:slug/reviews` | Visible reviews. `?sort=recent\|rating&limit=&offset=` |
+
+An unknown `category` slug returns an **empty** shelf rather than every app on the store, so a typo shows nothing instead of everything.
+
+### The rating is computed
+
+There is no stored average and no review counter. Both are aggregated from the visible reviews on every read, so hiding a review takes it out of the average immediately rather than when some counter is next repaired.
+
+`average` is `null` when nobody has reviewed an app — never `0`, which would render as a one-star app that has no reviews.
+
+```json
+"rating": { "average": 4.6, "count": 31 },
+"ratingBreakdown": { "3": 1, "4": 9, "5": 21 }
+```
+
+Absent keys in the breakdown are zero.
+
+## Reviews
+
+Any signed-in Oxy account may review any published app. `Authorization: Bearer <accessToken>`.
+
+| Method | Path | |
+|--------|------|--|
+| `GET` | `/store/apps/:slug/review` | The caller's own review, or `null`. |
+| `PUT` | `/store/apps/:slug/review` | Write or replace it. |
+| `DELETE` | `/store/apps/:slug/review` | Withdraw it. `204`. |
+| `PUT` | `/store/reviews/:reviewId/reply` | The publisher's answer. |
+| `DELETE` | `/store/reviews/:reviewId/reply` | Withdraw it. `204`. |
+
+```http
+PUT /store/apps/mention/review
+Content-Type: application/json
+
+{ "rating": 5, "title": "Fast", "body": "Been using it for a month." }
+```
+
+`PUT`, not `POST`: a person has one review per app and this **sets** it. A second `POST` would promise a second resource, which the unique constraint would then refuse.
+
+Rewriting does not clear a moderator's decision — a hidden review stays hidden when its author edits it, or hiding one would be undone by whoever wrote it. Withdrawing your own review deletes the row: `removed` is a moderator's verdict about someone's words, and an author taking their words back is not that.
+
+### `authorUsesApp`
+
+Each review carries whether its author has authorized the application, read from their grant at request time rather than stored on the review — a flag written at insert would be true then and wrong from the next revocation onwards.
+
+It is `false` for a first-party app nobody has to consent to, so render its absence as nothing at all rather than as a demotion.
+
+### Replying
+
+Requires `app:update` over the application's owning account — the same permission that guards every other write to that application. A store listing is not a second, weaker way to act for somebody's app.
+
+One reply per review, attributed to the person who wrote it rather than to the app, because that is what moderation needs. Editing re-attributes it.
+
+## The publisher's listing
+
+Requires `app:update` (`app:read` to read). Answers with the listing object, unwrapped.
+
+| Method | Path | |
+|--------|------|--|
+| `GET` | `/applications/:appId/listing` | The page in any state, or `null`. |
+| `PUT` | `/applications/:appId/listing` | Write or replace its **content**. |
+| `POST` | `/applications/:appId/listing/submit` | Hand it to the store. |
+| `POST` | `/applications/:appId/listing/unpublish` | Take it down, or withdraw it. |
+
+```http
+PUT /applications/68b0…/listing
+Content-Type: application/json
+
+{
+  "slug": "mention",
+  "tagline": "The fediverse, at home",
+  "description": "# Mention\n\n…",
+  "categorySlug": "social",
+  "supportUrl": "https://mention.earth/help",
+  "supportEmail": null
+}
+```
+
+**`status` is not a field.** The publisher writes the words; the store decides whether they go up. Editing content and moving a page through review are different calls so that a publisher cannot publish themselves by putting a field in a body — and so that saving a correction to a live page leaves it live.
+
+A `PUT` of the whole page rather than a patch of part of it: the console edits one form, and a partial update makes "clear the tagline" and "leave the tagline alone" the same request.
+
+### States
+
+`draft` → `pending_review` → `published`, with `rejected` as the other way out of review. Every transition checks what it is moving **from**, so a draft cannot be published without being submitted and an approval cannot be replayed — a wrong transition answers `409`.
+
+`publishedAt` is stamped once. A page taken down and put back up keeps its original publication date, which is why it is its own column rather than read off `updated_at`.
+
+Unpublishing returns a page to `draft` rather than deleting it. The slug, the words and the screenshots are the publisher's work, and the reviews were never the listing's to take with them.
+
+### Errors
+
+| | |
+|--|--|
+| `404` | No listing, or no such app. |
+| `409` | The slug is taken, or the transition is not legal from the current state. |
+| `400` | The category slug does not exist — named rather than silently filed as uncategorised. |
+
+## Screenshots
+
+| Method | Path | |
+|--------|------|--|
+| `GET` | `…/listing/screenshots` | Every picture, in order. |
+| `POST` | `…/listing/screenshots` | Attach an uploaded image. `201`. |
+| `PUT` | `…/listing/screenshots/order` | Set the order of all of them. |
+| `PATCH` | `…/listing/screenshots/:id` | Its caption or platform. |
+| `DELETE` | `…/listing/screenshots/:id` | Remove it. `204`. |
+
+Upload through the files API first and pass the resulting **file id** — the store keeps a reference, not a second copy of the asset pipeline. The file must be live, an image, and one the caller is entitled to; the foreign key only proves the row exists.
+
+```http
+PUT /applications/68b0…/listing/screenshots/order
+
+{ "screenshotIds": ["s3", "s1", "s2"] }
+```
+
+Send **every** id on the listing, exactly once. A partial list is rejected rather than applied: it would leave the pictures it omits at their old positions, interleaved with the new ones. Sending all of them makes the request a statement of what the page should look like, which is the only shape that cannot half-apply.
+
+Removing a screenshot unpins the image; it does not delete the file, which may be in use elsewhere.
+
+## Moderation
+
+Platform staff only.
+
+| Method | Path | |
+|--------|------|--|
+| `GET` | `/store/moderation/listings` | The queue, oldest submission first. |
+| `POST` | `/store/moderation/listings/:applicationId/approve` | Publish it. |
+| `POST` | `/store/moderation/listings/:applicationId/reject` | Send it back. |
+| `POST` | `/store/moderation/categories` | Add a shelf. `201`. |
+| `PATCH` | `/store/moderation/categories/:slug` | Rename, re-word, reorder. |
+| `DELETE` | `/store/moderation/categories/:slug` | Retire it. |
+
+A category's **slug is not editable**: it is what every link to a category page carries, and a store that silently breaks its own URLs to fix a spelling is worse than one with a misspelled slug.
+
+Retiring a shelf does not delete the listings on it — they fall back to uncategorised, and the call answers with how many moved:
+
+```json
+{ "data": { "listingsUncategorised": 7 } }
+```
+
+## Rate limits
+
+Per minute: **240** reads, **20** writes. Writes are keyed on the **account**, not the IP, so a shared network is not throttled to one reviewer.
+
+## From the client
+
+Everything above is in `@oxyhq/core` — `listStoreApps`, `getStoreApp`, `listStoreReviews`, `writeStoreReview`, `getAppListing`, `writeAppListing`, and the rest. Prefer those over hand-rolled requests: they know which endpoint uses which envelope, which is the one thing about this API that is easy to get silently wrong.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
  * One-time migration: backfill the denormalized reputation fields
- * (`reputationRankWeight`, `reputationTier`) on existing User documents from the
- * authoritative `reputationbalances` collection.
+ * (`reputationRankWeight`, `reputationTier`) on existing User rows from the
+ * authoritative `reputation_balances` table.
  *
  * Why it exists:
  *   `reputationService.recalculateBalance` keeps these two User fields in sync
@@ -14,11 +14,10 @@
  *   for the reputation signal and the restricted-floor to take effect.
  *
  * Behavior:
- *   - Iterates the `reputationbalances` collection in batches (one doc per user).
+ *   - Iterates `reputation_balances` in batches (one row per user).
  *   - For each balance, writes `reputationRankWeight` + `reputationTier` onto the
- *     matching User via `updateOne` (no validators / hooks).
- *   - Idempotent — safe to re-run. Updates only users whose denorm values diverge
- *     from the authoritative balance.
+ *     matching User when the denorm values diverge.
+ *   - Idempotent — safe to re-run.
  *
  * Run (inside the oxy-api image, working dir /app):
  *   bun run packages/api/src/scripts/backfill-reputation-denorm.ts
@@ -26,21 +25,18 @@
  *   node packages/api/dist/scripts/backfill-reputation-denorm.js
  *
  * Env:
- *   MONGODB_URI    Mongo connection string (required, injected by ECS from SSM)
- *   NODE_ENV       selects the DB name via getDbName() (e.g. oxy-prod)
+ *   DATABASE_URL   Postgres connection string (required, injected by ECS from SSM)
  *   BATCH_SIZE     Number of balances to scan per batch (default 500)
  *   DRY_RUN=true   Report what would change without writing
  */
 
-import dotenv from 'dotenv';
-import mongoose from 'mongoose';
-import User from '../models/User.js';
-import { ReputationBalance } from '../models/ReputationBalance.js';
-import { INFLUENCE_MIN, type TrustTier } from '../utils/reputation.constants.js';
-import { getDbName } from '../config/db.js';
-import { logger } from '../utils/logger.js';
-
-dotenv.config();
+import { eq, gt, inArray } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../config/postgres';
+import { reputationBalances } from '../db/schema/reputationBalances';
+import { users } from '../db/schema/users';
+import { INFLUENCE_MIN } from '../utils/reputation.constants';
+import type { TrustTier } from '@oxyhq/contracts';
+import { logger } from '../utils/logger';
 
 interface BackfillStats {
   scanned: number;
@@ -66,108 +62,103 @@ async function backfillReputationDenorm(): Promise<BackfillStats> {
     logger.info('DRY RUN — no writes will be performed');
   }
 
-  // Read the authoritative denorm sources straight off each balance.
-  const cursor = ReputationBalance.find(
-    {},
-    {
-      _id: 1,
-      userId: 1,
-      trustTier: 1,
-      'influence.rankingFeedbackWeight': 1,
-    },
-  )
-    .lean()
-    .cursor({ batchSize });
+  let lastUserId = '';
 
-  const pending: Array<{
-    updateOne: {
-      filter: { _id: mongoose.Types.ObjectId };
-      update: { $set: { reputationRankWeight: number; reputationTier: TrustTier } };
-    };
-  }> = [];
+  for (;;) {
+    const balances = await getDb()
+      .select({
+        userId: reputationBalances.userId,
+        trustTier: reputationBalances.trustTier,
+        rankWeight: reputationBalances.influenceRankingFeedbackWeight,
+      })
+      .from(reputationBalances)
+      .where(lastUserId ? gt(reputationBalances.userId, lastUserId) : undefined)
+      .orderBy(reputationBalances.userId)
+      .limit(batchSize);
 
-  const flush = async (): Promise<void> => {
-    if (pending.length === 0) return;
-    if (dryRun) {
-      pending.length = 0;
-      return;
-    }
-    try {
-      await User.bulkWrite(pending, { ordered: false });
-    } catch (error) {
-      stats.errors += pending.length;
-      logger.error(
-        'bulkWrite failed during reputation-denorm backfill',
-        error instanceof Error ? error : new Error(String(error)),
-        { component: 'backfill', method: 'flush' },
-      );
-    } finally {
-      pending.length = 0;
-    }
-  };
-
-  for await (const balance of cursor) {
-    stats.scanned += 1;
-
-    const userId = balance.userId as mongoose.Types.ObjectId | undefined;
-    if (!userId) {
-      stats.missingUser += 1;
-      continue;
+    if (balances.length === 0) {
+      break;
     }
 
-    const rankWeight =
-      typeof balance.influence?.rankingFeedbackWeight === 'number'
-        ? balance.influence.rankingFeedbackWeight
-        : INFLUENCE_MIN;
-    const tier: TrustTier = balance.trustTier ?? 'new';
+    const userIds = balances.map((balance) => balance.userId);
+    const existingUsers = await getDb()
+      .select({
+        id: users.id,
+        reputationRankWeight: users.reputationRankWeight,
+        reputationTier: users.reputationTier,
+      })
+      .from(users)
+      .where(inArray(users.id, userIds));
 
-    // Only write when the user's current denorm diverges from the balance.
-    const user = await User.findById(userId)
-      .select('reputationRankWeight reputationTier')
-      .lean();
+    const userById = new Map(existingUsers.map((user) => [user.id, user]));
 
-    if (!user) {
-      stats.missingUser += 1;
-      continue;
+    const pending: Array<{
+      userId: string;
+      reputationRankWeight: number;
+      reputationTier: TrustTier;
+    }> = [];
+
+    for (const balance of balances) {
+      stats.scanned += 1;
+      lastUserId = balance.userId;
+
+      const user = userById.get(balance.userId);
+      if (!user) {
+        stats.missingUser += 1;
+        continue;
+      }
+
+      const rankWeight =
+        typeof balance.rankWeight === 'number' ? balance.rankWeight : INFLUENCE_MIN;
+      const tier: TrustTier = balance.trustTier ?? 'new';
+
+      const currentWeight =
+        typeof user.reputationRankWeight === 'number' ? user.reputationRankWeight : undefined;
+      const currentTier = user.reputationTier;
+
+      if (currentWeight === rankWeight && currentTier === tier) {
+        stats.unchanged += 1;
+        continue;
+      }
+
+      stats.updated += 1;
+      pending.push({
+        userId: balance.userId,
+        reputationRankWeight: rankWeight,
+        reputationTier: tier,
+      });
     }
 
-    const currentWeight =
-      typeof user.reputationRankWeight === 'number' ? user.reputationRankWeight : undefined;
-    const currentTier = user.reputationTier;
-
-    if (currentWeight === rankWeight && currentTier === tier) {
-      stats.unchanged += 1;
-      continue;
-    }
-
-    stats.updated += 1;
-    pending.push({
-      updateOne: {
-        filter: { _id: userId },
-        update: { $set: { reputationRankWeight: rankWeight, reputationTier: tier } },
-      },
-    });
-
-    if (pending.length >= batchSize) {
-      await flush();
+    if (pending.length > 0 && !dryRun) {
+      try {
+        await getDb().transaction(async (tx) => {
+          for (const update of pending) {
+            await tx
+              .update(users)
+              .set({
+                reputationRankWeight: update.reputationRankWeight,
+                reputationTier: update.reputationTier,
+              })
+              .where(eq(users.id, update.userId));
+          }
+        });
+      } catch (error) {
+        stats.errors += pending.length;
+        logger.error(
+          'batch update failed during reputation-denorm backfill',
+          error instanceof Error ? error : new Error(String(error)),
+          { component: 'backfill', method: 'flush' },
+        );
+      }
     }
   }
-
-  await flush();
 
   return stats;
 }
 
 async function main(): Promise<void> {
-  const uri = process.env.MONGODB_URI;
-  if (!uri) {
-    logger.error('MONGODB_URI is required');
-    process.exit(1);
-  }
-
-  const dbName = getDbName();
-  await mongoose.connect(uri, { dbName });
-  logger.info('Connected to MongoDB', { dbName });
+  await connectPostgres();
+  logger.info('Connected to Postgres');
 
   try {
     const startedAt = Date.now();
@@ -178,8 +169,8 @@ async function main(): Promise<void> {
       elapsedMs,
     });
   } finally {
-    await mongoose.connection.close();
-    logger.info('MongoDB connection closed');
+    await closePostgres();
+    logger.info('Postgres connection closed');
   }
 }
 

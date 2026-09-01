@@ -1,0 +1,88 @@
+-- oxy:deploy-phase=pre
+--
+-- What KIND of principal wrote a BYOK audit row (#972 workstream 12).
+--
+-- `inference_provider_connection_audit_events.actor_user_id` was written from a
+-- route helper that returned the calling USER's id for a session principal and
+-- the calling application's OWNING ACCOUNT id for a service-token principal. An
+-- account is a `users` row in this schema, so the foreign key was satisfied
+-- either way, nothing failed, and the trail could not tell "a member rotated
+-- this connection" from "an application rotated it with a service token" — the
+-- one question workstream 12 requires an audit surface to answer. It was recorded
+-- as still-open in `docs/inference/observability.md` because it needs a column.
+--
+-- One nullable column and one CHECK. Nothing is altered, nothing is dropped, and
+-- NOTHING IS BACK-FILLED.
+--
+-- THE FOUR STATES, which the CHECK enumerates rather than implies
+--
+--   ('user',     <users.id>)  a named person acted through a session bearer.
+--   ('service',   null)       a customer's SERVICE CREDENTIAL acted. No person is
+--                             behind it, and no id: the only id that lane had to
+--                             offer was the owning account's, which is already
+--                             `owner_account_id` on the same row.
+--   ('platform',  null)       OXY'S OWN machinery, with no principal — the data
+--                             plane resolving a reference (`used`), a verdict it
+--                             reported, the automatic `disabled` an `invalid`
+--                             verdict causes. A positive value, not an absence.
+--   (null,        …)          the row predates this migration.
+--
+-- `platform` rather than `billing_ledger_entries`' `machine` (0046) on purpose:
+-- that table has no service-token lane, so `machine` is unambiguous there. Here a
+-- service credential is ALSO a machine, and that ambiguity is the defect — so the
+-- two machine-ish authors get two names.
+--
+-- WHY `pre`
+--
+-- The test is whether a RUNNING IMAGE writes a value this migration forbids. The
+-- image serving while this applies does not know the column, so its inserts leave
+-- `actor_kind` NULL — the CHECK's first branch, and legal whatever
+-- `actor_user_id` holds. So this breaks no write the previous image performs.
+--
+-- `pre` is also the safer side of the two: a zero-capacity deploy exits before
+-- the post-deploy migration step entirely, and a skipped `post` never lands
+-- later — every subsequent `pre` queues behind it until somebody unblocks it by
+-- hand.
+--
+-- The stronger constraint — "every row names a kind" — is deliberately NOT here,
+-- in either phase. It would have to be `post`, because the old image violates it
+-- on every insert during the rollout window, and stranding the journal buys
+-- nothing that is not already bought: the kind is required by the TYPE SYSTEM at
+-- the only insert site in the codebase (`AuditEntry.actor`, a required
+-- discriminated union in `src/services/inferenceProviderConnection.service.ts`,
+-- checked by `packages/api`'s own `tsc` in CI). This CHECK closes the half a type
+-- cannot reach — a row arriving by any other route with an incoherent pair.
+--
+-- WHY NO BACK-FILL, EVER
+--
+-- A legacy row's `actor_user_id` may be a person or an account and nothing
+-- recorded which, so every possible back-fill value would assert exactly the
+-- distinction this column exists to make. The table is also append-only by
+-- trigger (`0042_inference_provider_connection_immutability.sql`), so a back-fill
+-- would mean disabling that trigger on an audit table. A null `actor_kind`
+-- therefore means "written before this migration" and means nothing else;
+-- `created_at` corroborates it, and no code path can produce it on a new row.
+--
+-- In production that legacy set is empty: a connection can only be created
+-- through `createProviderConnection`, which requires a secret store, and
+-- `PROVIDER_SECRET_STORE_BACKENDS` is empty in the shipped build — so no
+-- connection exists for an audit row to be about. The nullable branch is kept
+-- regardless, because a development or staging database holding rows nobody can
+-- classify is exactly the case a migration must not fail on.
+--
+-- `is not distinct from`, NOT `=`, and that is load-bearing rather than
+-- stylistic. A CHECK rejects only FALSE, and `null = 'user'` is NULL; written
+-- with `=`, a branch whose kind is NULL makes the disjunction NULL, which is
+-- ACCEPTED. `billing_ledger_entries_actor_check` was measured failing exactly
+-- that way in 0046, on the row `(null, <a user id>)`, so this is written the way
+-- that survived.
+--
+-- The authoritative copy of this reasoning lives in
+-- `src/db/schema/inferenceProviderConnectionAuditEvents.ts`, and
+-- `src/db/schema/__tests__/inferenceProviderConnections.test.ts` fails naming the
+-- missing constraint if it is ever dropped.
+ALTER TABLE "inference_provider_connection_audit_events" ADD COLUMN "actor_kind" text;--> statement-breakpoint
+ALTER TABLE "inference_provider_connection_audit_events" ADD CONSTRAINT "inference_provider_connection_audit_events_actor_check" CHECK ("inference_provider_connection_audit_events"."actor_kind" is null
+        or ("inference_provider_connection_audit_events"."actor_kind" is not distinct from 'user' and "inference_provider_connection_audit_events"."actor_user_id" is not null)
+        or ("inference_provider_connection_audit_events"."actor_kind" is not distinct from 'service' and "inference_provider_connection_audit_events"."actor_user_id" is null)
+        or ("inference_provider_connection_audit_events"."actor_kind" is not distinct from 'platform' and "inference_provider_connection_audit_events"."actor_user_id" is null));

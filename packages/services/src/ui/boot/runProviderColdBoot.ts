@@ -8,15 +8,10 @@ import {
 } from '@oxyhq/core';
 import type { SessionClient } from '@oxyhq/core';
 import { loadPersistedDeviceCredential } from '../utils/deviceCredential';
-import {
-  consumeSilentOAuthError,
-  isSilentRestoreEligibleOrigin,
-  maybeStartSilentOAuthRestore,
-} from '../utils/crossOriginRestore';
-import { tryCompleteOAuthReturn, consumeHubSyncFailure } from '../utils/oauthReturn';
+import { createPlatformSharedDeviceCredentialStore } from '../session/sharedDeviceCredentialStore';
+import { tryCompleteOAuthReturn } from '../utils/oauthReturn';
 import { isWebBrowser } from '../utils/isWebBrowser';
-import { allowsAutomaticIdpRedirect } from '../oauth/legacyRedirectLanes';
-import type { WebAuthMode } from '../oauth/types';
+import { isNetConnectivityExplicitlyOffline } from '../utils/netConnectivity';
 import type { CommitInput } from '../context/oxyContextTypes';
 
 /** How long the cold boot waits for the post-boot SessionClient handoff (ms). */
@@ -67,8 +62,8 @@ async function detectOfflineHint(): Promise<boolean> {
       }),
     ]);
     // `null` ⇒ the probe timed out (unknown → assume online). Only an explicit
-    // `isConnected === false` disables the network steps.
-    return state?.isConnected === false;
+    // disconnected / unreachable verdict disables the network steps.
+    return isNetConnectivityExplicitlyOffline(state);
   } catch {
     // NetInfo missing / probe threw — never block sign-in on a probe failure.
     return false;
@@ -81,38 +76,18 @@ export interface RunProviderColdBootOptions {
   clientId?: string;
   authRedirectUri?: string;
   /**
-   * Authorize endpoint override for silent cross-origin restore. Defaults to
-   * the production Oxy IdP when unset; a local/staging deployment sets it so the
-   * silent-restore redirect targets its own IdP, never production.
-   */
-  authorizeBaseUrl?: string;
-  /**
    * Who owns the session this boot resolves. `'account'` (the default) is the
    * device's active account — every ordinary Oxy app. `'identity'` binds the
    * boot to the owner of this device's PRIMARY identity key and REQUIRES
-   * {@link identity}; it also disables the two web OAuth lanes below, which
-   * commit whatever account the IdP hands back.
+   * {@link identity}; it also disables the web OAuth return leg below, which
+   * commits whatever account the IdP hands back.
    */
   sessionMode?: SessionMode;
   /** The identity binding required by `sessionMode: 'identity'`. */
   identity?: IdentityBinding;
-  /**
-   * How this provider's WEB sign-in reaches the IdP
-   * (`OxyProviderProps.webAuthMode`).
-   *
-   * A first-class INPUT to the boot, not a UI-only concern: `'popup'` forbids
-   * the automatic full-page `prompt=none` restore in step 3, so a domain with no
-   * local credential resolves SIGNED OUT instead of bouncing the top-level
-   * window to `auth.oxy.so`. See `allowsAutomaticIdpRedirect`.
-   * @default 'redirect'
-   */
-  webAuthMode?: WebAuthMode;
   sessionClient: SessionClient;
   syncDeviceCredentialToHost: () => Promise<void>;
-  commitSession: (
-    input: CommitInput,
-    options: { activate: boolean; hubSync?: boolean },
-  ) => Promise<void>;
+  commitSession: (input: CommitInput, options: { activate: boolean }) => Promise<void>;
   markAuthResolved: () => void;
   setTokenReady: (ready: boolean) => void;
 }
@@ -121,19 +96,19 @@ export interface RunProviderColdBootOptions {
  * Device-first cold boot for `@oxyhq/services` providers.
  *
  * Ordered pipeline:
- * 1. Complete OAuth authorization-code return (web)
+ * 1. Complete an OAuth authorization-code return already on the URL (web)
  * 2. `runSessionColdBoot` — device-secret mint (+ native shared-key, or the
  *    primary-identity-key lane in `sessionMode: 'identity'`)
- * 3. Silent OAuth for all web apps when mint finds no session
  *
- * Steps 1 and 3 are ACCOUNT-MODE ONLY: both commit whichever account the IdP
- * resolves, which for an identity-bound client is somebody else's account by
- * construction. In `'identity'` mode the boot is exactly step 2.
+ * Step 1 is ACCOUNT-MODE ONLY: it commits whichever account the IdP resolves,
+ * which for an identity-bound client is somebody else's account by construction.
+ * In `'identity'` mode the boot is exactly step 2.
  *
- * Step 3 is additionally REDIRECT-MODE ONLY: it navigates the top-level window
- * with no user gesture behind it, which `webAuthMode: 'popup'` exists to
- * eliminate. In popup mode the boot is steps 1 and 2, and a domain with no local
- * credential simply resolves signed out. See `allowsAutomaticIdpRedirect`.
+ * The boot NEVER navigates the top-level window. There is no automatic
+ * `prompt=none` bounce to the IdP: a web origin with no local device credential
+ * resolves SIGNED OUT and waits for the user's next explicit "Continue with
+ * Oxy", which opens a popup from a real gesture (#691 phase 7b). Step 1 is not a
+ * navigation — it only consumes a code that is already in the address bar.
  */
 export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Promise<void> {
   const {
@@ -141,10 +116,8 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
     authStore,
     clientId,
     authRedirectUri,
-    authorizeBaseUrl,
     sessionMode = 'account',
     identity,
-    webAuthMode = 'redirect',
     sessionClient,
     syncDeviceCredentialToHost,
     commitSession,
@@ -157,28 +130,19 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
   setTokenReady(false);
 
   try {
-    // MODE-INDEPENDENT URL cleanup, deliberately so: both consume query params a
-    // PREVIOUS redirect-mode session left in the address bar (`?error=login_required`
-    // from a silent authorize, `?hub_sync=failed` from the hub) and restore the
-    // page the visit started on. Flipping an app to popup mode must not strand
-    // those params, so neither is gated on `webAuthMode`. Neither starts a
-    // navigation — they only rewrite the URL via `history.replaceState`.
-    consumeSilentOAuthError();
-    consumeHubSyncFailure();
-
-    // The redirect transport's RETURN leg — also NOT gated on `webAuthMode`. A
-    // popup-mode app legitimately lands here with `?code=` whenever the browser
-    // blocked the popup and `startWebOAuthSignIn` fell back to a full-page
-    // redirect (`popup-blocked` / `popup-navigation-failed`), and an app that
-    // switched modes mid-flight must not be stranded with a dead `?code=`
-    // either. It consumes a code already on the URL; it never starts one.
+    // The redirect transport's RETURN leg. An app reaches it whenever the browser
+    // BLOCKED the sign-in popup and `startWebOAuthSignIn` fell back to a
+    // full-page redirect (`popup-blocked` / `popup-navigation-failed`), so it is
+    // load-bearing even though nothing here ever starts a redirect. It consumes a
+    // code (or a stale OAuth `error`) already in the address bar and rewrites the
+    // URL via `history.replaceState`; it never begins a navigation.
     const oauthCompleted = identityBound
       ? false
       : await tryCompleteOAuthReturn({
           oxyServices,
           clientId,
           authRedirectUri,
-          commitSession: (input) => commitSession(input, { activate: true, hubSync: false }),
+          commitSession: (input) => commitSession(input, { activate: true }),
         });
     if (oauthCompleted) {
       setTokenReady(true);
@@ -192,12 +156,18 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
     // resolves to "online" — the network steps still run.
     const offline = await detectOfflineHint();
 
-    const outcome = await runSessionColdBoot({
+    await runSessionColdBoot({
       oxy: oxyServices,
       store: authStore,
       platform: { isWeb: isWebBrowser(), isNative: !isWebBrowser() },
       sessionMode,
       identity,
+      // The device-wide shared credential slot, enabling the `shared-device-adopt`
+      // lane: a newly installed official app joins this device's existing session
+      // instead of falling back to signing a challenge with the Commons identity
+      // key. `null` on web, where each origin is its own device by design; the
+      // core lane is also skipped outright in `sessionMode: 'identity'`.
+      sharedDeviceCredential: createPlatformSharedDeviceCredentialStore() ?? undefined,
       overallDeadlineMs: COLD_BOOT_OVERALL_DEADLINE_MS,
       isOffline: () => offline,
       onStepDeadline: (stepId) => {
@@ -259,46 +229,6 @@ export async function runProviderColdBoot(opts: RunProviderColdBootOptions): Pro
         }
       },
     });
-
-    // Silent cross-origin OAuth restore (web cross-app SSO): a full-page
-    // `prompt=none` bounce to the IdP when the mint found no local session.
-    //
-    // TRANSPORT gate (`allowsAutomaticIdpRedirect`): `webAuthMode: 'popup'`
-    // FORBIDS this lane. It navigates the top-level window with no user gesture
-    // behind it, which is precisely what popup mode exists to eliminate — a
-    // popup-mode domain without a local credential resolves signed out right
-    // here and waits for the user's next explicit "Continue with Oxy" (issue
-    // #691, "Cold boot and cross-domain behavior"). `'redirect'` — still the
-    // default and the compatibility path — reaches this lane unchanged, and this
-    // whole block disappears with the transport in phase 7b.
-    //
-    // ORIGIN gate: same as the hub-sync WRITE side (`syncHubAfterSignIn`) —
-    // official web origins only, never the IdP hub itself, and — unlike the
-    // write side — never a loopback / local-dev origin (which must not be
-    // bounced to a hosted IdP on cold boot). The authorize endpoint is
-    // env-configurable so a local/staging app targets its own IdP instead of
-    // production.
-    const webOrigin = isWebBrowser()
-      ? (globalThis as { location?: Location }).location?.origin
-      : undefined;
-    if (
-      !identityBound &&
-      allowsAutomaticIdpRedirect(webAuthMode) &&
-      clientId &&
-      outcome.kind !== 'session' &&
-      webOrigin &&
-      isSilentRestoreEligibleOrigin(webOrigin)
-    ) {
-      const redirected = await maybeStartSilentOAuthRestore({
-        oxyServices,
-        clientId,
-        redirectUri: authRedirectUri,
-        authorizeBaseUrl,
-      });
-      if (redirected) {
-        return;
-      }
-    }
   } catch (error) {
     if (__DEV__) {
       loggerUtil.error(

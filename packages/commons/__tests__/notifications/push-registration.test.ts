@@ -1,4 +1,6 @@
+import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxyhq/contracts';
 import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxyhq/core';
+import { ensureNotificationChannel } from '@oxyhq/services';
 import {
   registerInstallationPushToken,
   retireInstallationPushToken,
@@ -37,7 +39,8 @@ function makeEnvironment(overrides: Partial<PushTokenEnvironment> = {}): PushTok
   };
 }
 
-const OPTIONS = { clientId: 'oxy_dk_commons', deviceId: 'device-1' };
+const CHANNEL = { name: 'Sign-in requests', description: 'Alerts when another device asks to sign in as you' };
+const OPTIONS = { clientId: 'oxy_dk_commons', deviceId: 'device-1', channel: CHANNEL };
 
 describe('registerInstallationPushToken', () => {
   it('registers the Expo push token, scoped to the calling application', async () => {
@@ -60,6 +63,7 @@ describe('registerInstallationPushToken', () => {
 
     await registerInstallationPushToken(registry, makeEnvironment(), {
       clientId: OPTIONS.clientId,
+      channel: CHANNEL,
     });
 
     expect(registry.registerPushToken).toHaveBeenCalledWith({
@@ -117,6 +121,22 @@ describe('registerInstallationPushToken', () => {
     expect(outcome).toEqual({ status: 'skipped', reason: 'unsupported-platform' });
     expect(registry.registerPushToken).not.toHaveBeenCalled();
     expect(environment.hasNotificationPermission).not.toHaveBeenCalled();
+  });
+
+  it('creates the approval channel before registering, on the id the API sends', async () => {
+    const channelMock = ensureNotificationChannel as unknown as jest.Mock;
+    const registry = makeRegistry();
+
+    await registerInstallationPushToken(registry, makeEnvironment(), OPTIONS);
+
+    expect(channelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: IDENTITY_APPROVAL_PUSH_CHANNEL, name: CHANNEL.name }),
+    );
+    // Android drops a push whose channel does not exist yet, so the ORDER is the
+    // guarantee: the channel must exist before the server can ever send to it.
+    expect(channelMock.mock.invocationCallOrder[0]).toBeLessThan(
+      (registry.registerPushToken as jest.Mock).mock.invocationCallOrder[0],
+    );
   });
 
   it('propagates a registry rejection so the caller can log it', async () => {

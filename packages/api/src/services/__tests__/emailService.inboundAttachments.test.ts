@@ -1,35 +1,24 @@
 /**
- * emailService.storeIncomingMessage — inbound attachment deposit coverage.
+ * `emailService.storeIncomingMessage` — inbound deposit, against a REAL Postgres.
  *
- * The Oxy File Manager migration changed the inbound path so every MIME
- * attachment is deposited as a private File owned by the RECIPIENT via
- * `assetService.uploadFileDirect(..., 'private', { source: 'email-inbound' })`,
- * then linked to the stored Message under `app: 'oxy-mail'`. The Message
- * subdocument persists only the canonical reference shape
- * `{ fileId, name, contentType, size, contentId?, isInline }` — never an
- * s3Key or raw buffer.
+ * Every MIME attachment is deposited as a private File owned by the RECIPIENT
+ * via `assetService.uploadFileDirect(..., 'private', {source: 'email-inbound'})`
+ * and then linked under `app: 'oxy-mail'`. The message keeps only the canonical
+ * reference — `{fileId, name, contentType, size, contentId?, isInline}` — never
+ * an s3Key or a raw buffer. The asset service is stubbed (it owns S3); the
+ * database is not, because what the message ends up carrying is the guarantee.
  *
- * Covered:
- *   1. Each attachment is uploaded via uploadFileDirect with the recipient's
- *      userId, private visibility, and email-inbound source metadata.
- *   2. Message.create receives the canonical IAttachment[] built from the
- *      returned File records (fileId/name/contentType/size/contentId/isInline).
- *   3. Each uploaded file is linked (app oxy-mail, entityType message,
- *      entityId = stored message _id, createdBy = recipient).
- *   4. linkFile failure is isolated — storeIncomingMessage still resolves.
- *   5. Messages without attachments perform no asset calls.
- *
- * All mongoose models and the asset service are stubbed at the module
- * boundary; no DB or S3 access occurs.
+ * The port moved `to`/`cc`/`bcc` and `attachments` into child tables, so this
+ * also pins the things that only a real database can answer:
+ *   - the parent and its children are ONE transaction, so a message can never
+ *     be stored claiming addressees it does not have;
+ *   - `ord` preserves header order;
+ *   - addresses are lower-cased and trimmed at the call site, the obligation
+ *     Mongoose discharged with a setter that Postgres has no counterpart for.
  */
 
 const mockUploadFileDirect = jest.fn();
 const mockLinkFile = jest.fn();
-const mockUserFindOne = jest.fn();
-const mockMailboxFind = jest.fn();
-const mockMailboxFindOne = jest.fn();
-const mockMailboxFindByIdAndUpdate = jest.fn();
-const mockMessageCreate = jest.fn();
 const mockLoggerWarn = jest.fn();
 
 jest.mock('../assetServiceSingleton', () => ({
@@ -39,33 +28,9 @@ jest.mock('../assetServiceSingleton', () => ({
   },
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findOne: (...args: unknown[]) => mockUserFindOne(...args) },
+jest.mock('../senderAvatar.service', () => ({
+  getAvatarPathsBatch: jest.fn().mockResolvedValue(new Map()),
 }));
-
-jest.mock('../../models/Mailbox', () => ({
-  Mailbox: {
-    find: (...args: unknown[]) => mockMailboxFind(...args),
-    findOne: (...args: unknown[]) => mockMailboxFindOne(...args),
-    findByIdAndUpdate: (...args: unknown[]) => mockMailboxFindByIdAndUpdate(...args),
-  },
-}));
-
-jest.mock('../../models/Message', () => ({
-  Message: {
-    create: (...args: unknown[]) => mockMessageCreate(...args),
-  },
-}));
-
-jest.mock('../../models/Label', () => ({ Label: { countDocuments: jest.fn().mockResolvedValue(1) } }));
-jest.mock('../../models/Bundle', () => ({ Bundle: { countDocuments: jest.fn().mockResolvedValue(1) } }));
-jest.mock('../../models/Reminder', () => ({ Reminder: {} }));
-jest.mock('../../models/Contact', () => ({ Contact: {} }));
-jest.mock('../../models/EmailTemplate', () => ({ EmailTemplate: {} }));
-jest.mock('../../models/EmailFilter', () => ({ EmailFilter: { find: jest.fn().mockReturnValue({ sort: () => ({ lean: () => Promise.resolve([]) }) }) } }));
-
-jest.mock('../senderAvatar.service', () => ({ getAvatarPathsBatch: jest.fn() }));
 jest.mock('../aiLabeling.service', () => ({
   aiLabelingService: { enqueueClassification: jest.fn().mockReturnValue(true) },
 }));
@@ -77,8 +42,8 @@ jest.mock('../smtp.outbound', () => ({
   smtpOutbound: { send: jest.fn() },
   default: { send: jest.fn() },
 }));
-jest.mock('../push.service', () => ({
-  pushService: { sendPushNotification: jest.fn().mockResolvedValue(undefined) },
+jest.mock('../emailPushDelivery.service', () => ({
+  sendInboxEmailPush: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock('../../utils/logger', () => ({
@@ -90,27 +55,50 @@ jest.mock('../../utils/logger', () => ({
   },
 }));
 
+import { randomUUID } from 'node:crypto';
+import { asc, eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { files } from '../../db/schema/files';
+import { messageAttachments } from '../../db/schema/messageAttachments';
+import { messageRecipients } from '../../db/schema/messageRecipients';
+import { messages } from '../../db/schema/messages';
+import { users } from '../../db/schema/users';
 import { emailService } from '../email.service';
 
-const svc = emailService as unknown as {
-  ensureMailboxes: (userId: string) => Promise<void>;
-  ensureDefaultLabels: (userId: string) => Promise<void>;
-  enforceQuota: (userId: string, bytes: number) => Promise<void>;
-  getMailboxBySpecialUse: (userId: string, specialUse: string) => Promise<unknown>;
-  applyFilters: (userId: string, messageId: string) => Promise<void>;
-  applyGlobalAutoForward: (userId: string, messageId: string) => Promise<void>;
-};
+const unique = () => randomUUID().replace(/-/g, '');
 
-const RECIPIENT_ID = '64b0000000000000000000aa';
-const MAILBOX_ID = '64b0000000000000000000bb';
-const MESSAGE_DOC_ID = '64b0000000000000000000cc';
-const FILE_ID_1 = '64f0000000000000000000a1';
-const FILE_ID_2 = '64f0000000000000000000a2';
+/** A recipient account with a username the inbound path can resolve. */
+async function recipient(): Promise<{ id: string; username: string }> {
+  const username = `bob${unique().slice(0, 10)}`;
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username, color: 'teal' })
+    .returning({ id: users.id });
+  return { id: row.id, username };
+}
+
+/** A real `files` row, so the attachment foreign key has something to point at. */
+async function storedFile(ownerUserId: string, name: string, mime: string, size: number) {
+  const [row] = await getDb()
+    .insert(files)
+    .values({
+      sha256: unique(),
+      size,
+      mime,
+      ext: name.split('.').pop() ?? 'bin',
+      storageKey: `assets/${unique()}`,
+      originalName: name,
+      ownerUserId,
+    })
+    .returning({ id: files.id });
+  return { id: row.id, originalName: name, mime, size };
+}
 
 interface StoreParams {
   recipientUsername: string;
   from: { name?: string; address: string };
   to: Array<{ name?: string; address: string }>;
+  cc?: Array<{ name?: string; address: string }>;
   subject: string;
   text?: string;
   messageId: string;
@@ -126,14 +114,14 @@ interface StoreParams {
   rawSize: number;
 }
 
-function baseParams(overrides: Partial<StoreParams> = {}): StoreParams {
+function baseParams(username: string, overrides: Partial<StoreParams> = {}): StoreParams {
   return {
-    recipientUsername: 'bob',
+    recipientUsername: username,
     from: { name: 'Alice', address: 'alice@example.com' },
-    to: [{ address: 'bob@oxy.so' }],
+    to: [{ address: `${username}@oxy.so` }],
     subject: 'Hello',
     text: 'Body',
-    messageId: '<mime-1@example.com>',
+    messageId: `<mime-${unique()}@example.com>`,
     date: new Date('2024-01-01T00:00:00.000Z'),
     headers: {},
     rawSize: 1000,
@@ -141,97 +129,93 @@ function baseParams(overrides: Partial<StoreParams> = {}): StoreParams {
   };
 }
 
-function stageHappyPath(): void {
-  mockUserFindOne.mockResolvedValue({ _id: { toString: () => RECIPIENT_ID } });
-  mockMailboxFindByIdAndUpdate.mockResolvedValue(undefined);
-  mockMessageCreate.mockImplementation((doc: Record<string, unknown>) =>
-    Promise.resolve({
-      ...doc,
-      _id: { toString: () => MESSAGE_DOC_ID },
-      toJSON: () => ({ id: MESSAGE_DOC_ID, ...doc }),
+async function attachmentsOf(messageId: string) {
+  return getDb()
+    .select({
+      fileId: messageAttachments.fileId,
+      name: messageAttachments.name,
+      contentType: messageAttachments.contentType,
+      size: messageAttachments.size,
+      contentId: messageAttachments.contentId,
+      isInline: messageAttachments.isInline,
+      ord: messageAttachments.ord,
     })
-  );
-
-  jest.spyOn(svc, 'ensureMailboxes').mockResolvedValue(undefined);
-  jest.spyOn(svc, 'enforceQuota').mockResolvedValue(undefined);
-  jest.spyOn(svc, 'getMailboxBySpecialUse').mockResolvedValue({
-    _id: { toString: () => MAILBOX_ID },
-    name: 'INBOX',
-    specialUse: '\\Inbox',
-  });
-  jest.spyOn(svc, 'applyFilters').mockResolvedValue(undefined);
-  jest.spyOn(svc, 'applyGlobalAutoForward').mockResolvedValue(undefined);
-}
-
-function makeUploadedFile(id: string, name: string, mime: string, size: number): {
-  _id: { toString: () => string };
-  originalName: string;
-  mime: string;
-  size: number;
-} {
-  return { _id: { toString: () => id }, originalName: name, mime, size };
+    .from(messageAttachments)
+    .where(eq(messageAttachments.messageId, messageId))
+    .orderBy(asc(messageAttachments.ord));
 }
 
 beforeEach(() => {
   jest.clearAllMocks();
-  jest.restoreAllMocks();
+  mockLinkFile.mockResolvedValue(undefined);
 });
 
-describe('emailService.storeIncomingMessage — attachment deposit', () => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('storeIncomingMessage — attachment deposit', () => {
   it('uploads each attachment as a private recipient-owned File and persists canonical references', async () => {
-    stageHappyPath();
-    mockUploadFileDirect
-      .mockResolvedValueOnce(makeUploadedFile(FILE_ID_1, 'report.pdf', 'application/pdf', 2048))
-      .mockResolvedValueOnce(makeUploadedFile(FILE_ID_2, 'logo.png', 'image/png', 512));
-    mockLinkFile.mockResolvedValue(undefined);
+    const user = await recipient();
+    const pdf = await storedFile(user.id, 'report.pdf', 'application/pdf', 2048);
+    const png = await storedFile(user.id, 'logo.png', 'image/png', 512);
+    mockUploadFileDirect.mockResolvedValueOnce(pdf).mockResolvedValueOnce(png);
 
     const pdfContent = Buffer.from('pdf-bytes');
     const pngContent = Buffer.from('png-bytes');
 
-    await emailService.storeIncomingMessage(
-      baseParams({
+    const stored = await emailService.storeIncomingMessage(
+      baseParams(user.username, {
         attachments: [
           { filename: 'report.pdf', contentType: 'application/pdf', content: pdfContent },
-          { filename: 'logo.png', contentType: 'image/png', content: pngContent, contentId: 'cid-logo', isInline: true },
+          {
+            filename: 'logo.png',
+            contentType: 'image/png',
+            content: pngContent,
+            contentId: 'cid-logo',
+            isInline: true,
+          },
         ],
-      })
+      }),
     );
 
     expect(mockUploadFileDirect).toHaveBeenCalledTimes(2);
     expect(mockUploadFileDirect).toHaveBeenNthCalledWith(
       1,
-      RECIPIENT_ID,
+      user.id,
       pdfContent,
       'application/pdf',
       'report.pdf',
       'private',
-      { source: 'email-inbound' }
+      { source: 'email-inbound' },
     );
     expect(mockUploadFileDirect).toHaveBeenNthCalledWith(
       2,
-      RECIPIENT_ID,
+      user.id,
       pngContent,
       'image/png',
       'logo.png',
       'private',
-      { source: 'email-inbound' }
+      { source: 'email-inbound' },
     );
 
-    expect(mockMessageCreate).toHaveBeenCalledTimes(1);
-    const createdDoc = mockMessageCreate.mock.calls[0][0] as {
-      attachments: Array<Record<string, unknown>>;
-      size: number;
-    };
-    expect(createdDoc.attachments).toEqual([
+    // The wire shape is unchanged: the child rows are reassembled into the
+    // same `attachments` array the Mongo subdocument produced.
+    expect(stored.attachments).toEqual([
       {
-        fileId: FILE_ID_1,
+        fileId: pdf.id,
         name: 'report.pdf',
         contentType: 'application/pdf',
         size: 2048,
+        contentId: null,
         isInline: false,
       },
       {
-        fileId: FILE_ID_2,
+        fileId: png.id,
         name: 'logo.png',
         contentType: 'image/png',
         size: 512,
@@ -239,52 +223,151 @@ describe('emailService.storeIncomingMessage — attachment deposit', () => {
         isInline: true,
       },
     ]);
-    expect(createdDoc.size).toBe(1000 + 2048 + 512);
+    expect(stored.size).toBe(1000 + 2048 + 512);
+
+    // …and the rows behind it carry the MIME part order explicitly.
+    expect((await attachmentsOf(stored.id)).map((a) => [a.ord, a.name])).toEqual([
+      [0, 'report.pdf'],
+      [1, 'logo.png'],
+    ]);
 
     expect(mockLinkFile).toHaveBeenCalledTimes(2);
-    for (const fileId of [FILE_ID_1, FILE_ID_2]) {
+    for (const fileId of [pdf.id, png.id]) {
       expect(mockLinkFile).toHaveBeenCalledWith(fileId, {
         app: 'oxy-mail',
         entityType: 'message',
-        entityId: MESSAGE_DOC_ID,
-        createdBy: RECIPIENT_ID,
+        entityId: stored.id,
+        createdBy: user.id,
       });
     }
   });
 
   it('isolates linkFile failures — the message is stored and the call resolves', async () => {
-    stageHappyPath();
-    mockUploadFileDirect.mockResolvedValueOnce(
-      makeUploadedFile(FILE_ID_1, 'report.pdf', 'application/pdf', 2048)
-    );
+    const user = await recipient();
+    const pdf = await storedFile(user.id, 'report.pdf', 'application/pdf', 2048);
+    mockUploadFileDirect.mockResolvedValueOnce(pdf);
     mockLinkFile.mockRejectedValueOnce(new Error('link service down'));
 
-    await expect(
-      emailService.storeIncomingMessage(
-        baseParams({
-          attachments: [
-            { filename: 'report.pdf', contentType: 'application/pdf', content: Buffer.from('x') },
-          ],
-        })
-      )
-    ).resolves.toBeDefined();
+    const stored = await emailService.storeIncomingMessage(
+      baseParams(user.username, {
+        attachments: [
+          { filename: 'report.pdf', contentType: 'application/pdf', content: Buffer.from('x') },
+        ],
+      }),
+    );
 
-    expect(mockMessageCreate).toHaveBeenCalledTimes(1);
+    expect(stored.id).toBeDefined();
+    expect(await attachmentsOf(stored.id)).toHaveLength(1);
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       'Failed to link inbound attachment to message',
-      expect.objectContaining({ fileId: FILE_ID_1, messageId: MESSAGE_DOC_ID })
+      expect.objectContaining({ fileId: pdf.id, messageId: stored.id }),
     );
   });
 
   it('performs no asset operations for messages without attachments', async () => {
-    stageHappyPath();
+    const user = await recipient();
 
-    await emailService.storeIncomingMessage(baseParams());
+    const stored = await emailService.storeIncomingMessage(baseParams(user.username));
 
     expect(mockUploadFileDirect).not.toHaveBeenCalled();
     expect(mockLinkFile).not.toHaveBeenCalled();
-    expect(mockMessageCreate).toHaveBeenCalledTimes(1);
-    const createdDoc = mockMessageCreate.mock.calls[0][0] as { attachments: unknown[] };
-    expect(createdDoc.attachments).toEqual([]);
+    expect(stored.attachments).toEqual([]);
+  });
+});
+
+describe('storeIncomingMessage — the message itself', () => {
+  it('lands in the Inbox, unread, with the headers it arrived with', async () => {
+    const user = await recipient();
+
+    const stored = await emailService.storeIncomingMessage(
+      baseParams(user.username, {
+        headers: { received: 'from mx.example.com (203.0.113.9)' },
+      }),
+    );
+
+    expect(stored.flags.seen).toBe(false);
+    expect(stored.subject).toBe('Hello');
+    expect(stored.from).toEqual({ name: 'Alice', address: 'alice@example.com' });
+    // `headers` is protected, so it is absent from the returned DTO…
+    expect(stored.headers).toBeUndefined();
+    // …but it IS stored: the one sanctioned place third-party SMTP
+    // `Received:` IPs are retained.
+    const [row] = await getDb()
+      .select({ headers: messages.headers })
+      .from(messages)
+      .where(eq(messages.id, stored.id));
+    expect(row.headers.received).toContain('203.0.113.9');
+  });
+
+  it('routes a spam-scored message to Junk instead of the Inbox', async () => {
+    const user = await recipient();
+
+    const clean = await emailService.storeIncomingMessage(baseParams(user.username));
+    const spam = await emailService.storeIncomingMessage(
+      baseParams(user.username, { spamScore: 9, spamAction: 'reject' }),
+    );
+
+    expect(spam.mailboxId).not.toBe(clean.mailboxId);
+    expect(spam.spamScore).toBe(9);
+    const inbox = await emailService.getMailboxBySpecialUse(user.id, '\\Inbox');
+    const junk = await emailService.getMailboxBySpecialUse(user.id, '\\Junk');
+    expect(clean.mailboxId).toBe(inbox?.id);
+    expect(spam.mailboxId).toBe(junk?.id);
+  });
+
+  it('stores the recipients in header order, lower-cased and trimmed', async () => {
+    // Mongoose applied `lowercase: true, trim: true` with a setter. Postgres
+    // has none, so the call site owns it — and if it forgets, address matching
+    // quietly becomes case-sensitive with nothing to notice.
+    const user = await recipient();
+
+    const stored = await emailService.storeIncomingMessage(
+      baseParams(user.username, {
+        from: { name: '  Alice  ', address: '  Alice@Example.COM ' },
+        to: [
+          { name: 'Bob', address: ' BOB@Oxy.SO ' },
+          { address: 'Carol@Example.com' },
+        ],
+        cc: [{ address: 'Dave@Example.com' }],
+      }),
+    );
+
+    expect(stored.from).toEqual({ name: 'Alice', address: 'alice@example.com' });
+    expect(stored.to).toEqual([
+      { name: 'Bob', address: 'bob@oxy.so' },
+      { name: '', address: 'carol@example.com' },
+    ]);
+    expect(stored.cc).toEqual([{ name: '', address: 'dave@example.com' }]);
+    expect(stored.bcc).toEqual([]);
+
+    const rows = await getDb()
+      .select({ kind: messageRecipients.kind, ord: messageRecipients.ord, address: messageRecipients.address })
+      .from(messageRecipients)
+      .where(eq(messageRecipients.messageId, stored.id))
+      .orderBy(asc(messageRecipients.kind), asc(messageRecipients.ord));
+    expect(rows).toEqual([
+      { kind: 'cc', ord: 0, address: 'dave@example.com' },
+      { kind: 'to', ord: 0, address: 'bob@oxy.so' },
+      { kind: 'to', ord: 1, address: 'carol@example.com' },
+    ]);
+  });
+
+  it('flags a read-receipt request from the Disposition-Notification-To header', async () => {
+    const user = await recipient();
+
+    const stored = await emailService.storeIncomingMessage(
+      baseParams(user.username, {
+        headers: { 'disposition-notification-to': 'alice@example.com' },
+      }),
+    );
+
+    expect(stored.readReceiptRequested).toBe(true);
+    expect(stored.readReceiptSent).toBe(false);
+  });
+
+  it('rejects mail for an account that does not exist', async () => {
+    await expect(
+      emailService.storeIncomingMessage(baseParams(`ghost${unique().slice(0, 10)}`)),
+    ).rejects.toThrow(/Recipient user not found/);
   });
 });

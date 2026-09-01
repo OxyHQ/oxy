@@ -13,6 +13,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
+import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
 import { API_URL, OXY_CLIENT_ID } from '@/lib/config';
 import { queryClient } from '@/lib/queryClient';
 import { THEME_PERSIST_KEY, themeStorage } from '@/lib/themePersistence';
@@ -38,6 +39,7 @@ export default function RootLayout() {
               the single session authority (web + native); it owns the QueryClient
               and never redirects to an external login. */}
           <BloomThemeProvider persistKey={THEME_PERSIST_KEY} storage={themeStorage}>
+            <ConnectionStatusToasts />
             <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} queryClient={queryClient}>
               <AppImageResolver>
                 <LocaleProvider>

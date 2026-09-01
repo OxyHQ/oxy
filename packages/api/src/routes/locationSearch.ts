@@ -1,6 +1,7 @@
 import express from 'express';
 import locationSearchController from '../controllers/locationSearch.controller';
 import { authMiddleware } from '../middleware/auth';
+import { requireStaff } from '../middleware/requireStaff';
 
 const router = express.Router();
 
@@ -11,8 +12,8 @@ router.get('/search', authMiddleware, locationSearchController.searchLocations);
 router.get('/details', authMiddleware, locationSearchController.getLocationDetails);
 
 // Cache management routes
-router.get('/cache/stats', authMiddleware, locationSearchController.getCacheStats);
-router.delete('/cache', authMiddleware, locationSearchController.clearCache);
+router.get('/cache/stats', authMiddleware, requireStaff, locationSearchController.getCacheStats);
+router.delete('/cache', authMiddleware, requireStaff, locationSearchController.clearCache);
 
 // Database query routes
 router.get('/near', authMiddleware, locationSearchController.findLocationsNear);

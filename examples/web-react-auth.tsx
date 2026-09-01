@@ -4,7 +4,8 @@
  * The whole flow is owned by the SDK. You mount one provider, read auth state
  * from one hook, and drop in one button. There is NO cookie plumbing, no FedCM,
  * no `/sso` bounce, and no per-app session restore — `OxyProvider`'s device-first
- * cold boot (durable `oxy_device` cookie → mint) restores an existing session on
+ * cold boot (persisted `{deviceId, deviceSecret}` → `POST /session/device/token`)
+ * restores an existing session on
  * its own and NEVER redirects to a login page.
  *
  * Runs on the web via react-native-web (the same SDK powers Expo/native — see
@@ -14,6 +15,7 @@
 import React from 'react';
 import { OxyProvider, OxySignInButton, useAuth } from '@oxyhq/services';
 import type { User } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 
 // ==================== 1. Config ====================
@@ -87,7 +89,7 @@ function Dashboard({ user }: { user: User }) {
 
   // Render `name.displayName` when present; otherwise fall back to the handle.
   // Never recompose a name from first/last/full.
-  const displayName = user.name?.displayName?.trim() || user.username;
+  const displayName = user.name?.displayName?.trim() ?? getNormalizedUserHandle(user);
 
   return (
     <div className="dashboard">
@@ -96,7 +98,7 @@ function Dashboard({ user }: { user: User }) {
           <h2>{displayName}</h2>
           {user.email ? <p>{user.email}</p> : null}
         </div>
-        <button onClick={() => signOut()}>Sign out</button>
+        <button type="button" onClick={() => signOut()}>Sign out</button>
       </header>
 
       <main>

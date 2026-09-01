@@ -24,7 +24,7 @@ import { useCallback } from 'react';
 import type { OxyServices } from '@oxyhq/core';
 import { translate, updateAvatarVisibility } from '@oxyhq/core';
 import type { QueryClient } from '@tanstack/react-query';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { updateProfileWithAvatar } from '../utils/avatarUtils';
 import { openWithinOrPresent } from '../navigation/surfaces';
 import type { AvatarCropResult } from '../screens/AvatarCropScreen';

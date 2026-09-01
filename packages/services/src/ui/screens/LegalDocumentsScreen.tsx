@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Linking } from 'react-native';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { logger } from '@oxyhq/core';

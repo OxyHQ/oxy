@@ -55,13 +55,13 @@ export const LogoText: React.FC<LogoTextProps> = ({
   return (
     <Svg viewBox={`0 0 ${VIEW_BOX_WIDTH} ${VIEW_BOX_HEIGHT}`} width={width} height={height} style={style}>
       <G>
-        {OUTER_PATHS.map((d, i) => (
-          <Path key={`outer-${i}`} d={d} fill={resolvedColor} />
+        {OUTER_PATHS.map((d) => (
+          <Path key={d} d={d} fill={resolvedColor} />
         ))}
       </G>
       <G transform="translate(10.316 2.495)">
-        {INNER_LETTER_PATHS.map((d, i) => (
-          <Path key={`inner-${i}`} d={d} fill={resolvedLetterColor} />
+        {INNER_LETTER_PATHS.map((d) => (
+          <Path key={d} d={d} fill={resolvedLetterColor} />
         ))}
       </G>
     </Svg>

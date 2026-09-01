@@ -1,19 +1,24 @@
 /**
- * GET /auth/session/approve-info/:authorizeCode tests (C2).
+ * `GET /auth/session/approve-info/:authorizeCode`, against a REAL Postgres.
  *
- * PUBLIC endpoint the Commons vault calls after scanning the QR. It returns the
- * server-RESOLVED, sanitized Application identity (so a spoofed-name QR still
- * shows the true app) + boundOrigin + scopes + status, and NEVER the secret
- * `sessionToken`. Uses the REAL `serializeApplication`; only models are mocked.
+ * PUBLIC and unauthenticated: the Commons vault fetches it with only the QR's
+ * `authorizeCode`, so what it returns is the whole of what a knower of a public
+ * code can learn. It must render the TRUE request — server-resolved application
+ * identity, the scopes approval would actually grant, the bound origin, the
+ * anti-phishing `originVerified` flag, the coarse requester label, the purpose
+ * and any delegated subject — and it must NEVER leak the secret `sessionToken`,
+ * a token, or the PKCE binding.
+ *
+ * The previous version mocked `models/AuthSession` / `models/Application` /
+ * `models/User`, so "never leaks the sessionToken" only held for whatever the
+ * stub happened to carry. Here the row is real and the secret is really stored,
+ * which is what makes that assertion mean something.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
-
-const mockAuthSessionFindOne = jest.fn();
-const mockApplicationFindById = jest.fn();
-const mockUserFindById = jest.fn();
+import { randomUUID } from 'node:crypto';
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -23,175 +28,322 @@ jest.mock('../../middleware/auth', () => ({
 jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-jest.mock('../../middleware/validate', () => ({
-  validate: () => (_req: unknown, _res: unknown, next: () => void) => next(),
-}));
-jest.mock('../../models/AuthSession', () => ({
+jest.mock('../../services/session.service', () => ({
   __esModule: true,
-  default: { findOne: mockAuthSessionFindOne },
-  AuthSession: { findOne: mockAuthSessionFindOne },
+  default: { createSession: jest.fn(), getAccessToken: jest.fn() },
 }));
-jest.mock('../../models/Session', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
-// Partial mock: the approval-flow entry points are stubbed, but the module's
-// PURE helpers (`resolveOAuthContext`, …) stay real so the route's OAuth-purpose
-// branching is exercised rather than silently short-circuited by an undefined.
-jest.mock('../../services/authSession.service', () => ({
-  ...jest.requireActual('../../services/authSession.service'),
-  claimAuthSession: jest.fn(),
-  authorizeSessionWithSignedChallenge: jest.fn(),
+jest.mock('../../utils/authSessionSocket', () => ({
+  emitAuthSessionUpdate: jest.fn(),
+  emitAuthSessionProgress: jest.fn(),
 }));
-jest.mock('../../models/AuthCode', () => ({ __esModule: true, AuthCode: { create: jest.fn() }, default: { create: jest.fn() } }));
-jest.mock('../../models/Application', () => ({
-  __esModule: true,
-  Application: { findOne: jest.fn(), findById: mockApplicationFindById },
-  default: { findOne: jest.fn(), findById: mockApplicationFindById },
-}));
-jest.mock('../../models/ApplicationCredential', () => ({ __esModule: true, ApplicationCredential: { findOne: jest.fn() }, default: { findOne: jest.fn() } }));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: { findOne: jest.fn(), findById: mockUserFindById },
-  default: { findOne: jest.fn(), findById: mockUserFindById },
-}));
-jest.mock('../../utils/userTransform', () => ({ formatUserResponse: jest.fn() }));
-jest.mock('../../utils/authSessionSocket', () => ({ emitAuthSessionUpdate: jest.fn() }));
-jest.mock('../../services/session.service', () => ({ __esModule: true, default: { createSession: jest.fn() } }));
-jest.mock('../../services/oauthCode.service', () => ({ issueAuthCode: jest.fn(), exchangeAuthCode: jest.fn(), AUTH_CODE_TTL_MS: 60_000 }));
-jest.mock('../../services/signature.service', () => ({ __esModule: true, default: { verifyChallengeResponse: jest.fn(), isValidPublicKey: jest.fn() } }));
+jest.mock('../../utils/socket', () => ({ broadcastSessionAccountsChanged: jest.fn() }));
 jest.mock('../../controllers/session.controller', () => ({
   SessionController: {
-    register: jest.fn(), signUp: jest.fn(), signIn: jest.fn(), requestChallenge: jest.fn(),
-    verifyChallenge: jest.fn(), requestPasswordReset: jest.fn(), verifyRecoveryCode: jest.fn(),
-    resetPassword: jest.fn(), getUserByPublicKey: jest.fn(),
+    register: jest.fn(),
+    requestChallenge: jest.fn(),
+    verifyChallenge: jest.fn(),
+    getUserByPublicKey: jest.fn(),
   },
 }));
-jest.mock('../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
-
-// auth.ts statically imports the AppGrant model (OAuth consent
-// grants); mock them so the real Mongoose schema does not run under the global
-// mongoose mock (which lacks Schema.Types).
-jest.mock('../../models/AppGrant', () => ({
-  __esModule: true,
-  AppGrant: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
-  default: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
+jest.mock('../../utils/logger', () => ({
+  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-import authRouter from '../auth';
+
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applications } from '../../db/schema/applications';
+import { authSessions } from '../../db/schema/authSessions';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import authRouter from '../auth';
 
-interface JsonResponse { status: number; body: Record<string, unknown>; }
-
-async function get(server: http.Server, path: string): Promise<JsonResponse> {
-  const address = server.address() as AddressInfo;
-  return new Promise((resolve, reject) => {
-    http.get({ host: '127.0.0.1', port: address.port, path }, (res) => {
-      let raw = '';
-      res.on('data', (c) => { raw += c; });
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }));
-    }).on('error', reject);
-  });
-}
-
-const THIRD_PARTY_APP_ID = '64f7c2a1b8e9d3f4a1c2b301';
-function thirdPartyApp() {
-  return {
-    _id: { toString: () => THIRD_PARTY_APP_ID },
-    name: 'Acme Widgets',
-    description: 'A third-party integration',
-    icon: 'https://cdn.acme.example/icon.png',
-    websiteUrl: 'https://acme.example',
-    type: 'third_party',
-    status: 'active',
-    isOfficial: false,
-    isInternal: false,
-    scopes: ['files:read', 'user:read'],
-    createdByUserId: { toString: () => 'owner-1' },
-  };
+interface JsonResponse {
+  status: number;
+  body: Record<string, unknown>;
 }
 
 let server: http.Server;
-beforeAll((done) => {
+
+function get(path: string): Promise<JsonResponse> {
+  const address = server.address() as AddressInfo;
+  return new Promise((resolve, reject) => {
+    const req = http.request({ method: 'GET', host: '127.0.0.1', port: address.port, path }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => {
+        raw += chunk;
+      });
+      res.on('end', () =>
+        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+      );
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
+}
+
+async function application(fields: Partial<typeof applications.$inferInsert> = {}): Promise<string> {
+  const ownerAccountId = fields.ownerAccountId ?? (await account());
+  const [row] = await getDb()
+    .insert(applications)
+    .values({
+      name: 'Acme Widgets',
+      type: 'third_party',
+      scopes: ['files:read', 'user:read'],
+      ...fields,
+      ownerAccountId,
+    })
+    .returning({ id: applications.id });
+  return row.id;
+}
+
+interface Request_ {
+  authorizeCode: string;
+  sessionToken: string;
+  applicationId: string;
+}
+
+/** The literal secret every test checks never escapes. */
+const SECRET_MARKER = 'SECRET-do-not-leak';
+
+async function authRequest(
+  overrides: Partial<typeof authSessions.$inferInsert> = {},
+): Promise<Request_> {
+  const applicationId = overrides.applicationId ?? (await application());
+  const sessionToken = `${SECRET_MARKER}-${randomUUID()}`;
+  const authorizeCode = randomUUID().replace(/-/g, '');
+  await getDb()
+    .insert(authSessions)
+    .values({
+      sessionToken,
+      authorizeCode,
+      expiresAt: new Date(Date.now() + 60_000),
+      status: 'pending',
+      ...overrides,
+      applicationId,
+    });
+  return { authorizeCode, sessionToken, applicationId };
+}
+
+/** The all-or-nothing OAuth binding, as `/session/create` writes it. */
+function oauthBinding(
+  scopes: string[],
+  subjectAccountId: string | null = null,
+): Partial<typeof authSessions.$inferInsert> {
+  return {
+    purpose: 'oauth_authorization',
+    oauthRedirectUri: 'https://rp.example/cb',
+    oauthCodeChallenge: 'challenge-that-must-not-leak-0000000000000',
+    oauthCodeChallengeMethod: 'S256',
+    oauthScopes: scopes,
+    oauthSubjectAccountId: subjectAccountId,
+  };
+}
+
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/auth', authRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
-afterAll((done) => { server.close(done); });
-beforeEach(() => { jest.clearAllMocks(); });
+
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
+});
 
 describe('GET /auth/session/approve-info/:authorizeCode', () => {
-  it('returns the resolved sanitized app, scopes, origin, and status — never the sessionToken', async () => {
-    mockAuthSessionFindOne.mockResolvedValueOnce({
-      sessionToken: 'SECRET-do-not-leak',
-      authorizeCode: 'code-1',
-      applicationId: { toString: () => THIRD_PARTY_APP_ID },
-      boundOrigin: 'https://acme.example',
-      status: 'pending',
-      expiresAt: new Date(Date.now() + 60_000),
-      save: jest.fn(),
+  it('returns the resolved sanitized app, scopes, origin and status', async () => {
+    const owner = await account({
+      username: `ada${randomUUID().slice(0, 8)}`,
+      nameFirst: 'Ada',
+      nameLast: 'Lovelace',
     });
-    mockApplicationFindById.mockResolvedValueOnce(thirdPartyApp());
-    mockUserFindById.mockReturnValueOnce({ select: () => ({ lean: () => Promise.resolve({ name: { first: 'Ada', last: 'Lovelace' }, username: 'ada' }) }) });
+    const applicationId = await application({ createdByUserId: owner });
+    const { authorizeCode } = await authRequest({
+      applicationId,
+      boundOrigin: 'https://acme.example',
+    });
 
-    const res = await get(server, '/auth/session/approve-info/code-1');
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
 
     expect(res.status).toBe(200);
-    const data = res.body.data as {
-      application: { id: string; name: string; developerName?: string };
-      scopes: string[];
-      boundOrigin: string;
-      status: string;
-    };
-    expect(data.application).toMatchObject({ id: THIRD_PARTY_APP_ID, name: 'Acme Widgets', developerName: 'Ada Lovelace' });
+    const data = res.body.data as Record<string, unknown>;
+    expect(data.application).toMatchObject({
+      id: applicationId,
+      name: 'Acme Widgets',
+      developerName: 'Ada Lovelace',
+    });
     expect(data.scopes).toEqual(['files:read', 'user:read']);
     expect(data.boundOrigin).toBe('https://acme.example');
     expect(data.status).toBe('pending');
-    // The secret sessionToken must NEVER appear anywhere in the response.
-    expect(JSON.stringify(res.body)).not.toContain('SECRET-do-not-leak');
+    expect(data.purpose).toBe('device_sign_in');
+    expect(data.subjectAccount).toBeNull();
   });
 
-  it('surfaces the persisted originVerified flag (anti-phishing signal)', async () => {
-    mockAuthSessionFindOne.mockResolvedValueOnce({
-      sessionToken: 'SECRET-do-not-leak',
-      authorizeCode: 'code-verified',
-      applicationId: { toString: () => THIRD_PARTY_APP_ID },
-      boundOrigin: 'https://acme.example',
-      originVerified: true,
-      status: 'pending',
-      expiresAt: new Date(Date.now() + 60_000),
-      save: jest.fn(),
-    });
-    mockApplicationFindById.mockResolvedValueOnce(thirdPartyApp());
-    mockUserFindById.mockReturnValueOnce({ select: () => ({ lean: () => Promise.resolve(null) }) });
+  it('NEVER leaks the secret sessionToken', async () => {
+    const { authorizeCode } = await authRequest();
 
-    const res = await get(server, '/auth/session/approve-info/code-verified');
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
 
     expect(res.status).toBe(200);
-    expect((res.body.data as { originVerified: boolean }).originVerified).toBe(true);
+    expect(JSON.stringify(res.body)).not.toContain(SECRET_MARKER);
   });
 
-  it('defaults originVerified to false when the persisted row lacks it (legacy/native rows)', async () => {
-    mockAuthSessionFindOne.mockResolvedValueOnce({
-      sessionToken: 'SECRET-do-not-leak',
-      authorizeCode: 'code-native',
-      applicationId: { toString: () => THIRD_PARTY_APP_ID },
-      boundOrigin: null,
-      // originVerified intentionally absent (mirrors a pre-migration row).
-      status: 'pending',
-      expiresAt: new Date(Date.now() + 60_000),
-      save: jest.fn(),
+  it('NEVER leaks the PKCE binding of an OAuth-bound request', async () => {
+    const { authorizeCode } = await authRequest(oauthBinding(['user:read']));
+
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
+
+    const serialized = JSON.stringify(res.body);
+    expect(serialized).not.toContain('challenge-that-must-not-leak');
+    expect(serialized).not.toContain('https://rp.example/cb');
+  });
+
+  it('surfaces the persisted originVerified flag', async () => {
+    const verified = await authRequest({ originVerified: true });
+    const unverified = await authRequest({ originVerified: false });
+
+    const a = await get(`/auth/session/approve-info/${verified.authorizeCode}`);
+    const b = await get(`/auth/session/approve-info/${unverified.authorizeCode}`);
+
+    expect((a.body.data as { originVerified: boolean }).originVerified).toBe(true);
+    expect((b.body.data as { originVerified: boolean }).originVerified).toBe(false);
+  });
+
+  it('exposes the coarse requester label, or null', async () => {
+    const labelled = await authRequest({ requesterLabel: 'Chrome on Windows' });
+    const native = await authRequest();
+
+    const a = await get(`/auth/session/approve-info/${labelled.authorizeCode}`);
+    const b = await get(`/auth/session/approve-info/${native.authorizeCode}`);
+
+    expect((a.body.data as { requesterLabel: string | null }).requesterLabel).toBe(
+      'Chrome on Windows',
+    );
+    expect((b.body.data as { requesterLabel: string | null }).requesterLabel).toBeNull();
+  });
+
+  it('leaks nothing beyond the documented fields — no UA, no deviceId, no code', async () => {
+    const { authorizeCode } = await authRequest({
+      requesterLabel: 'Chrome on Windows',
+      deviceId: 'dev-originating',
+      challengeNonce: 'nonce-value',
     });
-    mockApplicationFindById.mockResolvedValueOnce(thirdPartyApp());
-    mockUserFindById.mockReturnValueOnce({ select: () => ({ lean: () => Promise.resolve(null) }) });
 
-    const res = await get(server, '/auth/session/approve-info/code-native');
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
 
-    expect(res.status).toBe(200);
-    expect((res.body.data as { originVerified: boolean }).originVerified).toBe(false);
+    expect(Object.keys(res.body.data as object).sort()).toEqual([
+      'application',
+      'boundOrigin',
+      'expiresAt',
+      'originVerified',
+      'purpose',
+      'requesterLabel',
+      'scopes',
+      'status',
+      'subjectAccount',
+    ]);
+    const serialized = JSON.stringify(res.body);
+    expect(serialized).not.toContain('dev-originating');
+    expect(serialized).not.toContain('nonce-value');
+  });
+
+  it('narrows the requested scopes to what the app is REGISTERED for', async () => {
+    const applicationId = await application({ scopes: ['user:read'] });
+    const { authorizeCode } = await authRequest({
+      applicationId,
+      ...oauthBinding(['user:read', 'files:read']),
+    });
+
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
+
+    // An app can never receive more than it is registered for, so the approval
+    // screen must not promise more either.
+    expect((res.body.data as { scopes: string[] }).scopes).toEqual(['user:read']);
+  });
+
+  it('falls back to the app scopes for a device sign-in (no per-request set)', async () => {
+    const applicationId = await application({ scopes: ['user:read', 'files:read'] });
+    const { authorizeCode } = await authRequest({ applicationId });
+
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
+
+    expect((res.body.data as { scopes: string[] }).scopes).toEqual(['user:read', 'files:read']);
+  });
+
+  it('resolves a DELEGATED subject server-side and sanitizes it', async () => {
+    const org = await account({
+      username: `oxycollective${randomUUID().slice(0, 6)}`,
+      nameFirst: 'The Oxy Collective',
+      kind: 'organization',
+    });
+    const { authorizeCode } = await authRequest(oauthBinding(['user:read'], org));
+
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
+
+    const subject = (res.body.data as {
+      subjectAccount: { id: string; username: string; displayName: string };
+    }).subjectAccount;
+    expect(subject.id).toBe(org);
+    expect(subject.displayName).toBe('The Oxy Collective');
+    // Id + handle + display name and NOTHING else: never kind, membership,
+    // owner or status on a public endpoint.
+    expect(Object.keys(subject).sort()).toEqual(['displayName', 'id', 'username']);
+  });
+
+  it('reports application:null once the bound app is no longer active', async () => {
+    const applicationId = await application();
+    const { authorizeCode } = await authRequest({ applicationId });
+    await getDb()
+      .update(applications)
+      .set({ status: 'suspended' })
+      .where(eq(applications.id, applicationId));
+
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
+
+    const data = res.body.data as { application: unknown; scopes: string[] };
+    expect(data.application).toBeNull();
+    expect(data.scopes).toEqual([]);
+  });
+
+  it('flips a PENDING request past its deadline to expired, and writes that back', async () => {
+    const { authorizeCode } = await authRequest({ expiresAt: new Date(Date.now() - 1000) });
+
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
+
+    expect((res.body.data as { status: string }).status).toBe('expired');
+    const [row] = await getDb()
+      .select({ status: authSessions.status })
+      .from(authSessions)
+      .where(eq(authSessions.authorizeCode, authorizeCode))
+      .limit(1);
+    expect(row.status).toBe('expired');
+  });
+
+  it('leaves a non-pending request alone even past its deadline', async () => {
+    const { authorizeCode } = await authRequest({
+      status: 'consumed',
+      expiresAt: new Date(Date.now() - 1000),
+    });
+
+    const res = await get(`/auth/session/approve-info/${authorizeCode}`);
+
+    expect((res.body.data as { status: string }).status).toBe('consumed');
   });
 
   it('returns 404 for an unknown authorizeCode', async () => {
-    mockAuthSessionFindOne.mockResolvedValueOnce(null);
-    const res = await get(server, '/auth/session/approve-info/nope');
+    const res = await get(`/auth/session/approve-info/${randomUUID().replace(/-/g, '')}`);
     expect(res.status).toBe(404);
   });
 });

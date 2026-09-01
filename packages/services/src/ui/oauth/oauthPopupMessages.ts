@@ -103,6 +103,15 @@ export function readOAuthPopupMessage(
   event: MessageEvent,
   context: OAuthPopupMessageContext,
 ): OAuthPopupMessageVerdict {
+  // These two are a PAIR, and the source check is load-bearing rather than
+  // belt-and-braces. `expectedOrigin` is `new URL(authorizeUrl).origin`, and
+  // `authorizeBaseUrl` is app-configurable — a non-http(s) value makes that
+  // expression the literal string `"null"`, the opaque origin, which is also
+  // what a browser reports as `event.origin` for EVERY sandboxed iframe,
+  // `data:` document and `file:` page. The origin check stops discriminating at
+  // that point and the source check is the only thing still refusing them.
+  // Do not collapse them into one, and do not drop the source check as
+  // redundant with the origin check: it is not, in the one case that matters.
   if (event.origin !== context.expectedOrigin) return { kind: 'ignore' };
   if (!isSameWindowReference(event.source, context.popup)) return { kind: 'ignore' };
 

@@ -1,11 +1,60 @@
+/**
+ * Device management — the account's signed-in devices, derived from its live
+ * sessions.
+ *
+ * A "device" is not a row: it is the set of sessions sharing one `device_id`,
+ * collapsed to the most recently active one. Mongo's `deviceInfo` subdocument is
+ * flattened into columns here (`device_name`, `device_type`, `last_active_at`),
+ * so the grouping reads the columns directly.
+ *
+ * ## Why the "keep the more recent one" comparison is gone
+ *
+ * The Mongo version sorted by `deviceInfo.lastActive` descending and THEN
+ * re-compared each session against the one already in the map, because
+ * `lastActive` was optional on the subdocument and a missing value sorts
+ * unpredictably. `sessions.last_active_at` is `NOT NULL DEFAULT now()`, so
+ * `order by last_active_at desc` is total: the first row seen for a device IS
+ * the most recently active one, and the second pass could only ever confirm
+ * that. It is dropped rather than transliterated.
+ *
+ * ## Expiry is filtered on the READ, not left to the sweep
+ *
+ * `expires_at > now()` travels verbatim from the Mongo query. The expiry sweep
+ * (`db/expiry.ts`) lags by one interval, so dropping this filter would let an
+ * expired session keep listing a device the user believes they signed out of.
+ */
+
 import type { Response } from 'express';
-import Session from '../models/Session';
+import { and, desc, eq, gt } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { sessions } from '../db/schema/sessions';
 import { logger } from '../utils/logger';
 import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils';
 import sessionService from '../services/session.service';
 import type { AuthRequest } from '../middleware/auth';
 import { emitSessionUpdate } from '../server';
 
+/**
+ * The `device_id` of the session the request itself is authenticated with, or
+ * `null` when the token names no resolvable session.
+ */
+async function currentDeviceIdOf(req: AuthRequest): Promise<string | null> {
+  const token = extractTokenFromRequest(req);
+  if (!token) {
+    return null;
+  }
+  const decoded = decodeToken(token);
+  if (!decoded?.sessionId) {
+    return null;
+  }
+  try {
+    const sessionResult = await sessionService.validateSessionById(decoded.sessionId, false);
+    return sessionResult?.session?.deviceId ?? null;
+  } catch (error) {
+    logger.debug('Could not get current session for device identification', { error });
+    return null;
+  }
+}
 
 export class DevicesController {
   /**
@@ -19,35 +68,26 @@ export class DevicesController {
         return res.status(401).json({ error: 'Authentication required' });
       }
 
-      // Get current session to identify current device
-      const token = extractTokenFromRequest(req);
-      let currentDeviceId: string | null = null;
-      if (token) {
-        const decoded = decodeToken(token);
-        if (decoded?.sessionId) {
-          try {
-            const sessionResult = await sessionService.validateSessionById(decoded.sessionId, false);
-            if (sessionResult?.session) {
-              currentDeviceId = sessionResult.session.deviceId;
-            }
-          } catch (error) {
-            logger.debug('Could not get current session for device identification', { error });
-          }
-        }
-      }
+      const currentDeviceId = await currentDeviceIdOf(req);
 
-      // Query all active sessions for this user
-      const now = new Date();
-      const sessions = await Session.find({
-        userId: user._id,
-        isActive: true,
-        expiresAt: { $gt: now }
-      })
-      .sort({ 'deviceInfo.lastActive': -1 })
-      .lean()
-      .exec();
+      const rows = await getDb()
+        .select({
+          deviceId: sessions.deviceId,
+          deviceName: sessions.deviceName,
+          deviceType: sessions.deviceType,
+          lastActiveAt: sessions.lastActiveAt,
+          createdAt: sessions.createdAt,
+        })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.userId, user._id),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, new Date())
+          )
+        )
+        .orderBy(desc(sessions.lastActiveAt));
 
-      // Group by deviceId and get the most recent session info for each device
       interface DeviceEntry {
         id: string;
         deviceId: string;
@@ -55,45 +95,36 @@ export class DevicesController {
         deviceName: string;
         type: string;
         deviceType: string;
-        lastActive: string | Date;
-        createdAt: string | Date;
+        lastActive: Date;
+        createdAt: Date;
         isCurrent: boolean;
       }
 
       const deviceMap = new Map<string, DeviceEntry>();
 
-      for (const session of sessions) {
-        const deviceId = session.deviceId;
-        if (!deviceId) continue;
-
-        // If we already have this device, keep the one with more recent lastActive
-        const existing = deviceMap.get(deviceId);
-        if (existing) {
-          const existingTime = new Date(existing.lastActive || existing.createdAt || 0).getTime();
-          const currentTime = new Date(session.deviceInfo?.lastActive || session.createdAt || 0).getTime();
-          if (currentTime <= existingTime) {
-            continue; // Keep existing (more recent)
-          }
+      for (const row of rows) {
+        // Ordered most-recently-active first, so the first row for a device wins.
+        if (deviceMap.has(row.deviceId)) {
+          continue;
         }
 
-        // Store device info from most recent session
-        deviceMap.set(deviceId, {
-          id: deviceId,
-          deviceId: deviceId,
-          name: session.deviceInfo?.deviceName || 'Unknown Device',
-          deviceName: session.deviceInfo?.deviceName || 'Unknown Device',
-          type: session.deviceInfo?.deviceType || 'unknown',
-          deviceType: session.deviceInfo?.deviceType || 'unknown',
-          lastActive: session.deviceInfo?.lastActive || session.createdAt || new Date().toISOString(),
-          createdAt: session.createdAt || new Date().toISOString(),
-          isCurrent: currentDeviceId ? deviceId === currentDeviceId : false
+        // `||` rather than `??`, deliberately: Mongoose stored these as free
+        // strings, so `''` is representable and has always rendered as the
+        // placeholder. `??` would start serving an empty name.
+        deviceMap.set(row.deviceId, {
+          id: row.deviceId,
+          deviceId: row.deviceId,
+          name: row.deviceName || 'Unknown Device',
+          deviceName: row.deviceName || 'Unknown Device',
+          type: row.deviceType || 'unknown',
+          deviceType: row.deviceType || 'unknown',
+          lastActive: row.lastActiveAt,
+          createdAt: row.createdAt,
+          isCurrent: currentDeviceId ? row.deviceId === currentDeviceId : false,
         });
       }
 
-      // Convert map to array
-      const devices = Array.from(deviceMap.values());
-
-      res.json(devices);
+      res.json(Array.from(deviceMap.values()));
     } catch (error) {
       logger.error('Get user devices error:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -116,46 +147,35 @@ export class DevicesController {
         return res.status(400).json({ error: 'Device ID is required' });
       }
 
-      // Get current session to check if trying to remove current device
-      const token = extractTokenFromRequest(req);
-      let currentDeviceId: string | null = null;
-      if (token) {
-        const decoded = decodeToken(token);
-        if (decoded?.sessionId) {
-          try {
-            const sessionResult = await sessionService.validateSessionById(decoded.sessionId, false);
-            if (sessionResult?.session) {
-              currentDeviceId = sessionResult.session.deviceId;
-            }
-          } catch (error) {
-            logger.debug('Could not get current session', { error });
-          }
-        }
-      }
+      const currentDeviceId = await currentDeviceIdOf(req);
 
       // Prevent removing current device
       if (currentDeviceId && deviceId === currentDeviceId) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           error: 'Cannot remove current device',
           message: 'You cannot remove your current device. Please use another device to remove this one.'
         });
       }
 
       // Only query and remove sessions belonging to the requesting user on this device
-      const now = new Date();
-      const userDeviceSessions = await Session.find({
-        userId: user._id,
-        deviceId: deviceId,
-        isActive: true,
-        expiresAt: { $gt: now }
-      }).select('sessionId').lean().exec();
+      const userDeviceSessions = await getDb()
+        .select({ sessionId: sessions.sessionId })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.userId, user._id),
+            eq(sessions.deviceId, deviceId),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, new Date())
+          )
+        );
 
       if (userDeviceSessions.length === 0) {
         return res.status(404).json({ error: 'Device not found' });
       }
 
       // Get sessionIds for the requesting user's sessions on this device
-      const sessionIds = userDeviceSessions.map(s => s.sessionId);
+      const sessionIds = userDeviceSessions.map((row) => row.sessionId);
 
       // Logout only the requesting user's sessions on this device
       // Use sessionService to properly deactivate each session
@@ -164,13 +184,13 @@ export class DevicesController {
       }
 
       // Emit socket notification only for the requesting user
-      emitSessionUpdate(user._id.toString(), {
+      emitSessionUpdate(user._id, {
         type: 'device_removed',
         deviceId: deviceId,
         sessionIds: sessionIds
       });
 
-      res.json({ 
+      res.json({
         success: true,
         message: 'Device removed successfully'
       });
@@ -200,4 +220,3 @@ export class DevicesController {
     }
   }
 }
-

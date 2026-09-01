@@ -103,15 +103,13 @@ jest.mock('../../services/assetServiceSingleton', () => ({
     repairMissingFederationFileContent: (...args: unknown[]) =>
       mockRepairMissingFederationFileContent(...args),
   },
+}));
+
+jest.mock('../../services/s3ServiceSingleton', () => ({
   s3Service: {
     fileExists: (...args: unknown[]) => mockFileExists(...args),
     getObjectStreamRange: (...args: unknown[]) => mockGetObjectStreamRange(...args),
   },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
 }));
 
 import assetsRouter from '../assets';
@@ -186,7 +184,7 @@ async function postJson(
 }
 
 const PRIVATE_FILE = {
-  _id: PRIVATE_FILE_ID,
+  id: PRIVATE_FILE_ID,
   visibility: 'private' as const,
   storageKey: 'content/2026/06/aa/secret.png',
   variants: [],
@@ -248,7 +246,7 @@ describe('GET /assets/:id/url — scoped media token minting', () => {
 
   it('returns a clean CDN url with NO token for a public asset', async () => {
     mockGetFile.mockResolvedValue({
-      _id: PUBLIC_FILE_ID,
+      id: PUBLIC_FILE_ID,
       visibility: 'public',
       storageKey: 'public/content/2026/06/aa/pub.png',
       variants: [],
@@ -265,7 +263,7 @@ describe('GET /assets/:id/url — scoped media token minting', () => {
   });
 
   it('403s when the authenticated caller cannot access the asset', async () => {
-    mockGetFile.mockResolvedValue({ ...PRIVATE_FILE, _id: PRIVATE_FILE_ID });
+    mockGetFile.mockResolvedValue({ ...PRIVATE_FILE, id: PRIVATE_FILE_ID });
     mockCanUserAccessFile.mockResolvedValue(false);
 
     const res = await request(server, `/assets/${PRIVATE_FILE_ID}/url`);
@@ -276,7 +274,7 @@ describe('GET /assets/:id/url — scoped media token minting', () => {
 
   it('does not 500 when CDN resolution throws — falls back to the origin stream URL', async () => {
     mockGetFile.mockResolvedValue({
-      _id: PUBLIC_FILE_ID,
+      id: PUBLIC_FILE_ID,
       visibility: 'public',
       storageKey: 'public/content/2026/06/aa/pub.png',
       variants: [],
@@ -363,7 +361,7 @@ describe('GET /assets/:id/stream — scoped media token acceptance', () => {
 
 describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => {
   const PUBLIC_FILE = {
-    _id: PUBLIC_FILE_ID,
+    id: PUBLIC_FILE_ID,
     visibility: 'public' as const,
     storageKey: 'public/content/2026/06/aa/pub.png',
     mime: 'image/png',
@@ -423,8 +421,8 @@ describe('POST /assets/batch-access — variant-aware, scoped, per-file', () => 
   it('omits a url for a file the caller cannot access, and the batch still 200s', async () => {
     mockGetFilesByIds.mockResolvedValue([PRIVATE_FILE, PUBLIC_FILE]);
     // Deny only the private file; allow the public one.
-    mockCanUserAccessFile.mockImplementation((file: { _id: string }) =>
-      Promise.resolve(file._id === PUBLIC_FILE_ID),
+    mockCanUserAccessFile.mockImplementation((file: { id: string }) =>
+      Promise.resolve(file.id === PUBLIC_FILE_ID),
     );
 
     const res = await postJson(server, '/assets/batch-access', {

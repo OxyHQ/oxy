@@ -58,10 +58,22 @@ const fakeSessionClientHost = {
 };
 const fakeSessionClient = {
   getState: () => deviceState,
+  // The dialog controller reads the directory on every snapshot build, so a
+  // stand-in that omits these is not a SessionClient. Null is the honest
+  // answer for a fake that was never given one.
+  getDirectory: () => null,
+  refreshDirectory: async () => null,
+  activateContext: async () => null,
   subscribe: (listener: StateListener) => {
     stateListeners.add(listener);
     return () => stateListeners.delete(listener);
   },
+  // The device DIRECTORY half (ADR 0002); this fake never reads one.
+  getDirectory: () => null,
+  refreshDirectory: jest.fn(async () => undefined),
+  activateContext: jest.fn(async () => undefined),
+  signOutContext: jest.fn(async () => undefined),
+  signOutPrincipal: jest.fn(async () => undefined),
   start: jest.fn(async () => undefined),
   bootstrap: jest.fn(async () => undefined),
   addCurrentAccount: jest.fn(async () => undefined),
@@ -83,7 +95,7 @@ jest.mock('../../src/ui/session', () => {
   };
 });
 
-import { OxyContextProvider, useOxy } from '../../src/ui/context/OxyContext';
+import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { IdentityBoundSessionError } from '../../src/ui/session';
 import { useAuthStore } from '../../src/ui/stores/authStore';
@@ -217,14 +229,14 @@ function renderProvider(oxyServices: unknown, sessionMode?: 'account' | 'identit
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyContextProvider
+      <OxyRuntimeProvider
         oxyServices={oxyServices as never}
         baseURL={API_BASE_URL}
         clientId="oxy_test_client"
         sessionMode={sessionMode}
       >
         <Capture />
-      </OxyContextProvider>
+      </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }

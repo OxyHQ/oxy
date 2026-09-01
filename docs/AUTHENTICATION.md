@@ -140,15 +140,15 @@ For third-party web, the SDK generates the CSRF `state` and PKCE pair with `gene
 
 ```http
 POST https://api.oxy.so/auth/oauth/token
-Content-Type: application/json
+Content-Type: application/x-www-form-urlencoded
 
-{
-  "code": "…",
-  "clientId": "oxy_dk_…",
-  "redirectUri": "https://merchant.example/oauth/callback",
-  "codeVerifier": "…"
-}
+grant_type=authorization_code&code=…&redirect_uri=https%3A%2F%2Fmerchant.example%2Foauth%2Fcallback&client_id=oxy_dk_…&code_verifier=…
 ```
+
+The endpoint is RFC 6749 §4.1.3, so any standard OAuth client library can drive
+it. The response is a flat §5.1 document (`access_token`, `token_type`,
+`expires_in`, plus Oxy's `session_id` / `deviceId` / `deviceSecret` / `user`);
+errors are §5.2 `{ error, error_description }`.
 
 Native third-party RPs pass `onOAuthResult` to receive `{ redirectUrl, state, codeVerifier }` from the in-app auth session and finish the same exchange. Consent renders on `auth.oxy.so` via `OxyConsentScreen` (exported from `@oxyhq/services`), showing the Application's name, logo, scopes, and its `privacyPolicyUrl` / `termsUrl`. Full walkthrough: [integration guide](./auth/integration-guide.md).
 
@@ -181,4 +181,4 @@ const client = oxyServices.createLinkedClient({ baseURL: 'https://api.myapp.exam
 
 ## The IdP is not an RP
 
-`auth.oxy.so` is the OAuth authorize/consent surface for third-party apps. It mounts the same `OxyProvider` device-first like every Oxy app (normal cold boot, `useSwitchableAccounts` chooser, `signInWithPassword`/`completeTwoFactorSignIn`/`handleWebSession` funnels) and renders the services sign-in surface plus `OxyConsentScreen`. It stays a SHELL — after authenticating it emits the OAuth authorization code for the third-party — NOT a Relying Party that bounces elsewhere for its own session. It does not manage accounts: **accounts.oxy.so** is the sole account-management owner, and the IdP permanently redirects its former `/settings/*` paths there.
+`auth.oxy.so` is the OAuth authorize/consent surface for third-party apps. It mounts the same `OxyProvider` device-first like every Oxy app (normal cold boot, `useDeviceSwitcher` chooser, `signInWithPassword`/`completeTwoFactorSignIn`/`handleWebSession` funnels) and renders the services sign-in surface plus `OxyConsentScreen`. It stays a SHELL — after authenticating it emits the OAuth authorization code for the third-party — NOT a Relying Party that bounces elsewhere for its own session. It does not manage accounts: **accounts.oxy.so** is the sole account-management owner, and the IdP permanently redirects its former `/settings/*` paths there.

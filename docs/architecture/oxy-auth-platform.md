@@ -1,10 +1,12 @@
 # Oxy Authentication, Sessions & Account System — Plan Maestro
 
-> **Estado:** ✅ **IMPLEMENTADO — proyecto cerrado (2026-07-07).** Fases 0–7 + 2c en `main` y en producción (core 9 / services 19 / contracts 0.13; sesión device-first cero-cookie; IdP device-first sin excepción de transporte/chooser). Este documento es el plan maestro de referencia; el estado de ejecución y el cierre están en [`oxy-auth-audit.md`](./oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO". Aprobado para ejecución 2026-07-05 (Nate + agente planificación).  
+> **Estado:** ✅ **IMPLEMENTADO — proyecto cerrado (2026-07-07).** Fases 0–7 + 2c en `main` y en producción (core 9 / services 19 / contracts 0.13; sesión device-first cero-cookie; IdP device-first sin excepción de transporte/chooser). Este documento es el plan maestro de referencia; el estado de ejecución y el cierre están en [`oxy-auth-audit.md`](../archive/auth/oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO". Aprobado para ejecución 2026-07-05 (Nate + agente planificación).
 > **Ubicación canónica:** `docs/architecture/oxy-auth-platform.md`  
 > **Handoff agente implementador (archivado):** [`docs/architecture/archive/oxy-auth-agent-handoff.md`](./archive/oxy-auth-agent-handoff.md) — checklist, gates, subagentes, inventario borrado  
 >
-> **Addendum — issue #691 (2026-07-27), posterior al cierre:** cinco fases adicionales sobre esta base, todas mergeadas a `main`. No reescriben este plan (queda como registro histórico) — la fuente viva es [`SESSION-ARCHITECTURE.md`](../SESSION-ARCHITECTURE.md), [`docs/auth/device-session.md`](../auth/device-session.md) y [`docs/auth/integration-guide.md`](../auth/integration-guide.md), y las reglas durables están en el `AGENTS.md` raíz del repo. Resumen: **Fase 1** — `OxyProvider` gana `sessionMode: 'account' | 'identity'`; Commons monta `'identity'` para que su sesión quede fijada PERMANENTEMENTE al dueño de la clave primaria del dispositivo, nunca al `activeAccountId` mutable del `DeviceSession` (pin cliente + mint pineado vía `accountId` opcional en `POST /session/device/token`). **Fase 2** — transporte OAuth web `webAuthMode: 'popup' | 'redirect'` (default `'redirect'`, sin cambios): en modo popup la pestaña de la RP nunca navega — el IdP relaya `{code, state}` por `postMessage` al origen exacto del `redirect_uri` y se cierra. **Fase 3** — `AuthSession` gana `purpose: 'device_sign_in' | 'oauth_authorization'`, permitiendo que el mismo modelo (create → approve → finalize) mine un código OAuth de un solo uso vía Commons; primitiva de API/SDK sin UI todavía (ningún flujo actual crea una solicitud `oauth`-bound). **Fase 4** — entrega automática: push tokens escopados por dispositivo/app, `POST /auth/session/deliver` (bearer obligatorio) dirigido solo a instalaciones con la capability staff-only `identity:approval`, y `selectCommonsDelivery` elige UNA ruta primaria (deep-link → push conocido → QR). **Fase 5** — UI simplificada: el diálogo de cuenta muestra una sola acción primaria "Continue with Oxy" (sin contraseña), con QR/passkey/Get-Commons detrás de "Having trouble?"; la pantalla de aprobación de Commons es UNA confirmación (biometría directa, o "This wasn't me"). **Fase 7a** — en modo popup, el SDK deja de ejecutar sus propias navegaciones automáticas de página completa hacia el IdP (el restore silencioso `prompt=none` y el hub-sync post-login), gateadas tras `allowsAutomaticIdpRedirect(webAuthMode)`; el modo redirect sigue igual.
+> **Addendum — issue #691 (2026-07-27), posterior al cierre:** cinco fases adicionales sobre esta base, todas mergeadas a `main`. No reescriben este plan (queda como registro histórico) — la fuente viva es [`SESSION-ARCHITECTURE.md`](../SESSION-ARCHITECTURE.md), [`docs/auth/device-session.md`](../auth/device-session.md) y [`docs/auth/integration-guide.md`](../auth/integration-guide.md), y las reglas durables están en el `AGENTS.md` raíz del repo. Resumen: **Fase 1** — `OxyProvider` gana `sessionMode: 'account' | 'identity'`; Commons monta `'identity'` para que su sesión quede fijada PERMANENTEMENTE al dueño de la clave primaria del dispositivo, nunca al `activeAccountId` mutable del `DeviceSession` (pin cliente + mint pineado vía `accountId` opcional en `POST /session/device/token`). **Fase 2** — transporte OAuth web `webAuthMode: 'popup' | 'redirect'` (default `'redirect'`, sin cambios): en modo popup la pestaña de la RP nunca navega — el IdP relaya `{code, state}` por `postMessage` al origen exacto del `redirect_uri` y se cierra. **Fase 3** — `AuthSession` gana `purpose: 'device_sign_in' | 'oauth_authorization'`, permitiendo que el mismo modelo (create → approve → finalize) mine un código OAuth de un solo uso vía Commons; primitiva de API/SDK sin UI todavía (ningún flujo actual crea una solicitud `oauth`-bound). **Fase 4** — entrega automática: push tokens escopados por dispositivo/app, `POST /auth/session/deliver` (bearer obligatorio) dirigido solo a instalaciones con la capability staff-only `identity:approval`, y `selectCommonsDelivery` elige UNA ruta primaria (deep-link → push conocido → QR). **Fase 5** — UI simplificada: el diálogo de cuenta muestra una sola acción primaria "Continue with Oxy" (sin contraseña), con QR/passkey/Get-Commons detrás de "Having trouble?"; la pantalla de aprobación de Commons es UNA confirmación (biometría directa, o "This wasn't me"). **Fase 7a** — en modo popup, el SDK deja de ejecutar sus propias navegaciones automáticas de página completa hacia el IdP (el restore silencioso `prompt=none` y el hub-sync post-login), gateadas tras `allowsAutomaticIdpRedirect(webAuthMode)`; el modo redirect sigue igual. **Fase 7b (supersede a 7a y al default de la Fase 2)** — esas dos navegaciones ya no se gatean: se BORRAN en los dos modos (`crossOriginRestore.ts`, `legacyRedirectLanes.ts`, `hubSync.ts`, la página `/sync` del IdP, `POST /session/device/hub-ticket` + `/session/device/redeem-ticket`, el modelo `DeviceHubTicket` y los esquemas de ticket en `@oxyhq/contracts`), `'none'` sale de la unión `prompt` de `buildOAuthAuthorizeUrl` (`'login' | 'consent'`), y `webAuthMode` pasa a default `'popup'`. El SDK nunca navega la ventana top-level por su cuenta: un origen web sin credencial local arranca DESLOGUEADO. Sobreviven los tramos de vuelta que el usuario sí pidió (consumir un `?code=` ya presente en la URL, y el redirect de fallback cuando el navegador bloquea el popup).
+
+> **Addendum — issue #937 (2026-08-11), posterior al cierre y al addendum de #691: la sección [§ Comportamiento esperado en el switcher](#comportamiento-esperado-en-el-switcher) de este plan está SUPERSEDIDA.** El switcher ya no carga «device sessions + account graph en paralelo» ni los une en el cliente: lee UNA petición, `GET /session/device/directory`, y selecciona un par `principal actuando como cuenta` con `activateContext(contextId)`. La unión cliente no era sólo trabajo redundante — un cliente sólo tiene el grafo de UN llamante y no puede enumerar el de otro principal, así que en un dispositivo con dos personas presentaba las cuentas de una como las del dispositivo, y decidía en cliente una pregunta de autorización. `switchToAccount` sobrevive para superficies que renderizan `AccountNode` (el switcher de workspaces de la Console, managed accounts), pero no es lo que llama el diálogo de cuenta. Los enlaces a `AccountSwitcher.tsx` y `AccountMember.ts` de esa sección apuntan a ficheros que ya no existen. Fuente viva: [`docs/adr/0001`](../adr/0001-multi-principal-device-model.md), [`docs/adr/0002`](../adr/0002-global-account-context.md) y [`docs/auth/index.md`](../auth/index.md).
 
 ---
 
@@ -23,7 +25,7 @@
 
 | Fase | ID | Entregable clave |
 |------|-----|------------------|
-| 0 | `audit` | `docs/architecture/oxy-auth-audit.md` |
+| 0 | `audit` | `docs/archive/auth/oxy-auth-audit.md` |
 | 1 | `reconcile-p1` | DeviceSession + socket en main, sync instantáneo verificado |
 | 2 | `contracts` | Schemas en `@oxyhq/contracts` + publish |
 | 2b | `console-registry` | privacy/terms URLs, docs Console |
@@ -338,7 +340,7 @@ Modelo mental equivalente a **Google Sign-In / Sign in with Google**:
 | Google Cloud Console → OAuth client | **Oxy Console** → Application + Credential |
 | `client_id` | `oxy_dk_…` (`ApplicationCredential.publicKey`) |
 | Consent screen | `auth.oxy.so/authorize` + `OxyConsentScreen` |
-| OAuth 2.0 Authorization Code + PKCE | `POST /auth/oauth/authorize` + `POST /auth/oauth/token` |
+| OAuth 2.0 Authorization Code + PKCE | `POST /auth/oauth/authorize` + `POST /auth/oauth/token` (RFC 6749 §4.1.3) + `GET /auth/oauth/userinfo` |
 | "Sign in with Google" button | **`OxySignInButton`** o link branded a `auth.oxy.so` |
 | Connected apps en Google Account | **Accounts → Connected apps** (`GET /auth/grants`, revoke) |
 
@@ -416,22 +418,21 @@ https://auth.oxy.so/authorize
    - `GET /auth/oauth/consent` decide si hace falta consent (`third_party` → casi siempre la primera vez)
    - Usuario acepta → `POST /auth/oauth/authorize` (Bearer del usuario IdP) → code single-use
 4. Redirect: `https://merchant.co/auth/callback?code=…&state=…`
-5. RP valida `state`, intercambia code:
+5. RP valida `state`, intercambia code (RFC 6749 §4.1.3 — **form-urlencoded**, no JSON):
 
 ```http
 POST https://api.oxy.so/auth/oauth/token
-Content-Type: application/json
+Content-Type: application/x-www-form-urlencoded
 
-{
-  "code": "...",
-  "clientId": "oxy_dk_...",
-  "redirectUri": "https://merchant.co/auth/callback",
-  "codeVerifier": "<pkce_verifier>"
-}
+grant_type=authorization_code
+&code=...
+&redirect_uri=https://merchant.co/auth/callback
+&client_id=oxy_dk_...
+&code_verifier=<pkce_verifier>
 ```
 
-6. Respuesta: `{ access_token, refresh_token, sessionId, user }` — **tokens nunca en la URL**.
-7. RP guarda tokens en storage local; opcionalmente monta `OxyProvider` solo para refresh/UI account menu.
+6. Respuesta plana (sin envoltorio `{ data }`): `{ access_token, token_type, expires_in, scope?, session_id, deviceId, deviceSecret, user }` — **tokens nunca en la URL**. Errores: `{ error, error_description }` (§5.2).
+7. RP guarda `access_token` y el par `deviceId` + `deviceSecret` en storage local; restaura la sesión vía `POST /session/device/token`.
 
 **Backend propio del third party** (Node/Express):
 
@@ -452,13 +453,16 @@ Mismo redirect a `auth.oxy.so`, pero el **intercambio code→token ocurre en el 
 
 ```http
 POST https://api.oxy.so/auth/oauth/token
-{
-  "code": "...",
-  "clientId": "oxy_dk_...",
-  "redirectUri": "https://merchant.co/auth/callback",
-  "clientSecret": "<secret>"
-}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code
+&code=...
+&redirect_uri=https://merchant.co/auth/callback
+&client_id=oxy_dk_...
+&client_secret=<secret>
 ```
+
+(O bien `Authorization: Basic` con `client_id:client_secret` y el mismo cuerpo sin `client_secret`.)
 
 El secret **nunca** va al browser. El backend emite su propia cookie de sesión de app o JWT propio si lo necesita — eso es responsabilidad del RP, no de Oxy.
 
@@ -542,7 +546,7 @@ sequenceDiagram
   IdP->>API: POST /auth/oauth/authorize
   IdP->>RP: Redirect callback?code&state
   RP->>API: POST /auth/oauth/token + codeVerifier
-  API-->>RP: access_token refresh_token user
+  API-->>RP: access_token deviceId deviceSecret user
   RP->>User: Logged in
 ```
 
@@ -576,7 +580,7 @@ API existente a conservar (ya implementada): [`auth.ts` OAuth section](../../pac
 
 ### Fase 0 — Auditoría
 
-Checklist → `docs/architecture/oxy-auth-audit.md`. Incluir:
+Checklist → `docs/archive/auth/oxy-auth-audit.md`. Incluir:
 
 - Duplicación auth-sdk vs services; consumidores `@oxyhq/auth` en monorepo y repos externos
 - Auth local por app (interceptors, restore, `/__oxy/sso-callback`)
@@ -608,7 +612,7 @@ Cherry-pick DeviceSession + SessionClient + socket. Centralizar socket emits en 
 **Regla:** borrar código y docs obsoletos en el mismo PR que introduce el reemplazo. Nada de `@deprecated`, shims, feature flags legacy, ni “mantener un release por si acaso”. Si un test solo cubre comportamiento eliminado, se borra con el código.
 
 Entregables Fase 7:
-- `docs/architecture/oxy-auth-audit.md` marcado **DONE** con checklist verificada
+- `docs/archive/auth/oxy-auth-audit.md` marcado **DONE** con checklist verificada
 - [`AGENTS.md`](../../AGENTS.md) reescrito (solo device-first, cero FedCM/SSO/cookies)
 - Docs listadas abajo reemplazadas o eliminadas
 - Grep en repo = **0 hits** en la lista “must be zero” (salvo CHANGELOG histórico si se decide conservarlo)
@@ -735,7 +739,7 @@ También alinear [`~/AGENTS.md`](../../../AGENTS.md) (global) y [`~/Oxy/AGENTS.m
 |-----|-----------|
 | `docs/auth/integration-guide.md` | Sign in with Oxy third party: Console setup, OAuth+PKCE web SPA, confidential server, native custom scheme, OxySignInButton, backend `@oxyhq/core/server`, connected apps revoke |
 | `docs/auth/device-session.md` | DeviceSession API, socket events, multicuenta |
-| `docs/architecture/oxy-auth-audit.md` | Checklist Fase 0 — fuente de verificación borrado |
+| `docs/archive/auth/oxy-auth-audit.md` | Checklist Fase 0 — fuente de verificación borrado |
 
 ---
 

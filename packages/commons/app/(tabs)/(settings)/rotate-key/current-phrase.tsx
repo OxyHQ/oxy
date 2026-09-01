@@ -52,7 +52,7 @@ export default function RotateKeyCurrentPhraseScreen() {
   }, [phraseWords, currentPhraseRef, router, t]);
 
   return (
-    <KeyboardAwareScrollViewWrapper contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollViewWrapper reserveTabBarFootprint contentContainerStyle={styles.content}>
       <StackHeader
         title={t('rotateKey.currentPhrase.title')}
         subtitle={t('rotateKey.currentPhrase.subtitle')}
@@ -79,7 +79,6 @@ const styles = StyleSheet.create({
   content: {
     padding: 22,
     paddingTop: 24,
-    paddingBottom: 120,
     gap: 16,
   },
   errorText: {

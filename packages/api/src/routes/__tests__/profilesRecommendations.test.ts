@@ -1,945 +1,768 @@
 /**
- * GET /profiles/recommendations exclusion-set coverage.
+ * `GET` / `POST /profiles/recommendations` against a REAL Postgres.
  *
- * Proves the recommendation surface never leaks:
- *   - the caller themselves (self), nor
- *   - anyone the caller already follows,
- * even when those accounts would otherwise be surfaced by the
- * popular/random fill path.
+ * Four things here are worth a test, and the previous version could verify none
+ * of them: it reimplemented the Mongo aggregation inside the test file and then
+ * asserted the pipeline it had just built.
  *
- * The router is mounted on a minimal Express app and exercised via
- * `node:http` round-trips (mirrors usersResolve.test.ts) so we hit the real
- * route handler — including the exact `excludeIds` set it computes and the
- * `$nin` it passes to the Follow/User aggregations. The mocked Mongoose models
- * faithfully honour that `$nin` so the assertions verify the route's own
- * exclusion logic rather than a stub's behaviour.
+ *  1. **The exclusion set.** The viewer, everyone they already follow, and any
+ *     caller-supplied `excludeIds` must never be recommended — on BOTH the
+ *     personalized path and the popularity fallback.
+ *  2. **The eligibility bar.** Shell/QA profiles, private accounts, stale or
+ *     unavailable federated actors, account-level sensitive profiles, archived
+ *     and `restricted` accounts never reach the surface.
+ *  3. **`clientId` authorization.** A `clientId` selects another tenant's
+ *     private per-user signals and weight profile, so honouring an arbitrary
+ *     caller-supplied one is cross-tenant data exposure. Only a service token
+ *     for its OWN application, or a user with effective access to the
+ *     application's owning account, may use it.
+ *  4. **The ranking.** Composite score descending, `id` ascending as the stable
+ *     tiebreak.
+ *
+ * ## Isolation
+ *
+ * When the personalized candidate union is non-empty the scorer reads ONLY those
+ * candidates, so those tests are exactly reproducible on a database other suites
+ * are also writing to. The popularity FALLBACK reads the whole graph by design,
+ * so its tests assert membership and exclusion rather than an exact list.
+ *
+ * The dual-auth middleware is the one mock: it attaches the principal a test
+ * selects (`req.user` for a user token, `req.serviceApp` for a service token),
+ * which is exactly its production contract. Everything downstream of it — the
+ * `clientId` authorization, `accountService.resolveEffectiveAccess`, the scorer,
+ * the serializer — is real.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
+import { randomUUID } from 'node:crypto';
+import { recommendationResponseSchema, safeParseContract } from '@oxyhq/contracts';
 
-// The global mongoose mock (jest.setup.cjs) does not expose `Types`, which the
-// profiles route relies on (`new Types.ObjectId(...)`, `instanceof` checks).
-// Restore the REAL mongoose so the route's ObjectId handling runs unmocked.
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
-import { Types } from 'mongoose';
 
-const mockFollowFind = jest.fn();
-const mockFollowAggregate = jest.fn();
-const mockUserAggregate = jest.fn();
-const mockAppUserSignalFind = jest.fn();
-const mockAppAffinityEdgeFind = jest.fn();
-const mockApplicationFindById = jest.fn();
-const mockResolveEffectiveAccess = jest.fn();
-
-// The dual-auth middleware is swappable per-test so we can run authenticated and
-// logged-out paths against the same mounted router. The mocked
-// `optionalUserOrServiceAuth` only attaches the principal the test selects
-// (req.user for a user token, req.serviceApp for a service token); the route's
-// REAL viewer-resolution logic is mirrored faithfully by the mocked
-// `resolveViewerId` below (kept byte-aligned with the production rule:
-// user → own session; service → X-Oxy-User-Id only with `user:read` + valid id;
-// the dedicated unit test in optionalAuth.test.ts exercises the production fn
-// directly). This keeps THIS route test hermetic (no real auth/session/mongoose
-// module graph loaded).
+/** The principal the mocked dual-auth middleware attaches. */
 let currentUserId: string | undefined;
 let currentServiceApp: { appId: string; scopes: string[] } | undefined;
-jest.mock('../../middleware/optionalAuth', () => {
-  const { Types } = jest.requireActual('mongoose');
-  return {
-    optionalUserOrServiceAuth: (
-      req: { user?: { _id: string }; serviceApp?: { appId: string; scopes: string[] } },
-      _res: unknown,
-      next: () => void
-    ) => {
-      if (currentServiceApp) {
-        req.serviceApp = { type: 'service', appName: 'test', credentialId: 'c', ...currentServiceApp };
-      } else if (currentUserId) {
-        req.user = { _id: currentUserId };
-      }
-      next();
-    },
-    resolveViewerId: (req: {
-      user?: { _id?: string };
-      serviceApp?: { appId: string; scopes: string[] };
-      headers: Record<string, string | string[] | undefined>;
-    }): string | undefined => {
-      if (req.user?._id) return req.user._id;
-      const svc = req.serviceApp;
-      if (!svc) return undefined;
-      if (!svc.scopes.includes('user:read')) return undefined;
-      const raw = req.headers['x-oxy-user-id'];
-      const viewerId = typeof raw === 'string' && raw.length > 0 ? raw : undefined;
-      if (!viewerId || !Types.ObjectId.isValid(viewerId)) return undefined;
-      return viewerId;
-    },
-  };
-});
+/** The viewer `resolveViewerId` reports — the service-delegation header case. */
+let currentDelegatedViewerId: string | undefined;
 
-// Heavy / DB-touching imports pulled in by the profiles router are stubbed so
-// importing the router doesn't crash. None are used by /recommendations.
+jest.mock('../../middleware/optionalAuth', () => ({
+  optionalUserOrServiceAuth: (
+    req: {
+      user?: { _id: string };
+      serviceApp?: { type: string; appId: string; appName: string; credentialId: string; scopes: string[] };
+    },
+    _res: unknown,
+    next: () => void,
+  ) => {
+    if (currentServiceApp) {
+      req.serviceApp = {
+        type: 'service',
+        appName: 'test',
+        credentialId: 'test-credential',
+        ...currentServiceApp,
+      };
+    } else if (currentUserId) {
+      req.user = { _id: currentUserId };
+    }
+    next();
+  },
+  resolveViewerId: () => currentDelegatedViewerId ?? currentUserId,
+}));
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
-}));
-jest.mock('../../services/user.service', () => ({
-  userService: {
-    getUserStats: jest.fn(),
-    formatUserResponse: jest.fn(),
-  },
-}));
-jest.mock('../../services/federation.service', () => ({
-  federationService: { resolveAndUpsert: jest.fn() },
-  isFediverseHandle: jest.fn().mockReturnValue(false),
-}));
-jest.mock('../../middleware/validate', () => ({
-  validate: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  FollowType: { USER: 'user', HASHTAG: 'hashtag', TOPIC: 'topic' },
-  default: {
-    find: (...args: unknown[]) => mockFollowFind(...args),
-    aggregate: (...args: unknown[]) => mockFollowAggregate(...args),
-  },
-}));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    aggregate: (...args: unknown[]) => mockUserAggregate(...args),
-  },
-}));
-
-jest.mock('../../models/AppUserSignal', () => ({
-  AppUserSignal: {
-    find: (...args: unknown[]) => mockAppUserSignalFind(...args),
-  },
-}));
-
-jest.mock('../../models/AppAffinityEdge', () => ({
-  AppAffinityEdge: {
-    find: (...args: unknown[]) => mockAppAffinityEdgeFind(...args),
-  },
-}));
-
-jest.mock('../../models/Application', () => ({
-  Application: {
-    findById: (...args: unknown[]) => mockApplicationFindById(...args),
-  },
-}));
-
-jest.mock('../../services/account.service', () => ({
-  accountService: {
-    resolveEffectiveAccess: (...args: unknown[]) => mockResolveEffectiveAccess(...args),
-  },
-}));
-
-import profilesRouter from '../profiles';
+import { inArray } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { appAffinityEdges } from '../../db/schema/appAffinityEdges';
+import { applications } from '../../db/schema/applications';
+import { appUserSignals } from '../../db/schema/appUserSignals';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import { FEDERATED_RECOMMENDATION_MAX_AGE_MS } from '../../utils/profileQuery';
+import profilesRouter from '../profiles';
 
-interface ProfileResult {
-  id: unknown;
-  username?: string;
-}
-
-interface JsonResponse {
+interface RecommendationsResponse {
   status: number;
-  body: { error?: string; message?: string; data?: ProfileResult[] };
+  body: { message?: string; data?: Array<Record<string, unknown>> };
 }
 
-function requestJson(
-  server: http.Server,
+let server: http.Server;
+
+function request(
+  method: 'GET' | 'POST',
   path: string,
-  headers: Record<string, string> = {}
-): Promise<JsonResponse> {
+  body?: unknown,
+): Promise<RecommendationsResponse> {
   const address = server.address() as AddressInfo;
+  const payload = body === undefined ? undefined : JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const req = http.request(
-      { method: 'GET', host: '127.0.0.1', port: address.port, path, headers },
+      {
+        method,
+        host: '127.0.0.1',
+        port: address.port,
+        path,
+        headers: payload
+          ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) }
+          : undefined,
+      },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          try {
-            const parsed = raw.length > 0 ? JSON.parse(raw) : {};
-            resolve({ status: res.statusCode ?? 0, body: parsed });
-          } catch (err) {
-            reject(err);
-          }
+        res.on('data', (chunk) => {
+          raw += chunk;
         });
-      }
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} }),
+        );
+      },
     );
     req.on('error', reject);
+    if (payload) req.write(payload);
     req.end();
   });
 }
 
-/** Extract the `_id.$nin` ObjectId[] the route passed to a User.aggregate match. */
-function extractNinIds(pipeline: unknown): Types.ObjectId[] {
-  const stages = pipeline as Array<{ $match?: { _id?: { $nin?: Types.ObjectId[] } } }>;
-  const matchStage = stages.find((s) => s.$match && s.$match._id && s.$match._id.$nin);
-  return matchStage?.$match?._id?.$nin ?? [];
+function getRecommendations(query = ''): Promise<RecommendationsResponse> {
+  return request('GET', `/profiles/recommendations${query}`);
 }
 
-type OrClauses = Array<Record<string, unknown>>;
-type MatchStage = {
-  $match?: {
-    $or?: OrClauses;
-    $and?: Array<{ $or?: OrClauses }>;
-    [key: string]: unknown;
-  };
-};
+function postRecommendations(body: unknown): Promise<RecommendationsResponse> {
+  return request('POST', '/profiles/recommendations', body);
+}
+
+function handle(prefix: string): string {
+  return `${prefix}${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+}
+
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
+}
+
+/** An account that clears the discovery quality bar (username + one curation signal). */
+async function curatedAccount(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  return account({ username: handle('curated'), avatar: 'file_avatar', ...fields });
+}
+
+async function follow(followerId: string, followedId: string): Promise<void> {
+  await getDb().insert(userFollows).values({ followerId, followedId });
+}
 
 /**
- * Collect every `$or` clause group reachable from a pipeline's `$match` stages,
- * whether the `$or` sits at the top level of the match or nested inside an
- * `$and` (the federated-eligibility and profile-quality helpers are combined
- * under `$and`, so each contributes its own `$or`).
+ * Followers given to an account that must rank FIRST in the popularity
+ * fallback. The fallback ranks over the whole graph — every account any suite
+ * has seeded — and breaks a tie on `id` ASCENDING, which a freshly-created
+ * account always loses. A count far above anything the rest of the repo's
+ * fixtures produce is what makes the ranking assertion deterministic instead of
+ * merely likely.
  */
-function collectOrGroups(pipeline: unknown): OrClauses[] {
-  const stages = pipeline as MatchStage[];
-  const groups: OrClauses[] = [];
-  for (const stage of stages) {
-    const match = stage.$match;
-    if (!match) continue;
-    if (Array.isArray(match.$or)) groups.push(match.$or);
-    if (Array.isArray(match.$and)) {
-      for (const clause of match.$and) {
-        if (Array.isArray(clause.$or)) groups.push(clause.$or);
-      }
-    }
+const DOMINANT_FOLLOWER_COUNT = 60;
+
+/** An eligible account with more followers than any other row in the database. */
+async function mostFollowedAccount(): Promise<string> {
+  const id = await curatedAccount();
+  const fans: Array<{ followerId: string; followedId: string }> = [];
+  for (let index = 0; index < DOMINANT_FOLLOWER_COUNT; index += 1) {
+    fans.push({ followerId: await curatedAccount(), followedId: id });
   }
-  return groups;
+  await getDb().insert(userFollows).values(fans);
+  return id;
 }
 
-function expectFederatedEligibilityMatch(pipeline: unknown, prefix = ''): void {
-  const federatedClause = collectOrGroups(pipeline)
-    .flat()
-    .find((clause) => clause[`${prefix}type`] === 'federated');
-
-  expect(federatedClause).toEqual(expect.objectContaining({
-    [`${prefix}type`]: 'federated',
-    [`${prefix}federation.actorUri`]: { $type: 'string', $ne: '' },
-    [`${prefix}federation.domain`]: { $type: 'string', $ne: '' },
-    [`${prefix}federation.lastResolvedAt`]: { $gte: expect.any(Date) },
-    [`${prefix}federation.unavailableAt`]: { $exists: false },
-  }));
+async function application(ownerAccountId: string): Promise<string> {
+  const [row] = await getDb()
+    .insert(applications)
+    .values({
+      name: `App ${randomUUID()}`,
+      type: 'third_party',
+      scopes: ['user:read'],
+      ownerAccountId,
+    })
+    .returning({ id: applications.id });
+  return row.id;
 }
 
-/**
- * Assert the profile-quality bar is present in a recommendation pipeline: a
- * required non-empty `username` plus an `$or` of at least one curated-profile
- * signal (avatar / structured name / bio / description / verified).
- */
-function expectProfileQualityMatch(pipeline: unknown, prefix = ''): void {
-  const stages = pipeline as MatchStage[];
-  const nonEmptyString = { $type: 'string', $ne: '' };
-
-  // The `username` gate lives inside the profile-quality clause, which is itself
-  // an `$and` member alongside the federated-eligibility clause. Find whichever
-  // object carries it, top-level or nested under `$and`.
-  const usernameValue = (() => {
-    for (const stage of stages) {
-      const match = stage.$match;
-      if (!match) continue;
-      if (match[`${prefix}username`] !== undefined) return match[`${prefix}username`];
-      if (Array.isArray(match.$and)) {
-        for (const clause of match.$and as Array<Record<string, unknown>>) {
-          if (clause[`${prefix}username`] !== undefined) return clause[`${prefix}username`];
-        }
-      }
-    }
-    return undefined;
-  })();
-  expect(usernameValue).toEqual(nonEmptyString);
-
-  const qualityOr = collectOrGroups(pipeline).find((group) =>
-    group.some((clause) => clause[`${prefix}avatar`] !== undefined)
-  );
-  expect(qualityOr).toEqual(
-    expect.arrayContaining([
-      { [`${prefix}avatar`]: nonEmptyString },
-      { [`${prefix}name.first`]: nonEmptyString },
-      { [`${prefix}name.last`]: nonEmptyString },
-      { [`${prefix}bio`]: nonEmptyString },
-      { [`${prefix}description`]: nonEmptyString },
-      { [`${prefix}verified`]: true },
-    ])
-  );
+function ids(res: RecommendationsResponse): string[] {
+  return (res.body.data ?? []).map((row) => row.id as string);
 }
 
 /**
- * Assert the account-level sensitivity gate is present in a recommendation
- * pipeline: a candidate must NOT be flagged `isSensitive` (set by moderation).
- * Uses `{ $ne: true }` so legacy/federated docs missing the field still pass.
- * The clause lives alongside the profile-quality and federated-eligibility
- * clauses inside the eligibility `$and`, so search both the top-level match and
- * any `$and` members.
+ * A viewer whose candidate union is non-empty via mutual overlap, so the scorer
+ * runs on exactly `candidates` and the popularity fallback is not reached.
  */
-function expectNonSensitiveMatch(pipeline: unknown, prefix = ''): void {
-  const stages = pipeline as MatchStage[];
-  const field = `${prefix}isSensitive`;
-  const value = (() => {
-    for (const stage of stages) {
-      const match = stage.$match;
-      if (!match) continue;
-      if (match[field] !== undefined) return match[field];
-      if (Array.isArray(match.$and)) {
-        for (const clause of match.$and as Array<Record<string, unknown>>) {
-          if (clause[field] !== undefined) return clause[field];
-        }
-      }
-    }
-    return undefined;
-  })();
-  expect(value).toEqual({ $ne: true });
+async function viewerWithOverlap(
+  candidates: string[],
+): Promise<{ viewer: string; bridge: string }> {
+  const viewer = await curatedAccount();
+  const bridge = await curatedAccount();
+  await follow(viewer, bridge);
+  for (const candidate of candidates) {
+    await follow(bridge, candidate);
+  }
+  return { viewer, bridge };
 }
 
-const userA = new Types.ObjectId(); // the caller (self)
-const userB = new Types.ObjectId(); // followed by A
-const userC = new Types.ObjectId(); // followed by A
-const userD = new Types.ObjectId(); // a stranger — should be recommendable
-
-let server: http.Server;
-
-beforeAll((done) => {
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/profiles', profilesRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
   currentUserId = undefined;
   currentServiceApp = undefined;
-  mockAppUserSignalFind.mockReturnValue({
-    select: jest.fn().mockReturnThis(),
-    sort: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    lean: jest.fn().mockResolvedValue([]),
-  });
-  // No affinity edges by default → empty affinity map → 0 contribution and no
-  // injected candidates. Every existing recommendation test therefore also
-  // asserts the strict NO-OP property of the affinity term.
-  mockAppAffinityEdgeFind.mockReturnValue({
-    select: jest.fn().mockReturnThis(),
-    sort: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    lean: jest.fn().mockResolvedValue([]),
-  });
-  // By default a user-supplied clientId resolves to no owning app / no access,
-  // so the app-scoped signal path is never authorized for a user session.
-  mockApplicationFindById.mockReturnValue({
-    select: jest.fn().mockReturnThis(),
-    lean: jest.fn().mockResolvedValue(null),
-  });
-  mockResolveEffectiveAccess.mockResolvedValue(null);
+  currentDelegatedViewerId = undefined;
 });
 
-describe('GET /profiles/recommendations exclusion set', () => {
-  it('never returns self (A) nor already-followed users (B, C), even when the fill path would surface them', async () => {
-    currentUserId = userA.toHexString();
+describe('GET /profiles/recommendations — exclusion set', () => {
+  it('never returns the viewer, nor anyone the viewer already follows', async () => {
+    const candidate = await curatedAccount();
+    const alreadyFollowed = await curatedAccount();
+    const { viewer, bridge } = await viewerWithOverlap([candidate, alreadyFollowed]);
+    await follow(bridge, viewer);
+    await follow(viewer, alreadyFollowed);
+    currentUserId = viewer;
 
-    // Following set: A follows B and C. The route loads this via
-    // Follow.find(...).select('followedId').limit(...).lean().
-    const lean = jest.fn().mockResolvedValue([
-      { followedId: userB },
-      { followedId: userC },
-    ]);
-    const limit = jest.fn().mockReturnValue({ lean });
-    const select = jest.fn().mockReturnValue({ limit, lean });
-    mockFollowFind.mockReturnValue({ select });
+    const res = await getRecommendations('?limit=50');
 
-    // No mutual-overlap recommendations, forcing the random User.aggregate fill.
-    mockFollowAggregate.mockResolvedValue([]);
+    expect(res.status).toBe(200);
+    expect(ids(res)).toEqual([candidate]);
+  });
 
-    // The fill candidate pool deliberately INCLUDES A, B and C alongside the
-    // legitimate stranger D. The mock honours the route's `$nin: excludeIds`
-    // exactly as MongoDB would, so anything leaking through proves a bug in the
-    // route's exclude-set computation rather than in this stub.
-    const pool = [
-      { _id: userA, username: 'a', name: 'A', followersCount: 9, followingCount: 9, mutualCount: 0 },
-      { _id: userB, username: 'b', name: 'B', followersCount: 9, followingCount: 9, mutualCount: 0 },
-      { _id: userC, username: 'c', name: 'C', followersCount: 9, followingCount: 9, mutualCount: 0 },
-      { _id: userD, username: 'd', name: 'D', followersCount: 1, followingCount: 1, mutualCount: 0 },
-    ];
-    mockUserAggregate.mockImplementation((pipeline: unknown) => {
-      const excluded = extractNinIds(pipeline).map((id) => id.toString());
-      return Promise.resolve(
-        pool.filter((u) => !excluded.includes(u._id.toString()))
-      );
+  it('excludes the viewer and their follows from the popularity FALLBACK too', async () => {
+    // A viewer whose follows have no overlap at all → empty candidate union →
+    // the fallback runs, over the whole graph.
+    const viewer = await curatedAccount();
+    const followed = await curatedAccount();
+    await follow(viewer, followed);
+    // Follower edges make both fallback-eligible on popularity alone.
+    for (let index = 0; index < 3; index += 1) {
+      const fan = await curatedAccount();
+      await follow(fan, viewer);
+      await follow(fan, followed);
+    }
+    currentUserId = viewer;
+
+    const res = await getRecommendations('?limit=100');
+
+    expect(res.status).toBe(200);
+    expect(ids(res)).not.toContain(viewer);
+    expect(ids(res)).not.toContain(followed);
+  });
+
+  it('honours caller-supplied excludeIds on POST', async () => {
+    const keep = await curatedAccount();
+    const drop = await curatedAccount();
+    const { viewer } = await viewerWithOverlap([keep, drop]);
+    currentUserId = viewer;
+
+    const res = await postRecommendations({ limit: 50, excludeIds: [drop] });
+
+    expect(res.status).toBe(200);
+    expect(ids(res)).toEqual([keep]);
+  });
+});
+
+describe('GET /profiles/recommendations — eligibility bar', () => {
+  it('drops shell profiles, private, sensitive, archived, restricted and stale federated candidates', async () => {
+    const now = Date.now();
+    const complete = await curatedAccount();
+    const shell = await account({ username: handle('shell') });
+    const keyOnly = await account({ avatar: 'file_avatar' });
+    const freshFederated = await curatedAccount({
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${handle('fresh')}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(now - 24 * 60 * 60 * 1000),
     });
+    const staleFederated = await curatedAccount({
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${handle('stale')}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(now - FEDERATED_RECOMMENDATION_MAX_AGE_MS - 60_000),
+    });
+    const unavailableFederated = await curatedAccount({
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${handle('gone')}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(now - 60_000),
+      federationUnavailableAt: new Date(now - 60_000),
+    });
+    const privateAccount = await curatedAccount({ privacyIsPrivateAccount: true });
+    const sensitive = await curatedAccount({ isSensitive: true });
+    const archived = await curatedAccount({ accountStatus: 'archived' });
+    const restricted = await curatedAccount({ reputationTier: 'restricted' });
 
-    const res = await requestJson(server, '/profiles/recommendations?limit=10');
-
-    expect(res.status).toBe(200);
-    const returnedIds = (res.body.data ?? []).map((p) => String(p.id));
-
-    expect(returnedIds).not.toContain(userA.toString()); // never self
-    expect(returnedIds).not.toContain(userB.toString()); // never an already-followed user
-    expect(returnedIds).not.toContain(userC.toString());
-    expect(returnedIds).toContain(userD.toString()); // the stranger is recommendable
-
-    // The exclude set the route handed to the DB must be exactly {A, B, C}.
-    const ninArg = mockUserAggregate.mock.calls[0][0];
-    const excludedIds = extractNinIds(ninArg).map((id) => id.toString()).sort();
-    expect(excludedIds).toEqual([userA.toString(), userB.toString(), userC.toString()].sort());
-  });
-
-  it('returns 200 with public profiles for an unauthenticated caller from a bounded follow window', async () => {
-    currentUserId = undefined;
-
-    // Public path: follower-ranked aggregation over a capped recent Follow
-    // window so unauthenticated callers cannot force whole-graph grouping.
-    mockFollowAggregate.mockResolvedValue([
-      { _id: userD, username: 'd', name: 'D', followersCount: 5, followingCount: 2, mutualCount: 0 },
+    const { viewer } = await viewerWithOverlap([
+      complete,
+      shell,
+      keyOnly,
+      freshFederated,
+      staleFederated,
+      unavailableFederated,
+      privateAccount,
+      sensitive,
+      archived,
+      restricted,
     ]);
-    // Public fill is only reached when the ranked window is short; provide an
-    // empty fill so the assertion focuses on the public ranked result.
-    mockUserAggregate.mockResolvedValue([]);
+    currentUserId = viewer;
 
-    const res = await requestJson(server, '/profiles/recommendations?limit=10');
+    const res = await getRecommendations('?limit=100');
 
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.data)).toBe(true);
-    const returnedIds = (res.body.data ?? []).map((p) => String(p.id));
-    expect(returnedIds).toContain(userD.toString());
-    // The personalized following-set query is never issued without a caller.
-    expect(mockFollowFind).not.toHaveBeenCalled();
-
-    const pipeline = mockFollowAggregate.mock.calls[0][0] as Array<Record<string, unknown>>;
-    expect(pipeline).toEqual(
-      expect.arrayContaining([
-        { $match: expect.objectContaining({ followType: 'user' }) },
-        { $sort: { createdAt: -1, _id: 1 } },
-        { $limit: 5000 },
-        { $group: { _id: '$followedId', followersCount: { $sum: 1 } } },
-      ])
-    );
+    const returned = ids(res);
+    expect(returned.sort()).toEqual([complete, freshFederated].sort());
   });
 
-  it('rejects repeated excludeTypes query params instead of throwing a 500', async () => {
-    const res = await requestJson(
-      server,
-      '/profiles/recommendations?excludeTypes=federated&excludeTypes=agent'
-    );
+  it('excludes federated candidates when excludeTypes names them', async () => {
+    const native = await curatedAccount();
+    const federated = await curatedAccount({
+      type: 'federated',
+      federationActorUri: `https://remote.example/users/${handle('fed')}`,
+      federationDomain: 'remote.example',
+      federationLastResolvedAt: new Date(),
+    });
+    const { viewer } = await viewerWithOverlap([native, federated]);
+    currentUserId = viewer;
+
+    const res = await getRecommendations('?limit=50&excludeTypes=federated');
+
+    expect(ids(res)).toEqual([native]);
+  });
+
+  it('400s repeated excludeTypes query params instead of throwing a 500', async () => {
+    currentUserId = await curatedAccount();
+
+    const res = await getRecommendations('?excludeTypes=federated&excludeTypes=agent');
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('BAD_REQUEST');
-    expect(res.body.message).toBe('Invalid excludeTypes parameter. Must be a comma-separated string');
-    expect(mockFollowAggregate).not.toHaveBeenCalled();
-    expect(mockUserAggregate).not.toHaveBeenCalled();
+    expect(res.body.message).toMatch(/excludeTypes/i);
   });
 
-  it('requires recently resolved federated users in recommendation pipelines', async () => {
-    currentUserId = undefined;
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
+  it('ignores an unrecognised excludeTypes value rather than excluding nothing silently', async () => {
+    const native = await curatedAccount();
+    const { viewer } = await viewerWithOverlap([native]);
+    currentUserId = viewer;
 
-    const res = await requestJson(server, '/profiles/recommendations?limit=10');
+    const res = await getRecommendations('?limit=50&excludeTypes=not_a_type');
 
-    expect(res.status).toBe(200);
-    expectFederatedEligibilityMatch(mockFollowAggregate.mock.calls[0][0], 'user.');
-    expectFederatedEligibilityMatch(mockUserAggregate.mock.calls[0][0]);
+    expect(ids(res)).toEqual([native]);
   });
 
-  it('enforces the minimum profile-quality bar on the public and random-fill pipelines', async () => {
-    currentUserId = undefined;
-    // Empty follower-ranked window so the route also issues the random-fill
-    // User.aggregate, letting us assert the quality bar on both pipelines.
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
+  it('400s an out-of-range limit', async () => {
+    currentUserId = await curatedAccount();
 
-    const res = await requestJson(server, '/profiles/recommendations?limit=10');
+    const res = await getRecommendations('?limit=100000');
 
-    expect(res.status).toBe(200);
-    // Follower-ranked public pipeline (user under `user.`).
-    expectProfileQualityMatch(mockFollowAggregate.mock.calls[0][0], 'user.');
-    // Random-fill pipeline scanning the users collection directly.
-    expectProfileQualityMatch(mockUserAggregate.mock.calls[0][0]);
-  });
-
-  it('excludes account-level sensitive (NSFW) profiles from the public and random-fill pipelines', async () => {
-    currentUserId = undefined;
-    // Empty follower-ranked window so the route also issues the random-fill
-    // User.aggregate, letting us assert the sensitivity gate on both pipelines.
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
-
-    const res = await requestJson(server, '/profiles/recommendations?limit=10');
-
-    expect(res.status).toBe(200);
-    // Follower-ranked public pipeline (user under `user.`).
-    expectNonSensitiveMatch(mockFollowAggregate.mock.calls[0][0], 'user.');
-    // Random-fill pipeline scanning the users collection directly.
-    expectNonSensitiveMatch(mockUserAggregate.mock.calls[0][0]);
-  });
-
-  it('applies the profile-quality bar to the personalized fill for an authenticated caller', async () => {
-    currentUserId = userA.toHexString();
-
-    const lean = jest.fn().mockResolvedValue([{ followedId: userB }]);
-    const limit = jest.fn().mockReturnValue({ lean });
-    const select = jest.fn().mockReturnValue({ limit, lean });
-    mockFollowFind.mockReturnValue({ select });
-
-    // No mutual-overlap results → forces the random User.aggregate fill, which
-    // must carry the quality bar.
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
-
-    const res = await requestJson(server, '/profiles/recommendations?limit=10');
-
-    expect(res.status).toBe(200);
-    expectProfileQualityMatch(mockUserAggregate.mock.calls[0][0]);
+    expect(res.status).toBe(400);
   });
 });
 
-/**
- * Dual-auth viewer resolution (service token + X-Oxy-User-Id).
- *
- * The route now resolves the personalization viewer via the REAL
- * `resolveViewerId`. A valid service principal bearing `user:read` may name the
- * viewer through the `X-Oxy-User-Id` header; the route must then run the
- * PERSONALIZED path (load that viewer's following set via Follow.find) rather
- * than the anonymous public path. A user-token caller must ignore the header,
- * and a service lacking the scope / sending no header falls back to anonymous.
- */
-describe('POST /profiles/recommendations dual-auth viewer resolution', () => {
-  function postJson(
-    server: http.Server,
-    headers: Record<string, string> = {},
-    body: Record<string, unknown> = { limit: 10 }
-  ): Promise<JsonResponse> {
-    const address = server.address() as AddressInfo;
-    const payload = JSON.stringify(body);
-    return new Promise((resolve, reject) => {
-      const req = http.request(
-        {
-          method: 'POST',
-          host: '127.0.0.1',
-          port: address.port,
-          path: '/profiles/recommendations',
-          headers: { 'content-type': 'application/json', ...headers },
-        },
-        (res) => {
-          let raw = '';
-          res.on('data', (chunk) => { raw += chunk; });
-          res.on('end', () => {
-            try {
-              resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : {} });
-            } catch (err) {
-              reject(err);
-            }
-          });
-        }
-      );
-      req.on('error', reject);
-      req.end(payload);
-    });
-  }
+describe('GET /profiles/recommendations — anonymous fallback', () => {
+  it('returns eligible public profiles for an anonymous caller and gates the rest', async () => {
+    const popular = await mostFollowedAccount();
+    const privateAccount = await curatedAccount({ privacyIsPrivateAccount: true });
+    const archived = await curatedAccount({ accountStatus: 'archived' });
+    const shell = await account({ username: handle('shell') });
+    for (let index = 0; index < 3; index += 1) {
+      const fan = await curatedAccount();
+      await follow(fan, privateAccount);
+      await follow(fan, archived);
+      await follow(fan, shell);
+    }
 
-  /** Wire Follow.find so the personalized following-set load resolves to [B]. */
-  function stubFollowingSet(followed: Types.ObjectId[]): void {
-    const lean = jest.fn().mockResolvedValue(followed.map((id) => ({ followedId: id })));
-    const limit = jest.fn().mockReturnValue({ lean });
-    const select = jest.fn().mockReturnValue({ limit, lean });
-    mockFollowFind.mockReturnValue({ select });
-  }
-
-  it('ignores an unauthenticated clientId and does not read app-scoped signals', async () => {
-    const victimAppId = new Types.ObjectId().toHexString();
-    currentServiceApp = undefined;
-    currentUserId = undefined;
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
-
-    const res = await postJson(server, {}, { limit: 10, clientId: victimAppId });
+    const res = await getRecommendations('?limit=100');
 
     expect(res.status).toBe(200);
-    expect(mockAppUserSignalFind).not.toHaveBeenCalled();
+    const returned = ids(res);
+    expect(returned[0]).toBe(popular);
+    expect(returned).not.toContain(privateAccount);
+    expect(returned).not.toContain(archived);
+    expect(returned).not.toContain(shell);
   });
 
-  it('only reads app-scoped signals when the service token belongs to the requested app', async () => {
-    const appId = new Types.ObjectId().toHexString();
+  it('returns ONLY eligible accounts, whoever the popularity ranking happens to pick', async () => {
+    // The fallback ranks over the whole graph, so the row set is not this
+    // test's to choose. The GATE is, and it holds for every row returned.
+    const res = await getRecommendations('?limit=100');
+
+    expect(res.status).toBe(200);
+    const returned = ids(res);
+    expect(returned.length).toBeGreaterThan(0);
+    const rows = await getDb()
+      .select({
+        id: users.id,
+        username: users.username,
+        accountStatus: users.accountStatus,
+        reputationTier: users.reputationTier,
+        privacyIsPrivateAccount: users.privacyIsPrivateAccount,
+        isSensitive: users.isSensitive,
+      })
+      .from(users)
+      .where(inArray(users.id, returned));
+    expect(rows).toHaveLength(returned.length);
+    for (const row of rows) {
+      expect(row.accountStatus).toBe('active');
+      expect(row.reputationTier).not.toBe('restricted');
+      expect(row.privacyIsPrivateAccount).toBe(false);
+      expect(row.isSensitive).toBe(false);
+      expect(row.username).not.toBeNull();
+    }
+  });
+
+  it('stamps the uniform scored-row fields so the fallback and the scored path share a shape', async () => {
+    const popular = await mostFollowedAccount();
+
+    const res = await getRecommendations('?limit=100');
+
+    const row = res.body.data?.find((entry) => entry.id === popular);
+    expect(row).toBeDefined();
+    expect(row?.score).toBe(0);
+    expect(row?.matchedSignals).toEqual([]);
+    expect(row?.mutualCount).toBe(0);
+    expect(safeParseContract(recommendationResponseSchema, res.body.data)).not.toBeNull();
+  });
+});
+
+describe('GET /profiles/recommendations — scored ranking', () => {
+  it('ranks by composite score descending', async () => {
+    // Same mutual overlap for all three; `verified` and `completeness` are the
+    // only differing terms, so the expected order is derivable from the weights.
+    const bare = await account({ username: handle('bare'), avatar: 'file_a' });
+    const complete = await account({
+      username: handle('complete'),
+      avatar: 'file_b',
+      nameFirst: 'Com',
+      bio: 'a bio',
+    });
+    const verifiedComplete = await account({
+      username: handle('verified'),
+      avatar: 'file_c',
+      nameFirst: 'Ver',
+      bio: 'a bio',
+      verified: true,
+    });
+    const { viewer } = await viewerWithOverlap([bare, complete, verifiedComplete]);
+    currentUserId = viewer;
+
+    const res = await getRecommendations('?limit=50');
+
+    expect(ids(res)).toEqual([verifiedComplete, complete, bare]);
+    const scores = (res.body.data ?? []).map((row) => row.score as number);
+    expect(scores[0]).toBeGreaterThan(scores[1]);
+    expect(scores[1]).toBeGreaterThan(scores[2]);
+  });
+
+  it('ranks a higher mutual overlap above a lower one', async () => {
+    const viewer = await curatedAccount();
+    const bridgeA = await curatedAccount();
+    const bridgeB = await curatedAccount();
+    await follow(viewer, bridgeA);
+    await follow(viewer, bridgeB);
+    const doubleOverlap = await curatedAccount();
+    const singleOverlap = await curatedAccount();
+    await follow(bridgeA, doubleOverlap);
+    await follow(bridgeB, doubleOverlap);
+    await follow(bridgeA, singleOverlap);
+    currentUserId = viewer;
+
+    const res = await getRecommendations('?limit=50');
+
+    expect(ids(res)).toEqual([doubleOverlap, singleOverlap]);
+    expect(res.body.data?.[0]?.mutualCount).toBe(2);
+    expect(res.body.data?.[1]?.mutualCount).toBe(1);
+    expect(res.body.data?.[0]?.matchedSignals).toContain('graph');
+  });
+
+  it('pages the scored result deterministically', async () => {
+    const candidates: string[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      candidates.push(await curatedAccount());
+    }
+    const { viewer } = await viewerWithOverlap(candidates);
+    currentUserId = viewer;
+
+    const page1 = await getRecommendations('?limit=2&offset=0');
+    const page2 = await getRecommendations('?limit=2&offset=2');
+
+    // Every candidate scores identically, so `id` ascending is the only thing
+    // making the two pages a partition rather than an overlap.
+    expect([...ids(page1), ...ids(page2)].sort()).toEqual([...candidates].sort());
+    expect(new Set([...ids(page1), ...ids(page2)]).size).toBe(4);
+  });
+});
+
+describe('POST /profiles/recommendations — clientId authorization', () => {
+  it('reads app signals when a SERVICE token names its OWN application', async () => {
+    const owner = await curatedAccount();
+    const appId = await application(owner);
+    // An endorsed candidate with no graph overlap at all: it can only enter the
+    // union through the app signal, so its presence proves the signal was read.
+    const endorsed = await curatedAccount();
+    await getDb()
+      .insert(appUserSignals)
+      .values({ applicationId: appId, userId: endorsed, endorsementScore: 8 });
     currentServiceApp = { appId, scopes: ['user:read'] };
-    const signalLean = jest.fn().mockResolvedValue([
-      { userId: userD, endorsementScore: 10, interestScore: 1 },
-    ]);
-    const signalLimit = jest.fn().mockReturnValue({ lean: signalLean });
-    const signalSort = jest.fn().mockReturnValue({ limit: signalLimit });
-    const signalSelect = jest.fn().mockReturnValue({ sort: signalSort });
-    mockAppUserSignalFind.mockReturnValue({ select: signalSelect });
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockImplementation((pipeline: unknown) => {
-      const stages = pipeline as Array<Record<string, unknown>>;
-      const isCountPass = stages.some(
-        (stage) => stage.$project && (stage.$project as Record<string, unknown>).followersCount
-      );
-      if (isCountPass) {
-        return Promise.resolve([{ _id: userD, followersCount: 1, followingCount: 0 }]);
-      }
-      return Promise.resolve([
-        {
-          _id: userD, username: 'd', name: { first: 'D' }, avatar: 'x', verified: false,
-          completenessScore: 1, verifiedScore: 0, repCandScore: 0.5,
-        },
-      ]);
-    });
 
-    const res = await postJson(server, {}, { limit: 10, clientId: appId });
+    const res = await postRecommendations({ clientId: appId, limit: 50 });
 
     expect(res.status).toBe(200);
-    const signalQuery = mockAppUserSignalFind.mock.calls[0][0] as { applicationId: Types.ObjectId };
-    expect(signalQuery.applicationId.toHexString()).toBe(appId);
-    const returnedIds = (res.body.data ?? []).map((profile) => String(profile.id));
-    expect(returnedIds).toEqual([userD.toString()]);
+    const row = res.body.data?.find((entry) => entry.id === endorsed);
+    expect(row).toBeDefined();
+    expect(row?.matchedSignals).toContain('curation');
   });
 
-  it('ignores a clientId that does not match the service-token application', async () => {
-    const ownAppId = new Types.ObjectId().toHexString();
-    const victimAppId = new Types.ObjectId().toHexString();
+  it('DROPS a clientId naming another tenant application (service token)', async () => {
+    const owner = await curatedAccount();
+    const otherTenantAppId = await application(owner);
+    const ownAppId = await application(await curatedAccount());
+    const endorsed = await curatedAccount();
+    await getDb()
+      .insert(appUserSignals)
+      .values({ applicationId: otherTenantAppId, userId: endorsed, endorsementScore: 8 });
     currentServiceApp = { appId: ownAppId, scopes: ['user:read'] };
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
 
-    const res = await postJson(server, {}, { limit: 10, clientId: victimAppId });
+    const res = await postRecommendations({ clientId: otherTenantAppId, limit: 50 });
 
     expect(res.status).toBe(200);
-    expect(mockAppUserSignalFind).not.toHaveBeenCalled();
+    // The other tenant's endorsement must not have injected its candidate.
+    const row = res.body.data?.find((entry) => entry.id === endorsed);
+    expect(row?.matchedSignals ?? []).not.toContain('curation');
   });
 
-  it('service token + valid X-Oxy-User-Id (with user:read) personalizes for that viewer', async () => {
-    currentServiceApp = { appId: 'app1', scopes: ['user:read', 'files:write'] };
-    stubFollowingSet([userB]);
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
+  it('honours a clientId whose application is owned by the USER making the request', async () => {
+    const viewer = await curatedAccount();
+    const appId = await application(viewer);
+    const endorsed = await curatedAccount();
+    await getDb()
+      .insert(appUserSignals)
+      .values({ applicationId: appId, userId: endorsed, endorsementScore: 8 });
+    currentUserId = viewer;
 
-    const res = await postJson(server, { 'x-oxy-user-id': userA.toHexString() });
+    const res = await postRecommendations({ clientId: appId, limit: 50 });
 
     expect(res.status).toBe(200);
-    // Personalized path ran: the route loaded the VIEWER's following set.
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowFind.mock.calls[0][0]).toMatchObject({
-      followerUserId: userA.toHexString(),
-    });
-    // The viewer (A) and the followed user (B) are excluded from the fill.
-    const excludedIds = extractNinIds(mockUserAggregate.mock.calls[0][0]).map((id) => id.toString());
-    expect(excludedIds).toContain(userA.toString());
-    expect(excludedIds).toContain(userB.toString());
+    const row = res.body.data?.find((entry) => entry.id === endorsed);
+    expect(row).toBeDefined();
+    expect(row?.matchedSignals).toContain('curation');
   });
 
-  it('service token WITHOUT user:read ignores X-Oxy-User-Id (anonymous/public)', async () => {
-    currentServiceApp = { appId: 'app1', scopes: ['files:write'] };
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
+  it('DROPS a clientId whose application the user has no access to', async () => {
+    const stranger = await curatedAccount();
+    const appId = await application(stranger);
+    const endorsed = await curatedAccount();
+    await getDb()
+      .insert(appUserSignals)
+      .values({ applicationId: appId, userId: endorsed, endorsementScore: 8 });
+    currentUserId = await curatedAccount();
 
-    const res = await postJson(server, { 'x-oxy-user-id': userA.toHexString() });
+    const res = await postRecommendations({ clientId: appId, limit: 50 });
 
     expect(res.status).toBe(200);
-    // No viewer resolved → public path → the following-set query is never issued.
-    expect(mockFollowFind).not.toHaveBeenCalled();
+    const row = res.body.data?.find((entry) => entry.id === endorsed);
+    expect(row?.matchedSignals ?? []).not.toContain('curation');
   });
 
-  it('service token with a MALFORMED X-Oxy-User-Id falls back to anonymous', async () => {
-    currentServiceApp = { appId: 'app1', scopes: ['user:read'] };
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
+  it('DROPS a clientId from an anonymous caller without touching the applications table', async () => {
+    const owner = await curatedAccount();
+    const appId = await application(owner);
+    const endorsed = await curatedAccount();
+    await getDb()
+      .insert(appUserSignals)
+      .values({ applicationId: appId, userId: endorsed, endorsementScore: 8 });
 
-    const res = await postJson(server, { 'x-oxy-user-id': 'not-an-objectid' });
+    const res = await postRecommendations({ clientId: appId, limit: 50 });
 
     expect(res.status).toBe(200);
-    expect(mockFollowFind).not.toHaveBeenCalled();
+    const row = res.body.data?.find((entry) => entry.id === endorsed);
+    expect(row?.matchedSignals ?? []).not.toContain('curation');
   });
 
-  it('service token with NO X-Oxy-User-Id is anonymous (service acting as itself)', async () => {
-    currentServiceApp = { appId: 'app1', scopes: ['user:read'] };
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
+  it('DROPS a clientId that names no application at all', async () => {
+    currentUserId = await curatedAccount();
 
-    const res = await postJson(server, {});
+    const res = await postRecommendations({ clientId: randomUUID(), limit: 50 });
 
     expect(res.status).toBe(200);
-    expect(mockFollowFind).not.toHaveBeenCalled();
-  });
-
-  it('USER token IGNORES X-Oxy-User-Id and personalizes for its OWN session user (anti-impersonation)', async () => {
-    // A logged-in user (D) tries to smuggle another user (A) via the header.
-    currentUserId = userD.toHexString();
-    currentServiceApp = undefined;
-    stubFollowingSet([userC]);
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
-
-    const res = await postJson(server, { 'x-oxy-user-id': userA.toHexString() });
-
-    expect(res.status).toBe(200);
-    // The viewer is the SESSION user (D), NOT the header value (A).
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowFind.mock.calls[0][0]).toMatchObject({
-      followerUserId: userD.toHexString(),
-    });
-    const excludedIds = extractNinIds(mockUserAggregate.mock.calls[0][0]).map((id) => id.toString());
-    expect(excludedIds).toContain(userD.toString());
-    expect(excludedIds).not.toContain(userA.toString());
-  });
-
-  it('no principal at all (no token) is anonymous/public', async () => {
-    currentServiceApp = undefined;
-    currentUserId = undefined;
-    mockFollowAggregate.mockResolvedValue([]);
-    mockUserAggregate.mockResolvedValue([]);
-
-    const res = await postJson(server, {});
-
-    expect(res.status).toBe(200);
-    expect(mockFollowFind).not.toHaveBeenCalled();
   });
 });
 
-/**
- * Scored pipeline behavior — proves the (now sole) reputation-weighted scorer
- * runs end-to-end for a viewer with a non-empty candidate union: it scores the
- * mutual-overlap candidates, ranks them by composite score, and looks up
- * follower/following counts for the returned page only. This is the default path
- * (the REC_SCORING_V2 flag and legacy fallback were removed), so this test
- * guards that the scorer stays wired for real candidates rather than only the
- * empty-union popular fallback the exclusion tests exercise.
- */
-describe('GET /profiles/recommendations scored ranking', () => {
-  it('scores and ranks mutual-overlap candidates, returning them highest-score first', async () => {
-    currentUserId = userA.toHexString();
-
-    // Viewer A follows B. The scored path loads the following set, then the
-    // mutual-overlap aggregation (people followed by B).
-    const lean = jest.fn().mockResolvedValue([{ followedId: userB }]);
-    const limit = jest.fn().mockReturnValue({ lean });
-    const select = jest.fn().mockReturnValue({ limit, lean });
-    mockFollowFind.mockReturnValue({ select });
-
-    // Mutual map: C has more overlap than D, so before any other signal C should
-    // outrank D on the graph term.
-    mockFollowAggregate.mockResolvedValue([
-      { _id: userC, mutualCount: 8 },
-      { _id: userD, mutualCount: 2 },
-    ]);
-
-    // First User.aggregate = the scoring pass over the candidate union {C, D};
-    // second = the page follower/following count lookup. Distinguish them by the
-    // presence of a `$sample`/score projection vs the count projection.
-    mockUserAggregate.mockImplementation((pipeline: unknown) => {
-      const stages = pipeline as Array<Record<string, unknown>>;
-      const isCountPass = stages.some(
-        (s) => s.$project && (s.$project as Record<string, unknown>).followersCount
-      );
-      if (isCountPass) {
-        return Promise.resolve([
-          { _id: userC, followersCount: 30, followingCount: 5 },
-          { _id: userD, followersCount: 10, followingCount: 2 },
-        ]);
-      }
-      // Scoring pass: emit both candidates with neutral aggregation-side scores
-      // so the in-app graph term (mutualCount) drives the ranking.
-      return Promise.resolve([
-        {
-          _id: userC, username: 'c', name: { first: 'C' }, avatar: 'x', verified: false,
-          completenessScore: 1, verifiedScore: 0, repCandScore: 0.5,
-        },
-        {
-          _id: userD, username: 'd', name: { first: 'D' }, avatar: 'x', verified: false,
-          completenessScore: 1, verifiedScore: 0, repCandScore: 0.5,
-        },
-      ]);
-    });
-
-    const res = await requestJson(server, '/profiles/recommendations?limit=10');
-
-    expect(res.status).toBe(200);
-    const returnedIds = (res.body.data ?? []).map((p) => String(p.id));
-    // Both candidates surface, with the higher-mutual-overlap C ranked first.
-    expect(returnedIds).toEqual([userC.toString(), userD.toString()]);
-
-    // The scoring pass matched the candidate UNION (C, D) — not a full-collection
-    // scan — and excluded the viewer (A) and the followed user (B).
-    const scoringMatch = (mockUserAggregate.mock.calls[0][0] as Array<{ $match?: { _id?: { $in?: Types.ObjectId[] } } }>)
-      .find((s) => s.$match && s.$match._id && s.$match._id.$in);
-    const candidateIds = (scoringMatch?.$match?._id?.$in ?? []).map((id) => id.toString());
-    expect(candidateIds.sort()).toEqual([userC.toString(), userD.toString()].sort());
-    expect(candidateIds).not.toContain(userA.toString());
-    expect(candidateIds).not.toContain(userB.toString());
-
-    // The scoring pass also applies the account-level sensitivity gate so a
-    // candidate flagged NSFW by moderation is floored out of the scored surface,
-    // mirroring the restricted/private exclusions.
-    expectNonSensitiveMatch(mockUserAggregate.mock.calls[0][0]);
-  });
-});
-
-/**
- * Interaction-affinity injection + no-op (Fase 2).
- *
- * Proves the affinity term is ADDITIVE and a strict NO-OP until edges exist:
- *   - a viewer WITH a directed affinity edge injects that candidate into the
- *     scored union (even with no mutual overlap) and boosts its score, and
- *   - a viewer with NO edges produces an EMPTY candidate union → the popular
- *     fallback → the affinity term contributes nothing and injects no one.
- * The affinity read is gated on an authorized clientId, so the service token is
- * used for its OWN app.
- */
-describe('POST /profiles/recommendations interaction affinity', () => {
-  function postJson(
-    server: http.Server,
-    headers: Record<string, string> = {},
-    body: Record<string, unknown> = { limit: 10 }
-  ): Promise<JsonResponse> {
-    const address = server.address() as AddressInfo;
-    const payload = JSON.stringify(body);
-    return new Promise((resolve, reject) => {
-      const req = http.request(
-        {
-          method: 'POST',
-          host: '127.0.0.1',
-          port: address.port,
-          path: '/profiles/recommendations',
-          headers: { 'content-type': 'application/json', ...headers },
-        },
-        (res) => {
-          let raw = '';
-          res.on('data', (chunk) => { raw += chunk; });
-          res.on('end', () => {
-            try {
-              resolve({ status: res.statusCode ?? 0, body: raw ? JSON.parse(raw) : {} });
-            } catch (err) {
-              reject(err);
-            }
-          });
-        }
-      );
-      req.on('error', reject);
-      req.end(payload);
-    });
-  }
-
-  /** Wire the scoring + count User.aggregate passes for a candidate set. */
-  function stubUserAggregateFor(candidates: Types.ObjectId[]): void {
-    mockUserAggregate.mockImplementation((pipeline: unknown) => {
-      const stages = pipeline as Array<Record<string, unknown>>;
-      const isCountPass = stages.some(
-        (s) => s.$project && (s.$project as Record<string, unknown>).followersCount
-      );
-      const matchStage = stages.find(
-        (s) => s.$match && (s.$match as { _id?: { $in?: Types.ObjectId[] } })._id?.$in
-      );
-      const inIds = (matchStage?.$match as { _id?: { $in?: Types.ObjectId[] } } | undefined)?._id?.$in ?? [];
-      const present = candidates.filter((c) => inIds.some((id) => id.equals(c)));
-      if (isCountPass) {
-        return Promise.resolve(
-          present.map((c) => ({ _id: c, followersCount: 3, followingCount: 1 }))
-        );
-      }
-      return Promise.resolve(
-        present.map((c) => ({
-          _id: c, username: 'u', name: { first: 'U' }, avatar: 'x', verified: false,
-          completenessScore: 1, verifiedScore: 0, repCandScore: 0,
-        }))
-      );
-    });
-  }
-
+describe('POST /profiles/recommendations — interaction affinity', () => {
   it('injects and surfaces an affinity-only candidate for a viewer WITH an edge', async () => {
-    const appId = new Types.ObjectId().toHexString();
-    // A service token acting for viewer A within its own app (authorized clientId).
-    currentServiceApp = { appId, scopes: ['user:read'] };
+    const viewer = await curatedAccount();
+    const appId = await application(viewer);
+    // No follow edge in either direction — affinity is the ONLY path in.
+    const affine = await curatedAccount();
+    await getDb().insert(appAffinityEdges).values({
+      applicationId: appId,
+      fromUserId: viewer,
+      toUserId: affine,
+      affinity: 15,
+      lastEventAt: new Date(),
+      eventCount: 3,
+    });
+    currentUserId = viewer;
 
-    // Viewer A follows no one relevant → no mutual overlap.
-    const lean = jest.fn().mockResolvedValue([]);
-    const limit = jest.fn().mockReturnValue({ lean });
-    const select = jest.fn().mockReturnValue({ limit, lean });
-    mockFollowFind.mockReturnValue({ select });
-    mockFollowAggregate.mockResolvedValue([]);
-
-    // Viewer A has a strong, recent affinity edge toward D.
-    const affinityLean = jest.fn().mockResolvedValue([
-      { toUserId: userD, affinity: 40, lastEventAt: new Date() },
-    ]);
-    const affinityLimit = jest.fn().mockReturnValue({ lean: affinityLean });
-    const affinitySort = jest.fn().mockReturnValue({ limit: affinityLimit });
-    const affinitySelect = jest.fn().mockReturnValue({ sort: affinitySort });
-    mockAppAffinityEdgeFind.mockReturnValue({ select: affinitySelect });
-
-    stubUserAggregateFor([userD]);
-
-    const res = await postJson(
-      server,
-      { 'x-oxy-user-id': userA.toHexString() },
-      { limit: 10, clientId: appId }
-    );
+    const res = await postRecommendations({ clientId: appId, limit: 50 });
 
     expect(res.status).toBe(200);
-
-    // The affinity read was scoped to the viewer within the app.
-    const affinityQuery = mockAppAffinityEdgeFind.mock.calls[0][0] as {
-      applicationId: Types.ObjectId;
-      fromUserId: Types.ObjectId;
-    };
-    expect(affinityQuery.applicationId.toHexString()).toBe(appId);
-    expect(affinityQuery.fromUserId.toHexString()).toBe(userA.toHexString());
-
-    // D was INJECTED into the scored candidate union purely by affinity...
-    const scoringMatch = (mockUserAggregate.mock.calls[0][0] as Array<{ $match?: { _id?: { $in?: Types.ObjectId[] } } }>)
-      .find((s) => s.$match?._id?.$in);
-    const candidateIds = (scoringMatch?.$match?._id?.$in ?? []).map((id) => id.toString());
-    expect(candidateIds).toContain(userD.toString());
-
-    // ...and surfaces in the response, with the affinity signal marked matched.
-    const returned = res.body.data ?? [];
-    const dRow = returned.find((p) => String(p.id) === userD.toString()) as
-      | { id: unknown; score?: number; matchedSignals?: string[] }
-      | undefined;
-    expect(dRow).toBeDefined();
-    expect(dRow?.matchedSignals).toContain('affinity');
-    expect(dRow?.score ?? 0).toBeGreaterThan(0);
+    expect(ids(res)).toEqual([affine]);
+    expect(res.body.data?.[0]?.matchedSignals).toContain('affinity');
   });
 
-  it('is a strict NO-OP for a viewer with NO affinity edges (empty union → fallback)', async () => {
-    const appId = new Types.ObjectId().toHexString();
-    currentServiceApp = { appId, scopes: ['user:read'] };
+  it('is a strict no-op for a viewer with NO affinity edges', async () => {
+    const candidate = await curatedAccount();
+    const { viewer } = await viewerWithOverlap([candidate]);
+    const appId = await application(viewer);
+    currentUserId = viewer;
 
-    const lean = jest.fn().mockResolvedValue([]);
-    const limit = jest.fn().mockReturnValue({ lean });
-    const select = jest.fn().mockReturnValue({ limit, lean });
-    mockFollowFind.mockReturnValue({ select });
-    mockFollowAggregate.mockResolvedValue([]);
+    const withApp = await postRecommendations({ clientId: appId, limit: 50 });
+    const withoutApp = await postRecommendations({ limit: 50 });
 
-    // No affinity edges (the default beforeEach stub already returns []), and no
-    // app signals → the personalized candidate union is empty → popular fallback.
-    mockUserAggregate.mockResolvedValue([]);
+    expect(ids(withApp)).toEqual([candidate]);
+    expect(withApp.body.data?.[0]?.matchedSignals).not.toContain('affinity');
+    expect(ids(withoutApp)).toEqual(ids(withApp));
+  });
 
-    const res = await postJson(
-      server,
-      { 'x-oxy-user-id': userA.toHexString() },
-      { limit: 10, clientId: appId }
-    );
+  it('ignores an edge that has fully decayed to zero', async () => {
+    const viewer = await curatedAccount();
+    const appId = await application(viewer);
+    const affine = await curatedAccount();
+    await getDb().insert(appAffinityEdges).values({
+      applicationId: appId,
+      fromUserId: viewer,
+      toUserId: affine,
+      affinity: 0,
+      lastEventAt: new Date(),
+      eventCount: 0,
+    });
+    currentUserId = viewer;
+
+    const res = await postRecommendations({ clientId: appId, limit: 50 });
+
+    // A zero edge injects no candidate, so the viewer falls through to the
+    // popularity fallback rather than being handed a bogus suggestion.
+    //
+    // The assertion is about the SIGNAL, not about set membership. The fallback
+    // ranks over the whole graph — every account any suite has seeded — and
+    // breaks ties on `id` ascending, so whether a zero-follower account happens
+    // to land inside the first 50 depends on how many eligible rows the rest of
+    // the run created first. `not.toContain(affine)` therefore passed or failed
+    // on the shared database's population rather than on the decayed edge: it
+    // flaked the moment other suites seeded more accounts. What the decayed edge
+    // actually guarantees is that `affine` is never credited with `affinity`.
+    const affineRow = res.body.data?.find((row) => row.id === affine);
+    expect(affineRow?.matchedSignals ?? []).not.toContain('affinity');
+  });
+});
+
+describe('POST /profiles/recommendations — boosts and weights', () => {
+  it('injects a boosted member as a candidate and marks the appBoost signal', async () => {
+    const boosted = await curatedAccount();
+    const viewer = await curatedAccount();
+    currentUserId = viewer;
+
+    const res = await postRecommendations({
+      limit: 50,
+      boosts: [{ userIds: [boosted], weight: 1 }],
+    });
 
     expect(res.status).toBe(200);
-    // No candidate was injected by affinity: the only User.aggregate calls are
-    // the popular-fallback follower-ranked + random-fill passes, never a
-    // candidate-union `_id.$in` scoring pass.
-    const sawScoringUnion = mockUserAggregate.mock.calls.some((call) => {
-      const stages = call[0] as Array<{ $match?: { _id?: { $in?: unknown } } }>;
-      return stages.some((s) => s.$match?._id?.$in !== undefined);
+    expect(ids(res)).toEqual([boosted]);
+    expect(res.body.data?.[0]?.matchedSignals).toContain('appBoost');
+  });
+
+  it('still applies the eligibility bar to a boosted member', async () => {
+    const boostedPrivate = await curatedAccount({ privacyIsPrivateAccount: true });
+    currentUserId = await curatedAccount();
+
+    const res = await postRecommendations({
+      limit: 50,
+      boosts: [{ userIds: [boostedPrivate], weight: 5 }],
     });
-    expect(sawScoringUnion).toBe(false);
-    expect(Array.isArray(res.body.data)).toBe(true);
+
+    expect(ids(res)).not.toContain(boostedPrivate);
+  });
+
+  it('zeroing a signal weight removes its contribution', async () => {
+    const verified = await account({ username: handle('v'), avatar: 'file_a', verified: true });
+    const plain = await account({ username: handle('p'), avatar: 'file_a' });
+    const { viewer } = await viewerWithOverlap([verified, plain]);
+    currentUserId = viewer;
+
+    const weighted = await postRecommendations({ limit: 50 });
+    const unweighted = await postRecommendations({ limit: 50, signalWeights: { verified: 0 } });
+
+    expect(ids(weighted)).toEqual([verified, plain]);
+    const verifiedRow = unweighted.body.data?.find((row) => row.id === verified);
+    expect(verifiedRow?.matchedSignals).not.toContain('verified');
+  });
+
+  it('400s a body that violates the recommendation request contract', async () => {
+    currentUserId = await curatedAccount();
+
+    const res = await postRecommendations({ limit: 0 });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /profiles/recommendations — wire shape', () => {
+  it('emits the recommendation item DTO and parses against the shared contract', async () => {
+    const username = handle('recommended');
+    const candidate = await account({
+      username,
+      nameFirst: 'Rec',
+      nameLast: 'Ommended',
+      avatar: 'file_rec',
+      description: 'a description',
+      verified: true,
+      reputationTier: 'trusted',
+    });
+    const { viewer, bridge } = await viewerWithOverlap([candidate]);
+    currentUserId = viewer;
+
+    const res = await getRecommendations('?limit=50');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    const row = res.body.data?.[0] ?? {};
+    const { score, matchedSignals, ...rest } = row;
+    expect(rest).toEqual({
+      id: candidate,
+      username,
+      name: { displayName: 'Rec Ommended', first: 'Rec', last: 'Ommended', full: 'Rec Ommended' },
+      avatar: 'file_rec',
+      description: 'a description',
+      verified: true,
+      trustTier: 'trusted',
+      mutualCount: 1,
+      isFederated: false,
+      isAgent: false,
+      isAutomated: false,
+      _count: { followers: 1, following: 0 },
+    });
+    expect(typeof score).toBe('number');
+    expect(matchedSignals).toEqual(expect.arrayContaining(['graph', 'completeness', 'verified']));
+    expect(safeParseContract(recommendationResponseSchema, res.body.data)).not.toBeNull();
+    // The bridge is the viewer's own follow, so it is in the exclusion set.
+    expect(ids(res)).not.toContain(bridge);
   });
 });

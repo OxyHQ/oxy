@@ -116,7 +116,9 @@ describe('toggleFollowUser (optimistic)', () => {
     expect(useFollowStore.getState().loadingUsers.u1).toBe(true);
 
     resolveFollow({ message: 'ok', counts: { followers: 10, following: 3 } });
-    await pending;
+    const accepted = await pending;
+
+    expect(accepted).toBe(true);
 
     expect(useFollowStore.getState().followingUsers.u1).toBe(true);
     expect(useFollowStore.getState().loadingUsers.u1).toBe(false);
@@ -132,9 +134,9 @@ describe('toggleFollowUser (optimistic)', () => {
     const store = useFollowStore.getState();
     store.setFollowStatuses({ u1: false });
 
-    await store.toggleFollowUser('u1', services, false);
+    const accepted = await store.toggleFollowUser('u1', services, false);
 
-    // Optimistic true was rolled back to the seeded false.
+    expect(accepted).toBe(false);
     expect(useFollowStore.getState().followingUsers.u1).toBe(false);
     expect(useFollowStore.getState().loadingUsers.u1).toBe(false);
     expect(useFollowStore.getState().errors.u1).toBe('boom');
@@ -145,8 +147,9 @@ describe('toggleFollowUser (optimistic)', () => {
     mock.followUser.mockRejectedValueOnce(new Error('nope'));
 
     const store = useFollowStore.getState();
-    await store.toggleFollowUser('u1', services, false);
+    const accepted = await store.toggleFollowUser('u1', services, false);
 
+    expect(accepted).toBe(false);
     // The key is removed → back to UNKNOWN (tri-state), not a definite false.
     expect(Object.prototype.hasOwnProperty.call(useFollowStore.getState().followingUsers, 'u1')).toBe(false);
   });

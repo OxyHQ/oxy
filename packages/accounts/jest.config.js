@@ -40,6 +40,7 @@ module.exports = {
     '^@oxyhq/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
     '^expo-router$': '<rootDir>/__mocks__/expo-router.tsx',
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.ts',
+    '^@expo/vector-icons(/.*)?$': '<rootDir>/__mocks__/expo-vector-icons.tsx',
   },
   testTimeout: 10000,
 };

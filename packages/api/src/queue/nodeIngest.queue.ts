@@ -23,7 +23,9 @@
  */
 
 import { Queue, Worker, type Job } from 'bullmq';
-import UserNode from '../models/UserNode';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { userNodes } from '../db/schema/userNodes';
 import { ingestFromNode } from '../services/nodeSync.service';
 import { logger } from '../utils/logger';
 import { getQueueConnectionOptions } from './connection';
@@ -50,18 +52,34 @@ interface NodeIngestJobData {
 /**
  * Enqueue an ingest for every `mode:'pull'` node that is not revoked (least-
  * recently-synced first, bounded batch). Each enqueue is deduped, so a node still
- * mid-ingest is not re-scheduled. Reads Oxy's own `UserNode` rows only — it does
- * NOT touch any node (the worker does, in the background).
+ * mid-ingest is not re-scheduled. Reads Oxy's own `user_nodes` rows only — it
+ * does NOT touch any node (the worker does, in the background).
+ *
+ * **`NULLS FIRST` is load-bearing, exactly as in `sweepNodeLiveness`.** Mongo
+ * sorts a missing `lastSyncedAt` ahead of every date on an ascending sort;
+ * Postgres puts NULLs LAST by default. A node that has NEVER been ingested IS
+ * the least-recently-synced one, so with the default ordering a freshly
+ * registered node would sit behind {@link NODE_INGEST_SWEEP_BATCH} already-synced
+ * ones and never be picked up at all.
  */
 export async function sweepPullNodes(): Promise<void> {
-  const nodes = await UserNode.find({ mode: 'pull', status: { $in: ['active', 'unreachable'] } })
-    .sort({ lastSyncedAt: 1 })
-    .limit(NODE_INGEST_SWEEP_BATCH)
-    .select('userId')
-    .lean<Array<{ userId: { toString(): string } }>>();
+  const nodes = await getDb()
+    .select({ userId: userNodes.userId })
+    .from(userNodes)
+    .where(
+      and(
+        eq(userNodes.mode, 'pull'),
+        // The statuses are ENUMERATED rather than written `<> 'revoked'`: a
+        // status added later is not silently swept just because it is not
+        // `revoked`. This is the Mongo `$in` verbatim.
+        inArray(userNodes.status, ['active', 'unreachable']),
+      ),
+    )
+    .orderBy(sql`${userNodes.lastSyncedAt} asc nulls first`)
+    .limit(NODE_INGEST_SWEEP_BATCH);
 
   for (const node of nodes) {
-    enqueueNodeIngest(node.userId.toString());
+    enqueueNodeIngest(node.userId);
   }
 }
 

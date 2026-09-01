@@ -24,7 +24,8 @@ type PostLoginRedirectParams = {
  * `handleWebSession`), so the just-authenticated account is the SDK's ACTIVE
  * account. `/authorize`
  * targets that active account and offers the device chooser
- * (`useSwitchableAccounts`) to switch — the same mechanism every Oxy app uses.
+ * (`useDeviceSwitcher`) to activate a context — the same mechanism every Oxy
+ * app uses.
  */
 export function buildPostLoginRedirect({
     sessionToken,

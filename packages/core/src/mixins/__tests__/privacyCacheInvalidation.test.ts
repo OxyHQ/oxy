@@ -134,10 +134,12 @@ describe('privacy cache invalidation', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'ok' }));
     await oxy.blockUser('u1');
     expect(clearSpy).toHaveBeenCalledWith('GET:/privacy/blocked');
+    expect(clearSpy).toHaveBeenCalledWith('GET:/users/me/graph');
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'ok' }));
     await oxy.restrictUser('u2');
     expect(clearSpy).toHaveBeenCalledWith('GET:/privacy/restricted');
+    expect(clearSpy).toHaveBeenCalledWith('GET:/users/me/graph');
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ isPrivateAccount: true }));
     await oxy.updatePrivacySettings({ isPrivateAccount: true }, 'me');

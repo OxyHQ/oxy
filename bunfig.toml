@@ -1,2 +1,29 @@
 [install]
 peer = false
+
+# Supply-chain quarantine. A compromised release is typically caught and
+# unpublished within hours to a couple of days, so refusing to RESOLVE anything
+# published in the last week removes most of that window at no cost to the
+# builds that matter: the gate applies to resolution only, never to a frozen
+# install, so `bun install --frozen-lockfile` installs an already-locked fresh
+# package with no complaint even on a cold manifest cache. It fires for whoever
+# adds or bumps a dependency, which is exactly when the decision is being made.
+# Override deliberately with `bun install --minimum-release-age=0`.
+#
+# A step that RE-RESOLVES rather than installing frozen has to opt out, because
+# on a cold cache resolution judges every dependency afresh, already-locked ones
+# included; `scripts/check-lockfile-sync.mjs` therefore passes the override.
+#
+# Only our registry-sourced packages are excluded — publishing an Oxy package
+# and bumping its consumer in the same session is the normal workflow here, and
+# a week-old quarantine on ourselves would just teach everyone to pass the
+# override flag by reflex. The @oxyhq/* packages built IN this repo are
+# workspaces and never come from the registry. minimumReleaseAgeExcludes matches
+# EXACT names — a scope glob ("@oxyhq/*") is accepted by the parser and silently
+# matches nothing — so a new first-party dependency has to be added here. That
+# failure is loud and names the package, which is the right way round.
+minimumReleaseAge = 604800
+minimumReleaseAgeExcludes = [
+  "@alia.onl/sdk",
+  "@oxyhq/bloom",
+]

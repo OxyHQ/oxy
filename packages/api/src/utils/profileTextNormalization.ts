@@ -44,9 +44,10 @@
  * them can bypass, and it therefore normalizes in a setter. A new normalized
  * field needs either a chokepoint or that same argument — nothing else.
  *
- * The BACKFILL for these fields (`scripts/normalize-user-text-fields.ts`) calls
- * the functions below rather than restating their rules, so a normalized-in-place
- * document is byte-identical to one written through the service today.
+ * The one-shot backfill that normalized the already-stored corpus called these
+ * functions rather than restating their rules, so a normalized-in-place row is
+ * byte-identical to one written through the service today. It has run and been
+ * deleted; any future sweep must call in here for the same reason.
  *
  * Length caps are applied here too: these are display strings coming from a
  * remote origin that we do not control, so an unbounded `og:description` cannot

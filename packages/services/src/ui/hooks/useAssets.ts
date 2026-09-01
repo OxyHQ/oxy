@@ -48,7 +48,7 @@ export const useAssets = () => {
   // Upload asset with progress tracking
   const upload = useCallback(async (
     file: File, 
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<Asset | null> => {
     if (!oxyInstance) {
       throw new Error('OxyServices instance not configured. Call setOxyAssetInstance first.');

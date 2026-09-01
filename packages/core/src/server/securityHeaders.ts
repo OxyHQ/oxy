@@ -33,6 +33,19 @@
  *     cannot pass their own `contentSecurityPolicy` through to Helmet at all
  *     (the option is typed `never`).
  *
+ *  3. A STATIC EXPO EXPORT SHIPS AN INLINE SCRIPT THE BASELINE FORBIDS.
+ *     `web.output: 'static'` makes Expo Router emit
+ *     `<script type="module">globalThis.__EXPO_ROUTER_HYDRATE__=true;</script>`,
+ *     which is what tells the client entry to call `hydrateRoot` instead of
+ *     `createRoot().render()`. Nothing in app code puts it there, so — like the
+ *     Cloudflare beacon above — an app cannot allowlist it from the app side.
+ *     Measured on `accounts.oxy.so` 2026-08-21: blocked, so every visit threw
+ *     away the server-rendered markup and re-rendered from scratch, with only a
+ *     console error to show for it. The hashes are therefore DERIVED from the
+ *     built output rather than hand-written (see {@link extractInlineScripts}):
+ *     a hash pasted into config is correct exactly until the build changes one
+ *     byte, and then it fails the same silent way.
+ *
  * WHAT IT PROVIDES
  * ----------------
  * `createOxySecurityHeaders(options)` returns the Helmet middleware with the
@@ -54,6 +67,7 @@
  * Node/Express-only: exported solely from `@oxyhq/core/server`.
  */
 
+import { createHash } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import helmet, { type HelmetOptions } from 'helmet';
 
@@ -213,6 +227,197 @@ export function buildOxyCspDirectives(extensions: OxyCspExtensions = {}): Record
   resolved['upgrade-insecure-requests'] = [];
 
   return resolved;
+}
+
+/**
+ * Serialize resolved CSP directives into the single-line header value browsers
+ * and Cloudflare `_headers` expect. Valueless directives (e.g.
+ * `upgrade-insecure-requests`) emit the name alone.
+ */
+export function formatOxyCspPolicy(directives: Record<string, string[]>): string {
+  return Object.entries(directives)
+    .map(([name, sources]) => (sources.length === 0 ? name : `${name} ${sources.join(' ')}`))
+    .join('; ');
+}
+
+/**
+ * The source list one directive carries in a serialized policy, or `[]` when
+ * the policy does not name that directive. The inverse of
+ * {@link formatOxyCspPolicy}, and the reason it lives here rather than beside
+ * either caller: the post-deploy gate parses the policy the ORIGIN serves while
+ * the unit test parses the one the middleware renders, so a copy in each would
+ * let the header shape change with the test still green and the gate reading
+ * `[]` — reporting every script blocked, which reads as a broken app rather
+ * than as a broken parser.
+ *
+ * A directive present with no sources (`upgrade-insecure-requests`) and a
+ * directive absent entirely both answer `[]`. Callers that need to tell those
+ * apart are asking a different question than "what is allowed here".
+ */
+export function cspSourcesFor(policy: string, directive: string): string[] {
+  const segment = policy
+    .split(';')
+    .map((entry) => entry.trim())
+    .find((entry) => entry === directive || entry.startsWith(`${directive} `));
+  return segment === undefined ? [] : segment.split(/\s+/).slice(1);
+}
+
+/**
+ * Index of the `>` that closes a tag whose attribute region starts at `from`,
+ * or `-1` if the document ends first. Quote-aware: a `>` inside an attribute
+ * VALUE does not close the tag.
+ *
+ * No HTML any Oxy build currently emits contains such an attribute, so this is
+ * not load-bearing today — it is here because the same scanner reads the SERVED
+ * document in the post-deploy gate, and what an edge injects into that document
+ * is not ours to constrain. Getting it wrong is not a parse error: the body
+ * window shifts, the hash is computed over the wrong bytes, and the script is
+ * blocked exactly as if no hash had been derived at all.
+ */
+function findTagEnd(html: string, from: number): number {
+  let quote: '"' | "'" | null = null;
+  for (let index = from; index < html.length; index += 1) {
+    const character = html[index];
+    if (quote !== null) {
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '>') return index;
+  }
+  return -1;
+}
+
+/**
+ * Every inline `<script>` body in an HTML document, in document order. A
+ * `<script src=…>` is a URL the source list already governs and is skipped.
+ *
+ * Scanned rather than matched with one regex because the two failure modes are
+ * not symmetric: an EXTRA body costs a redundant hash nobody notices, while a
+ * MISSED body silently reinstates the exact breakage this exists to prevent.
+ * So the scan errs toward finding them — it walks the open tag quote-aware
+ * instead of letting a `>` inside an attribute value truncate it.
+ *
+ * The type attribute is deliberately not consulted. Whether a given `type`
+ * executes is a browser decision (and it changes: `importmap` and
+ * `speculationrules` were both once inert), and pinning the exact bytes of a
+ * data block we ship ourselves weakens nothing.
+ */
+export function extractInlineScripts(html: string): string[] {
+  const lowered = html.toLowerCase();
+  const bodies: string[] = [];
+  const openTag = /<script\b/gi;
+
+  let match = openTag.exec(html);
+  while (match !== null) {
+    const attributesStart = match.index + match[0].length;
+    const attributesEnd = findTagEnd(html, attributesStart);
+    if (attributesEnd < 0) break;
+
+    const bodyStart = attributesEnd + 1;
+    const bodyEnd = lowered.indexOf('</script', bodyStart);
+    if (bodyEnd < 0) break;
+
+    if (!/\bsrc\s*=/i.test(html.slice(attributesStart, attributesEnd))) {
+      bodies.push(html.slice(bodyStart, bodyEnd));
+    }
+
+    openTag.lastIndex = bodyEnd;
+    match = openTag.exec(html);
+  }
+
+  return bodies;
+}
+
+/**
+ * The `'sha256-…'` source that allows one inline script, hashed over its exact
+ * bytes as CSP specifies — no trimming, no normalization. One byte of
+ * whitespace either way is a different hash and the script stays blocked.
+ */
+export function inlineScriptCspHash(source: string): string {
+  return `'sha256-${createHash('sha256').update(source, 'utf8').digest('base64')}'`;
+}
+
+/**
+ * Ceiling on how many derived inline-script hashes may enter one `_headers`
+ * block. Nothing in an Oxy app authors an inline script, so the realistic
+ * count is the ONE Expo Router hydration flag — deduped across every route's
+ * HTML, because it is byte-identical in all of them.
+ *
+ * The ceiling exists because one future change breaks that: a route loader
+ * makes Expo emit a SECOND inline script, `__EXPO_ROUTER_LOADER_DATA__`, whose
+ * bytes differ per route. The hashes stay CORRECT (they are derived from the
+ * same build that ships), but the count becomes the route count and the policy
+ * grows without bound on every response. That is a decision to take
+ * deliberately, so it arrives as a red build rather than a quietly enormous
+ * header.
+ */
+const MAX_INLINE_SCRIPT_HASHES = 8;
+
+export interface OxyPagesHeadersOptions {
+  /** Per-app additions merged into {@link OXY_CSP_BASELINE}. */
+  csp?: OxyCspExtensions;
+  /**
+   * Emit `Strict-Transport-Security` (default `true`). Cloudflare Pages serves
+   * HTTPS only, so static deploys should keep this on.
+   */
+  hsts?: boolean;
+  /**
+   * The BUILT HTML documents this `_headers` will be served alongside. Every
+   * inline script found in them is allowed by hash, added to `script-src`.
+   *
+   * Passing the built output — rather than hand-writing a hash into
+   * `oxy.pages-headers.json` — is the whole point: a pasted hash is correct
+   * until the generator changes one byte of that script, and then the script is
+   * blocked again with nothing but a console error to show for it.
+   */
+  html?: readonly string[];
+}
+
+/**
+ * Build a Cloudflare Pages `_headers` block for an Oxy HTML origin. Uses the
+ * same CSP resolution as {@link createOxySecurityHeaders} plus the non-CSP
+ * hardening headers Helmet would add on an Express HTML backend.
+ *
+ * Adding a hash to `script-src` does not narrow it: per CSP Level 3 a hash is
+ * an additional source, so `'self'` and the beacon host keep matching external
+ * scripts. (It WOULD neutralize `'unsafe-inline'` in the same directive — which
+ * is why this hashes scripts only. `style-src` keeps `'unsafe-inline'` for
+ * react-native-web's runtime stylesheet, and a style hash would silently switch
+ * that off and render every Oxy web app unstyled.)
+ */
+export function buildOxyPagesHeaders(options: OxyPagesHeadersOptions = {}): string {
+  const hashes = [
+    ...new Set((options.html ?? []).flatMap(extractInlineScripts).map(inlineScriptCspHash)),
+  ];
+  if (hashes.length > MAX_INLINE_SCRIPT_HASHES) {
+    throw new RangeError(
+      `Oxy CSP: ${hashes.length} distinct inline scripts in the built HTML exceeds the ${MAX_INLINE_SCRIPT_HASHES}-hash ceiling. A per-route inline data block (e.g. an Expo Router loader) is the likely cause; allow it deliberately rather than by raising this.`,
+    );
+  }
+
+  const csp = formatOxyCspPolicy(
+    buildOxyCspDirectives(
+      hashes.length === 0
+        ? options.csp
+        : { ...options.csp, scriptSrc: [...(options.csp?.scriptSrc ?? []), ...hashes] },
+    ),
+  );
+  const lines = [
+    '/*',
+    `  Content-Security-Policy: ${csp}`,
+    '  X-Frame-Options: DENY',
+    '  X-Content-Type-Options: nosniff',
+    '  Referrer-Policy: strict-origin-when-cross-origin',
+  ];
+  if (options.hsts !== false) {
+    lines.push('  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
+  }
+  lines.push('');
+  return lines.join('\n');
 }
 
 export interface OxySecurityHeadersOptions {

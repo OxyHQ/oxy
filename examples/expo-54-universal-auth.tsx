@@ -8,9 +8,9 @@
  *     from the on-device deviceId, and the shared keychain (`group.so.oxy.shared`)
  *     lets a user already signed into another Oxy app carry that session over —
  *     both automatic, no code here.
- *   - Web: device-first cold boot (durable `oxy_device` cookie → mint) restores
- *     the session via react-native-web. No FedCM, no `/sso` bounce, no cookies
- *     you manage.
+ *   - Web: device-first cold boot (persisted `{deviceId, deviceSecret}` →
+ *     `POST /session/device/token`) restores the session via react-native-web.
+ *     No FedCM, no `/sso` bounce, no cookies you manage.
  *
  * Cold boot NEVER redirects to a login page — it either restores a session or
  * resolves as signed-out. Interactive sign-in is the in-app dialog / OAuth

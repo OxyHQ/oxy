@@ -1,201 +1,558 @@
 /**
- * Real-life attestation service tests (civic / Fase 2 Part A).
+ * `submitRealLifeAttestation` — the HIGH-weight anti-gaming signal, against a
+ * REAL Postgres.
  *
- * Drives `submitRealLifeAttestation` with everything around it mocked (signature
- * verify + chain store, graph exclusion, nonce, reputation award, models) so the
- * eligibility gates are exercised in isolation: a clean attestation awards the
- * subject the HIGH-weight points (recording the attestor + emitting the Oxy
- * provenance attestation), a REPEAT of the same pair is an idempotent no-op
- * (no second award), and each gate (self, expired, nonce reuse, graph
- * neighbour, shared device, bad signature) rejects with its stable reason.
- * `did.service` (buildUserDid/parseUserDid) runs for real.
+ * B physically meets A, scans A's QR and signs a `real_life_attestation` with
+ * B's OWN key; the server awards A +25 and records B as the counterparty who can
+ * later be slashed for it. The suite this replaces mocked the signature check,
+ * the chain store, the nonce model, the graph-exclusion predicate, the user
+ * model AND the reputation service — so the ONLY thing left running was the
+ * ordering of the `if`s, and every assertion was about the arguments handed to a
+ * mock. It could not see a single row: not the award, not the burned nonce, not
+ * the stored envelope, and above all not whether a rejected attempt left the
+ * subject's QR spendable.
+ *
+ * Rewritten end to end. The three properties that carry the weight, and which
+ * a mocked version structurally could not test:
+ *
+ *  - **A rejection must not burn the nonce.** The nonce claim sits AFTER the
+ *    eligibility gates precisely so a refused scan does not cost the subject
+ *    their QR. Asserted by having a second, eligible counterparty succeed with
+ *    the SAME nonce after the first was refused.
+ *  - **The (attestor → subject) pair earns at most once.** `realLifeCount`
+ *    feeds personhood, so a second +25 for a re-scan is a personhood exploit.
+ *    Asserted by counting ledger rows, not by observing a mock go uncalled.
+ *  - **The proof chain really exists.** B's envelope is stored, its content
+ *    address is the award's `source_action_id`, and the Oxy attestation on A's
+ *    chain names that same address.
  */
 
+import { createHash, randomUUID } from 'node:crypto';
+import { ec as EC } from 'elliptic';
+import { and, eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
-
-const mockVerifySig = jest.fn();
-const mockVerifyAndStore = jest.fn();
-const mockIsSockPuppet = jest.fn();
-const mockNonceCreate = jest.fn();
-const mockAward = jest.fn();
-const mockUserExists = jest.fn();
-const mockUserFindById = jest.fn();
-const mockTxnFindOne = jest.fn();
-
-jest.mock('../signedRecord.service', () => ({
-  verifyAndStoreRecord: (...a: unknown[]) => mockVerifyAndStore(...a),
-}));
-jest.mock('@oxyhq/protocol', () => ({
-  ...jest.requireActual('@oxyhq/protocol'),
-  verifyEnvelopeSignature: (...a: unknown[]) => mockVerifySig(...a),
-}));
-jest.mock('../civic/graphExclusion', () => ({
-  isSockPuppetRelation: (...a: unknown[]) => mockIsSockPuppet(...a),
-}));
-jest.mock('../../models/CivicNonce', () => ({
-  __esModule: true,
-  default: { create: (...a: unknown[]) => mockNonceCreate(...a) },
-}));
-jest.mock('../reputation.service', () => ({
-  reputationService: { award: (...a: unknown[]) => mockAward(...a) },
-}));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: {
-    exists: (...a: unknown[]) => mockUserExists(...a),
-    findById: (...a: unknown[]) => mockUserFindById(...a),
-  },
-}));
-jest.mock('../../models/ReputationTransaction', () => ({
-  __esModule: true,
-  ReputationTransaction: { findOne: (...a: unknown[]) => mockTxnFindOne(...a) },
-}));
-jest.mock('../../utils/validation', () => ({ isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id) }));
-jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { civicNonces } from '../../db/schema/civicNonces';
+import { reputationTransactions } from '../../db/schema/reputationTransactions';
+import { sessions } from '../../db/schema/sessions';
+import { signedRecords } from '../../db/schema/signedRecords';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
+import { REPUTATION_ATTESTATION_COLLECTION } from '../civic/attestation.service';
 import { submitRealLifeAttestation } from '../civic/realLife.service';
 import { buildUserDid } from '../did.service';
+import { getHead } from '../repoLog.service';
+import { reputationService } from '../reputation.service';
+import { signRecordEnvelope } from '../signedRecord.service';
+import {
+  REAL_LIFE_ATTESTED_ACTION,
+  REAL_LIFE_ATTESTED_POINTS,
+} from '../../utils/reputation.constants';
+import { REAL_LIFE_NONCE_MAX_AGE_MS } from '../../utils/civic.constants';
 
-const A = 'a'.repeat(24); // subject
-const B = 'b'.repeat(24); // attestor (caller)
+const ec = new EC('secp256k1');
+const oxyKey = ec.genKeyPair();
+const OXY_PUBLIC = oxyKey.getPublic('hex');
+const OXY_PRIVATE = oxyKey.getPrivate('hex');
 
-function envelope(overrides: { about?: string; exp?: number; subject?: string; issuer?: string } = {}): SignedRecordEnvelope {
-  return {
-    version: 2,
-    type: 'real_life_attestation',
-    subject: overrides.subject ?? buildUserDid(B),
-    issuer: overrides.issuer ?? buildUserDid(B),
-    record: {
-      about: overrides.about ?? buildUserDid(A),
-      context: 'ctx-1',
-      nonce: 'nonce-1',
-      exp: overrides.exp ?? Date.now() + 5 * 60 * 1000,
-    },
-    issuedAt: Date.now(),
-    seq: 0,
-    prev: null,
-    collection: 'app.oxy.attestation',
-    rkey: 'nonce-1',
-    publicKey: 'pk-b',
-    alg: 'ES256K-DER-SHA256',
-    signature: 'sig',
-  };
+const unique = () => randomUUID();
+
+/** The attestation collection B's own envelope lands in. */
+const ATTESTATION_COLLECTION = 'app.oxy.attestation';
+
+interface Signer {
+  id: string;
+  privateKey: string;
+  publicKey: string;
 }
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockVerifySig.mockReturnValue(true);
-  mockIsSockPuppet.mockResolvedValue({ excluded: false });
-  mockNonceCreate.mockResolvedValue({});
-  mockVerifyAndStore.mockResolvedValue({ ok: true, record: { recordId: 'rec-1' } });
-  mockAward.mockResolvedValue({ points: 25 });
-  mockUserExists.mockResolvedValue({ _id: A });
-  mockUserFindById.mockReturnValue({ select: () => ({ lean: async () => ({ publicKey: 'pk-b', authMethods: [] }) }) });
-  mockTxnFindOne.mockReturnValue({ select: () => ({ lean: async () => null }) });
+/** A counterparty: an account whose signing key the resolver will authorize. */
+async function signer(): Promise<Signer> {
+  const keyPair = ec.genKeyPair();
+  const publicKey = keyPair.getPublic('hex');
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username: `u-${unique().slice(0, 18)}`, publicKey })
+    .returning({ id: users.id });
+  return { id: row.id, privateKey: keyPair.getPrivate('hex'), publicKey };
+}
+
+/** A subject: a plain account, which is all the QR owner needs to be. */
+async function account(): Promise<string> {
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username: `u-${unique().slice(0, 18)}` })
+    .returning({ id: users.id });
+  return row.id;
+}
+
+async function session(userId: string, deviceId: string): Promise<void> {
+  const token = unique();
+  await getDb().insert(sessions).values({
+    sessionId: `s-${token}`,
+    userId,
+    deviceId,
+    deviceType: 'mobile',
+    platform: 'ios',
+    accessToken: `at-${token}`,
+    refreshToken: `rt-${token}`,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  });
+}
+
+/**
+ * The envelope B signs after scanning A's QR: self-issued on B's chain, with A
+ * referenced by `about`. Genuinely signed, so the service's own signature check
+ * and the store's verification both run for real.
+ */
+async function attestation(
+  attestor: Signer,
+  overrides: {
+    about?: string;
+    nonce?: string;
+    exp?: number;
+    context?: string;
+    subject?: string;
+    issuer?: string;
+    type?: SignedRecordEnvelope['type'];
+    record?: Record<string, unknown>;
+    /** Sign with a key OTHER than the attestor's — a forgery. */
+    signingKey?: string;
+  } = {}
+): Promise<SignedRecordEnvelope> {
+  const head = await getHead(attestor.id);
+  const subject = overrides.subject ?? buildUserDid(attestor.id);
+  const nonce = overrides.nonce ?? `nonce-${unique()}`;
+  return signRecordEnvelope(
+    {
+      version: 2,
+      type: overrides.type ?? 'real_life_attestation',
+      subject,
+      issuer: overrides.issuer ?? subject,
+      record: overrides.record ?? {
+        about: overrides.about ?? '',
+        context: overrides.context ?? 'ctx-1',
+        nonce,
+        exp: overrides.exp ?? Date.now() + 5 * 60 * 1000,
+        biometricOk: true,
+      },
+      issuedAt: Date.now(),
+      seq: head ? head.seq + 1 : 0,
+      prev: head ? head.headRecordId : null,
+      collection: ATTESTATION_COLLECTION,
+      rkey: nonce,
+      publicKey: attestor.publicKey,
+      alg: 'ES256K-DER-SHA256',
+    },
+    overrides.signingKey ?? attestor.privateKey
+  );
+}
+
+/** The subject's `real_life_attested` ledger rows. */
+async function awards(subjectUserId: string) {
+  return getDb()
+    .select({
+      id: reputationTransactions.id,
+      points: reputationTransactions.points,
+      createdByUserId: reputationTransactions.createdByUserId,
+      sourceActionId: reputationTransactions.sourceActionId,
+      metadata: reputationTransactions.metadata,
+    })
+    .from(reputationTransactions)
+    .where(
+      and(
+        eq(reputationTransactions.userId, subjectUserId),
+        eq(reputationTransactions.actionType, REAL_LIFE_ATTESTED_ACTION)
+      )
+    );
+}
+
+/** The attestation envelopes stored on a counterparty's own chain. */
+async function storedAttestations(attestorUserId: string) {
+  return getDb()
+    .select({ recordId: signedRecords.recordId, rkey: signedRecords.rkey, envelope: signedRecords.envelope })
+    .from(signedRecords)
+    .where(
+      and(eq(signedRecords.userId, attestorUserId), eq(signedRecords.nsid, ATTESTATION_COLLECTION))
+    );
+}
+
+/** The nonces burned for a subject. */
+async function burnedNonces(subjectUserId: string) {
+  return getDb()
+    .select({ nonceHash: civicNonces.nonceHash, purpose: civicNonces.purpose })
+    .from(civicNonces)
+    .where(eq(civicNonces.subjectUserId, subjectUserId));
+}
+
+/** The nonce hash the service stores — purpose-salted sha256, never the raw value. */
+function nonceHash(nonce: string): string {
+  return createHash('sha256').update(`real_life_attestation:${nonce}`).digest('hex');
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+  process.env.OXY_PRIVATE_KEY = OXY_PRIVATE;
+  process.env.OXY_PUBLIC_KEY = OXY_PUBLIC;
+  await reputationService.seedDefaultRules();
 });
 
-describe('submitRealLifeAttestation', () => {
-  it('awards the subject the HIGH-weight points and records the attestor', async () => {
-    const result = await submitRealLifeAttestation(envelope(), B);
+afterAll(async () => {
+  delete process.env.OXY_PRIVATE_KEY;
+  delete process.env.OXY_PUBLIC_KEY;
+  await closePostgres();
+});
 
-    expect(result).toEqual({ ok: true, recordId: 'rec-1', subjectUserId: A, attestorUserId: B, points: 25 });
-    expect(mockAward).toHaveBeenCalledTimes(1);
-    expect(mockAward.mock.calls[0][0]).toMatchObject({
-      userId: A,
-      actionType: 'real_life_attested',
-      createdByUserId: B,
-      emitAttestation: true,
-      sourceEnvelopeIds: ['rec-1'],
+describe('an accepted attestation', () => {
+  it('awards the subject, records the counterparty, and stores the whole proof chain', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    const nonce = `nonce-${unique()}`;
+    const envelope = await attestation(attestor, {
+      about: buildUserDid(subject),
+      nonce,
+      context: 'ctx-cafe',
+    });
+
+    const result = await submitRealLifeAttestation(envelope, attestor.id);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result).toMatchObject({
+      subjectUserId: subject,
+      attestorUserId: attestor.id,
+      points: REAL_LIFE_ATTESTED_POINTS,
+    });
+
+    // 1. The ledger: exactly one award, to the SUBJECT, crediting the attestor.
+    const ledger = await awards(subject);
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({
+      points: REAL_LIFE_ATTESTED_POINTS,
+      createdByUserId: attestor.id,
+      sourceActionId: result.recordId,
+      metadata: { attestorUserId: attestor.id, context: 'ctx-cafe', biometricOk: true },
+    });
+    // The attestor earns nothing for attesting — only the subject does.
+    expect(await awards(attestor.id)).toEqual([]);
+
+    // 2. B's signed statement is on B's OWN chain, at the address the award cites.
+    const stored = await storedAttestations(attestor.id);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].recordId).toBe(result.recordId);
+    expect(stored[0].rkey).toBe(nonce);
+    expect(stored[0].envelope.record).toMatchObject({ about: buildUserDid(subject) });
+    expect(await storedAttestations(subject)).toEqual([]);
+
+    // 3. The nonce is burned — hashed, never stored in the clear.
+    expect(await burnedNonces(subject)).toEqual([
+      { nonceHash: nonceHash(nonce), purpose: 'real_life_attestation' },
+    ]);
+
+    // 4. The Oxy provenance attestation on the SUBJECT's chain names B's
+    //    envelope, closing the loop `user signature → Oxy attestation → ledger`.
+    const [provenance] = await getDb()
+      .select({ envelope: signedRecords.envelope })
+      .from(signedRecords)
+      .where(
+        and(
+          eq(signedRecords.userId, subject),
+          eq(signedRecords.nsid, REPUTATION_ATTESTATION_COLLECTION)
+        )
+      );
+    expect(provenance).toBeDefined();
+    expect(provenance.envelope.record).toMatchObject({
+      txnId: ledger[0].id,
+      subjectUserId: subject,
+      actionType: REAL_LIFE_ATTESTED_ACTION,
+      weightClass: 'HIGH',
+      sourceEnvelopeIds: [result.recordId],
     });
   });
 
-  it('rejects a wrong type', async () => {
-    const env = { ...envelope(), type: 'identity' as SignedRecordEnvelope['type'] };
-    expect(await submitRealLifeAttestation(env, B)).toEqual({ ok: false, reason: 'invalid_type' });
+  it('awards independently for a DIFFERENT counterparty', async () => {
+    const subject = await account();
+    const first = await signer();
+    const second = await signer();
+
+    await submitRealLifeAttestation(
+      await attestation(first, { about: buildUserDid(subject) }),
+      first.id
+    );
+    await submitRealLifeAttestation(
+      await attestation(second, { about: buildUserDid(subject) }),
+      second.id
+    );
+
+    const ledger = await awards(subject);
+    expect(ledger).toHaveLength(2);
+    expect(new Set(ledger.map((row) => row.createdByUserId))).toEqual(
+      new Set([first.id, second.id])
+    );
+  });
+});
+
+describe('the pair earns at most once', () => {
+  it('answers a re-scan with the ORIGINAL award and burns no second nonce', async () => {
+    // `realLifeCount` feeds personhood, so a second +25 for re-scanning the same
+    // person is a personhood exploit. The repeat carries a FRESH nonce, which
+    // must survive: a no-op must not cost the subject their current QR.
+    const subject = await account();
+    const attestor = await signer();
+
+    const firstResult = await submitRealLifeAttestation(
+      await attestation(attestor, { about: buildUserDid(subject) }),
+      attestor.id
+    );
+    expect(firstResult.ok).toBe(true);
+    if (!firstResult.ok) return;
+
+    const repeat = await submitRealLifeAttestation(
+      await attestation(attestor, { about: buildUserDid(subject) }),
+      attestor.id
+    );
+
+    expect(repeat).toEqual({
+      ok: true,
+      recordId: firstResult.recordId,
+      subjectUserId: subject,
+      attestorUserId: attestor.id,
+      points: REAL_LIFE_ATTESTED_POINTS,
+    });
+    // One award, one stored envelope, one burned nonce.
+    expect(await awards(subject)).toHaveLength(1);
+    expect(await storedAttestations(attestor.id)).toHaveLength(1);
+    expect(await burnedNonces(subject)).toHaveLength(1);
+  });
+});
+
+describe('the envelope gates', () => {
+  it('rejects a record that is not a real-life attestation', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    const envelope = await attestation(attestor, {
+      about: buildUserDid(subject),
+      type: 'identity',
+    });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
+      ok: false,
+      reason: 'invalid_type',
+    });
+    expect(await awards(subject)).toEqual([]);
   });
 
-  it('rejects an envelope not self-issued by the attestor', async () => {
-    const env = envelope({ subject: buildUserDid(A) });
-    expect(await submitRealLifeAttestation(env, B)).toEqual({ ok: false, reason: 'not_self_issued' });
+  it('rejects an envelope self-issued as a DIFFERENT account', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    const envelope = await attestation(attestor, {
+      about: buildUserDid(subject),
+      subject: buildUserDid(subject),
+    });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
+      ok: false,
+      reason: 'not_self_issued',
+    });
   });
 
-  it('rejects a self-attestation (about === attestor)', async () => {
-    expect(await submitRealLifeAttestation(envelope({ about: buildUserDid(B) }), B)).toEqual({
+  it('rejects an envelope whose issuer and subject disagree', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    const envelope = await attestation(attestor, {
+      about: buildUserDid(subject),
+      issuer: buildUserDid(subject),
+    });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
+      ok: false,
+      reason: 'not_self_issued',
+    });
+  });
+
+  it('rejects a malformed record payload', async () => {
+    const attestor = await signer();
+    const subject = await account();
+    const envelope = await attestation(attestor, {
+      // No `nonce`, so there is no replay guard to claim at all.
+      record: { about: buildUserDid(subject), context: 'ctx', exp: Date.now() + 60_000 },
+    });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
+      ok: false,
+      reason: 'invalid_record',
+    });
+  });
+
+  it('rejects an `about` that is not a user DID of this issuer', async () => {
+    const attestor = await signer();
+    const envelope = await attestation(attestor, { about: `did:web:evil.com:u:${unique()}` });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
+      ok: false,
+      reason: 'invalid_subject',
+    });
+  });
+
+  it('rejects an attestation about an account that does not exist', async () => {
+    const attestor = await signer();
+    const envelope = await attestation(attestor, { about: buildUserDid(unique()) });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
+      ok: false,
+      reason: 'subject_not_found',
+    });
+  });
+
+  it('rejects attesting yourself', async () => {
+    const attestor = await signer();
+    const envelope = await attestation(attestor, { about: buildUserDid(attestor.id) });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
       ok: false,
       reason: 'self_attestation',
     });
+    expect(await awards(attestor.id)).toEqual([]);
   });
 
-  it('rejects an expired QR', async () => {
-    expect(await submitRealLifeAttestation(envelope({ exp: Date.now() - 1000 }), B)).toEqual({
+  it('rejects a QR that has expired', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    const envelope = await attestation(attestor, {
+      about: buildUserDid(subject),
+      exp: Date.now() - 1000,
+    });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
       ok: false,
       reason: 'expired',
     });
   });
 
-  it('rejects a graph-related counterparty (no award)', async () => {
-    mockIsSockPuppet.mockResolvedValue({ excluded: true, reason: 'graph_neighbor' });
-    expect(await submitRealLifeAttestation(envelope(), B)).toEqual({
+  it('rejects a QR whose expiry is further out than the freshness window', async () => {
+    // The upper bound matters as much as the lower one: an `exp` years away is a
+    // permanently reusable scan handle, which is what the window exists to deny.
+    const subject = await account();
+    const attestor = await signer();
+    const envelope = await attestation(attestor, {
+      about: buildUserDid(subject),
+      exp: Date.now() + REAL_LIFE_NONCE_MAX_AGE_MS + 60_000,
+    });
+
+    expect(await submitRealLifeAttestation(envelope, attestor.id)).toEqual({
       ok: false,
-      reason: 'excluded_graph_neighbor',
+      reason: 'expired',
     });
-    expect(mockAward).not.toHaveBeenCalled();
-    expect(mockNonceCreate).not.toHaveBeenCalled();
   });
 
-  it('rejects a shared-device counterparty', async () => {
-    mockIsSockPuppet.mockResolvedValue({ excluded: true, reason: 'shared_device' });
-    expect(await submitRealLifeAttestation(envelope(), B)).toEqual({
+  it('rejects a forged signature before any award, nonce or storage', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    // Someone else's signature over the same bytes: the envelope still claims
+    // the attestor's `publicKey`, so only a real verification catches it.
+    const forged = await attestation(attestor, {
+      about: buildUserDid(subject),
+      signingKey: ec.genKeyPair().getPrivate('hex'),
+    });
+
+    expect(await submitRealLifeAttestation(forged, attestor.id)).toEqual({
       ok: false,
-      reason: 'excluded_shared_device',
+      reason: 'bad_signature',
     });
+    expect(await awards(subject)).toEqual([]);
+    expect(await burnedNonces(subject)).toEqual([]);
+    expect(await storedAttestations(attestor.id)).toEqual([]);
+  });
+});
+
+describe('the anti-sybil gates', () => {
+  it('refuses a counterparty who is a social-graph neighbour', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    await getDb().insert(userFollows).values({ followerId: subject, followedId: attestor.id });
+
+    expect(
+      await submitRealLifeAttestation(
+        await attestation(attestor, { about: buildUserDid(subject) }),
+        attestor.id
+      )
+    ).toEqual({ ok: false, reason: 'excluded_graph_neighbor' });
+
+    expect(await awards(subject)).toEqual([]);
+    expect(await burnedNonces(subject)).toEqual([]);
+    expect(await storedAttestations(attestor.id)).toEqual([]);
   });
 
-  it('runs the sock-puppet check with only the hop radius (IP is not a signal)', async () => {
-    // IP is never a signal (no user IPs at rest): the sock-puppet check is
-    // driven by deviceId + social graph, so it is called with only `hops` and
-    // must NOT carry an `ignoreSharedIp` flag. A not-excluded pair proceeds.
-    const result = await submitRealLifeAttestation(envelope(), B);
+  it('refuses a counterparty signed in on the same device', async () => {
+    const subject = await account();
+    const attestor = await signer();
+    const device = `dev-${unique()}`;
+    await session(subject, device);
+    await session(attestor.id, device);
 
-    expect(result).toEqual({ ok: true, recordId: 'rec-1', subjectUserId: A, attestorUserId: B, points: 25 });
-    expect(mockIsSockPuppet).toHaveBeenCalledWith(A, B, { hops: 1 });
+    expect(
+      await submitRealLifeAttestation(
+        await attestation(attestor, { about: buildUserDid(subject) }),
+        attestor.id
+      )
+    ).toEqual({ ok: false, reason: 'excluded_shared_device' });
+    expect(await awards(subject)).toEqual([]);
+  });
+});
+
+describe('the single-use nonce', () => {
+  it('refuses a second counterparty replaying a nonce that was already spent', async () => {
+    // The nonce is salted by PURPOSE only, deliberately: one QR is one scan,
+    // regardless of who submits it.
+    const subject = await account();
+    const first = await signer();
+    const replayer = await signer();
+    const nonce = `nonce-${unique()}`;
+
+    const accepted = await submitRealLifeAttestation(
+      await attestation(first, { about: buildUserDid(subject), nonce }),
+      first.id
+    );
+    expect(accepted.ok).toBe(true);
+
+    expect(
+      await submitRealLifeAttestation(
+        await attestation(replayer, { about: buildUserDid(subject), nonce }),
+        replayer.id
+      )
+    ).toEqual({ ok: false, reason: 'nonce_used' });
+
+    // The replayer earned the subject nothing and stored nothing.
+    expect(await awards(subject)).toHaveLength(1);
+    expect(await storedAttestations(replayer.id)).toEqual([]);
   });
 
-  it('is idempotent for a repeat of the same pair: returns the original award, no second +25', async () => {
-    // B already has an active real_life_attested award for A. A repeat (fresh
-    // nonce) must no-op: ok:true with the ORIGINAL points, no new award, and no
-    // fresh nonce burned.
-    mockTxnFindOne.mockReturnValue({
-      select: () => ({ lean: async () => ({ points: 25, sourceActionId: 'rec-first' }) }),
-    });
+  it('leaves the nonce spendable when the scan was REFUSED', async () => {
+    // The claim sits after the eligibility gates on purpose. If it did not, a
+    // sock puppet could burn a stranger's QR just by scanning it — a denial of
+    // service against the subject with no cost to the attacker.
+    const subject = await account();
+    const excluded = await signer();
+    const eligible = await signer();
+    const nonce = `nonce-${unique()}`;
+    await getDb().insert(userFollows).values({ followerId: subject, followedId: excluded.id });
 
-    const result = await submitRealLifeAttestation(envelope(), B);
+    expect(
+      await submitRealLifeAttestation(
+        await attestation(excluded, { about: buildUserDid(subject), nonce }),
+        excluded.id
+      )
+    ).toEqual({ ok: false, reason: 'excluded_graph_neighbor' });
 
-    expect(result).toEqual({ ok: true, recordId: 'rec-first', subjectUserId: A, attestorUserId: B, points: 25 });
-    expect(mockAward).not.toHaveBeenCalled();
-    expect(mockNonceCreate).not.toHaveBeenCalled();
-    expect(mockVerifyAndStore).not.toHaveBeenCalled();
-  });
+    const second = await submitRealLifeAttestation(
+      await attestation(eligible, { about: buildUserDid(subject), nonce }),
+      eligible.id
+    );
 
-  it('awards independently for a DISTINCT pair (no existing pair award)', async () => {
-    // No prior award for this pair → the normal award path runs once.
-    const result = await submitRealLifeAttestation(envelope(), B);
-
-    expect(result).toEqual({ ok: true, recordId: 'rec-1', subjectUserId: A, attestorUserId: B, points: 25 });
-    expect(mockAward).toHaveBeenCalledTimes(1);
-  });
-
-  it('rejects a reused nonce (single-use E11000)', async () => {
-    mockNonceCreate.mockRejectedValue(Object.assign(new Error('E11000'), { code: 11000 }));
-    expect(await submitRealLifeAttestation(envelope(), B)).toEqual({ ok: false, reason: 'nonce_used' });
-    expect(mockAward).not.toHaveBeenCalled();
-  });
-
-  it('rejects a bad signature before any graph work', async () => {
-    mockVerifySig.mockReturnValue(false);
-    expect(await submitRealLifeAttestation(envelope(), B)).toEqual({ ok: false, reason: 'bad_signature' });
-    expect(mockIsSockPuppet).not.toHaveBeenCalled();
+    expect(second.ok).toBe(true);
+    expect(await awards(subject)).toHaveLength(1);
+    expect(await burnedNonces(subject)).toEqual([
+      { nonceHash: nonceHash(nonce), purpose: 'real_life_attestation' },
+    ]);
   });
 });

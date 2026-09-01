@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Platform, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { alert, toast } from '@oxyhq/bloom';
 import { isOxyRpOrigin } from '@oxyhq/core';
 import { useAuthMethods, useOxy } from '@oxyhq/services';

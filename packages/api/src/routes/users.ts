@@ -10,14 +10,21 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { Types } from 'mongoose';
+import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { safeFetch, SsrfRejection } from '@oxyhq/core/server';
+import { canonicalFederationHost, isSameFederationHost } from '@oxyhq/federation';
 import { readBoundedBody } from '../services/linkPreview/boundedBody';
-import User from '../models/User';
-import IdentityBackup from '../models/IdentityBackup';
+import { getDb } from '../config/postgres';
+import { identityBackups } from '../db/schema/identityBackups';
+import { users } from '../db/schema/users';
 import { authMiddleware, serviceAuthMiddleware, type ServiceAuthRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { asyncHandler, sendSuccess, sendPaginated } from '../utils/asyncHandler';
+import {
+  FOLLOW_GRAPH_SORTS,
+  isFollowGraphSort,
+  type FollowGraphSort,
+} from '../types/user.types';
 import {
   NotFoundError,
   UnauthorizedError,
@@ -29,10 +36,14 @@ import { userService } from '../services/user.service';
 import graphCache from '../utils/graphCache';
 import { assetService } from '../services/assetServiceSingleton';
 import { UsersController } from '../controllers/users.controller';
-import { resolveUserIdToObjectId } from '../utils/validation';
+import { resolveUserIdToObjectId, isAccountIdFormat } from '../utils/validation';
 import userCache from '../utils/userCache';
 import SignatureService from '../services/signature.service';
 import { emailService } from '../services/email.service';
+import {
+  archiveAccountForRetention,
+  describeAccountFinancialHolds,
+} from '../services/accountFinancialHolds.service';
 import { validate } from '../middleware/validate';
 import {
   optionalUserOrServiceAuth,
@@ -69,6 +80,11 @@ interface PaginationQuery {
   offset?: string;
 }
 
+/** Pagination plus the follow-graph `sort` accepted by the list endpoints. */
+interface FollowGraphQuery extends PaginationQuery {
+  sort?: string;
+}
+
 // Maximum number of users that can be followed in a single bulk request.
 const MAX_BULK_FOLLOW = 200;
 
@@ -82,6 +98,7 @@ const getUserIdsFromRequestBody = (body: unknown): unknown => {
 
 import { PAGINATION } from '../utils/constants';
 import { MAX_MUTUAL_IDS, MAX_FOLLOWS_OF_FOLLOWS_IDS } from '../utils/recommendationWeights';
+import { bridgeVouchesForNetwork } from '../config/federationBridgeTrust';
 import { federationService, isOwnFederationDomain } from '../services/federation.service';
 import { isPublicGraphTarget } from '../utils/profileQuery';
 
@@ -100,7 +117,7 @@ const usersController = new UsersController();
  */
 /** 404 when the target user is archived, restricted, or private — same gate as /similar. */
 async function assertDiscoverableTargetUser(userId: string): Promise<void> {
-  const user = await userService.getUserById(userId);
+  const user = await userService.getPublicUserById(userId);
   if (!isPublicGraphTarget(user)) {
     throw new NotFoundError('User not found');
   }
@@ -173,6 +190,33 @@ const validatePagination = (req: Request, res: Response, next: NextFunction): vo
   }
 
   next();
+};
+
+/**
+ * Validates the optional `sort` query parameter on the follow-graph list
+ * endpoints. Absent ⇒ the server default (`recent`); anything outside the
+ * supported vocabulary is rejected rather than silently coerced, so a client
+ * asking for an ordering we do not implement finds out instead of quietly
+ * receiving a different one.
+ */
+const validateFollowGraphSort = (req: Request, res: Response, next: NextFunction): void => {
+  const { sort } = req.query as FollowGraphQuery;
+
+  if (sort !== undefined && !isFollowGraphSort(sort)) {
+    res.status(400).json({
+      error: 'INVALID_SORT',
+      message: `sort must be one of: ${FOLLOW_GRAPH_SORTS.join(', ')}`,
+    });
+    return;
+  }
+
+  next();
+};
+
+/** Read the validated `sort` off a request. Undefined ⇒ the service default. */
+const readFollowGraphSort = (req: Request): FollowGraphSort | undefined => {
+  const { sort } = req.query as FollowGraphQuery;
+  return isFollowGraphSort(sort) ? sort : undefined;
 };
 
 /**
@@ -297,7 +341,12 @@ router.get(
  *                 type: string
  *                 minLength: 3
  *                 maxLength: 30
- *                 pattern: '^[a-zA-Z0-9]{3,30}$'
+ *                 pattern: '^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$'
+ *                 description: >-
+ *                   An account of kind `bot` carries one further rule the pattern
+ *                   cannot express: its username must END IN `bot`, compared
+ *                   without regard to case, so `aliabot`, `alia-bot` and `AliaBot`
+ *                   all qualify. Every other kind is held to the pattern alone.
  *                 example: alice
  *               email:
  *                 type: string
@@ -706,36 +755,40 @@ router.get(
  *
  * The authenticated VIEWER's OWN social graph — the accounts they follow, the
  * subset who follow back (mutuals), and the accounts they have blocked — as ONE
- * ids-only payload `{ followingIds, mutualIds, blockedIds }`. Consolidates the
+ * ids-only payload `{ followingIds, mutualIds, blockedIds, restrictedIds }`. Consolidates the
  * three per-viewer graph reads consuming apps (Mention, Allo, Homiio) otherwise
  * make as separate round trips on nearly every feed request.
  *
- * The viewer is derived SERVER-SIDE from the auth token via `resolveViewerId`
- * (the same dual-auth as `/mutual-ids` and `/follows-of-follows-ids`) — never a
- * client-supplied id, and there is no `:userId` param to spoof (anti-IDOR).
- * OPTIONAL semantics: an anonymous caller (or a service token with no user
- * context) has no graph → every list is empty.
+ * The viewer is derived SERVER-SIDE from the authenticated user session via
+ * `resolveViewerId` — never a client-supplied id, and there is no `:userId`
+ * param to spoof (anti-IDOR). Service-token delegation is intentionally not
+ * accepted because blocks and restrictions are private relationship data.
+ * OPTIONAL semantics: an anonymous or service-token caller has no graph →
+ * every list is empty.
  *
  * Backed by a short-TTL Redis cache (`graphCache`) filled on miss and busted by
- * the follow/unfollow/block/unblock write paths; degrades to a straight Mongo
+ * the follow/unfollow/block/unblock write paths; degrades to a straight Postgres
  * recompute when Redis is unconfigured.
  *
  * Registered as a two-segment `/me/graph` path (distinct from the single-segment
  * `/:userId` param route) so Express never treats it as a `:userId` value.
  *
- * @returns {ViewerGraph} `{ followingIds, mutualIds, blockedIds }`.
+ * @returns {ViewerGraph} `{ followingIds, mutualIds, blockedIds, restrictedIds }`.
  */
 router.get(
   '/me/graph',
   optionalUserOrServiceAuth,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
-    // Viewer is always the authenticated principal — never a client param.
-    const viewerId = resolveViewerId(req);
+    // This endpoint returns private relationship data (blocks/restrictions), so
+    // only a user session may select its viewer. Service delegation is limited
+    // to public personalization and must not turn X-Oxy-User-Id into access to
+    // another user's private graph.
+    const viewerId = req.serviceApp ? undefined : resolveViewerId(req);
 
     // Anonymous / no-user-context callers have no graph. Short-circuit with the
     // empty graph and never touch the cache (its keys are strictly per-viewer).
     if (!viewerId) {
-      sendSuccess(res, { followingIds: [], mutualIds: [], blockedIds: [] });
+      sendSuccess(res, { followingIds: [], mutualIds: [], blockedIds: [], restrictedIds: [] });
       return;
     }
 
@@ -774,7 +827,7 @@ router.get(
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     const { userId } = req.params;
 
-    const user = await userService.getUserById(userId);
+    const user = await userService.getPublicUserById(userId);
 
     if (
       !user ||
@@ -812,15 +865,18 @@ router.get(
  * @param {string} userId - User ID
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
+ * @query {string} sort - `recent` (default) or `oldest`
  * @returns {PaginatedResponse<PublicUserProfile>} Paginated list of followers
  */
 router.get(
   '/:userId/followers',
   resolveUserId,
   validatePagination,
+  validateFollowGraphSort,
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    const { limit, offset } = req.query as PaginationQuery;
+    const { limit, offset } = req.query as FollowGraphQuery;
+    const sort = readFollowGraphSort(req);
 
     const parsedLimit = limit
       ? Math.min(Number.parseInt(limit, 10), PAGINATION.MAX_LIMIT)
@@ -832,12 +888,14 @@ router.get(
     const result = await userService.getUserFollowers(userId, {
       limit: parsedLimit,
       offset: parsedOffset,
+      sort,
     });
 
     logger.debug('GET /users/:userId/followers', {
       userId,
       limit: parsedLimit,
       offset: parsedOffset,
+      sort,
       total: result.total,
     });
 
@@ -853,15 +911,18 @@ router.get(
  * @param {string} userId - User ID
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
+ * @query {string} sort - `recent` (default) or `oldest`
  * @returns {PaginatedResponse<PublicUserProfile>} Paginated list of following
  */
 router.get(
   '/:userId/following',
   resolveUserId,
   validatePagination,
+  validateFollowGraphSort,
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    const { limit, offset } = req.query as PaginationQuery;
+    const { limit, offset } = req.query as FollowGraphQuery;
+    const sort = readFollowGraphSort(req);
 
     const parsedLimit = limit
       ? Math.min(Number.parseInt(limit, 10), PAGINATION.MAX_LIMIT)
@@ -873,12 +934,14 @@ router.get(
     const result = await userService.getUserFollowing(userId, {
       limit: parsedLimit,
       offset: parsedOffset,
+      sort,
     });
 
     logger.debug('GET /users/:userId/following', {
       userId,
       limit: parsedLimit,
       offset: parsedOffset,
+      sort,
       total: result.total,
     });
 
@@ -904,6 +967,7 @@ router.get(
  * @param {string} userId - Target user ID (ObjectId or publicKey; resolved first)
  * @query {number} limit - Number of results (max 100, default 50)
  * @query {number} offset - Pagination offset (default 0)
+ * @query {string} sort - `recent` (default) or `oldest`
  * @returns {PaginatedResponse<PublicUserProfile>} Paginated list of mutual followers
  */
 router.get(
@@ -911,9 +975,11 @@ router.get(
   optionalUserOrServiceAuth,
   resolveUserId,
   validatePagination,
+  validateFollowGraphSort,
   asyncHandler(async (req: OptionalUserOrServiceRequest, res: Response) => {
     const { userId } = req.params;
-    const { limit, offset } = req.query as PaginationQuery;
+    const { limit, offset } = req.query as FollowGraphQuery;
+    const sort = readFollowGraphSort(req);
 
     // Viewer is always the authenticated principal — never a client param.
     const viewerId = resolveViewerId(req);
@@ -928,6 +994,7 @@ router.get(
     const result = await userService.getUserMutuals(viewerId, userId, {
       limit: parsedLimit,
       offset: parsedOffset,
+      sort,
     });
 
     logger.debug('GET /users/:userId/mutuals', {
@@ -935,6 +1002,7 @@ router.get(
       userId,
       limit: parsedLimit,
       offset: parsedOffset,
+      sort,
       total: result.total,
     });
 
@@ -1087,41 +1155,27 @@ router.put(
       throw new BadRequestError('Invalid privacy settings');
     }
 
-    const user = await userService.getUserById(userId);
-
-    if (!user) {
+    // Merge only the provided fields. Replacing the whole settings object would
+    // wipe every toggle the client did not include, which is what Mongo's
+    // dot-path `$set` existed to avoid; the service owns that merge and the
+    // userCache invalidation that keeps the next session read fresh.
+    const incoming = req.body.privacySettings as Record<string, unknown>;
+    const updatedSettings = await userService.updatePrivacySettings(userId, incoming);
+    if (!updatedSettings) {
       throw new NotFoundError('User not found');
     }
 
-    // Merge only the provided fields into privacySettings using dot-path
-    // updates. Using `{ $set: { privacySettings: ... } }` would replace the
-    // whole subdocument and wipe any fields the client did not include.
-    const incoming = req.body.privacySettings as Record<string, unknown>;
-    const setOps: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(incoming)) {
-      setOps[`privacySettings.${key}`] = value;
-    }
-
-    // Update privacy settings
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      Object.keys(setOps).length > 0 ? { $set: setOps } : {},
-      { new: true, runValidators: true }
-    )
-      .select('-password -refreshToken')
-      .lean({ virtuals: true });
-
+    const updatedUser = await userService.getUserById(userId);
     if (!updatedUser) {
       throw new NotFoundError('User not found');
     }
 
-    // Bust the in-memory user cache so subsequent session-bound lookups
-    // return the fresh privacy state instead of the stale pre-write doc.
-    userCache.invalidate(userId);
-
     logger.info('User privacy settings updated', { userId });
 
-    sendSuccess(res, updatedUser);
+    sendSuccess(
+      res,
+      userService.formatUserResponse(updatedUser, undefined, { includePrivateFields: true }),
+    );
   })
 );
 
@@ -1203,14 +1257,15 @@ router.get(
     }
 
     const format = (req.query.format as string) || 'json';
-    const user = await User.findById(userId).select('-refreshToken').lean();
+    // `readAccountDocument` selects through `publicColumns(users)`, so the
+    // protected set — the raw phone, the contact-discovery hashes, the refresh
+    // token, and the private mail configuration — is absent by construction
+    // rather than by a `-field` exclusion someone has to remember.
+    const safeUserData = await userService.readAccountDocument(userId);
 
-    if (!user) {
+    if (!safeUserData) {
       throw new NotFoundError('User not found');
     }
-
-    // Remove sensitive fields
-    const { refreshToken, ...safeUserData } = user;
 
     let data: string;
     let contentType: string;
@@ -1265,9 +1320,9 @@ const identityExportLimiter = rateLimit({
  *
  * Signed, open-format self-sovereign data export ("credible exit"). Returns the
  * `ExportBundle` (DID document, profile, verified domains, auth methods, signed
- * records, app data, social graph) sealed with an Oxy provenance attestation.
- * `?format=ndjson` streams each section as newline-delimited JSON for large
- * accounts.
+ * records, app data, social graph, and the account's own financial history)
+ * sealed with an Oxy provenance attestation. `?format=ndjson` streams each
+ * section as newline-delimited JSON for large accounts.
  */
 router.get(
   '/me/export',
@@ -1307,6 +1362,16 @@ router.get(
       for (const item of bundle.appData) writeLine({ kind: 'appData', item });
       for (const did of bundle.social.following) writeLine({ kind: 'following', did });
       for (const did of bundle.social.followers) writeLine({ kind: 'follower', did });
+      // One line per financial row rather than one line carrying the whole
+      // section: the ndjson arm exists for the accounts where a section is too
+      // large to hold, and this is the section that grows without bound.
+      for (const receipt of bundle.financial.receipts) writeLine({ kind: 'financial', receipt });
+      for (const entry of bundle.financial.ledgerEntries) {
+        writeLine({ kind: 'financial', ledgerEntry: entry });
+      }
+      for (const reservation of bundle.financial.reservations) {
+        writeLine({ kind: 'financial', reservation });
+      }
       writeLine({ kind: 'attestation', attestation: bundle.attestation });
       res.end();
       logger.info('Signed identity export streamed', { userId, format, attestationMissing });
@@ -1415,7 +1480,11 @@ router.delete(
       throw new BadRequestError('Confirmation text is required');
     }
 
-    const user = await User.findById(userId).select('+publicKey +username');
+    const [user] = await getDb()
+      .select({ publicKey: users.publicKey, username: users.username })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
     if (!user) {
       throw new NotFoundError('User not found');
     }
@@ -1443,11 +1512,73 @@ router.delete(
       throw new BadRequestError('Confirmation text does not match username');
     }
 
+    /*
+     * FINANCIAL HOLDS ARE CHECKED BEFORE ANYTHING IS DESTROYED (issue #972,
+     * section 7.4).
+     *
+     * Every financial table references `users` with `ON DELETE RESTRICT`, so for
+     * any account that had ever transacted, this route used to destroy the
+     * mailboxes, the identity backup, the sessions and the whole social graph and
+     * THEN fail on a foreign key violation — a 500, after the irreversible part.
+     * Moving the check above the first destructive step is the fix; the rest of
+     * this block decides what to do with the answer.
+     */
+    const holds = await describeAccountFinancialHolds(userId);
+
+    if (holds.hasLiveSubscription) {
+      // Refused outright rather than worked around. Cancelling somebody's
+      // payment agreement as a side effect of a delete is not this route's
+      // decision to make, and if Stripe were unreachable the alternative would
+      // delete the account and leave Stripe billing a customer who no longer
+      // exists.
+      throw new ConflictError(
+        'This account has a live subscription. Cancel it first, then delete the account.',
+        { subscriptions: holds.liveSubscriptionIds }
+      );
+    }
+
+    if (holds.heldReservations > 0) {
+      // Money neither spent nor returned. The holds expire on their own, so this
+      // is a wait rather than a dead end.
+      throw new ConflictError(
+        'This account has inference reservations still in flight. Try again once they settle.',
+        { heldReservations: holds.heldReservations }
+      );
+    }
+
+    if (holds.hasLiveProviderConnection) {
+      /*
+       * A BYOK CREDENTIAL IS STILL IN THE SECRET STORE (issue #972 section 12).
+       *
+       * `inference_provider_connections.owner_account_id` is `RESTRICT` rather
+       * than `CASCADE` precisely so this cannot happen silently, and its schema
+       * comment promises the missing half: "Account deletion must revoke these
+       * first, which is a deliberate, loud step." Until now the step did not
+       * exist — the account archived and the connection stayed live with its
+       * credential in the store, listed among the records Oxy claimed to be
+       * retaining for legal reasons.
+       *
+       * Refused rather than revoked on the customer's behalf, for the same reason
+       * the subscription above is refused: revoking a BYOK credential is a
+       * declaration to a THIRD PARTY, whose own console still shows a key the
+       * customer believes is in use. Destroying it as a side effect of a delete is
+       * the same class of act as cancelling somebody's payment agreement, and if
+       * the secret store were unreachable the alternative would delete the account
+       * and orphan the secret — which is the exact outcome the `RESTRICT` exists
+       * to prevent.
+       */
+      throw new ConflictError(
+        'This account still holds provider credentials. Revoke each connection first — ' +
+          'revoking destroys the stored credential, which deleting the account cannot do for you.',
+        { providerConnections: holds.liveProviderConnections }
+      );
+    }
+
     // Delete all email data (mailboxes, messages, S3 attachments)
     await emailService.deleteAllUserData(userId);
 
     // Drop any encrypted off-device identity backup for this account.
-    await IdentityBackup.deleteOne({ userId });
+    await getDb().delete(identityBackups).where(eq(identityBackups.userId, userId));
 
     // Revoke every active session and detach the account from all device-session
     // docs so a deleted user cannot keep minting tokens from a retained secret.
@@ -1458,8 +1589,54 @@ router.delete(
     // before deleting the user document (mirrors federation actor-delete).
     await userService.purgeUserSocialGraph(userId);
 
-    // Delete the user account
-    await User.findByIdAndDelete(userId);
+    if (holds.blocksHardDelete) {
+      /*
+       * RETAIN AND ARCHIVE. Receipts, ledger entries, invoices and processor
+       * payments are kept by law and by reconciliation need, and the `users` row
+       * they reference has to survive with them — so the account is archived
+       * instead of removed. Everything optional above this line has already been
+       * erased, which is #972 section 12's "deletion that preserves legally
+       * required financial records while deleting optional payload data".
+       *
+       * `account_status = 'archived'` is an EXISTING state with existing
+       * meaning: `accountService.resolveEffectiveAccess` resolves an archived
+       * account to nothing, so no membership, no application access and no
+       * billing authority survives. Combined with the session revocation above,
+       * the account can no longer act.
+       *
+       * What this does NOT do is anonymise the profile. Releasing a username and
+       * clearing an email is a separate decision with its own consequences — a
+       * released handle is immediately claimable by somebody else — and belongs
+       * to section 12's deletion/export work rather than to the financial-holds
+       * question. The boundary is stated rather than inferred.
+       */
+      await archiveAccountForRetention(userId);
+
+      userCache.invalidate(userId);
+      await graphCache.invalidate(userId);
+
+      logger.info('Account archived with retained financial records', {
+        userId,
+        username: user.username,
+        retainedRecords: holds.retainedRecords,
+      });
+
+      sendSuccess(res, {
+        message:
+          'Account closed. Records that must be retained are kept — financial history as required ' +
+          'by law, and the lifecycle audit of any credential that existed; all optional data has ' +
+          'been deleted.',
+        retained: true,
+        retainedRecords: holds.retainedRecords,
+      });
+      return;
+    }
+
+    // Delete the account row. Every remaining edge that references it is
+    // removed by its own foreign key; the graph purge above ran first because it
+    // is what invalidates each counterparty's cached graph by name — a cascade
+    // tells nobody whose graph just changed.
+    await getDb().delete(users).where(eq(users.id, userId));
 
     userCache.invalidate(userId);
     await graphCache.invalidate(userId);
@@ -1468,6 +1645,7 @@ router.delete(
 
     sendSuccess(res, {
       message: 'Account deleted successfully',
+      retained: false,
     });
   })
 );
@@ -1522,25 +1700,16 @@ interface ResolveUserBody {
   forceAvatarRefresh?: unknown;
 }
 
-function normalizeFederatedResolveDomain(domain: string): string {
-  return domain.trim().toLowerCase();
-}
-
 function normalizeFederatedResolveUsername(username: string): string | null {
   const cleaned = username.trim().replace(/^acct:/i, '').replace(/^@/, '');
   const atIndex = cleaned.indexOf('@');
   if (atIndex <= 0 || atIndex === cleaned.length - 1) return null;
 
   const localPart = cleaned.substring(0, atIndex).toLowerCase();
-  const domain = normalizeFederatedResolveDomain(cleaned.substring(atIndex + 1));
+  const domain = canonicalFederationHost(cleaned.substring(atIndex + 1));
   if (!localPart || !domain) return null;
 
   return `${localPart}@${domain}`;
-}
-
-function actorHostnameMatchesFederatedDomain(actorHostname: string, domain: string): boolean {
-  const normalizedActorHostname = normalizeFederatedResolveDomain(actorHostname);
-  return normalizedActorHostname === domain || normalizedActorHostname === `www.${domain}`;
 }
 
 /**
@@ -1676,11 +1845,17 @@ router.put(
     if (!username || typeof username !== 'string') {
       throw new BadRequestError('username is required');
     }
+    if (type !== 'federated' && ownerId !== undefined && ownerId !== null) {
+      if (typeof ownerId !== 'string' || !isAccountIdFormat(ownerId)) {
+        throw new BadRequestError('ownerId must be a valid user id');
+      }
+    }
 
-    // Build the upsert filter and $set payload — never touch auth fields
-    let filter: Record<string, unknown>;
+    // Build the row predicate and the column payload — never touch auth fields.
+    // `existingPredicate` is what Mongo expressed as an upsert FILTER; it stays a
+    // predicate because the two branches key on different unique indexes.
+    let existingPredicate: SQL;
     const setFields: Record<string, unknown> = { username };
-    const unsetFields: Record<string, ''> = {};
 
     if (type === 'federated') {
       if (!actorUri || typeof actorUri !== 'string') {
@@ -1710,13 +1885,13 @@ router.put(
           throw new BadRequestError('actorUri must be a valid http(s) URL or a did: URI');
         }
       }
-      const normalisedDomain = normalizeFederatedResolveDomain(domain);
+      const normalisedDomain = canonicalFederationHost(domain);
       const normalisedUsername = normalizeFederatedResolveUsername(username);
       if (!normalisedUsername) {
         throw new BadRequestError('username must be a valid federated handle');
       }
       const usernameDomain = normalisedUsername.substring(normalisedUsername.indexOf('@') + 1);
-      if (usernameDomain !== normalisedDomain) {
+      if (!isSameFederationHost(usernameDomain, normalisedDomain)) {
         throw new BadRequestError('username domain does not match domain');
       }
 
@@ -1735,48 +1910,85 @@ router.put(
       // actors carry no host and are not WebFinger-resolvable, so this AP-only
       // check is skipped for them — the `federation:write` scope plus the
       // username↔domain binding above are the trust anchor for atproto actors.
+      //
+      // A BRIDGED identity is the one case where the two legitimately differ.
+      // `@wired@bird.makeup` is not a person on bird.makeup; it is WIRED on X,
+      // republished — so the actor URI's host is the bridge while the identity
+      // belongs to `x.com`. WebFinger cannot settle that: X publishes none, and
+      // no amount of asking bird.makeup would make it authoritative for x.com.
+      //
+      // So the question is answered from THIS service's own reviewed trust list
+      // (`config/federationBridgeTrust`) — a decision the API makes, never one the
+      // caller asserts, which is the entire point of the binding. The calling
+      // connector keeps its own list; the two are deliberately separate and NOT
+      // duplication — drift between them fails CLOSED in both directions, and
+      // consolidating them would delete that. See the note in
+      // `config/federationBridgeTrust` before "tidying" it.
+      // `bridgeVouchesForNetwork` requires BOTH
+      // halves to match, so a listed bridge can only ever claim the single
+      // network it mirrors, and an unlisted host still cannot claim anything.
+      // It is checked before the WebFinger probe purely because it is a local
+      // lookup and that is a network round trip.
       if (
         actorHostname !== null
-        && !actorHostnameMatchesFederatedDomain(actorHostname, normalisedDomain)
+        && !isSameFederationHost(actorHostname, normalisedDomain)
+        && !bridgeVouchesForNetwork(actorHostname, normalisedDomain)
         && !(await verifyFederatedWebFingerBinding(normalisedUsername, actorUri))
       ) {
         throw new BadRequestError('actorUri hostname does not match domain');
       }
-      filter = { 'federation.actorUri': actorUri };
+      existingPredicate = eq(users.federationActorUri, actorUri);
       setFields.username = normalisedUsername;
-      setFields['federation.actorUri'] = actorUri;
-      setFields['federation.domain'] = normalisedDomain;
-      setFields['federation.lastResolvedAt'] = new Date();
-      unsetFields['federation.unavailableAt'] = '';
-      unsetFields['federation.unavailableReason'] = '';
+      setFields.federationActorUri = actorUri;
+      setFields.federationDomain = normalisedDomain;
+      setFields.federationLastResolvedAt = new Date();
+      // A successful resolve clears the tombstone. NULL is what "available"
+      // means on these columns, so the Mongo `$unset` is a write of NULL.
+      setFields.federationUnavailableAt = null;
+      setFields.federationUnavailableReason = null;
     } else {
       // For agent / automated, refuse to clobber a username already taken
       // by a local user — that would be account takeover via the
       // federation pipeline.
-      const localCollision = await User.findOne({
-        username,
-        type: { $nin: ['agent', 'automated'] },
-      }).select('_id type').lean();
+      // Written against the EXPRESSION the unique index is built on
+      // (`lower(btrim(username))`, `db/schema/users.ts`); a plain `username = $1`
+      // is correct-looking, case-sensitive, and would miss a collision the
+      // index would then reject as a 500.
+      const [localCollision] = await getDb()
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
+            sql`${users.type} not in ('agent', 'automated')`
+          )
+        )
+        .limit(1);
       if (localCollision) {
         throw new ConflictError('Username is already taken by a non-automated user');
       }
-      filter = { username, type: { $in: ['agent', 'automated'] } };
+      existingPredicate = and(
+        sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
+        inArray(users.type, ['agent', 'automated'])
+      ) ?? sql`false`;
       if (typeof ownerId === 'string') {
-        setFields['automation.ownerId'] = ownerId;
+        setFields.automationOwnerId = ownerId;
       }
     }
 
     // Type immutability check: if a user already exists, its `type` must
     // match what the caller is asserting. We never allow a federated user
-    // to be silently re-typed as an agent, or vice versa.
-    const existingByFilter = await User.findOne(filter).select('_id type').lean();
-    if (existingByFilter && existingByFilter.type && existingByFilter.type !== type) {
+    // to be silently re-typed as an agent, or vice versa. The same read also
+    // supplies the existing avatar file id below, so the two Mongo round trips
+    // that asked the same question collapse into one.
+    const [existingByFilter] = await getDb()
+      .select({ id: users.id, type: users.type, avatar: users.avatar })
+      .from(users)
+      .where(existingPredicate)
+      .limit(1);
+    if (existingByFilter && existingByFilter.type !== type) {
       throw new ConflictError('Cannot change the type of an existing user');
     }
-
-    // Only set `type` on initial insert; never overwrite on update. The
-    // immutability invariant above already rejected mismatched updates.
-    const setOnInsert: Record<string, unknown> = { type };
 
     // Clean free-text fields sourced from untrusted remote actors
     // (federated/agent/automated) before persisting. The bio renders as TEXT in
@@ -1789,7 +2001,11 @@ router.put(
       // Strip disallowed characters (emoji/symbols/shortcodes) from federated
       // names. cleanDisplayName's output can never contain an XSS vector and is
       // already clean, so it owns the name field here.
-      setFields['name.first'] = cleanDisplayName(displayName);
+      // The COLUMN PROPERTY, not Mongo's `name.first` dot path: drizzle keys
+      // `set()`/`values()` by property name and SILENTLY IGNORES a key that
+      // names no column, so the dot path stored nothing at all and every
+      // federated actor resolved through here landed with a null display name.
+      setFields.nameFirst = cleanDisplayName(displayName);
     }
     if (typeof bio === 'string') {
       setFields.bio = sanitizePlainText(bio);
@@ -1806,31 +2022,33 @@ router.put(
     let remoteAvatarUrl: string | undefined;
     let existingAvatarFileId: string | undefined;
     if (typeof avatar === 'string' && avatar.startsWith('http')) {
-      const existingUser = await User.findOne(filter).select('avatar').lean();
-      existingAvatarFileId = typeof existingUser?.avatar === 'string' ? existingUser.avatar : undefined;
+      existingAvatarFileId = existingByFilter?.avatar ?? undefined;
       remoteAvatarUrl = avatar;
     } else if (typeof avatar === 'string') {
       // Non-URL avatar (already a file ID) — set directly
       setFields.avatar = avatar;
     }
 
-    const update: {
-      $set: Record<string, unknown>;
-      $setOnInsert: Record<string, unknown>;
-      $unset?: Record<string, ''>;
-    } = { $set: setFields, $setOnInsert: setOnInsert };
-    if (Object.keys(unsetFields).length > 0) {
-      update.$unset = unsetFields;
+    // `type` is written only on INSERT, never on update — the immutability
+    // check above already rejected a mismatched update, and re-writing it would
+    // make that check the only thing standing between a caller and a silent
+    // re-type. Column DEFAULTs replace Mongoose's `setDefaultsOnInsert`.
+    let resolvedUserId: string;
+    if (existingByFilter) {
+      await getDb().update(users).set(setFields).where(eq(users.id, existingByFilter.id));
+      resolvedUserId = existingByFilter.id;
+    } else {
+      const [inserted] = await getDb()
+        .insert(users)
+        .values({ ...setFields, type })
+        .returning({ id: users.id });
+      if (!inserted) {
+        throw new Error('Failed to resolve user');
+      }
+      resolvedUserId = inserted.id;
     }
 
-    const user = await User.findOneAndUpdate(
-      filter,
-      update,
-      { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-    )
-      .select('-password -refreshToken')
-      .lean({ virtuals: true });
-
+    const user = await userService.readAccountDocument(resolvedUserId);
     if (!user) {
       throw new Error('Failed to resolve user');
     }
@@ -1838,7 +2056,7 @@ router.put(
     // This route mutates user state (avatar/name/bio/federation fields), so the
     // in-memory user cache must be invalidated — otherwise getUserBySession can
     // serve a stale record and silently revert this update.
-    userCache.invalidate(user._id.toString());
+    userCache.invalidate(resolvedUserId);
 
     // Kick the remote avatar download off the request path. The scheduler
     // resolves the user fresh, honours the throttle + conditional requests, and
@@ -1849,14 +2067,14 @@ router.put(
       && !existingAvatarFileId.startsWith('http');
     if (remoteAvatarUrl && (forceAvatarRefresh || !hasExistingStoredAvatar)) {
       federationService.scheduleAvatarRefresh(
-        user._id.toString(),
+        resolvedUserId,
         remoteAvatarUrl,
         existingAvatarFileId,
         { force: forceAvatarRefresh },
       );
     }
 
-    logger.info('External user resolved', { type, username, userId: user._id });
+    logger.info('External user resolved', { type, username, userId: resolvedUserId });
 
     sendSuccess(res, user);
   })

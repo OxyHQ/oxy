@@ -16,9 +16,11 @@
  *    it (`createdByUserId`), same penalty.
  */
 
+import { and, eq } from 'drizzle-orm';
 import { reputationService } from '../reputation.service';
-import ValidationRequest from '../../models/ValidationRequest';
-import ValidationVote, { type IValidationVote } from '../../models/ValidationVote';
+import { getDb } from '../../config/postgres';
+import { validationRequests } from '../../db/schema/validationRequests';
+import { validationVotes } from '../../db/schema/validationVotes';
 import {
   PEER_VALIDATED_ACTION,
   REAL_LIFE_ATTESTED_ACTION,
@@ -29,11 +31,11 @@ import { logger } from '../../utils/logger';
 
 /** The minimal reversed-transaction shape the slash needs. */
 export interface SlashableTransaction {
-  _id: unknown;
+  id: string;
   actionType: string;
   /** The subject of the reversed award (for personhood: the proven-fake user). */
-  userId?: unknown;
-  createdByUserId?: unknown;
+  userId: string;
+  createdByUserId?: string | null;
 }
 
 /** Apply the `validation_incorrect` slash to a user, non-fatally. */
@@ -60,22 +62,25 @@ async function slashUser(userId: string, txnId: string, reason: string): Promise
  * slashed. Best-effort: individual failures are logged and skipped.
  */
 export async function slashForReversedTransaction(txn: SlashableTransaction): Promise<number> {
-  const txnId = String(txn._id);
+  const txnId = txn.id;
   let slashed = 0;
 
   if (txn.actionType === PEER_VALIDATED_ACTION) {
-    const request = await ValidationRequest.findOne({ resolvedTxnId: txnId })
-      .select('_id')
-      .lean<{ _id: { toString(): string } } | null>();
+    const [request] = await getDb()
+      .select({ id: validationRequests.id })
+      .from(validationRequests)
+      .where(eq(validationRequests.resolvedTxnId, txnId))
+      .limit(1);
     if (!request) {
       return 0;
     }
-    const votes = await ValidationVote.find({ requestId: request._id, verdict: 'valid' })
-      .select('validatorUserId')
-      .lean<IValidationVote[]>();
+    const votes = await getDb()
+      .select({ validatorUserId: validationVotes.validatorUserId })
+      .from(validationVotes)
+      .where(and(eq(validationVotes.requestId, request.id), eq(validationVotes.verdict, 'valid')));
     for (const vote of votes) {
       await slashUser(
-        vote.validatorUserId.toString(),
+        vote.validatorUserId,
         txnId,
         'Endorsed a verdict later reverted as fraud',
       );
@@ -86,7 +91,7 @@ export async function slashForReversedTransaction(txn: SlashableTransaction): Pr
 
   if (txn.actionType === REAL_LIFE_ATTESTED_ACTION && txn.createdByUserId) {
     await slashUser(
-      String(txn.createdByUserId),
+      txn.createdByUserId,
       txnId,
       'Real-life attestation of an action later reverted as fraud',
     );
@@ -97,10 +102,10 @@ export async function slashForReversedTransaction(txn: SlashableTransaction): Pr
   // active voucher who staked on them (Fase 3 staking loop). Dynamically imported
   // to avoid a reputation↔personhood module cycle; the cascade is self-contained
   // (awards `vouch_slashed`, marks vouches slashed, recomputes).
-  if (txn.actionType === PERSONHOOD_VOUCHED_ACTION && txn.userId) {
+  if (txn.actionType === PERSONHOOD_VOUCHED_ACTION) {
     const { slashVouchersForFakeSubject } = await import('./personhood.service.js');
     return slashVouchersForFakeSubject(
-      String(txn.userId),
+      txn.userId,
       'Vouched for a person whose personhood award was reverted as fraud',
     );
   }

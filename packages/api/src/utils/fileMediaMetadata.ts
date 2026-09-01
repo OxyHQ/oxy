@@ -1,4 +1,4 @@
-import type { IFile, IFileVariant } from '../models/File';
+import type { FileRecord, FileVariantRecord } from '../types/file.types';
 
 export type MediaOrientation = 'portrait' | 'landscape' | 'square';
 
@@ -32,7 +32,9 @@ export function computeAspectRatio(width: number, height: number): number {
   return width / height;
 }
 
-function largestVariantDimensions(variants: IFileVariant[]): { width?: number; height?: number } {
+function largestVariantDimensions(
+  variants: FileVariantRecord[]
+): { width?: number; height?: number } {
   let best: { width: number; height: number; area: number } | undefined;
   for (const variant of variants) {
     const width = positiveInt(variant.width);
@@ -51,7 +53,9 @@ function largestVariantDimensions(variants: IFileVariant[]): { width?: number; h
  * Resolve intrinsic media dimensions for service metadata responses.
  * Prefers persisted `metadata.media`, then type-specific subdocs, then variants.
  */
-export function resolveFileMediaMetadata(file: IFile): ResolvedFileMediaMetadata {
+export function resolveFileMediaMetadata(
+  file: Pick<FileRecord, 'metadata' | 'variants'>
+): ResolvedFileMediaMetadata {
   const root = file.metadata ?? {};
   const canonical = root.media as Partial<ResolvedFileMediaMetadata> | undefined;
 
@@ -100,9 +104,14 @@ export function resolveFileMediaMetadata(file: IFile): ResolvedFileMediaMetadata
   return out;
 }
 
-/** Persist canonical media summary on File.metadata.media (single write chokepoint). */
+/**
+ * Stage the canonical media summary on `metadata.media` (single write
+ * chokepoint). The caller persists `file.metadata` afterwards — the two are
+ * written together so a rendition set and the dimensions derived from the same
+ * decode pass can never be stored apart (`fileRepository.upsertVariantSet`).
+ */
 export function applyCanonicalMediaMetadata(
-  file: IFile,
+  file: Pick<FileRecord, 'metadata'>,
   dims: { width?: number; height?: number; durationSec?: number },
 ): void {
   const width = positiveInt(dims.width);
@@ -122,8 +131,4 @@ export function applyCanonicalMediaMetadata(
     ...(file.metadata ?? {}),
     media,
   };
-}
-
-export function serviceAssetMetadataFields(file: IFile): ResolvedFileMediaMetadata {
-  return resolveFileMediaMetadata(file);
 }

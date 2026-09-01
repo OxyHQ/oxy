@@ -6,11 +6,11 @@ A comprehensive Node.js/TypeScript backend server providing JWT-based authentica
 
 - 🔐 **JWT Authentication** - Secure token-based auth with automatic refresh
 - 📱 **Device Sessions** - One server-side `DeviceSession` per device (signed-in accounts, active account, revision) with instant cross-app socket sync
-- 🗄️ **MongoDB Integration** - Scalable data persistence with GridFS for file storage
+- 🗄️ **PostgreSQL** - The data store (Drizzle ORM). Mongo is gone: no dependency, no models, no scripts.
 - ⚡ **Express.js Server** - RESTful API with comprehensive middleware
 - 🔒 **Security Features** - Rate limiting, CORS, password hashing, brute force protection
 - 📝 **TypeScript** - Full type safety and developer experience
-- 📁 **File Management** - GridFS-based file upload, storage, and streaming
+- 📁 **File Management** - S3-backed file upload, storage, and streaming
 - 👥 **Social Features** - User profiles, following system, recommendations
 - 🔔 **Real-time Notifications** - Socket.IO powered notifications
 - 💳 **Payment Processing** - Payment method validation and processing
@@ -27,7 +27,7 @@ bun install
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your MongoDB URI, JWT secrets, and other configs
+# Edit .env with your Postgres DATABASE_URL, JWT secrets, and other configs
 
 # Start development server
 bun run dev
@@ -50,13 +50,18 @@ bun run dev
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Client Apps   │    │    Oxy API      │    │    MongoDB      │
+│   Client Apps   │    │    Oxy API      │    │   PostgreSQL    │
 │                 │    │                 │    │                 │
-│ Frontend/Backend│◄──►│ Express Server  │◄──►│   Database      │
-│ with OxyServices│    │ + Auth Routes   │    │ + Collections   │
-│                 │    │ + File Storage  │    │ + GridFS        │
-│                 │    │ + Socket.IO     │    │ + Analytics     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+│ Frontend/Backend│◄──►│ Express Server  │◄──►│  Drizzle schema │
+│ with OxyServices│    │ + Auth Routes   │    │  + migrations   │
+│                 │    │ + Socket.IO     │    │                 │
+└─────────────────┘    └────────┬────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │   S3 storage    │
+                       │  (file assets)  │
+                       └─────────────────┘
 ```
 
 ## API Endpoints
@@ -94,7 +99,8 @@ Every device-session mutation broadcasts a `session_state` event to the Socket.I
 | `/auth/oauth/client/:clientId` | GET | Public Application metadata (name, logo, type, legal URLs) |
 | `/auth/oauth/consent` | GET | Whether the current user must see the consent screen |
 | `/auth/oauth/authorize` | POST | Mint a single-use authorization code (IdP-side, Bearer) |
-| `/auth/oauth/token` | POST | Exchange code (+ PKCE verifier or client secret) for tokens |
+| `/auth/oauth/token` | POST | RFC 6749 §4.1.3 exchange: form-urlencoded code (+ PKCE verifier or client secret) for tokens |
+| `/auth/oauth/userinfo` | GET/POST | OpenID Connect claims for the bearer's account (`sub`, `preferred_username`, `name`, `picture`) |
 | `/auth/grants` | GET/DELETE | List / revoke the user's connected-app grants |
 
 ### Sign in with Oxy — Commons QR handoff + automatic delivery
@@ -178,21 +184,21 @@ Every device-session mutation broadcasts a `session_state` event to the Socket.I
 ## Requirements
 
 - Node.js 16+
-- MongoDB 4.4+
+- PostgreSQL 17+ (with PostGIS for location features)
 - Bun
 
 ## Environment Variables
 
 ```env
-# Database
-MONGODB_URI=mongodb://localhost:27017/oxyapi
+# Database (required)
+DATABASE_URL=postgres://oxy:oxy@127.0.0.1:5432/oxy_dev
 
 # Authentication
 ACCESS_TOKEN_SECRET=your_64_char_secret_here
 REFRESH_TOKEN_SECRET=your_64_char_secret_here
 
 # Server
-PORT=3001
+PORT=4100
 NODE_ENV=development
 
 # File Storage
@@ -238,7 +244,7 @@ The API includes Socket.IO for real-time features:
 
 ```javascript
 // Connect to Socket.IO
-const socket = io('http://localhost:3001', {
+const socket = io('http://localhost:4100', {
   auth: {
     token: 'your_jwt_token'
   }
@@ -271,7 +277,7 @@ For detailed integration examples, see the **[examples directory](./docs/example
 
 Health check endpoint:
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:4100/health
 ```
 
 ## Storage Usage
@@ -303,11 +309,17 @@ Response:
 
 ## Performance
 
-- **File Streaming**: Efficient file serving via GridFS streams
-- **Database Indexing**: Optimized MongoDB queries
+- **File Streaming**: Efficient file serving from S3
+- **Database Indexing**: Optimized Postgres queries
 - **Caching**: Response caching for static content
 - **Connection Pooling**: Efficient database connections
 
 ## License
 
-This project is part of the OxyServices ecosystem and is licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only), (c) The Oxy Foundation, Inc. See the [LICENSE](../../LICENSE) file for details.
+This package is licensed under the **Breathe License 1.0** (`LicenseRef-Breathe-1.0`), (c) The Oxy Collective, Inc. See the [LICENSE](LICENSE) and [NOTICE](NOTICE) files in this directory.
+
+Non commercial use is free. Commercial use requires a paid licence; the trigger is revenue and it includes internal use. Source publication and attribution are required of everyone, including paying customers, and cannot be waived. This is **source available, not open source**.
+
+Versions up to and including `1.0.3` were published as MIT and stay MIT permanently; a licence change binds future versions only.
+
+The SDK packages in this monorepo are Apache-2.0, not Breathe. The repository root [LICENSE](../../LICENSE) states which package is under which.

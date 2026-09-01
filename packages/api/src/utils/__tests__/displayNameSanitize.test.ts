@@ -227,6 +227,131 @@ describe('displayNameSanitize', () => {
     });
   });
 
+  describe('cleanDisplayName — scripts ∩ L regression (non-ASCII policy leaks)', () => {
+    it.each([
+      ['Muhammad\u0665', 'Muhammad', 'Arabic-Indic digit stripped from Latin name'],
+      ['\u0928\u093E\u092E\u0966', '\u0928\u093E\u092E', 'Devanagari digit stripped'],
+      ['\u0645\u064F\u062D\u064E\u0645\u062F\u061C', '\u0645\u064F\u062D\u064E\u0645\u062F', 'U+061C ARABIC LETTER MARK stripped'],
+      ['\u09AC\u09BE\u0982\u09B2\u09BE\u09F3', '\u09AC\u09BE\u0982\u09B2\u09BE', 'Bengali rupee sign stripped'],
+    ])('cleans %p → %p (%s)', (input, expected) => {
+      expect(cleanDisplayName(input)).toBe(expected);
+    });
+  });
+
+  // `卐` U+5350 and `卍` U+534D are CJK Unified Ideographs (GC=Lo, scx=Han), so
+  // the script allowlist admits them exactly like any real Han letter and no
+  // script- or category-level rule could drop them without also rejecting every
+  // Chinese, Japanese and Korean name. They are subtracted from the allowlist by
+  // an explicit code-point denylist in @oxyhq/core, which this module inherits
+  // through DISPLAY_NAME_DISALLOWED_SOURCE — there is no separate pattern here,
+  // which is why the strip path and the core reject gate cannot drift.
+  describe('cleanDisplayName — symbol-letter denylist', () => {
+    // The glyphs below are visually confusable with each other and with ordinary
+    // ideographs, so pin them to their code points before relying on them.
+    it('the fixtures below really are U+5350 and U+534D', () => {
+      expect('卐'.codePointAt(0)).toBe(0x5350);
+      expect('卍'.codePointAt(0)).toBe(0x534d);
+    });
+
+    it.each([
+      ['卐', '', 'U+5350 alone'],
+      ['卍', '', 'U+534D alone'],
+      ['卐 Glowniggers 卐', 'Glowniggers', 'the production display name, decoration stripped'],
+      ['卐卍', '', 'both, adjacent'],
+      ['山田卍太郎', '山田 太郎', 'embedded mid-name → replaced with a space'],
+      ['Ada 卍 Lovelace', 'Ada Lovelace', 'stripped and surrounding whitespace collapsed'],
+    ])('cleans %p → %p (%s)', (input, expected) => {
+      expect(cleanDisplayName(input)).toBe(expected);
+    });
+
+    it.each([
+      ['山田太郎', 'Han (Japanese)'],
+      ['김철수', 'Hangul (Korean)'],
+      ['王小明', 'Han (Chinese)'],
+      // The four immediate neighbours of the denied pair: the subtraction must
+      // punch out exactly two code points, not a range around them.
+      ['卌', 'U+534C, immediately below U+534D'],
+      ['华', 'U+534E, immediately above U+534D (as in 中华)'],
+      ['协', 'U+534F, immediately below U+5350'],
+      ['卑', 'U+5351, immediately above U+5350'],
+    ])('leaves %p untouched (%s)', (input) => {
+      expect(cleanDisplayName(input)).toBe(input);
+    });
+
+    it('rejects the denied code points at the write gate too', () => {
+      expect(isValidDisplayName('卐')).toBe(false);
+      expect(isValidDisplayName('卍')).toBe(false);
+      // Same policy source, so the gate and the strip path agree by construction.
+      expect(isValidDisplayName('山田太郎')).toBe(true);
+    });
+  });
+
+  // Four punctuation code points JOIN two letters inside one real name (all are
+  // General_Category P, so `scripts ∩ L` stripped them by default and stripping
+  // SPLIT the name in two). They are re-admitted, but ONLY between two letters:
+  // the same characters are also used as ornament, and those must keep being
+  // trimmed. Both halves are tested because the conditional IS the rule.
+  describe('cleanDisplayName — name separators', () => {
+    it('the fixtures below really are U+00B7 U+05BE U+0F0B U+30FB', () => {
+      expect('·'.codePointAt(0)).toBe(0x00b7);
+      expect('־'.codePointAt(0)).toBe(0x05be);
+      expect('་'.codePointAt(0)).toBe(0x0f0b);
+      expect('・'.codePointAt(0)).toBe(0x30fb);
+    });
+
+    // The production values from the backfill DRY_RUN that this rule exists for.
+    it.each([
+      ['Codeur·euses en Liberté', 'U+00B7 French inclusive writing'],
+      ['Codeur·euses', 'U+00B7 bare'],
+      ['Pouet·te', 'U+00B7 short form'],
+      ['お坐・エガード', 'U+30FB Japanese name separator'],
+      ['אייר אברמסקי־קרוננברג', 'U+05BE Hebrew maqaf compound surname'],
+      ['འོད་ཟེར', 'U+0F0B Tibetan intersyllabic tsheg'],
+      ['ཀི་ཁ', 'U+0F0B after a Tibetan vowel sign (combining mark) on the base letter'],
+      ['مُ·م', 'U+00B7 after Arabic damma (combining mark) on the base letter'],
+    ])('leaves letter-flanked %p untouched (%s)', (input) => {
+      expect(cleanDisplayName(input)).toBe(input);
+      // The gate agrees, from the same policy source.
+      expect(isValidDisplayName(input)).toBe(true);
+    });
+
+    it.each([
+      ['Roberto ·', 'Roberto', 'trailing ornament'],
+      ['Michał rysiek Woźniak ·', 'Michał rysiek Woźniak', 'trailing ornament'],
+      ['·Roberto', 'Roberto', 'leading'],
+      ['a··b', 'a b', 'doubled — both stripped, tokens stay apart'],
+      ['·', '', 'alone'],
+      ['お坐・', 'お坐', 'trailing katakana middle dot'],
+      ['・エガード', 'エガード', 'leading katakana middle dot'],
+      ['a ·b', 'a b', 'space on the left'],
+      ['a· b', 'a b', 'space on the right'],
+    ])('strips unflanked %p → %p (%s)', (input, expected) => {
+      expect(cleanDisplayName(input)).toBe(expected);
+      expect(isValidDisplayName(input)).toBe(false);
+    });
+
+    // Step order: a character stripped in step 3 vacates the position next to a
+    // separator, which must then read as unflanked.
+    it('strips a separator left unflanked by an earlier strip', () => {
+      expect(cleanDisplayName('a\u{1f427}·b')).toBe('a b');
+    });
+
+    it('does not reopen the ASCII hyphen', () => {
+      expect(cleanDisplayName('Jean-Luc')).toBe('Jean Luc');
+      expect(isValidDisplayName('Jean-Luc')).toBe(false);
+    });
+
+    it.each([
+      ['卐 Glowniggers 卐', 'Glowniggers', 'denied symbol letters still stripped'],
+      ['Agent007', 'Agent', 'digits still stripped'],
+      ['山田太郎', '山田太郎', 'ordinary Han untouched'],
+      ['김철수', '김철수', 'Hangul untouched'],
+      ["Renée O'Brien", "Renée O'Brien", 'accent + apostrophe untouched'],
+    ])('regression: %p → %p (%s)', (input, expected) => {
+      expect(cleanDisplayName(input)).toBe(expected);
+    });
+  });
+
   describe('cleanDisplayName — XSS safety', () => {
     it.each([
       '<script>alert(1)</script>',

@@ -40,7 +40,7 @@ export const asyncHandler = (fn: AsyncRequestHandler) => {
 
       res.status(500).json({
         error: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred',
+        message: isDev ? message : 'An unexpected error occurred',
         ...(details && { details }),
       });
     });

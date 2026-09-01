@@ -1,197 +1,260 @@
 /**
  * The PUBLIC user row contract of the follower / following / mutual lists.
  *
- * These three endpoints feed the same UI row across the ecosystem (avatar,
- * display name, handle, bio, verified badge, federated badge). They each used
- * to carry their own hand-written `.select('username name avatar color -email')`
- * projection, which omitted `bio`, `verified` and `federation` — so the API
- * emitted `bio: undefined` on every row while the model, the serializer and the
- * wire contract all had the field. These tests lock the fix: all three query
- * with the ONE shared projection, and the DTO carries the public row fields.
+ * These three lists render the same row everywhere in the ecosystem, and the
+ * bug this file exists for is that they silently DIDN'T: the follower /
+ * following / mutual queries omitted `bio`, `verified` and `federation`, so the
+ * API emitted `bio: undefined` on every row while the serializer and the wire
+ * contract both carried the field. Nothing errored.
  *
- * Same harness as `user.service.getUserMutuals`: restore the real `mongoose`
- * (the global setup mocks it wholesale, stripping `Types`) and mock the models
- * as chainable query builders. `formatUserResponse` runs for real, so what is
- * asserted below is the exact payload the route returns.
+ * The suite this replaces asserted that the Mongoose `.select(...)` argument
+ * equalled `PUBLIC_USER_PROFILE_SELECT`. That is the projection STRING, not the
+ * emitted row — it could not tell a field that was selected from one that
+ * survived to the DTO, and the projection it compared against is now vestigial
+ * (`publicUserProjection.ts` keeps it only for the one unported Mongo reader).
+ *
+ * Here one richly-populated account is put on the far side of each of the three
+ * lists and the emitted DTO is compared field by field. The negative half is
+ * equally load-bearing: a public row must NOT carry credential material, the
+ * contact-discovery hashes, or the owner-only fields.
  */
 
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
-});
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userFollows } from '../../db/schema/userFollows';
+import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
+import { users } from '../../db/schema/users';
+import type { PublicUserProfile } from '../../types/user.types';
+import { userService } from '../user.service';
 
-import { Types } from 'mongoose';
+const uniqueId = () => randomUUID().replace(/-/g, '');
 
-const mockFollowLean = jest.fn();
-const followQuery = {
-  select: jest.fn(() => followQuery),
-  limit: jest.fn(() => followQuery),
-  skip: jest.fn(() => followQuery),
-  sort: jest.fn(() => followQuery),
-  lean: mockFollowLean,
-};
-const mockFollowFind = jest.fn(() => followQuery);
-const mockFollowCountDocuments = jest.fn();
-const mockFollowAggregate = jest.fn();
+/** Fields a public row must never carry, whatever the query selected. */
+const FORBIDDEN_ON_A_PUBLIC_ROW = [
+  '_id',
+  'email',
+  'phone',
+  'address',
+  'birthday',
+  'password',
+  'refreshToken',
+  'hashedEmail',
+  'hashedPhone',
+  'publicKey',
+  'themePreference',
+] as const;
 
-const mockUserExec = jest.fn();
-const mockUserSelect = jest.fn(() => userQuery);
-const userQuery = {
-  select: mockUserSelect,
-  lean: jest.fn(() => userQuery),
-  exec: mockUserExec,
-};
-const mockUserFind = jest.fn(() => userQuery);
+async function makeUser(overrides: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const id = uniqueId();
+  await getDb()
+    .insert(users)
+    .values({ id, username: `u${id}`, ...overrides });
+  return id;
+}
 
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  default: {
-    find: mockFollowFind,
-    countDocuments: mockFollowCountDocuments,
-    aggregate: (...args: unknown[]) => mockFollowAggregate(...args),
-  },
-  FollowType: {
-    USER: 'user',
-    HASHTAG: 'hashtag',
-    TOPIC: 'topic',
-  },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    find: mockUserFind,
-  },
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-import { UserService } from '../user.service';
-import { PUBLIC_USER_PROFILE_SELECT } from '../../utils/publicUserProjection';
-
-/** A federated row: bio + verified + remote-actor info must all survive. */
-function federatedUserDoc(id: Types.ObjectId) {
-  return {
-    _id: id,
-    username: 'remote',
-    name: { first: 'Remote', last: 'Friend' },
-    avatar: 'https://mastodon.social/avatars/remote.png',
+/**
+ * A federated account with EVERY public field populated, plus the private ones
+ * that must not leak. `bio`, `verified` and `federation` are the three the
+ * lists used to drop.
+ */
+async function makeRichUser(): Promise<string> {
+  const id = await makeUser({
+    nameFirst: 'Remote',
+    nameLast: 'Friend',
+    avatar: 'file-remote-avatar',
     color: 'blue',
     bio: 'Bio that the rows never used to receive.',
     description: 'A longer public description.',
+    links: ['https://remote.test/profile'],
     verified: true,
     type: 'federated',
-    federation: { actorUri: 'https://mastodon.social/users/remote', domain: 'mastodon.social' },
-    privacySettings: { fediverseSharing: true },
-  };
+    federationActorUri: `https://mastodon.social/users/${uniqueId()}`,
+    federationDomain: 'mastodon.social',
+    // Private / owner-only — present in the row so a leak is observable.
+    email: `${uniqueId()}@example.test`,
+    phone: '+34600000000',
+    address: '1 Test Street',
+    birthday: '1990-01-01',
+    themePreferenceMode: 'dark',
+    themePreferenceColorPreset: 'blue',
+  });
+
+  await getDb().insert(userLinkMetadata).values({
+    userId: id,
+    position: 0,
+    url: 'https://remote.test/profile',
+    title: 'Profile',
+    description: 'Remote profile',
+    image: null,
+  });
+
+  return id;
 }
 
-describe('public user row projection (followers / following / mutuals)', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+/** Every public field of the rich account, as the wire promises it. */
+function expectRichPublicRow(dto: PublicUserProfile, id: string): void {
+  expect(dto.id).toBe(id);
+  expect(dto.name).toMatchObject({
+    first: 'Remote',
+    last: 'Friend',
+    full: 'Remote Friend',
+    displayName: 'Remote Friend',
+  });
+  expect(dto.avatar).toBe('file-remote-avatar');
+  expect(dto.color).toBe('blue');
+  // The three the lists silently dropped.
+  expect(dto.bio).toBe('Bio that the rows never used to receive.');
+  expect(dto.verified).toBe(true);
+  expect(dto.federation).toEqual({
+    actorUri: expect.stringContaining('https://mastodon.social/users/'),
+    domain: 'mastodon.social',
   });
 
-  it('projects the shared public-row field set on getUserFollowers and emits the full DTO', async () => {
-    const targetId = new Types.ObjectId().toHexString();
-    const followerId = new Types.ObjectId();
+  expect(dto.description).toBe('A longer public description.');
+  expect(dto.links).toEqual(['https://remote.test/profile']);
+  expect(dto.linksMetadata).toEqual([
+    {
+      url: 'https://remote.test/profile',
+      title: 'Profile',
+      description: 'Remote profile',
+      image: null,
+    },
+  ]);
+  expect(dto.type).toBe('federated');
+  expect(dto.isFederated).toBe(true);
+  expect(dto.fediverseSharing).toBe(true);
+  expect(dto.createdAt).toBeInstanceOf(Date);
+  expect(dto.updatedAt).toBeInstanceOf(Date);
 
-    mockFollowAggregate
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([{ userId: followerId }]);
-    mockUserExec.mockResolvedValueOnce([federatedUserDoc(followerId)]);
+  for (const field of FORBIDDEN_ON_A_PUBLIC_ROW) {
+    expect(dto).not.toHaveProperty(field);
+  }
+}
 
-    const result = await new UserService().getUserFollowers(targetId, { limit: 50, offset: 0 });
+beforeAll(async () => {
+  await connectPostgres();
+});
 
-    expect(mockUserSelect).toHaveBeenCalledWith(PUBLIC_USER_PROFILE_SELECT);
-    expect(result.data).toHaveLength(1);
-    expect(result.data[0]).toMatchObject({
-      id: followerId.toHexString(),
-      username: 'remote',
-      bio: 'Bio that the rows never used to receive.',
-      description: 'A longer public description.',
-      verified: true,
-      isFederated: true,
-      federation: { domain: 'mastodon.social' },
-    });
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('every follow-graph list emits the full public row', () => {
+  it('getUserFollowers', async () => {
+    const subject = await makeUser();
+    const rich = await makeRichUser();
+    await getDb().insert(userFollows).values({ followerId: rich, followedId: subject });
+
+    const page = await userService.getUserFollowers(subject, { limit: 10 });
+
+    expect(page.total).toBe(1);
+    expectRichPublicRow(page.data[0], rich);
   });
 
-  it('projects the shared public-row field set on getUserFollowing and emits the full DTO', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const followedId = new Types.ObjectId();
+  it('getUserFollowing', async () => {
+    const subject = await makeUser();
+    const rich = await makeRichUser();
+    await getDb().insert(userFollows).values({ followerId: subject, followedId: rich });
 
-    mockFollowAggregate
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([{ userId: followedId }]);
-    mockUserExec.mockResolvedValueOnce([federatedUserDoc(followedId)]);
+    const page = await userService.getUserFollowing(subject, { limit: 10 });
 
-    const result = await new UserService().getUserFollowing(viewerId, { limit: 50, offset: 0 });
-
-    expect(mockUserSelect).toHaveBeenCalledWith(PUBLIC_USER_PROFILE_SELECT);
-    expect(result.data[0]).toMatchObject({
-      id: followedId.toHexString(),
-      bio: 'Bio that the rows never used to receive.',
-      verified: true,
-      isFederated: true,
-    });
+    expect(page.total).toBe(1);
+    expectRichPublicRow(page.data[0], rich);
   });
 
-  it('projects the shared public-row field set on getUserMutuals and emits the full DTO', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const targetId = new Types.ObjectId().toHexString();
-    const mutualId = new Types.ObjectId();
+  it('getUserMutuals', async () => {
+    // "Followers you know": the viewer follows the rich account, and the rich
+    // account follows the target.
+    const viewer = await makeUser();
+    const target = await makeUser();
+    const rich = await makeRichUser();
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: rich },
+        { followerId: rich, followedId: target },
+      ]);
 
-    mockFollowLean.mockResolvedValueOnce([{ followedId: mutualId }]);
-    mockFollowAggregate
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([{ userId: mutualId }]);
-    mockUserExec.mockResolvedValueOnce([federatedUserDoc(mutualId)]);
+    const page = await userService.getUserMutuals(viewer, target, { limit: 10 });
 
-    const result = await new UserService().getUserMutuals(viewerId, targetId, {
-      limit: 50,
-      offset: 0,
-    });
-
-    expect(mockUserSelect).toHaveBeenCalledWith(PUBLIC_USER_PROFILE_SELECT);
-    expect(result.data[0]).toMatchObject({
-      id: mutualId.toHexString(),
-      bio: 'Bio that the rows never used to receive.',
-      verified: true,
-      isFederated: true,
-    });
+    expect(page.total).toBe(1);
+    expectRichPublicRow(page.data[0], rich);
   });
 
-  it('keeps private fields out of the projection', () => {
-    const paths = PUBLIC_USER_PROFILE_SELECT.split(' ');
+  it('getUsersByIds, which additionally carries the measured follow counts', async () => {
+    const rich = await makeRichUser();
+    const followerA = await makeUser();
+    const followerB = await makeUser();
+    const followed = await makeUser();
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: followerA, followedId: rich },
+        { followerId: followerB, followedId: rich },
+        { followerId: rich, followedId: followed },
+      ]);
 
-    // Inclusion-only projection: anything not listed cannot reach the row.
-    expect(paths).not.toContain('email');
-    expect(paths).not.toContain('phone');
-    expect(paths).not.toContain('password');
-    expect(paths).not.toContain('refreshToken');
-    // Only the public, derived consent flag — never the whole settings subdoc.
-    expect(paths).not.toContain('privacySettings');
-    expect(paths).toContain('privacySettings.fediverseSharing');
+    const [dto] = await userService.getUsersByIds([rich]);
+
+    expectRichPublicRow(dto, rich);
+    // The exact arithmetic: the shipped bug returned a well-typed 0 here.
+    expect(dto._count).toEqual({ followers: 2, following: 1 });
+  });
+});
+
+describe('a list row carries no owner-only field even when the account has one', () => {
+  it('omits phone, address, birthday and themePreference from a follower row', async () => {
+    const subject = await makeUser();
+    const rich = await makeRichUser();
+    await getDb().insert(userFollows).values({ followerId: rich, followedId: subject });
+
+    const page = await userService.getUserFollowers(subject, { limit: 10 });
+    const [row] = page.data;
+
+    // Stated individually as well as through the shared list, so a failure names
+    // the field that leaked.
+    expect(row).not.toHaveProperty('phone');
+    expect(row).not.toHaveProperty('address');
+    expect(row).not.toHaveProperty('birthday');
+    expect(row).not.toHaveProperty('themePreference');
+    expect(row).not.toHaveProperty('email');
+  });
+
+  it('still carries them on the OWNER’s own view, so the gate is the caller not the column', async () => {
+    const rich = await makeRichUser();
+
+    const self = await userService.getCurrentUser(rich);
+    const dto = userService.formatUserResponse(self as NonNullable<typeof self>, undefined, {
+      includePrivateFields: true,
+    });
+
+    expect(dto.phone).toBe('+34600000000');
+    expect(dto.address).toBe('1 Test Street');
+    expect(dto.birthday).toBe('1990-01-01');
+    expect(dto.themePreference).toEqual({ mode: 'dark', colorPreset: 'blue' });
+  });
+});
+
+describe('an ineligible counterparty is dropped from the list AND the total', () => {
+  it.each([
+    ['archived', { accountStatus: 'archived' as const }],
+    ['restricted', { reputationTier: 'restricted' as const }],
+  ])('excludes a %s follower', async (_label, overrides) => {
+    const subject = await makeUser();
+    const visible = await makeUser();
+    const hidden = await makeUser(overrides);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: visible, followedId: subject },
+        { followerId: hidden, followedId: subject },
+      ]);
+
+    const page = await userService.getUserFollowers(subject, { limit: 10 });
+
+    // Both halves: a total counted before the filter would read 2 and leave
+    // `hasMore` lying even though the page looks right.
+    expect(page.total).toBe(1);
+    expect(page.data.map((row) => row.id)).toEqual([visible]);
   });
 });

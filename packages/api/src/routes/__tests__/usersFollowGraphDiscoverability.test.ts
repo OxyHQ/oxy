@@ -9,7 +9,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-const mockGetUserById = jest.fn();
+const mockGetPublicUserById = jest.fn();
 const mockGetUserFollowers = jest.fn();
 const mockGetUserFollowing = jest.fn();
 const mockGetUserMutuals = jest.fn();
@@ -39,7 +39,7 @@ jest.mock('../../services/assetServiceSingleton', () => ({
 }));
 jest.mock('../../services/user.service', () => ({
   userService: {
-    getUserById: mockGetUserById,
+    getPublicUserById: mockGetPublicUserById,
     getUserFollowers: mockGetUserFollowers,
     getUserFollowing: mockGetUserFollowing,
     getUserMutuals: mockGetUserMutuals,
@@ -67,11 +67,6 @@ jest.mock('../../utils/validation', () => ({
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {},
-}));
-
 import usersRouter from '../users';
 import { errorHandler } from '../../middleware/errorHandler';
 
@@ -130,7 +125,7 @@ describe.each([
   ['mutuals', '/mutuals', mockGetUserMutuals],
 ] as const)('GET /users/:userId/%s discoverability gate', (_label, suffix, graphMock) => {
   it('returns 404 for a restricted-tier target', async () => {
-    mockGetUserById.mockResolvedValueOnce({
+    mockGetPublicUserById.mockResolvedValueOnce({
       _id: TARGET,
       accountStatus: 'active',
       reputationTier: 'restricted',
@@ -144,7 +139,7 @@ describe.each([
   });
 
   it('returns 404 for an archived target', async () => {
-    mockGetUserById.mockResolvedValueOnce({
+    mockGetPublicUserById.mockResolvedValueOnce({
       _id: TARGET,
       accountStatus: 'archived',
     });
@@ -156,7 +151,7 @@ describe.each([
   });
 
   it('returns 404 for a private-account target', async () => {
-    mockGetUserById.mockResolvedValueOnce({
+    mockGetPublicUserById.mockResolvedValueOnce({
       _id: TARGET,
       accountStatus: 'active',
       reputationTier: 'trusted',

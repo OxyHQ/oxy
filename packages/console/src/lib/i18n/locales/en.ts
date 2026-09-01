@@ -4,7 +4,7 @@ import type { LocaleDict } from '../types';
  * English (en-US) translation dictionary for the Oxy Cloud Console.
  *
  * Keys cover developer-console-specific surfaces: dashboard, apps,
- * API keys, billing, usage, documentation, settings.
+ * credentials, billing, usage, documentation, settings.
  */
 const en: LocaleDict = {
   common: {
@@ -77,14 +77,14 @@ const en: LocaleDict = {
       submit: 'Create app',
     },
     keys: {
-      title: 'API Keys',
+      title: 'Credentials',
       subtitle: 'Manage credentials for this app.',
-      create: 'Create key',
+      create: 'Create credential',
       reveal: 'Reveal once',
-      copyValue: 'Copy API key',
+      copyValue: 'Copy client ID',
       copySecret: 'Copy secret',
       revealHint:
-        'Secret keys are shown once at creation. Copy them now — Oxy will never display them again.',
+        'Secrets are shown once at creation. Copy yours now — Oxy will never display it again. The client ID is public and can be copied at any time.',
     },
     usage: {
       title: 'Usage',

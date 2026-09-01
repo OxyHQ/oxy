@@ -50,5 +50,9 @@ export function signInProgressLabel(
       return t('accountSwitcher.progress.confirming');
     case 'identity-confirmed':
       return t('accountSwitcher.progress.confirmed');
+    default: {
+      const _exhaustive: never = progress;
+      return _exhaustive;
+    }
   }
 }

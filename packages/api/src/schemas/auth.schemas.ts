@@ -1,21 +1,8 @@
-import { commonsDenyReasonSchema } from '@oxyhq/contracts';
+import { commonsDenyReasonSchema, usernameSchema } from '@oxyhq/contracts';
 import { z } from 'zod';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN } from '../utils/username';
 
 const deviceIdField = z.string().trim().min(1).max(128).optional();
 
-/**
- * A username is a routing key (`/@alice`, `acct:alice@…`), not prose. The length
- * bounds alone accepted `"al ice"` — the pattern is what actually rejects
- * whitespace and punctuation. The signup / registration controllers enforce the
- * same rule; declaring it on the schema means the request never reaches them.
- */
-const usernameField = z
-  .string()
-  .trim()
-  .min(3)
-  .max(30)
-  .regex(USERNAME_PATTERN, INVALID_USERNAME_MESSAGE);
 
 // POST /auth/register (public key)
 export const registerPublicKeySchema = z.object({
@@ -23,7 +10,7 @@ export const registerPublicKeySchema = z.object({
   signature: z.string().trim().min(1),
   timestamp: z.number(),
   email: z.string().trim().email().optional(),
-  username: usernameField.optional(),
+  username: usernameSchema.optional(),
 });
 
 // POST /auth/challenge
@@ -42,9 +29,16 @@ export const verifyChallengeSchema = z.object({
   deviceId: deviceIdField,
 });
 
-// GET /auth/check-username/:username
+/**
+ * GET /auth/check-username/:username
+ *
+ * The availability check answers a question about a WRITE, so it holds the
+ * candidate to the write policy. Its predecessor bounded the length and nothing
+ * else, which meant the UI could be told `al ice` was "available" and then be
+ * 400ed for asking for it.
+ */
 export const checkUsernameParams = z.object({
-  username: z.string().trim().min(3).max(30),
+  username: usernameSchema,
 });
 
 // GET /auth/check-email/:email
@@ -181,18 +175,27 @@ export const oauthAuthorizeSchema = z.object({
   scope: z.string().trim().max(512).optional(),
 });
 
-// POST /auth/oauth/token
-// Confidential clients pass clientSecret. Public clients pass codeVerifier.
+// POST /auth/oauth/token — RFC 6749 §4.1.3 `authorization_code` grant.
+//
+// snake_case because these are the wire parameter NAMES the RFC defines, not a
+// house naming choice: a standard OAuth client sends exactly these keys in an
+// `application/x-www-form-urlencoded` body.
+//
+// `client_id` is optional HERE because a confidential client may instead supply
+// it through HTTP Basic (RFC 6749 §2.3.1); the route requires one to have
+// arrived by one route or the other. `grant_type` is validated BEFORE this
+// schema so an unknown grant reports `unsupported_grant_type` rather than a
+// generic `invalid_request`.
+//
+// Confidential clients pass `client_secret`. Public clients pass `code_verifier`
+// (PKCE); the route requires one of the two.
 export const oauthTokenSchema = z.object({
   code: z.string().trim().min(1),
-  clientId: z.string().trim().min(1),
-  redirectUri: z.string().trim().url(),
-  clientSecret: z.string().trim().min(1).optional(),
-  codeVerifier: z.string().trim().min(43).max(128).optional(),
-}).refine(
-  (data) => Boolean(data.clientSecret) || Boolean(data.codeVerifier),
-  { message: 'Either clientSecret (confidential client) or codeVerifier (PKCE) is required' }
-);
+  redirect_uri: z.string().trim().url(),
+  client_id: z.string().trim().min(1).optional(),
+  client_secret: z.string().trim().min(1).optional(),
+  code_verifier: z.string().trim().min(43).max(128).optional(),
+});
 
 // GET /auth/oauth/client/:clientId
 // Public lookup of sanitized application metadata for the consent UI.

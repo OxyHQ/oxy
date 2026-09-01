@@ -62,8 +62,8 @@ app.use('/internal', oxy.serviceAuth({
 }));
 
 app.post('/internal/trigger', (req, res) => {
-  req.serviceApp; // { appId, appName, credentialId, scopes }
-  req.userId;     // from X-Oxy-User-Id (or null)
+  req.serviceApp; // { appId, appName, credentialId, ownerAccountId, scopes, environment }
+  req.userId;     // from X-Oxy-User-Id (or null) — attribution, NEVER the payer
 });
 ```
 
@@ -91,20 +91,183 @@ app.get('/data', (req, res) => {
   "appId": "<applicationId>",
   "appName": "mention-backend",
   "credentialId": "<applicationCredentialId>",
+  "ownerAccountId": "<accountId>",
+  "environment": "production",
   "scopes": ["notifications:write"],
+  "iss": "oxy-auth",
+  "aud": "oxy-api",
   "iat": 1707235200,
   "exp": 1707238800
 }
 ```
 
-- `appId` is the `Application._id` (the claim name is intentionally stable).
+Every one of `appId`, `appName`, `credentialId`, `ownerAccountId` and `environment`
+is REQUIRED. A signature-valid token missing any of them is refused by both
+verifiers — the API's `verifyServiceToken` answers `not_service`, and
+`@oxyhq/core`'s middleware answers `401 INVALID_SERVICE_TOKEN`.
+
+- `appId` is the `Application._id` (the claim name is intentionally stable — `@oxyhq/core` reads it under this name).
 - `credentialId` attributes the token to the specific `ApplicationCredential` that minted it (useful for post-rotation revocation).
-- `scopes` = the credential's requested scopes **intersected** with the application's granted scopes; a credential with no explicit scopes inherits the app's full set.
+- `ownerAccountId` is `applications.owner_account_id`: the Oxy account that owns the application and is **financially responsible** for what it does (ADR 0007). It is resolved server-side from the presented credential at mint time and is never accepted from the request; it is read live, so an application transferred to another account mints the new owner from the next token onward.
+- `environment` mirrors the minting `ApplicationCredential.environment`, for test/live isolation.
+- `scopes` are the EFFECTIVE scopes: the credential's requested scopes **intersected** with the application's granted scopes (`intersectScopes`, the single authority — nothing intersects a second time downstream). A credential with no explicit scopes inherits the app's full set. The intersection runs at MINT time, so a scope the application has since lost is gone from the next token even though the credential row still names it.
+
+There is deliberately **no user claim**. A delegated end user travels in the
+`X-Oxy-User-Id` header, is authorised per request against an explicit acting-as
+grant, and is attribution only.
+
+## Attribution — who pays vs. on whose behalf
+
+The five claims above are the canonical attribution tuple of
+[ADR 0007](adr/0007-canonical-request-attribution.md) minus the delegated user.
+`@oxyhq/core/server` exposes them as two deliberately different shapes:
+
+```typescript
+import {
+  getOxyBillingPrincipal,      // OxyBillingPrincipal | null  — who is charged
+  getOxyDelegatedUserId,       // string | null               — on whose behalf
+  getOxyRequestAttribution,    // both, as one object
+} from '@oxyhq/core/server';
+
+const principal = getOxyBillingPrincipal(req);
+// { accountId, applicationId, credentialId, environment, scopes }
+```
+
+`getOxyBillingPrincipal` reads `req.serviceApp` and nothing else — never
+`req.userId`, `req.user` or `req.serviceActingAs`. And because it returns an
+OBJECT while every user-identity accessor returns a `string`, a delegated user
+id cannot be passed where a billing principal is expected: the substitution
+ADR 0007 forbids is a compile error, not a review question.
+
+Restated as the rule a reviewer applies: **if removing `X-Oxy-User-Id` from a
+request would change what any account is charged, the code is wrong.**
+
+## Acting as a user
+
+`X-Oxy-User-Id` is a header, so on its own it proves nothing. `oxy.auth()`
+therefore treats it as a request to be authorised, not as an identity: on every
+request carrying it, the middleware calls
+
+```
+GET /internal/service-acting-as/verify?appId=<app>&userId=<user>
+→ { "authorized": boolean, "scopes": string[] }
+```
+
+and refuses with `403 SERVICE_ACTING_AS_UNAUTHORIZED` unless the answer is yes.
+There is **no fail-open path**: an unreachable endpoint, an unconfigured
+verifier and an explicit refusal all produce the same 403. Omitting the header
+is not a failure — it means the service acts as itself, and `req.userId` is
+`null`.
+
+### Who may be acted for
+
+**First-party Oxy applications are automatic.** The platform does not ask a user
+to authorize one Oxy app to act for them in another — from the user's side it is
+one product. This is the same stance `app_grants` already takes, auto-approving
+trusted applications on the consent path and recording no grant row for them.
+
+Resolution order, and the order is the security property:
+
+| | condition | answer |
+|---|---|---|
+| 1 | the user revoked this application | no |
+| 2 | the application is missing or not `active` | no |
+| 3 | the user granted it `acting-as:offline` | yes, with the **grant's** scopes |
+| 4 | the application is platform-**trusted** | yes, with the **application's** scopes |
+| 5 | otherwise | no |
+
+Revocation is checked **first**, so it wins over everything after it, trust
+included — a revocation consulted only for non-trusted applications would do
+nothing for exactly the applications that need it. Trust is checked **last**
+because it is the weakest claim on the list: it says the platform vouches for the
+application, not that this user did.
+
+A user who has never interacted with a first-party application is authorized.
+That is the default now, not an oversight.
+
+**The cost, stated rather than implied: a leaked first-party service credential
+can act as any user who has not explicitly revoked that application.** The gate
+is a platform fact ("is this app trusted") instead of a per-user one ("did this
+user agree"), so one stolen credential reaches the whole user base rather than
+the set of people who opted in. That is the price of automatic; it was accepted
+deliberately, and it is what makes credential rotation and the `credentialId`
+claim's revocation story load-bearing rather than nice to have.
+
+### Revocation
+
+`DELETE /auth/grants/:applicationId` is the one user action. It deletes the
+`app_grants` row if there is one **and** writes a marker to
+`service_acting_as_revocations`, so the user need not know whether what they had
+was an OAuth grant or an automatic first-party delegation.
+
+The marker exists because for an automatic application there is no grant row to
+delete. Absence cannot carry the answer in either direction: a user who never
+connected anything has no row and must not read as refusing, and absence cannot
+mean authorized on its own either — the trusted+active check decides that,
+separately.
+
+It is a marker table rather than a column on `app_grants` because a revocation
+row living in the grant table would be a row whose presence means the opposite of
+every other row there, in a table `followCapability` already reads as consent.
+This is not a second revocation surface of the dangerous kind: a second place to
+say YES is dangerous because revoking in one leaves the other authorising, while
+a second place to say NO can only ever subtract authority.
+
+**Undoing it takes a real decision.** The marker is cleared only when an
+authorize names `acting-as:offline` — a scope that is privileged (staff-only on an
+application's ceiling) and consent-required (never auto-approved, whoever the
+application is), so a request carrying it always reaches a consent screen.
+Clearing on any successful authorize would have made revocation worthless: a
+first-party application is auto-approved, so its next sign-in would silently undo
+a deliberate refusal.
+
+### Non-trusted applications
+
+They keep the grant path: a grant naming `acting-as:offline`, and nothing weaker.
+Unreachable today — the mint refuses them a service token and `/internal` refuses
+them again — and kept because "unreachable" is a property of two other files, and
+the day either changes this must not start authorizing an application no user
+agreed to.
+
+### How the two scope sets compose
+
+| | source | says |
+|---|---|---|
+| `req.serviceApp.scopes` | credential ∩ application ceiling, at mint | what the PLATFORM allows this app to do |
+| `req.serviceActingAs.scopes` | the grant row, or the application's ceiling | what the USER allows it to do |
+
+`oxy.requireScope(s)` requires `s` in **both** for a delegated request, and in
+`serviceApp.scopes` alone for a request acting as itself. The intersection is
+the point: only the app scope would let an app do to a user what that user never
+consented to; only the grant would let a user hand an app authority staff never
+gave it.
+
+Note what the second row means on the **automatic** path: with no per-user
+decision to narrow by, the verify endpoint returns the application's own ceiling,
+so the intersection narrows nothing and the effective authority is the token's
+scopes. That is the honest consequence of automatic consent rather than an
+oversight. On the **grant** path it returns the grant's scopes, which do narrow,
+because there the user chose them.
+
+### Who may call the verify endpoint
+
+`/internal` is service-to-service only, gated on a valid service token **and** a
+platform-trusted calling application. The second gate is not redundant — the
+mint has a deliberate carve-out letting a non-trusted app mint a service token
+from a payments-only credential, so holding a token is not the same as being a
+first-party service.
+
+The verifier is not the application being asked about (Syra asks about Alia), so
+"may only ask about itself" would break the mechanism rather than tighten it.
+The residual disclosure — a trusted first-party service can learn whether a user
+delegated to some other app — is accepted and logged. Every negative answer is
+byte-identical (`{ authorized: false, scopes: [] }`, always 200, never 404), so
+the endpoint is not an oracle for which users or applications exist.
 
 ## Security
 
 - Service tokens verified via **HMAC-SHA256 signature** (not just decoded)
-- `jwtSecret` must be provided to `auth()` / `serviceAuth()` for verification
+- `jwtSecret` must be provided to `auth()` / `serviceAuth()` for verification, and the only value that works is **`ACCESS_TOKEN_SECRET`** — there is no separate service-token secret (issue #987; earlier SDK docs named a `SERVICE_TOKEN_SECRET` that has never existed). Because the scheme is symmetric, a host that can VERIFY a service token can also MINT one, and that same secret signs every user access token. **So local verification belongs inside the Oxy API's own trust boundary only, and no service outside it holds the key today** — the hazard is a documented configuration nobody has followed, not a live exposure. [ADR 0012](adr/0012-service-token-signing-key-model.md) records the decision to retire it for asymmetric signing against a published JWKS, the dual-accept window any key change needs, and the two sub-decisions (key custody, cutover schedule) that need the owner.
 - Without `jwtSecret`, service tokens are **rejected** (secure default)
 - Secrets stored as sha256 hashes; timing-safe comparison on exchange
 - Service tokens bypass CSRF (bearer-only, not vulnerable)
@@ -115,9 +278,13 @@ app.get('/data', (req, res) => {
 
 | File | Purpose |
 |------|---------|
-| `packages/api/src/routes/auth.ts` | `POST /auth/service-token` endpoint |
-| `packages/api/src/models/Application.ts` | `type` / `isOfficial` / `isInternal` fields |
-| `packages/api/src/models/ApplicationCredential.ts` | `publicKey`, `secretHash`, `type: 'service'` |
+| `packages/api/src/routes/auth.ts` | `POST /auth/service-token` endpoint; `GET`/`DELETE /auth/grants` |
+| `packages/api/src/routes/internal.ts` | `/internal` router + `GET /internal/service-acting-as/verify` |
+| `packages/api/src/services/serviceActingAs.service.ts` | resolves the delegation grant; `acting-as:offline` |
+| `packages/api/src/db/schema/appGrants.ts` | `app_grants` — the revocable per-(user, app) consent row |
+| `packages/api/src/utils/applicationScopes.ts` | the scope vocabulary, privileged and consent-required sets |
+| `packages/api/src/db/schema/applications.ts` | `type` / `isOfficial` / `isInternal` fields |
+| `packages/api/src/db/schema/applicationCredentials.ts` | `publicKey`, `secretHash`, `type: 'service'` |
 | `packages/api/src/utils/credentialUsability.ts` | `isCredentialUsable()` (active or in rotation grace) |
 | `packages/core/src/mixins/OxyServices.utility.ts` | `auth()` + `serviceAuth()` middleware |
 | `packages/core/src/mixins/OxyServices.auth.ts` | `getServiceToken()`, `makeServiceRequest()`, `configureServiceAuth()` |

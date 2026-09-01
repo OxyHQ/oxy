@@ -1,132 +1,127 @@
 /**
- * `updateUserProfile` account-languages handling.
+ * `updateUserProfile` account-languages handling, asserted on the stored array.
  *
- * Asserts the update path accepts a `languages` array, normalizes each entry to
- * its canonical BCP-47 locale (`@oxyhq/core` normalizeLocale), de-dupes, rejects
- * unsupported/bare/non-array input with a 400, persists the canonical array, and
- * ignores the removed singular `language` field.
+ * `languages` is the ONLY language field — the singular `language` was removed,
+ * and a client that still sends it must not cause a write. Accepted values are
+ * persisted in the CANONICAL `language-REGION` form with the submitted order
+ * preserved and duplicates dropped; anything unsupported is a structured 400.
+ *
+ * The suite this replaces asserted `doc.set` calls on a mocked document, and
+ * proved "rejected before writing" via `expect(mockUser.findById).not
+ * .toHaveBeenCalled()`. Both are proxies for the property that matters — what
+ * ends up in the `languages` column — so each case here reads it back.
  */
 
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
+import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { users } from '../../db/schema/users';
+import { BadRequestError } from '../../utils/error';
+import { userService } from '../user.service';
+
+const uniqueId = () => randomUUID().replace(/-/g, '');
+
+/** The value every account starts with, so an unchanged column is visible. */
+const SEEDED_LANGUAGES = ['fr-FR'];
+
+async function makeUser(): Promise<string> {
+  const id = uniqueId();
+  await getDb()
+    .insert(users)
+    .values({ id, username: `u${id}`, languages: SEEDED_LANGUAGES });
+  return id;
+}
+
+async function storedLanguages(userId: string): Promise<string[]> {
+  const [row] = await getDb()
+    .select({ languages: users.languages })
+    .from(users)
+    .where(eq(users.id, userId));
+  return row.languages;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findById: jest.fn(), findOne: jest.fn() },
-}));
+afterAll(async () => {
+  await closePostgres();
+});
 
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
-}));
+describe('accepted locales', () => {
+  it('persists a valid array in the submitted order', async () => {
+    const id = await makeUser();
 
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: { invalidate: jest.fn() },
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: { logEmailChange: jest.fn(), logProfileUpdate: jest.fn() },
-}));
-
-import { Types } from 'mongoose';
-import User from '../../models/User';
-import { userService } from '../user.service';
-import { BadRequestError } from '../../utils/error';
-
-const mockUser = User as jest.Mocked<typeof User>;
-
-interface MockDoc {
-  _id: Types.ObjectId;
-  email: undefined;
-  set: jest.Mock;
-  save: jest.Mock;
-  toObject: jest.Mock;
-}
-
-function mockDocument(_id: Types.ObjectId): MockDoc {
-  const doc: MockDoc = {
-    _id,
-    email: undefined,
-    set: jest.fn(),
-    save: jest.fn().mockResolvedValue(undefined),
-    toObject: jest.fn().mockReturnValue({ id: _id.toString(), username: 'lang-user' }),
-  };
-  (mockUser.findById as jest.Mock).mockReturnValueOnce({
-    select: jest.fn().mockReturnValue(doc),
-  });
-  return doc;
-}
-
-describe('UserService.updateUserProfile — account languages', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('accepts and persists a valid locales array', async () => {
-    const _id = new Types.ObjectId();
-    const doc = mockDocument(_id);
-
-    await userService.updateUserProfile(_id.toString(), { languages: ['en-US', 'es-ES'] });
-
-    expect(doc.set).toHaveBeenCalledWith('languages', ['en-US', 'es-ES']);
-    expect(doc.save).toHaveBeenCalledTimes(1);
-  });
-
-  it('canonicalizes case and de-dupes before persisting', async () => {
-    const _id = new Types.ObjectId();
-    const doc = mockDocument(_id);
-
-    await userService.updateUserProfile(_id.toString(), {
-      languages: ['EN-us', 'es-ES', 'es-es'],
+    const updated = await userService.updateUserProfile(id, {
+      languages: ['en-US', 'es-ES'],
     });
 
-    expect(doc.set).toHaveBeenCalledWith('languages', ['en-US', 'es-ES']);
+    expect(updated).toBeDefined();
+    expect(await storedLanguages(id)).toEqual(['en-US', 'es-ES']);
   });
 
-  it('rejects a bare (region-less) language code with a 400', async () => {
-    const _id = new Types.ObjectId();
+  it('canonicalizes case and de-dupes, keeping first-seen order', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, { languages: ['EN-us', 'es-ES', 'es-es'] });
+
+    // `es-es` collapses onto the already-seen `es-ES` rather than appending.
+    expect(await storedLanguages(id)).toEqual(['en-US', 'es-ES']);
+  });
+
+  it('accepts an empty array as "no declared languages"', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, { languages: [] });
+
+    expect(await storedLanguages(id)).toEqual([]);
+  });
+});
+
+describe('rejected locales leave the column untouched', () => {
+  it.each([
+    ['a bare, region-less code', ['en']],
+    ['an unsupported locale', ['en-US', 'zz-ZZ']],
+    ['a non-string entry', [42]],
+  ])('rejects %s with a 400', async (_label, languages) => {
+    const id = await makeUser();
 
     await expect(
-      userService.updateUserProfile(_id.toString(), { languages: ['en'] }),
+      userService.updateUserProfile(id, { languages: languages as string[] })
     ).rejects.toBeInstanceOf(BadRequestError);
 
-    expect(mockUser.findById).not.toHaveBeenCalled();
+    expect(await storedLanguages(id)).toEqual(SEEDED_LANGUAGES);
   });
 
-  it('rejects an unsupported locale with a 400 before writing', async () => {
-    const _id = new Types.ObjectId();
+  it('rejects a non-array value with a 400', async () => {
+    const id = await makeUser();
 
     await expect(
-      userService.updateUserProfile(_id.toString(), { languages: ['en-US', 'zz-ZZ'] }),
-    ).rejects.toBeInstanceOf(BadRequestError);
-
-    expect(mockUser.findById).not.toHaveBeenCalled();
-  });
-
-  it('rejects a non-array languages value with a 400', async () => {
-    const _id = new Types.ObjectId();
-
-    await expect(
-      userService.updateUserProfile(_id.toString(), {
+      userService.updateUserProfile(id, {
         languages: 'en-US' as unknown as string[],
-      }),
+      })
     ).rejects.toBeInstanceOf(BadRequestError);
+
+    expect(await storedLanguages(id)).toEqual(SEEDED_LANGUAGES);
   });
 
-  it('ignores the removed singular `language` field', async () => {
-    const _id = new Types.ObjectId();
-    const doc = mockDocument(_id);
+  it('names the offending field on the error', async () => {
+    const id = await makeUser();
 
-    await userService.updateUserProfile(_id.toString(), {
+    await expect(
+      userService.updateUserProfile(id, { languages: ['zz-ZZ'] })
+    ).rejects.toMatchObject({ statusCode: 400, details: { field: 'languages' } });
+  });
+});
+
+describe('the removed singular `language` field', () => {
+  it('is ignored entirely — no write, and `languages` is not derived from it', async () => {
+    const id = await makeUser();
+
+    await userService.updateUserProfile(id, {
       language: 'es-ES',
     } as unknown as { languages?: string[] });
 
-    // Neither the legacy field nor a derived array is written.
-    expect(doc.set).not.toHaveBeenCalledWith('language', expect.anything());
-    expect(doc.set).not.toHaveBeenCalledWith('languages', expect.anything());
+    expect(await storedLanguages(id)).toEqual(SEEDED_LANGUAGES);
   });
 });

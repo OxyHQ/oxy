@@ -1,11 +1,9 @@
 /**
  * Device-to-device identity transfer service (b3 Feature 2 — "add a device").
  *
- * Backs the E2E-encrypted relay in `routes/deviceTransfer.ts`. All model access
+ * Backs the E2E-encrypted relay in `routes/deviceTransfer.ts`. All table access
  * and the security-critical logic (signature verification, atomic status burn)
- * live here so the route module stays a thin wrapper — and so the flow is unit
- * testable under the api's mocked-mongoose regime (mirrors
- * `authSession.service.ts`).
+ * live here so the route module stays a thin wrapper.
  *
  * The server NEVER decrypts: it only stores the ephemeral public keys and an
  * opaque ciphertext/nonce and shuttles them between the two devices. The threat
@@ -14,11 +12,30 @@
  * so the stored material is undecryptable server-side. It is explicitly NOT
  * hardened against an actively-malicious backend MITM'ing the ephemeral keys
  * (same trust boundary as the existing QR sign-in; SAS compare deferred).
+ *
+ * ## Expiry: the read produces the verdict, the sweep only reclaims storage
+ *
+ * `device_pairing_sessions` is registered in `db/expiry.ts`, which lags one
+ * interval exactly as Mongo's TTL monitor lagged ~60s. Both reads below
+ * therefore keep filtering on the deadline THEMSELVES, verbatim
+ * (`db/schema/CONVENTIONS.md`, "Expiry", class (A)):
+ *
+ *  - the lazy `pending` → `expired` write in {@link getDeviceTransferInfo} and
+ *    {@link approveDeviceTransfer} is what lets a client be told "this pairing
+ *    expired" rather than "unknown pairing", and
+ *  - the atomic burn is conditioned on `expires_at > now()` in the SAME
+ *    statement that claims the row, so a pairing past its deadline can never be
+ *    approved even in the window before the sweep removes it.
+ *
+ * Dropping either because "the sweep handles it" turns a bounded lag into a
+ * live credential-transfer window.
  */
 
 import crypto from 'crypto';
-import { DevicePairingSession } from '../models/DevicePairingSession';
-import { User } from '../models/User';
+import { and, eq, gt, sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { devicePairingSessions } from '../db/schema/devicePairingSessions';
+import { users } from '../db/schema/users';
 import { SignatureService } from './signature.service';
 import { logger } from '../utils/logger';
 import type { DeviceTransferInfoResponse, DevicePairingStatus } from '@oxyhq/contracts';
@@ -63,7 +80,7 @@ export async function initDeviceTransfer(input: {
   const pairingId = crypto.randomBytes(16).toString('hex'); // 128-bit
   const expiresAt = new Date(Date.now() + DEVICE_TRANSFER_TTL_MS);
 
-  await DevicePairingSession.create({
+  await getDb().insert(devicePairingSessions).values({
     pairingId,
     newDeviceEphemeralPublicKey: newEphPub,
     newDeviceLabel: newDeviceLabel ?? null,
@@ -84,28 +101,46 @@ export async function initDeviceTransfer(input: {
  * Public — the QR is not self-contained, so the server is the resolver.
  *
  * Returns `null` when the pairing does not exist (route → 404). Marks a
- * past-TTL pending pairing as `expired` on read (lazy expiry before the TTL
- * sweep). The encrypted material is surfaced ONLY once `status === 'approved'`.
+ * past-TTL pending pairing as `expired` on read (see the header). The encrypted
+ * material is surfaced ONLY once `status === 'approved'`.
  */
 export async function getDeviceTransferInfo(
   pairingId: string,
 ): Promise<DeviceTransferInfoResponse | null> {
-  const session = await DevicePairingSession.findOne({ pairingId });
+  const db = getDb();
+  const [session] = await db
+    .select()
+    .from(devicePairingSessions)
+    .where(eq(devicePairingSessions.pairingId, pairingId))
+    .limit(1);
   if (!session) {
     return null;
   }
 
-  if (session.status === 'pending' && session.expiresAt < new Date()) {
-    session.status = 'expired';
-    await session.save();
+  let status: DevicePairingStatus = session.status;
+  if (status === 'pending' && session.expiresAt < new Date()) {
+    // Conditioned on the row still being `pending` so a concurrent approve
+    // cannot be overwritten by this housekeeping write; when it loses, the
+    // returned status is the one this read already observed.
+    const [expired] = await db
+      .update(devicePairingSessions)
+      .set({ status: 'expired' })
+      .where(
+        and(
+          eq(devicePairingSessions.id, session.id),
+          eq(devicePairingSessions.status, 'pending')
+        )
+      )
+      .returning({ status: devicePairingSessions.status });
+    status = expired?.status ?? 'expired';
   }
 
-  const approved = session.status === 'approved';
+  const approved = status === 'approved';
   return {
     pairingId: session.pairingId,
     newDeviceEphemeralPublicKey: session.newDeviceEphemeralPublicKey,
     newDeviceLabel: session.newDeviceLabel ?? null,
-    status: session.status as DevicePairingStatus,
+    status,
     expiresAt: session.expiresAt.toISOString(),
     oldDeviceEphemeralPublicKey: approved ? session.oldDeviceEphemeralPublicKey ?? null : null,
     ciphertext: approved ? session.ciphertext ?? null : null,
@@ -156,9 +191,17 @@ export async function approveDeviceTransfer(
     return { ok: false, status: 400, message: 'Invalid ephemeral public key' };
   }
 
-  // Resolve the caller's CURRENT identity public key server-side. `publicKey` is
-  // `select:false`, so it must be explicitly selected (mirrors the delete flow).
-  const user = await User.findById(authenticatedUserId).select('+publicKey');
+  const db = getDb();
+
+  // Resolve the caller's CURRENT identity public key server-side. Two columns
+  // NAMED, never a whole-row read: `users` is in `db/schema/protectedColumns.ts`
+  // and a bare `select()` would return the raw phone, the contact-discovery
+  // hashes and the refresh token to a public-facing relay.
+  const [user] = await db
+    .select({ id: users.id, publicKey: users.publicKey })
+    .from(users)
+    .where(eq(users.id, authenticatedUserId))
+    .limit(1);
   if (!user) {
     return { ok: false, status: 404, message: 'User not found' };
   }
@@ -174,13 +217,28 @@ export async function approveDeviceTransfer(
   }
 
   // Pre-flight read for precise error codes (unknown vs expired vs processed).
-  const session = await DevicePairingSession.findOne({ pairingId });
+  const [session] = await db
+    .select({
+      id: devicePairingSessions.id,
+      status: devicePairingSessions.status,
+      expiresAt: devicePairingSessions.expiresAt,
+    })
+    .from(devicePairingSessions)
+    .where(eq(devicePairingSessions.pairingId, pairingId))
+    .limit(1);
   if (!session) {
     return { ok: false, status: 404, message: 'Pairing not found' };
   }
   if (session.status === 'pending' && session.expiresAt < new Date()) {
-    session.status = 'expired';
-    await session.save();
+    await db
+      .update(devicePairingSessions)
+      .set({ status: 'expired' })
+      .where(
+        and(
+          eq(devicePairingSessions.id, session.id),
+          eq(devicePairingSessions.status, 'pending')
+        )
+      );
     return { ok: false, status: 400, message: 'Pairing has expired' };
   }
   if (session.status !== 'pending') {
@@ -188,20 +246,26 @@ export async function approveDeviceTransfer(
   }
 
   // ATOMIC pending -> approved. Conditioned on status:'pending' + unexpired so
-  // two concurrent approves cannot both win; the loser matches nothing.
-  const claimed = await DevicePairingSession.findOneAndUpdate(
-    { pairingId, status: 'pending', expiresAt: { $gt: new Date() } },
-    {
-      $set: {
-        status: 'approved',
-        oldDeviceEphemeralPublicKey: oldEphPub,
-        ciphertext,
-        nonce,
-        approvedByUserId: user._id,
-      },
-    },
-    { new: true },
-  );
+  // two concurrent approves cannot both win; the loser matches nothing. The
+  // deadline is re-tested HERE, in the claiming statement, so the pre-flight
+  // read above can never widen the window a pairing is approvable in.
+  const [claimed] = await db
+    .update(devicePairingSessions)
+    .set({
+      status: 'approved',
+      oldDeviceEphemeralPublicKey: oldEphPub,
+      ciphertext,
+      nonce,
+      approvedByUserId: user.id,
+    })
+    .where(
+      and(
+        eq(devicePairingSessions.pairingId, pairingId),
+        eq(devicePairingSessions.status, 'pending'),
+        gt(devicePairingSessions.expiresAt, sql`now()`)
+      )
+    )
+    .returning({ id: devicePairingSessions.id });
 
   if (!claimed) {
     return { ok: false, status: 409, message: 'Pairing not found or already processed' };
@@ -229,7 +293,12 @@ export type DenyDeviceTransferOutcome =
  * pairing; refuses to undo an already-approved one.
  */
 export async function denyDeviceTransfer(pairingId: string): Promise<DenyDeviceTransferOutcome> {
-  const session = await DevicePairingSession.findOne({ pairingId });
+  const db = getDb();
+  const [session] = await db
+    .select({ status: devicePairingSessions.status })
+    .from(devicePairingSessions)
+    .where(eq(devicePairingSessions.pairingId, pairingId))
+    .limit(1);
   if (!session) {
     return { ok: false, status: 404, message: 'Pairing not found' };
   }
@@ -240,11 +309,16 @@ export async function denyDeviceTransfer(pairingId: string): Promise<DenyDeviceT
     return { ok: false, status: 409, message: `Cannot deny a ${session.status} transfer` };
   }
 
-  const denied = await DevicePairingSession.findOneAndUpdate(
-    { pairingId, status: 'pending' },
-    { $set: { status: 'denied' } },
-    { new: true },
-  );
+  const [denied] = await db
+    .update(devicePairingSessions)
+    .set({ status: 'denied' })
+    .where(
+      and(
+        eq(devicePairingSessions.pairingId, pairingId),
+        eq(devicePairingSessions.status, 'pending')
+      )
+    )
+    .returning({ id: devicePairingSessions.id });
   if (!denied) {
     // Lost the race — someone approved/denied concurrently.
     return { ok: false, status: 409, message: 'Pairing already processed' };

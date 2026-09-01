@@ -2,7 +2,7 @@
  * Outbound activity delivery + the follow lifecycle (Follow / Undo(Follow) /
  * Accept(Follow)) and the `Update(Person)` actor rebroadcast.
  *
- * The delivery TRANSPORT (sign → SSRF-safe POST → BullMQ/Mongo durable queue),
+ * The delivery TRANSPORT (sign → SSRF-safe POST → BullMQ / durable fallback queue),
  * the shared-inbox dedup fan-out, and the follow-protocol activity shapes are the
  * SAME across every Oxy app, so they live here — behaviour-identical to Mention's
  * former `FollowService` delivery half. Everything app-specific is injected:
@@ -10,7 +10,7 @@
  *  - private-key CUSTODY stays behind the {@link DeliveryKeys} adapter (Mention:
  *    oxy-api `/federation/sign` + `/federation/public-key`); the key never enters
  *    this package,
- *  - the SSRF-safe single-hop POST + the BullMQ enqueue + the Mongo durable
+ *  - the SSRF-safe single-hop POST + the BullMQ enqueue + the durable
  *    fallback are the {@link DeliveryTransport}, so the delivery policy stays in
  *    one place (Mention's `fetchUpstreamSingleHop` + `FederationDeliveryQueue`),
  *  - the AP-specific `FederatedActor` / `FederatedFollow` rows stay in the app DB
@@ -24,6 +24,7 @@
  * call `deliverToFollowers` / `deliverActivity` / `queueDelivery` here.
  */
 
+import type { AccountKind } from '@oxyhq/contracts';
 import { AP_CONTEXT } from '../apContext';
 import { signRequest, type HttpSignatureSigner } from '../httpSignature';
 import type { UrlBuilders } from '../urls';
@@ -82,14 +83,21 @@ export interface DeliverSingleHopInit {
  */
 export type DeliverSingleHop = (url: string, init: DeliverSingleHopInit) => Promise<DeliverSingleHopResult>;
 
-/** A durable-delivery job body (BullMQ + the Mongo fallback share this shape). */
+/** A durable-delivery job body (BullMQ + the fallback queue share this shape). */
 export interface DeliveryQueueJob {
   activityJson: Record<string, unknown>;
   targetInbox: string;
   senderOxyUserId: string;
 }
 
-/** The Mongo durable-delivery fallback (written when BullMQ is unavailable). */
+/**
+ * The durable-delivery fallback (written when BullMQ is unavailable).
+ *
+ * App-supplied, like every other store in this package: the engine never names
+ * a database. Mention backs it with Postgres; the method names below are the
+ * ones its original Mongoose collection exposed and are kept only so the
+ * adapter shape stays stable for consumers.
+ */
 export interface DeliveryFallbackQueue {
   /** Insert one fallback delivery row (`queueDelivery`). */
   create(job: DeliveryQueueJob & { nextAttemptAt: Date }): Promise<unknown>;
@@ -97,7 +105,7 @@ export interface DeliveryFallbackQueue {
   insertMany(jobs: Array<DeliveryQueueJob & { nextAttemptAt: Date }>): Promise<unknown>;
 }
 
-/** The delivery transport: BullMQ enqueue with a durable Mongo fallback. */
+/** The delivery transport: BullMQ enqueue with a durable app-supplied fallback. */
 export interface DeliveryTransport {
   /**
    * Enqueue one durable delivery. Resolves `false` when the queue is unavailable
@@ -154,12 +162,21 @@ export interface DeliveryConsent {
   isSharingEnabled(oxyUserId: string): Promise<boolean>;
 }
 
-/** The Oxy profile fields the `Update(Person)` rebroadcast reads. */
+/** The Oxy profile fields the actor `Update` rebroadcast reads. */
 export interface DeliveryActorProfile {
   name?: { displayName?: string | null } | null;
   bio?: string | null;
   avatar?: string | null;
   createdAt?: string | null;
+  /**
+   * Account-graph classification — decides the actor `type`. It MUST travel with
+   * the rebroadcast: an `Update` carrying a different `type` from the one the GET
+   * route serves is exactly the drift the shared builder exists to prevent, and
+   * on a type change it is also the migration vehicle (a follower's instance
+   * adopts the new type from this push rather than waiting out its own actor
+   * staleness window).
+   */
+  kind?: AccountKind | null;
 }
 
 /** Resolve a local username to its Oxy profile (for the `Update(Person)` rebroadcast). */
@@ -194,7 +211,7 @@ export interface DeliveryServiceConfig<TActor extends DeliveryActorFields> {
   deliverSingleHop: DeliverSingleHop;
   /** SSRF pre-check for a durable inbox enqueue (never queue a delivery to an unsafe URL). */
   assertSafeInboxUrl(url: string): Promise<SafeUrlVerdict>;
-  /** BullMQ enqueue + Mongo durable fallback. */
+  /** BullMQ enqueue + the durable fallback queue. */
   transport: DeliveryTransport;
   /** The AP actor cache store. */
   store: DeliveryActorStore<TActor>;
@@ -212,6 +229,13 @@ export interface DeliveryServiceConfig<TActor extends DeliveryActorFields> {
   buildLocalActorObject: LocalActorBuilder;
   /** Diagnostics sink. */
   logger: DeliveryLogger;
+  /**
+   * The app's per-instance domain policy (`DomainPolicy.isBlockedDomain`) — the
+   * same predicate inbound dispatch and actor resolution use. Outbound delivery
+   * must refuse blocked origins symmetrically: a domain blocked inbound must not
+   * keep receiving Follow/Undo/Accept or follower fan-out via a cached inbox.
+   */
+  isBlockedDomain(host: string): boolean;
 }
 
 /** Read a bounded prefix of a failed-delivery response body for the debug log. */
@@ -244,7 +268,7 @@ export interface DeliveryService {
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<boolean>;
-  /** Queue one activity for durable delivery (BullMQ, Mongo fallback). */
+  /** Queue one activity for durable delivery (BullMQ, fallback queue). */
   queueDelivery(
     activity: Record<string, unknown>,
     targetInbox: string,
@@ -288,12 +312,31 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
 ): DeliveryService {
   const { logger, urls } = config;
 
+  /** Lowercased host of an absolute URL, or null when unparseable (fails closed). */
+  function urlHost(url: string): string | null {
+    try {
+      return new URL(url).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+
+  /** True when `url`'s host is missing or on the blocked-domain policy. */
+  function isBlockedUrl(url: string): boolean {
+    const host = urlHost(url);
+    return host === null || config.isBlockedDomain(host);
+  }
+
   async function deliverActivity(
     activity: Record<string, unknown>,
     targetInbox: string,
     senderOxyUserId: string,
     senderUsername: string,
   ): Promise<boolean> {
+    if (isBlockedUrl(targetInbox)) {
+      logger.warn(`[FedDeliver] refusing outbound delivery to blocked inbox ${targetInbox}`);
+      return false;
+    }
     try {
       const { keyId } = await config.keys.getPublicKey(senderUsername);
       const body = JSON.stringify(activity);
@@ -336,6 +379,10 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     targetInbox: string,
     senderOxyUserId: string,
   ): Promise<void> {
+    if (isBlockedUrl(targetInbox)) {
+      logger.warn(`[FedDeliver] not queueing delivery to blocked inbox ${targetInbox}`);
+      return;
+    }
     // Defense-in-depth: never enqueue a durable delivery to an unsafe inbox URL.
     // The per-send POST is already SSRF-pinned, but a blocked URL would otherwise
     // sit in the queue and be retried forever.
@@ -349,7 +396,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
       .enqueueDelivery({ activityJson: activity, targetInbox, senderOxyUserId })
       .catch((err) => {
         const message = err instanceof Error ? err.message : String(err);
-        logger.warn(`[FedDeliver] enqueue failed for ${targetInbox}, falling back to Mongo: ${message}`);
+        logger.warn(`[FedDeliver] enqueue failed for ${targetInbox}, falling back to the durable queue: ${message}`);
         return false;
       });
 
@@ -401,11 +448,15 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
 
     // Durable path: enqueue one BullMQ delivery per shared inbox (deduped per
     // inbox + activity id). When the queue is unavailable fall back to a single
-    // Mongo batch insert for the inboxes that were not enqueued.
+    // batch insert into the durable queue for the inboxes that were not enqueued.
     const now = new Date();
-    const mongoFallback: Array<DeliveryQueueJob & { nextAttemptAt: Date }> = [];
+    const durableFallback: Array<DeliveryQueueJob & { nextAttemptAt: Date }> = [];
 
     for (const inbox of inboxes) {
+      if (isBlockedUrl(inbox)) {
+        logger.warn(`[FedDeliver] not queueing delivery to blocked inbox ${inbox}`);
+        continue;
+      }
       const guard = await config.assertSafeInboxUrl(inbox);
       if (!guard.ok) {
         logger.warn(`[FedDeliver] not queueing unsafe inbox URL ${inbox}: ${guard.reason}`);
@@ -416,17 +467,17 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
         .enqueueDelivery({ activityJson: activity, targetInbox: inbox, senderOxyUserId })
         .catch((err) => {
           const message = err instanceof Error ? err.message : String(err);
-          logger.warn(`[FedDeliver] follower enqueue failed for ${inbox}, falling back to Mongo: ${message}`);
+          logger.warn(`[FedDeliver] follower enqueue failed for ${inbox}, falling back to the durable queue: ${message}`);
           return false;
         });
 
       if (!enqueued) {
-        mongoFallback.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
+        durableFallback.push({ activityJson: activity, targetInbox: inbox, senderOxyUserId, nextAttemptAt: now });
       }
     }
 
-    if (mongoFallback.length > 0) {
-      await config.transport.fallbackQueue.insertMany(mongoFallback);
+    if (durableFallback.length > 0) {
+      await config.transport.fallbackQueue.insertMany(durableFallback);
     }
   }
 
@@ -448,7 +499,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
           actor = await config.actorRefresh.fetchRemoteActor(remoteActorUri);
         }
         const inbox = actor?.sharedInboxUrl ?? actor?.inboxUrl;
-        if (inbox) {
+        if (inbox && !isBlockedUrl(inbox) && !isBlockedUrl(remoteActorUri)) {
           await queueDelivery(activity, inbox, localOxyUserId);
         } else {
           logger.warn(`[FedSync] could not resolve inbox to deliver Follow to ${remoteActorUri}`);
@@ -466,6 +517,10 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     remoteActorUri: string,
   ): Promise<{ success: boolean; pending: boolean }> {
     if (!config.federationEnabled) return { success: false, pending: false };
+    if (isBlockedUrl(remoteActorUri)) {
+      logger.warn(`[FedDeliver] refusing outbound Follow to blocked origin ${remoteActorUri}`);
+      return { success: false, pending: false };
+    }
 
     // Never block the follow request on a remote actor fetch. Use whatever is
     // cached; if the actor is unknown locally we still record the follow and
@@ -499,7 +554,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     // If we know the inbox, attempt delivery in the background; otherwise queue
     // for the delivery worker, which resolves the inbox once the actor lands.
     const targetInbox = cached?.sharedInboxUrl ?? cached?.inboxUrl;
-    if (targetInbox) {
+    if (targetInbox && !isBlockedUrl(targetInbox)) {
       void deliverActivity(activity, targetInbox, localOxyUserId, localUsername)
         .then((delivered) => {
           if (!delivered) return queueDelivery(activity, targetInbox, localOxyUserId);
@@ -555,7 +610,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     // are sending Undo(Follow) to always has one. When neither inbox is known the
     // local follow is already removed — just skip the outbound delivery.
     const targetInbox = actor.sharedInboxUrl ?? actor.inboxUrl;
-    if (targetInbox) {
+    if (targetInbox && !isBlockedUrl(targetInbox) && !isBlockedUrl(remoteActorUri)) {
       void deliverActivity(activity, targetInbox, localOxyUserId, localUsername)
         .then((delivered) => {
           if (!delivered) return queueDelivery(activity, targetInbox, localOxyUserId);
@@ -564,6 +619,8 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
           const message = err instanceof Error ? err.message : String(err);
           logger.warn(`[FedSync] background undo-follow delivery failed for ${remoteActorUri}: ${message}`);
         });
+    } else if (targetInbox) {
+      logger.warn(`[FedDeliver] skipping Undo(Follow) delivery to blocked origin ${remoteActorUri}`);
     }
 
     return true;
@@ -583,6 +640,10 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
     const targetInbox = actor.sharedInboxUrl ?? actor.inboxUrl;
     if (!targetInbox) {
       logger.warn(`[FedSync] cannot send Accept(Follow) to ${remoteActorUri}: actor has no inbox`);
+      return;
+    }
+    if (isBlockedUrl(targetInbox) || isBlockedUrl(remoteActorUri)) {
+      logger.warn(`[FedDeliver] refusing Accept(Follow) delivery to blocked origin ${remoteActorUri}`);
       return;
     }
 
@@ -628,6 +689,7 @@ export function createDeliveryService<TActor extends DeliveryActorFields>(
       const actorObject = config.buildLocalActorObject({
         username,
         displayName,
+        kind: user.kind,
         bio: user.bio,
         avatar: user.avatar,
         profileHeaderImage,

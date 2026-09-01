@@ -1,22 +1,22 @@
 /**
- * OxyProvider ↔ exported `oxyClient` singleton token-sync integration test.
+ * OxyRuntimeProvider ↔ exported `oxyClient` singleton token-sync integration test.
  *
  * THE BUG THIS GUARDS AGAINST
  * ---------------------------
  * @oxyhq/core exports a module-level `oxyClient` singleton. Apps commonly build
  * their imperative api clients against it (reading `oxyClient.getAccessToken()`
  * to construct `Authorization` headers) while passing ONLY `baseURL` to
- * OxyProvider. In that configuration OxyProvider constructs its OWN OxyServices
+ * OxyProvider. In that configuration the runtime constructs its OWN OxyServices
  * instance and plants the session token on THAT instance — so the singleton
  * never received it and imperative consumers sent `Authorization: Bearer null`,
  * which backends reject. (Homiio + Allo both hit this.)
  *
- * OxyProvider now subscribes to its instance's `onTokensChanged` and mirrors
+ * OxyRuntimeProvider now subscribes to its instance's `onTokensChanged` and mirrors
  * every token mutation onto the exported `oxyClient` singleton — on sign-in,
  * restore, refresh, AND sign-out/clear — so any imperative consumer reading the
  * singleton always observes the live token (or null when logged out).
  *
- * This test renders the REAL OxyProvider against the REAL @oxyhq/core and
+ * This test renders the REAL OxyRuntimeProvider against the REAL @oxyhq/core and
  * asserts the singleton tracks the provider instance's token. Only the
  * network/socket seams that fire at mount (web SSO, session socket) are stubbed
  * so the test is deterministic offline; the token-mirroring wiring under test
@@ -53,6 +53,14 @@ jest.mock('../../src/ui/session', () => {
     createSessionClient: jest.fn(() => ({
       client: {
         getState: () => null,
+        // The dialog controller reads the directory on every snapshot build, so a
+        // stand-in that omits these is not a SessionClient. Null is the honest
+        // answer for a fake that was never given one.
+        getDirectory: () => null,
+        refreshDirectory: async () => undefined,
+        activateContext: async () => undefined,
+        signOutContext: async () => undefined,
+        signOutPrincipal: async () => undefined,
         subscribe: () => () => undefined,
         addCurrentAccount: jest.fn(async () => undefined),
         start: jest.fn(async () => undefined),
@@ -62,7 +70,7 @@ jest.mock('../../src/ui/session', () => {
   };
 });
 
-import { OxyProvider, useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
+import { OxyRuntimeProvider, useOxy, type OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 
 const SIGNED_OUT_TOKEN_VALUE = oxyClient.getAccessToken();
@@ -96,14 +104,14 @@ const renderProvider = (sink: { current: OxyContextState | null }): RenderResult
     <QueryClientProvider client={queryClient}>
       {/* Only baseURL is passed — the reproduction case. The provider builds
           its own instance distinct from the exported singleton. */}
-      <OxyProvider baseURL="https://api.oxy.so">
+      <OxyRuntimeProvider baseURL="https://api.oxy.so">
         <Capture sink={sink} />
-      </OxyProvider>
+      </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 };
 
-describe('OxyProvider mirrors the session token onto the exported oxyClient singleton', () => {
+describe('OxyRuntimeProvider mirrors the session token onto the exported oxyClient singleton', () => {
   afterEach(() => {
     // Leave the shared singleton in its original (signed-out) state for any
     // sibling suite that imports it.
@@ -130,7 +138,7 @@ describe('OxyProvider mirrors the session token onto the exported oxyClient sing
     // Simulate what real auth flows do: they plant tokens on the provider's
     // instance through `setTokens`.
     act(() => {
-      providerInstance.setTokens('access-from-signin', 'refresh-from-signin');
+      providerInstance.setTokens('access-from-signin');
     });
 
     await waitFor(() => {

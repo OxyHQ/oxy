@@ -1,756 +1,1096 @@
 /**
- * Session Service Tests
+ * `session.service` against a REAL Postgres.
  *
- * Tests for session creation, validation, and management
+ * This replaces two suites that mocked the Mongoose model wholesale
+ * (`session.service.test.ts` and `session.service.managedSwitch.test.ts`) and
+ * therefore asserted on `$set` payload SHAPES — proving the call was BUILT as
+ * expected, never that the stored row was correct. Every case below runs the
+ * real service against the throwaway database and reads the row back.
+ *
+ * Three collaborators stay mocked, and none of them is the subject:
+ *  - `models/User` — the user half of `getSessionWithUser` is the one remaining
+ *    Mongoose read in the service (see the note at its import).
+ *  - `securityActivityService` — a different batch, still on Mongoose.
+ *  - `account.service` — the `account:act_as` membership oracle, imported
+ *    lazily; mocking it is what lets a test revoke membership deterministically.
+ *
+ * `utils/socket` is mocked for the opposite reason: the migration path emits a
+ * device-state broadcast, and the emit is the assertion.
  */
 
-const mockSave = jest.fn();
-const mockUpdateOne = jest.fn();
-const mockUpdateMany = jest.fn();
-const mockFindOneAndUpdate = jest.fn();
-const mockDetachMigratedAccount = jest.fn();
+import { randomUUID } from 'node:crypto';
+import type { Request } from 'express';
+import { eq } from 'drizzle-orm';
 
-/**
- * Creates a chainable mock that supports .select().lean() and .lean() patterns.
- * Each call to mockFindOne pushes a resolved value; subsequent chained methods pass it through.
- *
- * The returned value is ALSO a thenable so `await Session.findOne(...)` (the
- * refresh path, which awaits the query directly with no `.lean()`) resolves to
- * the queued doc, while `.select().lean()` / `.lean()` read chains keep working.
- * Mirrors session.service.managedSwitch.test.ts.
+/*
+ * The global `jest.setup.cjs` mocks `jsonwebtoken` to a constant string. That is
+ * fine against a mocked driver, but `sessions.access_token` / `refresh_token`
+ * are really UNIQUE here, so a constant token makes the SECOND insert of the
+ * suite fail on `sessions_access_token_key`. Restoring the real signer is not a
+ * workaround for the constraint — it is what lets these tests assert on the
+ * claims the service actually mints.
  */
-const mockFindOneResults: unknown[] = [];
-const mockFindOne = jest.fn().mockImplementation(() => {
-  const value = mockFindOneResults.shift() ?? null;
-  const p = Promise.resolve(value);
-  return Object.assign(p, {
-    select: jest.fn().mockReturnValue({
-      lean: jest.fn().mockResolvedValue(value),
-    }),
-    lean: jest.fn().mockResolvedValue(value),
-    populate: jest.fn().mockResolvedValue(value),
-  });
-});
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
-const mockFind = jest.fn();
+const mockVerifyActingAs = jest.fn();
+const mockLogDeviceAdded = jest.fn();
+const mockBroadcastDeviceState = jest.fn();
 
-jest.mock('../../models/Session', () => {
-  const SessionConstructor = jest.fn().mockImplementation((data: Record<string, unknown>) => ({
-    ...data,
-    save: mockSave,
-  }));
-  Object.assign(SessionConstructor, {
-    findOne: mockFindOne,
-    find: mockFind,
-    updateOne: mockUpdateOne,
-    updateMany: mockUpdateMany,
-    findOneAndUpdate: mockFindOneAndUpdate,
-  });
-  return { __esModule: true, default: SessionConstructor };
-});
+jest.mock('../../utils/socket', () => ({
+  broadcastDeviceState: (...a: unknown[]) => mockBroadcastDeviceState(...a),
+  broadcastSessionAccountsChanged: jest.fn(),
+}));
 
-jest.mock('../../models/User', () => ({
+jest.mock('../account.service.js', () => ({
   __esModule: true,
-  User: {
-    findById: jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        lean: jest.fn().mockResolvedValue({ _id: 'user-123', username: 'testuser' }),
-      }),
-    }),
-  },
+  accountService: { verifyActingAs: (...a: unknown[]) => mockVerifyActingAs(...a) },
 }));
-
-jest.mock('../../utils/logger', () => ({
-  logger: { error: jest.fn(), info: jest.fn(), debug: jest.fn(), warn: jest.fn() },
-}));
-
-jest.mock('../../utils/sessionCache', () => {
-  const cache = new Map<string, unknown>();
-  return {
-    __esModule: true,
-    default: {
-      get: jest.fn((key: string) => cache.get(key) ?? null),
-      set: jest.fn((key: string, value: unknown) => cache.set(key, value)),
-      invalidate: jest.fn((key: string) => cache.delete(key)),
-      invalidateUserSessions: jest.fn(),
-      shouldUpdateLastActive: jest.fn().mockReturnValue(false),
-      clearPendingLastActive: jest.fn(),
-      _cache: cache,
-    },
-  };
-});
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: {
-    get: jest.fn().mockReturnValue(null),
-    set: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/sessionUtils', () => ({
-  generateSessionTokens: jest.fn().mockReturnValue({
-    accessToken: 'mock-access-token',
-    refreshToken: 'mock-refresh-token',
-  }),
-  validateAccessToken: jest.fn().mockReturnValue({
-    valid: true,
-    payload: { userId: 'user-123', sessionId: 'session-123', deviceId: 'device-123' },
-  }),
-  validateRefreshToken: jest.fn().mockReturnValue({
-    valid: true,
-    payload: { userId: 'user-123', sessionId: 'session-123', deviceId: 'device-123' },
-  }),
-}));
-
-jest.mock('../../utils/deviceUtils', () => ({
-  // Echo an explicitly-provided deviceId (the stableDeviceKey path feeds the
-  // derived id in as `providedDeviceId`). Falls back to the fixed default when
-  // no id is provided.
-  extractDeviceInfo: jest
-    .fn()
-    .mockImplementation((_req: unknown, providedDeviceId?: string) => ({
-      deviceId: providedDeviceId ?? 'device-123',
-      deviceName: 'Test Device',
-      deviceType: 'desktop',
-      platform: 'web',
-      browser: 'Chrome',
-      os: 'Linux',
-      userAgent: 'test-agent',
-      fingerprint: undefined,
-    })),
-  generateDeviceFingerprint: jest.fn().mockReturnValue('fingerprint-hash'),
-  registerDevice: jest.fn().mockImplementation((info: Record<string, unknown>) => Promise.resolve(info)),
-  // Use the REAL derivation so per-RP / per-user scoping is exercised end-to-end.
-  deriveServiceDeviceId: jest.requireActual('../../utils/deviceUtils').deriveServiceDeviceId,
-}));
-
 jest.mock('../securityActivityService', () => ({
   __esModule: true,
-  default: {
-    logDeviceAdded: jest.fn().mockResolvedValue(undefined),
-  },
+  default: { logDeviceAdded: (...a: unknown[]) => mockLogDeviceAdded(...a) },
 }));
 
-// The reused-session deviceId migration best-effort detaches the account from
-// the OLD device doc via deviceSessionService — mock it to observe the call
-// without touching the DeviceSession model.
-jest.mock('../deviceSession.service', () => ({
-  __esModule: true,
-  default: {
-    detachMigratedAccount: mockDetachMigratedAccount,
-  },
-}));
-
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import jwt from 'jsonwebtoken';
-import sessionService from '../session.service';
-import Session from '../../models/Session';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
+import { applications } from '../../db/schema/applications';
+import { sessions } from '../../db/schema/sessions';
+import { users } from '../../db/schema/users';
 import sessionCache from '../../utils/sessionCache';
-import { generateSessionTokens, validateAccessToken } from '../../utils/sessionUtils';
-import { deriveServiceDeviceId } from '../../utils/deviceUtils';
-import type { Request } from 'express';
+import userCache from '../../utils/userCache';
+import { validateAccessToken } from '../../utils/sessionUtils';
+import { deviceSessions } from '../../db/schema/deviceSessions';
+import deviceSessionService from '../deviceSession.service';
+import sessionService from '../session.service';
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-const SIX_DAYS_MS = 6 * 24 * 60 * 60 * 1000;
+const SESSION_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000;
 
-function createMockSession(overrides: Record<string, unknown> = {}) {
-  const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+/** A minimal Express request carrying only what `extractDeviceInfo` reads. */
+function request(headers: Record<string, string> = {}): Request {
   return {
-    _id: 'mongo-id-123',
-    sessionId: 'session-123',
-    userId: 'user-123',
-    deviceId: 'device-123',
-    deviceInfo: {
-      deviceName: 'Test Device',
-      deviceType: 'desktop',
-      platform: 'web',
-      browser: 'Chrome',
-      os: 'Linux',
-      userAgent: 'test-agent',
-      lastActive: new Date(),
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+      'accept-language': 'en-US',
+      ...headers,
     },
-    accessToken: 'mock-access-token',
-    refreshToken: 'mock-refresh-token',
-    isActive: true,
-    expiresAt: future,
-    lastRefresh: new Date(),
-    ...overrides,
-  };
-}
-
-function createMockRequest(overrides: Record<string, unknown> = {}): Request {
-  return {
-    headers: { 'user-agent': 'test-agent' },
-    ip: '127.0.0.1',
-    ...overrides,
   } as unknown as Request;
 }
 
-describe('Session Service', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockFindOneResults.length = 0;
-    mockDetachMigratedAccount.mockResolvedValue(undefined);
-    const cache = (sessionCache as unknown as { _cache: Map<string, unknown> })._cache;
-    cache.clear();
+async function account(over: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username: `u-${randomUUID().slice(0, 12)}`, ...over })
+    .returning({ id: users.id });
+  return row.id;
+}
+
+async function storedSession(sessionId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(sessions)
+    .where(eq(sessions.sessionId, sessionId))
+    .limit(1);
+  return row;
+}
+
+const deviceId = () => `dev-${randomUUID()}`;
+
+/** A registered application plus one credential, for the binding cases. */
+async function applicationRow(): Promise<{ id: string; clientId: string }> {
+  const owner = await account();
+  const [app] = await getDb()
+    .insert(applications)
+    .values({
+      name: `App ${randomUUID()}`,
+      type: 'third_party',
+      redirectUris: ['https://example.test/cb'],
+      ownerAccountId: owner,
+    })
+    .returning({ id: applications.id });
+  const clientId = `oxy_dk_${randomUUID().replace(/-/g, '')}`;
+  await getDb().insert(applicationCredentials).values({
+    applicationId: app.id,
+    name: 'client',
+    type: 'public',
+    environment: 'production',
+    publicKey: clientId,
+  });
+  return { id: app.id, clientId };
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+  // The service mints real JWTs and this suite verifies their claims, so these
+  // are set rather than mocked — `sessionUtils` reads them at call time.
+  process.env.ACCESS_TOKEN_SECRET = `access-${randomUUID()}`;
+  process.env.REFRESH_TOKEN_SECRET = `refresh-${randomUUID()}`;
+  process.env.DEVICE_ID_SALT = 'x'.repeat(48);
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  sessionCache.clear();
+  mockVerifyActingAs.mockResolvedValue('admin');
+  mockLogDeviceAdded.mockResolvedValue(undefined);
+});
+
+describe('createSession', () => {
+  it('creates a session and stores the flattened device columns', async () => {
+    const user = await account();
+    const device = deviceId();
+
+    const session = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      deviceName: 'My Laptop',
+    });
+
+    expect(session.sessionId).toEqual(expect.any(String));
+    expect(session.deviceId).toBe(device);
+    expect(session.userId).toBe(user);
+
+    const stored = await storedSession(session.sessionId);
+    // `deviceInfo` was a nested subdocument in Mongo; these are real columns.
+    expect(stored.deviceName).toBe('My Laptop');
+    expect(stored.deviceType).toBe('desktop');
+    expect(stored.browser).toBe('Chrome');
+    expect(stored.os).toBe('Windows');
+    expect(stored.lastActiveAt).toBeInstanceOf(Date);
+    expect(stored.isActive).toBe(true);
   });
 
-  describe('createSession', () => {
-    it('should create a new session for valid user', async () => {
-      const mockSession = createMockSession();
-      mockFindOneResults.push(null); // no existing session on device (isNewDevice check)
-      mockFindOneResults.push(null); // no active session to reuse
-      mockSave.mockResolvedValueOnce(mockSession);
-
-      const result = await sessionService.createSession('user-123', createMockRequest());
-
-      expect(result).toBeDefined();
-      expect(result.sessionId).toBeDefined();
-      expect(result.userId).toBe('user-123');
-      expect(result.isActive).toBe(true);
-      expect(result.accessToken).toBe('mock-access-token');
-      expect(result.refreshToken).toBe('mock-refresh-token');
-    });
-
-    it('should generate unique session ID', async () => {
-      mockFindOneResults.push(null, null); // first call: isNewDevice + no active session
-      mockFindOneResults.push(null, null); // second call: same
-      mockSave.mockResolvedValue(undefined);
-
-      const result1 = await sessionService.createSession('user-123', createMockRequest());
-      const result2 = await sessionService.createSession('user-123', createMockRequest());
-
-      expect(result1.sessionId).not.toBe(result2.sessionId);
-    });
-
-    it('should store device information', async () => {
-      mockFindOneResults.push(null, null); // isNewDevice + no active session
-      mockSave.mockResolvedValue(undefined);
-
-      const result = await sessionService.createSession('user-123', createMockRequest());
-
-      expect(result.deviceInfo).toBeDefined();
-      expect(result.deviceInfo.deviceType).toBe('desktop');
-      expect(result.deviceInfo.platform).toBe('web');
-      expect(result.deviceInfo.browser).toBe('Chrome');
-      expect(result.deviceId).toBe('device-123');
-    });
+  it('generates a unique session id per session', async () => {
+    const user = await account();
+    const a = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const b = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    expect(a.sessionId).not.toBe(b.sessionId);
   });
 
-  /**
-   * IdP/FedCM-issued sessions (stableDeviceKey path).
-   *
-   * Proves the production bug fix: a given (userId, clientOrigin) reuses ONE
-   * session that refreshes its tokens/expiry, instead of minting a brand-new
-   * "FedCM Sign-In" session on every exchange. Two DIFFERENT clientOrigins
-   * derive two DIFFERENT deviceIds → two DIFFERENT sessions.
-   */
-  describe('createSession with stableDeviceKey (FedCM/IdP path)', () => {
-    const SAVED_SALT = process.env.DEVICE_ID_SALT;
-    const RP_A = 'https://relying.party.example';
-    const RP_B = 'https://other.party.example';
+  it('mints an access token whose claims address this session and device', async () => {
+    const user = await account();
+    const device = deviceId();
+    const session = await sessionService.createSession(user, request(), { deviceId: device });
 
-    beforeEach(() => {
-      process.env.DEVICE_ID_SALT = 'x'.repeat(48);
+    const decoded = validateAccessToken(session.accessToken);
+    expect(decoded.valid).toBe(true);
+    expect(decoded.payload?.userId).toBe(user);
+    expect(decoded.payload?.sessionId).toBe(session.sessionId);
+    expect(decoded.payload?.deviceId).toBe(device);
+  });
+
+  it('reuses the SAME session for repeated exchanges of one (user, clientOrigin)', async () => {
+    const user = await account();
+    const first = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://rp.example',
+    });
+    const second = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://rp.example',
+    });
+    expect(second.sessionId).toBe(first.sessionId);
+  });
+
+  it('creates DIFFERENT sessions for two different clientOrigins (per-RP deviceId)', async () => {
+    const user = await account();
+    const a = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://one.example',
+    });
+    const b = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://two.example',
+    });
+    expect(b.sessionId).not.toBe(a.sessionId);
+    expect(b.deviceId).not.toBe(a.deviceId);
+  });
+
+  it('uses an explicit deviceId verbatim, and it wins over stableDeviceKey', async () => {
+    const user = await account();
+    const device = deviceId();
+    const session = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      stableDeviceKey: 'https://ignored.example',
+    });
+    expect(session.deviceId).toBe(device);
+  });
+
+  it('reuses the same session across repeated calls with the same explicit deviceId', async () => {
+    const user = await account();
+    const device = deviceId();
+    const first = await sessionService.createSession(user, request(), { deviceId: device });
+    const second = await sessionService.createSession(user, request(), { deviceId: device });
+    expect(second.sessionId).toBe(first.sessionId);
+  });
+
+  it('migrates a reused legacy per-origin session onto the caller central device', async () => {
+    const user = await account();
+    const central = deviceId();
+    const legacy = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://rp.example',
     });
 
-    afterEach(() => {
-      if (SAVED_SALT === undefined) {
-        delete process.env.DEVICE_ID_SALT;
-      } else {
-        process.env.DEVICE_ID_SALT = SAVED_SALT;
-      }
+    const migrated = await sessionService.createSession(user, request(), {
+      deviceId: central,
+      stableDeviceKey: 'https://rp.example',
     });
 
-    it('reuses the SAME session for repeated exchanges of the same (user, clientOrigin)', async () => {
-      // First exchange: no existing device session → creates a brand-new one.
-      // (The new-session path returns the constructed doc whose sessionId is a
-      // freshly generated UUID, so we read it back rather than asserting it.)
-      mockFindOneResults.push(null); // isNewDevice check: none
-      mockFindOneResults.push(null); // active-session reuse lookup: none
-      mockSave.mockResolvedValueOnce(undefined);
-
-      const first = await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        stableDeviceKey: RP_A,
-      });
-
-      const firstSessionId = first.sessionId;
-      expect(firstSessionId).toEqual(expect.any(String));
-      // The deviceId persisted on the new session is the derived stable id, NOT
-      // the IdP worker's random UA/IP id.
-      const newDeviceId = (Session as unknown as jest.Mock).mock.calls[0][0].deviceId;
-      expect(newDeviceId).toMatch(/^[0-9a-f]{32}$/);
-
-      // Second exchange for the SAME (user, RP): the reuse lookup now finds the
-      // existing session, and createSession refreshes its tokens/expiry rather
-      // than minting a new row. The refresh branch returns the findOneAndUpdate
-      // result, so its sessionId is what the caller receives.
-      mockFindOneResults.push({ _id: 'mongo-id-123' }); // isNewDevice check: device already seen
-      mockFindOneResults.push(
-        createMockSession({ sessionId: firstSessionId }) // active-session reuse lookup: HIT
-      );
-      const refreshed = createMockSession({
-        sessionId: firstSessionId,
-        accessToken: 'refreshed-access-token',
-      });
-      mockFindOneAndUpdate.mockResolvedValueOnce(refreshed);
-
-      const second = await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        stableDeviceKey: RP_A,
-      });
-
-      // SAME session id reused; the refresh path (findOneAndUpdate) ran exactly
-      // once; save was called only ONCE total (the first, new-session call) —
-      // no second row was minted.
-      expect(second.sessionId).toBe(firstSessionId);
-      expect(second.accessToken).toBe('refreshed-access-token');
-      expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(1);
-      expect(mockSave).toHaveBeenCalledTimes(1);
-
-      // Both exchanges keyed the reuse lookup on the SAME derived deviceId
-      // (deterministic from userId + RP_A) — that's why the second call hit
-      // the existing-session branch. Every Session.findOne reuse filter carries
-      // that one deviceId.
-      const reuseDeviceIds = (Session as unknown as jest.Mock).findOne.mock.calls
-        .map((call: unknown[]) => (call[0] as { deviceId?: string })?.deviceId)
-        .filter((d: string | undefined): d is string => typeof d === 'string');
-      const uniqueDeviceIds = Array.from(new Set(reuseDeviceIds));
-      expect(uniqueDeviceIds).toHaveLength(1);
-      expect(uniqueDeviceIds[0]).toBe(newDeviceId);
-    });
-
-    it('creates DIFFERENT sessions for two DIFFERENT clientOrigins (per-RP deviceId)', async () => {
-      // Exchange for RP_A → new session A.
-      const sessA = createMockSession({ sessionId: 'fedcm-sess-A', deviceId: 'will-be-overwritten' });
-      mockFindOneResults.push(null); // isNewDevice
-      mockFindOneResults.push(null); // reuse lookup: none
-      mockSave.mockResolvedValueOnce(sessA);
-
-      await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        stableDeviceKey: RP_A,
-      });
-
-      // Capture the deviceId used for RP_A from the Session constructor call.
-      const ctorCallsAfterA = (Session as unknown as jest.Mock).mock.calls.length;
-      const deviceIdA = (Session as unknown as jest.Mock).mock.calls[ctorCallsAfterA - 1][0].deviceId;
-
-      // Exchange for RP_B → because the derived deviceId differs, the reuse
-      // lookup misses and a new session is created.
-      const sessB = createMockSession({ sessionId: 'fedcm-sess-B' });
-      mockFindOneResults.push(null); // isNewDevice
-      mockFindOneResults.push(null); // reuse lookup: none (different deviceId)
-      mockSave.mockResolvedValueOnce(sessB);
-
-      await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        stableDeviceKey: RP_B,
-      });
-
-      const ctorCallsAfterB = (Session as unknown as jest.Mock).mock.calls.length;
-      const deviceIdB = (Session as unknown as jest.Mock).mock.calls[ctorCallsAfterB - 1][0].deviceId;
-
-      // Two distinct RPs → two distinct derived deviceIds → two distinct sessions.
-      expect(deviceIdA).toMatch(/^[0-9a-f]{32}$/);
-      expect(deviceIdB).toMatch(/^[0-9a-f]{32}$/);
-      expect(deviceIdA).not.toBe(deviceIdB);
-      expect(mockSave).toHaveBeenCalledTimes(2);
-      expect(mockFindOneAndUpdate).not.toHaveBeenCalled();
-    });
+    expect(migrated.sessionId).toBe(legacy.sessionId);
+    expect(migrated.deviceId).toBe(central);
+    expect((await storedSession(legacy.sessionId)).deviceId).toBe(central);
   });
 
   /**
-   * Explicit `deviceId` option (device unification plumbing).
-   *
-   * An explicit central deviceId (e.g. threaded from a FedCM id_token
-   * `deviceId` claim) is used VERBATIM — bypassing both the UA/IP-derived
-   * default and the `stableDeviceKey` derivation. Precedence: deviceId >
-   * stableDeviceKey > UA/IP > random.
+   * The detach advances the OLD device's `revision`, and for a long time it did
+   * so SILENTLY — the one revision bump in `deviceSession.service` with no
+   * broadcast beside it. A client still listening on that device room then held
+   * a revision the server had moved past, with no event that would ever tell it
+   * to re-fetch: a graveyard device has no next mutation to converge on.
    */
-  describe('createSession with an explicit deviceId (unification)', () => {
-    const SAVED_SALT = process.env.DEVICE_ID_SALT;
+  it('announces the OLD device state when a reused session migrates off it', async () => {
+    const user = await account();
+    const central = deviceId();
+    const legacy = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://rp.example',
+    });
+    await deviceSessionService.addAccount(legacy.deviceId, {
+      accountId: user,
+      sessionId: legacy.sessionId,
+    });
+    const [before] = await getDb()
+      .select({ revision: deviceSessions.revision })
+      .from(deviceSessions)
+      .where(eq(deviceSessions.deviceId, legacy.deviceId))
+      .limit(1);
+    mockBroadcastDeviceState.mockClear();
 
-    afterEach(() => {
-      if (SAVED_SALT === undefined) {
-        delete process.env.DEVICE_ID_SALT;
-      } else {
-        process.env.DEVICE_ID_SALT = SAVED_SALT;
-      }
+    await sessionService.createSession(user, request(), {
+      deviceId: central,
+      stableDeviceKey: 'https://rp.example',
     });
 
-    it('uses the explicit deviceId verbatim as the created session deviceId', async () => {
-      mockFindOneResults.push(null); // isNewDevice check: none
-      mockFindOneResults.push(null); // active-session reuse lookup: none
-      mockSave.mockResolvedValueOnce(undefined);
+    expect(mockBroadcastDeviceState).toHaveBeenCalledTimes(1);
+    const [state] = mockBroadcastDeviceState.mock.calls[0] as [
+      { deviceId: string; revision: number; accounts: unknown[] },
+    ];
+    expect(state.deviceId).toBe(legacy.deviceId);
+    expect(state.revision).toBeGreaterThan(before.revision);
+    expect(state.accounts).toEqual([]);
+  });
 
-      const result = await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        deviceId: 'central-device-abc123',
-      });
+  it('says nothing when the migration had no old device entry to detach', async () => {
+    const user = await account();
+    const central = deviceId();
+    await sessionService.createSession(user, request(), { stableDeviceKey: 'https://rp.other' });
+    mockBroadcastDeviceState.mockClear();
 
-      expect(result.deviceId).toBe('central-device-abc123');
-      const ctorArgs = (Session as unknown as jest.Mock).mock.calls[0][0] as { deviceId?: string };
-      expect(ctorArgs.deviceId).toBe('central-device-abc123');
+    await sessionService.createSession(user, request(), {
+      deviceId: central,
+      stableDeviceKey: 'https://rp.other',
     });
 
-    it('takes precedence over stableDeviceKey when both are supplied', async () => {
-      process.env.DEVICE_ID_SALT = 'x'.repeat(48);
-      mockFindOneResults.push(null); // isNewDevice check: none
-      mockFindOneResults.push(null); // active-session reuse lookup: none
-      mockSave.mockResolvedValueOnce(undefined);
+    expect(mockBroadcastDeviceState).not.toHaveBeenCalled();
+  });
 
-      const result = await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        stableDeviceKey: 'https://relying.party.example',
-        deviceId: 'central-device-wins',
-      });
+  it('does NOT migrate on reuse when no explicit deviceId is supplied', async () => {
+    const user = await account();
+    const first = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://rp.example',
+    });
+    const second = await sessionService.createSession(user, request(), {
+      stableDeviceKey: 'https://rp.example',
+    });
+    expect(second.deviceId).toBe(first.deviceId);
+  });
 
-      // The explicit deviceId wins outright — it is NOT the 32-hex-char
-      // derived stableDeviceKey id.
-      expect(result.deviceId).toBe('central-device-wins');
-      expect(result.deviceId).not.toMatch(/^[0-9a-f]{32}$/);
+  it('binds operatedByUserId on a switched (managed) session, and NULL on an ordinary one', async () => {
+    const operator = await account();
+    const managed = await account();
+
+    const delegated = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+    const ordinary = await sessionService.createSession(await account(), request(), {
+      deviceId: deviceId(),
     });
 
-    it('reuses the SAME session across repeated calls with the same explicit deviceId', async () => {
-      mockFindOneResults.push(null); // isNewDevice check: none
-      mockFindOneResults.push(null); // active-session reuse lookup: none
-      mockSave.mockResolvedValueOnce(undefined);
-
-      const first = await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        deviceId: 'central-device-reuse',
-      });
-
-      mockFindOneResults.push({ _id: 'mongo-id-123' }); // isNewDevice check: device already seen
-      mockFindOneResults.push(
-        createMockSession({ sessionId: first.sessionId, deviceId: 'central-device-reuse' })
-      );
-      const refreshed = createMockSession({
-        sessionId: first.sessionId,
-        deviceId: 'central-device-reuse',
-        accessToken: 'refreshed-access-token',
-      });
-      mockFindOneAndUpdate.mockResolvedValueOnce(refreshed);
-
-      const second = await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        deviceId: 'central-device-reuse',
-      });
-
-      expect(second.sessionId).toBe(first.sessionId);
-      expect(second.accessToken).toBe('refreshed-access-token');
-      expect(mockSave).toHaveBeenCalledTimes(1);
-    });
+    expect((await storedSession(delegated.sessionId)).operatedByUserId).toBe(operator);
+    // NULL is the distinction: "not a delegated session".
+    expect((await storedSession(ordinary.sessionId)).operatedByUserId).toBeNull();
   });
 
   /**
-   * Reused-session deviceId migration.
-   *
-   * When a caller supplies an explicit central deviceId (e.g. the FedCM/SSO
-   * exchange threading a real device from the id_token) but the reused session
-   * sits on a DIFFERENT legacy per-origin device, the session must HOP onto the
-   * caller's device: its stored deviceId is updated, the re-minted access token
-   * carries the new deviceId, and the account is detached from the old device
-   * doc so the graveyard doc stops advertising a live-looking account. No hop
-   * when no explicit deviceId is given, or when it already matches.
+   * One device can hold two people who both act as the same organization
+   * (issue #937, ADR 0001). Reuse keyed on `(user, device)` alone collapses them
+   * onto ONE row and then rewrites `operated_by_user_id` — so the audit actor
+   * changes underneath a live session, and removing either person revokes the
+   * other's access to an account they hold in their own right.
    */
-  describe('createSession deviceId migration on reuse', () => {
-    const SAVED_SALT = process.env.DEVICE_ID_SALT;
-    const RP = 'https://console.oxy.so';
-    const CENTRAL = 'central-device-real';
+  it('never reuses ANOTHER operator’s delegated session on the same device', async () => {
+    const org = await account({ kind: 'organization' });
+    const nate = await account();
+    const alice = await account();
+    const device = deviceId();
 
-    beforeEach(() => {
-      process.env.DEVICE_ID_SALT = 'x'.repeat(48);
+    const viaNate = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: nate,
+    });
+    const viaAlice = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: alice,
     });
 
-    afterEach(() => {
-      if (SAVED_SALT === undefined) {
-        delete process.env.DEVICE_ID_SALT;
-      } else {
-        process.env.DEVICE_ID_SALT = SAVED_SALT;
-      }
-    });
-
-    it('migrates a reused legacy per-origin session onto the caller central device', async () => {
-      const originDeviceId = deriveServiceDeviceId('user-123', RP);
-      expect(originDeviceId).not.toBe(CENTRAL);
-
-      // isNewDevice check (keyed on the central target) → none.
-      mockFindOneResults.push(null);
-      // PRIMARY reuse lookup (central target) → none: nothing on the real device yet.
-      mockFindOneResults.push(null);
-      // SECONDARY legacy lookup (origin-derived device) → HIT: the pre-unification session.
-      mockFindOneResults.push(
-        createMockSession({ sessionId: 'legacy-sess', deviceId: originDeviceId })
-      );
-      const migrated = createMockSession({
-        sessionId: 'legacy-sess',
-        deviceId: CENTRAL,
-        accessToken: 'migrated-access-token',
-      });
-      mockFindOneAndUpdate.mockResolvedValueOnce(migrated);
-
-      const result = await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        stableDeviceKey: RP,
-        deviceId: CENTRAL,
-      });
-
-      // Same session row reused (no new row minted), now on the central device.
-      expect(mockSave).not.toHaveBeenCalled();
-      expect(result.sessionId).toBe('legacy-sess');
-      expect(result.deviceId).toBe(CENTRAL);
-
-      // The reuse update $set migrated the stored deviceId to the central id.
-      const updateArg = mockFindOneAndUpdate.mock.calls[0][1] as { $set: Record<string, unknown> };
-      expect(updateArg.$set.deviceId).toBe(CENTRAL);
-
-      // The re-minted JWT embeds the NEW deviceId (3rd generateSessionTokens arg).
-      const tokenCalls = (generateSessionTokens as jest.Mock).mock.calls;
-      expect(tokenCalls[tokenCalls.length - 1][2]).toBe(CENTRAL);
-
-      // The old device doc's entry for this account is detached; the migrated
-      // session id is preserved (never deactivated).
-      expect(mockDetachMigratedAccount).toHaveBeenCalledWith(originDeviceId, 'user-123', 'legacy-sess');
-    });
-
-    it('does NOT migrate on reuse when no explicit deviceId is supplied', async () => {
-      // Pure stableDeviceKey path: the reuse lookup keys on the origin-derived
-      // device and any UA/IP mismatch must NOT move the session.
-      mockFindOneResults.push({ _id: 'mongo-id-123' }); // isNewDevice: seen
-      mockFindOneResults.push(
-        createMockSession({ sessionId: 'sess-x', deviceId: 'device-old' })
-      ); // PRIMARY reuse lookup: HIT
-      mockFindOneAndUpdate.mockResolvedValueOnce(
-        createMockSession({ sessionId: 'sess-x', deviceId: 'device-old' })
-      );
-
-      await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        stableDeviceKey: RP,
-      });
-
-      const updateArg = mockFindOneAndUpdate.mock.calls[0][1] as { $set: Record<string, unknown> };
-      expect(updateArg.$set.deviceId).toBeUndefined();
-      expect(mockDetachMigratedAccount).not.toHaveBeenCalled();
-    });
-
-    it('performs NO migration side-effects when the explicit deviceId already matches', async () => {
-      mockFindOneResults.push({ _id: 'mongo-id-123' }); // isNewDevice: seen
-      mockFindOneResults.push(
-        createMockSession({ sessionId: 'sess-y', deviceId: CENTRAL })
-      ); // PRIMARY reuse lookup: HIT, already on the central device
-      mockFindOneAndUpdate.mockResolvedValueOnce(
-        createMockSession({ sessionId: 'sess-y', deviceId: CENTRAL })
-      );
-
-      await sessionService.createSession('user-123', createMockRequest(), {
-        deviceName: 'FedCM Sign-In',
-        deviceId: CENTRAL,
-      });
-
-      const updateArg = mockFindOneAndUpdate.mock.calls[0][1] as { $set: Record<string, unknown> };
-      expect(updateArg.$set.deviceId).toBeUndefined();
-      expect(mockDetachMigratedAccount).not.toHaveBeenCalled();
-    });
+    expect(viaAlice.sessionId).not.toBe(viaNate.sessionId);
+    expect((await storedSession(viaNate.sessionId)).operatedByUserId).toBe(nate);
+    expect((await storedSession(viaNate.sessionId)).isActive).toBe(true);
+    expect((await storedSession(viaAlice.sessionId)).operatedByUserId).toBe(alice);
   });
 
-  describe('validateSession', () => {
-    it('should validate active session', async () => {
-      const mockSession = createMockSession();
-      mockFindOneResults.push(mockSession);
+  it('still reuses the SAME operator’s delegated session', async () => {
+    const org = await account({ kind: 'organization' });
+    const nate = await account();
+    const device = deviceId();
 
-      const result = await sessionService.validateSession('mock-access-token');
-
-      expect(result).toBeDefined();
-      expect(result!.session.sessionId).toBe('session-123');
-      expect(result!.user).toBeDefined();
-      expect(result!.payload).toBeDefined();
-      expect(result!.payload.sessionId).toBe('session-123');
+    const first = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: nate,
+    });
+    const second = await sessionService.createSession(org, request(), {
+      deviceId: device,
+      operatedByUserId: nate,
     });
 
-    it('should reject expired session', async () => {
-      (validateAccessToken as jest.Mock).mockReturnValueOnce({
-        valid: false,
-        error: 'expired',
-      });
+    expect(second.sessionId).toBe(first.sessionId);
+  });
+});
 
-      const result = await sessionService.validateSession('expired-token');
+describe('getSession', () => {
+  it('returns an active, unexpired session', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    sessionCache.clear();
 
-      expect(result).toBeNull();
-    });
-
-    it('should reject invalidated session', async () => {
-      (validateAccessToken as jest.Mock).mockReturnValueOnce({
-        valid: true,
-        payload: { userId: 'user-123', sessionId: 'inactive-session', deviceId: 'device-123' },
-      });
-      // Session not found (inactive or non-existent)
-      mockFindOneResults.push(null);
-
-      const result = await sessionService.validateSession('valid-token-but-inactive-session');
-
-      expect(result).toBeNull();
-    });
+    const found = await sessionService.getSession(created.sessionId, false);
+    expect(found?.sessionId).toBe(created.sessionId);
   });
 
-  describe('revokeSession', () => {
-    it('should revoke active session', async () => {
-      mockUpdateOne.mockResolvedValueOnce({ modifiedCount: 1 });
+  it('rejects an EXPIRED session — the read filters expiry itself', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await getDb()
+      .update(sessions)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
 
-      const result = await sessionService.deactivateSession('session-123');
-
-      expect(result).toBe(true);
-      expect(mockUpdateOne).toHaveBeenCalledWith(
-        { sessionId: 'session-123', isActive: true },
-        { $set: { isActive: false, updatedAt: expect.any(Date) } }
-      );
-      expect(sessionCache.invalidate).toHaveBeenCalledWith('session-123');
-    });
-
-    it('should prevent access with revoked session', async () => {
-      // Deactivate the session
-      mockUpdateOne.mockResolvedValueOnce({ modifiedCount: 1 });
-      await sessionService.deactivateSession('session-123');
-
-      // Attempt to validate — session lookup returns null (deactivated)
-      (validateAccessToken as jest.Mock).mockReturnValueOnce({
-        valid: true,
-        payload: { userId: 'user-123', sessionId: 'session-123', deviceId: 'device-123' },
-      });
-      mockFindOneResults.push(null);
-
-      const result = await sessionService.validateSession('mock-access-token');
-
-      expect(result).toBeNull();
-    });
+    // Correctness must not depend on the expiry sweep having run.
+    expect(await sessionService.getSession(created.sessionId, false)).toBeNull();
   });
 
-  /**
-   * Sliding (idle) session lifetime.
-   *
-   * `Session.expiresAt` must be an IDLE timeout, not a hard absolute cap: any
-   * successful USE of the session (a device-token mint or a refresh rotation)
-   * pushes the 7-day window forward, so a continuously-used device-first session
-   * never dies. A truly idle session (no mint/refresh for 7 days) still expires.
-   *
-   * Two chokepoints slide the window, without ever double-writing:
-   *   - getAccessToken's still-valid branch — the mint path when NO rotation
-   *     happens (the stored 15-min access token is still valid).
-   *   - refreshTokens — every token rotation (direct refresh + the mint path
-   *     when the stored access token has expired).
-   */
-  describe('sliding session window on use (getAccessToken mint path)', () => {
-    const SAVED_SECRET = process.env.ACCESS_TOKEN_SECRET;
-    const ACCESS_SECRET = 'test-access-secret';
+  it('rejects a DEACTIVATED session', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await sessionService.deactivateSession(created.sessionId);
+    sessionCache.clear();
 
-    beforeEach(() => {
-      process.env.ACCESS_TOKEN_SECRET = ACCESS_SECRET;
-    });
+    expect(await sessionService.getSession(created.sessionId, false)).toBeNull();
+  });
+});
 
-    afterEach(() => {
-      if (SAVED_SECRET === undefined) {
-        delete process.env.ACCESS_TOKEN_SECRET;
-      } else {
-        process.env.ACCESS_TOKEN_SECRET = SAVED_SECRET;
-      }
-    });
+describe('deactivateSession / deactivateAllUserSessions', () => {
+  it('deactivates without deleting the row', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
 
-    it('slides expiresAt forward when a still-valid session is used to mint (no rotation) and stays mintable', async () => {
-      // A live access token (exp ~15m in the future) → getAccessToken returns it
-      // WITHOUT rotating, but must still push the session window forward.
-      const validAccessToken = jwt.sign(
-        { userId: 'user-123', sessionId: 'session-123' },
-        ACCESS_SECRET,
-        { expiresIn: '15m' }
-      );
-      // Session is on the verge of expiry (still live — findOne returns it).
-      const nearExpiry = new Date(Date.now() + 60_000);
-      mockFindOneResults.push(
-        createMockSession({ accessToken: validAccessToken, expiresAt: nearExpiry })
-      );
-      mockUpdateOne.mockResolvedValueOnce({ modifiedCount: 1 });
+    expect(await sessionService.deactivateSession(created.sessionId)).toBe(true);
 
-      const before = Date.now();
-      const result = await sessionService.getAccessToken('session-123');
-
-      expect(result).not.toBeNull();
-      // Same (still-valid) token handed back — the session remains mintable.
-      expect(result!.accessToken).toBe(validAccessToken);
-      // The window slid ~7 days forward, well past the near-expiry it had.
-      expect(result!.expiresAt.getTime()).toBeGreaterThan(before + SIX_DAYS_MS);
-      expect(result!.expiresAt.getTime()).toBeGreaterThan(nearExpiry.getTime());
-      // The slide was persisted with the idle-renewal filter (never a rotation).
-      expect(mockUpdateOne).toHaveBeenCalledWith(
-        { sessionId: 'session-123', isActive: true },
-        { $set: { expiresAt: expect.any(Date), updatedAt: expect.any(Date) } }
-      );
-      const persisted = (mockUpdateOne.mock.calls[0][1] as { $set: { expiresAt: Date } }).$set.expiresAt;
-      expect(persisted.getTime()).toBeGreaterThan(before + SIX_DAYS_MS);
-    });
-
-    it('does NOT renew (no slide) and mints nothing for an idle-expired/absent session', async () => {
-      // An idle session past 7 days is excluded by getSession's
-      // `expiresAt: { $gt: now }` filter (and TTL-deleted), so findOne returns
-      // null: nothing is minted and the window is never renewed without use.
-      mockFindOneResults.push(null);
-
-      const result = await sessionService.getAccessToken('session-123');
-
-      expect(result).toBeNull();
-      expect(mockUpdateOne).not.toHaveBeenCalled();
-    });
-
-    it('still returns the valid token if persisting the slide fails (best-effort renewal)', async () => {
-      const validAccessToken = jwt.sign(
-        { userId: 'user-123', sessionId: 'session-123' },
-        ACCESS_SECRET,
-        { expiresIn: '15m' }
-      );
-      mockFindOneResults.push(createMockSession({ accessToken: validAccessToken }));
-      mockUpdateOne.mockRejectedValueOnce(new Error('transient write failure'));
-
-      const result = await sessionService.getAccessToken('session-123');
-
-      // A transient slide-write failure must not break an otherwise-valid mint.
-      expect(result).not.toBeNull();
-      expect(result!.accessToken).toBe(validAccessToken);
-    });
+    // Nothing in the codebase deletes a session row — only the expiry sweep.
+    const stored = await storedSession(created.sessionId);
+    expect(stored).toBeDefined();
+    expect(stored.isActive).toBe(false);
   });
 
-  describe('sliding session window on use (refreshTokens rotation path)', () => {
-    it('slides expiresAt forward on a successful rotation', async () => {
-      const nearExpiry = new Date(Date.now() + 60_000);
-      const save = jest.fn().mockResolvedValue(undefined);
-      // refreshTokens awaits `Session.findOne(...)` directly (no `.lean()`), so
-      // the queued value is a mongoose-like doc carrying `.save()`.
-      const sessionDoc = {
-        sessionId: 'session-123',
-        userId: { toString: () => 'user-123' },
-        deviceId: 'device-123',
-        accessToken: 'old-access-token',
-        refreshToken: 'mock-refresh-token',
-        deviceInfo: { lastActive: new Date() },
-        isActive: true,
-        expiresAt: nearExpiry,
-        save,
-      };
-      mockFindOneResults.push(sessionDoc);
+  it('reports false when there was no active session to deactivate', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await sessionService.deactivateSession(created.sessionId);
 
-      const before = Date.now();
-      const result = await sessionService.refreshTokens('mock-refresh-token');
+    expect(await sessionService.deactivateSession(created.sessionId)).toBe(false);
+  });
 
-      expect(result).not.toBeNull();
-      expect(save).toHaveBeenCalledTimes(1);
-      // The rotation slid the window ~7 days forward, past the near-expiry.
-      expect(sessionDoc.expiresAt.getTime()).toBeGreaterThan(before + SIX_DAYS_MS);
-      expect(sessionDoc.expiresAt.getTime()).toBeGreaterThan(nearExpiry.getTime());
-      expect(result!.session.expiresAt.getTime()).toBeGreaterThan(before + SIX_DAYS_MS);
-      // Sanity: the slide never exceeds a full 7-day renewal from now.
-      expect(sessionDoc.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + SEVEN_DAYS_MS);
+  it('deactivates every session of a user except the excluded one', async () => {
+    const user = await account();
+    const keep = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const dropA = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const dropB = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+
+    expect(await sessionService.deactivateAllUserSessions(user, keep.sessionId)).toBe(2);
+
+    expect((await storedSession(keep.sessionId)).isActive).toBe(true);
+    expect((await storedSession(dropA.sessionId)).isActive).toBe(false);
+    expect((await storedSession(dropB.sessionId)).isActive).toBe(false);
+  });
+
+  it("never touches another user's sessions", async () => {
+    const mine = await account();
+    const theirs = await account();
+    await sessionService.createSession(mine, request(), { deviceId: deviceId() });
+    const other = await sessionService.createSession(theirs, request(), { deviceId: deviceId() });
+
+    await sessionService.deactivateAllUserSessions(mine);
+
+    expect((await storedSession(other.sessionId)).isActive).toBe(true);
+  });
+});
+
+describe('getUserActiveSessions', () => {
+  it('returns only live sessions, most recently active first', async () => {
+    const user = await account();
+    const older = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const newer = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const dead = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await sessionService.deactivateSession(dead.sessionId);
+    await getDb()
+      .update(sessions)
+      .set({ lastActiveAt: new Date(Date.now() - 60_000) })
+      .where(eq(sessions.sessionId, older.sessionId));
+
+    const live = await sessionService.getUserActiveSessions(user);
+
+    expect(live.map((s) => s.sessionId)).toEqual([newer.sessionId, older.sessionId]);
+  });
+});
+
+describe('refreshTokens', () => {
+  it('rotates the pair, keeps the old refresh token for the grace window, and slides expiry', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const before = await storedSession(created.sessionId);
+
+    const result = await sessionService.refreshTokens(created.refreshToken);
+
+    expect(result).not.toBeNull();
+    expect(result?.refreshToken).not.toBe(created.refreshToken);
+    const after = await storedSession(created.sessionId);
+    expect(after.refreshToken).toBe(result?.refreshToken);
+    expect(after.previousRefreshToken).toBe(created.refreshToken);
+    expect(after.tokenRotatedAt).toBeInstanceOf(Date);
+    // Sliding idle window — a rotation is a USE of the session.
+    expect(after.expiresAt.getTime()).toBeGreaterThan(before.expiresAt.getTime());
+  });
+
+  it('honours the just-superseded token inside the grace window WITHOUT rotating again', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const rotated = await sessionService.refreshTokens(created.refreshToken);
+    sessionCache.clear();
+
+    // The multi-tab race: tab B still holds the pre-rotation token.
+    const graced = await sessionService.refreshTokens(created.refreshToken);
+
+    expect(graced?.refreshToken).toBe(rotated?.refreshToken);
+    expect(graced?.accessToken).toBe(rotated?.accessToken);
+  });
+
+  it('rejects the superseded token once the grace window has passed', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await sessionService.refreshTokens(created.refreshToken);
+    await getDb()
+      .update(sessions)
+      .set({ tokenRotatedAt: new Date(Date.now() - 120_000) })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
+
+    expect(await sessionService.refreshTokens(created.refreshToken)).toBeNull();
+  });
+
+  it('rejects a refresh token for a deactivated or expired session', async () => {
+    const user = await account();
+    const dead = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await sessionService.deactivateSession(dead.sessionId);
+    sessionCache.clear();
+    expect(await sessionService.refreshTokens(dead.refreshToken)).toBeNull();
+
+    const expired = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await getDb()
+      .update(sessions)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(sessions.sessionId, expired.sessionId));
+    sessionCache.clear();
+    expect(await sessionService.refreshTokens(expired.refreshToken)).toBeNull();
+  });
+
+  it('rejects a garbage refresh token', async () => {
+    expect(await sessionService.refreshTokens('not-a-jwt')).toBeNull();
+  });
+});
+
+describe('getAccessToken — the mint chokepoint', () => {
+  it('slides expiresAt forward when a still-valid session mints without rotating', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await getDb()
+      .update(sessions)
+      .set({ expiresAt: new Date(Date.now() + 60_000) })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
+
+    const token = await sessionService.getAccessToken(created.sessionId);
+
+    expect(token?.accessToken).toBe(created.accessToken);
+    const after = await storedSession(created.sessionId);
+    // Renewed to a full window from now, so an actively-used session never dies.
+    expect(after.expiresAt.getTime()).toBeGreaterThan(Date.now() + SESSION_EXPIRES_IN - 60_000);
+  });
+
+  it('mints nothing for an idle-expired or absent session', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    await getDb()
+      .update(sessions)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
+
+    expect(await sessionService.getAccessToken(created.sessionId)).toBeNull();
+    expect(await sessionService.getAccessToken(randomUUID())).toBeNull();
+  });
+
+  it('never asks the membership oracle for an ordinary session', async () => {
+    // The performance half of the mint-path re-check, pinned rather than left
+    // to the comment on it. `ensureManagedSessionAuthorized` returns before any
+    // lookup when `operated_by_user_id` is NULL, so the overwhelmingly common
+    // session pays nothing for a guarantee only delegated sessions need.
+    //
+    // Not a vacuous assertion: 'mints NO token for a preserved operator who
+    // has lost act_as' proves this same mock IS reached, with these same
+    // arguments, when the session carries an operator.
+    const user = await account();
+    const session = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    expect((await storedSession(session.sessionId)).operatedByUserId).toBeNull();
+
+    mockVerifyActingAs.mockClear();
+    expect(await sessionService.getAccessToken(session.sessionId)).not.toBeNull();
+    expect(mockVerifyActingAs).not.toHaveBeenCalled();
+  });
+
+  it('mints from the ROW, never from a stale cached copy', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    const beforeRotation = await storedSession(created.sessionId);
+
+    // Another process rotates this session. Its `sessionCache.invalidate` reaches
+    // only its OWN local tier, so this one keeps the superseded pair...
+    expect(await sessionService.refreshTokens(created.refreshToken)).not.toBeNull();
+    // ...and once the rotation grace has passed, the superseded refresh token
+    // resolves to nothing at all.
+    await getDb()
+      .update(sessions)
+      .set({ tokenRotatedAt: new Date(Date.now() - 10 * 60 * 1000) })
+      .where(eq(sessions.sessionId, created.sessionId));
+
+    // The cached copy as it looks 15 minutes on: the row it describes is gone
+    // and its access token has expired, which is what sends `getAccessToken`
+    // down the rotate path.
+    const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
+    const claims = jwt.decode(beforeRotation.accessToken) as Record<string, unknown>;
+    delete claims.iat;
+    delete claims.exp;
+    sessionCache.set(created.sessionId, {
+      ...beforeRotation,
+      accessToken: jwt.sign(claims, process.env.ACCESS_TOKEN_SECRET as string, { expiresIn: '-1s' }),
     });
+
+    const minted = await sessionService.getAccessToken(created.sessionId);
+    expect(minted).not.toBeNull();
+    expect(await sessionService.validateSession(minted?.accessToken ?? '')).not.toBeNull();
+  });
+});
+
+describe("managed-account sessions stay bound to the operator's act_as", () => {
+  it('validates while the operator still holds act_as', async () => {
+    const operator = await account();
+    const managed = await account();
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+    mockVerifyActingAs.mockResolvedValue('admin');
+
+    const result = await sessionService.validateSessionById(created.sessionId, false);
+
+    expect(result?.session.sessionId).toBe(created.sessionId);
+    expect(mockVerifyActingAs).toHaveBeenCalledWith(operator, managed);
+  });
+
+  it('DEACTIVATES and rejects once the operator lost act_as', async () => {
+    const operator = await account();
+    const managed = await account();
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+    mockVerifyActingAs.mockResolvedValue(null); // membership revoked
+
+    expect(await sessionService.validateSessionById(created.sessionId, false)).toBeNull();
+    // Revocation is durable, not just a rejected read.
+    expect((await storedSession(created.sessionId)).isActive).toBe(false);
+  });
+
+  it('NEVER re-checks an ordinary (non-delegated) session', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+
+    await sessionService.validateSessionById(created.sessionId, false);
+
+    // operated_by_user_id IS NULL means "not a delegated session".
+    expect(mockVerifyActingAs).not.toHaveBeenCalled();
+  });
+
+  it('refuses to REFRESH and deactivates when the operator lost act_as', async () => {
+    const operator = await account();
+    const managed = await account();
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+    sessionCache.clear();
+    mockVerifyActingAs.mockResolvedValue(null);
+
+    expect(await sessionService.refreshTokens(created.refreshToken)).toBeNull();
+    expect((await storedSession(created.sessionId)).isActive).toBe(false);
+  });
+
+  it('rotates tokens when the operator still holds act_as', async () => {
+    const operator = await account();
+    const managed = await account();
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+    sessionCache.clear();
+    mockVerifyActingAs.mockResolvedValue('admin');
+
+    const result = await sessionService.refreshTokens(created.refreshToken);
+
+    expect(result?.refreshToken).not.toBe(created.refreshToken);
+  });
+});
+
+describe('validateSession / getSessionWithUser', () => {
+  it('resolves the session and its user from a live access token', async () => {
+    const user = await account({ username: `nate-${randomUUID().slice(0, 8)}` });
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    sessionCache.clear();
+    userCache.clear();
+
+    const result = await sessionService.validateSession(created.accessToken);
+
+    expect(result?.session.sessionId).toBe(created.sessionId);
+    // `session.userId` stays the id it is declared to be — Mongo replaced it
+    // with the populated user document here; that swap does not travel.
+    expect(result?.session.userId).toBe(user);
+    // The user half is the REAL account document, hydrated through
+    // `userService.readAccountDocument` — the same serializer
+    // `GET /users/me/data` returns. `_id` is the account id, which is the field
+    // `middleware/auth.ts` puts on `req.user`.
+    expect(result?.user._id).toBe(user);
+    expect(result?.user.privacySettings).toEqual(expect.objectContaining({
+      isPrivateAccount: expect.any(Boolean),
+    }));
+  });
+
+  it('withholds every protected column from the user it hands the request path', async () => {
+    const user = await account({ phone: '+15551234567' });
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    sessionCache.clear();
+    userCache.clear();
+
+    const result = await sessionService.validateSession(created.accessToken);
+
+    // `readAccountDocument` reads through `publicColumns(users)`, which is
+    // strictly narrower than the `.select('-password')` this replaced: the raw
+    // phone number and both contact-discovery hashes used to ride on
+    // `req.user` and no longer do.
+    expect(result?.user).not.toHaveProperty('phone');
+    expect(result?.user).not.toHaveProperty('hashedEmail');
+    expect(result?.user).not.toHaveProperty('hashedPhone');
+    expect(result?.user).not.toHaveProperty('refreshToken');
+    expect(result?.user).not.toHaveProperty('password');
+  });
+
+  it('returns null when the token is not a session token', async () => {
+    expect(await sessionService.validateSession('garbage')).toBeNull();
+  });
+
+  it("returns null when the session's user no longer exists", async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+    sessionCache.clear();
+    userCache.clear();
+
+    // Deleting the account cascades the session row away too; the token is
+    // still syntactically valid, which is exactly the case this guards.
+    await getDb().delete(users).where(eq(users.id, user));
+
+    expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+  });
+});
+
+/**
+ * Issue #937, Phase 6 — the access-token v2 binding, at the seam where it is
+ * written and re-read rather than in the pure claim-set unit
+ * (`utils/__tests__/accessTokenV2.test.ts`).
+ */
+describe('access token v2 binding', () => {
+  it('mints a v2 token whose subject and actor come from the ROW', async () => {
+    const operator = await account();
+    const managed = await account({ kind: 'organization' });
+    mockVerifyActingAs.mockResolvedValue('admin');
+
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: deviceId(),
+      operatedByUserId: operator,
+    });
+
+    const claims = validateAccessToken(created.accessToken).payload;
+    expect(claims?.ver).toBe(2);
+    expect(claims?.sub).toBe(managed);
+    expect(claims?.act?.sub).toBe(operator);
+    expect(claims?.sid).toBe(created.sessionId);
+  });
+
+  it('records the application binding on the row and mints azp/scope from it', async () => {
+    const user = await account();
+    const app = await applicationRow();
+
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: deviceId(),
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read'] },
+    });
+
+    const stored = await storedSession(created.sessionId);
+    expect(stored.applicationId).toBe(app.id);
+    expect(stored.clientId).toBe(app.clientId);
+    expect(stored.scopes).toEqual(['profile:read']);
+
+    const claims = validateAccessToken(created.accessToken).payload;
+    expect(claims?.azp).toBe(app.clientId);
+    expect(claims?.scope).toBe('profile:read');
+  });
+
+  it('never hands an application-bound mint somebody else’s session on the same device', async () => {
+    // The capture case. Before the reuse guard, an OAuth exchange landing on
+    // the user's central device found the device's own first-party session and
+    // took it over — the client received a token for the shared session and the
+    // only trace was the row being renamed.
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const shared = await sessionService.createSession(user, request(), { deviceId: device });
+
+    const bound = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: [] },
+    });
+
+    expect(bound.sessionId).not.toBe(shared.sessionId);
+    // ...and the shared session is untouched, still belonging to no application.
+    const sharedAfter = await storedSession(shared.sessionId);
+    expect(sharedAfter.applicationId).toBeNull();
+  });
+
+  it('reuses the SAME application’s session across exchanges', async () => {
+    // The other half of the guard: isolation must not mean one row per
+    // exchange.
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const options = {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: [] },
+    };
+
+    const first = await sessionService.createSession(user, request(), options);
+    const second = await sessionService.createSession(user, request(), options);
+
+    expect(second.sessionId).toBe(first.sessionId);
+  });
+
+  it('rejects a bearer once its session is bound to a DIFFERENT application', async () => {
+    const user = await account();
+    const app = await applicationRow();
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: deviceId(),
+      application: { applicationId: app.id, clientId: app.clientId, scopes: [] },
+    });
+    expect(await sessionService.validateSession(created.accessToken)).not.toBeNull();
+
+    const other = await applicationRow();
+    await getDb()
+      .update(sessions)
+      .set({ applicationId: other.id, clientId: other.clientId })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
+
+    // The token still verifies and its session is still live — the row moved
+    // out from under it, and that alone is enough.
+    expect(await sessionService.validateSession(created.accessToken)).toBeNull();
+  });
+
+  it('upgrades a v1 token to v2 on the next mint, without rotating a matching one', async () => {
+    const user = await account();
+    const created = await sessionService.createSession(user, request(), { deviceId: deviceId() });
+
+    // Rewrite the stored token into the pre-Phase-6 shape, exactly as a session
+    // that survived the deploy carries it.
+    const jwt = jest.requireActual<typeof import('jsonwebtoken')>('jsonwebtoken');
+    const legacy = jwt.sign(
+      { userId: user, sessionId: created.sessionId, deviceId: created.deviceId, type: 'access' },
+      process.env.ACCESS_TOKEN_SECRET as string,
+      { expiresIn: '15m' }
+    );
+    await getDb()
+      .update(sessions)
+      .set({ accessToken: legacy })
+      .where(eq(sessions.sessionId, created.sessionId));
+    sessionCache.clear();
+
+    const upgraded = await sessionService.getAccessToken(created.sessionId);
+    expect(upgraded).not.toBeNull();
+    expect(upgraded?.accessToken).not.toBe(legacy);
+    expect(validateAccessToken(upgraded?.accessToken ?? '').payload?.ver).toBe(2);
+
+    // A second mint of the now-matching token must NOT rotate again, or every
+    // request would burn a refresh.
+    sessionCache.clear();
+    const again = await sessionService.getAccessToken(created.sessionId);
+    expect(again?.accessToken).toBe(upgraded?.accessToken);
+  });
+
+  it('carries the device context onto the token once the login lane binds it', async () => {
+    const user = await account();
+    const device = deviceId();
+    const created = await sessionService.createSession(user, request(), { deviceId: device });
+    // The token at this point predates the context: `addAccount` has not run.
+    expect(validateAccessToken(created.accessToken).payload?.device_context_id).toBeUndefined();
+
+    await deviceSessionService.addAccount(device, {
+      accountId: user,
+      sessionId: created.sessionId,
+    });
+    await deviceSessionService.bindSessionToContext(device, created.sessionId);
+
+    const minted = await sessionService.getAccessToken(created.sessionId);
+    const claims = validateAccessToken(minted?.accessToken ?? '').payload;
+    expect(typeof claims?.device_context_id).toBe('string');
+    expect(typeof claims?.device_session_id).toBe('string');
+  });
+});
+
+/**
+ * Reuse must never NARROW the binding a session already carries.
+ *
+ * `createSession`'s reuse branch re-mints the token pair from the caller's
+ * options while the row keeps everything the caller said nothing about. When
+ * those two disagree the session is dead, not degraded: `checkAccessTokenBinding`
+ * refuses the token against its own row on every later request, and each re-mint
+ * reproduces the same disagreement, so nothing recovers it.
+ *
+ * The device-flow approve route is the caller that reaches this in production —
+ * `POST /auth/session/authorize/:sessionToken` passes a deviceId and a label and
+ * nothing else, onto the device whose own session the login lane bound to a
+ * device context. Every case below asserts through `validateSession`, the real
+ * consumer of the binding check, rather than re-deriving the row shape here.
+ */
+describe('createSession reuse preserves the binding the row already carries', () => {
+  it('keeps the device context when the caller supplies none', async () => {
+    const user = await account();
+    const device = deviceId();
+    const created = await sessionService.createSession(user, request(), { deviceId: device });
+    // The login lane's ordering: the context row exists only after the session,
+    // so the binding is written afterwards.
+    await deviceSessionService.addAccount(device, { accountId: user, sessionId: created.sessionId });
+    await deviceSessionService.bindSessionToContext(device, created.sessionId);
+    const before = await storedSession(created.sessionId);
+    expect(before.deviceSessionId).not.toBeNull();
+    expect(before.deviceContextId).not.toBeNull();
+
+    // The approve route's exact call.
+    const reused = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      deviceName: 'Acme App',
+    });
+    expect(reused.sessionId).toBe(created.sessionId);
+
+    const claims = validateAccessToken(reused.accessToken).payload;
+    expect(claims?.device_session_id).toBe(before.deviceSessionId);
+    expect(claims?.device_context_id).toBe(before.deviceContextId);
+
+    const after = await storedSession(created.sessionId);
+    expect(after.deviceSessionId).toBe(before.deviceSessionId);
+    expect(after.deviceContextId).toBe(before.deviceContextId);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).not.toBeNull();
+  });
+
+  it('keeps the application binding when the caller supplies none', async () => {
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read'] },
+    });
+
+    const reused = await sessionService.createSession(user, request(), { deviceId: device });
+    expect(reused.sessionId).toBe(created.sessionId);
+
+    const claims = validateAccessToken(reused.accessToken).payload;
+    expect(claims?.azp).toBe(app.clientId);
+    expect(claims?.scope).toBe('profile:read');
+
+    const after = await storedSession(created.sessionId);
+    expect(after.applicationId).toBe(app.id);
+    expect(after.clientId).toBe(app.clientId);
+    expect(after.scopes).toEqual(['profile:read']);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).not.toBeNull();
+  });
+
+  it('keeps the operator when the caller supplies none', async () => {
+    // The reuse lookup deliberately lets an operator-less mint reuse a
+    // DELEGATED row, so the actor half of the binding takes the same route as
+    // the other two. `operated_by_user_id` is a PRIVILEGE field rather than an
+    // address, so this case is spelled out rather than lumped in with the
+    // device and application halves.
+    //
+    // THE SHAPE BELOW IS REACHABLE, and it is worth stating how, because the
+    // reuse lookup filters on `user_id` and a delegated row's `user_id` is the
+    // MANAGED account — which reads as though an operator-less mint could never
+    // find one. It can: the bearer of a managed session resolves `req.user._id`
+    // to that same managed account (`validateSession` loads the user by
+    // `session.userId`; `middleware/auth.ts` pins `req.user`), so while switched
+    // into an organization the authenticated identity IS the organization.
+    // `POST /accounts/:id/switch` then puts the delegated row on the OPERATOR's
+    // central deviceId, and `POST /auth/session/authorize/:sessionToken` mints
+    // `createSession(<that organization>, { deviceId: <that same device> })`
+    // with no operator at all.
+    //
+    // Preserving is what the design asks for, not merely what keeps the binding
+    // consistent: writing NULL here would mint the operator-less organization
+    // session that the `account:act_as` re-check exists to make impossible. The
+    // sibling case below is what keeps that safe.
+    const operator = await account();
+    const managed = await account({ kind: 'organization' });
+    const device = deviceId();
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: device,
+      operatedByUserId: operator,
+    });
+
+    const reused = await sessionService.createSession(managed, request(), { deviceId: device });
+    expect(reused.sessionId).toBe(created.sessionId);
+    expect(validateAccessToken(reused.accessToken).payload?.act?.sub).toBe(operator);
+    expect((await storedSession(created.sessionId)).operatedByUserId).toBe(operator);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).not.toBeNull();
+  });
+
+  it('mints NO token for a preserved operator who has lost act_as', async () => {
+    // The other half of preserving a PRIVILEGE field: the preserved operator
+    // must still have to prove the privilege. `createSession` itself never
+    // re-checks `account:act_as`, so the seam that has to is the one handing
+    // out the credential — `getAccessToken`, which `POST /auth/session/claim`
+    // reaches with no auth middleware in front of it.
+    //
+    // Until the binding was fixed this passed BY ACCIDENT: the reuse mint left
+    // the token disagreeing with its row, every claim fell into `refreshTokens`
+    // to be re-minted, and the check lives there. Making the token agree
+    // removed that accident, which is why the check is now stated at the mint.
+    const operator = await account();
+    const managed = await account({ kind: 'organization' });
+    const device = deviceId();
+    mockVerifyActingAs.mockResolvedValue('admin');
+    const created = await sessionService.createSession(managed, request(), {
+      deviceId: device,
+      operatedByUserId: operator,
+    });
+    // The approve route's operator-less mint, which preserves the operator.
+    const reused = await sessionService.createSession(managed, request(), { deviceId: device });
+    expect(reused.sessionId).toBe(created.sessionId);
+    expect((await storedSession(created.sessionId)).operatedByUserId).toBe(operator);
+
+    // POSITIVE CONTROL, and the vacuity floor. The SAME call on the SAME
+    // session, with the membership intact, mints — so "returns null" below is
+    // an answer this lane computed and not a lane that never ran. And the
+    // membership oracle is provably consulted with this operator and this
+    // account, which is what makes the revocation below meaningful.
+    mockVerifyActingAs.mockClear();
+    expect(await sessionService.getAccessToken(created.sessionId)).not.toBeNull();
+    expect(mockVerifyActingAs).toHaveBeenCalledWith(operator, managed);
+
+    // The membership is withdrawn.
+    mockVerifyActingAs.mockResolvedValue(null);
+
+    // The claim lane mints nothing...
+    expect(await sessionService.getAccessToken(created.sessionId)).toBeNull();
+    // ...and the refusal is a REVOCATION, not a withholding: the session is
+    // deactivated, so the token handed out before the withdrawal dies on its
+    // next request rather than living out its 15 minutes.
+    expect((await storedSession(created.sessionId)).isActive).toBe(false);
+    sessionCache.clear();
+    expect(await sessionService.validateSession(reused.accessToken)).toBeNull();
+  });
+
+  it('still lets the caller REPOINT a binding it does supply', async () => {
+    // The other half: "absent means keep" must not become "supplied is
+    // ignored". A later exchange can widen or narrow what the client was
+    // granted, and the grant is the authority — so a supplied value replaces
+    // the row's outright, it does not merge with it.
+    const user = await account();
+    const device = deviceId();
+    const app = await applicationRow();
+    const created = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read', 'mail:read'] },
+    });
+    const regranted = await sessionService.createSession(user, request(), {
+      deviceId: device,
+      application: { applicationId: app.id, clientId: app.clientId, scopes: ['profile:read'] },
+    });
+
+    expect(regranted.sessionId).toBe(created.sessionId);
+    expect(validateAccessToken(regranted.accessToken).payload?.scope).toBe('profile:read');
+    expect((await storedSession(created.sessionId)).scopes).toEqual(['profile:read']);
+
+    sessionCache.clear();
+    expect(await sessionService.validateSession(regranted.accessToken)).not.toBeNull();
+  });
+
+  it('leaves the refresh token it replaces usable for the grace window', async () => {
+    // A reuse re-mint is a rotation, so it owes the same grace record: the
+    // replaced token is held by whoever read this session before the re-mint,
+    // including another process's cache, and no invalidation from here reaches
+    // them.
+    const user = await account();
+    const device = deviceId();
+    const first = await sessionService.createSession(user, request(), { deviceId: device });
+    const second = await sessionService.createSession(user, request(), { deviceId: device });
+    expect(second.sessionId).toBe(first.sessionId);
+    expect(second.refreshToken).not.toBe(first.refreshToken);
+
+    const stored = await storedSession(first.sessionId);
+    expect(stored.previousRefreshToken).toBe(first.refreshToken);
+    expect(stored.tokenRotatedAt).not.toBeNull();
+
+    const graced = await sessionService.refreshTokens(first.refreshToken);
+    expect(graced).not.toBeNull();
+    expect(graced?.accessToken).toBe(second.accessToken);
   });
 });

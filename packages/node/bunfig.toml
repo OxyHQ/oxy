@@ -1,0 +1,8 @@
+# @oxyhq/node is a JEST package — see jest.config.js.
+#
+# `bun test` (bun's own runner) is NOT a supported way to run this suite: it
+# ignores jest.config.js and half-runs the suite. This preload aborts that run
+# with an explanation. `bun run test` — the declared script — is unaffected:
+# [test].preload applies only to `bun test`.
+[test]
+preload = ["../../scripts/refuse-bun-test.ts"]

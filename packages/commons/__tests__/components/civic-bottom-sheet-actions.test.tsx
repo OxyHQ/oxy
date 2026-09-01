@@ -6,7 +6,6 @@ import { LocaleProvider } from '@/lib/i18n/locale-context';
 interface MockAction {
   label: string;
   color?: string;
-  loading?: boolean;
   disabled?: boolean;
   shouldCloseOnPress?: boolean;
   onPress?: () => void;
@@ -117,10 +116,10 @@ describe('civic bottom-sheet action contract', () => {
 
     expect(mockDialogControl?.open).toHaveBeenCalledTimes(1);
     expect(mockDialogProps?.actions?.map(({ label }) => label)).toEqual([
-      'Confirm we met',
+      'Signing your confirmation…',
       'Cancel',
     ]);
-    expect(action('Confirm we met').loading).toBe(true);
+    expect(action('Signing your confirmation…').disabled).toBe(true);
     expect(action('Cancel').disabled).toBe(true);
     expect(action('Cancel').color).toBe('cancel');
   });

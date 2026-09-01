@@ -5,9 +5,16 @@
  * for backing up and restoring user identities.
  * 
  * Note: This module requires the polyfill to be loaded first (done via crypto/index.ts)
+ *
+ * Oxy recovery phrases are English-only, so the English wordlist is imported by
+ * its own subpath. Never reach for a package that exposes its wordlists through
+ * a barrel: `bip39`'s `_wordlists` hard-requires all ten languages, which put
+ * ~265 KB of unreachable wordlists into the initial chunk of every consuming
+ * app. Adding another language means one more subpath import, ideally lazy.
  */
 
-import * as bip39 from 'bip39';
+import { generateMnemonic, mnemonicToSeed, validateMnemonic } from '@scure/bip39';
+import { wordlist } from '@scure/bip39/wordlists/english';
 import { KeyManager } from './keyManager';
 import { hkdfSha256 } from './kdf';
 
@@ -108,15 +115,14 @@ export class RecoveryPhraseService {
     options?: GenerateIdentityOptions,
   ): Promise<RecoveryPhraseResult> {
     // Generate 128-bit entropy for 12-word mnemonic
-    const mnemonic = bip39.generateMnemonic(128);
+    const mnemonic = generateMnemonic(wordlist, 128);
 
     // Derive private key from mnemonic
     // Using the seed directly as the private key (simplified approach)
-    const seed = await bip39.mnemonicToSeed(mnemonic);
+    const seed = await mnemonicToSeed(mnemonic);
 
     // Use first 32 bytes of seed as private key
-    const seedSlice = seed.subarray ? seed.subarray(0, 32) : seed.slice(0, 32);
-    const privateKeyHex = toHex(seedSlice);
+    const privateKeyHex = toHex(seed.subarray(0, 32));
 
     // Import the derived key pair. KeyManager.importKeyPair will refuse to
     // clobber an existing identity unless overwrite is explicitly requested.
@@ -140,11 +146,10 @@ export class RecoveryPhraseService {
     options?: GenerateIdentityOptions,
   ): Promise<RecoveryPhraseResult> {
     // Generate 256-bit entropy for 24-word mnemonic
-    const mnemonic = bip39.generateMnemonic(256);
+    const mnemonic = generateMnemonic(wordlist, 256);
 
-    const seed = await bip39.mnemonicToSeed(mnemonic);
-    const seedSlice = seed.subarray ? seed.subarray(0, 32) : seed.slice(0, 32);
-    const privateKeyHex = toHex(seedSlice);
+    const seed = await mnemonicToSeed(mnemonic);
+    const privateKeyHex = toHex(seed.subarray(0, 32));
     const publicKey = await KeyManager.importKeyPair(privateKeyHex, {
       overwrite: options?.overwrite === true,
     });
@@ -170,10 +175,9 @@ export class RecoveryPhraseService {
    * committed anywhere — if it is lost the account becomes unrecoverable.
    */
   static async derivePendingIdentity(): Promise<PendingIdentityResult> {
-    const mnemonic = bip39.generateMnemonic(128);
-    const seed = await bip39.mnemonicToSeed(mnemonic);
-    const seedSlice = seed.subarray ? seed.subarray(0, 32) : seed.slice(0, 32);
-    const privateKey = toHex(seedSlice);
+    const mnemonic = generateMnemonic(wordlist, 128);
+    const seed = await mnemonicToSeed(mnemonic);
+    const privateKey = toHex(seed.subarray(0, 32));
     const publicKey = KeyManager.derivePublicKey(privateKey);
 
     return {
@@ -195,13 +199,12 @@ export class RecoveryPhraseService {
   static async derivePrivateKeyFromPhrase(phrase: string): Promise<string> {
     const normalizedPhrase = phrase.trim().toLowerCase();
 
-    if (!bip39.validateMnemonic(normalizedPhrase)) {
+    if (!validateMnemonic(normalizedPhrase, wordlist)) {
       throw new Error('Invalid recovery phrase');
     }
 
-    const seed = await bip39.mnemonicToSeed(normalizedPhrase);
-    const seedSlice = seed.subarray ? seed.subarray(0, 32) : seed.slice(0, 32);
-    return toHex(seedSlice);
+    const seed = await mnemonicToSeed(normalizedPhrase);
+    return toHex(seed.subarray(0, 32));
   }
 
   /**
@@ -224,11 +227,11 @@ export class RecoveryPhraseService {
   static async deriveBackupMaterial(phrase: string): Promise<BackupMaterial> {
     const normalizedPhrase = phrase.trim().toLowerCase();
 
-    if (!bip39.validateMnemonic(normalizedPhrase)) {
+    if (!validateMnemonic(normalizedPhrase, wordlist)) {
       throw new Error('Invalid recovery phrase. Please check the words and try again.');
     }
 
-    const seed = await bip39.mnemonicToSeed(normalizedPhrase);
+    const seed = await mnemonicToSeed(normalizedPhrase);
     const salt = utf8(BACKUP_KDF_SALT);
     const backupKey = hkdfSha256(seed, salt, utf8(BACKUP_KDF_ENCRYPTION_INFO), BACKUP_MATERIAL_LENGTH);
     const lookupId = toHex(hkdfSha256(seed, salt, utf8(BACKUP_KDF_LOOKUP_INFO), BACKUP_MATERIAL_LENGTH));
@@ -251,14 +254,13 @@ export class RecoveryPhraseService {
     // Normalize and validate the phrase
     const normalizedPhrase = phrase.trim().toLowerCase();
 
-    if (!bip39.validateMnemonic(normalizedPhrase)) {
+    if (!validateMnemonic(normalizedPhrase, wordlist)) {
       throw new Error('Invalid recovery phrase. Please check the words and try again.');
     }
 
     // Derive the same private key from the mnemonic
-    const seed = await bip39.mnemonicToSeed(normalizedPhrase);
-    const seedSlice = seed.subarray ? seed.subarray(0, 32) : seed.slice(0, 32);
-    const privateKeyHex = toHex(seedSlice);
+    const seed = await mnemonicToSeed(normalizedPhrase);
+    const privateKeyHex = toHex(seed.subarray(0, 32));
 
     // Import and store the key pair
     const publicKey = await KeyManager.importKeyPair(privateKeyHex, {
@@ -273,21 +275,21 @@ export class RecoveryPhraseService {
    */
   static validatePhrase(phrase: string): boolean {
     const normalizedPhrase = phrase.trim().toLowerCase();
-    return bip39.validateMnemonic(normalizedPhrase);
+    return validateMnemonic(normalizedPhrase, wordlist);
   }
 
   /**
    * Get the word list for autocomplete/validation
    */
   static getWordList(): string[] {
-    return bip39.wordlists.english;
+    return wordlist;
   }
 
   /**
    * Check if a word is valid in the BIP39 word list
    */
   static isValidWord(word: string): boolean {
-    return bip39.wordlists.english.includes(word.toLowerCase());
+    return wordlist.includes(word.toLowerCase());
   }
 
   /**
@@ -295,9 +297,7 @@ export class RecoveryPhraseService {
    */
   static getSuggestions(partial: string, limit = 5): string[] {
     const lowerPartial = partial.toLowerCase();
-    return bip39.wordlists.english
-      .filter((word: string) => word.startsWith(lowerPartial))
-      .slice(0, limit);
+    return wordlist.filter((word: string) => word.startsWith(lowerPartial)).slice(0, limit);
   }
 
   /**
@@ -307,14 +307,13 @@ export class RecoveryPhraseService {
   static async derivePublicKeyFromPhrase(phrase: string): Promise<string> {
     const normalizedPhrase = phrase.trim().toLowerCase();
     
-    if (!bip39.validateMnemonic(normalizedPhrase)) {
+    if (!validateMnemonic(normalizedPhrase, wordlist)) {
       throw new Error('Invalid recovery phrase');
     }
 
-    const seed = await bip39.mnemonicToSeed(normalizedPhrase);
-    const seedSlice = seed.subarray ? seed.subarray(0, 32) : seed.slice(0, 32);
-    const privateKeyHex = toHex(seedSlice);
-    
+    const seed = await mnemonicToSeed(normalizedPhrase);
+    const privateKeyHex = toHex(seed.subarray(0, 32));
+
     return KeyManager.derivePublicKey(privateKeyHex);
   }
 

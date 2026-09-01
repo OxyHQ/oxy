@@ -19,7 +19,14 @@
  * already knows; the leaf set stays server-side.
  */
 
+import {
+  safeParseContract,
+  transparencyCheckpointListSchema,
+  transparencyCheckpointSchema,
+  transparencyInclusionProofSchema,
+} from '@oxyhq/contracts';
 import { Router, type Request, type Response } from 'express';
+import type { z } from 'zod';
 import { rateLimit } from '../middleware/rateLimiter';
 import {
   getCheckpoint,
@@ -55,6 +62,22 @@ function notFound(res: Response, message: string): Response {
   return res.status(404).json({ error: 'NOT_FOUND', message });
 }
 
+function badRequest(res: Response, message: string): Response {
+  return res.status(400).json({ error: 'BAD_REQUEST', message });
+}
+
+function respondWithContract<T>(res: Response, schema: z.ZodType<T>, payload: unknown): Response {
+  const parsed = safeParseContract(schema, payload);
+  if (!parsed) {
+    logger.error('Transparency response failed contract validation', {
+      component: 'transparency',
+    });
+    return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Response contract violation' });
+  }
+  setTransparencyHeaders(res);
+  return res.json(parsed);
+}
+
 /** Parse a non-negative integer query/param, or `null` when malformed. */
 function parseNonNegativeInt(raw: unknown): number | null {
   if (typeof raw !== 'string' || !/^\d+$/.test(raw)) {
@@ -68,11 +91,27 @@ function parseNonNegativeInt(raw: unknown): number | null {
 // readability — Express matches the exact path first regardless.
 router.get('/checkpoints', async (req: Request, res: Response) => {
   try {
-    const since = parseNonNegativeInt(req.query.since) ?? 0;
-    const requested = parseNonNegativeInt(req.query.limit) ?? DEFAULT_CHECKPOINT_PAGE;
-    const limit = Math.min(Math.max(requested, 1), MAX_CHECKPOINT_PAGE);
-    setTransparencyHeaders(res);
-    return res.json({ checkpoints: await listCheckpoints(since, limit) });
+    let since = 0;
+    if (req.query.since !== undefined) {
+      const parsedSince = parseNonNegativeInt(req.query.since);
+      if (parsedSince === null) {
+        return badRequest(res, 'since must be a non-negative integer');
+      }
+      since = parsedSince;
+    }
+
+    let limit = DEFAULT_CHECKPOINT_PAGE;
+    if (req.query.limit !== undefined) {
+      const parsedLimit = parseNonNegativeInt(req.query.limit);
+      if (parsedLimit === null) {
+        return badRequest(res, 'limit must be a non-negative integer');
+      }
+      limit = Math.min(Math.max(parsedLimit, 1), MAX_CHECKPOINT_PAGE);
+    }
+
+    return respondWithContract(res, transparencyCheckpointListSchema, {
+      checkpoints: await listCheckpoints(since, limit),
+    });
   } catch (error) {
     logger.error('Failed to list transparency checkpoints', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to list checkpoints' });
@@ -87,8 +126,7 @@ router.get('/checkpoints/latest', async (_req: Request, res: Response) => {
     if (!checkpoint) {
       return notFound(res, 'No checkpoint has been published yet');
     }
-    setTransparencyHeaders(res);
-    return res.json(checkpoint);
+    return respondWithContract(res, transparencyCheckpointSchema, checkpoint);
   } catch (error) {
     logger.error('Failed to read the latest transparency checkpoint', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to read checkpoint' });
@@ -105,8 +143,7 @@ router.get('/checkpoints/:index', async (req: Request, res: Response) => {
     if (!checkpoint) {
       return notFound(res, 'Checkpoint not found');
     }
-    setTransparencyHeaders(res);
-    return res.json(checkpoint);
+    return respondWithContract(res, transparencyCheckpointSchema, checkpoint);
   } catch (error) {
     logger.error('Failed to read a transparency checkpoint', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to read checkpoint' });
@@ -133,8 +170,7 @@ router.get('/proof', async (req: Request, res: Response) => {
     if (!proof) {
       return notFound(res, 'No inclusion proof for that subject');
     }
-    setTransparencyHeaders(res);
-    return res.json(proof);
+    return respondWithContract(res, transparencyInclusionProofSchema, proof);
   } catch (error) {
     logger.error('Failed to build a transparency inclusion proof', error instanceof Error ? error : new Error(String(error)));
     return res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Failed to build proof' });

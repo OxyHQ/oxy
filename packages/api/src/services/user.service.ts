@@ -1,16 +1,37 @@
 /**
  * User Service
- * 
+ *
  * Business logic layer for user-related operations.
  * Separates route handlers from business logic for better testability and maintainability.
+ *
+ * ## What the Postgres port changed
+ *
+ * - **`users.following[]` / `followers[]` and `_count` are GONE.** `user_follows`
+ *   is the single authority and every total is a `count(*)` over it. The wire
+ *   still carries `_count: { followers, following }`; it is now a MEASUREMENT,
+ *   so it cannot drift from the edges the way a denormalized counter did — and
+ *   follow/unfollow no longer has counter maintenance to get wrong.
+ * - **`followType` is gone from every filter.** `Follow` was polymorphic in name
+ *   only; see `db/schema/userFollows.ts` for the evidence that no non-`user`
+ *   edge was ever written.
+ * - **`Types.ObjectId.isValid` guards are gone.** They existed to stop a
+ *   Mongoose `CastError`; a `text` id simply matches no rows, so a malformed id
+ *   takes the identical "no such user" path it always produced.
  */
 
-import User, { IUser } from '../models/User';
-import Follow, { FollowType } from '../models/Follow';
-import Block from '../models/Block';
-import Restricted from '../models/Restricted';
+import { and, eq, inArray, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
+import { publicColumns } from '@oxyhq/db/assert';
+import { getDb, type Database } from '../config/postgres';
+import { blocks } from '../db/schema/blocks';
+import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
+import { restrictions } from '../db/schema/restrictions';
+import { userAncestors } from '../db/schema/userAncestors';
+import { userFollows } from '../db/schema/userFollows';
+import { userLinkMetadata } from '../db/schema/userLinkMetadata';
+import { USER_LOCATION_TYPES, userLocations } from '../db/schema/userLocations';
+import { ACCOUNT_KINDS, ACCOUNT_STATUSES, USER_TYPES, users } from '../db/schema/users';
+import { userVerifiedDomains } from '../db/schema/userVerifiedDomains';
 import { logger } from '../utils/logger';
-import { Types } from 'mongoose';
 import userCache from '../utils/userCache';
 import securityActivityService from './securityActivityService';
 import { sanitizeProfileUpdate } from '../utils/sanitize';
@@ -20,26 +41,38 @@ import {
   normalizeLocations,
   normalizeProfileName,
 } from '../utils/profileTextNormalization';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { normalizeUsername } from '../utils/username';
 import { BadRequestError } from '../utils/error';
 import { Request } from 'express';
 import {
-  PaginationParams,
   PaginatedResponse,
   PublicUserProfile,
   ProfileUpdateInput,
   UserStatistics,
   FollowActionResult,
   ViewerGraph,
+  FollowGraphParams,
+  FollowGraphSort,
+  DEFAULT_FOLLOW_GRAPH_SORT,
 } from '../types/user.types';
 import {
-  PUBLIC_USER_PROFILE_SELECT,
-  type PublicUserDocument,
+  publicUserColumns,
+  publicUserFollowCounts,
+  toPublicUserView,
+  type LinkMetadataDto,
+  type PublicUserRow,
+  type PublicUserView,
 } from '../utils/publicUserProjection';
-import Subscription from '../models/Subscription';
+import { assertColorNotReserved, normalizeUserColor } from '../utils/profileColor';
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
-import { isValidDisplayName, normalizeLocale } from '@oxyhq/core';
-import type { UserRelationship } from '@oxyhq/contracts';
+import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxyhq/core';
+import { buildUserDid } from './did.service';
+import {
+  isAccountKind,
+  usernameSchemaForAccountKind,
+  type UserRelationship,
+} from '@oxyhq/contracts';
+import type { NameParts } from '../utils/displayName';
 
 // Constants
 import { PAGINATION } from '../utils/constants';
@@ -53,113 +86,174 @@ import {
 } from '../utils/recommendationWeights';
 import graphCache from '../utils/graphCache';
 import blockCache, { restrictCache } from '../utils/blockCache';
-import { discoverableUserMongoMatch } from '../utils/profileQuery';
+import { discoverableUserPredicate } from '../utils/profileQuery';
 
-interface UserWithCount {
-  _count?: {
-    followers?: number;
-    following?: number;
-  };
+/**
+ * A profile as its OWNER sees it — the public view plus the fields
+ * `formatUserResponse` emits only under `includePrivateFields`.
+ */
+export interface SelfUserView extends PublicUserView {
+  phone?: string;
+  address?: string;
+  birthday?: string;
+  themePreference?: { mode: 'light' | 'dark' | 'system'; colorPreset: string };
 }
 
 /**
- * One row of a `$group`-by-id Follow count aggregation: the grouped user id and
- * its follower/following count for that side of the relationship.
+ * The minimal surface {@link UserService.formatUserResponse} reads.
+ *
+ * Every property is `unknown` so ANY caller shape is structurally assignable
+ * with no cast — the same technique `UserIdentitySource` already uses in
+ * `utils/userTransform.ts`, and the reason this serializer needs no knowledge of
+ * which query produced its input. The producers in this package are
+ * {@link PublicUserView} and {@link SelfUserView}.
  */
-interface FollowCountRow {
-  _id: Types.ObjectId;
-  count: number;
+export interface UserResponseSource {
+  _id?: unknown;
+  /** Present on objects whose identifier was already folded into `id`. */
+  id?: unknown;
+  username?: unknown;
+  name?: unknown;
+  avatar?: unknown;
+  publicKey?: unknown;
+  verified?: unknown;
+  bio?: unknown;
+  description?: unknown;
+  color?: unknown;
+  links?: unknown;
+  linksMetadata?: unknown;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  phone?: unknown;
+  address?: unknown;
+  birthday?: unknown;
+  themePreference?: unknown;
+  type?: unknown;
+  /** Account-graph classification (`personal` / `organization` / `channel` …). */
+  kind?: unknown;
+  federation?: unknown;
+  privacySettings?: unknown;
+
+  // ---- flat Drizzle columns, accepted for the SAME reason `userIdentityFields`
+  // accepts `nameFirst`/`nameLast` (`utils/userTransform.ts`): this function
+  // takes a structurally-permissive input, so a caller that hands it a raw
+  // `users` row does not fail tsc — it would silently emit no `federation` and
+  // an unconditional `fediverseSharing: true`. Both are wire contract. Accepting
+  // both shapes in the one serializer beats each ported batch reassembling the
+  // object and drifting.
+  nameFirst?: unknown;
+  nameLast?: unknown;
+  nameDisplay?: unknown;
+  federationActorUri?: unknown;
+  federationDomain?: unknown;
+  privacyFediverseSharing?: unknown;
+  themePreferenceMode?: unknown;
+  themePreferenceColorPreset?: unknown;
 }
 
 /**
- * One row of the follows-of-follows aggregation: a candidate user id, how many
- * of the viewer's follows follow that candidate (frequency), and the most-recent
- * time any of them did so (the recency tiebreak).
+ * `ORDER BY` for a follow-graph page.
+ *
+ * The edge id is a REQUIRED tiebreak, not decoration: `created_at` alone is not
+ * unique (two follows landing in the same instant tie), and an unstable sort
+ * under `OFFSET`/`LIMIT` lets a tied row appear on two consecutive pages while
+ * another is skipped entirely. `user_follows.id` is unique, so the composite key
+ * is a STRICT TOTAL ORDER and paging is deterministic. It is mirrored with the
+ * primary key so `oldest` is the exact reverse of `recent`.
  */
-interface FollowsOfFollowsRow {
-  _id: Types.ObjectId;
-  followerCount: number;
-  lastFollowedAt: Date;
-}
+const FOLLOW_GRAPH_ORDER: Record<FollowGraphSort, SQL[]> = {
+  recent: [sql`${userFollows.createdAt} desc`, sql`${userFollows.id} desc`],
+  oldest: [sql`${userFollows.createdAt} asc`, sql`${userFollows.id} asc`],
+};
 
-type FollowUserEdgeField = 'followerUserId' | 'followedId';
+/** Which side of a follow edge names the counterparty being listed. */
+type FollowUserEdgeField = 'followerId' | 'followedId';
 
 /**
  * Paginate follow edges whose counterparty user is not archived or in the
  * punitive `restricted` reputation tier. Counts and pages on visible users
  * only so `total` / `hasMore` stay accurate after tombstoned/restricted
  * accounts are filtered out of discovery lists.
+ *
+ * Mongo needed a `$lookup` + `$unwind` + a second `$match` for the eligibility
+ * half; here it is an ordinary inner join, and the SORT still precedes
+ * OFFSET/LIMIT so it orders the full match set rather than the page.
  */
 async function paginateActiveFollowUserIds(
-  match: Record<string, unknown>,
+  db: Database,
+  edgePredicate: SQL,
   userIdField: FollowUserEdgeField,
   limit: number,
   offset: number,
+  sort: FollowGraphSort = DEFAULT_FOLLOW_GRAPH_SORT,
 ): Promise<{ userIds: string[]; total: number }> {
-  const joinedStages = [
-    { $match: match },
-    {
-      $lookup: {
-        from: 'users',
-        localField: userIdField,
-        foreignField: '_id',
-        as: 'user',
-      },
-    },
-    { $unwind: '$user' },
-    {
-      $match: {
-        'user.accountStatus': discoverableUserMongoMatch.accountStatus,
-        'user.reputationTier': discoverableUserMongoMatch.reputationTier,
-      },
-    },
-  ];
+  const counterparty = userFollows[userIdField];
+  const where = and(edgePredicate, discoverableUserPredicate());
 
-  const countRows = await Follow.aggregate<{ total: number }>([
-    ...joinedStages,
-    { $count: 'total' },
-  ]);
-  const total = countRows[0]?.total ?? 0;
+  const [countRow] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(userFollows)
+    .innerJoin(users, eq(users.id, counterparty))
+    .where(where);
+
+  const total = countRow?.total ?? 0;
   if (total === 0) {
     return { userIds: [], total: 0 };
   }
 
-  const pageRows = await Follow.aggregate<{ userId: Types.ObjectId }>([
-    ...joinedStages,
-    { $sort: { createdAt: -1 } },
-    { $skip: offset },
-    { $limit: limit },
-    { $project: { _id: 0, userId: `$${userIdField}` } },
-  ]);
+  const pageRows = await db
+    .select({ userId: counterparty })
+    .from(userFollows)
+    .innerJoin(users, eq(users.id, counterparty))
+    .where(where)
+    .orderBy(...FOLLOW_GRAPH_ORDER[sort])
+    .offset(offset)
+    .limit(limit);
 
-  return {
-    total,
-    userIds: pageRows.map((row) => row.userId.toString()),
-  };
+  return { total, userIds: pageRows.map((row) => row.userId) };
 }
 
 /** Drop archived/restricted ids while preserving the caller's ordering. */
-async function filterDiscoverableUserIds(userIds: string[]): Promise<string[]> {
+async function filterDiscoverableUserIds(db: Database, userIds: string[]): Promise<string[]> {
   if (userIds.length === 0) {
     return [];
   }
 
-  const rows = await User.find({
-    _id: { $in: userIds.map((id) => new Types.ObjectId(id)) },
-    ...discoverableUserMongoMatch,
-  })
-    .select('_id')
-    .lean();
+  const rows = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, userIds), discoverableUserPredicate()));
 
-  const eligible = new Set(rows.map((row) => row._id.toString()));
+  const eligible = new Set(rows.map((row) => row.id));
   return userIds.filter((id) => eligible.has(id));
+}
+
+/** Load a page of public rows and return them in the id order supplied. */
+async function loadPublicUsersInOrder(
+  db: Database,
+  orderedIds: string[]
+): Promise<PublicUserView[]> {
+  if (orderedIds.length === 0) return [];
+
+  const rows = await db
+    .select(publicUserColumns)
+    .from(users)
+    .where(inArray(users.id, orderedIds));
+
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const ordered: PublicUserView[] = [];
+  for (const id of orderedIds) {
+    const row = byId.get(id);
+    if (row) ordered.push(toPublicUserView(row));
+  }
+  return ordered;
 }
 
 /**
  * Per-target outcome of a bulk follow operation.
  * - `success: true, alreadyFollowing: false`  → newly followed
  * - `success: true, alreadyFollowing: true`   → already followed (no-op / raced)
- * - `success: false, alreadyFollowing: false` → invalid id, non-existent user, or self
+ * - `success: false, alreadyFollowing: false` → non-existent user, or self
  */
 export interface BulkFollowEntry {
   userId: string;
@@ -182,7 +276,7 @@ export interface BulkFollowResult {
  * - `success: true, wasFollowing: true`   → was followed and has been removed
  * - `success: true, wasFollowing: false`  → valid id that wasn't followed
  *   (desired end state already holds — not following)
- * - `success: false, wasFollowing: false` → invalid id (cannot assert end state)
+ * - `success: false, wasFollowing: false` → the caller's own id
  */
 export interface BulkUnfollowEntry {
   userId: string;
@@ -192,8 +286,7 @@ export interface BulkUnfollowEntry {
 
 /**
  * Result contract for `bulkUnfollow`. `unfollowedCount` counts ONLY follows that
- * were actually removed by this call (excludes ids that were not being
- * followed and structurally-invalid ids).
+ * were actually removed by this call.
  */
 export interface BulkUnfollowResult {
   results: BulkUnfollowEntry[];
@@ -209,8 +302,7 @@ export interface FollowCounts {
 /**
  * Result of the `followUser` primitive. `created` is `true` only when THIS call
  * inserted the edge; a repeated call on an already-existing edge is an
- * idempotent no-op that reports `created: false` and leaves the counters
- * untouched.
+ * idempotent no-op that reports `created: false`.
  */
 export interface FollowUserResult {
   created: boolean;
@@ -220,8 +312,7 @@ export interface FollowUserResult {
 /**
  * Result of the `unfollowUser` primitive. `removed` is `true` only when THIS
  * call deleted the edge; unfollowing an edge that does not exist is an
- * idempotent no-op that reports `removed: false` and leaves the counters
- * untouched.
+ * idempotent no-op that reports `removed: false`.
  */
 export interface UnfollowUserResult {
   removed: boolean;
@@ -229,32 +320,14 @@ export interface UnfollowUserResult {
 }
 
 /**
- * Shape of a Mongoose bulk-write / insertMany error. `insertMany` with
- * `{ ordered: false }` surfaces per-document failures under `writeErrors`,
- * each carrying the failing document `index` and the underlying driver
- * `err.code` (11000 for a duplicate key). A single-document failure may
- * instead expose `code` directly on the error.
- */
-interface BulkWriteLikeError {
-  writeErrors?: Array<{ err?: { code?: number }; index?: number; code?: number }>;
-  code?: number;
-}
-
-function isBulkWriteLikeError(error: unknown): error is BulkWriteLikeError {
-  if (typeof error !== 'object' || error === null) return false;
-  const candidate = error as { writeErrors?: unknown; code?: unknown };
-  return Array.isArray(candidate.writeErrors) || typeof candidate.code === 'number';
-}
-
-/**
- * Normalize a profile `color` value with the SAME canonicalization the User
- * schema applies on save (`trim` + `lowercase`). Running the premium-name check
- * against this normalized value closes a bypass where ` oxy ` / `OXY` would skip
- * the premium gate yet still persist as the gated `oxy` preset. Non-string
- * values are passed through untouched for the caller's own handling.
+ * Normalize a profile `color` value with the SAME canonicalization the write
+ * below applies. `normalizeUserColor` is shared with the account graph, which
+ * writes this column too, so the two paths cannot canonicalize differently and
+ * disagree about what the reserved-color gate is looking at. Non-string values
+ * are passed through untouched for the caller's own handling.
  */
 function normalizeProfileColor(value: unknown): unknown {
-  return typeof value === 'string' ? value.trim().toLowerCase() : value;
+  return typeof value === 'string' ? normalizeUserColor(value) : value;
 }
 
 /**
@@ -290,39 +363,487 @@ function normalizeProfileField(key: string, value: unknown): unknown {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * The `federation` subdocument rebuilt from a FLAT `users` row, or `undefined`
+ * when the row carries no federation data — which is what a local account's
+ * absent Mongo subdocument meant, and what `formatUserResponse` tests for.
+ */
+function flatFederation(
+  source: { federationActorUri?: unknown; federationDomain?: unknown }
+): { actorUri?: string; domain?: string } | undefined {
+  const actorUri = stringOrUndefined(source.federationActorUri);
+  const domain = stringOrUndefined(source.federationDomain);
+  return actorUri || domain ? { actorUri, domain } : undefined;
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * `Mongoose` stored an absent optional string as `''` on several of these
+ * columns; the schema stores NULL. Both mean "not set", and a write of either
+ * must land as NULL so the two states cannot coexist.
+ */
+function blankToNull(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value;
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+/**
+ * Every column of `users` a self-view reads — the public set plus the four
+ * owner-only fields. `phone` is named EXPLICITLY: it is a protected column
+ * (`db/schema/protectedColumns.ts`), so naming it is how a caller opts in, and
+ * that opt-in is greppable exactly because there is no helper for it.
+ */
+const selfUserColumns = {
+  ...publicUserColumns,
+  phone: users.phone,
+  address: users.address,
+  birthday: users.birthday,
+  themePreferenceMode: users.themePreferenceMode,
+  themePreferenceColorPreset: users.themePreferenceColorPreset,
+} as const;
+
+type SelfUserRow = PublicUserRow & {
+  phone: string | null;
+  address: string | null;
+  birthday: string | null;
+  themePreferenceMode: 'light' | 'dark' | 'system' | null;
+  themePreferenceColorPreset: string | null;
+};
+
+/**
+ * Flat self row → the owner-facing view.
+ *
+ * The theme preference is emitted only when BOTH halves are present, which the
+ * `users_theme_preference_check` constraint already makes the only
+ * representable state — the check here is what keeps the DTO honest for rows
+ * the backfill mapped from a partial Mongo subdocument.
+ */
+function toSelfUserView(row: SelfUserRow): SelfUserView {
+  const view: SelfUserView = {
+    ...toPublicUserView(row),
+    phone: row.phone ?? undefined,
+    address: row.address ?? undefined,
+    birthday: row.birthday ?? undefined,
+  };
+  if (row.themePreferenceMode !== null && row.themePreferenceColorPreset !== null) {
+    view.themePreference = {
+      mode: row.themePreferenceMode,
+      colorPreset: row.themePreferenceColorPreset,
+    };
+  }
+  return view;
+}
+
+/**
+ * The privacy settings, wire key → column.
+ *
+ * Mongo held these as ONE nested `privacySettings` subdocument, so a read was a
+ * projection and a write was a set of dot-paths. They are 22 flat `boolean`
+ * columns here (`db/schema/users.ts` explains why a 1:1 child table would have
+ * bought a join on every profile read for nothing), which makes this map the
+ * single place the wire's nesting is unwound — read and write both go through
+ * it, so a key can never be readable and unwritable, or vice versa.
+ */
+const PRIVACY_SETTING_COLUMNS = {
+  isPrivateAccount: users.privacyIsPrivateAccount,
+  hideOnlineStatus: users.privacyHideOnlineStatus,
+  hideLastSeen: users.privacyHideLastSeen,
+  profileVisibility: users.privacyProfileVisibility,
+  loginAlerts: users.privacyLoginAlerts,
+  blockScreenshots: users.privacyBlockScreenshots,
+  login: users.privacyLogin,
+  biometricLogin: users.privacyBiometricLogin,
+  showActivity: users.privacyShowActivity,
+  allowTagging: users.privacyAllowTagging,
+  allowMentions: users.privacyAllowMentions,
+  hideReadReceipts: users.privacyHideReadReceipts,
+  allowDirectMessages: users.privacyAllowDirectMessages,
+  dataSharing: users.privacyDataSharing,
+  locationSharing: users.privacyLocationSharing,
+  analyticsSharing: users.privacyAnalyticsSharing,
+  sensitiveContent: users.privacySensitiveContent,
+  autoFilter: users.privacyAutoFilter,
+  muteKeywords: users.privacyMuteKeywords,
+  discoverableByEmail: users.privacyDiscoverableByEmail,
+  discoverableByPhone: users.privacyDiscoverableByPhone,
+  fediverseSharing: users.privacyFediverseSharing,
+} as const;
+
+/** A privacy toggle's wire name. */
+export type PrivacySettingKey = keyof typeof PRIVACY_SETTING_COLUMNS;
+
+/** The full privacy-settings object, exactly as the two endpoints return it. */
+export type PrivacySettingsResponse = Record<PrivacySettingKey, boolean>;
+
+/** The TS property name of the `users` column each toggle is stored in. */
+const PRIVACY_SETTING_PROPERTIES: Record<PrivacySettingKey, string> = {
+  isPrivateAccount: 'privacyIsPrivateAccount',
+  hideOnlineStatus: 'privacyHideOnlineStatus',
+  hideLastSeen: 'privacyHideLastSeen',
+  profileVisibility: 'privacyProfileVisibility',
+  loginAlerts: 'privacyLoginAlerts',
+  blockScreenshots: 'privacyBlockScreenshots',
+  login: 'privacyLogin',
+  biometricLogin: 'privacyBiometricLogin',
+  showActivity: 'privacyShowActivity',
+  allowTagging: 'privacyAllowTagging',
+  allowMentions: 'privacyAllowMentions',
+  hideReadReceipts: 'privacyHideReadReceipts',
+  allowDirectMessages: 'privacyAllowDirectMessages',
+  dataSharing: 'privacyDataSharing',
+  locationSharing: 'privacyLocationSharing',
+  analyticsSharing: 'privacyAnalyticsSharing',
+  sensitiveContent: 'privacySensitiveContent',
+  autoFilter: 'privacyAutoFilter',
+  muteKeywords: 'privacyMuteKeywords',
+  discoverableByEmail: 'privacyDiscoverableByEmail',
+  discoverableByPhone: 'privacyDiscoverableByPhone',
+  fediverseSharing: 'privacyFediverseSharing',
+};
+
+/**
+ * The whole account, nested exactly as the Mongo document was.
+ *
+ * Two endpoints return the raw document rather than a DTO — `GET /users/me/data`
+ * (the account-data download) and `PUT /users/resolve` (the federation upsert) —
+ * and both are consumed by code that reads the document's OWN key names. The
+ * schema is flat (`name_first`, `federation_domain`, `privacy_*`, …) and the
+ * embedded arrays are child tables, so this is where both are put back.
+ *
+ * `_id` is present ALONGSIDE `id`, which is the documented contract
+ * (`@oxyhq/contracts` `resolveUserId` = `user.id ?? user._id`): these responses
+ * never went through the model's `toJSON`, so they carried both. `id` reproduces
+ * the model's `id` virtual (`publicKey ?? _id`) and `did` its `did` virtual.
+ */
+export interface AccountDocument {
+  /**
+   * The ACCOUNT ID (`users.id`) — unconditionally, on this document and on
+   * `req.user`. Distinct from {@link AccountDocument.id} below, which is the
+   * model's old `id` virtual and is the PUBLIC KEY whenever the account has
+   * one. `middleware/auth.ts` documents why the authenticated call sites read
+   * this one.
+   */
+  _id: string;
+  /** The old `id` virtual: `publicKey ?? _id`. NOT reliably the account id. */
+  id: string;
+  did: string;
+
+  /**
+   * The fields below are the ones the REQUEST PATH reads off `req.user`, and
+   * they are declared rather than left to the index signature for a specific
+   * reason: `middleware/auth.ts` used to attach this value through an
+   * `as IUser & Document` cast, so `tsc` checked none of these reads. Removing
+   * the cast without declaring them would have turned each into an `unknown`
+   * error at the call site; declaring them is what makes the reads CHECKED
+   * instead — the values were always these types, only the type was missing.
+   *
+   * Everything else stays behind the index signature: this document carries the
+   * whole account, and enumerating all of it here would be a second copy of the
+   * schema that drifts.
+   */
+  username?: string;
+  email?: string;
+  publicKey?: string;
+  avatar?: string;
+  name: { first?: string; last?: string; displayName?: string };
+  kind: (typeof ACCOUNT_KINDS)[number];
+  type: (typeof USER_TYPES)[number];
+  accountStatus: (typeof ACCOUNT_STATUSES)[number];
+  isStaff: boolean;
+  verified: boolean;
+  federation: { actorUri?: string; domain?: string };
+  privacySettings: PrivacySettingsResponse;
+  createdAt: Date;
+  updatedAt: Date;
+
+  [key: string]: unknown;
+}
+
+/**
+ * Every `users` column a self-document read may carry — the whole table minus
+ * the protected set (`db/schema/protectedColumns.ts`), which is precisely what
+ * Mongoose's `select: false` withheld from these two reads.
+ */
+const accountDocumentColumns = publicColumns(users, PROTECTED_COLUMNS_BY_TABLE);
+
 export class UserService {
   /**
-   * Get user by ID with proper serialization
+   * The account's full privacy settings, or null when no such account exists.
+   *
+   * Every key is always present: the columns are `NOT NULL` with defaults, so
+   * the "field absent on an old document" state Mongo could produce no longer
+   * exists.
    */
-  async getUserById(userId: string): Promise<IUser | null> {
-    return await User.findById(userId)
-      .select('-password -refreshToken')
-      .lean({ virtuals: true }) as IUser | null;
+  async readPrivacySettings(userId: string): Promise<PrivacySettingsResponse | null> {
+    const [row] = await getDb()
+      .select(PRIVACY_SETTING_COLUMNS)
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row ?? null;
   }
 
   /**
-   * Get current authenticated user
+   * Merge a PARTIAL privacy-settings patch and return the whole updated object.
+   *
+   * Only the keys the caller supplied are written — the same semantics Mongo's
+   * dot-path `$set` had, and the reason it could not be a whole-subdocument
+   * replace: that would wipe every toggle the client did not send.
+   *
+   * @returns The updated settings, or null when no such account exists.
    */
-  async getCurrentUser(userId: string): Promise<IUser | null> {
-    // `lean({ virtuals: true })` populates `name.full` from the User schema virtual.
-    return await User.findById(userId)
-      .select('-password -refreshToken +phone')
-      .lean({ virtuals: true }) as IUser | null;
+  async updatePrivacySettings(
+    userId: string,
+    settings: Partial<PrivacySettingsResponse>
+  ): Promise<PrivacySettingsResponse | null> {
+    const columnUpdates: Record<string, boolean> = {};
+    for (const [key, value] of Object.entries(settings)) {
+      if (typeof value !== 'boolean') continue;
+      const property = PRIVACY_SETTING_PROPERTIES[key as PrivacySettingKey];
+      if (property) columnUpdates[property] = value;
+    }
+
+    if (Object.keys(columnUpdates).length > 0) {
+      const [updated] = await getDb()
+        .update(users)
+        .set(columnUpdates)
+        .where(eq(users.id, userId))
+        .returning(PRIVACY_SETTING_COLUMNS);
+      if (!updated) return null;
+      // Bust the in-memory user cache so the next `getUserBySession` serves the
+      // fresh settings instead of the stale snapshot. Without this the client
+      // refetch on mutation success silently reverts the toggle.
+      userCache.invalidate(userId);
+      return updated;
+    }
+
+    return this.readPrivacySettings(userId);
+  }
+
+  /**
+   * The whole account as a document — see {@link AccountDocument}.
+   *
+   * Five queries because five tables hold what Mongo held in one document; they
+   * run in parallel and this is a single-account read, so the fan-out is
+   * constant, not per-row.
+   */
+  async readAccountDocument(userId: string): Promise<AccountDocument | null> {
+    const db = getDb();
+
+    const [rows, ancestorRows, locationRows, linkRows, domainRows] = await Promise.all([
+      db.select(accountDocumentColumns).from(users).where(eq(users.id, userId)).limit(1),
+      db
+        .select({ ancestorId: userAncestors.ancestorId })
+        .from(userAncestors)
+        .where(eq(userAncestors.userId, userId))
+        .orderBy(userAncestors.depth),
+      db
+        .select()
+        .from(userLocations)
+        .where(eq(userLocations.userId, userId))
+        .orderBy(userLocations.createdAt),
+      db
+        .select()
+        .from(userLinkMetadata)
+        .where(eq(userLinkMetadata.userId, userId))
+        .orderBy(userLinkMetadata.position),
+      db
+        .select({
+          domain: userVerifiedDomains.domain,
+          verifiedAt: userVerifiedDomains.verifiedAt,
+          method: userVerifiedDomains.method,
+        })
+        .from(userVerifiedDomains)
+        .where(eq(userVerifiedDomains.userId, userId)),
+    ]);
+
+    const row = rows[0];
+    if (!row) return null;
+
+    return {
+      _id: row.id,
+      // The model's `id` virtual: the public key when the account has one,
+      // otherwise the account id.
+      id: row.publicKey ?? row.id,
+      did: buildUserDid(row.id),
+      username: row.username ?? undefined,
+      email: row.email ?? undefined,
+      publicKey: row.publicKey ?? undefined,
+      name: {
+        first: row.nameFirst ?? undefined,
+        last: row.nameLast ?? undefined,
+        displayName: row.nameDisplay ?? undefined,
+      },
+      kind: row.kind,
+      // Ordered, primary first — never reordered on the way out.
+      accountCategories: row.accountCategories,
+      parentAccountId: row.parentAccountId ?? undefined,
+      rootAccountId: row.rootAccountId ?? undefined,
+      ancestors: ancestorRows.map((ancestor) => ancestor.ancestorId),
+      accountStatus: row.accountStatus,
+      type: row.type,
+      federation: flatFederation(row) ?? {},
+      automation: row.automationOwnerId ? { ownerId: row.automationOwnerId } : {},
+      verified: row.verified,
+      reputationRankWeight: row.reputationRankWeight,
+      reputationTier: row.reputationTier,
+      isStaff: row.isStaff,
+      isSeedVerifier: row.isSeedVerifier,
+      isSensitive: row.isSensitive,
+      languages: row.languages,
+      avatar: row.avatar ?? undefined,
+      color: row.color,
+      bio: row.bio ?? undefined,
+      description: row.description ?? undefined,
+      address: row.address ?? undefined,
+      birthday: row.birthday ?? undefined,
+      links: row.links ?? undefined,
+      linksMetadata: linkRows.map((link) => ({
+        url: link.url,
+        title: link.title,
+        description: link.description,
+        image: link.image ?? undefined,
+      })),
+      locations: locationRows.map((location) => ({
+        id: location.locationKey,
+        name: location.name,
+        label: location.label ?? undefined,
+        type: location.type,
+        address: {
+          street: location.street ?? undefined,
+          streetNumber: location.streetNumber ?? undefined,
+          streetDetails: location.streetDetails ?? undefined,
+          postalCode: location.postalCode ?? undefined,
+          city: location.city ?? undefined,
+          state: location.state ?? undefined,
+          country: location.country ?? undefined,
+          formattedAddress: location.formattedAddress ?? undefined,
+        },
+        coordinates:
+          location.latitude !== null && location.longitude !== null
+            ? { lat: location.latitude, lon: location.longitude }
+            : undefined,
+        metadata: {
+          placeId: location.placeId ?? undefined,
+          osmId: location.osmId ?? undefined,
+          osmType: location.osmType ?? undefined,
+          countryCode: location.countryCode ?? undefined,
+          timezone: location.timezone ?? undefined,
+        },
+        createdAt: location.createdAt,
+        updatedAt: location.updatedAt,
+      })),
+      verifiedDomains: domainRows,
+      accountExpiresAfterInactivityDays: row.accountExpiresAfterInactivityDays ?? undefined,
+      privacySettings: {
+        isPrivateAccount: row.privacyIsPrivateAccount,
+        hideOnlineStatus: row.privacyHideOnlineStatus,
+        hideLastSeen: row.privacyHideLastSeen,
+        profileVisibility: row.privacyProfileVisibility,
+        loginAlerts: row.privacyLoginAlerts,
+        blockScreenshots: row.privacyBlockScreenshots,
+        login: row.privacyLogin,
+        biometricLogin: row.privacyBiometricLogin,
+        showActivity: row.privacyShowActivity,
+        allowTagging: row.privacyAllowTagging,
+        allowMentions: row.privacyAllowMentions,
+        hideReadReceipts: row.privacyHideReadReceipts,
+        allowDirectMessages: row.privacyAllowDirectMessages,
+        dataSharing: row.privacyDataSharing,
+        locationSharing: row.privacyLocationSharing,
+        analyticsSharing: row.privacyAnalyticsSharing,
+        sensitiveContent: row.privacySensitiveContent,
+        autoFilter: row.privacyAutoFilter,
+        muteKeywords: row.privacyMuteKeywords,
+        discoverableByEmail: row.privacyDiscoverableByEmail,
+        discoverableByPhone: row.privacyDiscoverableByPhone,
+        fediverseSharing: row.privacyFediverseSharing,
+      },
+      autoReply: {
+        enabled: row.autoReplyEnabled,
+        subject: row.autoReplySubject ?? undefined,
+        body: row.autoReplyBody ?? undefined,
+        startDate: row.autoReplyStartDate ?? undefined,
+        endDate: row.autoReplyEndDate ?? undefined,
+      },
+      notificationPreferences: {
+        pushEnabled: row.notificationPushEnabled,
+        emailDigest: row.notificationEmailDigest,
+        securityAlerts: row.notificationSecurityAlerts,
+        marketingEmails: row.notificationMarketingEmails,
+      },
+      userPreferences: {
+        language: row.preferenceLanguage ?? undefined,
+        theme: row.preferenceTheme,
+        reduceMotion: row.preferenceReduceMotion,
+        timezone: row.preferenceTimezone ?? undefined,
+      },
+      themePreference:
+        row.themePreferenceMode !== null && row.themePreferenceColorPreset !== null
+          ? { mode: row.themePreferenceMode, colorPreset: row.themePreferenceColorPreset }
+          : undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  /**
+   * Load a single account by id, as its owner sees it.
+   */
+  async getUserById(userId: string): Promise<SelfUserView | null> {
+    const [row] = await getDb()
+      .select(selfUserColumns)
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row ? toSelfUserView(row) : null;
+  }
+
+  /**
+   * Load a single public profile row by id — inclusion-only projection.
+   */
+  async getPublicUserById(userId: string): Promise<PublicUserView | null> {
+    const [row] = await getDb()
+      .select(publicUserColumns)
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    return row ? toPublicUserView(row) : null;
+  }
+
+  /**
+   * Get current authenticated user.
+   *
+   * Identical to {@link getUserById}; kept as its own name because the two
+   * callers mean different things by it and the endpoint contracts differ.
+   */
+  async getCurrentUser(userId: string): Promise<SelfUserView | null> {
+    return this.getUserById(userId);
   }
 
   /**
    * Update user profile.
    *
    * Filters the input to an allowlist, validates each field at the boundary
-   * (display name, color/premium gate, account locales, expiry), then applies
-   * the changes through the Mongoose document so all schema validation and
-   * middleware run on save.
+   * (display name, color/premium gate, account locales, expiry), then writes the
+   * account row and its two child collections in ONE transaction — a profile
+   * edit that touched `links` and `locations` must not be able to half-apply.
    */
   async updateUserProfile(
     userId: string,
     updates: ProfileUpdateInput,
     req?: Request
-  ): Promise<IUser> {
+  ): Promise<SelfUserView> {
+    const db = getDb();
+
     // Allowed fields for updates
     const allowedFields = [
       'name',
@@ -345,15 +866,15 @@ export class UserService {
       'themePreference',
     ] as const;
 
-    // Reject invalid native display names (letters/spaces/apostrophe only).
+    // Reject invalid native display names (letters/spaces/apostrophe/separators).
     // Federated writes strip silently via cleanDisplayName; native edits get a
     // 400 so the user corrects the name at the source. Runs BEFORE sanitization
     // so the validation sees the user's raw input.
     if (updates.name && typeof updates.name === 'object') {
-      for (const part of ['first', 'last'] as const) {
+      for (const part of ['first', 'last', 'displayName'] as const) {
         const value = updates.name[part];
         if (typeof value === 'string' && !isValidDisplayName(value)) {
-          throw new BadRequestError('Name may only contain letters, spaces and apostrophes.');
+          throw new BadRequestError(DISPLAY_NAME_INVALID_MESSAGE);
         }
       }
     }
@@ -362,11 +883,11 @@ export class UserService {
     const sanitizedUpdates = sanitizeProfileUpdate(updates as Record<string, unknown>) as ProfileUpdateInput;
 
     // Filter and validate updates
-    const filteredUpdates: Partial<ProfileUpdateInput> = {};
+    const filteredUpdates: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(sanitizedUpdates)) {
       if (!(allowedFields as readonly string[]).includes(key)) continue;
-      
+
       if (key === 'avatar') {
         if (typeof value === 'string') {
           filteredUpdates.avatar = value;
@@ -378,22 +899,12 @@ export class UserService {
       // before it is validated or compared — see `normalizeProfileField`.
       const normalizedValue = normalizeProfileField(key, value);
 
-      // Validate premium-exclusive colors against the SAME normalized value the
-      // User schema will persist (trim + lowercase), so ' oxy '/'OXY' can't slip
-      // past the premium gate.
-      if (key === 'color' && normalizedValue === 'oxy') {
-        const user = await User.findById(userId).select('username').lean();
-        const isOxyUser = user?.username?.toLowerCase() === 'oxy';
-        if (!isOxyUser) {
-          const subscription = await Subscription.findOne({
-            userId,
-            status: 'active',
-            plan: { $in: ['pro', 'business'] },
-          }).lean();
-          if (!subscription) {
-            throw new Error('The oxy color is exclusive to premium subscribers');
-          }
-        }
+      // Reserved colors are checked against the SAME normalized value the write
+      // below persists (trim + lowercase), so ' oxy '/'OXY' cannot slip past the
+      // gate. The rule itself lives in `utils/profileColor` because the account
+      // graph writes this column too — see its header.
+      if (key === 'color' && typeof normalizedValue === 'string') {
+        await assertColorNotReserved(normalizedValue, { accountId: userId, username: null });
       }
 
       // Account locales — the ONLY language field (no singular `language`). Each
@@ -420,7 +931,7 @@ export class UserService {
             normalizedLocales.push(canonical);
           }
         }
-        (filteredUpdates as Record<string, unknown>).languages = normalizedLocales;
+        filteredUpdates.languages = normalizedLocales;
         continue;
       }
 
@@ -457,50 +968,89 @@ export class UserService {
           }
         }
       }
-      
+
       // Assign other fields
-      (filteredUpdates as Record<string, unknown>)[key] = normalizedValue;
+      filteredUpdates[key] = normalizedValue;
     }
 
-    // Fetch user document to update
-    const user = await User.findById(userId).select('-password -refreshToken');
-    if (!user) {
+    const existing = await this.getUserById(userId);
+    if (!existing) {
       throw new Error('User not found');
     }
 
     // A username is a routing key (`/@alice`, `acct:alice@…`), not prose: it must
-    // satisfy the same 3–30 ASCII-alphanumeric policy signup enforces, which in
-    // particular admits no whitespace at all. Only an actual CHANGE is validated:
-    // clients that PUT the whole profile back echo the stored username, and a
-    // value that predates this policy must not make an unrelated bio edit fail.
+    // satisfy the ONE policy every write path enforces, which in particular
+    // admits no whitespace at all. Only an actual CHANGE is validated: clients
+    // that PUT the whole profile back echo the stored username, and a value that
+    // predates this policy must not make an unrelated bio edit fail. That
+    // asymmetry is the write-not-read rule in miniature, and it is deliberate.
+    //
+    // The policy is the one for the row's KIND, so a rename cannot strip the
+    // label off a bot: `PUT /users/:userId` reaches every account, not only a
+    // person's own. Reading the kind from the STORED row rather than the request
+    // is what makes that true — `kind` is not a field this route may set, so a
+    // caller cannot declare itself a person to escape the rule.
     const nextUsername = filteredUpdates.username;
-    if (
-      typeof nextUsername === 'string' &&
-      nextUsername !== user.username &&
-      !USERNAME_PATTERN.test(nextUsername)
-    ) {
-      throw new BadRequestError(INVALID_USERNAME_MESSAGE, { field: 'username' });
+    if (typeof nextUsername === 'string' && nextUsername !== existing.username) {
+      const parsed = usernameSchemaForAccountKind(existing.kind).safeParse(nextUsername);
+      if (!parsed.success) {
+        throw new BadRequestError(parsed.error.issues[0].message, { field: 'username' });
+      }
     }
 
     // Validate uniqueness constraints
     await this.validateUniqueFields(userId, filteredUpdates);
 
     // Track email change for security logging
-    const oldEmail = user.email;
-    const emailChanged = filteredUpdates.email && filteredUpdates.email !== oldEmail;
+    const nextEmail = stringOrUndefined(filteredUpdates.email);
+    const [existingEmailRow] = await db
+      .select({ email: users.email })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const oldEmail = existingEmailRow?.email ?? undefined;
+    const emailChanged = !!nextEmail && nextEmail !== oldEmail;
 
-    // Apply the validated updates directly on the document. Saving through the
-    // document (not an atomic update) ensures all Mongoose middleware and
-    // validation runs.
-    Object.entries(filteredUpdates).forEach(([key, value]) => {
-      user.set(key, value);
+    const columnUpdates = buildUserColumnUpdates(filteredUpdates);
+    const locations = Array.isArray(filteredUpdates.locations)
+      ? filteredUpdates.locations
+      : undefined;
+    const linksMetadata = Array.isArray(filteredUpdates.linksMetadata)
+      ? filteredUpdates.linksMetadata
+      : undefined;
+
+    // One transaction: the account row and its two child collections either all
+    // move or none do. Mongo could only offer this through a replica-set
+    // transaction the deployment might not support, so the code carried a
+    // session-less fallback; there is no such fallback here.
+    await db.transaction(async (tx) => {
+      if (Object.keys(columnUpdates).length > 0) {
+        await tx.update(users).set(columnUpdates).where(eq(users.id, userId));
+      }
+
+      if (locations) {
+        await tx.delete(userLocations).where(eq(userLocations.userId, userId));
+        const rows = locations
+          .map((entry, index) => toLocationRow(userId, entry, index))
+          .filter((row): row is NonNullable<typeof row> => row !== null);
+        if (rows.length > 0) {
+          await tx.insert(userLocations).values(rows);
+        }
+      }
+
+      if (linksMetadata) {
+        await tx.delete(userLinkMetadata).where(eq(userLinkMetadata.userId, userId));
+        const rows = linksMetadata
+          .map((entry, index) => toLinkMetadataRow(userId, entry, index))
+          .filter((row): row is NonNullable<typeof row> => row !== null);
+        if (rows.length > 0) {
+          await tx.insert(userLinkMetadata).values(rows);
+        }
+      }
     });
 
-    // Save the document - this ensures all Mongoose middleware and validation runs
-    await user.save();
-
     // Invalidate the in-memory user cache so the next session-bound lookup
-    // (getUserBySession, validateSessionById) re-reads from MongoDB and
+    // (getUserBySession, validateSessionById) re-reads from Postgres and
     // serves the just-updated avatar/name/etc. Without this, the cache
     // returns the pre-write document and clients see their update silently
     // revert on the next refetch.
@@ -511,72 +1061,70 @@ export class UserService {
       const updatedFields = Object.keys(filteredUpdates);
 
       // Log email change if it occurred
-      if (emailChanged && oldEmail && filteredUpdates.email) {
-        await securityActivityService.logEmailChange(
-          userId,
-          oldEmail,
-          filteredUpdates.email,
-          req
-        );
+      if (emailChanged && oldEmail && nextEmail) {
+        await securityActivityService.logEmailChange(userId, oldEmail, nextEmail, req);
       }
-      
+
       // Log profile update (excluding email which is logged separately)
       const profileFields = updatedFields.filter(field => field !== 'email');
       if (profileFields.length > 0) {
-        await securityActivityService.logProfileUpdate(
-          userId,
-          profileFields,
-          req
-        );
+        await securityActivityService.logProfileUpdate(userId, profileFields, req);
       }
     } catch (error) {
       // Don't fail the update if logging fails
       logger.error('Failed to log security event for profile update:', error);
     }
 
-    // Convert to plain object with virtuals. The User schema's toObject
-    // transform DELETES `_id` (it emits the client `id` shape). `formatUserResponse`
-    // is a server-side serializer that resolves identity from `_id` (falling back
-    // to `id`), so a keyless managed/org account would otherwise reach it with
-    // neither field and throw "User must have an _id". Re-attach `_id` so the
-    // serializer can identify keyless accounts.
-    const userObj = user.toObject({ virtuals: true }) as IUser;
-    userObj._id = user._id;
-
-    // Ensure name.full exists
-    if (userObj.name && typeof userObj.name === 'object') {
-      const first = (userObj.name.first as string) || '';
-      const last = (userObj.name.last as string) || '';
-      if (!('full' in userObj.name) || !userObj.name.full) {
-        userObj.name.full = [first, last].filter(Boolean).join(' ').trim();
-      }
+    const updated = await this.getUserById(userId);
+    if (!updated) {
+      throw new Error('User not found');
     }
-
-    return userObj;
+    return updated;
   }
 
   /**
-   * Validate unique fields (email, username)
+   * Validate unique fields (email, username).
+   *
+   * Both lookups are written against the EXPRESSION their unique index is built
+   * on — `lower(btrim(...))`, see `db/schema/users.ts`. A plain `email = $1` is
+   * correct-looking, case-sensitive, and would let ` Alice@x.com ` through to
+   * fail as a 500 on the constraint instead of a 400 here.
    */
   private async validateUniqueFields(
     userId: string,
-    updates: Partial<ProfileUpdateInput>
+    updates: Record<string, unknown>
   ): Promise<void> {
-    if (updates.email) {
-      const existing = await User.findOne({
-        email: updates.email,
-        _id: { $ne: userId },
-      });
+    const db = getDb();
+
+    const email = stringOrUndefined(updates.email);
+    if (email) {
+      const [existing] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            sql`lower(btrim(${users.email})) = lower(btrim(${email}))`,
+            ne(users.id, userId)
+          )
+        )
+        .limit(1);
       if (existing) {
         throw new Error('Email already exists');
       }
     }
 
-    if (updates.username) {
-      const existing = await User.findOne({
-        username: updates.username,
-        _id: { $ne: userId },
-      });
+    const username = stringOrUndefined(updates.username);
+    if (username) {
+      const [existing] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            sql`lower(btrim(${users.username})) = lower(btrim(${username}))`,
+            ne(users.id, userId)
+          )
+        )
+        .limit(1);
       if (existing) {
         throw new Error('Username already exists');
       }
@@ -584,12 +1132,13 @@ export class UserService {
   }
 
   /**
-   * Get user followers with pagination
+   * Get user followers with pagination and ordering
    */
   async getUserFollowers(
     userId: string,
-    params: PaginationParams = {}
+    params: FollowGraphParams = {}
   ): Promise<PaginatedResponse<PublicUserProfile>> {
+    const db = getDb();
     const limit = Math.min(
       params.limit || PAGINATION.DEFAULT_LIMIT,
       PAGINATION.MAX_LIMIT
@@ -597,31 +1146,18 @@ export class UserService {
     const offset = params.offset || 0;
 
     const { userIds: followerIds, total } = await paginateActiveFollowUserIds(
-      { followedId: new Types.ObjectId(userId), followType: FollowType.USER },
-      'followerUserId',
+      db,
+      eq(userFollows.followedId, userId),
+      'followerId',
       limit,
       offset,
+      params.sort,
     );
 
-    // Fetch users directly (returns plain objects, not Mongoose documents)
-    const followers = await User.find({
-      _id: { $in: followerIds.map((id) => new Types.ObjectId(id)) },
-    })
-      .select(PUBLIC_USER_PROFILE_SELECT)
-      .lean<PublicUserDocument[]>()
-      .exec();
-
-    // Maintain order from original follow relationships
-    const followersMap = new Map(
-      followers.map((user) => [user._id.toString(), user])
-    );
-    const orderedFollowers = followerIds
-      .map((id) => followersMap.get(id))
-      .filter((user): user is PublicUserDocument => user !== undefined)
-      .map((user) => this.formatUserResponse(user));
+    const followers = await loadPublicUsersInOrder(db, followerIds);
 
     return {
-      data: orderedFollowers,
+      data: followers.map((user) => this.formatUserResponse(user)),
       total,
       hasMore: offset + limit < total,
       limit,
@@ -630,12 +1166,13 @@ export class UserService {
   }
 
   /**
-   * Get user following with pagination
+   * Get user following with pagination and ordering
    */
   async getUserFollowing(
     userId: string,
-    params: PaginationParams = {}
+    params: FollowGraphParams = {}
   ): Promise<PaginatedResponse<PublicUserProfile>> {
+    const db = getDb();
     const limit = Math.min(
       params.limit || PAGINATION.DEFAULT_LIMIT,
       PAGINATION.MAX_LIMIT
@@ -643,31 +1180,18 @@ export class UserService {
     const offset = params.offset || 0;
 
     const { userIds: followingIds, total } = await paginateActiveFollowUserIds(
-      { followerUserId: new Types.ObjectId(userId), followType: FollowType.USER },
+      db,
+      eq(userFollows.followerId, userId),
       'followedId',
       limit,
       offset,
+      params.sort,
     );
 
-    // Fetch users directly (returns plain objects, not Mongoose documents)
-    const following = await User.find({
-      _id: { $in: followingIds.map((id) => new Types.ObjectId(id)) },
-    })
-      .select(PUBLIC_USER_PROFILE_SELECT)
-      .lean<PublicUserDocument[]>()
-      .exec();
-
-    // Maintain order from original follow relationships
-    const followingMap = new Map(
-      following.map((user) => [user._id.toString(), user])
-    );
-    const orderedFollowing = followingIds
-      .map((id) => followingMap.get(id))
-      .filter((user): user is PublicUserDocument => user !== undefined)
-      .map((user) => this.formatUserResponse(user));
+    const following = await loadPublicUsersInOrder(db, followingIds);
 
     return {
-      data: orderedFollowing,
+      data: following.map((user) => this.formatUserResponse(user)),
       total,
       hasMore: offset + limit < total,
       limit,
@@ -687,16 +1211,18 @@ export class UserService {
    *   empty page.
    *
    * The viewer's following set is bounded to the same window the recommendation
-   * pipeline uses (`MAX_FOLLOWING_FOR_MUTUALS`) so the `$in` stays small. The
-   * returned page mirrors `getUserFollowers`: most-recent mutual first, public
-   * DTOs via `formatUserResponse`, and the same `{ data, total, hasMore, limit,
-   * offset }` shape.
+   * pipeline uses (`MAX_FOLLOWING_FOR_MUTUALS`) so the `IN` stays small. The
+   * returned page mirrors `getUserFollowers`: ordered by `params.sort`
+   * (most-recent mutual first by default), public DTOs via
+   * `formatUserResponse`, and the same `{ data, total, hasMore, limit, offset }`
+   * shape.
    */
   async getUserMutuals(
     viewerId: string | undefined,
     targetUserId: string,
-    params: PaginationParams = {}
+    params: FollowGraphParams = {}
   ): Promise<PaginatedResponse<PublicUserProfile>> {
+    const db = getDb();
     const limit = Math.min(
       params.limit || PAGINATION.DEFAULT_LIMIT,
       PAGINATION.MAX_LIMIT
@@ -717,59 +1243,38 @@ export class UserService {
     }
 
     // 1. The viewer's following set V (bounded — mirrors the recommendations
-    //    mutual-overlap window so the `$in` below stays small).
-    const viewerFollowing = await Follow.find({
-      followerUserId: viewerId,
-      followType: FollowType.USER,
-    })
-      .select('followedId')
-      .limit(MAX_FOLLOWING_FOR_MUTUALS)
-      .lean();
+    //    mutual-overlap window so the `IN` below stays small).
+    const viewerFollowing = await db
+      .select({ followedId: userFollows.followedId })
+      .from(userFollows)
+      .where(eq(userFollows.followerId, viewerId))
+      .limit(MAX_FOLLOWING_FOR_MUTUALS);
 
-    const followingIds = viewerFollowing
-      .map((follow) => follow.followedId)
-      .filter((id): id is Types.ObjectId => id instanceof Types.ObjectId);
-
+    const followingIds = viewerFollowing.map((follow) => follow.followedId);
     if (followingIds.length === 0) {
       return empty();
     }
 
     // 2. Mutuals = the target's followers who are also in V.
-    const mutualFilter = {
-      followedId: targetUserId,
-      followType: FollowType.USER,
-      followerUserId: { $in: followingIds },
-    };
-
     const { userIds: mutualIds, total } = await paginateActiveFollowUserIds(
-      mutualFilter,
-      'followerUserId',
+      db,
+      and(
+        eq(userFollows.followedId, targetUserId),
+        inArray(userFollows.followerId, followingIds)
+      ) ?? sql`false`,
+      'followerId',
       limit,
       offset,
+      params.sort,
     );
     if (total === 0) {
       return empty();
     }
 
-    // Fetch users directly (returns plain objects, not Mongoose documents)
-    const mutuals = await User.find({
-      _id: { $in: mutualIds.map((id) => new Types.ObjectId(id)) },
-    })
-      .select(PUBLIC_USER_PROFILE_SELECT)
-      .lean<PublicUserDocument[]>()
-      .exec();
-
-    // Maintain order from the original follow relationships (most-recent first)
-    const mutualsMap = new Map(
-      mutuals.map((user) => [user._id.toString(), user])
-    );
-    const orderedMutuals = mutualIds
-      .map((id) => mutualsMap.get(id))
-      .filter((user): user is PublicUserDocument => user !== undefined)
-      .map((user) => this.formatUserResponse(user));
+    const mutuals = await loadPublicUsersInOrder(db, mutualIds);
 
     return {
-      data: orderedMutuals,
+      data: mutuals.map((user) => this.formatUserResponse(user)),
       total,
       hasMore: offset + limit < total,
       limit,
@@ -794,9 +1299,9 @@ export class UserService {
    * short-circuits before the second query.
    *
    * Bounded by `MAX_MUTUAL_IDS`: both the following window scanned AND the number
-   * of ids returned are capped, so the `$in` and the payload stay small. When the
+   * of ids returned are capped, so the `IN` and the payload stay small. When the
    * viewer has more mutuals than the cap, the most-recently-established mutuals
-   * are returned first (`createdAt` desc).
+   * are returned first (`created_at` desc).
    */
   async getMutualUserIds(
     viewerId: string | undefined,
@@ -806,61 +1311,57 @@ export class UserService {
       return [];
     }
 
+    const db = getDb();
     const limit = Math.min(
       params.limit && params.limit > 0 ? params.limit : MAX_MUTUAL_IDS,
       MAX_MUTUAL_IDS
     );
 
-    // 1. The viewer's following set (bounded so the `$in` below stays small).
-    const viewerFollowing = await Follow.find({
-      followerUserId: viewerId,
-      followType: FollowType.USER,
-    })
-      .select('followedId')
-      .limit(MAX_MUTUAL_IDS)
-      .lean();
+    // 1. The viewer's following set (bounded so the `IN` below stays small).
+    const viewerFollowing = await db
+      .select({ followedId: userFollows.followedId })
+      .from(userFollows)
+      .where(eq(userFollows.followerId, viewerId))
+      .limit(MAX_MUTUAL_IDS);
 
-    const followingIds = viewerFollowing
-      .map((follow) => follow.followedId)
-      .filter((id): id is Types.ObjectId => id instanceof Types.ObjectId);
-
+    const followingIds = viewerFollowing.map((follow) => follow.followedId);
     if (followingIds.length === 0) {
       return [];
     }
 
     // 2. Of those, the accounts that follow the viewer BACK — the bidirectional
     //    edges — most-recently-established first.
-    const mutualFollows = await Follow.find({
-      followedId: viewerId,
-      followType: FollowType.USER,
-      followerUserId: { $in: followingIds },
-    })
-      .select('followerUserId')
-      .limit(limit)
-      .sort({ createdAt: -1 })
-      .lean();
+    const mutualFollows = await db
+      .select({ followerId: userFollows.followerId })
+      .from(userFollows)
+      .where(
+        and(
+          eq(userFollows.followedId, viewerId),
+          inArray(userFollows.followerId, followingIds)
+        )
+      )
+      .orderBy(sql`${userFollows.createdAt} desc`, sql`${userFollows.id} desc`)
+      .limit(limit);
 
     return filterDiscoverableUserIds(
-      mutualFollows
-        .map((follow) => follow.followerUserId)
-        .filter((id): id is Types.ObjectId => id instanceof Types.ObjectId)
-        .map((id) => id.toString()),
+      db,
+      mutualFollows.map((follow) => follow.followerId),
     );
   }
 
   /**
    * Get the authenticated VIEWER's OWN social graph — the accounts they follow,
-   * the subset who follow back (mutuals), and the accounts they have blocked —
-   * as ONE ids-only payload.
+   * the subset who follow back (mutuals), and the accounts they have blocked or
+   * restricted — as ONE ids-only payload.
    *
-   * Consolidates three per-viewer graph reads consuming apps (Mention, Allo,
+   * Consolidates four per-viewer graph reads consuming apps (Mention, Allo,
    * Homiio) previously made as separate round trips into a single service call,
    * so the consolidated `GET /users/me/graph` endpoint can serve (and cache) the
-   * whole graph in one request. Each sub-read REUSES the existing, battle-tested
-   * logic: the same following query as {@link getUserFollowing}, the same
-   * bidirectional intersection as {@link getMutualUserIds}, and the same
-   * `Block.find({ userId })` the privacy routes use. The three sub-reads run in
-   * PARALLEL — they are independent Mongo queries.
+   * whole graph in one request. Each sub-read REUSES the existing logic: the same
+   * following query as {@link getUserFollowing}, the same bidirectional
+   * intersection as {@link getMutualUserIds}, and the same block/restriction
+   * reads the privacy routes use. The four sub-reads run in PARALLEL — they are
+   * independent queries.
    *
    * The viewer id is ALWAYS derived server-side by the route (`resolveViewerId`),
    * never a client param. An anonymous caller (or a service token with no user
@@ -880,9 +1381,10 @@ export class UserService {
     } = {}
   ): Promise<ViewerGraph> {
     if (!viewerId) {
-      return { followingIds: [], mutualIds: [], blockedIds: [] };
+      return { followingIds: [], mutualIds: [], blockedIds: [], restrictedIds: [] };
     }
 
+    const db = getDb();
     const followingLimit = Math.min(
       opts.followingLimit && opts.followingLimit > 0
         ? opts.followingLimit
@@ -896,10 +1398,11 @@ export class UserService {
       MAX_BLOCKED_IDS
     );
 
-    const [followingPage, mutualIds, blockedIds] = await Promise.all([
+    const [followingPage, mutualIds, blockedIds, restrictedIds] = await Promise.all([
       // Following — same eligibility filter as getUserFollowing, ids-only.
       paginateActiveFollowUserIds(
-        { followerUserId: new Types.ObjectId(viewerId), followType: FollowType.USER },
+        db,
+        eq(userFollows.followerId, viewerId),
         'followedId',
         followingLimit,
         0,
@@ -909,21 +1412,27 @@ export class UserService {
       // single source of truth for "mutual" semantics and caps.
       this.getMutualUserIds(viewerId, { limit: opts.mutualLimit }),
 
-      // Blocked — same read the privacy routes use (`Block.find({ userId })`),
-      // ids-only and bounded.
-      Block.find({ userId: viewerId })
-        .select('blockedId')
+      // Blocked — the same read the privacy routes use, ids-only and bounded.
+      db
+        .select({ blockedId: blocks.blockedId })
+        .from(blocks)
+        .where(eq(blocks.userId, viewerId))
         .limit(blockedLimit)
-        .lean()
-        .then((blocks) =>
-          blocks
-            .map((block) => block.blockedId)
-            .filter((id): id is Types.ObjectId => id instanceof Types.ObjectId)
-            .map((id) => id.toString())
-        ),
+        .then((rows) => rows.map((row) => row.blockedId)),
+
+      // Restricted — the asymmetric counterpart of the block list, read the
+      // same way. Delegated callers have no user token for `/privacy/restricted`
+      // (that router is user-auth only), so this is the only server-side read
+      // of the viewer's restrictions they can make.
+      db
+        .select({ restrictedId: restrictions.restrictedId })
+        .from(restrictions)
+        .where(eq(restrictions.userId, viewerId))
+        .limit(blockedLimit)
+        .then((rows) => rows.map((row) => row.restrictedId)),
     ]);
 
-    return { followingIds: followingPage, mutualIds, blockedIds };
+    return { followingIds: followingPage, mutualIds, blockedIds, restrictedIds };
   }
 
   /**
@@ -931,20 +1440,15 @@ export class UserService {
    * accounts followed by the accounts the viewer follows (a two-hop walk of the
    * follow graph), MINUS the viewer's own follows and the viewer themselves.
    * This SEEDS Mention's friends-of-friends feed, which hydrates and ranks the
-   * posts itself, so the payload is lean and ids-only (no hydrated DTOs, no
-   * `User` lookup) — mirroring {@link getMutualUserIds}.
-   *
-   * The viewer id is ALWAYS derived server-side by the route (`resolveViewerId`),
-   * never a client param. An anonymous caller (or a service token with no user
-   * context) has no "you follow" set ⇒ empty. A viewer who follows nobody
-   * short-circuits before the aggregation.
+   * posts itself, so the payload is lean and ids-only — mirroring
+   * {@link getMutualUserIds}.
    *
    * Bounded so the fan-out cannot blow up:
    *  - the viewer's following set (used for exclusion) is scanned most-recent
    *    first and capped at `MAX_FOLLOWS_OF_FOLLOWS_IDS`;
    *  - only the `MAX_FOF_FIRST_HOP` most-recent of those follows seed the second
-   *    hop, so the `$in` over the Follow collection stays small no matter how
-   *    many accounts the viewer follows;
+   *    hop, so the `IN` over the follow table stays small no matter how many
+   *    accounts the viewer follows;
    *  - the returned set is capped at `MAX_FOLLOWS_OF_FOLLOWS_IDS`.
    *
    * Ordering: candidates are ranked by how many of the viewer's sampled follows
@@ -959,6 +1463,7 @@ export class UserService {
       return [];
     }
 
+    const db = getDb();
     const limit = Math.min(
       params.limit && params.limit > 0 ? params.limit : MAX_FOLLOWS_OF_FOLLOWS_IDS,
       MAX_FOLLOWS_OF_FOLLOWS_IDS
@@ -966,19 +1471,14 @@ export class UserService {
 
     // 1. The viewer's following set, most-recent first. Bounded so both the
     //    exclusion set and the first-hop seed stay small.
-    const viewerFollowing = await Follow.find({
-      followerUserId: viewerId,
-      followType: FollowType.USER,
-    })
-      .select('followedId')
-      .sort({ createdAt: -1 })
-      .limit(MAX_FOLLOWS_OF_FOLLOWS_IDS)
-      .lean();
+    const viewerFollowing = await db
+      .select({ followedId: userFollows.followedId })
+      .from(userFollows)
+      .where(eq(userFollows.followerId, viewerId))
+      .orderBy(sql`${userFollows.createdAt} desc`, sql`${userFollows.id} desc`)
+      .limit(MAX_FOLLOWS_OF_FOLLOWS_IDS);
 
-    const followingIds = viewerFollowing
-      .map((follow) => follow.followedId)
-      .filter((id): id is Types.ObjectId => id instanceof Types.ObjectId);
-
+    const followingIds = viewerFollowing.map((follow) => follow.followedId);
     if (followingIds.length === 0) {
       return [];
     }
@@ -988,81 +1488,78 @@ export class UserService {
     //    excluded from the result — a follow-of-follow the viewer already
     //    follows is not a recommendation.
     const firstHopIds = followingIds.slice(0, MAX_FOF_FIRST_HOP);
-    const excludeIds = [new Types.ObjectId(viewerId), ...followingIds];
+    const excludeIds = [viewerId, ...followingIds];
 
     // 3. Union of the accounts THOSE follows follow, ranked by how many of the
     //    viewer's follows follow each candidate (frequency), then recency.
-    const rows = await Follow.aggregate<FollowsOfFollowsRow>([
-      {
-        $match: {
-          followerUserId: { $in: firstHopIds },
-          followType: FollowType.USER,
-          followedId: { $nin: excludeIds },
-        },
-      },
-      {
-        $group: {
-          _id: '$followedId',
-          followerCount: { $sum: 1 },
-          lastFollowedAt: { $max: '$createdAt' },
-        },
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'user',
-        },
-      },
-      { $unwind: '$user' },
-      {
-        $match: {
-          'user.accountStatus': discoverableUserMongoMatch.accountStatus,
-          'user.reputationTier': discoverableUserMongoMatch.reputationTier,
-        },
-      },
-      { $sort: { followerCount: -1, lastFollowedAt: -1 } },
-      { $limit: limit },
-    ]);
+    const rows = await db
+      .select({
+        id: userFollows.followedId,
+        followerCount: sql<number>`count(*)::int`,
+        lastFollowedAt: sql<Date>`max(${userFollows.createdAt})`,
+      })
+      .from(userFollows)
+      .innerJoin(users, eq(users.id, userFollows.followedId))
+      .where(
+        and(
+          inArray(userFollows.followerId, firstHopIds),
+          notInArray(userFollows.followedId, excludeIds),
+          discoverableUserPredicate()
+        )
+      )
+      .groupBy(userFollows.followedId)
+      .orderBy(sql`count(*) desc`, sql`max(${userFollows.createdAt}) desc`)
+      .limit(limit);
 
-    return rows
-      .map((row) => row._id)
-      .filter((id): id is Types.ObjectId => id instanceof Types.ObjectId)
-      .map((id) => id.toString());
+    return rows.map((row) => row.id);
   }
 
   /**
    * Read the current follower/following totals for the two sides of a follow
    * edge. Called AFTER a follow/unfollow mutation so the returned counts reflect
    * the post-write state.
+   *
+   * A MEASUREMENT, not a cached counter: the `_count` subdocument the Mongo
+   * version read is gone, so these two numbers cannot disagree with the edges.
    */
   private async readFollowCounts(
     targetId: string,
     followerId: string
   ): Promise<FollowCounts> {
-    const [updatedTarget, updatedCurrent] = await Promise.all([
-      User.findById(targetId).select('_count').lean(),
-      User.findById(followerId).select('_count').lean(),
+    const db = getDb();
+    const [followers, following] = await Promise.all([
+      db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(userFollows)
+        .where(eq(userFollows.followedId, targetId)),
+      db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(userFollows)
+        .where(eq(userFollows.followerId, followerId)),
     ]);
 
-    const targetCounts = (updatedTarget as UserWithCount)?._count;
-    const currentCounts = (updatedCurrent as UserWithCount)?._count;
-
     return {
-      followers: targetCounts?.followers ?? 0,
-      following: currentCounts?.following ?? 0,
+      followers: followers[0]?.n ?? 0,
+      following: following[0]?.n ?? 0,
     };
+  }
+
+  /** Whether both ids name a real account. */
+  private async bothUsersExist(a: string, b: string): Promise<boolean> {
+    const rows = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, [a, b]));
+    return rows.length === 2;
   }
 
   /**
    * Idempotently create a follow edge from `followerId` to `targetId`.
    *
-   * The unique compound index on `Follow` is the atomic arbiter of
-   * "created vs already-following": a concurrent duplicate insert fails with
-   * E11000 and is treated as a no-op, so the follower/followed counters can only
-   * ever move once for a given edge. Counters are incremented ONLY on a genuine
-   * insert.
+   * `ON CONFLICT DO NOTHING ... RETURNING` is the atomic arbiter of
+   * "created vs already-following": a concurrent duplicate insert returns no
+   * row and is treated as a no-op. This replaces the E11000 catch entirely —
+   * the duplicate is no longer an error to classify, it is an empty result.
    */
   async followUser(
     followerId: string,
@@ -1072,42 +1569,19 @@ export class UserService {
       throw new Error('Cannot follow yourself');
     }
 
-    const [targetUser, currentUser] = await Promise.all([
-      User.findById(targetId),
-      User.findById(followerId),
-    ]);
-
-    if (!targetUser || !currentUser) {
+    if (!(await this.bothUsersExist(followerId, targetId))) {
       throw new Error('User not found');
     }
 
-    let created = false;
-    try {
-      await Follow.create({
-        followerUserId: followerId,
-        followType: FollowType.USER,
-        followedId: targetId,
-      });
-      created = true;
-    } catch (error: unknown) {
-      // A duplicate-key error means the edge already exists (or was just
-      // created by a concurrent request) — an idempotent no-op, not a failure.
-      // Any other error is genuine and must surface.
-      const isDuplicate =
-        typeof error === 'object' &&
-        error !== null &&
-        (error as { code?: number }).code === 11000;
-      if (!isDuplicate) {
-        throw error;
-      }
-    }
+    const inserted = await getDb()
+      .insert(userFollows)
+      .values({ followerId, followedId: targetId })
+      .onConflictDoNothing()
+      .returning({ id: userFollows.id });
+
+    const created = inserted.length === 1;
 
     if (created) {
-      await Promise.all([
-        User.findByIdAndUpdate(targetId, { $inc: { '_count.followers': 1 } }),
-        User.findByIdAndUpdate(followerId, { $inc: { '_count.following': 1 } }),
-      ]);
-
       // The follow edge changed both sides' cached graph: the follower's
       // `followingIds`, and — because a follow can complete a bidirectional
       // edge — either side's `mutualIds`. Invalidate BOTH (mutuals are
@@ -1118,8 +1592,11 @@ export class UserService {
         graphCache.invalidate(followerId),
         graphCache.invalidate(targetId),
       ]);
-      userCache.invalidate(followerId);
-      userCache.invalidate(targetId);
+      // `'graph'` — only the follow counts moved. Identity is untouched, so this
+      // is not broadcast to other backends; follows are far too frequent to put
+      // on a channel every Oxy service subscribes to.
+      userCache.invalidate(followerId, 'graph');
+      userCache.invalidate(targetId, 'graph');
     }
 
     const counts = await this.readFollowCounts(targetId, followerId);
@@ -1129,9 +1606,8 @@ export class UserService {
   /**
    * Idempotently remove a follow edge from `followerId` to `targetId`.
    *
-   * `deleteOne` reports whether a document was actually removed; counters are
-   * decremented ONLY when a real edge was deleted, so unfollowing an edge that
-   * does not exist is a safe no-op that never drives counts negative.
+   * `DELETE ... RETURNING` reports whether a row was actually removed, so
+   * unfollowing an edge that does not exist is a safe no-op.
    */
   async unfollowUser(
     followerId: string,
@@ -1141,28 +1617,23 @@ export class UserService {
       throw new Error('Cannot follow yourself');
     }
 
-    const [targetUser, currentUser] = await Promise.all([
-      User.findById(targetId),
-      User.findById(followerId),
-    ]);
-
-    if (!targetUser || !currentUser) {
+    if (!(await this.bothUsersExist(followerId, targetId))) {
       throw new Error('User not found');
     }
 
-    const { deletedCount } = await Follow.deleteOne({
-      followerUserId: followerId,
-      followType: FollowType.USER,
-      followedId: targetId,
-    });
-    const removed = deletedCount === 1;
+    const deleted = await getDb()
+      .delete(userFollows)
+      .where(
+        and(
+          eq(userFollows.followerId, followerId),
+          eq(userFollows.followedId, targetId)
+        )
+      )
+      .returning({ id: userFollows.id });
+
+    const removed = deleted.length === 1;
 
     if (removed) {
-      await Promise.all([
-        User.findByIdAndUpdate(targetId, { $inc: { '_count.followers': -1 } }),
-        User.findByIdAndUpdate(followerId, { $inc: { '_count.following': -1 } }),
-      ]);
-
       // Symmetric to followUser: removing the edge changed the follower's
       // `followingIds` and can break a bidirectional edge, so invalidate BOTH
       // sides' cached graph. No-op when no edge was actually removed.
@@ -1170,8 +1641,9 @@ export class UserService {
         graphCache.invalidate(followerId),
         graphCache.invalidate(targetId),
       ]);
-      userCache.invalidate(followerId);
-      userCache.invalidate(targetId);
+      // Counts only — not broadcast. See `followUser`.
+      userCache.invalidate(followerId, 'graph');
+      userCache.invalidate(targetId, 'graph');
     }
 
     const counts = await this.readFollowCounts(targetId, followerId);
@@ -1186,13 +1658,7 @@ export class UserService {
     currentUserId: string,
     targetUserId: string
   ): Promise<FollowActionResult> {
-    const existingFollow = await Follow.findOne({
-      followerUserId: currentUserId,
-      followType: FollowType.USER,
-      followedId: targetUserId,
-    });
-
-    if (existingFollow) {
+    if (await this.isFollowing(currentUserId, targetUserId)) {
       const { counts } = await this.unfollowUser(currentUserId, targetUserId);
       return { action: 'unfollow', counts };
     }
@@ -1206,169 +1672,75 @@ export class UserService {
    *
    * Follow-only and idempotent: users already followed stay followed and are
    * never toggled/unfollowed. One bad id never fails the whole batch — every
-   * deduped candidate (including structurally-invalid ids) gets an entry in the
-   * returned `results` array.
+   * deduped candidate gets an entry in the returned `results` array.
    *
    * Efficiency: at most one batched query for existing follows, one for user
-   * existence, one bulk insert, and two count-increment updates — regardless of
-   * how many targets are supplied. Does NOT loop over `toggleFollow`.
+   * existence, and ONE bulk insert — regardless of how many targets are
+   * supplied. Does NOT loop over `toggleFollow`.
    *
    * @param currentUserId The follower (authenticated user) id.
    * @param targetUserIds Candidate user ids to follow (may contain duplicates,
-   *   the caller's own id, or invalid ids).
+   *   the caller's own id, or ids that name no account).
    * @returns Per-target results and the count of NEWLY created follows.
    */
   async bulkFollow(
     currentUserId: string,
     targetUserIds: string[]
   ): Promise<BulkFollowResult> {
+    const db = getDb();
+
     // Dedupe while preserving first-seen order, and drop the caller's own id
     // (cannot self-follow). The deduped list drives the results array.
-    const seen = new Set<string>();
-    const dedupedIds: string[] = [];
-    for (const rawId of targetUserIds) {
-      if (typeof rawId !== 'string') continue;
-      const id = rawId.trim();
-      if (!id || id === currentUserId || seen.has(id)) continue;
-      seen.add(id);
-      dedupedIds.push(id);
-    }
+    const candidateIds = dedupeTargetIds(currentUserId, targetUserIds);
 
-    // Partition into structurally-valid candidates (safe to query) and invalid
-    // ids. Invalid ids must never enter the `$in` queries.
-    const candidateIds = dedupedIds.filter((id) => Types.ObjectId.isValid(id));
-
-    // No queryable candidates — return graceful failures for every deduped id.
     if (candidateIds.length === 0) {
-      return {
-        results: dedupedIds.map((userId) => ({
-          userId,
-          success: false,
-          alreadyFollowing: false,
-        })),
-        followedCount: 0,
-      };
+      return { results: [], followedCount: 0 };
     }
 
     // ONE batched query for follows that already exist.
-    const existingFollows = await Follow.find({
-      followerUserId: currentUserId,
-      followType: FollowType.USER,
-      followedId: { $in: candidateIds },
-    })
-      .select('followedId')
-      .lean();
-
-    const alreadyFollowedIds = new Set<string>(
-      existingFollows
-        .map((follow) => follow.followedId)
-        .filter((id): id is Types.ObjectId | string => id != null)
-        .map((id) => id.toString())
-    );
+    const existingFollows = await db
+      .select({ followedId: userFollows.followedId })
+      .from(userFollows)
+      .where(
+        and(
+          eq(userFollows.followerId, currentUserId),
+          inArray(userFollows.followedId, candidateIds)
+        )
+      );
+    const alreadyFollowedIds = new Set(existingFollows.map((row) => row.followedId));
 
     // ONE batched query to verify which candidates correspond to real users.
-    const existingUsers = await User.find({
-      _id: { $in: candidateIds },
-    })
-      .select('_id')
-      .lean();
+    const existingUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(inArray(users.id, candidateIds));
+    const existingUserIds = new Set(existingUsers.map((row) => row.id));
 
-    const existingUserIds = new Set<string>(
-      existingUsers.map((user) => user._id.toString())
-    );
-
-    // Candidates that exist and are not yet followed are the insert set. Keep
-    // them ordered so write-error indexes map back to the right id.
+    // Candidates that exist and are not yet followed are the insert set.
     const toInsertIds = candidateIds.filter(
       (id) => existingUserIds.has(id) && !alreadyFollowedIds.has(id)
     );
 
-    // Track ids that lost a concurrency race (E11000) so we treat them as
-    // already-following rather than newly created.
-    const racedDuplicateIds = new Set<string>();
     let newlyFollowedIds: string[] = [];
+    const racedDuplicateIds = new Set<string>();
 
     if (toInsertIds.length > 0) {
-      const docs = toInsertIds.map((id) => ({
-        followerUserId: currentUserId,
-        followType: FollowType.USER,
-        followedId: id,
-      }));
+      // ONE insert. A row that lost a concurrency race simply does not come
+      // back from RETURNING — no error to classify, no write-error index to map.
+      const inserted = await db
+        .insert(userFollows)
+        .values(toInsertIds.map((followedId) => ({ followerId: currentUserId, followedId })))
+        .onConflictDoNothing()
+        .returning({ followedId: userFollows.followedId });
 
-      try {
-        await Follow.insertMany(docs, { ordered: false });
-        newlyFollowedIds = toInsertIds;
-      } catch (error: unknown) {
-        if (!isBulkWriteLikeError(error)) {
-          // Unexpected, non-duplicate failure — surface it.
-          logger.error(
-            'Bulk follow insert failed',
-            error instanceof Error ? error : new Error(String(error)),
-            { currentUserId, attempted: toInsertIds.length }
-          );
-          throw error;
-        }
-
-        const writeErrors = error.writeErrors ?? [];
-        const duplicateIndexes = new Set<number>();
-        let sawNonDuplicate = false;
-
-        if (writeErrors.length > 0) {
-          for (const writeError of writeErrors) {
-            const code = writeError.err?.code ?? writeError.code;
-            if (code === 11000) {
-              if (typeof writeError.index === 'number') {
-                duplicateIndexes.add(writeError.index);
-              }
-            } else {
-              sawNonDuplicate = true;
-            }
-          }
-        } else if (error.code === 11000) {
-          // Single-document duplicate failure (no per-doc writeErrors array).
-          // With `ordered:false` and multiple docs this is unusual, but handle
-          // it: every attempted id collided.
-          for (let i = 0; i < toInsertIds.length; i += 1) {
-            duplicateIndexes.add(i);
-          }
-        } else {
-          sawNonDuplicate = true;
-        }
-
-        // Any failure that is NOT a duplicate key is unexpected — do not
-        // silently swallow it.
-        if (sawNonDuplicate) {
-          logger.error(
-            'Bulk follow insert failed with non-duplicate write error',
-            error instanceof Error ? error : new Error(String(error)),
-            { currentUserId, attempted: toInsertIds.length }
-          );
-          throw error;
-        }
-
-        // Newly inserted = attempted minus those that collided (raced).
-        toInsertIds.forEach((id, index) => {
-          if (duplicateIndexes.has(index)) {
-            racedDuplicateIds.add(id);
-          } else {
-            newlyFollowedIds.push(id);
-          }
-        });
+      newlyFollowedIds = inserted.map((row) => row.followedId);
+      const newlySet = new Set(newlyFollowedIds);
+      for (const id of toInsertIds) {
+        if (!newlySet.has(id)) racedDuplicateIds.add(id);
       }
     }
 
-    // Increment counts based ONLY on newly created follows.
     if (newlyFollowedIds.length > 0) {
-      await Promise.all([
-        User.updateMany(
-          { _id: { $in: newlyFollowedIds } },
-          { $inc: { '_count.followers': 1 } }
-        ),
-        User.findByIdAndUpdate(currentUserId, {
-          $inc: { '_count.following': newlyFollowedIds.length },
-        }),
-      ]);
-
       // The batch changed the viewer's `followingIds` and can complete
       // bidirectional edges, so invalidate the viewer plus every newly-followed
       // target's cached graph (mutuals are symmetric). Only the ids whose edge
@@ -1377,262 +1749,148 @@ export class UserService {
         graphCache.invalidate(currentUserId),
         ...newlyFollowedIds.map((id) => graphCache.invalidate(id)),
       ]);
-      userCache.invalidate(currentUserId);
+      // Counts only — not broadcast. See `followUser`. This is the site the
+      // suppression exists for: one bulk call moves up to 200 edges, which
+      // would otherwise be a 200-message burst every subscriber discards.
+      userCache.invalidate(currentUserId, 'graph');
       for (const id of newlyFollowedIds) {
-        userCache.invalidate(id);
+        userCache.invalidate(id, 'graph');
       }
     }
 
-    const newlyFollowedSet = new Set<string>(newlyFollowedIds);
-
-    // Build a result entry for EVERY deduped candidate id (including invalid
-    // ones that never reached the queries).
-    const results: BulkFollowEntry[] = dedupedIds.map((userId) => {
+    const newlyFollowedSet = new Set(newlyFollowedIds);
+    const results: BulkFollowEntry[] = candidateIds.map((userId) => {
       if (newlyFollowedSet.has(userId)) {
         return { userId, success: true, alreadyFollowing: false };
       }
       if (alreadyFollowedIds.has(userId) || racedDuplicateIds.has(userId)) {
         return { userId, success: true, alreadyFollowing: true };
       }
-      // Invalid id, non-existent user, or genuinely failed.
+      // Names no account.
       return { userId, success: false, alreadyFollowing: false };
     });
 
-    return {
-      results,
-      followedCount: newlyFollowedIds.length,
-    };
+    return { results, followedCount: newlyFollowedIds.length };
   }
 
   /**
    * Unfollow many users in a single batched operation.
    *
    * Unfollow-only and idempotent: ids that are not currently followed are left
-   * untouched and reported as already in the desired (not-following) state. One
-   * bad id never fails the whole batch — every deduped candidate (including
-   * structurally-invalid ids) gets an entry in the returned `results` array.
+   * untouched and reported as already in the desired (not-following) state.
    *
-   * Efficiency: at most one batched query for existing follows, one bulk delete,
-   * and two count-decrement updates — regardless of how many targets are
-   * supplied. Does NOT loop over `toggleFollow`.
+   * Efficiency: ONE `DELETE ... RETURNING` regardless of how many targets are
+   * supplied. The Mongo version issued one `findOneAndDelete` PER target,
+   * because `deleteMany` reported only an aggregate count and that is not
+   * enough to attribute a decrement safely under a race; a single statement's
+   * RETURNING names exactly the rows THIS call removed, so the per-target loop
+   * has no reason to survive.
    *
    * @param currentUserId The follower (authenticated user) id.
-   * @param targetUserIds Candidate user ids to unfollow (may contain duplicates,
-   *   the caller's own id, or invalid ids).
+   * @param targetUserIds Candidate user ids to unfollow (may contain duplicates
+   *   or the caller's own id).
    * @returns Per-target results and the count of follows actually removed.
    */
   async bulkUnfollow(
     currentUserId: string,
     targetUserIds: string[]
   ): Promise<BulkUnfollowResult> {
-    // Dedupe while preserving first-seen order, and drop the caller's own id
-    // (cannot self-unfollow). The deduped list drives the results array.
-    const seen = new Set<string>();
-    const dedupedIds: string[] = [];
-    for (const rawId of targetUserIds) {
-      if (typeof rawId !== 'string') continue;
-      const id = rawId.trim();
-      if (!id || id === currentUserId || seen.has(id)) continue;
-      seen.add(id);
-      dedupedIds.push(id);
-    }
+    const candidateIds = dedupeTargetIds(currentUserId, targetUserIds);
 
-    // Partition into structurally-valid candidates (safe to query) and invalid
-    // ids. Invalid ids must never enter the `$in` queries.
-    const candidateIds = dedupedIds.filter((id) => Types.ObjectId.isValid(id));
-
-    // No queryable candidates — return graceful failures for every deduped id.
     if (candidateIds.length === 0) {
-      return {
-        results: dedupedIds.map((userId) => ({
-          userId,
-          success: false,
-          wasFollowing: false,
-        })),
-        unfollowedCount: 0,
-      };
+      return { results: [], unfollowedCount: 0 };
     }
 
-    // ONE batched query for follows that already exist.
-    const existingFollows = await Follow.find({
-      followerUserId: currentUserId,
-      followType: FollowType.USER,
-      followedId: { $in: candidateIds },
-    })
-      .select('followedId')
-      .lean();
-
-    const existingFollowedIds = new Set<string>(
-      existingFollows
-        .map((follow) => follow.followedId)
-        .filter((id): id is Types.ObjectId | string => id != null)
-        .map((id) => id.toString())
-    );
-
-    // Candidates that are currently followed are the removal set. Keep them
-    // ordered (filter candidateIds) so result ordering stays stable.
-    const toRemoveIds = candidateIds.filter((id) => existingFollowedIds.has(id));
-
-    let actuallyRemovedIds: string[] = [];
-
-    if (toRemoveIds.length > 0) {
-      // Delete each follow with an atomic find-and-delete so concurrent bulk
-      // unfollow requests only decrement counters for documents THIS call
-      // actually removed. A plain deleteMany() reports only an aggregate
-      // deletedCount, which is not enough to safely update each target's
-      // follower counter under races (two callers could both observe the same
-      // follow as existing and both decrement). Mirrors bulkFollow, where
-      // counts derive from the ids actually inserted.
-      const deletedFollows = await Promise.all(
-        toRemoveIds.map((followedId) =>
-          Follow.findOneAndDelete({
-            followerUserId: currentUserId,
-            followType: FollowType.USER,
-            followedId,
-          })
-            .select('followedId')
-            .lean()
+    const deleted = await getDb()
+      .delete(userFollows)
+      .where(
+        and(
+          eq(userFollows.followerId, currentUserId),
+          inArray(userFollows.followedId, candidateIds)
         )
-      );
+      )
+      .returning({ followedId: userFollows.followedId });
 
-      actuallyRemovedIds = deletedFollows
-        .map((follow) => follow?.followedId)
-        .filter((id): id is Types.ObjectId | string => id != null)
-        .map((id) => id.toString());
+    const actuallyRemovedIds = deleted.map((row) => row.followedId);
 
-      // Decrement counts based ONLY on follows actually removed — the exact
-      // symmetric inverse of bulkFollow's increment.
-      if (actuallyRemovedIds.length > 0) {
-        await Promise.all([
-          User.updateMany(
-            { _id: { $in: actuallyRemovedIds } },
-            { $inc: { '_count.followers': -1 } }
-          ),
-          User.findByIdAndUpdate(currentUserId, {
-            $inc: { '_count.following': -actuallyRemovedIds.length },
-          }),
-        ]);
-
-        // Symmetric to bulkFollow: invalidate the viewer plus every target
-        // whose edge was actually removed (mutuals are symmetric).
-        await Promise.all([
-          graphCache.invalidate(currentUserId),
-          ...actuallyRemovedIds.map((id) => graphCache.invalidate(id)),
-        ]);
-        userCache.invalidate(currentUserId);
-        for (const id of actuallyRemovedIds) {
-          userCache.invalidate(id);
-        }
+    if (actuallyRemovedIds.length > 0) {
+      // Symmetric to bulkFollow: invalidate the viewer plus every target
+      // whose edge was actually removed (mutuals are symmetric).
+      await Promise.all([
+        graphCache.invalidate(currentUserId),
+        ...actuallyRemovedIds.map((id) => graphCache.invalidate(id)),
+      ]);
+      // Counts only — not broadcast. See `bulkFollow`.
+      userCache.invalidate(currentUserId, 'graph');
+      for (const id of actuallyRemovedIds) {
+        userCache.invalidate(id, 'graph');
       }
     }
 
-    const removedSet = new Set<string>(actuallyRemovedIds);
-    const candidateSet = new Set<string>(candidateIds);
+    const removedSet = new Set(actuallyRemovedIds);
+    const results: BulkUnfollowEntry[] = candidateIds.map((userId) => ({
+      userId,
+      success: true,
+      wasFollowing: removedSet.has(userId),
+    }));
 
-    // Build a result entry for EVERY deduped candidate id (including invalid
-    // ones that never reached the queries).
-    const results: BulkUnfollowEntry[] = dedupedIds.map((userId) => {
-      if (removedSet.has(userId)) {
-        return { userId, success: true, wasFollowing: true };
-      }
-      if (candidateSet.has(userId)) {
-        // Valid id, wasn't followed — desired (not-following) state already holds.
-        return { userId, success: true, wasFollowing: false };
-      }
-      // Invalid id — cannot assert it is now not-followed.
-      return { userId, success: false, wasFollowing: false };
-    });
-
-    return {
-      results,
-      unfollowedCount: actuallyRemovedIds.length,
-    };
+    return { results, unfollowedCount: actuallyRemovedIds.length };
   }
 
   /**
-   * Purge every social-graph edge touching a user and repair counterparty counts.
+   * Purge every social-graph edge touching a user.
    *
    * Shared by `DELETE /users/me` (self-delete) and `deleteFederatedActor`
-   * (federation teardown). Does NOT delete the `User` document — callers own that.
+   * (federation teardown). Does NOT delete the account row — callers own that.
    *
-   * ORDER (each step safe to retry / idempotent):
-   *  1. Snapshot counterparties on both sides BEFORE deleting edges.
-   *  2. Delete every `Follow` edge touching this user in either direction.
-   *  3. Decrement counterparties' denormalized `_count` (same semantics as
-   *     `unfollowUser`).
-   *  4. Delete `Block` and `Restricted` rows in either direction.
-   *  5. Invalidate block/restrict verdict caches for this user.
-   *  6. Invalidate this user's cache and every counterparty's graph cache.
+   * The foreign keys would cascade all of this on delete; the method still
+   * exists because federation teardown purges the graph WITHOUT deleting the
+   * account, and because the counterparties' caches have to be invalidated by
+   * name — a cascade tells nobody whose graph just changed.
    */
   async purgeUserSocialGraph(
     userId: string
   ): Promise<{ followEdgesRemoved: number }> {
-    const [outboundEdges, inboundEdges] = await Promise.all([
-      Follow.find({ followerUserId: userId, followType: FollowType.USER })
-        .select('followedId')
-        .lean(),
-      Follow.find({ followedId: userId, followType: FollowType.USER })
-        .select('followerUserId')
-        .lean(),
-    ]);
+    const db = getDb();
 
-    const followedCounterpartyIds = outboundEdges
-      .map((edge) => edge.followedId)
-      .filter((id): id is Types.ObjectId | string => id != null)
-      .map((id) => id.toString());
-    const followerCounterpartyIds = inboundEdges
-      .map((edge) => edge.followerUserId)
-      .filter((id): id is Types.ObjectId => id != null)
-      .map((id) => id.toString());
+    const removedEdges = await db
+      .delete(userFollows)
+      .where(
+        or(eq(userFollows.followerId, userId), eq(userFollows.followedId, userId))
+      )
+      .returning({
+        followerId: userFollows.followerId,
+        followedId: userFollows.followedId,
+      });
 
-    const { deletedCount } = await Follow.deleteMany({
-      $or: [{ followerUserId: userId }, { followedId: userId }],
-    });
-    const followEdgesRemoved = deletedCount ?? 0;
-
-    const countUpdates: Promise<unknown>[] = [];
-    if (followedCounterpartyIds.length > 0) {
-      countUpdates.push(
-        User.updateMany(
-          { _id: { $in: followedCounterpartyIds } },
-          { $inc: { '_count.followers': -1 } }
-        )
-      );
+    const counterpartyIds = new Set<string>();
+    for (const edge of removedEdges) {
+      counterpartyIds.add(edge.followerId === userId ? edge.followedId : edge.followerId);
     }
-    if (followerCounterpartyIds.length > 0) {
-      countUpdates.push(
-        User.updateMany(
-          { _id: { $in: followerCounterpartyIds } },
-          { $inc: { '_count.following': -1 } }
-        )
-      );
-    }
-    if (countUpdates.length > 0) {
-      await Promise.all(countUpdates);
-    }
+    counterpartyIds.delete(userId);
 
     await Promise.all([
-      Block.deleteMany({
-        $or: [{ userId }, { blockedId: userId }],
-      }),
-      Restricted.deleteMany({
-        $or: [{ userId }, { restrictedId: userId }],
-      }),
+      db
+        .delete(blocks)
+        .where(or(eq(blocks.userId, userId), eq(blocks.blockedId, userId))),
+      db
+        .delete(restrictions)
+        .where(or(eq(restrictions.userId, userId), eq(restrictions.restrictedId, userId))),
     ]);
 
     blockCache.invalidateUser(userId);
     restrictCache.invalidateUser(userId);
+    // The subject's account is going away — that IS an identity change, so it
+    // broadcasts. The counterparties only lose an edge, so they do not.
     userCache.invalidate(userId);
-    const graphIdsToInvalidate = new Set<string>([
-      userId,
-      ...followedCounterpartyIds,
-      ...followerCounterpartyIds,
-    ]);
+    for (const counterpartyId of counterpartyIds) {
+      userCache.invalidate(counterpartyId, 'graph');
+    }
     await Promise.all(
-      Array.from(graphIdsToInvalidate, (id) => graphCache.invalidate(id))
+      [userId, ...counterpartyIds].map((id) => graphCache.invalidate(id))
     );
 
-    return { followEdgesRemoved };
+    return { followEdgesRemoved: removedEdges.length };
   }
 
   /**
@@ -1645,8 +1903,8 @@ export class UserService {
    * CALLER CONTRACT: the route MUST have already loaded the user and confirmed
    * `type === 'federated'` before calling this — this method performs
    * destructive writes and only re-asserts the guard atomically on the final
-   * `User.deleteOne` (filter `{ _id, type: 'federated' }`), never on the graph
-   * purge. It must never be called for a local/agent/automated account.
+   * delete (`where id = $1 and type = 'federated'`), never on the graph purge.
+   * It must never be called for a local/agent/automated account.
    *
    * @param oxyUserId The federated actor's Oxy user id.
    * @returns The number of follow-graph edges removed.
@@ -1656,7 +1914,9 @@ export class UserService {
   ): Promise<{ followEdgesRemoved: number }> {
     const { followEdgesRemoved } = await this.purgeUserSocialGraph(oxyUserId);
 
-    await User.deleteOne({ _id: oxyUserId, type: 'federated' });
+    await getDb()
+      .delete(users)
+      .where(and(eq(users.id, oxyUserId), eq(users.type, 'federated')));
 
     return { followEdgesRemoved };
   }
@@ -1668,13 +1928,17 @@ export class UserService {
     currentUserId: string,
     targetUserId: string
   ): Promise<boolean> {
-    const follow = await Follow.findOne({
-      followerUserId: currentUserId,
-      followType: FollowType.USER,
-      followedId: targetUserId,
-    });
-
-    return !!follow;
+    const [row] = await getDb()
+      .select({ id: userFollows.id })
+      .from(userFollows)
+      .where(
+        and(
+          eq(userFollows.followerId, currentUserId),
+          eq(userFollows.followedId, targetUserId)
+        )
+      )
+      .limit(1);
+    return !!row;
   }
 
   /**
@@ -1682,15 +1946,14 @@ export class UserService {
    * indexed query.
    *
    * Returns both directional flags: `isFollowing` (viewer → target) and
-   * `followsYou` (target → viewer). Both edges are read with a single
-   * `Follow.find` whose two `$or` branches each hit the unique
-   * `{ followerUserId, followType, followedId }` index as a point lookup — so
-   * this stays O(1) index work, not a scan, and adds no round-trip to the
-   * profile fetch that already loads the target document.
+   * `followsYou` (target → viewer). Both edges are read with a single query
+   * whose two `OR` branches each hit the
+   * `user_follows_follower_id_followed_id_key` unique index as a point lookup —
+   * so this stays O(1) index work, not a scan, and adds no round-trip to the
+   * profile fetch that already loads the target row.
    *
    * The caller is responsible for skipping this on a self-view (`viewerId ===
-   * targetId`) and for omitting the field entirely on anonymous requests — this
-   * method assumes two distinct, structurally-valid ids.
+   * targetId`) and for omitting the field entirely on anonymous requests.
    *
    * @param viewerId The authenticated viewer's user id.
    * @param targetId The fetched profile's user id.
@@ -1700,25 +1963,32 @@ export class UserService {
     viewerId: string,
     targetId: string
   ): Promise<UserRelationship> {
-    const edges = await Follow.find({
-      followType: FollowType.USER,
-      $or: [
-        { followerUserId: viewerId, followedId: targetId },
-        { followerUserId: targetId, followedId: viewerId },
-      ],
-    })
-      .select('followerUserId followedId')
-      .lean();
+    const edges = await getDb()
+      .select({
+        followerId: userFollows.followerId,
+        followedId: userFollows.followedId,
+      })
+      .from(userFollows)
+      .where(
+        or(
+          and(
+            eq(userFollows.followerId, viewerId),
+            eq(userFollows.followedId, targetId)
+          ),
+          and(
+            eq(userFollows.followerId, targetId),
+            eq(userFollows.followedId, viewerId)
+          )
+        )
+      );
 
     let isFollowing = false;
     let followsYou = false;
     for (const edge of edges) {
-      const follower = edge.followerUserId?.toString();
-      const followed = edge.followedId?.toString();
-      if (follower === viewerId && followed === targetId) {
+      if (edge.followerId === viewerId && edge.followedId === targetId) {
         isFollowing = true;
       }
-      if (follower === targetId && followed === viewerId) {
+      if (edge.followerId === targetId && edge.followedId === viewerId) {
         followsYou = true;
       }
     }
@@ -1730,18 +2000,16 @@ export class UserService {
    * Batch follow-status resolution for the authenticated viewer.
    *
    * Returns a boolean for EVERY requested target id: `true` when the viewer
-   * follows that user, `false` otherwise. Structurally-invalid ids and ids the
-   * viewer does not follow both map to `false`. An anonymous viewer or an
-   * empty/all-invalid id set resolves to all-`false` with no query.
+   * follows that user, `false` otherwise. An anonymous viewer or an empty id set
+   * resolves to all-`false` with no query.
    *
-   * Efficiency contract: at most ONE indexed `Follow.find` regardless of N —
-   * keyed on `(followerUserId, followType, followedId $in validIds)`, the same
-   * axis `isFollowing` uses. Built to replace N per-button
-   * `GET /users/:id/follow-status` requests with a single round-trip.
+   * Efficiency contract: at most ONE indexed query regardless of N — keyed on
+   * `(follower_id, followed_id in (…))`, the same axis `isFollowing` uses.
+   * Built to replace N per-button `GET /users/:id/follow-status` requests with a
+   * single round-trip.
    *
    * @param currentUserId The authenticated viewer (follower) id.
-   * @param targetIds Candidate user ids to check (may contain duplicates or
-   *   invalid ids).
+   * @param targetIds Candidate user ids to check (may contain duplicates).
    * @returns A map of every requested id → whether the viewer follows it.
    */
   async getFollowingStatuses(
@@ -1749,7 +2017,7 @@ export class UserService {
     targetIds: string[]
   ): Promise<Record<string, boolean>> {
     // Dedupe requested ids preserving first-seen order; every requested id must
-    // appear in the result (default false), including invalid ones.
+    // appear in the result (default false).
     const seen = new Set<string>();
     const requestedIds: string[] = [];
     for (const rawId of targetIds) {
@@ -1770,32 +2038,18 @@ export class UserService {
       return statuses;
     }
 
-    // Only structurally-valid ids may enter the `$in` query.
-    const validIds = requestedIds.filter((id) => Types.ObjectId.isValid(id));
-    if (validIds.length === 0) {
-      return statuses;
-    }
+    const follows = await getDb()
+      .select({ followedId: userFollows.followedId })
+      .from(userFollows)
+      .where(
+        and(
+          eq(userFollows.followerId, currentUserId),
+          inArray(userFollows.followedId, requestedIds)
+        )
+      );
 
-    // ONE indexed query for the viewer's follows within the requested set.
-    const follows = await Follow.find({
-      followerUserId: currentUserId,
-      followType: FollowType.USER,
-      followedId: { $in: validIds },
-    })
-      .select('followedId')
-      .lean();
-
-    const followedIds = new Set<string>(
-      follows
-        .map((follow) => follow.followedId)
-        .filter((id): id is Types.ObjectId | string => id != null)
-        .map((id) => id.toString())
-    );
-
-    for (const id of validIds) {
-      if (followedIds.has(id)) {
-        statuses[id] = true;
-      }
+    for (const follow of follows) {
+      statuses[follow.followedId] = true;
     }
 
     return statuses;
@@ -1809,176 +2063,131 @@ export class UserService {
    * for every returned user. Designed for server-to-server fan-out (e.g. Mention
    * feed hydration) so callers avoid N+1 `GET /users/:id` round-trips.
    *
-   * Efficiency contract: at most THREE queries total regardless of `ids.length`
-   * — one `User.find({ _id: $in })` and two `Follow` group-by-id aggregations
-   * (followers + following), keyed by the whole id set. No per-user query.
+   * Efficiency contract: ONE query regardless of `ids.length`. The two follow
+   * totals ride it as correlated aggregates rather than the two extra grouped
+   * aggregations Mongo needed.
    *
-   * Resilient to bad input: ids that are not valid ObjectIds (or that match no
-   * user) are silently dropped — the result only contains resolved users. The
-   * caller is responsible for any "missing id" handling. Order is NOT guaranteed
-   * to match the input order.
+   * Resilient to bad input: ids that match no user are silently dropped — the
+   * result only contains resolved users. Order is NOT guaranteed to match the
+   * input order.
    *
-   * @param ids - Candidate user ids (ObjectId strings).
+   * @param ids - Candidate user ids.
    * @returns Array of public user DTOs, each with `_count`.
    */
   async getUsersByIds(ids: string[]): Promise<PublicUserProfile[]> {
-    const objectIds = ids
-      .filter((id) => Types.ObjectId.isValid(id))
-      .map((id) => new Types.ObjectId(id));
-
-    if (objectIds.length === 0) {
+    const candidateIds = ids.filter((id) => typeof id === 'string' && id.length > 0);
+    if (candidateIds.length === 0) {
       return [];
     }
 
-    // One batched user fetch. `lean({ virtuals: true })` populates `name.full`
-    // (schema virtual) which `formatUserNameResponse` consumes. The typed lean
-    // generic yields plain `IUser` objects so `formatUserResponse` (which reads
-    // `publicKey`, `type`, `federation`, etc.) sees the full profile shape.
-    const users = await User.find({
-      _id: { $in: objectIds },
-      accountStatus: { $ne: 'archived' },
-      reputationTier: { $ne: 'restricted' },
-    })
-      .select('-password -refreshToken')
-      .lean<IUser[]>({ virtuals: true });
+    const rows = await getDb()
+      .select({ ...publicUserColumns, ...publicUserFollowCounts })
+      .from(users)
+      .where(and(inArray(users.id, candidateIds), discoverableUserPredicate()));
 
-    if (users.length === 0) {
-      return [];
-    }
-
-    // Two batched count aggregations keyed by the whole id set (not per-user):
-    // followers (others following the user) and following (the user follows
-    // others). Each is a single grouped query over the `follows` collection.
-    const [followerRows, followingRows] = await Promise.all([
-      Follow.aggregate<FollowCountRow>([
-        {
-          $match: {
-            followedId: { $in: objectIds },
-            followType: FollowType.USER,
-          },
-        },
-        { $group: { _id: '$followedId', count: { $sum: 1 } } },
-      ]),
-      Follow.aggregate<FollowCountRow>([
-        {
-          $match: {
-            followerUserId: { $in: objectIds },
-            followType: FollowType.USER,
-          },
-        },
-        { $group: { _id: '$followerUserId', count: { $sum: 1 } } },
-      ]),
-    ]);
-
-    const followersById = new Map<string, number>(
-      followerRows.map((row) => [String(row._id), row.count])
+    return rows.map((row) =>
+      this.formatUserResponse(toPublicUserView(row), {
+        followers: row.followersCount,
+        following: row.followingCount,
+      })
     );
-    const followingById = new Map<string, number>(
-      followingRows.map((row) => [String(row._id), row.count])
-    );
-
-    return users.map((user) => {
-      const key = user._id?.toString() ?? '';
-      return this.formatUserResponse(user, {
-        followers: followersById.get(key) ?? 0,
-        following: followingById.get(key) ?? 0,
-      });
-    });
   }
 
   /**
    * Get user statistics (followers, following)
    */
   async getUserStats(userId: string): Promise<UserStatistics> {
-    const [followersCount, followingCount] = await Promise.all([
-      Follow.countDocuments({
-        followedId: userId,
-        followType: FollowType.USER,
-      }),
-      Follow.countDocuments({
-        followerUserId: userId,
-        followType: FollowType.USER,
-      }),
-    ]);
-
-    return {
-      followers: followersCount,
-      following: followingCount,
-    };
+    return this.readFollowCounts(userId, userId);
   }
 
   /**
    * Format user response with stats.
    *
-   * Reads only PUBLIC profile fields. A source document must therefore be loaded
-   * with a projection that covers them — `PUBLIC_USER_PROFILE_SELECT` for list
-   * queries, `-password -refreshToken` for the single-user reads — otherwise the
-   * unprojected fields serialize as `undefined` with no error anywhere.
+   * Reads only PUBLIC profile fields; the four owner-only ones are gated behind
+   * `includePrivateFields`. A source must therefore be produced by a query that
+   * covers them — `publicUserColumns` for list queries, `selfUserColumns` for
+   * the single-user self reads — otherwise the unselected fields serialize as
+   * `undefined` with no error anywhere.
    */
   formatUserResponse(
-    user: IUser | PublicUserDocument,
+    user: UserResponseSource,
     stats?: UserStatistics,
     options: { includePrivateFields?: boolean } = {}
   ): PublicUserProfile {
     // The load-bearing identity fields (`id`, `name`, `username`, `avatar`) come
     // from the SHARED `userIdentityFields` definer, so this serializer can never
     // diverge from the public/self/recommendation serializers on them. In
-    // particular the DTO `id` is ALWAYS the stable Mongo ObjectId, never the
+    // particular the DTO `id` is ALWAYS the stable account id, never the
     // publicKey: the social graph the whole ecosystem keys on (`Post.oxyUserId`,
-    // follow edges, client follow-state maps) is anchored on `_id`, so a
-    // key-anchored account keeps `id === _id` (flipping it to the publicKey once
-    // a user links a Commons identity makes author-feed/follow lookups miss). Key
-    // identity stays available via the separate `publicKey`/`did` fields, and the
-    // helper's `id` fallback covers already-transformed keyless managed/org
-    // objects (schema toObject deletes `_id` and folds the identifier into `id`).
+    // follow edges, client follow-state maps) is anchored on it, so a
+    // key-anchored account keeps `id === _id`.
     const identity = userIdentityFields(user);
     if (!identity.id) {
       throw new Error('User must have an _id');
     }
-    const userAny = user as unknown as Record<string, unknown>;
 
     const response: PublicUserProfile = {
       id: identity.id,
       username: identity.username,
       name: identity.name,
       avatar: identity.avatar,
-      verified: userAny.verified as boolean | undefined,
-      bio: userAny.bio as string | undefined,
-      description: userAny.description as string | undefined,
-      color: userAny.color as string | undefined,
-      links: userAny.links as string[] | undefined,
-      linksMetadata: userAny.linksMetadata as unknown,
-      createdAt: userAny.createdAt as Date | undefined,
-      updatedAt: userAny.updatedAt as Date | undefined,
+      verified: typeof user.verified === 'boolean' ? user.verified : undefined,
+      bio: stringOrUndefined(user.bio),
+      description: stringOrUndefined(user.description),
+      color: stringOrUndefined(user.color),
+      links: Array.isArray(user.links)
+        ? user.links.filter((link): link is string => typeof link === 'string')
+        : undefined,
+      linksMetadata: Array.isArray(user.linksMetadata) ? user.linksMetadata : undefined,
+      createdAt: user.createdAt instanceof Date ? user.createdAt : undefined,
+      updatedAt: user.updatedAt instanceof Date ? user.updatedAt : undefined,
     };
 
     if (options.includePrivateFields) {
-      response.phone = userAny.phone as string | undefined;
-      response.address = userAny.address as string | undefined;
-      response.birthday = userAny.birthday as string | undefined;
+      response.phone = stringOrUndefined(user.phone);
+      response.address = stringOrUndefined(user.address);
+      response.birthday = stringOrUndefined(user.birthday);
       // Portable theme preference — a personal setting, so it rides ONLY the
       // self payload (`GET /users/me`, `PUT /users/me`), which is what cold boot
       // loads. Gated with the other private fields so it never leaks onto other
       // users' public profile fetches. Omitted when unset (consumers keep their
       // own default).
-      const themePreference = toThemePreference(userAny.themePreference);
+      const themePreference =
+        toThemePreference(user.themePreference) ??
+        toThemePreference({
+          mode: user.themePreferenceMode,
+          colorPreset: user.themePreferenceColorPreset,
+        });
       if (themePreference) {
         response.themePreference = themePreference;
       }
     }
 
-    if (userAny.type) {
-      response.type = userAny.type;
+    if (user.type) {
+      response.type = user.type;
     }
-    if (userAny.federation) {
-      response.federation = userAny.federation;
+    // Account-graph classification, on EVERY public profile row. This is the
+    // field a consumer rendering authored content reads to tell a channel's post
+    // from a person's; without it the only signal would be a second identity
+    // carried alongside the author, which is exactly what modelling a channel as
+    // an account removes. Orthogonal to `type` — both ride the DTO.
+    if (isAccountKind(user.kind)) {
+      response.kind = user.kind;
     }
-    response.isFederated = deriveIsFederated(userAny.type);
+    const federation = user.federation ?? flatFederation(user);
+    if (federation) {
+      response.federation = federation;
+    }
+    response.isFederated = deriveIsFederated(user.type);
     // Public, derived: whether this account participates in fediverse sharing.
     // Intentionally public (like isFederated) — the state is observable anyway
-    // (the AP actor 404s when off). The rest of privacySettings stays private.
-    const privacySettings = userAny.privacySettings as { fediverseSharing?: boolean } | undefined;
-    response.fediverseSharing = privacySettings?.fediverseSharing !== false;
+    // (the AP actor 404s when off). The rest of the privacy settings stay private.
+    const privacySettings = isRecord(user.privacySettings) ? user.privacySettings : undefined;
+    const fediverseSharing =
+      privacySettings && 'fediverseSharing' in privacySettings
+        ? privacySettings.fediverseSharing
+        : user.privacyFediverseSharing;
+    response.fediverseSharing = fediverseSharing !== false;
 
     if (stats) {
       response._count = stats;
@@ -1987,6 +2196,171 @@ export class UserService {
     return response;
   }
 }
+
+/**
+ * Dedupe target ids preserving first-seen order and drop the caller's own id.
+ *
+ * There is no id-FORMAT filter any more. Mongo needed one because an
+ * ObjectId-shaped cast failure threw; a `text` id that names no account simply
+ * matches nothing, which is the same answer by a shorter road — and the
+ * per-target result entry for it is identical (`success: false`).
+ */
+function dedupeTargetIds(currentUserId: string, targetUserIds: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const rawId of targetUserIds) {
+    if (typeof rawId !== 'string') continue;
+    const id = rawId.trim();
+    if (!id || id === currentUserId || seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(id);
+  }
+  return deduped;
+}
+
+/**
+ * Map the validated profile-update allowlist onto `users` columns.
+ *
+ * The nested Mongo subdocuments (`name`, `notificationPreferences`,
+ * `userPreferences`, `themePreference`) are flat columns here, so this is where
+ * the wire's nesting is unwound — the mirror image of `toPublicUserView`. Only
+ * keys the caller supplied are written; a partial `userPreferences` leaves the
+ * fields it omitted untouched, matching Mongoose's dot-path `set`.
+ */
+function buildUserColumnUpdates(
+  filtered: Record<string, unknown>
+): Record<string, unknown> {
+  const set: Record<string, unknown> = {};
+
+  if (isRecord(filtered.name)) {
+    const name = filtered.name as NameParts;
+    if ('first' in name) set.nameFirst = blankToNull(name.first);
+    if ('last' in name) set.nameLast = blankToNull(name.last);
+    // `blankToNull` is what lets a caller CLEAR the explicit name and fall back
+    // to the composed `first`/`last` — the same semantics the other two halves
+    // already had.
+    if ('displayName' in name) set.nameDisplay = blankToNull(name.displayName);
+  }
+  if (typeof filtered.email === 'string') set.email = blankToNull(filtered.email);
+  if (typeof filtered.username === 'string') set.username = blankToNull(filtered.username);
+  if (typeof filtered.avatar === 'string') set.avatar = blankToNull(filtered.avatar);
+  if (typeof filtered.color === 'string') set.color = filtered.color;
+  if (typeof filtered.bio === 'string') set.bio = blankToNull(filtered.bio);
+  if (typeof filtered.description === 'string') set.description = blankToNull(filtered.description);
+  if (typeof filtered.phone === 'string') set.phone = blankToNull(filtered.phone);
+  if (typeof filtered.address === 'string') set.address = blankToNull(filtered.address);
+  if (typeof filtered.birthday === 'string') set.birthday = blankToNull(filtered.birthday);
+  if (Array.isArray(filtered.links)) {
+    set.links = filtered.links.filter((link): link is string => typeof link === 'string');
+  }
+  if (Array.isArray(filtered.languages)) set.languages = filtered.languages;
+  if ('accountExpiresAfterInactivityDays' in filtered) {
+    const days = filtered.accountExpiresAfterInactivityDays;
+    set.accountExpiresAfterInactivityDays = typeof days === 'number' ? days : null;
+  }
+
+  if (isRecord(filtered.notificationPreferences)) {
+    const prefs = filtered.notificationPreferences;
+    if (typeof prefs.pushEnabled === 'boolean') set.notificationPushEnabled = prefs.pushEnabled;
+    if (typeof prefs.emailDigest === 'boolean') set.notificationEmailDigest = prefs.emailDigest;
+    if (typeof prefs.securityAlerts === 'boolean') set.notificationSecurityAlerts = prefs.securityAlerts;
+    if (typeof prefs.marketingEmails === 'boolean') set.notificationMarketingEmails = prefs.marketingEmails;
+  }
+
+  if (isRecord(filtered.userPreferences)) {
+    const prefs = filtered.userPreferences;
+    if (typeof prefs.language === 'string') set.preferenceLanguage = blankToNull(prefs.language);
+    if (prefs.theme === 'light' || prefs.theme === 'dark' || prefs.theme === 'system') {
+      set.preferenceTheme = prefs.theme;
+    }
+    if (typeof prefs.reduceMotion === 'boolean') set.preferenceReduceMotion = prefs.reduceMotion;
+    if (typeof prefs.timezone === 'string') set.preferenceTimezone = blankToNull(prefs.timezone);
+  }
+
+  if (isRecord(filtered.themePreference)) {
+    const theme = filtered.themePreference;
+    set.themePreferenceMode = theme.mode;
+    set.themePreferenceColorPreset = theme.colorPreset;
+  }
+
+  return set;
+}
+
+/**
+ * One `locations[]` entry → a `user_locations` row.
+ *
+ * `coordinates.lat` / `.lon` become the NAMED `latitude` / `longitude` columns.
+ * The spatial `geo` point is GENERATED from that pair, so it is never written
+ * and the coordinate ordering cannot be got wrong here — see
+ * `db/schema/userLocations.ts`.
+ *
+ * Returns `null` for an entry with no usable `name`, which is the field the
+ * column requires; Mongoose would have rejected the same row on `required`.
+ */
+function toLocationRow(userId: string, entry: unknown, index: number) {
+  if (!isRecord(entry)) return null;
+  const name = stringOrUndefined(entry.name);
+  if (!name) return null;
+
+  const address = isRecord(entry.address) ? entry.address : {};
+  const coordinates = isRecord(entry.coordinates) ? entry.coordinates : {};
+  const metadata = isRecord(entry.metadata) ? entry.metadata : {};
+  const type: (typeof USER_LOCATION_TYPES)[number] =
+    entry.type === 'home' || entry.type === 'work' || entry.type === 'school'
+      ? entry.type
+      : 'other';
+
+  return {
+    userId,
+    // The client-supplied handle every call site addresses the row by. An entry
+    // that carries none still needs one, and its position in the submitted list
+    // is the only stable thing about it.
+    locationKey: stringOrUndefined(entry.id) ?? `location-${index}`,
+    name,
+    label: blankToNull(entry.label),
+    type,
+    street: blankToNull(address.street),
+    streetNumber: blankToNull(address.streetNumber),
+    streetDetails: blankToNull(address.streetDetails),
+    postalCode: blankToNull(address.postalCode),
+    city: blankToNull(address.city),
+    state: blankToNull(address.state),
+    country: blankToNull(address.country),
+    formattedAddress: blankToNull(address.formattedAddress),
+    latitude: typeof coordinates.lat === 'number' ? coordinates.lat : null,
+    longitude: typeof coordinates.lon === 'number' ? coordinates.lon : null,
+    placeId: blankToNull(metadata.placeId),
+    osmId: blankToNull(metadata.osmId),
+    osmType: blankToNull(metadata.osmType),
+    countryCode: blankToNull(metadata.countryCode),
+    timezone: blankToNull(metadata.timezone),
+  };
+}
+
+/**
+ * One `linksMetadata[]` entry → a `user_link_metadata` row.
+ *
+ * `position` is the submitted order, which is the only ordering the wire ever
+ * carried — an embedded array is ordered, a child table is not until something
+ * says so.
+ */
+function toLinkMetadataRow(userId: string, entry: unknown, index: number) {
+  if (!isRecord(entry)) return null;
+  const url = stringOrUndefined(entry.url);
+  if (!url) return null;
+
+  return {
+    userId,
+    position: index,
+    url,
+    title: stringOrUndefined(entry.title) ?? '',
+    description: stringOrUndefined(entry.description) ?? '',
+    image: blankToNull(entry.image),
+  };
+}
+
+/** Re-exported so consumers can name the row shape a link-metadata write takes. */
+export type { LinkMetadataDto };
 
 // Export singleton instance
 export const userService = new UserService();

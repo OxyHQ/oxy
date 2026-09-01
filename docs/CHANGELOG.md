@@ -143,7 +143,7 @@ Carried forward from [`CONTINUATION.md`](../CONTINUATION.md) §8 and the roadmap
   "Create your vault" surface in Commons Settings. (If `OxyServices.nodes.ts`
   is present, the SDK side has landed; the Commons UI is the remaining piece —
   see [nodes/README.md](nodes/README.md).)
-- **Publish `@oxyhq/contracts` 0.4.0 → core → auth → services** — only when an
+- **Publish `@oxyhq/contracts` 0.4.0 → core → services → auth** — only when an
   external app needs the new civic types. Commons consumes them as `workspace:*`
   and the API Docker build builds contracts from source, so no publish is needed
   for current deploys.

@@ -1,74 +1,90 @@
 /**
- * Resolve a human-friendly user identifier (username OR email) to a User
- * document.
+ * Resolve a human-friendly user identifier (username OR email) to an account.
  *
- * Member-invite endpoints accept an identifier that real people actually know —
- * a username or an email address — instead of an opaque Mongo `_id`. This helper
- * centralises the "username or email → user" resolution so both the workspace
- * and the application invite paths behave identically.
+ * Member-invite endpoints accept an identifier real people actually know — a
+ * username or an email address — instead of an opaque account id. This helper
+ * centralises the "username or email → account" resolution so every invite path
+ * behaves identically.
  *
- * Detection + casing:
- *  - An identifier containing `@` is treated as an EMAIL and matched against the
- *    `email` field lowercased. The `User` schema stores `email` with
- *    `lowercase: true`, so the stored value is already lowercase — lowercasing
- *    the query gives an exact, case-insensitive match.
- *  - Otherwise the identifier is treated as a USERNAME and matched
- *    case-insensitively against the `username` field. Usernames are stored
- *    trimmed but NOT lowercased, so an anchored case-insensitive regex is used
- *    for an exact (non-substring) match. The identifier is regex-escaped to
- *    avoid metacharacter injection. Because historical data may contain
- *    case-colliding usernames, more than one match is treated as ambiguous and
- *    not resolved to an arbitrary account.
+ * ## The lookups are written as the unique indexes are built
  *
- * Returns the matching user, or `null` when none is found or the (trimmed)
- * identifier is empty.
+ * `users` is unique on `lower(btrim(username))`, `lower(btrim(email))` and
+ * `lower(btrim(public_key))` (`db/schema/users.ts`). Both lookups below are
+ * spelled `lower(btrim(column)) = lower(btrim($1))` because that is the
+ * EXPRESSION those indexes are built on — a plain `email = $1` is
+ * correct-looking, case-sensitive, and will not use the index.
+ *
+ * ## The ambiguity branch is gone, because the ambiguity is unrepresentable
+ *
+ * Mongo indexed `username` case-SENSITIVELY, so `Nate` and `nate` could coexist
+ * while every lookup matched case-INSENSITIVELY. This function therefore had to
+ * fetch two rows and refuse to resolve when both matched, so a membership grant
+ * could not land on an arbitrary one of two look-alike accounts.
+ *
+ * `users_lower_username_key` makes that pair impossible to store: the second
+ * insert fails on the unique index. (If two such accounts exist in production
+ * today the BACKFILL fails and names them, which is the correct outcome — the
+ * application cannot tell them apart either.) The guard is deleted rather than
+ * carried, and `__tests__` pins the constraint that replaced it: the collision
+ * is refused at write time, not tolerated at read time.
+ *
+ * ## What this returns, and the bug that changes
+ *
+ * It used to return the Mongoose document, and `routes/accounts.ts:719` reads
+ * `.id` off it — the model's `id` VIRTUAL, which is `publicKey ?? _id`. So for
+ * any account that had linked a Commons identity key, the invite path passed a
+ * PUBLIC KEY where an account id belongs. That is a `text` column with a real
+ * foreign key now, so the bad value would be rejected by
+ * `account_members_user_id_users_id_fk` instead of being stored. Returning the
+ * account id closes it at the source; the shape below is deliberately narrow so
+ * nothing can read the virtual again.
  */
 
-import { User, type IUser } from '../models/User';
+import { sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { users } from '../db/schema/users';
 
-/** Escape regex metacharacters so the identifier matches literally. */
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** The account an identifier resolved to. */
+export interface ResolvedUserIdentity {
+  /** The canonical account id — never the public key. */
+  id: string;
+  username?: string;
+  email?: string;
 }
 
 /**
- * Build an anchored, escaped, case-insensitive regex that matches a username
- * EXACTLY (not as a substring) regardless of letter case. Shared by the invite
- * resolver and the signup/registration uniqueness checks so both honour the same
- * case-insensitive identity contract.
- */
-export function exactCaseInsensitiveUsernameRegex(username: string): RegExp {
-  return new RegExp(`^${escapeRegExp(username)}$`, 'i');
-}
-
-/**
- * Resolve a username or email to its `User` document.
+ * Resolve a username or email to its account.
  *
  * @param identifier A raw username or email address.
- * @returns The matching user, or `null` if not found / blank input.
+ * @returns The matching account, or `null` if not found / blank input.
  */
-export async function resolveUserByIdentifier(identifier: string): Promise<IUser | null> {
+export async function resolveUserByIdentifier(
+  identifier: string
+): Promise<ResolvedUserIdentity | null> {
   const trimmed = identifier.trim();
   if (trimmed.length === 0) {
     return null;
   }
 
-  if (trimmed.includes('@')) {
-    // Email — stored lowercased by the schema, so an exact lowercase match is
-    // case-insensitive.
-    return User.findOne({ email: trimmed.toLowerCase() });
-  }
+  // An `@` means an email address; a username cannot contain one.
+  const match = trimmed.includes('@')
+    ? sql`lower(btrim(${users.email})) = lower(btrim(${trimmed}))`
+    : sql`lower(btrim(${users.username})) = lower(btrim(${trimmed}))`;
 
-  // Username — stored trimmed but not lowercased; match exactly but
-  // case-insensitively via an anchored, escaped regex. Limit to two matches so
-  // existing case-colliding usernames fail closed instead of selecting an
-  // arbitrary account for membership grants.
-  const exactCaseInsensitive = exactCaseInsensitiveUsernameRegex(trimmed);
-  const matches = await User.find({ username: exactCaseInsensitive }).limit(2);
+  const [row] = await getDb()
+    .select({ id: users.id, username: users.username, email: users.email })
+    .from(users)
+    .where(match)
+    .limit(1);
 
-  if (matches.length !== 1) {
+  if (!row) {
     return null;
   }
 
-  return matches[0];
+  // An absent optional is OMITTED, not emitted as null.
+  return {
+    id: row.id,
+    username: row.username ?? undefined,
+    email: row.email ?? undefined,
+  };
 }

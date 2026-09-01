@@ -1,6 +1,6 @@
 import type React from 'react';
 import { View, Text } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxyhq/bloom/button';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { surfaces, type SurfaceControls } from '@oxyhq/bloom/surfaces';

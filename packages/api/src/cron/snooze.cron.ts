@@ -16,6 +16,7 @@
 import { emailService } from '../services/email.service';
 import { logger } from '../utils/logger';
 import { EMAIL_MAINTENANCE_INTERVAL_MS } from '../queue/constants';
+import { processEmailOutbox } from '../services/emailOutbox.worker';
 
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -42,6 +43,11 @@ export async function runEmailMaintenance(): Promise<void> {
   } catch (err) {
     logger.error('Scheduled send cron failed', err instanceof Error ? err : new Error(String(err)));
   }
+  try {
+    await processEmailOutbox();
+  } catch (err) {
+    logger.error('Durable outbound email worker failed', err instanceof Error ? err : new Error(String(err)));
+  }
 }
 
 export function startSnoozeCron(): void {
@@ -50,6 +56,7 @@ export function startSnoozeCron(): void {
   timer = setInterval(() => {
     void runEmailMaintenance();
   }, EMAIL_MAINTENANCE_INTERVAL_MS);
+  timer.unref?.();
 
   logger.info('Snooze, reminder & scheduled send cron started (in-process fallback, 60s interval)');
 }

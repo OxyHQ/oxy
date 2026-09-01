@@ -28,8 +28,8 @@ The IdP renders `@oxyhq/services` components via React Native Web, so its sign-i
 </OxyProvider>
 ```
 
-- No special props — the IdP is a device-first origin exactly like every other Oxy app: it runs the normal cold boot (restores this origin's own session from its persisted `{deviceId, deviceSecret}`) and enumerates device accounts via `useSwitchableAccounts`. It stays a SHELL that emits the OAuth code after authenticating — it does not bounce elsewhere for its own session. (The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.)
-- The sign-in surface is the shared SDK one: Commons QR / deep-link first, password collapsed under "Sign in without the app".
+- No special props — the IdP is a device-first origin exactly like every other Oxy app: it runs the normal cold boot (restores this origin's own session from its persisted `{deviceId, deviceSecret}`) and reads the device directory via `useDeviceSwitcher`, selecting a `principal acting as account` pair with `activateContext(contextId)`. It stays a SHELL that emits the OAuth code after authenticating — it does not bounce elsewhere for its own session. (The former `coldBoot={false}` exception existed for the SSO bounce the zero-cookie cutover deleted.)
+- The sign-in surface is the shared SDK device-first funnels (`signInWithPassword`, `completeTwoFactorSignIn`) via the multi-step login form (identifier → password → 2FA). OAuth visitors with no local session use the Commons QR lane (`CommonsOAuthLane`).
 - Consent renders `OxyConsentScreen` from `@oxyhq/services`, fed by the registered `Application` (name, logo, scopes, `privacyPolicyUrl`, `termsUrl`).
 
 ## Routes
@@ -51,7 +51,8 @@ When a third-party app sends the user to `/authorize?client_id=…&redirect_uri=
 2. If the user has no IdP session, the sign-in surface is shown first.
 3. `GET /auth/oauth/consent` decides whether consent is required (`third_party` apps: yes, at least on first grant). If so, `OxyConsentScreen` lists the app identity, scopes, and legal links.
 4. On approval, `POST /auth/oauth/authorize` mints a single-use code and the browser is redirected to `redirect_uri?code=…&state=…` — tokens are never in the URL.
-5. The RP exchanges the code at `POST https://api.oxy.so/auth/oauth/token` with its PKCE `codeVerifier` (public clients) or `clientSecret` (confidential clients).
+5. The RP exchanges the code at `POST https://api.oxy.so/auth/oauth/token` — a standard RFC 6749 §4.1.3 request: form-urlencoded, `grant_type=authorization_code`, with its PKCE `code_verifier` (public clients) or `client_secret` (confidential clients, in the body or via HTTP Basic). The response is a flat RFC 6749 §5.1 document; errors are `{ error, error_description }` per §5.2.
+6. The RP can then read the account's OpenID Connect claims from `GET https://api.oxy.so/auth/oauth/userinfo` with the issued bearer token. `sub` is the account's permanent identifier, never the mutable username.
 
 Users can review and revoke grants at any time in **Accounts → Connected apps** (`GET /auth/grants`, `DELETE /auth/grants/:applicationId`).
 

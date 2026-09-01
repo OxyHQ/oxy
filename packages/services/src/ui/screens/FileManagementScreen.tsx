@@ -14,11 +14,11 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { Image as ExpoImage } from 'expo-image';
 import type { FileManagementScreenProps } from '../types/fileManagement';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { surfaces } from '@oxyhq/bloom/surfaces';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import Ionicons from '../icons/Ionicons';
+import MaterialCommunityIcons from '../icons/MaterialCommunityIcons';
 import { Pressable } from 'react-native';
 import type { FileMetadata } from '@oxyhq/core';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -447,7 +447,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
     const confirmFileDelete = useCallback(async (fileId: string, filename: string) => {
         const confirmed = await surfaces.confirm({
             title: t('fileManagement.deleteFile') || 'Delete File',
-            message: t('fileManagement.confirms.deleteFile', { filename }),
+            description: t('fileManagement.confirms.deleteFile', { filename }),
             confirmLabel: t('fileManagement.confirm') || 'Delete',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -484,7 +484,7 @@ const FileManagementScreen: React.FC<FileManagementScreenProps> = ({
 
         const confirmed = await surfaces.confirm({
             title: t('fileManagement.deleteFiles') || 'Delete Files',
-            message: t('fileManagement.confirms.deleteFiles', { count: selectedIds.size }),
+            description: t('fileManagement.confirms.deleteFiles', { count: selectedIds.size }),
             confirmLabel: t('fileManagement.confirm') || 'Delete',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,

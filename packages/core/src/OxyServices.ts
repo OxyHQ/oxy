@@ -57,7 +57,7 @@
  * See method JSDoc for more details and options.
  */
 import { OxyServicesBase, type LinkedHttpClient, type OxyConfig } from './OxyServices.base';
-import { AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError } from './OxyServices.errors';
+import { AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, ServiceAssetMetadataError } from './OxyServices.errors';
 
 // Import mixin composition helper
 import { composeOxyServices } from './mixins';
@@ -151,7 +151,7 @@ export interface OxyServices extends InstanceType<ReturnType<typeof composeOxySe
 }
 
 // Re-export error classes for convenience
-export { AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError };
+export { AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, ServiceAssetMetadataError };
 
 /**
  * Default Oxy Cloud URL — used when no `cloudURL` is provided to OxyServices.

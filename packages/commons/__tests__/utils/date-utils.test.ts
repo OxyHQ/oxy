@@ -1,4 +1,4 @@
-import { formatDate, getDisplayName } from '@/utils/date-utils';
+import { formatDate, getDisplayName, getDisplayNameOrNull } from '@/utils/date-utils';
 
 describe('formatDate', () => {
   it('returns empty string for undefined input', () => {
@@ -37,35 +37,45 @@ describe('getDisplayName', () => {
     expect(getDisplayName(undefined)).toBe('Unnamed');
   });
 
-  it('returns full name when present', () => {
-    expect(getDisplayName({ name: { full: 'Jane Doe' } })).toBe('Jane Doe');
+  it('returns explicit displayName when present', () => {
+    expect(getDisplayName({ name: { displayName: 'Jane Doe' } })).toBe('Jane Doe');
   });
 
-  it('returns first + last when full name is missing', () => {
-    expect(getDisplayName({ name: { first: 'Jane', last: 'Doe' } })).toBe('Jane Doe');
+  it('does not compose first/last when displayName is absent', () => {
+    expect(getDisplayName({ name: { first: 'Jane', last: 'Doe' }, username: 'janed' })).toBe(
+      'janed',
+    );
   });
 
-  it('returns only first name when last name is missing', () => {
-    expect(getDisplayName({ name: { first: 'Jane' } })).toBe('Jane');
-  });
-
-  it('falls back to username when name fields are absent', () => {
+  it('falls back to username when displayName is absent', () => {
     expect(getDisplayName({ username: 'janed' })).toBe('janed');
-  });
-
-  it('falls back to truncated publicKey when only publicKey is present', () => {
-    expect(
-      getDisplayName({ publicKey: '0xabcdef1234567890deadbeef' }),
-    ).toBe('Account 0xabcdef12…');
   });
 
   it('returns translated "Unnamed" when no identifying fields are present', () => {
     expect(getDisplayName({})).toBe('Unnamed');
   });
 
-  it('prefers full name over first/last combination', () => {
+  it('prefers displayName over username', () => {
     expect(
-      getDisplayName({ name: { full: 'J. Doe', first: 'Jane', last: 'Doe' } }),
-    ).toBe('J. Doe');
+      getDisplayName({ name: { displayName: 'Jane', first: 'Jane', last: 'Doe' }, username: 'janed' }),
+    ).toBe('Jane');
+  });
+
+  it('reads displayName when name is a structured object', () => {
+    expect(getDisplayName({ name: { displayName: 'Renée' } })).toBe('Renée');
+  });
+
+  it('ignores string-shaped name values for displayName access', () => {
+    expect(getDisplayName({ name: 'Legacy String', username: 'janed' })).toBe('janed');
+  });
+});
+
+describe('getDisplayNameOrNull', () => {
+  it('returns null when no identifying fields are present', () => {
+    expect(getDisplayNameOrNull({})).toBeNull();
+  });
+
+  it('returns the normalized handle without an Unnamed fallback', () => {
+    expect(getDisplayNameOrNull({ username: 'janed' })).toBe('janed');
   });
 });

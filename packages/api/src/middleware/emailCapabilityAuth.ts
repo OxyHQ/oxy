@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import mongoose from 'mongoose';
 import type { CapabilityTicketClaims, PolicyDecision } from '@oxyhq/contracts';
 import {
   CapabilityTicketError,
@@ -9,16 +8,19 @@ import {
   verifyCapabilityTicket,
 } from '@oxyhq/core/server';
 import { INBOX_CAPABILITY_CATALOG } from '../capabilities/inbox.catalog';
-import { authMiddleware, type AuthRequest } from './auth';
-import { CapabilityAuditEvent } from '../models/CapabilityAuditEvent';
-import { CapabilityIdempotencyKey } from '../models/CapabilityIdempotencyKey';
-import Mailbox from '../models/Mailbox';
-import Message from '../models/Message';
 import {
   capabilityTicketSecret,
   reauthorizeCapabilityTicket,
 } from '../services/capabilityAuthority.service';
+import {
+  finalizeCapabilityEffect,
+  mailboxBelongsToAccount,
+  messageBelongsToMailbox,
+  persistCapabilityAuditEvent,
+  reserveCapabilityEffect,
+} from '../services/capabilityRuntimeStore.service';
 import { logger } from '../utils/logger';
+import { authMiddleware, type AuthRequest } from './auth';
 
 export interface EmailCapabilityRequest extends Request {
   user?: { id: string };
@@ -49,7 +51,9 @@ function messageIdFromPath(path: string): string | null {
 function inputOf(request: Request): Record<string, unknown> {
   return request.method === 'GET'
     ? { ...request.query }
-    : typeof request.body === 'object' && request.body !== null ? request.body as Record<string, unknown> : {};
+    : typeof request.body === 'object' && request.body !== null
+      ? request.body as Record<string, unknown>
+      : {};
 }
 
 async function auditResult(
@@ -84,11 +88,7 @@ async function auditResult(
       capabilityTicketId: claims.jti,
     },
   };
-  await CapabilityAuditEvent.findOneAndUpdate(
-    { eventId: event.eventId },
-    { $setOnInsert: { eventId: event.eventId, event } },
-    { upsert: true },
-  );
+  await persistCapabilityAuditEvent(event);
 }
 
 async function reserveIdempotency(
@@ -96,49 +96,34 @@ async function reserveIdempotency(
   rawKey: string,
 ): Promise<{ allowed: boolean; keyHash: string }> {
   const keyHash = createHash('sha256').update(rawKey).digest('hex');
-  const selector = {
-    effectiveAccountId: claims.resource.effectiveAccountId,
-    appId: claims.resource.appId,
-    tool: claims.tool,
-    keyHash,
-  };
-  try {
-    await CapabilityIdempotencyKey.create({ ...selector, ticketId: claims.jti, status: 'started' });
-    return { allowed: true, keyHash };
-  } catch (error) {
-    if (!(error instanceof mongoose.mongo.MongoServerError) || error.code !== 11000) throw error;
-    const reclaimed = await CapabilityIdempotencyKey.findOneAndUpdate(
-      { ...selector, status: 'failed' },
-      { $set: { status: 'started', ticketId: claims.jti }, $unset: { responseStatus: 1 } },
-      { new: true },
-    );
-    return { allowed: Boolean(reclaimed), keyHash };
-  }
+  return { allowed: await reserveCapabilityEffect(claims, keyHash), keyHash };
 }
 
 async function resourceMatches(request: EmailCapabilityRequest, claims: CapabilityTicketClaims): Promise<boolean> {
   if (claims.resource.appId !== 'inbox') return false;
   const accountId = claims.resource.effectiveAccountId;
-  if (!mongoose.isValidObjectId(accountId)) return false;
-  if (claims.resource.resourceType === 'email_account') return claims.resource.resourceId === accountId;
-  if (claims.resource.resourceType !== 'mailbox' || !mongoose.isValidObjectId(claims.resource.resourceId)) return false;
-  const mailbox = await Mailbox.exists({ _id: claims.resource.resourceId, userId: accountId });
-  if (!mailbox) return false;
+  if (claims.resource.resourceType === 'email_account') {
+    return claims.resource.resourceId === accountId;
+  }
+  if (claims.resource.resourceType !== 'mailbox') return false;
+  if (!await mailboxBelongsToAccount(claims.resource.resourceId, accountId)) return false;
   if (request.path === '/search' || request.path === '/messages' || request.path === '/ai-context') {
     request.query.mailbox = claims.resource.resourceId;
     if (request.path === '/messages') request.query.unseen = 'true';
   }
   const messageId = messageIdFromPath(request.path);
   if (messageId) {
-    if (!mongoose.isValidObjectId(messageId)) return false;
-    const message = await Message.exists({
-      _id: messageId,
-      userId: accountId,
-      mailboxId: claims.resource.resourceId,
-    });
-    if (!message) return false;
+    if (!await messageBelongsToMailbox(messageId, accountId, claims.resource.resourceId)) return false;
   }
   return true;
+}
+
+async function finalizeIdempotency(
+  claims: CapabilityTicketClaims,
+  keyHash: string,
+  statusCode: number,
+): Promise<void> {
+  await finalizeCapabilityEffect(claims, keyHash, statusCode);
 }
 
 export async function emailCapabilityAuth(
@@ -198,12 +183,7 @@ export async function emailCapabilityAuth(
     const reservation = await reserveIdempotency(claims, rawKey);
     keyHash = reservation.keyHash;
     if (!reservation.allowed) {
-      await auditResult(
-        claims,
-        { allowed: false, reason: 'duplicate_effect_prevented' },
-        409,
-        keyHash,
-      );
+      await auditResult(claims, { allowed: false, reason: 'duplicate_effect_prevented' }, 409, keyHash);
       response.status(409).json({ error: 'duplicate_effect_prevented' });
       return;
     }
@@ -212,10 +192,8 @@ export async function emailCapabilityAuth(
   request.capabilityTicket = claims;
   response.once('finish', () => {
     if (keyHash) {
-      void CapabilityIdempotencyKey.updateOne(
-        { effectiveAccountId: claims.resource.effectiveAccountId, appId: claims.resource.appId, tool: claims.tool, keyHash },
-        { $set: { status: response.statusCode < 400 ? 'succeeded' : 'failed', responseStatus: response.statusCode } },
-      ).catch((error: unknown) => logger.error('Failed to finalize capability idempotency key', error));
+      void finalizeIdempotency(claims, keyHash, response.statusCode)
+        .catch((error: unknown) => logger.error('Failed to finalize capability idempotency key', error));
     }
     void auditResult(claims, decision, response.statusCode, keyHash)
       .catch((error: unknown) => logger.error('Failed to persist capability audit event', error));

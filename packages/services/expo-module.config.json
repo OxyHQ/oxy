@@ -4,6 +4,10 @@
     "modules": ["OxyIdentityModule"]
   },
   "android": {
-    "modules": ["so.oxy.identity.OxyIdentityModule"]
+    "modules": [
+      "so.oxy.identity.OxyIdentityModule",
+      "so.oxy.devicesession.OxyDeviceSessionModule",
+      "so.oxy.session.OxyBackgroundSessionModule"
+    ]
   }
 }

@@ -121,7 +121,7 @@ export default function DataScreen() {
         { text: 'CSV', onPress: () => downloadFormat('csv') },
       ]
     );
-  }, [alert, downloadFormat, t]);
+  }, [downloadFormat, t]);
 
   // Handle delete account — deletion is key-gated (the API verifies a signature
   // over the user's private key), and that key lives in the Commons app, never
@@ -148,7 +148,7 @@ export default function DataScreen() {
         },
       ],
     );
-  }, [alert, t]);
+  }, [t]);
 
   // Data download section
   const dataDownloadItems = useMemo(() => [

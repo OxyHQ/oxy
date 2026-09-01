@@ -9,6 +9,7 @@ import { OXY_OAUTH_CODE_MESSAGE_TYPE, OXY_OAUTH_ERROR_MESSAGE_TYPE } from '../oa
 import type { OAuthPopupHandle, OAuthPopupOutcome } from '../types';
 
 const IDP_ORIGIN = 'https://auth.oxy.so';
+const REDIRECT_URI = 'https://mention.earth';
 const STATE = 'state-abc';
 
 interface ControllablePopup extends OAuthPopupHandle {
@@ -161,6 +162,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
     });
 
     dispatchMessage(codeMessage(popup));
@@ -175,6 +177,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
     });
 
     dispatchMessage({
@@ -202,6 +205,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
     });
 
     dispatchMessage(codeMessage(popup, 'a-different-state'));
@@ -219,6 +223,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
       timeoutMs: 60_000,
     });
 
@@ -237,6 +242,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
       timeoutMs: 60_000,
     });
 
@@ -254,6 +260,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
     });
 
     dispatchMessage(codeMessage(popup));
@@ -277,6 +284,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
     });
 
     popup.setClosed();
@@ -295,6 +303,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
     });
 
     // The IdP posts its result and immediately closes itself.
@@ -313,6 +322,7 @@ describe('awaitOAuthPopupResult', () => {
       popup,
       expectedOrigin: IDP_ORIGIN,
       expectedState: STATE,
+      redirectUri: REDIRECT_URI,
       timeoutMs: 30_000,
     });
 
@@ -321,6 +331,22 @@ describe('awaitOAuthPopupResult', () => {
 
     jest.advanceTimersByTime(1);
     await expect(promise).resolves.toEqual({ kind: 'timed-out' });
+    expectFullCleanup();
+  });
+
+  it('reads a same-origin redirect fallback from the popup URL when postMessage is unavailable', async () => {
+    const popup = fakePopup();
+    popup.location.href = `${REDIRECT_URI}?code=auth-code&state=${STATE}`;
+    const promise = awaitOAuthPopupResult({
+      popup,
+      expectedOrigin: IDP_ORIGIN,
+      expectedState: STATE,
+      redirectUri: REDIRECT_URI,
+    });
+
+    jest.advanceTimersByTime(1000);
+
+    await expect(promise).resolves.toEqual({ kind: 'code', code: 'auth-code', state: STATE });
     expectFullCleanup();
   });
 });

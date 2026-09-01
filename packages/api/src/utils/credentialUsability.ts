@@ -1,7 +1,4 @@
-import type {
-  ApplicationCredentialStatus,
-  IApplicationCredential,
-} from '../models/ApplicationCredential';
+import type { ApplicationCredentialStatus } from '../db/schema/applicationCredentials';
 
 /**
  * Predicate: may this credential currently be used to authenticate?
@@ -16,8 +13,8 @@ import type {
  * single source of truth shared by every credential-resolution site (OAuth
  * authorize/token, service-token mint) — do not duplicate the predicate.
  *
- * Pure (no Mongoose dependency) so it is trivially unit-testable and importable
- * without loading the Mongoose schema.
+ * Pure — it reads two fields and a clock, so it is trivially unit-testable and
+ * callable with any row shape carrying them.
  */
 export function isCredentialUsable(
   credential: { status: ApplicationCredentialStatus; expiresAt?: Date | null }
@@ -33,5 +30,3 @@ export function isCredentialUsable(
   }
   return false;
 }
-
-export type { IApplicationCredential };

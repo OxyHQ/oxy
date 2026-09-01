@@ -23,7 +23,8 @@ Related docs:
 
 `OxyProvider` ([src/ui/components/OxyProvider.tsx](../src/ui/components/OxyProvider.tsx)) is the app root. It mounts:
 
-`OxyContextProvider` — auth/session state machine. Implementation split across:
+`OxyRuntimeProvider` — the internal auth/session state machine (never mounted by
+consumers; `OxyProvider` is the only public provider). Implementation split across:
 
 | Module | Role |
 |--------|------|
@@ -62,16 +63,18 @@ Key props (`OxyProviderProps`):
 
 | Prop | Default | Purpose |
 |------|---------|---------|
-| `clientId` | — | The app's registered OAuth client id (`ApplicationCredential.publicKey`, `oxy_dk_…`). Required for silent OAuth restore and the cross-app device sign-in flow (`POST /auth/session/create` identifies the requesting app by it). |
-| `authRedirectUri` | origin | OAuth redirect URI for silent restore and third-party sign-in. Defaults to the current web origin (origin-only, e.g. `https://mention.earth`). Optional `/oauth/callback` path for new apps — mount `OxyOAuthCallback` on that route. |
-| `hubSync` | `true` | After interactive sign-in on an official web app, redirect once to `auth.oxy.so/sync` to plant credentials on the IdP hub. Set `false` on the IdP itself (`auth.oxy.so`). |
+| `clientId` | — | The app's registered OAuth client id (`ApplicationCredential.publicKey`, `oxy_dk_…`). Required for the cross-app device sign-in flow (`POST /auth/session/create` identifies the requesting app by it). |
+| `authRedirectUri` | origin | OAuth redirect URI for third-party sign-in. Defaults to the current web origin (origin-only, e.g. `https://mention.earth`). Optional `/oauth/callback` path for new apps — mount `OxyOAuthCallback` on that route. |
+| `webAuthMode` | `'popup'` | How a web sign-in reaches the IdP. `'popup'` keeps the tab on its route; `'redirect'` navigates it. The popup transport falls back to a redirect on its own when the browser blocks the window, so the callback route must keep working in either mode. |
 | `baseURL` | — | Oxy API origin (`https://api.oxy.so`). |
 | `requireAuth` | `'off'` | Convenience wrapper: `'soft'` / `'hard'` wraps children in `<RequireOxyAuth prompt=…>`. |
 | `storageKeyPrefix`, `queryClient`, `oxyServices`, `onAuthStateChange` | — | Advanced overrides. |
 
 ### Device-first cold boot
 
-On mount every app runs `runProviderColdBoot` → `runSessionColdBoot` from `@oxyhq/core` — a two-step short-circuit: `device-secret-mint` (persisted `{deviceId, deviceSecret}` → `POST /session/device/token`, web + native) then `shared-key-signin` (native). Cold boot never auto-redirects to a login page; web apps without a local credential attempt **silent OAuth** (`auth.oxy.so/authorize?prompt=none` + PKCE) once per navigation. After interactive sign-in on an official app, `syncHubAfterSignIn` redirects to `auth.oxy.so/sync` so the IdP hub holds the same credentials.
+On mount every app runs `runProviderColdBoot` → `runSessionColdBoot` from `@oxyhq/core` — an ordered step chain: `warm-token-plant` (replay a still-valid persisted access token, no network), then `device-secret-mint` (persisted `{deviceId, deviceSecret}` → `POST /session/device/token`, web + native), then `shared-key-signin` (native; `identity-key-signin` instead under `sessionMode: 'identity'`).
+
+**Cold boot never navigates the top-level window.** An origin with no local credential resolves signed OUT and waits for the user's "Continue with Oxy" — there is no silent `prompt=none` restore and no post-login hub sync in any mode. Both were removed (issue #691 phase 7b) precisely because they moved the tab without a gesture, destroying in-page state on every cold boot. Do not reintroduce either, nor a `hubSync` prop.
 
 ## Session model (consumed from `@oxyhq/core`)
 
@@ -81,14 +84,15 @@ The SDK contains no session logic of its own — it binds UI to the shared sessi
 |--------|------|
 | `SessionClient` / `createSessionClient` / `createSessionClientHost` | Client of the server-authoritative device session: fetch/mutate state, subscribe to realtime sync. Consumers inject a `TokenTransport` and a `socketFactory` (socket.io-client's `io`). |
 | `projectSessionState` helpers | Pure projections of `DeviceSessionState` → client sessions / active user. |
-| `accountProjection` | `SwitchableAccount[]` — the ONE account list: device sign-ins ∪ account graph, deduped by account id. |
+| `deviceDirectory` / `deviceSwitcherRows` | The ONE switcher list: the server's device directory (ADR 0002) grouped by PRINCIPAL, with names/handles/avatars resolved. The client no longer unions device sign-ins with a fetched account graph — it cannot enumerate another principal's memberships, so switchability is the server's answer. |
+| `accountSwitchTargets` | `isSwitchTargetAccount` / `canSwitchIntoAccount` — the switch-target predicates over the account GRAPH (what a caller can manage), asked by the Console's workspace tree and the Accounts app's managed-account rows. Not the device switcher. |
 | `accountDialogController` | Headless state machine for the account dialog (views, sign-in flow phases). Framework-agnostic; bound via `useSyncExternalStore`. |
 | `authStateStore`, `refresh` | Persisted auth state + the unified token-refresh handler/scheduler. |
 | `boot/sessionColdBoot` | `runSessionColdBoot` — ordered cold-boot runner (`device-secret-mint` then `shared-key-signin`). |
 
 **Server authority:** the `DeviceSession` document (Mongo collection `devicesessions`: `deviceId`, `accounts[{ accountId, sessionId, authuser, operatedByUserId? }]`, `activeAccountId`, `secretHash`, `revision`) behind `/session/device/{token,state,add,switch,signout}`. Every mutation bumps `revision` and broadcasts a token-free `session_state` event to the Socket.IO room `device:<deviceId>`, so all apps on the same device converge instantly. See [device-session.md](../../../docs/auth/device-session.md).
 
-**Session transport (zero-cookie):** every successful sign-in returns `deviceId` + a 256-bit `deviceSecret`, persisted first-party (localStorage per web origin; SecureStore on native) — the server stores only `sha256(deviceSecret)` (`DeviceSession.secretHash`). To restore or refresh, the client POSTs `{ deviceId, deviceSecret }` to `POST /session/device/token` (no bearer, no cookies — possession of the secret is the proof) and gets a short access token plus a rotated secret (rotation-in-use, 60s grace). There is no cookie, no refresh-token family, and no `#oxy_boot` bootstrap hop — all deleted in the zero-cookie cutover. A `deviceId` is per web origin / per native app-group; there is no implicit cross-subdomain or cross-app device sync.
+**Session transport (zero-cookie):** every successful sign-in returns `deviceId` + a 256-bit `deviceSecret`, persisted first-party (localStorage per web origin; SecureStore on native) — the server stores only `sha256(deviceSecret)` (`DeviceSession.secretHash`). To restore or refresh, the client POSTs `{ deviceId, deviceSecret }` to `POST /session/device/token` (no bearer, no cookies — possession of the secret is the proof) and gets a short access token plus `nextDeviceSecret` (on mint, the same proven secret echoed back; sign-in rotates the secret with a short grace for the prior hash). There is no cookie, no refresh-token family, and no `#oxy_boot` bootstrap hop — all deleted in the zero-cookie cutover. A `deviceId` is per web origin / per native app-group; there is no implicit cross-subdomain or cross-app device sync.
 
 ## Auth surfaces
 
@@ -96,7 +100,7 @@ The SDK contains no session logic of its own — it binds UI to the shared sessi
 
 [src/ui/components/OxyAccountDialog.tsx](../src/ui/components/OxyAccountDialog.tsx) — the ONE unified account dialog, mounted automatically by `OxyProvider`. A thin RN binding over core's `AccountDialogController`, presented on Bloom's `<Dialog>` (`@oxyhq/bloom/dialog`) with responsive placement — bottom sheet on narrow viewports, centered card on wide ones (`placement={{ base: 'bottom', md: 'center' }}`). It replaced the five drifting legacy surfaces (profile/account menus, switcher, chooser, standalone sign-in modal).
 
-Views: `accounts` (the `SwitchableAccount[]` switcher + "Add account"), `signin`/`add` (primary "Sign in with Oxy" device flow, QR scan, collapsed password), and `qr` (cross-device QR). Per-account theming uses Bloom `BloomColorScope`; base styling is `useTheme()` + `StyleSheet` so it renders in apps without NativeWind.
+Views: `accounts` (the device switcher, grouped by person, + "Add account"), `signin`/`add` (primary "Sign in with Oxy" device flow, QR scan), and `qr` (cross-device QR). Selecting a row activates a `contextId`; each person carries a sign-out of their own, and each row a removal of that pair alone. Base styling is `useTheme()` + `StyleSheet` so it renders in apps without NativeWind.
 
 Entry points: `useOxy().openAccountDialog(view?)` inside React, `ProfileButton` (sidebar trigger), or imperative `openAccountDialog('signin')`.
 

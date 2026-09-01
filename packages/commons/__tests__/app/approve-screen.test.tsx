@@ -14,7 +14,7 @@ jest.mock('@/lib/biometricAuth', () => ({
 /**
  * Bloom's bottom sheet, reduced to its contract with this screen: an imperative
  * control that is STABLE across renders (the screen opens from a mount effect
- * keyed on it) and a surface that renders both body and declarative actions.
+ * keyed on it) and a surface that renders whatever the screen puts in it.
  *
  * `close()` is deliberately inert. That is the point of the dismissal test: the
  * screen must answer the request with nothing at all when the sheet is
@@ -37,36 +37,33 @@ jest.mock('@oxyhq/bloom/dialog', () => {
     },
     Dialog: ({
       children,
-      actions = [],
-      onClose,
-      placement,
+      actions,
     }: {
       children: React.ReactNode;
-      actions?: {
+      actions?: Array<{
         label: string;
         onPress?: () => void;
-        shouldCloseOnPress?: boolean;
         disabled?: boolean;
-      }[];
-      onClose?: () => void;
-      placement?: string;
-    }) => R.createElement(
-      'div',
-      { 'data-testid': 'approval-dialog', 'data-placement': placement ?? 'detached' },
-      children,
-      ...actions.map((action) => R.createElement(
-        'button',
-        {
-          key: action.label,
-          disabled: action.disabled,
-          onClick: () => {
-            if (action.shouldCloseOnPress !== false) onClose?.();
-            action.onPress?.();
-          },
-        },
-        action.label,
-      )),
-    ),
+      }>;
+    }) =>
+      R.createElement(
+        'div',
+        null,
+        children,
+        actions?.map((action) =>
+          R.createElement(
+            'button',
+            {
+              key: action.label,
+              type: 'button',
+              'aria-label': action.label,
+              disabled: action.disabled,
+              onClick: action.onPress,
+            },
+            action.label,
+          ),
+        ),
+      ),
   };
 });
 
@@ -142,6 +139,39 @@ describe('ApproveSignInScreen', () => {
     expect(container.textContent).not.toContain('Chrome on Windows');
   });
 
+  it('owns exactly one confirm, one explicit rejection, and one cancel action', async () => {
+    installServices();
+    const { findByRole, getAllByRole } = renderScreen();
+
+    await findByRole('button', { name: 'Confirm identity' });
+    expect(getAllByRole('button').map((button) => button.textContent)).toEqual(
+      expect.arrayContaining(['Confirm identity', "This wasn't me", 'Cancel']),
+    );
+  });
+
+  it('starts confirmation directly from the Dialog primary action', async () => {
+    const services = installServices();
+    const { findByRole } = renderScreen();
+
+    fireEvent.click(await findByRole('button', { name: 'Confirm identity' }));
+
+    await waitFor(() => expect(services.approveCommonsSignIn).toHaveBeenCalledTimes(1));
+    expect(services.denyCommonsSignIn).not.toHaveBeenCalled();
+  });
+
+  it('locks every answer while approval is in flight and reports honest progress', async () => {
+    const services = installServices();
+    services.approveCommonsSignIn.mockImplementation(() => new Promise(() => undefined));
+    const { findByRole, getByRole } = renderScreen();
+
+    fireEvent.click(await findByRole('button', { name: 'Confirm identity' }));
+
+    const confirming = await findByRole('button', { name: 'Confirming identity…' });
+    expect((confirming as HTMLButtonElement).disabled).toBe(true);
+    expect((getByRole('button', { name: "This wasn't me" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('denies as not_me from "This wasn\'t me", and says what was recorded', async () => {
     const services = installServices();
     const { container, findByText } = renderScreen();
@@ -155,40 +185,11 @@ describe('ApproveSignInScreen', () => {
     expect(container.textContent).toContain("It can't be approved now");
   });
 
-  it('puts every answer in Bloom Dialog actions', async () => {
-    installServices();
-    const { container, findByText } = renderScreen();
-
-    await findByText('Sign in to Mention');
-    expect(Array.from(container.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
-      'Confirm identity',
-      "This wasn't me",
-      'Cancel',
-    ]);
-  });
-
-  it('uses Bloom Dialog\'s detached presentation', async () => {
-    installServices();
-    const { findByTestId, findByText } = renderScreen();
-
-    await findByText('Sign in to Mention');
-    expect((await findByTestId('approval-dialog')).getAttribute('data-placement')).toBe('detached');
-  });
-
-  it('approves directly from the Dialog primary action', async () => {
-    const services = installServices();
-    const { findByText } = renderScreen();
-
-    fireEvent.click(await findByText('Confirm identity'));
-
-    await waitFor(() => expect(services.approveCommonsSignIn).toHaveBeenCalledTimes(1));
-  });
-
   it('answers nothing when the sheet is dismissed', async () => {
     const services = installServices();
-    const { container, findByText } = renderScreen();
+    const { container, findByLabelText } = renderScreen();
 
-    fireEvent.click(await findByText('Cancel'));
+    fireEvent.click(await findByLabelText('Close'));
 
     // A dismissal is a CANCEL: no denial is sent, with or without a reason, and
     // no approval either. The request is simply left pending.

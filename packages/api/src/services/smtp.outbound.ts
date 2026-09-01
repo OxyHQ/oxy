@@ -7,36 +7,34 @@ import {
 } from '../config/email.config';
 import { emailService } from './email.service';
 import { assetService } from './assetServiceSingleton';
-import type { IEmailAddress, IAttachment } from '../models/Message';
+import type { MessageAttachment } from '../db/schema/messageAttachments';
+import type { EmailAddress } from '../db/schema/messages';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { getRedisClient } from '../config/redis';
+import { idempotencyCacheKey as buildIdempotencyCacheKey, idempotentMessageId } from './emailIdempotency';
+import { enqueueEmailOutbox } from './emailOutbox.service';
+import { assertSafeOutboundAttachment } from '../utils/emailAttachmentSecurity';
 
 interface OutboundMessage {
   userId: string;
-  from: IEmailAddress;
-  to: IEmailAddress[];
-  cc?: IEmailAddress[];
-  bcc?: IEmailAddress[];
+  from: EmailAddress;
+  to: EmailAddress[];
+  cc?: EmailAddress[];
+  bcc?: EmailAddress[];
   subject: string;
   text?: string;
   html?: string;
   inReplyTo?: string;
   references?: string[];
-  attachments?: IAttachment[];
+  attachments?: MessageAttachment[];
   /** When true, add Disposition-Notification-To header requesting a read receipt */
   requestReadReceipt?: boolean;
+  /** Stable client key used to make retries return the original outcome. */
+  idempotencyKey?: string;
+  messageId?: string;
 }
 
-interface QueuedMessage extends OutboundMessage {
-  id: string;
-  attempts: number;
-  nextRetry: number;
-  messageId: string;
-}
-
-const REDIS_QUEUE_KEY = 'smtp:retry:queue';
-const REDIS_SCHEDULE_KEY = 'smtp:retry:schedule';
 const SECURE_MAIL_CONTENT_OPTIONS = {
   disableFileAccess: true,
   disableUrlAccess: true,
@@ -44,8 +42,7 @@ const SECURE_MAIL_CONTENT_OPTIONS = {
 
 class SmtpOutboundService {
   private _transporter: Transporter | null = null;
-  private localQueue: Map<string, QueuedMessage> = new Map();
-  private retryTimer: ReturnType<typeof setInterval> | null = null;
+  private idempotencyInFlight = new Map<string, Promise<{ messageId: string; queued: boolean }>>();
 
   private get transporter(): Transporter {
     if (!this._transporter) {
@@ -89,7 +86,45 @@ class SmtpOutboundService {
   }
 
   async send(message: OutboundMessage): Promise<{ messageId: string; queued: boolean }> {
-    const messageId = `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    const messageId = message.idempotencyKey
+      ? idempotentMessageId(message.userId, message.idempotencyKey)
+      : `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    const idempotencyCacheKey = message.idempotencyKey
+      ? buildIdempotencyCacheKey(message.userId, message.idempotencyKey)
+      : null;
+    const redis = idempotencyCacheKey ? getRedisClient() : null;
+    if (redis && redis.status === 'ready' && idempotencyCacheKey) {
+      const cached = await redis.get(idempotencyCacheKey);
+      if (cached) return JSON.parse(cached) as { messageId: string; queued: boolean };
+    }
+    if (message.idempotencyKey) {
+      const inFlightKey = `${message.userId}:${message.idempotencyKey}`;
+      const inFlight = this.idempotencyInFlight.get(inFlightKey);
+      if (inFlight) return inFlight;
+
+      const operation = this.sendOnce(message, messageId, redis, idempotencyCacheKey);
+      this.idempotencyInFlight.set(inFlightKey, operation);
+      try {
+        return await operation;
+      } finally {
+        if (this.idempotencyInFlight.get(inFlightKey) === operation) {
+          this.idempotencyInFlight.delete(inFlightKey);
+        }
+      }
+    }
+    return this.sendOnce(message, messageId, redis, idempotencyCacheKey);
+  }
+
+  private async sendOnce(
+    message: OutboundMessage,
+    messageId: string,
+    redis: ReturnType<typeof getRedisClient>,
+    idempotencyCacheKey: string | null,
+  ): Promise<{ messageId: string; queued: boolean }> {
+    if (message.idempotencyKey) {
+      const existing = await emailService.findMessageByRfcMessageId(message.userId, messageId);
+      if (existing) return { messageId, queued: false };
+    }
     const nmAttachments = await this.resolveAttachments(message.attachments || []);
 
     const mailOptions = {
@@ -134,11 +169,19 @@ class SmtpOutboundService {
         to: message.to.map((a) => a.address).join(', '),
       });
 
-      return { messageId, queued: false };
+      const result = { messageId, queued: false };
+      if (redis && idempotencyCacheKey && redis.status === 'ready') {
+        await redis.set(idempotencyCacheKey, JSON.stringify(result), 'EX', 24 * 60 * 60);
+      }
+      return result;
     } catch (error) {
       logger.error('Email send failed, queuing for retry', error instanceof Error ? error : new Error(String(error)));
       await this.enqueue({ ...message, messageId });
-      return { messageId, queued: true };
+      const result = { messageId, queued: true };
+      if (redis && idempotencyCacheKey && redis.status === 'ready') {
+        await redis.set(idempotencyCacheKey, JSON.stringify(result), 'EX', 24 * 60 * 60);
+      }
+      return result;
     }
   }
 
@@ -147,7 +190,7 @@ class SmtpOutboundService {
    * Used for scheduled messages that are already stored.
    */
   async sendRaw(message: OutboundMessage): Promise<void> {
-    const messageId = `<${uuidv4()}@${EMAIL_DOMAIN}>`;
+    const messageId = message.messageId ?? `<${uuidv4()}@${EMAIL_DOMAIN}>`;
     const nmAttachments = await this.resolveAttachments(message.attachments || []);
 
     const mailOptions = {
@@ -162,6 +205,9 @@ class SmtpOutboundService {
       inReplyTo: message.inReplyTo,
       references: message.references?.join(' '),
       attachments: nmAttachments,
+      headers: message.requestReadReceipt
+        ? { 'Disposition-Notification-To': `${message.from.name || ''} <${message.from.address}>`.trim() }
+        : undefined,
       ...SECURE_MAIL_CONTENT_OPTIONS,
     };
 
@@ -179,7 +225,7 @@ class SmtpOutboundService {
    * disposition-notification part.
    */
   async sendMdn(params: {
-    from: IEmailAddress;
+    from: EmailAddress;
     to: string;
     originalRecipient: string;
     originalMessageId: string;
@@ -255,13 +301,14 @@ class SmtpOutboundService {
   }
 
   private async resolveAttachments(
-    attachments: IAttachment[]
+    attachments: MessageAttachment[]
   ): Promise<Array<{ filename: string; content: Buffer; contentType: string; cid?: string }>> {
     type ResolvedAttachment = { filename: string; content: Buffer; contentType: string; cid?: string };
 
     const results = await Promise.all(
       attachments.map(async (att): Promise<ResolvedAttachment | null> => {
         try {
+          assertSafeOutboundAttachment(att.name, att.contentType);
           const buffer = await assetService.getFileBuffer(att.fileId);
           if (!buffer) return null;
           return {
@@ -284,155 +331,32 @@ class SmtpOutboundService {
     return results.filter((r): r is ResolvedAttachment => r !== null);
   }
 
-  // --- Retry queue (Redis-backed with local fallback) ---
+  // --- Durable retry queue ---
 
   private async enqueue(message: OutboundMessage & { messageId: string }): Promise<void> {
-    const id = uuidv4();
-    const queued: QueuedMessage = {
-      ...message,
-      id,
-      attempts: 0,
-      nextRetry: Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[0],
-    };
-
-    const redis = getRedisClient();
-    if (redis && redis.status === 'ready') {
-      try {
-        await redis.hset(REDIS_QUEUE_KEY, id, JSON.stringify(queued));
-        await redis.zadd(REDIS_SCHEDULE_KEY, queued.nextRetry, id);
-      } catch {
-        this.localQueue.set(id, queued);
-      }
-    } else {
-      this.localQueue.set(id, queued);
-    }
-
-    this.ensureRetryTimer();
-  }
-
-  private ensureRetryTimer(): void {
-    if (this.retryTimer) return;
-    this.retryTimer = setInterval(() => this.processQueue(), 30_000);
-  }
-
-  private async processQueue(): Promise<void> {
-    const now = Date.now();
-
-    // Process Redis queue
-    const redis = getRedisClient();
-    if (redis && redis.status === 'ready') {
-      try {
-        const dueIds = await redis.zrangebyscore(REDIS_SCHEDULE_KEY, 0, now);
-        for (const id of dueIds) {
-          const data = await redis.hget(REDIS_QUEUE_KEY, id);
-          if (!data) {
-            await redis.zrem(REDIS_SCHEDULE_KEY, id);
-            continue;
-          }
-          const msg: QueuedMessage = JSON.parse(data);
-          await this.retryMessage(id, msg, redis);
-        }
-      } catch (error) {
-        logger.error('Error processing Redis SMTP queue', error instanceof Error ? error : new Error(String(error)));
-      }
-    }
-
-    // Process local fallback queue
-    for (const [id, msg] of this.localQueue) {
-      if (msg.nextRetry > now) continue;
-      await this.retryMessage(id, msg, null);
-    }
-
-    // Stop timer if both queues are empty
-    const redisEmpty = !redis || redis.status !== 'ready'
-      ? true
-      : (await redis.zcard(REDIS_SCHEDULE_KEY).catch(() => 0)) === 0;
-
-    if (this.localQueue.size === 0 && redisEmpty && this.retryTimer) {
-      clearInterval(this.retryTimer);
-      this.retryTimer = null;
-    }
-  }
-
-  private async retryMessage(id: string, msg: QueuedMessage, redis: ReturnType<typeof getRedisClient>): Promise<void> {
-    msg.attempts++;
-
-    try {
-      const nmAttachments = await this.resolveAttachments(msg.attachments || []);
-      await this.transporter.sendMail({
-        messageId: msg.messageId,
-        from: `${msg.from.name || ''} <${msg.from.address}>`.trim(),
-        to: msg.to.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-        cc: msg.cc?.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-        bcc: msg.bcc?.map((a) => (a.name ? `${a.name} <${a.address}>` : a.address)).join(', '),
-        subject: msg.subject,
-        text: msg.text,
-        html: msg.html,
-        inReplyTo: msg.inReplyTo,
-        references: msg.references?.join(' '),
-        attachments: nmAttachments,
-        ...SECURE_MAIL_CONTENT_OPTIONS,
-      });
-
-      const size = Buffer.byteLength((msg.text || '') + (msg.html || ''), 'utf8');
-      await emailService.storeSentMessage(msg.userId, {
-        messageId: msg.messageId,
-        from: msg.from,
-        to: msg.to,
-        cc: msg.cc,
-        bcc: msg.bcc,
-        subject: msg.subject,
-        text: msg.text,
-        html: msg.html,
-        inReplyTo: msg.inReplyTo,
-        references: msg.references,
-        attachments: msg.attachments,
-        size,
-      });
-
-      // Remove from queue
-      if (redis && redis.status === 'ready') {
-        await redis.hdel(REDIS_QUEUE_KEY, id);
-        await redis.zrem(REDIS_SCHEDULE_KEY, id);
-      } else {
-        this.localQueue.delete(id);
-      }
-
-      logger.info('Queued email sent on retry', { messageId: msg.messageId, attempts: msg.attempts });
-    } catch (error) {
-      if (msg.attempts >= SMTP_OUTBOUND_CONFIG.maxRetries) {
-        if (redis && redis.status === 'ready') {
-          await redis.hdel(REDIS_QUEUE_KEY, id);
-          await redis.zrem(REDIS_SCHEDULE_KEY, id);
-        } else {
-          this.localQueue.delete(id);
-        }
-        logger.error('Email permanently failed after max retries', error instanceof Error ? error : new Error(String(error)), {
-          messageId: msg.messageId,
-        });
-      } else {
-        const delayIndex = Math.min(msg.attempts, SMTP_OUTBOUND_CONFIG.retryDelays.length - 1);
-        msg.nextRetry = Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[delayIndex];
-
-        if (redis && redis.status === 'ready') {
-          await redis.hset(REDIS_QUEUE_KEY, id, JSON.stringify(msg));
-          await redis.zadd(REDIS_SCHEDULE_KEY, msg.nextRetry, id);
-        }
-
-        logger.warn('Email retry scheduled', {
-          messageId: msg.messageId,
-          attempt: msg.attempts,
-          nextRetry: new Date(msg.nextRetry).toISOString(),
-        });
-      }
-    }
+    await enqueueEmailOutbox({
+      userId: message.userId,
+      messageId: message.messageId,
+      idempotencyKey: message.idempotencyKey,
+      payload: {
+        from: message.from,
+        to: message.to,
+        cc: message.cc,
+        bcc: message.bcc,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
+        inReplyTo: message.inReplyTo,
+        references: message.references,
+        attachments: message.attachments,
+        requestReadReceipt: message.requestReadReceipt,
+      },
+      nextAttemptAt: new Date(Date.now() + SMTP_OUTBOUND_CONFIG.retryDelays[0]),
+    });
+    logger.warn('Email persisted in durable outbox', { messageId: message.messageId });
   }
 
   shutdown(): void {
-    if (this.retryTimer) {
-      clearInterval(this.retryTimer);
-      this.retryTimer = null;
-    }
     if (this._transporter) {
       this._transporter.close();
       this._transporter = null;

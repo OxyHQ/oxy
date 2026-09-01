@@ -2,7 +2,7 @@ import type React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, ActivityIndicator } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { surfaces } from '@oxyhq/bloom/surfaces';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Button } from '@oxyhq/bloom/button';
@@ -16,7 +16,7 @@ import {
     SegmentedControlItem,
     SegmentedControlItemText,
 } from '@oxyhq/bloom/segmented-control';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';
@@ -343,7 +343,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
         if (currentAppPackage) {
             loadSubscriptionData();
         }
-    }, [currentAppPackage, user?.isPremium]);
+    }, [currentAppPackage]);
 
     const detectCurrentApp = () => {
         const detectedApp = 'mention';
@@ -441,7 +441,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
     const handleCancelSubscription = useCallback(async () => {
         const confirmed = await surfaces.confirm({
             title: t('premium.confirms.cancelSubTitle') || 'Cancel Subscription',
-            message: t('premium.confirms.cancelSub') || 'Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your current billing period.',
+            description: t('premium.confirms.cancelSub') || 'Are you sure you want to cancel your subscription? You will lose access to premium features at the end of your current billing period.',
             confirmLabel: t('premium.actions.cancelSubBtn') || 'Cancel Subscription',
             cancelLabel: t('common.cancel') || 'Cancel',
             destructive: true,
@@ -532,7 +532,7 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
         const feature = individualFeatures.find(f => f.id === featureId);
         const confirmed = await surfaces.confirm({
             title: t('premium.confirms.unsubscribeFeatureTitle') || 'Unsubscribe from Feature',
-            message: feature
+            description: feature
                 ? (t('premium.confirms.unsubscribeFeature', { name: feature.name }) ?? `Are you sure you want to unsubscribe from ${feature.name}?`)
                 : '',
             confirmLabel: t('premium.actions.unsubscribe') || 'Unsubscribe',
@@ -741,9 +741,9 @@ const PremiumSubscriptionScreen: React.FC<BaseScreenProps> = ({
                 </View>
 
                 <BenefitList className="mb-space-24">
-                    {plan.features.map((feature, index) => (
+                    {plan.features.map((feature) => (
                         <BenefitRow
-                            key={index}
+                            key={feature}
                             icon={<Ionicons name="checkmark" size={18} color={colors.success} />}
                             label={feature}
                         />

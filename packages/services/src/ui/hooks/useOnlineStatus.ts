@@ -2,8 +2,9 @@
  * useOnlineStatus
  *
  * Reactive boolean reflecting TanStack Query's `onlineManager` state.
- * Mirrors browser `online`/`offline` events on web and NetInfo updates on
- * native (both wired up in `OxyProvider`).
+ * Mirrors browser `online`/`offline` events on web and NetInfo reachability
+ * updates on native (both wired up in `OxyProvider`, aligned with Bloom's
+ * `ConnectionStatusToasts` semantics).
  *
  * Use this for surfacing offline UI — an OfflineBanner, a disabled "Sync"
  * button, an inline "queued" badge on pending writes, etc. For pending /

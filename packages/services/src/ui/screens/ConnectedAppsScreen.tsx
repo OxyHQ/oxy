@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { surfaces } from '@oxyhq/bloom/surfaces';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
@@ -65,7 +65,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
         async (app: ConnectedApp) => {
             const confirmed = await surfaces.confirm({
                 title: t('connectedApps.confirm.title') || 'Revoke access',
-                message:
+                description:
                     t('connectedApps.confirm.message', { name: app.name })
                     || `Revoke ${app.name}'s access to your Oxy account?`,
                 confirmLabel: t('common.revoke') || 'Revoke',
@@ -108,7 +108,7 @@ const ConnectedAppsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack }) => 
                 </Text>
             </View>
         ),
-        [t, bloomTheme.colors.textSecondary],
+        [t],
     );
 
     const renderItem = useCallback(

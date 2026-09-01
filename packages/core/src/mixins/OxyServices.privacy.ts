@@ -167,6 +167,9 @@ export function OxyServicesPrivacyMixin<T extends typeof OxyServicesBase>(Base: 
           cache: false,
         });
         this.clearCacheEntry('GET:/privacy/restricted');
+        // The restriction changed the viewer's graph (`restrictedIds`) — bust the
+        // cached consolidated `GET /users/me/graph` so the next read reflects it.
+        this.clearCacheEntry('GET:/users/me/graph');
         return result;
       } catch (error) {
         throw this.handleError(error);
@@ -190,6 +193,9 @@ export function OxyServicesPrivacyMixin<T extends typeof OxyServicesBase>(Base: 
           cache: false,
         });
         this.clearCacheEntry('GET:/privacy/restricted');
+        // Symmetric to restrictUser: the unrestrict changed the viewer's
+        // `restrictedIds`, so bust the consolidated `GET /users/me/graph` cache.
+        this.clearCacheEntry('GET:/users/me/graph');
         return result;
       } catch (error) {
         throw this.handleError(error);

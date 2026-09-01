@@ -1,0 +1,19 @@
+-- oxy:deploy-phase=pre
+--
+-- PRE: the column is additive with a default, so the image still serving cannot
+-- notice it — drizzle selects columns by name and nothing in the live image
+-- names this one — while the arriving image reads it on every app-authored chain
+-- write. `post` would leave those writes refusing until somebody dispatched the
+-- second half.
+--
+-- Adding a column WITH a default does not rewrite the table on PG11+: the
+-- default is stored in the catalogue and materialised on read. So this is a
+-- catalogue update holding ACCESS EXCLUSIVE for the statement itself, not a
+-- scan of `applications`.
+--
+-- The default is the security-relevant part. `'{}'` authorizes NOTHING, so
+-- every existing application starts unable to write to anybody's chain and gains
+-- the ability only by an explicit grant. The opposite default would hand every
+-- registered application a namespace claim it never asked for, retroactively,
+-- at deploy time.
+ALTER TABLE "applications" ADD COLUMN "chain_namespaces" text[] DEFAULT '{}'::text[] NOT NULL;

@@ -1,9 +1,9 @@
 import express from 'express';
-import { getSubscription, updateSubscription, cancelSubscription } from '../controllers/subscription.controller';
+import { getSubscription, cancelSubscription } from '../controllers/subscription.controller';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
-import { subscriptionUserIdParams, updateSubscriptionSchema } from '../schemas/subscription.schemas';
+import { subscriptionUserIdParams } from '../schemas/subscription.schemas';
 
 const router = express.Router();
 
@@ -16,14 +16,6 @@ router.use(authMiddleware);
  */
 router.get('/:userId', validate({ params: subscriptionUserIdParams }), asyncHandler(async (req, res) => {
   await getSubscription(req as AuthRequest, res);
-}));
-
-/**
- * PUT /api/subscription/:userId
- * Update user subscription
- */
-router.put('/:userId', validate({ params: subscriptionUserIdParams, body: updateSubscriptionSchema }), asyncHandler(async (req, res) => {
-  await updateSubscription(req as AuthRequest, res);
 }));
 
 /**

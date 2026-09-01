@@ -116,11 +116,15 @@ This makes Socket.IO rooms and events fan out across all ECS tasks.
 Redis is closed during `SIGINT` / `SIGTERM` (ECS sends `SIGTERM` before killing the container):
 
 ```typescript
-process.on('SIGINT', async () => {
+async function gracefulShutdown(signal: string) {
+  // ...stop accepting work first, then release the backing stores
   await closeRedis();
-  await mongoose.connection.close();
+  await closePostgres();
   process.exit(0);
-});
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 ```
 
 ## Health check

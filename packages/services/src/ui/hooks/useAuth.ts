@@ -17,8 +17,10 @@
  * }
  * ```
  *
- * Cross-domain session (zero cookies):
- * - Web: silent OAuth (`prompt=none`) on cold boot; hub-ticket sync to auth.oxy.so after sign-in
+ * Session restore (zero cookies):
+ * - Web: this origin's own persisted `{deviceId, deviceSecret}` — a signed-out
+ *   origin stays signed out until the user presses "Continue with Oxy". There is
+ *   no cross-origin silent SSO: the SDK never navigates the tab on its own.
  * - Native: shared Keychain / app-group identity (Commons)
  * - Realtime sync: Socket.IO `session_state` on `device:<deviceId>` once authenticated
  * - Manual sign-in: signIn() opens the in-app account dialog (web + native)
@@ -77,8 +79,8 @@ export interface AuthState {
 export interface AuthActions {
   /**
    * Sign in
-   * - Web: Redirects to auth.oxy.so (no public key needed)
-   * - Native: Uses cryptographic identity from keychain
+   * - Web + native: opens the in-app Oxy account dialog (`openAccountDialog('signin')`).
+   *   Never navigates to auth.oxy.so — that origin is third-party OAuth only.
    *
    * @param publicKey - Native: identity public key. Ignored on web.
    */
@@ -103,6 +105,8 @@ export interface AuthActions {
 export interface UseAuthReturn extends AuthState, AuthActions {
   /** Access to full OxyServices instance for advanced usage */
   oxyServices: ReturnType<typeof useOxy>['oxyServices'];
+  /** Switch the device session to another account on this device */
+  switchToAccount: ReturnType<typeof useOxy>['switchToAccount'];
   /** Open a bottom sheet screen (e.g. 'ManageAccount', 'FileManagement') */
   showBottomSheet: ReturnType<typeof useOxy>['showBottomSheet'];
   /** Open the avatar picker bottom sheet */
@@ -115,8 +119,8 @@ export interface UseAuthReturn extends AuthState, AuthActions {
  * Features:
  * - Zero config: Just wrap with OxyProvider and use
  * - Cross-platform: Same API on native and web
- * - Auto session restore: Web apps silently restore via device-secret mint, then
- *   silent OAuth against the IdP hub; native apps use the shared keychain
+ * - Auto session restore: device-first cold boot (`deviceId` + `deviceSecret` mint);
+ *   never auto-redirects to the IdP
  * - Type-safe: Full TypeScript support
  */
 export function useAuth(): UseAuthReturn {
@@ -135,6 +139,7 @@ export function useAuth(): UseAuthReturn {
     logoutAll,
     refreshSessions,
     oxyServices,
+    switchToAccount,
     hasIdentity,
     getPublicKey,
     showBottomSheet,
@@ -199,6 +204,7 @@ export function useAuth(): UseAuthReturn {
 
     // Advanced
     oxyServices,
+    switchToAccount,
     showBottomSheet,
     openAvatarPicker,
   };

@@ -19,6 +19,7 @@ type GlobalWithDOM = typeof globalThis & {
     HTMLInputElement: typeof HTMLInputElement
     Element: typeof Element
     Node: typeof Node
+    ShadowRoot: typeof ShadowRoot
     navigator: Navigator
     getComputedStyle: typeof getComputedStyle
     requestAnimationFrame: typeof requestAnimationFrame
@@ -44,6 +45,11 @@ g.HTMLButtonElement = w.HTMLButtonElement
 g.HTMLInputElement = w.HTMLInputElement
 g.Element = w.Element
 g.Node = w.Node
+// `react-native-web` installs its style sheet at module scope and narrows the
+// insertion target with `root instanceof ShadowRoot`, reading the global rather
+// than `window.ShadowRoot`. Without this, evaluating a bundled RN Web graph
+// (`authorize-surface-bundle.test.ts`) dies on a bare ReferenceError.
+g.ShadowRoot = w.ShadowRoot
 g.navigator = w.navigator
 g.getComputedStyle = w.getComputedStyle.bind(w)
 g.requestAnimationFrame = w.requestAnimationFrame.bind(w)

@@ -4,8 +4,8 @@
  * GET  /auth/session/status/:sessionToken  (delivery-progress projection)
  *
  * Phase 4 automatic Commons delivery, exercised end to end through the REAL
- * route + REAL delivery service with only the data layer and the push transport
- * mocked.
+ * route, the REAL delivery service and a REAL Postgres, with only the push
+ * TRANSPORT (`exp.host`) and the socket emitter mocked.
  *
  * The security contract these tests exist to pin:
  *
@@ -13,7 +13,9 @@
  *    convenience: the delivery target is the AUTHENTICATED user, never anything
  *    from the request body or the bound request. Oxy can therefore never be made
  *    to push a sign-in prompt at someone by typing their username into an
- *    unauthenticated browser.
+ *    unauthenticated browser. Proving that needs a SECOND identity with its own
+ *    capable install actually stored — which is why the installs here are rows,
+ *    not stubs.
  *  - Only installs of an `Application` carrying the staff-controlled
  *    `identity:approval` capability are targeted. No capable install ⇒ zero
  *    targets, no send, and a 200 (the client falls back to QR).
@@ -29,17 +31,12 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-const mockAuthSessionFindOne = jest.fn();
-const mockAuthSessionUpdateOne = jest.fn();
-const mockApplicationFind = jest.fn();
-const mockApplicationFindById = jest.fn();
-const mockPushTokenFind = jest.fn();
 const mockSendPushToTokens = jest.fn();
 const mockEmitAuthSessionUpdate = jest.fn();
 const mockEmitAuthSessionProgress = jest.fn();
 
 /** Identity the mocked bearer middleware resolves for an authenticated request. */
-const mockBearerUser = { current: 'user-1' };
+const mockBearerUser = { current: '' };
 
 jest.mock('../../middleware/auth', () => ({
   // Behaves like the real middleware for the one property under test: without an
@@ -65,21 +62,6 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
-jest.mock('../../models/AuthSession', () => ({
-  __esModule: true,
-  AuthSession: { findOne: mockAuthSessionFindOne, updateOne: mockAuthSessionUpdateOne },
-  default: { findOne: mockAuthSessionFindOne, updateOne: mockAuthSessionUpdateOne },
-}));
-jest.mock('../../models/Application', () => ({
-  __esModule: true,
-  Application: { find: mockApplicationFind, findById: mockApplicationFindById, findOne: jest.fn() },
-  default: { find: mockApplicationFind, findById: mockApplicationFindById, findOne: jest.fn() },
-}));
-jest.mock('../../models/PushToken', () => ({
-  __esModule: true,
-  PushToken: { find: mockPushTokenFind },
-  default: { find: mockPushTokenFind },
-}));
 jest.mock('../../services/push.service', () => ({
   __esModule: true,
   pushService: { sendPushToTokens: mockSendPushToTokens, sendPushNotification: jest.fn() },
@@ -90,17 +72,8 @@ jest.mock('../../utils/authSessionSocket', () => ({
   emitAuthSessionProgress: (...args: unknown[]) => mockEmitAuthSessionProgress(...args),
 }));
 
-// Remaining static imports of routes/auth.ts — mocked so the real Mongoose
-// schemas never run under the global mongoose mock.
-jest.mock('../../models/Session', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
-jest.mock('../../models/AuthCode', () => ({ __esModule: true, AuthCode: { create: jest.fn() }, default: { create: jest.fn() } }));
-jest.mock('../../models/ApplicationCredential', () => ({ __esModule: true, ApplicationCredential: { findOne: jest.fn() }, default: { findOne: jest.fn() } }));
-jest.mock('../../models/User', () => ({ __esModule: true, User: { findOne: jest.fn(), findById: jest.fn() }, default: { findOne: jest.fn(), findById: jest.fn() } }));
-jest.mock('../../models/AppGrant', () => ({
-  __esModule: true,
-  AppGrant: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
-  default: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
-}));
+// Remaining static imports of routes/auth.ts — mocked so this suite loads the
+// route without standing up the whole auth service graph behind it.
 jest.mock('../../services/authSession.service', () => ({
   claimAuthSession: jest.fn(),
   authorizeSessionWithSignedChallenge: jest.fn(),
@@ -122,7 +95,14 @@ jest.mock('../../controllers/session.controller', () => ({
 }));
 jest.mock('../../utils/logger', () => ({ logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() } }));
 
+import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import authRouter from '../auth';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applications as applicationsTable } from '../../db/schema/applications';
+import { authSessions } from '../../db/schema/authSessions';
+import { pushTokens } from '../../db/schema/pushTokens';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { IDENTITY_APPROVAL_CAPABILITY } from '../../utils/applicationCapabilities';
 
@@ -132,7 +112,6 @@ interface JsonResponse {
 }
 
 async function request(
-  server: http.Server,
   method: 'GET' | 'POST',
   path: string,
   options: { bearer?: string; payload?: Record<string, unknown> } = {},
@@ -159,102 +138,165 @@ async function request(
   });
 }
 
-/** `.select(...).lean()` chain used by the delivery lookups. */
-function chain<T>(rows: T[]) {
-  return { select: () => ({ lean: () => Promise.resolve(rows) }) };
-}
-
-function pendingSession(overrides: Record<string, unknown> = {}) {
-  return {
-    sessionToken: 'secret-session-token',
-    authorizeCode: 'code-1',
-    status: 'pending',
-    expiresAt: new Date(Date.now() + 3_600_000),
-    ...overrides,
-  };
-}
-
 let server: http.Server;
+let USER_ID: string;
+let VICTIM_ID: string;
+let VAULT_APP_ID: string;
 
-beforeAll((done) => {
+/** The literal secret every case checks never reaches the client. */
+const SECRET_MARKER = 'SECRET-session-token-do-not-leak';
+
+async function insertUser(): Promise<string> {
+  const [row] = await getDb().insert(users).values({}).returning({ id: users.id });
+  return row.id;
+}
+
+async function insertApplication(
+  fields: Partial<typeof applicationsTable.$inferInsert> = {},
+): Promise<string> {
+  const ownerAccountId = fields.ownerAccountId ?? (await insertUser());
+  const [row] = await getDb()
+    .insert(applicationsTable)
+    .values({ name: `App ${randomUUID()}`, ...fields, ownerAccountId })
+    .returning({ id: applicationsTable.id });
+  return row.id;
+}
+
+async function insertInstall(userId: string, token: string, applicationId: string | null) {
+  await getDb().insert(pushTokens).values({ userId, token, platform: 'ios', applicationId });
+}
+
+interface StoredRequest {
+  authorizeCode: string;
+  sessionToken: string;
+}
+
+async function storedPendingRequest(
+  overrides: Partial<typeof authSessions.$inferInsert> = {},
+): Promise<StoredRequest> {
+  const applicationId = overrides.applicationId ?? VAULT_APP_ID;
+  const sessionToken = `${SECRET_MARKER}-${randomUUID()}`;
+  const authorizeCode = randomUUID().replace(/-/g, '');
+  await getDb()
+    .insert(authSessions)
+    .values({
+      sessionToken,
+      authorizeCode,
+      expiresAt: new Date(Date.now() + 3_600_000),
+      status: 'pending',
+      ...overrides,
+      applicationId,
+    });
+  return { authorizeCode, sessionToken };
+}
+
+async function storedRow(authorizeCode: string) {
+  const [row] = await getDb()
+    .select({
+      status: authSessions.status,
+      pushSentAt: authSessions.pushSentAt,
+      openedAt: authSessions.openedAt,
+    })
+    .from(authSessions)
+    .where(eq(authSessions.authorizeCode, authorizeCode))
+    .limit(1);
+  return row;
+}
+
+/** The tokens the push transport was handed. */
+function pushedTokens(): string[] {
+  return (mockSendPushToTokens.mock.calls[0]?.[0] as { tokens: string[] } | undefined)?.tokens ?? [];
+}
+
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/auth', authRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => { server.close(done); });
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
+});
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
-  mockBearerUser.current = 'user-1';
-  mockAuthSessionUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mockSendPushToTokens.mockResolvedValue({ targeted: 1, accepted: 1 });
+  USER_ID = await insertUser();
+  VICTIM_ID = await insertUser();
+  mockBearerUser.current = USER_ID;
+  VAULT_APP_ID = await insertApplication({ capabilities: [IDENTITY_APPROVAL_CAPABILITY] });
 });
 
 describe('POST /auth/session/deliver/:authorizeCode — bearer is the control', () => {
   it('rejects an unauthenticated caller before any lookup', async () => {
-    const res = await request(server, 'POST', '/auth/session/deliver/code-1');
+    const { authorizeCode } = await storedPendingRequest();
+
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`);
 
     expect(res.status).toBe(401);
-    expect(mockAuthSessionFindOne).not.toHaveBeenCalled();
     expect(mockSendPushToTokens).not.toHaveBeenCalled();
+    expect((await storedRow(authorizeCode)).pushSentAt).toBeNull();
   });
 
   it('targets the AUTHENTICATED identity, never a user named in the body', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
-    mockApplicationFind.mockReturnValue(chain([{ _id: 'app-commons' }]));
-    mockPushTokenFind.mockReturnValue(chain([{ token: 'tok-vault' }]));
+    // Both identities own a capable install. Naming the victim in the body must
+    // change nothing: their token must not be pushed.
+    await insertInstall(USER_ID, 'tok-mine', VAULT_APP_ID);
+    await insertInstall(VICTIM_ID, 'tok-victim', VAULT_APP_ID);
+    const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request(server, 'POST', '/auth/session/deliver/code-1', {
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, {
       bearer: 'token',
-      payload: { userId: 'victim-42', username: 'victim', identityUserId: 'victim-42' },
+      payload: { userId: VICTIM_ID, username: 'victim', identityUserId: VICTIM_ID },
     });
 
     expect(res.status).toBe(200);
-    expect(mockPushTokenFind).toHaveBeenCalledWith({
-      userId: 'user-1',
-      applicationId: { $in: ['app-commons'] },
-    });
-    expect(mockSendPushToTokens.mock.calls[0][0]).toMatchObject({ userId: 'user-1' });
+    expect(res.body.data).toEqual({ delivered: true, targets: 1 });
+    expect(pushedTokens()).toEqual(['tok-mine']);
+    expect(mockSendPushToTokens.mock.calls[0][0]).toMatchObject({ userId: USER_ID });
   });
 });
 
 describe('POST /auth/session/deliver/:authorizeCode — capability-scoped targeting', () => {
-  it('delivers to the identity\'s capable installs and answers with counts only', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
-    mockApplicationFind.mockReturnValue(chain([{ _id: 'app-commons' }]));
-    mockPushTokenFind.mockReturnValue(chain([{ token: 'tok-vault-1' }, { token: 'tok-vault-2' }]));
+  it("delivers to the identity's capable installs and answers with counts only", async () => {
+    await insertInstall(USER_ID, 'tok-vault-1', VAULT_APP_ID);
+    await insertInstall(USER_ID, 'tok-vault-2', VAULT_APP_ID);
     mockSendPushToTokens.mockResolvedValue({ targeted: 2, accepted: 2 });
+    const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request(server, 'POST', '/auth/session/deliver/code-1', { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
 
     expect(res.status).toBe(200);
+    // COUNTS ONLY — no token, no device, no application identity.
     expect(res.body.data).toEqual({ delivered: true, targets: 2 });
-
-    expect(mockApplicationFind).toHaveBeenCalledWith({
-      status: 'active',
-      capabilities: IDENTITY_APPROVAL_CAPABILITY,
-    });
 
     const push = mockSendPushToTokens.mock.calls[0][0] as { data: Record<string, unknown> };
     expect(push.data).toEqual({
       type: 'oxy_commons_auth_request',
-      approvalUrl: 'oxycommons://approve?v=1&code=code-1',
+      approvalUrl: `oxycommons://approve?v=1&code=${authorizeCode}`,
     });
 
-    // The secret sessionToken is never exposed to the client on this path.
-    expect(JSON.stringify(res.body)).not.toContain('secret-session-token');
+    // The secret sessionToken is never exposed to the client on this path, and
+    // it really is stored, so the assertion is not vacuous.
+    expect(JSON.stringify(res.body)).not.toContain(SECRET_MARKER);
   });
 
   it('yields zero targets and sends nothing when the install lacks the capability', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
-    // The user HAS a vault install, but no application carries the capability,
-    // so the capability-scoped query resolves no eligible install.
-    mockApplicationFind.mockReturnValue(chain([]));
+    // The user HAS a vault-shaped install, but its application carries no
+    // capability — so the registry, not the app's identity, decides.
+    const plain = await insertApplication();
+    await insertInstall(USER_ID, 'tok-plain', plain);
+    const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request(server, 'POST', '/auth/session/deliver/code-1', { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ delivered: false, targets: 0 });
@@ -263,11 +305,10 @@ describe('POST /auth/session/deliver/:authorizeCode — capability-scoped target
   });
 
   it('yields zero targets when this identity has no capable install of its own', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
-    mockApplicationFind.mockReturnValue(chain([{ _id: 'app-commons' }]));
-    mockPushTokenFind.mockReturnValue(chain([]));
+    await insertInstall(VICTIM_ID, 'tok-someone-else', VAULT_APP_ID);
+    const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request(server, 'POST', '/auth/session/deliver/code-1', { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ delivered: false, targets: 0 });
@@ -277,12 +318,11 @@ describe('POST /auth/session/deliver/:authorizeCode — capability-scoped target
 
 describe('POST /auth/session/deliver/:authorizeCode — failures never break the flow', () => {
   it('answers 200 with a well-formed body when the push transport fails', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
-    mockApplicationFind.mockReturnValue(chain([{ _id: 'app-commons' }]));
-    mockPushTokenFind.mockReturnValue(chain([{ token: 'tok-vault' }]));
+    await insertInstall(USER_ID, 'tok-vault', VAULT_APP_ID);
     mockSendPushToTokens.mockRejectedValue(new Error('expo unreachable'));
+    const { authorizeCode } = await storedPendingRequest();
 
-    const res = await request(server, 'POST', '/auth/session/deliver/code-1', { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ delivered: false, targets: 1 });
@@ -290,18 +330,19 @@ describe('POST /auth/session/deliver/:authorizeCode — failures never break the
   });
 
   it('404s an unknown authorizeCode', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(null);
-
-    const res = await request(server, 'POST', '/auth/session/deliver/nope', { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${randomUUID().replace(/-/g, '')}`, {
+      bearer: 'token',
+    });
 
     expect(res.status).toBe(404);
     expect(mockSendPushToTokens).not.toHaveBeenCalled();
   });
 
   it('400s a request that is no longer pending', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession({ status: 'authorized' }));
+    await insertInstall(USER_ID, 'tok-vault', VAULT_APP_ID);
+    const { authorizeCode } = await storedPendingRequest({ status: 'authorized' });
 
-    const res = await request(server, 'POST', '/auth/session/deliver/code-1', { bearer: 'token' });
+    const res = await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
 
     expect(res.status).toBe(400);
     expect(mockSendPushToTokens).not.toHaveBeenCalled();
@@ -310,77 +351,80 @@ describe('POST /auth/session/deliver/:authorizeCode — failures never break the
 
 describe('POST /auth/session/deliver/:authorizeCode — progress signalling', () => {
   it('wakes the waiting originator with a payload-free signal on its secret channel', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
-    mockApplicationFind.mockReturnValue(chain([{ _id: 'app-commons' }]));
-    mockPushTokenFind.mockReturnValue(chain([{ token: 'tok-vault' }]));
+    await insertInstall(USER_ID, 'tok-vault', VAULT_APP_ID);
+    const { authorizeCode, sessionToken } = await storedPendingRequest();
 
-    await request(server, 'POST', '/auth/session/deliver/code-1', { bearer: 'token' });
+    await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
 
     expect(mockEmitAuthSessionProgress).toHaveBeenCalledTimes(1);
-    expect(mockEmitAuthSessionProgress).toHaveBeenCalledWith('secret-session-token');
+    expect(mockEmitAuthSessionProgress).toHaveBeenCalledWith(sessionToken);
     // Progress never travels as a status on the socket.
     expect(mockEmitAuthSessionUpdate).not.toHaveBeenCalled();
   });
 
   it('records pushSentAt as a timestamp, leaving status untouched', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
-    mockApplicationFind.mockReturnValue(chain([{ _id: 'app-commons' }]));
-    mockPushTokenFind.mockReturnValue(chain([{ token: 'tok-vault' }]));
+    await insertInstall(USER_ID, 'tok-vault', VAULT_APP_ID);
+    const { authorizeCode } = await storedPendingRequest();
 
-    await request(server, 'POST', '/auth/session/deliver/code-1', { bearer: 'token' });
+    await request('POST', `/auth/session/deliver/${authorizeCode}`, { bearer: 'token' });
 
-    const [filter, update] = mockAuthSessionUpdateOne.mock.calls[0] as [
-      Record<string, unknown>,
-      Record<string, Record<string, unknown>>,
-    ];
-    expect(filter).toEqual({ authorizeCode: 'code-1', status: 'pending', pushSentAt: null });
-    expect(Object.keys(update.$set)).toEqual(['pushSentAt']);
+    const row = await storedRow(authorizeCode);
+    expect(row.pushSentAt).toBeInstanceOf(Date);
+    expect(row.status).toBe('pending');
   });
 });
 
 describe('POST /auth/session/opened/:authorizeCode', () => {
   it('needs no bearer — the public approval handle is the credential', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
+    const { authorizeCode, sessionToken } = await storedPendingRequest();
 
-    const res = await request(server, 'POST', '/auth/session/opened/code-1');
+    const res = await request('POST', `/auth/session/opened/${authorizeCode}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ success: true });
-    expect(mockEmitAuthSessionProgress).toHaveBeenCalledWith('secret-session-token');
+    expect(mockEmitAuthSessionProgress).toHaveBeenCalledWith(sessionToken);
+    expect(JSON.stringify(res.body)).not.toContain(SECRET_MARKER);
   });
 
   it('writes openedAt once, pending-only and unexpired-only, never status', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession());
+    const { authorizeCode } = await storedPendingRequest();
 
-    await request(server, 'POST', '/auth/session/opened/code-1');
+    await request('POST', `/auth/session/opened/${authorizeCode}`);
 
-    const [filter, update] = mockAuthSessionUpdateOne.mock.calls[0] as [
-      Record<string, unknown>,
-      Record<string, Record<string, unknown>>,
-    ];
-    expect(filter).toMatchObject({ authorizeCode: 'code-1', status: 'pending', openedAt: null });
-    expect(filter.expiresAt).toEqual({ $gt: expect.any(Date) });
-    expect(Object.keys(update.$set)).toEqual(['openedAt']);
+    const row = await storedRow(authorizeCode);
+    expect(row.openedAt).toBeInstanceOf(Date);
+    expect(row.status).toBe('pending');
   });
 
-  it('is idempotent: a repeat call succeeds and emits nothing', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(pendingSession({ openedAt: new Date() }));
-    mockAuthSessionUpdateOne.mockResolvedValue({ modifiedCount: 0 });
+  it('is idempotent: a repeat call succeeds, emits nothing and keeps the first instant', async () => {
+    const { authorizeCode } = await storedPendingRequest();
+    await request('POST', `/auth/session/opened/${authorizeCode}`);
+    const first = (await storedRow(authorizeCode)).openedAt;
+    mockEmitAuthSessionProgress.mockClear();
 
-    const res = await request(server, 'POST', '/auth/session/opened/code-1');
+    const res = await request('POST', `/auth/session/opened/${authorizeCode}`);
 
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ success: true });
     expect(mockEmitAuthSessionProgress).not.toHaveBeenCalled();
+    expect((await storedRow(authorizeCode)).openedAt).toEqual(first);
+  });
+
+  it('records nothing for an already-authorized request', async () => {
+    const { authorizeCode } = await storedPendingRequest({ status: 'authorized' });
+
+    const res = await request('POST', `/auth/session/opened/${authorizeCode}`);
+
+    expect(res.status).toBe(200);
+    const row = await storedRow(authorizeCode);
+    expect(row.openedAt).toBeNull();
+    expect(row.status).toBe('authorized');
   });
 
   it('404s an unknown authorizeCode', async () => {
-    mockAuthSessionFindOne.mockResolvedValue(null);
-
-    const res = await request(server, 'POST', '/auth/session/opened/nope');
+    const res = await request('POST', `/auth/session/opened/${randomUUID().replace(/-/g, '')}`);
 
     expect(res.status).toBe(404);
-    expect(mockAuthSessionUpdateOne).not.toHaveBeenCalled();
   });
 });
 
@@ -388,37 +432,27 @@ describe('GET /auth/session/status/:sessionToken — delivery progress projectio
   it('exposes pushSentAt and openedAt while leaving the status machine alone', async () => {
     const pushSentAt = new Date('2026-07-27T10:00:00.000Z');
     const openedAt = new Date('2026-07-27T10:00:05.000Z');
-    mockAuthSessionFindOne.mockResolvedValue({
-      ...pendingSession({ pushSentAt, openedAt }),
-      applicationId: 'app-commons',
-      authorizedSessionId: null,
-      authorizedBy: null,
-      authorizedUserId: null,
-      save: jest.fn(),
-    });
-    mockApplicationFindById.mockResolvedValue(null);
+    const { authorizeCode, sessionToken } = await storedPendingRequest({ pushSentAt, openedAt });
 
-    const res = await request(server, 'GET', '/auth/session/status/secret-session-token');
+    const res = await request('GET', `/auth/session/status/${sessionToken}`);
 
     expect(res.status).toBe(200);
     const data = res.body.data as Record<string, unknown>;
+    // Progress is TIMESTAMPS beside the state machine, never inside it: neither
+    // "pushed" nor "opened" is a status a waiting client could misread as an
+    // authorization.
     expect(data.status).toBe('pending');
+    expect(data.authorized).toBe(false);
     expect(data.pushSentAt).toBe('2026-07-27T10:00:00.000Z');
     expect(data.openedAt).toBe('2026-07-27T10:00:05.000Z');
+    // …and the stored row still says pending too.
+    expect((await storedRow(authorizeCode)).status).toBe('pending');
   });
 
   it('emits null timestamps for a request that was never pushed or opened', async () => {
-    mockAuthSessionFindOne.mockResolvedValue({
-      ...pendingSession(),
-      applicationId: 'app-commons',
-      authorizedSessionId: null,
-      authorizedBy: null,
-      authorizedUserId: null,
-      save: jest.fn(),
-    });
-    mockApplicationFindById.mockResolvedValue(null);
+    const { sessionToken } = await storedPendingRequest();
 
-    const res = await request(server, 'GET', '/auth/session/status/secret-session-token');
+    const res = await request('GET', `/auth/session/status/${sessionToken}`);
 
     const data = res.body.data as Record<string, unknown>;
     expect(data.pushSentAt).toBeNull();

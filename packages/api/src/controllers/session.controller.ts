@@ -1,24 +1,31 @@
 import type { Request, Response } from 'express';
-import { User, buildAuthMethod } from '../models/User';
-import Session from '../models/Session';
-import AuthChallenge from '../models/AuthChallenge';
+import { and, asc, eq, gt, inArray, ne, sql } from 'drizzle-orm';
+import { publicColumns } from '@oxyhq/db/assert';
+import { getDb } from '../config/postgres';
+import { authChallenges } from '../db/schema/authChallenges';
+import { notifications } from '../db/schema/notifications';
+import { PROTECTED_COLUMNS_BY_TABLE } from '../db/schema/protectedColumns';
+import { sessions } from '../db/schema/sessions';
+import { userAuthMethods } from '../db/schema/userAuthMethods';
+import { userLinkMetadata } from '../db/schema/userLinkMetadata';
+import { users } from '../db/schema/users';
 import type { SessionAuthResponse, ClientSession } from '../types/session';
 import {
   getDeviceActiveSessions,
   logoutAllDeviceSessions
 } from '../utils/deviceUtils';
 import { emitSessionUpdate } from '../server';
-import Notification from '../models/Notification';
 import SignatureService from '../services/signature.service';
 import sessionService from '../services/session.service';
 import sessionCache from '../utils/sessionCache';
 import { logger } from '../utils/logger';
 import { formatUserResponse, type UserLike } from '../utils/userTransform';
+import { userService } from '../services/user.service';
 import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import type { AuthRequest } from '../middleware/auth';
-import { exactCaseInsensitiveUsernameRegex } from '../utils/resolveUserIdentifier';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxyhq/contracts';
+import { normalizeUsername } from '../utils/username';
 import type { SessionCreateOptions } from '../types/session.types';
 
 export function sessionCreateOptionsFromBody(body: {
@@ -37,16 +44,36 @@ export function sessionCreateOptionsFromBody(body: {
 }
 
 /**
- * Extract the authenticated user's MongoDB ObjectId string from an
- * `AuthRequest` populated by `authMiddleware`. The middleware sets
- * `req.user._id` to the canonical Mongo ObjectId, but the IUser interface
- * also exposes a virtual `id` (which may equal `publicKey`). We always
- * want the ObjectId here so we can compare against Session.userId.
+ * Extract the authenticated user's id from an `AuthRequest` populated by
+ * `authMiddleware`, so it can be compared against `sessions.user_id`.
  */
 function getAuthenticatedUserId(req: AuthRequest): string | null {
   const user = req.user;
   if (!user) return null;
   if (user._id) return user._id.toString();
+  return null;
+}
+
+/**
+ * The unique constraint a Postgres `23505` (unique_violation) names, or null
+ * when `error` is not one.
+ *
+ * This is the port of the `E11000` / `keyPattern` handling below it: the
+ * pre-checks in `register` cannot close the race between "does this identifier
+ * exist" and the insert, so the database's own answer is what decides. Postgres
+ * reports the INDEX name, which is why the identifier indexes in
+ * `db/schema/users.ts` are named rather than left to drizzle's derivation.
+ */
+function violatedUniqueIndex(error: unknown): string | null {
+  // Drizzle wraps the driver error, and only the driver's own error carries
+  // `code`/`constraint_name` — so both levels are inspected rather than
+  // whichever one happens to surface today.
+  for (const level of [error, (error as { cause?: unknown } | null)?.cause]) {
+    if (typeof level !== 'object' || level === null) continue;
+    const candidate = level as { code?: unknown; constraint_name?: unknown };
+    if (candidate.code !== '23505') continue;
+    if (typeof candidate.constraint_name === 'string') return candidate.constraint_name;
+  }
   return null;
 }
 
@@ -81,7 +108,7 @@ export function buildSessionAuthResponse(session: { sessionId: string; deviceId:
 }
 
 export class SessionController {
-  
+
   /**
    * Register a new user with public key authentication
    * No passwords needed - identity is verified via signature
@@ -89,11 +116,12 @@ export class SessionController {
   static async register(req: Request, res: Response) {
     try {
       const { publicKey, signature, timestamp, email, username } = req.body;
+      const db = getDb();
 
       // Validate required fields
       if (!publicKey || !signature || !timestamp) {
-        return res.status(400).json({ 
-          message: 'Public key, signature, and timestamp are required' 
+        return res.status(400).json({
+          message: 'Public key, signature, and timestamp are required'
         });
       }
 
@@ -110,13 +138,19 @@ export class SessionController {
       );
 
       if (!isValidSignature) {
-        return res.status(401).json({ 
-          message: 'Invalid signature. Please sign the registration request with your private key.' 
+        return res.status(401).json({
+          message: 'Invalid signature. Please sign the registration request with your private key.'
         });
       }
 
-      // Check if user already exists (by publicKey only - that's the identity)
-      const existingUser = await User.findOne({ publicKey });
+      // Check if user already exists (by publicKey only - that's the identity).
+      // `lower(btrim(...))` is the expression `users_lower_public_key_key` is
+      // built on — a plain equality would be case-sensitive and would not use it.
+      const [existingUser] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
+        .limit(1);
 
       if (existingUser) {
         return res.status(409).json({
@@ -143,52 +177,72 @@ export class SessionController {
         }
 
         normalizedUsername = normalizeUsername(username);
-        if (!USERNAME_PATTERN.test(normalizedUsername)) {
-          return res.status(400).json({ message: INVALID_USERNAME_MESSAGE });
+        if (!isValidUsername(normalizedUsername)) {
+          return res.status(400).json({ message: USERNAME_INVALID_MESSAGE });
         }
       }
 
       if (normalizedEmail) {
-        const existingEmail = await User.findOne({ email: normalizedEmail }).select('_id').lean();
+        const [existingEmail] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(sql`lower(btrim(${users.email})) = lower(btrim(${normalizedEmail}))`)
+          .limit(1);
         if (existingEmail) {
           return res.status(409).json({ message: 'Email already registered' });
         }
       }
 
       if (normalizedUsername) {
-        const existingUsername = await User.findOne({ username: exactCaseInsensitiveUsernameRegex(normalizedUsername) }).select('_id').lean();
+        // The Mongo-era `exactCaseInsensitiveUsernameRegex` scan becomes the
+        // expression `users_lower_username_key` indexes.
+        const [existingUsername] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(sql`lower(btrim(${users.username})) = lower(btrim(${normalizedUsername}))`)
+          .limit(1);
         if (existingUsername) {
           return res.status(409).json({ message: 'Username already taken' });
         }
       }
 
-      // Create new user (identity is the publicKey). Record the origin auth
-      // method so the account's provenance is captured consistently with the
-      // social-auth path, instead of leaving `authMethods` empty.
-      const user = new User({
-        publicKey,
-        email: normalizedEmail,
-        username: normalizedUsername,
-        authMethods: [buildAuthMethod('identity', { publicKey })],
+      // Create the account (identity is the publicKey) together with the origin
+      // auth method, so the account's provenance is captured consistently with
+      // the social-auth path. One transaction: an account whose only credential
+      // failed to insert could never be signed into, and Mongo's embedded array
+      // made that atomicity implicit.
+      const user = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(users)
+          .values({
+            publicKey,
+            ...(normalizedEmail ? { email: normalizedEmail } : {}),
+            ...(normalizedUsername ? { username: normalizedUsername } : {}),
+          })
+          .returning(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE));
+        await tx.insert(userAuthMethods).values({
+          userId: created.id,
+          type: 'identity',
+          methodPublicKey: publicKey,
+        });
+        return created;
       });
-
-      await user.save();
 
       // Create welcome notification (non-blocking - don't fail registration if this fails)
       try {
-        await new Notification({
-          recipientId: user._id,
-          actorId: user._id,
+        await db.insert(notifications).values({
+          recipientId: user.id,
+          actorId: user.id,
           type: 'welcome',
-          entityId: user._id,
+          entityId: user.id,
           entityType: 'profile',
-          read: false
-        }).save();
+          read: false,
+        });
       } catch (notificationError) {
         logger.error('Failed to create welcome notification during registration', notificationError, {
           component: 'SessionController',
           method: 'register',
-          userId: user._id.toString(),
+          userId: user.id,
         });
       }
 
@@ -201,26 +255,30 @@ export class SessionController {
         message: 'Identity registered successfully',
         user: userData
       });
-    } catch (error: any) {
-      // Handle MongoDB duplicate key error (E11000) - handles race condition where user was created between check and save
-      if (error.code === 11000) {
-        if (error.keyPattern?.publicKey) {
-          return res.status(409).json({
-            message: 'Identity already registered'
-          });
-        }
-        if (error.keyPattern?.email) {
-          return res.status(409).json({ message: 'Email already registered' });
-        }
-        if (error.keyPattern?.username) {
-          return res.status(409).json({ message: 'Username already taken' });
-        }
+    } catch (error) {
+      // The identifier pre-checks above cannot close the race between the check
+      // and the insert; the unique indexes do, and this maps each to the same
+      // 409 the pre-check would have returned.
+      const violated = violatedUniqueIndex(error);
+      if (violated === 'users_lower_public_key_key') {
+        return res.status(409).json({ message: 'Identity already registered' });
+      }
+      if (violated === 'users_lower_email_key') {
+        return res.status(409).json({ message: 'Email already registered' });
+      }
+      if (violated === 'users_lower_username_key') {
+        return res.status(409).json({ message: 'Username already taken' });
+      }
+      // One identity key authenticates exactly one account — a guarantee the
+      // Mongo array could not make, so it has no `E11000` counterpart above.
+      if (violated === 'user_auth_methods_lower_method_public_key_key') {
+        return res.status(409).json({ message: 'Identity already registered' });
       }
 
       logger.error('Registration error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Internal server error';
       logger.error('Registration error details:', { errorMessage });
-      
+
       res.status(500).json({ message: 'Internal server error' });
     }
   }
@@ -232,6 +290,7 @@ export class SessionController {
   static async requestChallenge(req: Request, res: Response) {
     try {
       const { publicKey } = req.body;
+      const db = getDb();
 
       if (!publicKey) {
         return res.status(400).json({ message: 'Public key is required' });
@@ -242,7 +301,11 @@ export class SessionController {
       }
 
       // Check if user exists (optional - can allow challenges for unregistered keys)
-      const user = await User.findOne({ publicKey });
+      const [user] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
+        .limit(1);
       if (!user) {
         return res.status(404).json({ message: 'User not found. Please register first.' });
       }
@@ -251,8 +314,9 @@ export class SessionController {
       const challenge = SignatureService.generateChallenge();
       const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
 
-      // Store challenge in database
-      await AuthChallenge.create({
+      // Store challenge in database. `purpose` defaults to `'signin'`, which is
+      // the only purpose `verifyChallenge` will spend.
+      await db.insert(authChallenges).values({
         publicKey,
         challenge,
         expiresAt,
@@ -276,6 +340,7 @@ export class SessionController {
   static async verifyChallenge(req: Request, res: Response) {
     try {
       const { publicKey, challenge, signature, timestamp, deviceName, deviceFingerprint, deviceId } = req.body;
+      const db = getDb();
 
       if (!publicKey || !challenge || !signature || !timestamp) {
         return res.status(400).json({
@@ -283,21 +348,30 @@ export class SessionController {
         });
       }
 
-      // Find and validate the challenge (read-only query with .lean() for
-      // performance). Scoped to signin-purpose challenges (default, or legacy
-      // docs predating the `purpose` field) so a `rotate_key` challenge cannot be
-      // spent to mint a session.
-      const authChallenge = await AuthChallenge.findOne({
-        publicKey,
-        challenge,
-        used: false,
-        purpose: { $in: ['signin', null] },
-        expiresAt: { $gt: new Date() }
-      }).lean();
+      // Find and validate the challenge. Scoped to signin-purpose challenges so
+      // a `rotate_key` challenge cannot be spent to mint a session; `purpose` is
+      // NOT NULL DEFAULT 'signin' here, so the Mongo-era `{ $in: ['signin',
+      // null] }` legacy branch does not travel. `expires_at > now()` is filtered
+      // HERE rather than left to the `db/expiry.ts` sweep — the sweep lags one
+      // interval, and a challenge spendable past its deadline is a live
+      // credential.
+      const [authChallenge] = await db
+        .select({ id: authChallenges.id })
+        .from(authChallenges)
+        .where(
+          and(
+            eq(authChallenges.publicKey, publicKey),
+            eq(authChallenges.challenge, challenge),
+            eq(authChallenges.used, false),
+            eq(authChallenges.purpose, 'signin'),
+            gt(authChallenges.expiresAt, new Date())
+          )
+        )
+        .limit(1);
 
       if (!authChallenge) {
-        return res.status(401).json({ 
-          message: 'Invalid or expired challenge. Please request a new one.' 
+        return res.status(401).json({
+          message: 'Invalid or expired challenge. Please request a new one.'
         });
       }
 
@@ -313,22 +387,36 @@ export class SessionController {
         return res.status(401).json({ message: 'Invalid signature' });
       }
 
-      // Atomically mark challenge as used (prevents race conditions)
-      await AuthChallenge.findOneAndUpdate(
-        { _id: authChallenge._id },
-        { $set: { used: true } },
-        { new: false }
-      );
+      // Atomically burn the challenge. `used = false` is part of the FILTER, so
+      // two concurrent verifications of one challenge cannot both mint a
+      // session — the loser updates no row. Mongo matched on `_id` alone, which
+      // made the "prevents race conditions" comment above it aspirational; the
+      // sibling key-signed approval path (`authSession.service.ts`) already
+      // guards this way, and single-use is the whole point of a challenge.
+      const burned = await db
+        .update(authChallenges)
+        .set({ used: true })
+        .where(and(eq(authChallenges.id, authChallenge.id), eq(authChallenges.used, false)))
+        .returning({ id: authChallenges.id });
+      if (burned.length === 0) {
+        return res.status(401).json({
+          message: 'Invalid or expired challenge. Please request a new one.'
+        });
+      }
 
-      // Find user by public key (read-only query with .lean() for performance)
-      const user = await User.findOne({ publicKey }).lean();
+      // Find user by public key
+      const [user] = await db
+        .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+        .from(users)
+        .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
+        .limit(1);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
 
       // Create session
       const session = await sessionService.createSession(
-        user._id.toString(),
+        user.id,
         req,
         sessionCreateOptionsFromBody({ deviceName, deviceFingerprint, deviceId }),
       );
@@ -345,13 +433,15 @@ export class SessionController {
       if (isNewSession) {
         try {
           await securityActivityService.logSignIn(
-            user._id.toString(),
+            user.id,
             req,
             session.deviceId,
             {
-              deviceName: deviceName || session.deviceInfo?.deviceName,
-              deviceType: session.deviceInfo?.deviceType,
-              platform: session.deviceInfo?.platform,
+              // `|| undefined` because the columns are nullable and the
+              // metadata field is `string | undefined`, never `null`.
+              deviceName: deviceName || session.deviceName || undefined,
+              deviceType: session.deviceType,
+              platform: session.platform,
             }
           );
         } catch (error) {
@@ -359,13 +449,13 @@ export class SessionController {
           logger.error('Failed to log security event for sign-in', error instanceof Error ? error : new Error(String(error)), {
             component: 'SessionController',
             method: 'verifyChallenge',
-            userId: user._id.toString(),
+            userId: user.id,
           });
         }
       }
 
       // Emit session update for real-time updates
-      emitSessionUpdate(user._id.toString(), {
+      emitSessionUpdate(user.id, {
         type: 'session_created',
         sessionId: session.sessionId,
         deviceId: session.deviceId
@@ -392,7 +482,7 @@ export class SessionController {
       // deviceSecret the client persists first-party. Best-effort.
       const verifyDeviceExtras = await finalizeDeviceLogin({
         session,
-        userId: user._id.toString(),
+        userId: user.id,
       });
       if (verifyDeviceExtras.deviceSecret) {
         response.deviceSecret = verifyDeviceExtras.deviceSecret;
@@ -481,7 +571,7 @@ export class SessionController {
       const clientSessions: ClientSession[] = sessions.map(session => ({
         sessionId: session.sessionId,
         deviceId: session.deviceId,
-        deviceName: session.deviceInfo?.deviceName,
+        deviceName: session.deviceName ?? undefined,
         isActive: session.isActive,
         userId: session.userId.toString()
       }));
@@ -568,15 +658,22 @@ export class SessionController {
 
       const userId = currentSessionResult.session.userId.toString();
 
-      // Get list of sessionIds that will be deactivated before deactivating
+      // Get list of sessionIds that will be deactivated before deactivating.
+      // `is_active` + `expires_at > now()` stay in the predicate: the broadcast
+      // must name exactly the sessions the deactivation below touches.
       const now = new Date();
-      const sessionsToDeactivate = await Session.find({
-        userId,
-        isActive: true,
-        sessionId: { $ne: sessionId },
-        expiresAt: { $gt: now }
-      }).select('sessionId').lean().exec();
-      
+      const sessionsToDeactivate = await getDb()
+        .select({ sessionId: sessions.sessionId })
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.userId, userId),
+            eq(sessions.isActive, true),
+            ne(sessions.sessionId, sessionId),
+            gt(sessions.expiresAt, now)
+          )
+        );
+
       const sessionIds = sessionsToDeactivate.map(s => s.sessionId);
 
       // Deactivate all sessions for this user except the current one
@@ -610,7 +707,7 @@ export class SessionController {
       const sessionId = req.header('x-session-id') || req.params.sessionId;
 
       if (!sessionId) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Session ID is required',
           hint: 'Provide sessionId in URL parameter or x-session-id header'
         });
@@ -620,7 +717,7 @@ export class SessionController {
       const result = await sessionService.validateSessionById(sessionId, true);
 
       if (!result || !result.session || !result.user) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           message: 'Invalid or expired session',
           sessionId: sessionId.substring(0, 8) + '...'
         });
@@ -634,7 +731,7 @@ export class SessionController {
       res.json({
         valid: true,
         expiresAt: result.session.expiresAt.toISOString(),
-        lastActivity: result.session.deviceInfo.lastActive.toISOString(),
+        lastActivity: result.session.lastActiveAt.toISOString(),
         deviceId: result.session.deviceId,
         user: userData
       });
@@ -650,7 +747,7 @@ export class SessionController {
       const sessionId = req.params.sessionId;
 
       if (!sessionId) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: 'Session ID is required',
           hint: 'Provide sessionId as URL parameter'
         });
@@ -660,16 +757,17 @@ export class SessionController {
       const result = await sessionService.validateSessionById(sessionId, true);
 
       if (!result || !result.session || !result.user) {
-        return res.status(401).json({ 
+        return res.status(401).json({
           message: 'Invalid or expired session',
           sessionId: sessionId.substring(0, 8) + '...'
         });
       }
 
-      // Optional device fingerprint validation
+      // Optional device fingerprint validation. Advisory only — it logs and
+      // never gates, so a plain comparison is the whole of it.
       const deviceFingerprint = req.header('x-device-fingerprint');
-      if (deviceFingerprint && result.session.deviceInfo?.fingerprint) {
-        if (deviceFingerprint !== result.session.deviceInfo.fingerprint) {
+      if (deviceFingerprint && result.session.deviceFingerprint) {
+        if (deviceFingerprint !== result.session.deviceFingerprint) {
           logger.debug(`Device fingerprint mismatch for session ${sessionId.substring(0, 8)}...`);
         }
       }
@@ -682,7 +780,7 @@ export class SessionController {
       res.json({
         valid: true,
         expiresAt: result.session.expiresAt.toISOString(),
-        lastActivity: result.session.deviceInfo.lastActive.toISOString(),
+        lastActivity: result.session.lastActiveAt.toISOString(),
         deviceId: result.session.deviceId,
         user: userData,
         sessionId: result.session.sessionId
@@ -725,33 +823,51 @@ export class SessionController {
       }
 
       // Deduplicate sessionIds before processing
-      const uniqueSessionIds = Array.from(new Set(sessionIds));
-      
+      const uniqueSessionIds = Array.from(new Set<string>(sessionIds));
+
       // Limit batch size to prevent abuse
       const MAX_BATCH_SIZE = 20;
       const limitedSessionIds = uniqueSessionIds.slice(0, MAX_BATCH_SIZE);
 
+      // Mongo's `.populate('userId', 'username email avatar name publicKey')`
+      // becomes a real join, and the projection becomes named columns:
+      // `sessions` carries two live bearer tokens and `users` the
+      // contact-discovery hashes, none of which this DTO may see
+      // (`db/schema/protectedColumns.ts`).
       const now = new Date();
-      const sessions = await Session.find({
-        sessionId: { $in: limitedSessionIds },
-        isActive: true,
-        expiresAt: { $gt: now }
-      })
-      .populate('userId', 'username email avatar name publicKey')
-      .lean()
-      .exec();
+      const rows = await getDb()
+        .select({
+          sessionId: sessions.sessionId,
+          id: users.id,
+          username: users.username,
+          email: users.email,
+          avatar: users.avatar,
+          nameFirst: users.nameFirst,
+          nameLast: users.nameLast,
+          publicKey: users.publicKey,
+        })
+        .from(sessions)
+        .innerJoin(users, eq(sessions.userId, users.id))
+        .where(
+          and(
+            inArray(sessions.sessionId, limitedSessionIds),
+            eq(sessions.isActive, true),
+            gt(sessions.expiresAt, now)
+          )
+        );
 
       // Transform to user data format
-      const usersMap = new Map<string, any>();
-      
-      for (const session of sessions) {
-        if (!session.userId || typeof session.userId !== 'object') continue;
-        
-        const user = session.userId;
-        const userData = formatUserResponse(user);
+      type FormattedUser = NonNullable<ReturnType<typeof formatUserResponse>>;
+      const usersMap = new Map<string, FormattedUser>();
+
+      for (const row of rows) {
+        // `formatUserResponse` reads the flat Drizzle row directly (`id` +
+        // `nameFirst`/`nameLast`); it is the ONE serializer that owns
+        // `name.displayName`, so nothing is recomposed here.
+        const userData = formatUserResponse(row);
         if (!userData?.id) continue;
-        
-        usersMap.set(session.sessionId, userData);
+
+        usersMap.set(row.sessionId, userData);
       }
 
       // Return array matching input order, with null for missing sessions
@@ -812,22 +928,18 @@ export class SessionController {
         return res.status(404).json({ message: 'Session not found' });
       }
 
-      // Update device name in database
-      await Session.updateOne(
-        { sessionId },
-        { 
-          $set: { 
-            'deviceInfo.deviceName': deviceName,
-            updatedAt: new Date()
-          } 
-        }
-      );
+      // Update device name in database. `updated_at` is maintained by the
+      // schema's `$onUpdate`, so it is no longer set by hand.
+      await getDb()
+        .update(sessions)
+        .set({ deviceName })
+        .where(eq(sessions.sessionId, sessionId));
 
       // Invalidate cache so next lookup gets fresh data
       sessionCache.invalidate(sessionId);
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: 'Device name updated successfully',
         deviceName: deviceName
       });
@@ -853,17 +965,79 @@ export class SessionController {
         return res.status(400).json({ message: 'Invalid public key format' });
       }
 
-      const user = await User.findOne({ publicKey });
+      // The public-profile projection (`PUBLIC_USER_PROFILE_SELECT`) becomes an
+      // explicit column list: inclusion-only for the same reason it was there —
+      // every unnamed column (`phone`, the contact hashes, the private half of
+      // the privacy settings) is dropped by the query itself rather than by a
+      // serializer remembering to.
+      const [user] = await getDb()
+        .select({
+          id: users.id,
+          username: users.username,
+          nameFirst: users.nameFirst,
+          nameLast: users.nameLast,
+          avatar: users.avatar,
+          color: users.color,
+          bio: users.bio,
+          description: users.description,
+          links: users.links,
+          verified: users.verified,
+          type: users.type,
+          // Gate-only: read to decide discoverability, never serialized.
+          accountStatus: users.accountStatus,
+          reputationTier: users.reputationTier,
+          // The one PUBLIC, derived consent leaf the projection exposed.
+          privacyFediverseSharing: users.privacyFediverseSharing,
+          privacyIsPrivateAccount: users.privacyIsPrivateAccount,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users)
+        .where(sql`lower(btrim(${users.publicKey})) = lower(btrim(${publicKey}))`)
+        .limit(1);
 
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      const userData = formatUserResponse(user);
-      if (!userData) {
-        return res.status(500).json({ message: 'Failed to format user data' });
-      }
+      // The `linksMetadata` array is a child table now, and the projection
+      // named it, so the preview list is joined back in its author-chosen order.
+      const previews = await getDb()
+        .select({
+          url: userLinkMetadata.url,
+          title: userLinkMetadata.title,
+          description: userLinkMetadata.description,
+          image: userLinkMetadata.image,
+        })
+        .from(userLinkMetadata)
+        .where(eq(userLinkMetadata.userId, user.id))
+        .orderBy(asc(userLinkMetadata.position));
+      // A preview with no image OMITS the key, as the Mongo subdocument did —
+      // `null` would be a new value on the wire.
+      const linksMetadata = previews.map(({ image, ...preview }) => ({
+        ...preview,
+        ...(image === null ? {} : { image }),
+      }));
 
+      const userData = userService.formatUserResponse({
+        ...user,
+        linksMetadata,
+        // `UserService.formatUserResponse` reads `privacySettings.fediverseSharing`
+        // to derive the PUBLIC sharing flag, and treats anything but an explicit
+        // `false` as opted in — so handing it only the flat column would report
+        // every opted-out account as sharing. The two leaves the projection
+        // exposed are re-nested here until that serializer is ported to read the
+        // columns directly.
+        privacySettings: {
+          fediverseSharing: user.privacyFediverseSharing,
+          isPrivateAccount: user.privacyIsPrivateAccount,
+        },
+        // The projection's `federation` leaf is deliberately NOT selected or
+        // re-nested: a federated actor is created with no `public_key`
+        // (`federation.service.ts:1095`, `:1137`), so it can never be the row
+        // this endpoint resolves, and the serializer's `if (userAny.federation)`
+        // was already false for every row it can return.
+      });
       res.json(userData);
     } catch (error) {
       logger.error('Get user by public key error:', error);

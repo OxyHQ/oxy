@@ -58,7 +58,7 @@ jest.mock('../../src/ui/hooks/useSurfaceHeader', () => ({
 
 jest.mock('@oxyhq/core', () => ({
   __esModule: true,
-  getAccountDisplayName: () => 'Nate',
+  getNormalizedUserHandle: () => 'nate',
   logger: { debug: jest.fn(), error: jest.fn() },
 }));
 

@@ -16,9 +16,23 @@
  * Neither ever throws: push is an auxiliary channel and must not fail the flow
  * that triggered it. Failures are logged and reported through the returned
  * counters.
+ *
+ * ## Token normalization does NOT live here
+ *
+ * Mongoose declared `PushToken.token` with `trim: true`, which applied to the
+ * WRITE and to every filter it cast — including the `deleteOne` below. Postgres
+ * has no counterpart, so per `db/schema/CONVENTIONS.md` the normalization is
+ * re-applied at the REGISTRATION call site (`routes/notifications.routes.ts`,
+ * where `registerPushTokenSchema` trims before the value is ever stored). Every
+ * token this module deletes was read back out of `push_tokens` moments earlier,
+ * so it is already in stored form and trimming it again here would be a
+ * no-op dressed up as a guarantee.
  */
 
-import { PushToken } from '../models/PushToken';
+import { and, eq } from 'drizzle-orm';
+
+import { getDb } from '../config/postgres';
+import { pushTokens } from '../db/schema/pushTokens';
 import { logger } from '../utils/logger';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
@@ -131,8 +145,13 @@ async function dispatch(
             (ticket.details as Record<string, unknown>).error === 'DeviceNotRegistered'
           ) {
             const invalidToken = chunk[i].to;
-            logger.info('Removing invalid push token', { userId, token: invalidToken });
-            await PushToken.deleteOne({ userId, token: invalidToken });
+            logger.info('Removing invalid push token', {
+              userId,
+              tokenPrefix: invalidToken.slice(0, 12),
+            });
+            await getDb()
+              .delete(pushTokens)
+              .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, invalidToken)));
           }
         }
       }
@@ -161,7 +180,10 @@ async function sendPushNotification(params: {
   const { userId, title, body, channelId, data } = params;
 
   try {
-    const tokens = await PushToken.find({ userId }).select('token').lean<{ token: string }[]>();
+    const tokens = await getDb()
+      .select({ token: pushTokens.token })
+      .from(pushTokens)
+      .where(eq(pushTokens.userId, userId));
 
     return await dispatch(userId, tokens.map((t) => t.token), { title, body, channelId, data });
   } catch (err) {

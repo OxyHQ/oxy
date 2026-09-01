@@ -5,17 +5,25 @@
  *    forwarding the resolved `since` seq + limit to `getPublicLogSince`.
  *  - GET /identity/head/:userId → { seq, headRecordId, recordCount } (or empty).
  *
+ * Both routes used to run `:userId` through the legacy 24-hex id predicate in
+ * `utils/validation.ts` and 404 on a miss, which rejects the uuid v7 every
+ * account minted since the Postgres cutover carries — so a personal data node
+ * could not replicate such an account's chain at all. The guard is deleted, and
+ * `USER_ID` here is a post-cutover id so nothing below can pass on the old shape.
+ *
  * The repoLog service is mocked (its ordering/capping is covered in
  * repoLog.test.ts); this suite locks the HTTP envelope + the cursor resolution.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 
 const mockGetPublicLogSince = jest.fn();
 const mockGetHead = jest.fn();
 const mockResolveCursorSeq = jest.fn();
 
-const USER_ID = '507f1f77bcf86cd799439011';
+/** A post-cutover account id — the shape the deleted guard rejected. */
+const USER_ID = randomUUID();
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -34,10 +42,7 @@ jest.mock('../../services/repoLog.service', () => ({
 }));
 
 jest.mock('../../services/nodeRegistry.service', () => ({ materializeNodeFromRecord: jest.fn() }));
-jest.mock('../../models/User', () => ({ __esModule: true, User: {}, default: {} }));
-jest.mock('../../models/DomainVerification', () => ({ __esModule: true, default: {} }));
 jest.mock('../../utils/userCache', () => ({ __esModule: true, default: { invalidate: jest.fn() } }));
-jest.mock('../../utils/validation', () => ({ isValidObjectId: (id: string) => /^[a-f0-9]{24}$/i.test(id) }));
 jest.mock('@oxyhq/core/server', () => ({ safeFetch: jest.fn() }));
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
@@ -138,9 +143,29 @@ describe('GET /identity/log/:userId', () => {
     expect(mockGetPublicLogSince).not.toHaveBeenCalled();
   });
 
-  it('returns 404 for an invalid user id', async () => {
+  it('serves the log of a post-cutover account', async () => {
+    // The premise: the deleted guard rejected this id shape outright, so a node
+    // could never replicate the chain of an account minted after the cutover.
+    expect(USER_ID).not.toMatch(/^[0-9a-f]{24}$/i);
+    mockGetPublicLogSince.mockResolvedValueOnce([envelope(0)]);
+
+    const res = await request(server, 'GET', `/identity/log/${USER_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+  });
+
+  it('answers a malformed id with the same empty log, by asking the store', async () => {
+    // An unknown account already answered the empty log — the guard only made a
+    // MALFORMED id a different outcome, which is the CastError shim, not a
+    // contract.
+    mockGetPublicLogSince.mockResolvedValueOnce([]);
+
     const res = await request(server, 'GET', '/identity/log/not-an-id');
-    expect(res.status).toBe(404);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ records: [], count: 0 });
+    expect(mockGetPublicLogSince).toHaveBeenCalledWith('not-an-id', -1, undefined);
   });
 });
 
@@ -157,5 +182,13 @@ describe('GET /identity/head/:userId', () => {
     const res = await request(server, 'GET', `/identity/head/${USER_ID}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ seq: -1, headRecordId: null, recordCount: 0 });
+  });
+
+  it('answers a malformed id with the same empty form', async () => {
+    mockGetHead.mockResolvedValueOnce(null);
+    const res = await request(server, 'GET', '/identity/head/not-an-id');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ seq: -1, headRecordId: null, recordCount: 0 });
+    expect(mockGetHead).toHaveBeenCalledWith('not-an-id');
   });
 });

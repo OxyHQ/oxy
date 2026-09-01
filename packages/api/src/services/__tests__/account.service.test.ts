@@ -1,364 +1,302 @@
 /**
- * account.service tests — unified Account graph.
+ * account.service tests — unified Account graph, against a REAL Postgres.
  *
- * Pure tree/inheritance helpers are tested directly. The DB-bound service is
- * exercised against a tiny in-memory store (one per collection) supporting the
- * Mongoose subset the service uses, including ARRAY-FIELD matching for the
- * materialised `ancestors` path (`{ancestors: id}`, `{ancestors: {$in}}`) and
- * top-level `$or`. `mongoose.startSession` is stubbed so the transactional
- * `moveAccount` path runs inline.
+ * This suite used to run against a hand-written in-memory emulator of the
+ * Mongoose subset the service used, including array-field matching for the
+ * embedded `ancestors` path. None of that survives the port, and rebuilding it
+ * for Drizzle would be rebuilding the wrong thing: `ancestors` is now the
+ * `user_ancestors` TABLE, membership resolution is a real query, and
+ * `moveAccount` is a real transaction. An emulator can only assert the calls a
+ * service makes; the properties worth protecting here — the subtree rewrite, the
+ * last-owner guard, inheritance precedence, the rotation grace window — are
+ * properties of stored ROWS.
+ *
+ * Pure tree/inheritance helpers stay unit-tested with no database, because they
+ * are pure.
+ *
+ * The whole run shares one database, so every test mints its own accounts.
  */
 
-import { Types } from 'mongoose';
-
-interface AnyDoc {
-  _id: Types.ObjectId;
-  [key: string]: unknown;
-}
-
-function makeStore() {
-  return { docs: [] as AnyDoc[] };
-}
-
-const userStore = makeStore();
-const memberStore = makeStore();
-const credentialStore = makeStore();
-
-function clearStores(): void {
-  userStore.docs = [];
-  memberStore.docs = [];
-  credentialStore.docs = [];
-}
-
-const idEq = (a: unknown, b: unknown): boolean => String(a) === String(b);
-
-/** Match a single field value against a query expectation (handles arrays). */
-function matchField(actual: unknown, expected: unknown): boolean {
-  if (expected instanceof Types.ObjectId) {
-    return Array.isArray(actual)
-      ? actual.some((a) => idEq(a, expected))
-      : idEq(actual, expected);
-  }
-  if (expected !== null && typeof expected === 'object') {
-    const op = expected as Record<string, unknown>;
-    if ('$in' in op) {
-      const list = op.$in as unknown[];
-      return Array.isArray(actual)
-        ? actual.some((a) => list.some((v) => idEq(a, v)))
-        : list.some((v) => idEq(v, actual));
-    }
-    if ('$ne' in op) {
-      return Array.isArray(actual)
-        ? !actual.some((a) => idEq(a, op.$ne))
-        : !idEq(actual, op.$ne);
-    }
-    if ('$exists' in op) {
-      return (actual !== undefined) === op.$exists;
-    }
-    return false;
-  }
-  if (Array.isArray(actual)) {
-    return actual.some((a) => idEq(a, expected));
-  }
-  return idEq(actual, expected);
-}
-
-function matchesQuery(doc: AnyDoc, query: Record<string, unknown>): boolean {
-  return Object.entries(query).every(([key, expected]) => {
-    if (key === '$or') {
-      return (expected as Record<string, unknown>[]).some((sub) => matchesQuery(doc, sub));
-    }
-    return matchField(doc[key], expected);
-  });
-}
-
-function makeQuery(results: AnyDoc[]) {
-  const chain = {
-    sort: () => chain,
-    skip: () => chain,
-    limit: () => chain,
-    session: () => chain,
-    select: () => chain,
-    populate: () => chain,
-    lean: async (): Promise<AnyDoc | null> => results[0] ?? null,
-    then: (
-      onFulfilled: (value: AnyDoc[]) => unknown,
-      onRejected?: (reason: unknown) => unknown
-    ) => Promise.resolve(results).then(onFulfilled, onRejected),
-  };
-  return chain;
-}
-
-function makeDocQuery(doc: AnyDoc | null) {
-  const chain = {
-    select: () => chain,
-    lean: async (): Promise<AnyDoc | null> => doc,
-    then: (
-      onFulfilled: (value: AnyDoc | null) => unknown,
-      onRejected?: (reason: unknown) => unknown
-    ) => Promise.resolve(doc).then(onFulfilled, onRejected),
-  };
-  return chain;
-}
-
-function attachSave(doc: AnyDoc, store: ReturnType<typeof makeStore>): AnyDoc {
-  if (typeof doc.save === 'function') {
-    return doc;
-  }
-  Object.defineProperty(doc, 'save', {
-    enumerable: false,
-    configurable: true,
-    value: async () => {
-      const idx = store.docs.findIndex((d) => d._id.equals(doc._id));
-      if (idx === -1) store.docs.push(doc);
-      else store.docs[idx] = doc;
-      return doc;
-    },
-  });
-  return doc;
-}
-
-function makeModel(store: ReturnType<typeof makeStore>) {
-  return {
-    async create(payload: Record<string, unknown> | Record<string, unknown>[]) {
-      const arr = Array.isArray(payload) ? payload : [payload];
-      const created = arr.map((data) => {
-        const doc = attachSave(
-          {
-            _id: (data._id as Types.ObjectId) ?? new Types.ObjectId(),
-            createdAt: (data.createdAt as Date) ?? new Date(),
-            updatedAt: new Date(),
-            ...data,
-          },
-          store
-        );
-        store.docs.push(doc);
-        return doc;
-      });
-      return Array.isArray(payload) ? created : created[0];
-    },
-    async findOne(query: Record<string, unknown> = {}) {
-      const found = store.docs.find((d) => matchesQuery(d, query));
-      return found ? attachSave(found, store) : null;
-    },
-    findById(id: string | Types.ObjectId) {
-      const target = id instanceof Types.ObjectId ? id : new Types.ObjectId(String(id));
-      const found = store.docs.find((d) => d._id.equals(target));
-      return makeDocQuery(found ? attachSave(found, store) : null);
-    },
-    find(query: Record<string, unknown> = {}) {
-      const results = store.docs
-        .filter((d) => matchesQuery(d, query))
-        .map((d) => attachSave(d, store));
-      return makeQuery(results);
-    },
-    async countDocuments(query: Record<string, unknown> = {}) {
-      return store.docs.filter((d) => matchesQuery(d, query)).length;
-    },
-    // Minimal aggregate supporting the `$match` + group-by-parentAccountId count
-    // pipeline used by annotateAccounts (childCount of accounts not in the set).
-    async aggregate(pipeline: Array<Record<string, unknown>>) {
-      const matchStage = pipeline.find((s) => '$match' in s)?.$match as
-        | Record<string, unknown>
-        | undefined;
-      const matched = store.docs.filter((d) => matchesQuery(d, matchStage ?? {}));
-      const groupStage = pipeline.find((s) => '$group' in s)?.$group as
-        | Record<string, unknown>
-        | undefined;
-      if (groupStage?._id === '$parentAccountId') {
-        const counts = new Map<string, number>();
-        for (const d of matched) {
-          const key = d.parentAccountId ? String(d.parentAccountId) : null;
-          if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
-        }
-        return [...counts].map(([k, n]) => ({ _id: new Types.ObjectId(k), n }));
-      }
-      return [];
-    },
-  };
-}
-
-// Preserve the real non-model exports (MAX_ACCOUNT_DEPTH, ACCOUNT_KINDS, …)
-// while replacing the Mongoose model with the in-memory fake.
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  ...jest.requireActual('../../models/User'),
-  User: makeModel(userStore),
-  default: makeModel(userStore),
-}));
-jest.mock('../../models/AccountMember', () => ({
-  __esModule: true,
-  AccountMember: makeModel(memberStore),
-  default: makeModel(memberStore),
-}));
-jest.mock('../../models/AccountCredential', () => ({
-  __esModule: true,
-  AccountCredential: makeModel(credentialStore),
-  default: makeModel(credentialStore),
-}));
-
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  const startSession = jest.fn(async () => ({
-    withTransaction: async (fn: () => Promise<unknown>) => fn(),
-    endSession: async () => undefined,
-  }));
-  const patched = { ...actual, startSession };
-  return { __esModule: true, ...patched, default: patched };
-});
-
-import accountService, {
+import { and, eq } from 'drizzle-orm';
+import {
+  ACCOUNT_CATEGORY_IDS,
+  CHILD_ACCOUNT_KINDS,
+  type AccountCategoryId,
+} from '@oxyhq/contracts';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { accountMembers } from '../../db/schema/accountMembers';
+import { MAX_ACCOUNT_DEPTH, userAncestors } from '../../db/schema/userAncestors';
+import { userAuthMethods } from '../../db/schema/userAuthMethods';
+import { users } from '../../db/schema/users';
+import {
+  accountService,
   childAncestorsOf,
   childRootOf,
-  wouldCreateCycle,
-  rewriteDescendantAncestors,
+  channelCannotParentChannel,
   resolveEffectiveMembership,
+  rewriteDescendantAncestors,
+  wouldCreateCycle,
+  type AccountMemberRow,
+  type AccountRow,
   type MembershipLike,
 } from '../account.service';
-import { permissionsForAccountRole, type AccountRole } from '../../utils/accountRoles';
 
-// ---------------------------------------------------------------------------
-// Seeding helpers
-// ---------------------------------------------------------------------------
+beforeAll(async () => {
+  await connectPostgres();
+});
 
-function seedAccount(fields: Partial<AnyDoc> & { kind?: string }): AnyDoc {
-  const _id = (fields._id as Types.ObjectId) ?? new Types.ObjectId();
-  const doc: AnyDoc = {
-    _id,
-    username: `acct_${_id.toString().slice(-6)}`,
-    kind: fields.kind ?? 'personal',
-    parentAccountId: fields.parentAccountId ?? null,
-    ancestors: fields.ancestors ?? [],
-    rootAccountId: fields.rootAccountId ?? _id,
-    accountStatus: 'active',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...fields,
-  };
-  userStore.docs.push(doc);
-  return doc;
-}
-
-function seedMember(
-  accountId: Types.ObjectId,
-  memberUserId: Types.ObjectId,
-  role: AccountRole,
-  opts: { inherit?: boolean; status?: string } = {}
-): AnyDoc {
-  const doc: AnyDoc = {
-    _id: new Types.ObjectId(),
-    accountId,
-    memberUserId,
-    role,
-    permissions: permissionsForAccountRole(role),
-    inherit: opts.inherit ?? true,
-    status: opts.status ?? 'active',
-    joinedAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  memberStore.docs.push(doc);
-  return doc;
-}
-
-beforeEach(() => {
-  clearStores();
+afterAll(async () => {
+  await closePostgres();
 });
 
 // ===========================================================================
-// Pure helpers
+// Fixtures
+// ===========================================================================
+
+let seedCounter = 0;
+function uniqueUsername(prefix: string): string {
+  seedCounter += 1;
+  return `${prefix}${seedCounter}z${Date.now().toString(36)}`;
+}
+
+/**
+ * A handle legal for `kind`. Only `bot` differs — `botUsernameSchema`
+ * (`@oxyhq/contracts`) requires its handle to end in `bot` — so a loop over every
+ * child kind has to carry the label for that one member, or the iteration 400s
+ * on a question that has nothing to do with what the case is testing.
+ */
+function uniqueUsernameFor(
+  kind: (typeof CHILD_ACCOUNT_KINDS)[number],
+  prefix: string
+): string {
+  const handle = uniqueUsername(prefix);
+  return kind === 'bot' ? `${handle}bot` : handle;
+}
+
+interface SeedOptions {
+  kind?: 'personal' | 'organization' | 'project' | 'bot' | 'channel';
+  username?: string;
+  nameFirst?: string;
+  nameLast?: string;
+  parentAccountId?: string;
+  rootAccountId?: string;
+  /** Root FIRST, matching `user_ancestors.depth` ordering. */
+  ancestors?: string[];
+}
+
+async function seedAccount(options: SeedOptions = {}): Promise<AccountRow> {
+  const [account] = await getDb()
+    .insert(users)
+    .values({
+      color: 'teal',
+      kind: options.kind ?? 'personal',
+      username: options.username ?? uniqueUsername('acct'),
+      nameFirst: options.nameFirst,
+      nameLast: options.nameLast,
+      parentAccountId: options.parentAccountId,
+      rootAccountId: options.rootAccountId,
+    })
+    .returning();
+
+  const ancestors = options.ancestors ?? [];
+  if (ancestors.length > 0) {
+    await getDb()
+      .insert(userAncestors)
+      .values(ancestors.map((ancestorId, depth) => ({ userId: account.id, ancestorId, depth })));
+  }
+  return account as AccountRow;
+}
+
+async function seedMember(
+  accountId: string,
+  memberUserId: string,
+  role: AccountMemberRow['role'],
+  extra: {
+    inherit?: boolean;
+    status?: AccountMemberRow['status'];
+    permissionGrants?: string[];
+    permissionRevokes?: string[];
+  } = {}
+): Promise<AccountMemberRow> {
+  const [row] = await getDb()
+    .insert(accountMembers)
+    .values({
+      accountId,
+      memberUserId,
+      role,
+      inherit: extra.inherit ?? true,
+      status: extra.status ?? 'active',
+      permissionGrants: extra.permissionGrants ?? [],
+      permissionRevokes: extra.permissionRevokes ?? [],
+    })
+    .returning();
+  return row;
+}
+
+/** The stored materialised path, root first. */
+async function ancestorsOf(accountId: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ ancestorId: userAncestors.ancestorId })
+    .from(userAncestors)
+    .where(eq(userAncestors.userId, accountId))
+    .orderBy(userAncestors.depth);
+  return rows.map((row) => row.ancestorId);
+}
+
+async function reload(accountId: string) {
+  const [row] = await getDb()
+    .select({
+      rootAccountId: users.rootAccountId,
+      parentAccountId: users.parentAccountId,
+      nameFirst: users.nameFirst,
+      nameLast: users.nameLast,
+    })
+    .from(users)
+    .where(eq(users.id, accountId));
+  return row;
+}
+
+async function memberRowById(memberId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(accountMembers)
+    .where(eq(accountMembers.id, memberId));
+  return row;
+}
+
+async function memberRowsFor(accountId: string, memberUserId: string) {
+  return getDb()
+    .select()
+    .from(accountMembers)
+    .where(
+      and(eq(accountMembers.accountId, accountId), eq(accountMembers.memberUserId, memberUserId))
+    );
+}
+
+// ===========================================================================
+// Pure helpers — no database
 // ===========================================================================
 
 describe('account tree pure helpers', () => {
+  const node = (id: string, ancestors: string[], rootAccountId: string | null = null) => ({
+    account: { id, rootAccountId } as AccountRow,
+    ancestors,
+  });
+
   test('childAncestorsOf appends parent to its ancestors (root → parent order)', () => {
-    const root = new Types.ObjectId();
-    const parent = { _id: new Types.ObjectId(), ancestors: [root] } as never;
-    expect(childAncestorsOf(parent).map(String)).toEqual([
-      root.toString(),
-      (parent as { _id: Types.ObjectId })._id.toString(),
-    ]);
+    expect(childAncestorsOf(node('parent', ['root']))).toEqual(['root', 'parent']);
   });
 
   test('childRootOf inherits the parent root, or the parent itself for a root', () => {
-    const parentRootId = new Types.ObjectId();
-    const child = { _id: new Types.ObjectId(), rootAccountId: parentRootId } as never;
-    expect(String(childRootOf(child))).toBe(parentRootId.toString());
+    expect(childRootOf(node('child', [], 'the-root'))).toBe('the-root');
+    expect(childRootOf(node('a-root', [], null))).toBe('a-root');
+  });
 
-    const rootParent = { _id: new Types.ObjectId(), rootAccountId: undefined } as never;
-    expect(String(childRootOf(rootParent))).toBe(
-      (rootParent as { _id: Types.ObjectId })._id.toString()
-    );
+  test('channelCannotParentChannel is true only when both parent and child are channels', () => {
+    expect(channelCannotParentChannel('channel', 'channel')).toBe(true);
+    expect(channelCannotParentChannel('channel', 'organization')).toBe(false);
+    expect(channelCannotParentChannel('personal', 'channel')).toBe(false);
   });
 
   test('wouldCreateCycle detects self-parenting and descendant-parenting', () => {
-    const a = new Types.ObjectId();
-    const b = new Types.ObjectId();
-    // self
-    expect(wouldCreateCycle(a, { _id: a, ancestors: [] } as never)).toBe(true);
-    // b is a descendant of a (a ∈ b.ancestors) → moving a under b is a cycle
-    expect(wouldCreateCycle(a, { _id: b, ancestors: [a] } as never)).toBe(true);
-    // unrelated
-    expect(wouldCreateCycle(a, { _id: b, ancestors: [] } as never)).toBe(false);
+    expect(wouldCreateCycle('a', node('a', []))).toBe(true);
+    // `b` is a descendant of `a`, so moving `a` under `b` closes a loop.
+    expect(wouldCreateCycle('a', node('b', ['a']))).toBe(true);
+    expect(wouldCreateCycle('a', node('b', []))).toBe(false);
   });
 
   test('rewriteDescendantAncestors swaps the moved-node prefix, keeps the suffix', () => {
-    const root = new Types.ObjectId();
-    const self = new Types.ObjectId();
-    const child = new Types.ObjectId();
-    const newRoot = new Types.ObjectId();
-    // descendant currently: [root, self, child-of-self...] → ancestors of grandchild = [root, self, child]
-    const grandchildAncestors = [root, self, child];
-    const result = rewriteDescendantAncestors([root], [newRoot], grandchildAncestors);
-    expect(result.map(String)).toEqual([
-      newRoot.toString(),
-      self.toString(),
-      child.toString(),
+    expect(rewriteDescendantAncestors(['root'], ['new-root'], ['root', 'self', 'child'])).toEqual([
+      'new-root',
+      'self',
+      'child',
     ]);
   });
 
   test('resolveEffectiveMembership: a direct row on the account always wins', () => {
-    const account = new Types.ObjectId();
-    const parent = new Types.ObjectId();
     const rows: MembershipLike[] = [
-      { accountId: account, role: 'viewer', permissions: [], inherit: true, status: 'active' },
-      { accountId: parent, role: 'owner', permissions: [], inherit: true, status: 'active' },
+      { accountId: 'account', role: 'viewer', inherit: true, status: 'active' },
+      { accountId: 'parent', role: 'owner', inherit: true, status: 'active' },
     ];
-    const resolved = resolveEffectiveMembership(rows, account, [parent]);
+    const resolved = resolveEffectiveMembership(rows, 'account', ['parent']);
     expect(resolved?.row.role).toBe('viewer');
     expect(resolved?.source).toBe('direct');
   });
 
   test('resolveEffectiveMembership: an inheriting ancestor row applies', () => {
-    const account = new Types.ObjectId();
-    const parent = new Types.ObjectId();
     const rows: MembershipLike[] = [
-      { accountId: parent, role: 'admin', permissions: [], inherit: true, status: 'active' },
+      { accountId: 'parent', role: 'admin', inherit: true, status: 'active' },
     ];
-    const resolved = resolveEffectiveMembership(rows, account, [parent]);
+    const resolved = resolveEffectiveMembership(rows, 'account', ['parent']);
     expect(resolved?.row.role).toBe('admin');
     expect(resolved?.source).toBe('inherited');
   });
 
   test('resolveEffectiveMembership: inherit:false ancestor row does NOT cascade', () => {
-    const account = new Types.ObjectId();
-    const parent = new Types.ObjectId();
     const rows: MembershipLike[] = [
-      { accountId: parent, role: 'admin', permissions: [], inherit: false, status: 'active' },
+      { accountId: 'parent', role: 'admin', inherit: false, status: 'active' },
     ];
-    expect(resolveEffectiveMembership(rows, account, [parent])).toBeNull();
+    expect(resolveEffectiveMembership(rows, 'account', ['parent'])).toBeNull();
   });
 
   test('resolveEffectiveMembership: nearest ancestor wins over a farther one', () => {
-    const account = new Types.ObjectId();
-    const parent = new Types.ObjectId();
-    const grandparent = new Types.ObjectId();
     const rows: MembershipLike[] = [
-      { accountId: grandparent, role: 'owner', permissions: [], inherit: true, status: 'active' },
-      { accountId: parent, role: 'editor', permissions: [], inherit: true, status: 'active' },
+      { accountId: 'grandparent', role: 'owner', inherit: true, status: 'active' },
+      { accountId: 'parent', role: 'editor', inherit: true, status: 'active' },
     ];
-    // ancestors are root → parent, so [grandparent, parent]
-    const resolved = resolveEffectiveMembership(rows, account, [grandparent, parent]);
+    // Ancestors are stored root-first, so the immediate parent is LAST.
+    const resolved = resolveEffectiveMembership(rows, 'account', ['grandparent', 'parent']);
     expect(resolved?.row.role).toBe('editor');
+  });
+});
+
+// ===========================================================================
+// updateAccount
+// ===========================================================================
+
+describe('updateAccount', () => {
+  test('merges partial name updates without clobbering existing fields', async () => {
+    const account = await seedAccount({ nameFirst: 'Ada', nameLast: 'Lovelace' });
+
+    await accountService.updateAccount(account.id, { name: { first: 'Augusta' } });
+
+    const stored = await reload(account.id);
+    expect(stored.nameFirst).toBe('Augusta');
+    // The half the caller did not send must survive — a whole-object write here
+    // would silently erase the surname.
+    expect(stored.nameLast).toBe('Lovelace');
+  });
+
+  test('accepts name separators that join real names', async () => {
+    const account = await seedAccount({
+      kind: 'organization',
+      nameFirst: 'Acme',
+      nameLast: 'Corp',
+    });
+
+    await accountService.updateAccount(account.id, { name: { first: 'Codeur·euses' } });
+
+    const stored = await reload(account.id);
+    expect(stored.nameFirst).toBe('Codeur·euses');
+    expect(stored.nameLast).toBe('Corp');
+  });
+
+  test('rejects invalid display names before persisting', async () => {
+    const account = await seedAccount({
+      kind: 'organization',
+      nameFirst: 'Acme',
+      nameLast: 'Corp',
+    });
+
+    await expect(
+      accountService.updateAccount(account.id, { name: { first: 'Agent007' } }),
+    ).rejects.toThrow(/name separators/i);
+
+    // "before persisting" checked against the ROW, not against a call that did
+    // not happen: a rejection thrown after the UPDATE would leave 'Agent007' here.
+    const stored = await reload(account.id);
+    expect(stored.nameFirst).toBe('Acme');
+    expect(stored.nameLast).toBe('Corp');
   });
 });
 
@@ -368,80 +306,312 @@ describe('account tree pure helpers', () => {
 
 describe('createChildAccount', () => {
   test('builds ancestors/root, mints the account, records creator as owner', async () => {
-    const root = seedAccount({ kind: 'personal' });
+    const root = await seedAccount();
 
-    const { account, membership } = await accountService.createChildAccount(
-      root._id.toString(),
-      root._id.toString(),
-      { kind: 'organization', username: 'oxy' }
-    );
+    const { account, membership } = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'organization',
+      username: uniqueUsername('oxy'),
+    });
 
     expect(account.kind).toBe('organization');
-    expect((account.ancestors as Types.ObjectId[]).map(String)).toEqual([root._id.toString()]);
-    expect(String(account.rootAccountId)).toBe(root._id.toString());
-    expect(String(account.parentAccountId)).toBe(root._id.toString());
-    expect(account.authMethods).toEqual([]);
+    expect(await ancestorsOf(account.id)).toEqual([root.id]);
+    expect(account.rootAccountId).toBe(root.id);
+    expect(account.parentAccountId).toBe(root.id);
 
     expect(membership.role).toBe('owner');
-    expect(String(membership.memberUserId)).toBe(root._id.toString());
-    expect(String(membership.accountId)).toBe(account._id.toString());
+    expect(membership.memberUserId).toBe(root.id);
+    expect(membership.accountId).toBe(account.id);
+  });
+
+  /**
+   * THE FIELD REACHES THE COLUMN, and saying nothing leaves the default.
+   *
+   * Both halves are load-bearing and they fail differently. A create path that
+   * ignores `isPrivateAccount` publishes an account its owner never published —
+   * silently, because nothing errors and the row looks fine. A create path that
+   * defaults it the OTHER way hides every account every existing caller makes,
+   * equally silently. So the default case is asserted beside the explicit one
+   * rather than assumed from the column definition.
+   *
+   * Read back from the stored row, never from the service's return value: the
+   * question is what the database holds, and a serializer that echoed the input
+   * would answer it wrongly.
+   */
+  test('creates an account opted OUT of discovery when asked, and discoverable when not', async () => {
+    const root = await seedAccount();
+
+    const hidden = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsernameFor('bot', 'hidden'),
+      isPrivateAccount: true,
+    });
+    const silent = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsernameFor('bot', 'silent'),
+    });
+    const explicit = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'bot',
+      username: uniqueUsernameFor('bot', 'explicit'),
+      isPrivateAccount: false,
+    });
+
+    const stored = async (id: string) => {
+      const [row] = await getDb()
+        .select({ isPrivate: users.privacyIsPrivateAccount })
+        .from(users)
+        .where(eq(users.id, id));
+      return row.isPrivate;
+    };
+
+    expect(await stored(hidden.account.id)).toBe(true);
+    // The unchanged behaviour for every caller that predates this option.
+    expect(await stored(silent.account.id)).toBe(false);
+    expect(await stored(explicit.account.id)).toBe(false);
+  });
+
+  /**
+   * Not conditioned on `kind`. `createAccountRequestSchema` takes an explicit
+   * position against kind-conditional fields and a contracts test enforces it,
+   * so a create path that honoured this only for `bot` would contradict the
+   * contract while still passing the case above.
+   */
+  test('honours the opt-out for every child kind, not only bot', async () => {
+    const root = await seedAccount();
+
+    for (const kind of ['organization', 'project', 'bot', 'channel'] as const) {
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind,
+        username: uniqueUsernameFor(kind, `priv${kind}`),
+        isPrivateAccount: true,
+      });
+      const [row] = await getDb()
+        .select({ isPrivate: users.privacyIsPrivateAccount })
+        .from(users)
+        .where(eq(users.id, account.id));
+      expect({ kind, isPrivate: row.isPrivate }).toEqual({ kind, isPrivate: true });
+    }
   });
 
   test('rejects a personal child kind', async () => {
-    const root = seedAccount({ kind: 'personal' });
+    const root = await seedAccount();
     await expect(
-      accountService.createChildAccount(root._id.toString(), root._id.toString(), {
-        // deliberately invalid kind to exercise the guard
+      accountService.createChildAccount(root.id, root.id, {
         kind: 'personal' as never,
-        username: 'nope',
+        username: uniqueUsername('nope'),
       })
     ).rejects.toThrow(/child account kind/i);
   });
 
-  test('persists organizationCategory on organization accounts', async () => {
-    const root = seedAccount({ kind: 'personal' });
+  /**
+   * A channel is a real child account, minted the same way as every other kind
+   * — and with NO credential of any sort. `user_auth_methods` staying empty is
+   * the first half of "no login, ever"; the second half is that no bearer whose
+   * subject is a channel can ever be minted (see `accountsSwitch.test.ts` and
+   * `authSession.service.test.ts`), so nothing can add a row here later.
+   */
+  test('mints a channel child account with no auth methods', async () => {
+    const root = await seedAccount();
 
-    const { account } = await accountService.createChildAccount(
-      root._id.toString(),
-      root._id.toString(),
-      { kind: 'organization', username: 'acme', organizationCategory: 'agency' }
-    );
+    const { account, membership } = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'channel',
+      username: uniqueUsername('daily-news'),
+    });
 
-    expect(account.organizationCategory).toBe('agency');
+    expect(account.kind).toBe('channel');
+    expect(account.parentAccountId).toBe(root.id);
+    expect(membership.role).toBe('owner');
+    expect(membership.memberUserId).toBe(root.id);
+
+    const methods = await getDb()
+      .select({ id: userAuthMethods.id })
+      .from(userAuthMethods)
+      .where(eq(userAuthMethods.userId, account.id));
+    expect(methods).toEqual([]);
   });
 
-  test('rejects organizationCategory on non-organization kinds', async () => {
-    const root = seedAccount({ kind: 'personal' });
+  test('rejects a channel parenting another channel', async () => {
+    const root = await seedAccount();
+    const parentChannel = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'channel',
+      username: uniqueUsername('parent-channel'),
+    });
+
     await expect(
-      accountService.createChildAccount(root._id.toString(), root._id.toString(), {
-        kind: 'project',
-        username: 'proj',
-        organizationCategory: 'landlord',
+      accountService.createChildAccount(parentChannel.account.id, root.id, {
+        kind: 'channel',
+        username: uniqueUsername('child-channel'),
       })
-    ).rejects.toThrow(/organizationCategory/i);
+    ).rejects.toThrow(/channel cannot own another channel/i);
   });
 
-  test('suffixes the username on collision', async () => {
-    const root = seedAccount({ kind: 'personal' });
-    seedAccount({ kind: 'organization', username: 'oxy' });
+  /**
+   * The ORDER the caller gave has to reach the column unchanged, because index
+   * 0 is the primary category. The fixture is three long and its primary is
+   * neither alphabetically first nor first in the declared vocabulary, so a
+   * sort on either key would be visible here.
+   */
+  test('persists account categories in the caller\'s order', async () => {
+    const root = await seedAccount();
+    const chosen: AccountCategoryId[] = ['news', 'art', 'film'];
+    expect([...chosen].sort()).not.toEqual(chosen);
+    expect(
+      [...chosen].sort(
+        (a, b) => ACCOUNT_CATEGORY_IDS.indexOf(a) - ACCOUNT_CATEGORY_IDS.indexOf(b)
+      )
+    ).not.toEqual(chosen);
 
-    const { account } = await accountService.createChildAccount(
-      root._id.toString(),
-      root._id.toString(),
-      { kind: 'organization', username: 'oxy' }
-    );
-    expect(account.username).toBe('oxy1');
+    const { account } = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'organization',
+      username: uniqueUsername('acme'),
+      accountCategories: chosen,
+    });
+    expect(account.accountCategories).toEqual(chosen);
+
+    // Read back from the database rather than trusting `returning()`, so the
+    // round trip through the `text[]` column is what is asserted.
+    const [stored] = await getDb()
+      .select({ categories: users.accountCategories })
+      .from(users)
+      .where(eq(users.id, account.id));
+    expect(stored.categories).toEqual(chosen);
+  });
+
+  test('accepts categories on every non-personal kind', async () => {
+    const root = await seedAccount();
+    for (const kind of CHILD_ACCOUNT_KINDS) {
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind,
+        username: uniqueUsernameFor(kind, `cat-${kind}`),
+        accountCategories: ['technology'],
+      });
+      expect(account.accountCategories).toEqual(['technology']);
+    }
+  });
+
+  test('defaults to no categories rather than null', async () => {
+    const root = await seedAccount();
+    const { account } = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'project',
+      username: uniqueUsername('bare'),
+    });
+    expect(account.accountCategories).toEqual([]);
+  });
+
+  describe('updateAccount categories', () => {
+    test('refuses them on a PERSONAL account', async () => {
+      const person = await seedAccount({ kind: 'personal' });
+
+      await expect(
+        accountService.updateAccount(person.id, { accountCategories: ['news'] })
+      ).rejects.toThrow(/personal.*cannot carry categories/i);
+
+      // The refusal must be about the KIND and nothing else: the SAME call on a
+      // non-personal account has to succeed, or this test would also pass
+      // against a rule that refused everyone.
+      const org = await accountService.createChildAccount(person.id, person.id, {
+        kind: 'organization',
+        username: uniqueUsername('org'),
+      });
+      const updated = await accountService.updateAccount(org.account.id, {
+        accountCategories: ['news'],
+      });
+      expect(updated.accountCategories).toEqual(['news']);
+    });
+
+    test('leaves categories alone when the field is absent', async () => {
+      const root = await seedAccount();
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind: 'channel',
+        username: uniqueUsername('chan'),
+        accountCategories: ['news', 'politics'],
+      });
+
+      // The `bio: null` failure with another face: an update that never
+      // mentions categories must not disturb them.
+      const updated = await accountService.updateAccount(account.id, { bio: 'hello' });
+      expect(updated.bio).toBe('hello');
+      expect(updated.accountCategories).toEqual(['news', 'politics']);
+    });
+
+    test('replaces the whole list, preserving the new order', async () => {
+      const root = await seedAccount();
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind: 'channel',
+        username: uniqueUsername('chan'),
+        accountCategories: ['news', 'art', 'film'],
+      });
+
+      // Promoting `film` to primary is expressed as a re-ordering, which is
+      // the only reason the update replaces the list rather than patching it.
+      const updated = await accountService.updateAccount(account.id, {
+        accountCategories: ['film', 'news', 'art'],
+      });
+      expect(updated.accountCategories).toEqual(['film', 'news', 'art']);
+    });
+
+    test('clears them with an empty list', async () => {
+      const root = await seedAccount();
+      const { account } = await accountService.createChildAccount(root.id, root.id, {
+        kind: 'channel',
+        username: uniqueUsername('chan'),
+        accountCategories: ['news'],
+      });
+      const updated = await accountService.updateAccount(account.id, {
+        accountCategories: [],
+      });
+      expect(updated.accountCategories).toEqual([]);
+    });
+  });
+
+  test('rejects invalid display names on create', async () => {
+    const root = await seedAccount({ kind: 'personal' });
+    const username = uniqueUsername('proj');
+
+    await expect(
+      accountService.createChildAccount(root.id, root.id, {
+        kind: 'project',
+        username,
+        name: { first: 'Agent007' },
+      }),
+    ).rejects.toThrow(/name separators/i);
+
+    // Nothing was created: the username the call claimed is still free.
+    const [row] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, username));
+    expect(row).toBeUndefined();
+  });
+
+  /**
+   * This used to assert `${taken}1` — the suffix. Asking for a handle and being
+   * given a different one is the server answering a question nobody asked, and
+   * the consumers were already written for the refusal: Alia retries on 409, and
+   * the cost-centre seed treats a suffix as a failure. `accountUsernameCollision`
+   * covers the rename, the case-insensitivity and the lost race.
+   */
+  test('refuses a taken username rather than suffixing it', async () => {
+    const root = await seedAccount();
+    const taken = uniqueUsername('oxy');
+    await seedAccount({ kind: 'organization', username: taken });
+
+    await expect(
+      accountService.createChildAccount(root.id, root.id, { kind: 'organization', username: taken })
+    ).rejects.toMatchObject({ statusCode: 409 });
   });
 
   test('enforces MAX_ACCOUNT_DEPTH', async () => {
-    // A parent already at the maximum depth (ancestors.length === 8).
-    const deepAncestors = Array.from({ length: 8 }, () => new Types.ObjectId());
-    const parent = seedAccount({ kind: 'project', ancestors: deepAncestors });
+    // A parent already sitting at the maximum depth.
+    const chain: string[] = [];
+    for (let i = 0; i < MAX_ACCOUNT_DEPTH; i += 1) {
+      chain.push((await seedAccount({ kind: 'project' })).id);
+    }
+    const parent = await seedAccount({ kind: 'project', ancestors: chain });
 
     await expect(
-      accountService.createChildAccount(parent._id.toString(), parent._id.toString(), {
+      accountService.createChildAccount(parent.id, parent.id, {
         kind: 'project',
-        username: 'too-deep',
+        username: uniqueUsername('too-deep'),
       })
     ).rejects.toThrow(/depth/i);
   });
@@ -453,91 +623,83 @@ describe('createChildAccount', () => {
 
 describe('moveAccount', () => {
   test('rewrites the whole subtree ancestors + root', async () => {
-    const root = seedAccount({ kind: 'personal' });
-    const a = seedAccount({
+    const root = await seedAccount();
+    const a = await seedAccount({
       kind: 'organization',
-      parentAccountId: root._id,
-      ancestors: [root._id],
-      rootAccountId: root._id,
+      parentAccountId: root.id,
+      rootAccountId: root.id,
+      ancestors: [root.id],
     });
-    const b = seedAccount({
+    const child = await seedAccount({
       kind: 'project',
-      parentAccountId: a._id,
-      ancestors: [root._id, a._id],
-      rootAccountId: root._id,
+      parentAccountId: a.id,
+      rootAccountId: root.id,
+      ancestors: [root.id, a.id],
     });
-    const c = seedAccount({
-      kind: 'project',
-      parentAccountId: b._id,
-      ancestors: [root._id, a._id, b._id],
-      rootAccountId: root._id,
-    });
-    const dest = seedAccount({ kind: 'personal' });
+    const newRoot = await seedAccount();
 
-    await accountService.moveAccount(a._id.toString(), dest._id.toString());
+    await accountService.moveAccount(a.id, newRoot.id);
 
-    expect((a.ancestors as Types.ObjectId[]).map(String)).toEqual([dest._id.toString()]);
-    expect(String(a.rootAccountId)).toBe(dest._id.toString());
-    expect((b.ancestors as Types.ObjectId[]).map(String)).toEqual([
-      dest._id.toString(),
-      a._id.toString(),
-    ]);
-    expect((c.ancestors as Types.ObjectId[]).map(String)).toEqual([
-      dest._id.toString(),
-      a._id.toString(),
-      b._id.toString(),
-    ]);
-    expect(String(c.rootAccountId)).toBe(dest._id.toString());
+    // The moved node...
+    expect(await ancestorsOf(a.id)).toEqual([newRoot.id]);
+    expect((await reload(a.id)).rootAccountId).toBe(newRoot.id);
+    // ...and every descendant: prefix swapped, suffix intact. A PARTIAL rewrite
+    // is what the deleted session-less transaction fallback used to leave behind
+    // on a standalone deployment, silently.
+    expect(await ancestorsOf(child.id)).toEqual([newRoot.id, a.id]);
+    expect((await reload(child.id)).rootAccountId).toBe(newRoot.id);
+    expect((await reload(child.id)).parentAccountId).toBe(a.id);
   });
 
   test('rejects self-parenting', async () => {
-    const a = seedAccount({ kind: 'organization' });
-    await expect(accountService.moveAccount(a._id.toString(), a._id.toString())).rejects.toThrow(
-      /own parent/i
+    const account = await seedAccount({ kind: 'organization' });
+    await expect(accountService.moveAccount(account.id, account.id)).rejects.toThrow(
+      /its own parent/i
     );
   });
 
   test('rejects moving an account beneath its own descendant (cycle)', async () => {
-    const a = seedAccount({ kind: 'organization', ancestors: [] });
-    const b = seedAccount({ kind: 'project', parentAccountId: a._id, ancestors: [a._id] });
-    await expect(accountService.moveAccount(a._id.toString(), b._id.toString())).rejects.toThrow(
+    const root = await seedAccount();
+    const a = await seedAccount({
+      kind: 'organization',
+      parentAccountId: root.id,
+      rootAccountId: root.id,
+      ancestors: [root.id],
+    });
+    const descendant = await seedAccount({
+      kind: 'project',
+      parentAccountId: a.id,
+      rootAccountId: root.id,
+      ancestors: [root.id, a.id],
+    });
+
+    await expect(accountService.moveAccount(a.id, descendant.id)).rejects.toThrow(
       /beneath itself/i
     );
   });
 
   test('rejects moving a personal account', async () => {
-    const root = seedAccount({ kind: 'personal' });
-    const dest = seedAccount({ kind: 'organization' });
-    await expect(
-      accountService.moveAccount(root._id.toString(), dest._id.toString())
-    ).rejects.toThrow(/personal account is always a root/i);
+    const personal = await seedAccount({ kind: 'personal' });
+    const target = await seedAccount({ kind: 'organization' });
+    await expect(accountService.moveAccount(personal.id, target.id)).rejects.toThrow(
+      /always a root/i
+    );
   });
 
-  test('enforces depth over the whole subtree', async () => {
-    // self at depth 1 with a descendant 6 levels below (relative depth 6 → max abs 7).
-    const root = seedAccount({ kind: 'personal' });
-    const self = seedAccount({
-      kind: 'organization',
-      parentAccountId: root._id,
-      ancestors: [root._id],
-      rootAccountId: root._id,
+  test('rejects moving a channel beneath another channel', async () => {
+    const root = await seedAccount();
+    const parentChannel = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'channel',
+      username: uniqueUsername('parent-channel'),
     });
-    // Descendant whose ancestors length is 7 (self at index 1, plus 5 intermediates).
-    const intermediates = Array.from({ length: 5 }, () => new Types.ObjectId());
-    seedAccount({
-      kind: 'project',
-      ancestors: [root._id, self._id, ...intermediates],
-    });
-    // A destination already at depth 3 (ancestors length 3) → new self depth 4,
-    // + subtree relative 6 = 10 > 8.
-    const dest = seedAccount({
-      kind: 'organization',
-      ancestors: [new Types.ObjectId(), new Types.ObjectId(), new Types.ObjectId()],
+    const childChannel = await accountService.createChildAccount(root.id, root.id, {
+      kind: 'channel',
+      username: uniqueUsername('child-channel'),
     });
 
     await expect(
-      accountService.moveAccount(self._id.toString(), dest._id.toString())
-    ).rejects.toThrow(/depth/i);
+      accountService.moveAccount(childChannel.account.id, parentChannel.account.id)
+    ).rejects.toThrow(/channel cannot own another channel/i);
   });
 });
 
@@ -546,82 +708,144 @@ describe('moveAccount', () => {
 // ===========================================================================
 
 describe('membership inheritance + verifyActingAs', () => {
-  function seedOrgTree() {
-    const root = seedAccount({ kind: 'personal' });
-    const org = seedAccount({
+  async function seedOrgTree() {
+    const root = await seedAccount({ kind: 'personal' });
+    const org = await seedAccount({
       kind: 'organization',
-      parentAccountId: root._id,
-      ancestors: [root._id],
-      rootAccountId: root._id,
+      parentAccountId: root.id,
+      rootAccountId: root.id,
+      ancestors: [root.id],
     });
-    const project = seedAccount({
+    const project = await seedAccount({
       kind: 'project',
-      parentAccountId: org._id,
-      ancestors: [root._id, org._id],
-      rootAccountId: root._id,
+      parentAccountId: org.id,
+      rootAccountId: root.id,
+      ancestors: [root.id, org.id],
     });
     return { root, org, project };
   }
 
   test('a member of the parent reaches the child via inheritance', async () => {
-    const { org, project } = seedOrgTree();
-    const bob = seedAccount({ kind: 'personal' });
-    seedMember(org._id, bob._id, 'editor', { inherit: true });
+    const { org, project } = await seedOrgTree();
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'editor', { inherit: true });
 
-    const access = await accountService.resolveEffectiveAccess(
-      bob._id.toString(),
-      project._id.toString()
-    );
+    const access = await accountService.resolveEffectiveAccess(bob.id, project.id);
     expect(access?.role).toBe('editor');
     expect(access?.source).toBe('inherited');
   });
 
   test('a direct row on the child overrides the inherited ancestor row', async () => {
-    const { org, project } = seedOrgTree();
-    const bob = seedAccount({ kind: 'personal' });
-    seedMember(org._id, bob._id, 'owner', { inherit: true });
-    seedMember(project._id, bob._id, 'viewer', { inherit: true });
+    const { org, project } = await seedOrgTree();
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'owner', { inherit: true });
+    await seedMember(project.id, bob.id, 'viewer', { inherit: true });
 
-    const access = await accountService.resolveEffectiveAccess(
-      bob._id.toString(),
-      project._id.toString()
-    );
+    const access = await accountService.resolveEffectiveAccess(bob.id, project.id);
     expect(access?.role).toBe('viewer');
     expect(access?.source).toBe('direct');
   });
 
   test('inherit:false on the ancestor row opts the child subtree out', async () => {
-    const { org, project } = seedOrgTree();
-    const bob = seedAccount({ kind: 'personal' });
-    seedMember(org._id, bob._id, 'admin', { inherit: false });
+    const { org, project } = await seedOrgTree();
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'admin', { inherit: false });
 
-    const access = await accountService.resolveEffectiveAccess(
-      bob._id.toString(),
-      project._id.toString()
-    );
-    expect(access).toBeNull();
+    expect(await accountService.resolveEffectiveAccess(bob.id, project.id)).toBeNull();
+    // The membership still applies to the account it was granted on.
+    expect((await accountService.resolveEffectiveAccess(bob.id, org.id))?.role).toBe('admin');
   });
 
   test('verifyActingAs authorises act_as roles via an ancestor, denies others', async () => {
-    const { org, project } = seedOrgTree();
-    const editor = seedAccount({ kind: 'personal' });
-    const billing = seedAccount({ kind: 'personal' });
-    seedMember(org._id, editor._id, 'editor', { inherit: true });
-    seedMember(org._id, billing._id, 'billing', { inherit: true });
+    const { org, project } = await seedOrgTree();
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'admin', { inherit: true });
+    expect(await accountService.verifyActingAs(bob.id, project.id)).toBe('admin');
 
-    await expect(
-      accountService.verifyActingAs(editor._id.toString(), project._id.toString())
-    ).resolves.toBe('editor');
-    await expect(
-      accountService.verifyActingAs(billing._id.toString(), project._id.toString())
-    ).resolves.toBeNull();
+    const stranger = await seedAccount();
+    expect(await accountService.verifyActingAs(stranger.id, project.id)).toBeNull();
   });
 
   test('a user is the implicit owner of their own account (self)', async () => {
-    const bob = seedAccount({ kind: 'personal' });
-    await expect(
-      accountService.verifyActingAs(bob._id.toString(), bob._id.toString())
-    ).resolves.toBe('owner');
+    const alice = await seedAccount();
+    const access = await accountService.resolveEffectiveAccess(alice.id, alice.id);
+    expect(access?.role).toBe('owner');
+    expect(access?.source).toBe('self');
+    expect(access?.membership).toBeNull();
+  });
+
+  test('a managed account is not its own implicit owner', async () => {
+    const org = await seedAccount({ kind: 'organization' });
+
+    expect(await accountService.resolveEffectiveAccess(org.id, org.id)).toBeNull();
+    expect(await accountService.effectiveAccessForAccount(org.id, org)).toBeNull();
+  });
+
+  test('a per-member GRANT reaches resolveEffectiveAccess', async () => {
+    const org = await seedAccount({ kind: 'organization' });
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'developer', { permissionGrants: ['members:read'] });
+
+    const access = await accountService.resolveEffectiveAccess(bob.id, org.id);
+    expect(access?.role).toBe('developer');
+    expect(access?.permissions).toContain('members:read');
+  });
+
+  test('a per-member REVOKE reaches resolveEffectiveAccess', async () => {
+    const org = await seedAccount({ kind: 'organization' });
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'admin', { permissionRevokes: ['members:remove'] });
+
+    const access = await accountService.resolveEffectiveAccess(bob.id, org.id);
+    expect(access?.role).toBe('admin');
+    expect(access?.permissions).not.toContain('members:remove');
+    // Narrowed, not emptied.
+    expect(access?.permissions).toContain('members:invite');
+  });
+
+  test('deltas travel through INHERITANCE with the row that carries them', async () => {
+    // Inheritance resolves to a ROW, and the row's adjustments are part of what
+    // it grants — an implementation that carried only the role down the tree
+    // would widen an intentionally-narrowed member on every descendant account.
+    const { org, project } = await seedOrgTree();
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'admin', {
+      inherit: true,
+      permissionRevokes: ['account:act_as'],
+    });
+
+    const access = await accountService.resolveEffectiveAccess(bob.id, project.id);
+    expect(access?.source).toBe('inherited');
+    expect(access?.permissions).not.toContain('account:act_as');
+  });
+
+  test('verifyActingAs honours a revoke of account:act_as', async () => {
+    // The measurement that makes this endpoint's guarantee real: `admin` carries
+    // `account:act_as` in its baseline, so a role-driven check returns 'admin'
+    // here and only a permission-driven one returns null.
+    const org = await seedAccount({ kind: 'organization' });
+    const bob = await seedAccount();
+    await seedMember(org.id, bob.id, 'admin', { permissionRevokes: ['account:act_as'] });
+
+    expect(await accountService.verifyActingAs(bob.id, org.id)).toBeNull();
+  });
+
+  test('verifyActingAs honours a grant of account:act_as to a role without it', async () => {
+    const org = await seedAccount({ kind: 'organization' });
+    const bob = await seedAccount();
+    // `developer` has no `account:act_as` baseline — asserted, so the case
+    // cannot quietly become vacuous if the role map changes.
+    await seedMember(org.id, bob.id, 'developer');
+    expect(await accountService.verifyActingAs(bob.id, org.id)).toBeNull();
+
+    await getDb()
+      .update(accountMembers)
+      .set({ permissionGrants: ['account:act_as'] })
+      .where(
+        and(eq(accountMembers.accountId, org.id), eq(accountMembers.memberUserId, bob.id))
+      );
+
+    expect(await accountService.verifyActingAs(bob.id, org.id)).toBe('developer');
   });
 });
 
@@ -631,51 +855,34 @@ describe('membership inheritance + verifyActingAs', () => {
 
 describe('listAccessibleAccounts', () => {
   test('returns self + direct memberships + their subtree, annotated', async () => {
-    const root = seedAccount({ kind: 'personal' });
-    const org = seedAccount({
-      kind: 'organization',
-      parentAccountId: root._id,
-      ancestors: [root._id],
-      rootAccountId: root._id,
-    });
-    const project = seedAccount({
+    const bob = await seedAccount();
+    const org = await seedAccount({ kind: 'organization' });
+    const project = await seedAccount({
       kind: 'project',
-      parentAccountId: org._id,
-      ancestors: [root._id, org._id],
-      rootAccountId: root._id,
+      parentAccountId: org.id,
+      rootAccountId: org.id,
+      ancestors: [org.id],
     });
-    const bob = seedAccount({ kind: 'personal' });
-    seedMember(org._id, bob._id, 'editor', { inherit: true });
+    await seedMember(org.id, bob.id, 'admin', { inherit: true });
 
-    const nodes = await accountService.listAccessibleAccounts(bob._id.toString());
-    const byId = new Map(nodes.map((n) => [n.accountId, n]));
+    const byId = new Map(
+      (await accountService.listAccessibleAccounts(bob.id)).map((node) => [node.accountId, node])
+    );
 
-    // bob's own account, org, and the inherited project — NOT root.
-    expect(byId.has(bob._id.toString())).toBe(true);
-    expect(byId.has(org._id.toString())).toBe(true);
-    expect(byId.has(project._id.toString())).toBe(true);
-    expect(byId.has(root._id.toString())).toBe(false);
-
-    expect(byId.get(bob._id.toString())?.relationship).toBe('self');
-    expect(byId.get(org._id.toString())?.relationship).toBe('member');
-    expect(byId.get(project._id.toString())?.relationship).toBe('member');
-    expect(byId.get(org._id.toString())?.childCount).toBe(1);
+    expect(byId.get(bob.id)?.relationship).toBe('self');
+    expect(byId.get(org.id)?.relationship).toBe('member');
+    expect(byId.get(org.id)?.callerMembershipSource).toBe('direct');
+    // The subtree comes along, annotated as inherited rather than direct.
+    expect(byId.get(project.id)?.callerMembershipSource).toBe('inherited');
   });
 
   test('an owner membership is reported as relationship owner', async () => {
-    const owner = seedAccount({ kind: 'personal' });
-    const org = seedAccount({
-      kind: 'organization',
-      parentAccountId: owner._id,
-      ancestors: [owner._id],
-      rootAccountId: owner._id,
-    });
-    seedMember(org._id, owner._id, 'owner', { inherit: true });
+    const bob = await seedAccount();
+    const org = await seedAccount({ kind: 'organization' });
+    await seedMember(org.id, bob.id, 'owner', { inherit: true });
 
-    const nodes = await accountService.listAccessibleAccounts(owner._id.toString());
-    const orgNode = nodes.find((n) => n.accountId === org._id.toString());
-    expect(orgNode?.relationship).toBe('owner');
-    expect(orgNode?.callerMembership?.role).toBe('owner');
+    const nodes = await accountService.listAccessibleAccounts(bob.id);
+    expect(nodes.find((node) => node.accountId === org.id)?.relationship).toBe('owner');
   });
 });
 
@@ -685,167 +892,151 @@ describe('listAccessibleAccounts', () => {
 
 describe('members CRUD', () => {
   test('addMember creates then rejects a duplicate active member', async () => {
-    const org = seedAccount({ kind: 'organization' });
-    const owner = seedAccount({ kind: 'personal' });
-    const charlie = seedAccount({ kind: 'personal' });
+    const org = await seedAccount({ kind: 'organization' });
+    const owner = await seedAccount();
+    const charlie = await seedAccount();
 
-    const member = await accountService.addMember(
-      org._id.toString(),
-      owner._id.toString(),
-      charlie._id.toString(),
-      'developer'
-    );
+    const member = await accountService.addMember(org.id, owner.id, charlie.id, 'developer');
     expect(member.role).toBe('developer');
     expect(member.status).toBe('active');
 
     await expect(
-      accountService.addMember(
-        org._id.toString(),
-        owner._id.toString(),
-        charlie._id.toString(),
-        'viewer'
-      )
+      accountService.addMember(org.id, owner.id, charlie.id, 'viewer')
     ).rejects.toThrow(/already a member/i);
   });
 
   test('addMember re-activates a previously removed membership', async () => {
-    const org = seedAccount({ kind: 'organization' });
-    const owner = seedAccount({ kind: 'personal' });
-    const charlie = seedAccount({ kind: 'personal' });
-    seedMember(org._id, charlie._id, 'viewer', { status: 'removed' });
+    const org = await seedAccount({ kind: 'organization' });
+    const owner = await seedAccount();
+    const charlie = await seedAccount();
+    await seedMember(org.id, charlie.id, 'viewer', { status: 'removed' });
 
-    const member = await accountService.addMember(
-      org._id.toString(),
-      owner._id.toString(),
-      charlie._id.toString(),
-      'developer'
-    );
+    const member = await accountService.addMember(org.id, owner.id, charlie.id, 'developer');
     expect(member.status).toBe('active');
     expect(member.role).toBe('developer');
-    // No duplicate row was created.
-    expect(memberStore.docs.filter((d) => idEq(d.memberUserId, charlie._id)).length).toBe(1);
+    // Re-activated in place — a second row would break the `(account, member)`
+    // uniqueness the inheritance resolution assumes.
+    expect(await memberRowsFor(org.id, charlie.id)).toHaveLength(1);
   });
 
-  test('updateMemberRole rejects changing an owner row', async () => {
-    const org = seedAccount({ kind: 'organization' });
-    const owner = seedAccount({ kind: 'personal' });
-    const ownerMember = seedMember(org._id, owner._id, 'owner');
+  test('updateMember rejects changing an owner row', async () => {
+    const org = await seedAccount({ kind: 'organization' });
+    const owner = await seedAccount();
+    const ownerMember = await seedMember(org.id, owner.id, 'owner');
 
     await expect(
-      accountService.updateMemberRole(org._id.toString(), ownerMember._id.toString(), 'admin')
+      accountService.updateMember(org.id, ownerMember.id, { role: 'admin' })
     ).rejects.toThrow(/transfer-ownership/i);
   });
 
-  test('removeMember refuses to remove the last owner', async () => {
-    const org = seedAccount({ kind: 'organization' });
-    const owner = seedAccount({ kind: 'personal' });
-    const ownerMember = seedMember(org._id, owner._id, 'owner');
+  test('updateMember refuses a PERMISSION edit on an owner row, not just a role edit', async () => {
+    // An owner row is uneditable through this endpoint, so a revoke landing on
+    // one would be irreversible: there is no way back short of transferring the
+    // account away and back again.
+    const org = await seedAccount({ kind: 'organization' });
+    const owner = await seedAccount();
+    const ownerMember = await seedMember(org.id, owner.id, 'owner');
 
     await expect(
-      accountService.removeMember(org._id.toString(), ownerMember._id.toString(), true)
-    ).rejects.toThrow(/last owner/i);
+      accountService.updateMember(org.id, ownerMember.id, {
+        permissionRevokes: ['account:delete'],
+      })
+    ).rejects.toThrow(/transfer-ownership/i);
+    expect((await memberRowById(ownerMember.id)).permissionRevokes).toEqual([]);
+  });
+
+  test('addMember RESETS the delta columns when it reactivates a removed row', async () => {
+    // A removed member carrying a grant must not carry it back in silently on
+    // re-invitation: the invite names a role, and the row has to mean what the
+    // invite said.
+    const org = await seedAccount({ kind: 'organization' });
+    const owner = await seedAccount();
+    const charlie = await seedAccount();
+    await seedMember(org.id, charlie.id, 'admin', {
+      status: 'removed',
+      permissionGrants: ['ownership:transfer'],
+      permissionRevokes: ['account:read'],
+    });
+
+    const member = await accountService.addMember(org.id, owner.id, charlie.id, 'viewer');
+
+    expect(member.permissionGrants).toEqual([]);
+    expect(member.permissionRevokes).toEqual([]);
+    expect(
+      (await accountService.resolveEffectiveAccess(charlie.id, org.id))?.permissions
+    ).not.toContain('ownership:transfer');
+  });
+
+  test('transferOwnership clears the promoted row deltas', async () => {
+    // An owner row can never be edited again, so an admin-era revoke carried
+    // into ownership would be a permanent, unfixable hole in that owner's
+    // authority.
+    const org = await seedAccount({ kind: 'organization' });
+    const alice = await seedAccount();
+    const bob = await seedAccount();
+    await seedMember(org.id, alice.id, 'owner');
+    const bobMember = await seedMember(org.id, bob.id, 'admin', {
+      permissionRevokes: ['account:update'],
+      permissionGrants: ['ownership:transfer'],
+    });
+
+    await accountService.transferOwnership(org.id, alice.id, bob.id);
+
+    const promoted = await memberRowById(bobMember.id);
+    expect(promoted.role).toBe('owner');
+    expect(promoted.permissionRevokes).toEqual([]);
+    expect(promoted.permissionGrants).toEqual([]);
+    expect(
+      (await accountService.resolveEffectiveAccess(bob.id, org.id))?.permissions
+    ).toContain('account:update');
+  });
+
+  test('removeMember refuses to remove the last owner', async () => {
+    const org = await seedAccount({ kind: 'organization' });
+    const owner = await seedAccount();
+    const ownerMember = await seedMember(org.id, owner.id, 'owner');
+
+    await expect(accountService.removeMember(org.id, ownerMember.id, true)).rejects.toThrow(
+      /last owner/i
+    );
+    // Refused means UNCHANGED — an account with no owner is unadministrable.
+    expect((await memberRowById(ownerMember.id)).status).toBe('active');
   });
 
   test('removeMember soft-removes a non-owner', async () => {
-    const org = seedAccount({ kind: 'organization' });
-    const member = seedMember(org._id, new Types.ObjectId(), 'developer');
+    const org = await seedAccount({ kind: 'organization' });
+    const dev = await seedAccount();
+    const member = await seedMember(org.id, dev.id, 'developer');
 
-    await accountService.removeMember(org._id.toString(), member._id.toString(), true);
-    expect(member.status).toBe('removed');
+    await accountService.removeMember(org.id, member.id, true);
+
+    // SOFT — the row survives with `status: 'removed'`, which is what lets
+    // `addMember` re-activate it rather than mint a second row.
+    expect((await memberRowById(member.id)).status).toBe('removed');
   });
 
   test('transferOwnership promotes the target and demotes the caller', async () => {
-    const org = seedAccount({ kind: 'organization' });
-    const alice = seedAccount({ kind: 'personal' });
-    const bob = seedAccount({ kind: 'personal' });
-    const aliceMember = seedMember(org._id, alice._id, 'owner');
-    const bobMember = seedMember(org._id, bob._id, 'admin');
+    const org = await seedAccount({ kind: 'organization' });
+    const alice = await seedAccount();
+    const bob = await seedAccount();
+    const aliceMember = await seedMember(org.id, alice.id, 'owner');
+    const bobMember = await seedMember(org.id, bob.id, 'admin');
 
-    await accountService.transferOwnership(
-      org._id.toString(),
-      alice._id.toString(),
-      bob._id.toString()
-    );
+    await accountService.transferOwnership(org.id, alice.id, bob.id);
 
-    expect(bobMember.role).toBe('owner');
-    expect(aliceMember.role).toBe('admin');
+    // Both halves, in one transaction: an account must never briefly have two
+    // owners or none.
+    expect((await memberRowById(bobMember.id)).role).toBe('owner');
+    expect((await memberRowById(aliceMember.id)).role).toBe('admin');
   });
 
   test('transferOwnership rejects a personal account', async () => {
-    const alice = seedAccount({ kind: 'personal' });
-    const bob = seedAccount({ kind: 'personal' });
-    seedMember(alice._id, bob._id, 'admin');
-    await expect(
-      accountService.transferOwnership(alice._id.toString(), alice._id.toString(), bob._id.toString())
-    ).rejects.toThrow(/personal account cannot be transferred/i);
-  });
-});
+    const alice = await seedAccount({ kind: 'personal' });
+    const bob = await seedAccount();
+    await seedMember(alice.id, bob.id, 'admin');
 
-// ===========================================================================
-// Credentials (bot accounts)
-// ===========================================================================
-
-describe('bot account credentials', () => {
-  test('createCredential returns a secret once for a bot account', async () => {
-    const bot = seedAccount({ kind: 'bot' });
-    const creator = seedAccount({ kind: 'personal' });
-
-    const { credential, secret } = await accountService.createCredential(
-      bot._id.toString(),
-      creator._id.toString(),
-      { name: 'ci', environment: 'production' }
+    await expect(accountService.transferOwnership(alice.id, alice.id, bob.id)).rejects.toThrow(
+      /personal account cannot be transferred/i
     );
-    expect(secret).toMatch(/^[a-f0-9]{64}$/);
-    expect(credential.publicKey).toMatch(/^oxy_dk_/);
-    expect(credential.type).toBe('service');
-    // The plaintext secret is never persisted.
-    expect((credential as { secret?: string }).secret).toBeUndefined();
-  });
-
-  test('createCredential refuses a non-bot account', async () => {
-    const org = seedAccount({ kind: 'organization' });
-    const creator = seedAccount({ kind: 'personal' });
-    await expect(
-      accountService.createCredential(org._id.toString(), creator._id.toString(), {
-        name: 'x',
-        environment: 'production',
-      })
-    ).rejects.toThrow(/bot accounts/i);
-  });
-
-  test('rotateCredential deprecates the previous credential with a grace expiry', async () => {
-    const bot = seedAccount({ kind: 'bot' });
-    const creator = seedAccount({ kind: 'personal' });
-    const { credential } = await accountService.createCredential(
-      bot._id.toString(),
-      creator._id.toString(),
-      { name: 'ci', environment: 'production' }
-    );
-
-    const result = await accountService.rotateCredential(
-      bot._id.toString(),
-      credential._id.toString(),
-      creator._id.toString()
-    );
-
-    expect(result.rotatedFrom).toBe(credential._id.toString());
-    expect(result.credential.publicKey).not.toBe(credential.publicKey);
-    const previous = credentialStore.docs.find((d) => d._id.equals(credential._id));
-    expect(previous?.status).toBe('deprecated');
-    expect(previous?.expiresAt).toBeInstanceOf(Date);
-  });
-
-  test('revokeCredential marks the credential revoked', async () => {
-    const bot = seedAccount({ kind: 'bot' });
-    const creator = seedAccount({ kind: 'personal' });
-    const { credential } = await accountService.createCredential(
-      bot._id.toString(),
-      creator._id.toString(),
-      { name: 'ci', environment: 'production' }
-    );
-
-    await accountService.revokeCredential(bot._id.toString(), credential._id.toString());
-    const stored = credentialStore.docs.find((d) => d._id.equals(credential._id));
-    expect(stored?.status).toBe('revoked');
   });
 });

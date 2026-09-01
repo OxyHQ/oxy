@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useOxy } from '@oxyhq/services';
 import { logger } from '@oxyhq/core';
+import { useTranslation } from '@/lib/i18n';
 import { registerVaultPushToken } from '@/lib/notifications/push-registration';
 
 const LOG_CONTEXT = { component: 'usePushRegistration' } as const;
@@ -32,6 +33,7 @@ const LOG_CONTEXT = { component: 'usePushRegistration' } as const;
  */
 export function usePushRegistration(): void {
   const { canUsePrivateApi, user, oxyServices, sessionClient } = useOxy();
+  const { t } = useTranslation();
   const userId = user?.id ?? null;
 
   /**
@@ -51,6 +53,7 @@ export function usePushRegistration(): void {
       try {
         const outcome = await registerVaultPushToken(
           oxyServices,
+          { name: t('signInApproval.channel.name'), description: t('signInApproval.channel.description') },
           sessionClient?.getState()?.deviceId,
         );
         if (outcome.status === 'skipped') {
@@ -69,5 +72,5 @@ export function usePushRegistration(): void {
         logger.warn('[commons] push token registration failed', LOG_CONTEXT, error);
       }
     })();
-  }, [canUsePrivateApi, userId, oxyServices, sessionClient]);
+  }, [canUsePrivateApi, userId, oxyServices, sessionClient, t]);
 }

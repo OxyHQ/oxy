@@ -2,13 +2,21 @@
  * Link-preview SERVICE tests — the privacy invariant end to end and the batch
  * response shape.
  *
- * Mocked: the resolver (so no real network for metadata), the Mongo model, the
- * asset service (re-host + CDN resolve), the warm queue, and `safeFetch` (the
- * image download). The Redis cache is the REAL module but degrades to a no-op
- * with REDIS_URL unset.
+ * `link_previews` is a REAL Postgres table here, which is what makes the privacy
+ * invariant checkable rather than merely asserted: the test reads the stored row
+ * back and confirms the origin URL is BOTH persisted (so the next refresh can
+ * re-host) and absent from the client DTO. Under the previous Mongo mock the
+ * "stored" document was whatever the mock echoed back, so both halves of that
+ * invariant were the same assertion twice.
+ *
+ * Mocked: the resolver (so no real network for metadata), the asset service
+ * (re-host + CDN resolve), the warm queue, and `safeFetch` (the image download).
+ * The Redis cache is the REAL module but degrades to a no-op with REDIS_URL
+ * unset.
  */
 import { Readable } from 'stream';
 import { createHash } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 
 delete process.env.REDIS_URL;
 
@@ -17,9 +25,6 @@ const mockSafeFetch = jest.fn();
 const mockUpload = jest.fn();
 const mockGetPublicCdnUrl = jest.fn();
 const mockEnqueueWarm = jest.fn();
-const mockFindById = jest.fn();
-const mockFindByIdAndUpdate = jest.fn();
-const mockFind = jest.fn();
 
 jest.mock('../linkMetadataResolver', () => ({
   resolveLinkMetadata: (...args: unknown[]) => mockResolveLinkMetadata(...args),
@@ -42,20 +47,16 @@ jest.mock('../../../queue/linkPreviewWarm.queue', () => ({
   enqueueLinkPreviewWarm: (...args: unknown[]) => mockEnqueueWarm(...args),
 }));
 
-jest.mock('../../../models/LinkPreview', () => ({
-  LinkPreview: {
-    findById: (...args: unknown[]) => mockFindById(...args),
-    findByIdAndUpdate: (...args: unknown[]) => mockFindByIdAndUpdate(...args),
-    find: (...args: unknown[]) => mockFind(...args),
-  },
-}));
-
+import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
+import { linkPreviews } from '../../../db/schema';
 import { linkPreviewService } from '../linkPreviewService';
 import {
   LINK_PREVIEW_MAX_URL_LENGTH,
   LINK_PREVIEW_RESOLVER_VERSION,
   LINK_PREVIEW_SYNC_MAX_CONCURRENCY,
 } from '../constants';
+
+const previewId = (url: string) => createHash('sha256').update(url).digest('hex');
 
 function imageResponse(): unknown {
   return {
@@ -66,12 +67,27 @@ function imageResponse(): unknown {
   };
 }
 
-// Echo the upsert back as the "saved" document (apply $set, drop $unset).
-function echoUpsert(id: string, update: { $set?: Record<string, unknown>; $unset?: Record<string, string> }) {
-  const docObj: Record<string, unknown> = { _id: id, ...(update.$set ?? {}) };
-  for (const key of Object.keys(update.$unset ?? {})) delete docObj[key];
-  return Promise.resolve(docObj);
+/**
+ * The stored row INCLUDING the two server-only columns. Reading them takes an
+ * explicit select, which is itself the point: `SerializableLinkPreview` cannot
+ * name them, so no serializer can reach them.
+ */
+async function storedRow(url: string) {
+  const [row] = await getDb()
+    .select()
+    .from(linkPreviews)
+    .where(eq(linkPreviews.id, previewId(url)))
+    .limit(1);
+  return row;
 }
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
 
 beforeEach(() => {
   mockResolveLinkMetadata.mockReset();
@@ -79,16 +95,13 @@ beforeEach(() => {
   mockUpload.mockReset();
   mockGetPublicCdnUrl.mockReset();
   mockEnqueueWarm.mockReset();
-  mockFindById.mockReset();
-  mockFindByIdAndUpdate.mockReset();
-  mockFind.mockReset();
-  mockFindByIdAndUpdate.mockImplementation((id: string, update) => echoUpsert(id, update));
 });
 
 describe('resolveAndStore — privacy invariant', () => {
   it('OMITS image (never the origin URL) when re-host fails, and stores the origin server-side', async () => {
+    const url = 'https://ex.com/rehost-fails';
     mockResolveLinkMetadata.mockResolvedValueOnce({
-      url: 'https://ex.com/a',
+      url,
       title: 'Title',
       description: 'Desc',
       siteName: 'Ex',
@@ -101,7 +114,7 @@ describe('resolveAndStore — privacy invariant', () => {
       return Promise.reject(new Error('rehost boom'));
     });
 
-    const dto = await linkPreviewService.resolveAndStore('https://ex.com/a');
+    const dto = await linkPreviewService.resolveAndStore(url);
 
     // Usable (has title + description) → resolved, but with NO image this round.
     expect(dto.status).toBe('resolved');
@@ -111,25 +124,26 @@ describe('resolveAndStore — privacy invariant', () => {
     expect(JSON.stringify(dto)).not.toContain('evil.com');
 
     // ...but it IS persisted server-side for re-host on the next refresh.
-    const update = mockFindByIdAndUpdate.mock.calls[0][1];
-    expect(update.$set.originImageUrl).toBe('https://cdn.evil.com/og.png');
-    expect(update.$unset.imageUrl).toBe('');
+    const row = await storedRow(url);
+    expect(row.originImageUrl).toBe('https://cdn.evil.com/og.png');
+    expect(row.imageUrl).toBeNull();
   });
 
   it('returns a cloud.oxy.so by-id image URL when re-host succeeds', async () => {
+    const url = 'https://ex.com/rehost-succeeds';
     mockResolveLinkMetadata.mockResolvedValueOnce({
-      url: 'https://ex.com/a',
+      url,
       title: 'Title',
       imageUrl: 'https://cdn.evil.com/og.png',
     });
     mockSafeFetch.mockResolvedValueOnce(imageResponse());
     mockUpload.mockImplementationOnce((src: Readable) => {
       src.resume();
-      return Promise.resolve({ _id: 'file123' });
+      return Promise.resolve({ id: 'file123' });
     });
     mockGetPublicCdnUrl.mockResolvedValueOnce('https://cloud.oxy.so/content/2026/01/abc.png');
 
-    const dto = await linkPreviewService.resolveAndStore('https://ex.com/a');
+    const dto = await linkPreviewService.resolveAndStore(url);
 
     expect(dto.status).toBe('resolved');
     expect(dto.image).toMatch(/\/file123$/);
@@ -138,20 +152,35 @@ describe('resolveAndStore — privacy invariant', () => {
   });
 
   it('stores empty + omits image when the resolver throws', async () => {
+    const url = 'https://dead.example/x';
     mockResolveLinkMetadata.mockRejectedValueOnce(new Error('timeout'));
 
-    const dto = await linkPreviewService.resolveAndStore('https://dead.example/x');
+    const dto = await linkPreviewService.resolveAndStore(url);
 
     expect(dto.status).toBe('empty');
     expect(dto.image).toBeUndefined();
     expect(mockSafeFetch).not.toHaveBeenCalled();
+    expect((await storedRow(url)).status).toBe('empty');
+  });
+
+  it('CLEARS a title the origin has dropped, rather than leaving the stale one', async () => {
+    // The Mongo writer expressed this as `$unset`. A column write says it more
+    // directly — and getting it wrong is invisible: omitting the key from the
+    // upsert's `set` would silently keep serving the old title forever.
+    const url = 'https://ex.com/loses-its-title';
+    mockResolveLinkMetadata.mockResolvedValueOnce({ url, title: 'First', description: 'Desc' });
+    expect((await linkPreviewService.resolveAndStore(url)).title).toBe('First');
+
+    mockResolveLinkMetadata.mockResolvedValueOnce({ url, description: 'Desc' });
+    const second = await linkPreviewService.resolveAndStore(url);
+
+    expect(second.title).toBeUndefined();
+    expect((await storedRow(url)).title).toBeNull();
   });
 });
 
 describe('getBatch — response shape', () => {
   it('keys by requested url and returns pending for misses (warming them)', async () => {
-    mockFind.mockResolvedValueOnce([]); // no stored docs
-
     const data = await linkPreviewService.getBatch(['https://a.com', 'https://b.com']);
 
     expect(Object.keys(data).sort()).toEqual(['https://a.com', 'https://b.com']);
@@ -162,19 +191,16 @@ describe('getBatch — response shape', () => {
 
   it('returns a fresh stored doc without warming', async () => {
     const url = 'https://fresh.example/post';
-    const id = createHash('sha256').update(url).digest('hex');
-    mockFind.mockResolvedValueOnce([
-      {
-        _id: id,
-        requestedUrl: url,
-        canonicalUrl: url,
-        title: 'Fresh',
-        imageUrl: 'https://cloud.oxy.so/file999',
-        status: 'resolved',
-        version: LINK_PREVIEW_RESOLVER_VERSION,
-        resolvedAt: new Date(),
-      },
-    ]);
+    await getDb().insert(linkPreviews).values({
+      id: previewId(url),
+      requestedUrl: url,
+      canonicalUrl: url,
+      title: 'Fresh',
+      imageUrl: 'https://cloud.oxy.so/file999',
+      status: 'resolved',
+      version: LINK_PREVIEW_RESOLVER_VERSION,
+      resolvedAt: new Date(),
+    });
 
     const data = await linkPreviewService.getBatch([url]);
 
@@ -189,18 +215,15 @@ describe('getBatch — response shape', () => {
   // how recently it resolved, so it is re-warmed (and re-resolved) on next read.
   it('re-warms a stored doc written by an older resolver version', async () => {
     const url = 'https://stale.example/post';
-    const id = createHash('sha256').update(url).digest('hex');
-    mockFind.mockResolvedValueOnce([
-      {
-        _id: id,
-        requestedUrl: url,
-        canonicalUrl: url,
-        title: 'Stale title from an older resolver',
-        status: 'resolved',
-        version: LINK_PREVIEW_RESOLVER_VERSION - 1,
-        resolvedAt: new Date(),
-      },
-    ]);
+    await getDb().insert(linkPreviews).values({
+      id: previewId(url),
+      requestedUrl: url,
+      canonicalUrl: url,
+      title: 'Stale title from an older resolver',
+      status: 'resolved',
+      version: LINK_PREVIEW_RESOLVER_VERSION - 1,
+      resolvedAt: new Date(),
+    });
 
     const data = await linkPreviewService.getBatch([url]);
 
@@ -211,7 +234,6 @@ describe('getBatch — response shape', () => {
   });
 
   it('drops an oversized batch url to empty WITHOUT warming or fetching', async () => {
-    mockFind.mockResolvedValueOnce([]);
     const longUrl = `https://x.com/${'a'.repeat(LINK_PREVIEW_MAX_URL_LENGTH + 100)}`;
 
     const data = await linkPreviewService.getBatch([longUrl, 'https://ok.com/p']);
@@ -222,12 +244,31 @@ describe('getBatch — response shape', () => {
     expect(mockEnqueueWarm).toHaveBeenCalledTimes(1);
     expect(mockEnqueueWarm).toHaveBeenCalledWith('https://ok.com/p');
   });
+
+  it('never carries the server-only origin columns into a batch DTO', async () => {
+    const url = 'https://origin.example/leak-check';
+    await getDb().insert(linkPreviews).values({
+      id: previewId(url),
+      requestedUrl: url,
+      canonicalUrl: url,
+      title: 'Has an origin image',
+      imageUrl: 'https://cloud.oxy.so/file42',
+      originImageUrl: 'https://cdn.evil.com/og.png',
+      originFaviconUrl: 'https://cdn.evil.com/favicon.ico',
+      status: 'resolved',
+      version: LINK_PREVIEW_RESOLVER_VERSION,
+      resolvedAt: new Date(),
+    });
+
+    const data = await linkPreviewService.getBatch([url]);
+
+    expect(data[url].image).toBe('https://cloud.oxy.so/file42');
+    expect(JSON.stringify(data)).not.toContain('evil.com');
+  });
 });
 
 describe('get — wait=1 concurrency ceiling', () => {
   it('degrades wait=1 to pending when the sync-concurrency ceiling is saturated', async () => {
-    mockFindById.mockResolvedValue(null);
-
     // A resolve that parks until released, shared by every held synchronous
     // resolve so they all hold their slot simultaneously.
     let release: (value: unknown) => void = () => undefined;
@@ -241,8 +282,15 @@ describe('get — wait=1 concurrency ceiling', () => {
     for (let i = 0; i < LINK_PREVIEW_SYNC_MAX_CONCURRENCY; i++) {
       held.push(linkPreviewService.get(`https://held-${i}.example/x`, { wait: true }));
     }
-    // Let each held get acquire its slot and park on the resolve.
-    await new Promise((r) => setImmediate(r));
+    // Wait for saturation on an OBSERVABLE rather than a fixed tick: a `get`
+    // reaches the resolver only after it has claimed a slot, so the resolver's
+    // call count IS the number of slots taken. A `setImmediate` was enough when
+    // the preceding lookup was a mock; against a real database it is a round
+    // trip, and a fixed tick would let the overflow call take a free slot and
+    // park — the test would then time out rather than measure the ceiling.
+    while (mockResolveLinkMetadata.mock.calls.length < LINK_PREVIEW_SYNC_MAX_CONCURRENCY) {
+      await new Promise((r) => setImmediate(r));
+    }
 
     // The next wait=1 finds no free slot → background warm + immediate pending.
     const degraded = await linkPreviewService.get('https://overflow.example/x', { wait: true });

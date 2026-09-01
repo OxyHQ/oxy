@@ -1,0 +1,9 @@
+# @oxyhq/federation is a JEST package — see jest.config.js.
+#
+# `bun test` (bun's own runner) is NOT a supported way to run this suite. Even
+# when bun's runner happens to pass today, it ignores jest.config.js and can
+# silently diverge as suites grow (see core/protocol). This preload aborts
+# `bun test` with an explanation. `bun run test` — the declared script — is
+# unaffected: [test].preload applies only to `bun test`.
+[test]
+preload = ["../../scripts/refuse-bun-test.ts"]

@@ -1,17 +1,18 @@
 /**
- * Inbound email Socket.IO emit tests.
+ * Inbound email Socket.IO emit tests, against a REAL Postgres.
  *
- * Exercises the real `/email/inbound` route handler with the mongoose models,
- * the email service, the spam service, and the Socket.IO singleton all
- * stubbed at the module boundary. The assertions cover:
+ * The route's own three reads — resolving the recipient by username, resolving
+ * the destination folder's name and special-use, and counting the mailbox's
+ * unread messages — now go to the database, so they are exercised rather than
+ * stubbed. The email SERVICE, the spam service and the Socket.IO singleton stay
+ * stubbed at the module boundary: this file is about the route, and the service
+ * has its own suite.
  *
- *  1. Successful delivery emits `email:new` to the recipient's `user:<id>`
- *     room with the contracted `EmailNewEvent` payload shape.
- *  2. The same delivery emits `email:unread_count` with the post-insert
- *     unread total for the destination mailbox.
- *  3. When `getIO()` returns null (Socket.IO not initialised), the webhook
- *     still responds 200 — failure isolation contract for the Cloudflare
- *     worker upstream.
+ * The unread count is the one to watch. It replaced the denormalized
+ * `mailboxes.unseen_messages` column, so it is now a filtered aggregate that
+ * can return 0 for a reason that is not "no unread mail" — a wrong predicate
+ * returns 0 just as quietly. It is asserted as an exact NON-ZERO number against
+ * rows written in the same test.
  */
 
 import express from 'express';
@@ -25,12 +26,7 @@ const mockGetIO = jest.fn();
 const mockStoreIncomingMessage = jest.fn();
 const mockSpamCheck = jest.fn();
 const mockSpamShouldReject = jest.fn();
-const mockUserFindOne = jest.fn();
-const mockMailboxFindById = jest.fn();
-const mockMessageCountDocuments = jest.fn();
 const mockLoggerWarn = jest.fn();
-const mockLoggerInfo = jest.fn();
-const mockLoggerError = jest.fn();
 
 jest.mock('../../utils/socket', () => ({
   getIO: (...args: unknown[]) => mockGetIO(...args),
@@ -49,25 +45,12 @@ jest.mock('../../services/spam.service', () => ({
   },
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findOne: (...args: unknown[]) => mockUserFindOne(...args) },
-}));
-
-jest.mock('../../models/Mailbox', () => ({
-  Mailbox: { findById: (...args: unknown[]) => mockMailboxFindById(...args) },
-}));
-
-jest.mock('../../models/Message', () => ({
-  Message: { countDocuments: (...args: unknown[]) => mockMessageCountDocuments(...args) },
-}));
-
 jest.mock('../../utils/logger', () => ({
   logger: {
     debug: jest.fn(),
-    info: (...args: unknown[]) => mockLoggerInfo(...args),
+    info: jest.fn(),
     warn: (...args: unknown[]) => mockLoggerWarn(...args),
-    error: (...args: unknown[]) => mockLoggerError(...args),
+    error: jest.fn(),
   },
 }));
 
@@ -75,8 +58,15 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { mailboxes } from '../../db/schema/mailboxes';
+import { messages } from '../../db/schema/messages';
+import { users } from '../../db/schema/users';
 import emailInboundRouter from '../emailInbound';
 import { errorHandler } from '../../middleware/errorHandler';
+
+const unique = () => randomUUID().replace(/-/g, '');
 
 interface RawResponse {
   status: number;
@@ -119,50 +109,82 @@ function postRaw(server: http.Server, path: string, headers: Record<string, stri
 
 let server: http.Server;
 
-beforeAll((done) => {
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use('/email/inbound', express.raw({ type: '*/*', limit: '25mb' }));
   app.use('/email/inbound', emailInboundRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
-});
-
-afterAll((done) => {
-  server.close(done);
-});
-
-const RAW_MESSAGE = Buffer.from(
-  [
-    'From: "Alice Sender" <alice@example.com>',
-    'To: bob@oxy.so',
-    'Subject: Hello there',
-    'Date: Mon, 1 Jan 2024 00:00:00 +0000',
-    'Message-ID: <test-msg-1@example.com>',
-    'Content-Type: text/plain; charset=utf-8',
-    '',
-    'This is a   plain text body that should become the snippet.',
-    '',
-  ].join('\r\n'),
-  'utf8'
-);
-
-const RECIPIENT_USER_ID = '64b0000000000000000000aa';
-const MAILBOX_ID = '64b0000000000000000000bb';
-const MESSAGE_ID = '64b0000000000000000000cc';
-
-function stageRecipient(userId: string): void {
-  mockUserFindOne.mockReturnValueOnce({
-    select: () => ({
-      lean: () => Promise.resolve({ _id: { toString: () => userId } }),
-    }),
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
   });
+});
+
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve()));
+  });
+  await closePostgres();
+});
+
+function rawMessage(to: string): Buffer {
+  return Buffer.from(
+    [
+      'From: "Alice Sender" <alice@example.com>',
+      `To: ${to}`,
+      'Subject: Hello there',
+      'Date: Mon, 1 Jan 2024 00:00:00 +0000',
+      `Message-ID: <test-${unique()}@example.com>`,
+      'Content-Type: text/plain; charset=utf-8',
+      '',
+      'This is a   plain text body that should become the snippet.',
+      '',
+    ].join('\r\n'),
+    'utf8'
+  );
 }
 
-function stageMailbox(mailboxId: string, specialUse: string, name: string): void {
-  mockMailboxFindById.mockReturnValueOnce({
-    select: () => ({
-      lean: () => Promise.resolve({ _id: mailboxId, specialUse, name }),
-    }),
+/** A real account whose `@oxy.so` address the route can resolve. */
+async function recipient(): Promise<{ id: string; username: string; address: string }> {
+  const username = `bob${unique().slice(0, 10)}`;
+  const [row] = await getDb()
+    .insert(users)
+    .values({ username, color: 'teal' })
+    .returning({ id: users.id });
+  return { id: row.id, username, address: `${username}@oxy.so` };
+}
+
+async function folder(userId: string, specialUse: string, name: string): Promise<string> {
+  const [row] = await getDb()
+    .insert(mailboxes)
+    .values({ userId, name, path: `${name}-${unique()}`, specialUse })
+    .returning({ id: mailboxes.id });
+  return row.id;
+}
+
+/** `unread` unseen messages plus one already-read one, so the filter matters. */
+async function seedUnread(userId: string, mailboxId: string, unread: number): Promise<void> {
+  for (let i = 0; i < unread; i++) {
+    await getDb().insert(messages).values({
+      userId,
+      mailboxId,
+      messageId: `<seed-${unique()}@example.com>`,
+      fromAddress: 'alice@example.com',
+      subject: '',
+      size: 10,
+      seen: false,
+      date: new Date(),
+    });
+  }
+  await getDb().insert(messages).values({
+    userId,
+    mailboxId,
+    messageId: `<seen-${unique()}@example.com>`,
+    fromAddress: 'alice@example.com',
+    subject: '',
+    size: 10,
+    seen: true,
+    date: new Date(),
   });
 }
 
@@ -174,15 +196,16 @@ beforeEach(() => {
 
 describe('POST /email/inbound socket emit', () => {
   it('emits email:new and email:unread_count to the recipient user room', async () => {
-    stageRecipient(RECIPIENT_USER_ID);
-    stageMailbox(MAILBOX_ID, '\\Inbox', 'INBOX');
+    const user = await recipient();
+    const mailboxId = await folder(user.id, '\\Inbox', 'INBOX');
+    await seedUnread(user.id, mailboxId, 7);
 
+    const messageId = unique();
     mockStoreIncomingMessage.mockResolvedValueOnce({
-      id: MESSAGE_ID,
-      mailboxId: { toString: () => MAILBOX_ID },
+      id: messageId,
+      mailboxId,
       receivedAt: new Date('2024-01-01T00:00:00.000Z'),
     });
-    mockMessageCountDocuments.mockResolvedValueOnce(7);
 
     const emit = jest.fn();
     const to = jest.fn().mockReturnValue({ emit });
@@ -194,24 +217,24 @@ describe('POST /email/inbound socket emit', () => {
       {
         authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
         'x-envelope-from': 'alice@example.com',
-        'x-envelope-to': 'bob@oxy.so',
+        'x-envelope-to': user.address,
       },
-      RAW_MESSAGE
+      rawMessage(user.address)
     );
 
     expect(res.status).toBe(200);
     expect(res.body.accepted).toBe(1);
     expect(mockStoreIncomingMessage).toHaveBeenCalledTimes(1);
 
-    expect(to).toHaveBeenCalledWith(`user:${RECIPIENT_USER_ID}`);
+    expect(to).toHaveBeenCalledWith(`user:${user.id}`);
 
     const emailNewCall = emit.mock.calls.find(([event]) => event === 'email:new');
     expect(emailNewCall).toBeDefined();
     const emailNewPayload = emailNewCall?.[1] as Record<string, unknown>;
     expect(emailNewPayload).toEqual(
       expect.objectContaining({
-        messageId: MESSAGE_ID,
-        mailboxId: MAILBOX_ID,
+        messageId,
+        mailboxId,
         folder: 'inbox',
         from: { name: 'Alice Sender', address: 'alice@example.com' },
         subject: 'Hello there',
@@ -226,15 +249,85 @@ describe('POST /email/inbound socket emit', () => {
 
     const unreadCall = emit.mock.calls.find(([event]) => event === 'email:unread_count');
     expect(unreadCall).toBeDefined();
-    expect(unreadCall?.[1]).toEqual({ mailboxId: MAILBOX_ID, unread: 7 });
+    // Exact and non-zero: the seven unseen rows, not the eight total, and not
+    // the zero a predicate that matched nothing would report.
+    expect(unreadCall?.[1]).toEqual({ mailboxId, unread: 7 });
+  });
+
+  it('reports the spam folder as its own, not as the inbox', async () => {
+    const user = await recipient();
+    const junkId = await folder(user.id, '\\Junk', 'Spam');
+    await seedUnread(user.id, junkId, 1);
+
+    mockStoreIncomingMessage.mockResolvedValueOnce({
+      id: unique(),
+      mailboxId: junkId,
+      receivedAt: new Date('2024-01-01T00:00:00.000Z'),
+    });
+    const emit = jest.fn();
+    mockGetIO.mockReturnValue({ to: jest.fn().mockReturnValue({ emit }) });
+
+    await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': user.address,
+      },
+      rawMessage(user.address)
+    );
+
+    const payload = emit.mock.calls.find(([event]) => event === 'email:new')?.[1] as Record<string, unknown>;
+    expect(payload.folder).toBe('spam');
+  });
+
+  it('rejects an envelope whose recipient has no account', async () => {
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': `ghost${unique().slice(0, 10)}@oxy.so`,
+      },
+      rawMessage('ghost@oxy.so')
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/No valid recipients/);
+    expect(mockStoreIncomingMessage).not.toHaveBeenCalled();
+  });
+
+  it('resolves the recipient case-insensitively, as the username index does', async () => {
+    const user = await recipient();
+    const mailboxId = await folder(user.id, '\\Inbox', 'INBOX');
+    mockStoreIncomingMessage.mockResolvedValueOnce({
+      id: unique(),
+      mailboxId,
+      receivedAt: new Date('2024-01-01T00:00:00.000Z'),
+    });
+    mockGetIO.mockReturnValue(null);
+
+    const res = await postRaw(
+      server,
+      '/email/inbound',
+      {
+        authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
+        'x-envelope-to': user.address.toUpperCase(),
+      },
+      rawMessage(user.address)
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.accepted).toBe(1);
   });
 
   it('still returns 200 when Socket.IO is unavailable (failure isolation)', async () => {
-    stageRecipient(RECIPIENT_USER_ID);
+    const user = await recipient();
+    const mailboxId = await folder(user.id, '\\Inbox', 'INBOX');
 
     mockStoreIncomingMessage.mockResolvedValueOnce({
-      id: MESSAGE_ID,
-      mailboxId: { toString: () => MAILBOX_ID },
+      id: unique(),
+      mailboxId,
       receivedAt: new Date('2024-01-01T00:00:00.000Z'),
     });
     mockGetIO.mockReturnValue(null);
@@ -245,9 +338,9 @@ describe('POST /email/inbound socket emit', () => {
       {
         authorization: `Bearer ${TEST_WEBHOOK_SECRET}`,
         'x-envelope-from': 'alice@example.com',
-        'x-envelope-to': 'bob@oxy.so',
+        'x-envelope-to': user.address,
       },
-      RAW_MESSAGE
+      rawMessage(user.address)
     );
 
     expect(res.status).toBe(200);
@@ -256,4 +349,10 @@ describe('POST /email/inbound socket emit', () => {
       expect.stringContaining('Socket.IO not initialised')
     );
   });
+
+  // The shared-secret guard is NOT asserted here: `verifyEmailInboundWebhookSecret`
+  // is exported separately and mounted by `server.ts` ahead of this router, so
+  // a test that stands this router up alone can only ever observe it passing.
+  // Asserting a 401 against this harness would be a check that cannot fail for
+  // the reason it claims to.
 });

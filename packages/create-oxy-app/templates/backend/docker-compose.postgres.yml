@@ -1,0 +1,58 @@
+##
+## Local PostgreSQL for {{APP_NAME}}.
+##
+## Only the database — the app itself runs on the host via `bun run dev:backend`,
+## so there is nothing else in this compose file.
+##
+## Usage:
+##   docker compose -f docker-compose.postgres.yml up -d postgres
+##   docker compose -f docker-compose.postgres.yml logs -f postgres
+##   docker compose -f docker-compose.postgres.yml down -v   # wipe (data is disposable)
+##
+## Then in packages/backend/.env (copy it from .env.example):
+##   DATABASE_URL=postgres://{{APP_SCHEME}}:{{APP_SCHEME}}@127.0.0.1:5437/{{APP_SCHEME}}_dev
+##
+## and apply the schema:
+##   bun run db:migrate --target-database={{APP_SCHEME}}_dev
+##
+
+services:
+  postgres:
+    # Plain Postgres, pinned to 17 to match the managed instance Oxy backends
+    # run against — a floating major is a floating set of behaviours to debug.
+    #
+    # NOT the PostGIS image, because nothing in this scaffold's schema names an
+    # extension-provided type: `src/db/migrate.ts` ships an EMPTY extension list
+    # and `ensureExtensions([])` opens no connection at all. Add `postgis` to
+    # that list AND swap this image to `postgis/postgis:17-3.5` together, the
+    # first time a column needs `geography` — the image alone is not enough
+    # (a freshly created database is cloned from `template1`, which the image
+    # never seeds), and neither is the extension list alone.
+    image: postgres:17-alpine
+    container_name: {{APP_SLUG}}-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: {{APP_SCHEME}}
+      POSTGRES_PASSWORD: {{APP_SCHEME}}
+      # `-` is not legal in an unquoted Postgres identifier, so this is the
+      # scheme (letters and digits only) rather than the package slug.
+      POSTGRES_DB: {{APP_SCHEME}}_dev
+    ports:
+      # 5437, and loopback-only. NOT 5432: an Oxy developer machine routinely has
+      # several backends' local databases up at once, and 5432 through 5436 are
+      # already spoken for (oxy-api, Mention, Homiio, Mercaria, CrowdSource). A
+      # port collision does not fail loudly once the container is running — it
+      # connects to somebody else's database — so pick the next free port here
+      # and in packages/backend/.env if 5437 is taken too.
+      - '127.0.0.1:5437:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U {{APP_SCHEME}} -d {{APP_SCHEME}}_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - {{APP_SLUG}}-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  {{APP_SLUG}}-postgres-data:

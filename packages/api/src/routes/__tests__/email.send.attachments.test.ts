@@ -5,11 +5,11 @@
  * contract introduced by the Oxy File Manager migration. The route handler
  * resolves each fileId via assetService, enforces ownerUserId ownership,
  * snapshots `{name, contentType, size}` from the File
- * record into the IAttachment subdocument, and links each file to the
- * stored Message under `app: 'oxy-mail'`.
+ * record into a `MessageAttachment` (`db/schema/messageAttachments.ts`), and
+ * links each file to the stored Message under `app: 'oxy-mail'`.
  *
  * Failure modes covered:
- *   1. Happy path — valid {fileId} array sends; resolved IAttachment[]
+ *   1. Happy path — valid {fileId} array sends; resolved MessageAttachment[]
  *      reaches smtpOutbound.send AND linkFile is called for each file.
  *   2. Foreign file (ownerUserId !== sender) → 403 ForbiddenError.
  *   3. Missing file (assetService returns no record) → 400 BadRequestError.
@@ -17,22 +17,23 @@
  *   5. Legacy shape (bare `s3Key`/`filename`) → 400 from Zod validation
  *      (no silent compat path).
  *
- * smtpOutbound.send, emailService, mongoose models, and assetService are
- * all stubbed at the module boundary; no network or DB access occurs.
+ * smtpOutbound, emailService and assetService are stubbed at the module
+ * boundary — they own the network. The SENDER lookup is not: it reads the
+ * `users` row from a real Postgres, because "resolve the sending account" is
+ * one of the queries this batch ported.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-const TEST_USER_ID = '64b0000000000000000000aa';
+/** Filled in `beforeAll` from a real `users` row. */
+let mockTestUserId = '';
 
 const mockAuthMiddleware = jest.fn();
 const mockSmtpSend = jest.fn();
 const mockEnforceSendLimit = jest.fn();
 const mockAutoCollectContacts = jest.fn();
-const mockUserFindById = jest.fn();
-const mockMessageFindOne = jest.fn();
 const mockGetFilesByIds = jest.fn();
 const mockCanUserAccessFile = jest.fn();
 const mockLinkFile = jest.fn();
@@ -41,7 +42,7 @@ const mockResolveEmailAddress = jest.fn();
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (req: { user?: { id: string } }, _res: unknown, next: () => void) => {
     mockAuthMiddleware();
-    req.user = { id: TEST_USER_ID };
+    req.user = { id: mockTestUserId };
     next();
   },
   serviceAuthMiddleware: jest.fn(),
@@ -80,19 +81,13 @@ jest.mock('../../config/email.config', () => ({
   resolveEmailAddress: (...args: unknown[]) => mockResolveEmailAddress(...args),
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findById: (...args: unknown[]) => mockUserFindById(...args) },
-}));
-
-jest.mock('../../models/Message', () => ({
-  Message: { findOne: (...args: unknown[]) => mockMessageFindOne(...args) },
-}));
-
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { users } from '../../db/schema/users';
 import emailRouter from '../email';
 import { errorHandler } from '../../middleware/errorHandler';
 
@@ -137,16 +132,33 @@ function postJson(server: http.Server, path: string, body: unknown): Promise<Jso
 
 let server: http.Server;
 
-beforeAll((done) => {
+beforeAll(async () => {
+  await connectPostgres();
+  const [sender] = await getDb()
+    .insert(users)
+    .values({
+      username: `alice${randomUUID().replace(/-/g, '').slice(0, 10)}`,
+      nameFirst: 'Alice',
+      nameLast: 'Smith',
+      color: 'teal',
+    })
+    .returning({ id: users.id });
+  mockTestUserId = sender.id;
+
   const app = express();
   app.use(express.json());
   app.use('/email', emailRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve()));
+  });
+  await closePostgres();
 });
 
 const FILE_OWN = '64f0000000000000000000a1';
@@ -155,21 +167,21 @@ const FILE_TRASHED = '64f0000000000000000000a3';
 const FILE_MISSING = '64f0000000000000000000a4';
 const OTHER_USER_ID = '64b0000000000000000000bb';
 
-function makeFile(id: string, status: 'active' | 'trash' | 'deleted', ownerUserId = TEST_USER_ID): {
-  _id: { toString: () => string };
+function makeFile(id: string, status: 'active' | 'trash' | 'deleted', ownerUserId = mockTestUserId): {
+  id: string;
   status: 'active' | 'trash' | 'deleted';
   originalName: string;
   mime: string;
   size: number;
-  ownerUserId: { toString: () => string };
+  ownerUserId: string;
 } {
   return {
-    _id: { toString: () => id },
+    id,
     status,
     originalName: `${id}.pdf`,
     mime: 'application/pdf',
     size: 1234,
-    ownerUserId: { toString: () => ownerUserId },
+    ownerUserId,
   };
 }
 
@@ -178,10 +190,6 @@ beforeEach(() => {
   mockEnforceSendLimit.mockResolvedValue(undefined);
   mockAutoCollectContacts.mockResolvedValue(undefined);
   mockResolveEmailAddress.mockReturnValue('alice@oxy.so');
-  mockUserFindById.mockReturnValue({
-    select: () => Promise.resolve({ username: 'alice', name: { first: 'Alice', last: 'Smith' } }),
-  });
-  mockMessageFindOne.mockResolvedValue(null);
   mockSmtpSend.mockResolvedValue({ messageId: 'sent-1', queued: false });
 });
 
@@ -224,7 +232,7 @@ describe('POST /email/messages — attachment resolution', () => {
       app: 'oxy-mail',
       entityType: 'message',
       entityId: 'sent-1',
-      createdBy: TEST_USER_ID,
+      createdBy: mockTestUserId,
     });
   });
 

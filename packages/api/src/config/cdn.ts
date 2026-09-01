@@ -26,7 +26,7 @@
  */
 
 import { getEnvVar } from './env';
-import type { FileVisibility } from '../models/File';
+import type { FileVisibility } from '../db/schema/files';
 
 /**
  * Default CDN origin. Overridable via the `ASSET_CDN_URL` env var (set on the

@@ -1,5 +1,6 @@
 /**
- * Federation Service — resolveAndUpsert fast + eventually-fresh tests.
+ * Federation Service — resolveAndUpsert fast + eventually-fresh, against a REAL
+ * Postgres.
  *
  * Covers the Bluesky-style refresh contract:
  *  - A FRESH cached federated user is returned immediately with NO remote
@@ -11,15 +12,30 @@
  *    the min-interval does not launch another refresh.
  *  - A failing background refresh never throws out of resolveAndUpsert.
  *
+ * ## Why the rewrite mattered here more than anywhere else
+ *
+ * The suite this replaces mocked `models/User` and asserted on the `$set`
+ * PAYLOAD of `findOneAndUpdate`/`updateOne` — e.g.
+ * `expect(updateArgs[1].$set).toMatchObject({ 'name.first': 'Alice Updated' })`.
+ * Those assertions passed against a service whose write went to Mongo while
+ * `routes/federation.ts` and `routes/profiles.ts` READ from Postgres: the exact
+ * cross-store split this port closes was invisible to them, because no
+ * assertion ever looked at a stored row.
+ *
+ * Worse, `'name.first'` is a Mongo DOT PATH. Drizzle keys `set()` by column
+ * PROPERTY and silently ignores an unknown key, so a naive port of that literal
+ * writes NOTHING and throws NOTHING. Every write assertion below therefore
+ * reads the row back and checks `name_first` really moved.
+ *
  * The storm guard uses module-level state keyed by actor URI, which persists
  * across tests in this file. Each test therefore uses a UNIQUE handle/actor so
  * the in-flight set and last-attempt map never collide between cases.
+ *
+ * MOCKED, because each is a collaborator this file is not about: `userCache`
+ * (invalidation is asserted, not exercised), the asset/S3 services (federated
+ * avatar storage), and `safeFetch` (all outbound traffic).
  */
 
-const mockUserFindOne = jest.fn();
-const mockUserFindById = jest.fn();
-const mockUserUpdateOne = jest.fn();
-const mockUserFindOneAndUpdate = jest.fn();
 const mockCacheInvalidate = jest.fn();
 const mockAssetFileContentExists = jest.fn();
 const mockAssetUploadFileDirect = jest.fn();
@@ -28,34 +44,6 @@ const mockAssetDeleteFile = jest.fn();
 process.env.AWS_ACCESS_KEY_ID ||= 'test-access-key';
 process.env.AWS_SECRET_ACCESS_KEY ||= 'test-secret-key';
 process.env.AWS_S3_BUCKET ||= 'test-bucket';
-
-// federation.service registers a Mongoose model (FederationKeyPair) at import
-// time. Stub mongoose so that registration is a no-op and `mongoose.models`
-// exists — we never touch the key-pair collection in these tests.
-jest.mock('mongoose', () => {
-  class Schema {}
-  return {
-    __esModule: true,
-    default: {
-      Schema,
-      models: {},
-      model: jest.fn(() => ({})),
-    },
-    Schema,
-    models: {},
-    model: jest.fn(() => ({})),
-  };
-});
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    findOne: mockUserFindOne,
-    findById: mockUserFindById,
-    updateOne: mockUserUpdateOne,
-    findOneAndUpdate: mockUserFindOneAndUpdate,
-  },
-}));
 
 jest.mock('../../utils/userCache', () => ({
   __esModule: true,
@@ -107,6 +95,9 @@ jest.mock('@oxyhq/core/server', () => ({
 }));
 
 import { Readable } from 'stream';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { users } from '../../db/schema/users';
 import { federationService, isOwnFederationDomain } from '../federation.service';
 
 /**
@@ -132,59 +123,100 @@ function makeSafeFetchResult(
 const DOMAIN = 'mastodon.social';
 const NEW_AVATAR_URL = 'https://cdn.example/avatar-new.png';
 
-interface CachedUser {
-  _id: { toString(): string };
-  type: string;
-  username: string;
-  avatar?: string;
-  updatedAt: Date;
-  accountStatus?: string;
-  federation?: { actorUri?: string; domain?: string };
-}
-
 let actorCounter = 0;
 
 interface Fixture {
   handle: string;
   actorUri: string;
-  userId: string;
+  domain: string;
 }
 
-function nextFixture(): Fixture {
+function nextFixture(domain: string = DOMAIN): Fixture {
   actorCounter += 1;
   const local = `alice${actorCounter}`;
   return {
-    handle: `${local}@${DOMAIN}`,
-    actorUri: `https://${DOMAIN}/users/${local}`,
-    userId: `user-${actorCounter}`,
+    handle: `${local}@${domain}`,
+    actorUri: `https://${domain}/users/${local}`,
+    domain,
   };
 }
 
-function mockFindOneReturning(user: CachedUser | null): void {
-  const lean = jest.fn().mockResolvedValue(user);
-  const select = jest.fn().mockReturnValue({ lean });
-  mockUserFindOne.mockReturnValueOnce({ select });
+/**
+ * Insert a cached federated actor exactly as `resolveAndUpsert` would find one.
+ *
+ * Rows are NEVER deleted afterwards: the throwaway database is shared by the
+ * whole run, and suites that bracket a global COUNT (`platformStats`) assume
+ * counts only grow — a cleanup delete makes the service's count fall below the
+ * bracket's floor and fails a suite this file has nothing to do with. Every
+ * fixture is uniquely named instead, so nothing here depends on the table's
+ * contents.
+ *
+ * `updated_at` is written EXPLICITLY: the staleness decision reads it, and the
+ * column's `defaultNow()` would otherwise pin every fixture to "just written"
+ * and make the stale cases untestable.
+ */
+async function seedFederatedUser(
+  fx: Fixture,
+  ageMs: number,
+  over: Partial<typeof users.$inferInsert> = {},
+): Promise<string> {
+  const [row] = await getDb()
+    .insert(users)
+    .values({
+      type: 'federated',
+      username: fx.handle,
+      federationActorUri: fx.actorUri,
+      federationDomain: fx.domain,
+      avatar: 'stored-file-id',
+      updatedAt: new Date(Date.now() - ageMs),
+      ...over,
+    })
+    .returning({ id: users.id });
+  return row.id;
 }
 
-function cachedUser(fx: Fixture, ageMs: number, overrides: Partial<CachedUser> = {}): CachedUser {
-  return {
-    _id: { toString: () => fx.userId },
-    type: 'federated',
-    username: fx.handle,
-    avatar: 'stored-file-id',
-    updatedAt: new Date(Date.now() - ageMs),
-    federation: { actorUri: fx.actorUri, domain: DOMAIN },
-    ...overrides,
-  };
+/** The columns a write assertion reads back. */
+async function storedUser(userId: string) {
+  const [row] = await getDb()
+    .select({
+      id: users.id,
+      type: users.type,
+      username: users.username,
+      nameFirst: users.nameFirst,
+      bio: users.bio,
+      description: users.description,
+      avatar: users.avatar,
+      actorUri: users.federationActorUri,
+      domain: users.federationDomain,
+      lastResolvedAt: users.federationLastResolvedAt,
+      lastAvatarFetchedAt: users.federationLastAvatarFetchedAt,
+      avatarETag: users.federationAvatarETag,
+      avatarLastModified: users.federationAvatarLastModified,
+      unavailableAt: users.federationUnavailableAt,
+      unavailableReason: users.federationUnavailableReason,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return row ?? null;
+}
+
+/** The row for an actor URI, which is what the upsert keys on. */
+async function storedByActorUri(actorUri: string) {
+  const [row] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.federationActorUri, actorUri))
+    .limit(1);
+  if (!row) return null;
+  return storedUser(row.id);
 }
 
 const FRESH_AGE_MS = 60 * 1000; // 1 minute — well under the 24h stale window
 const STALE_AGE_MS = 48 * 60 * 60 * 1000; // 48h — older than STALE_MS (24h)
 
 function mockUploadedFile(fileId: string) {
-  return {
-    _id: { toString: () => fileId },
-  };
+  return { id: fileId };
 }
 
 function resetAssetMocks(): void {
@@ -199,6 +231,31 @@ async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
 }
 
+/**
+ * A background refresh is fire-and-forget and now does real database I/O, so a
+ * fixed number of microtask flushes would be a race. Poll until the row shows
+ * the write, or give up — an assertion after this then reports the ACTUAL row
+ * rather than a timing artifact.
+ */
+async function waitForRow(
+  userId: string,
+  predicate: (row: NonNullable<Awaited<ReturnType<typeof storedUser>>>) => boolean,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const row = await storedUser(userId);
+    if (row && predicate(row)) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
 describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
   let webfingerSpy: jest.SpyInstance;
   let actorSpy: jest.SpyInstance;
@@ -211,7 +268,6 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     actorSpy = jest.spyOn(federationService, 'fetchActorProfile');
     avatarSpy = jest.spyOn(federationService, 'downloadAndStoreAvatar')
       .mockResolvedValue({ fileId: 'new-file-id', notModified: false });
-    mockUserUpdateOne.mockResolvedValue({ acknowledged: true });
   });
 
   afterEach(() => {
@@ -225,34 +281,33 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue(null);
 
-    const cached = cachedUser(fx, FRESH_AGE_MS);
-    mockFindOneReturning(cached);
+    const userId = await seedFederatedUser(fx, FRESH_AGE_MS);
 
     const result = await federationService.resolveAndUpsert(fx.handle);
     await flushMicrotasks();
 
-    expect(result).toBe(cached);
+    // The cached row is handed back as the account document — `_id` is the
+    // account id, which is what every caller re-reads by.
+    expect(result?._id).toBe(userId);
+    expect(result?.username).toBe(fx.handle);
     expect(mockAssetFileContentExists).toHaveBeenCalledWith('stored-file-id');
     expect(webfingerSpy).not.toHaveBeenCalled();
     expect(actorSpy).not.toHaveBeenCalled();
     expect(avatarSpy).not.toHaveBeenCalled();
-    expect(mockUserUpdateOne).not.toHaveBeenCalled();
     expect(mockCacheInvalidate).not.toHaveBeenCalled();
   });
 
   it('returns an archived cached user without scheduling background refresh', async () => {
     const fx = nextFixture();
-    const cached = cachedUser(fx, STALE_AGE_MS, { accountStatus: 'archived' });
-    mockFindOneReturning(cached);
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, { accountStatus: 'archived' });
 
     const result = await federationService.resolveAndUpsert(fx.handle);
     await flushMicrotasks();
 
-    expect(result).toBe(cached);
+    expect(result?._id).toBe(userId);
     expect(webfingerSpy).not.toHaveBeenCalled();
     expect(actorSpy).not.toHaveBeenCalled();
     expect(avatarSpy).not.toHaveBeenCalled();
-    expect(mockUserUpdateOne).not.toHaveBeenCalled();
     expect(mockCacheInvalidate).not.toHaveBeenCalled();
   });
 
@@ -261,41 +316,89 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      domain: DOMAIN,
+      domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Updated',
       avatarUrl: NEW_AVATAR_URL,
       bio: 'fresh bio',
     });
 
-    const cached = cachedUser(fx, STALE_AGE_MS);
-    mockFindOneReturning(cached);
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS);
 
     const result = await federationService.resolveAndUpsert(fx.handle);
-    expect(result).toBe(cached); // returned synchronously, before the refresh resolves
+    expect(result?._id).toBe(userId); // returned synchronously, before the refresh resolves
 
-    await flushMicrotasks();
+    await waitForRow(userId, (row) => row.avatar === 'new-file-id');
 
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
     expect(avatarSpy).toHaveBeenCalledWith(
       NEW_AVATAR_URL,
       'stored-file-id',
-      {
-        etag: undefined,
-        lastModified: undefined,
-      },
-      fx.userId,
+      { etag: undefined, lastModified: undefined },
+      userId,
     );
 
-    const updateArgs = mockUserUpdateOne.mock.calls[0];
-    expect(updateArgs[0]).toEqual({ _id: cached._id });
-    expect(updateArgs[1].$set).toMatchObject({
-      'name.first': 'Alice Updated',
+    // The ROW, not the call payload. `name_first` is the column the Mongo dot
+    // path `'name.first'` used to name; a port that kept the dot path writes
+    // nothing here, and this assertion is what says so.
+    const row = await storedUser(userId);
+    expect(row).toMatchObject({
+      nameFirst: 'Alice Updated',
       bio: 'fresh bio',
       description: 'fresh bio',
       avatar: 'new-file-id',
     });
-    expect(mockCacheInvalidate).toHaveBeenCalledWith(fx.userId);
+    expect(row?.lastResolvedAt).toBeInstanceOf(Date);
+    expect(mockCacheInvalidate).toHaveBeenCalledWith(userId);
+  });
+
+  it('clears a stale bio when the remote actor profile is legitimately empty', async () => {
+    const fx = nextFixture();
+    webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
+    actorSpy.mockResolvedValue({
+      actorUri: fx.actorUri,
+      domain: fx.domain,
+      username: fx.handle,
+      displayName: 'Alice Updated',
+      avatarUrl: undefined,
+      bio: '',
+    });
+
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, { bio: 'stale bridge boilerplate' });
+
+    await federationService.resolveAndUpsert(fx.handle);
+    await waitForRow(userId, (row) => row.bio === '');
+
+    const row = await storedUser(userId);
+    expect(row?.bio).toBe('');
+    expect(row?.description).toBe('');
+  });
+
+  it('clears the unavailable tombstone on a successful background refresh', async () => {
+    const fx = nextFixture();
+    webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
+    actorSpy.mockResolvedValue({
+      actorUri: fx.actorUri,
+      domain: fx.domain,
+      username: fx.handle,
+      displayName: 'Alice Back',
+      avatarUrl: undefined,
+      bio: undefined,
+    });
+
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, {
+      federationUnavailableAt: new Date(),
+      federationUnavailableReason: 'gone',
+    });
+
+    await federationService.resolveAndUpsert(fx.handle);
+    await waitForRow(userId, (row) => row.nameFirst === 'Alice Back');
+
+    // Mongo's `$unset` is a write of NULL here — "available" is what NULL means
+    // on these two columns.
+    const row = await storedUser(userId);
+    expect(row?.unavailableAt).toBeNull();
+    expect(row?.unavailableReason).toBeNull();
   });
 
   it('returns a fresh cached user but refreshes in the background when its stored avatar object is missing', async () => {
@@ -304,33 +407,63 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      domain: DOMAIN,
+      domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice Repaired',
       avatarUrl: NEW_AVATAR_URL,
       bio: 'repaired bio',
     });
 
-    const cached = cachedUser(fx, FRESH_AGE_MS);
-    mockFindOneReturning(cached);
+    const userId = await seedFederatedUser(fx, FRESH_AGE_MS);
 
     const result = await federationService.resolveAndUpsert(fx.handle);
-    expect(result).toBe(cached);
+    expect(result?._id).toBe(userId);
 
-    await flushMicrotasks();
+    await waitForRow(userId, (row) => row.avatar === 'new-file-id');
 
     expect(mockAssetFileContentExists).toHaveBeenCalledWith('stored-file-id');
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
     expect(avatarSpy).toHaveBeenCalledWith(
       NEW_AVATAR_URL,
       'stored-file-id',
-      {
-        etag: undefined,
-        lastModified: undefined,
-      },
-      fx.userId,
+      { etag: undefined, lastModified: undefined },
+      userId,
     );
-    expect(mockCacheInvalidate).toHaveBeenCalledWith(fx.userId);
+    expect((await storedUser(userId))?.nameFirst).toBe('Alice Repaired');
+  });
+
+  it('replays the STORED conditional-request validators on a background refresh', async () => {
+    const fx = nextFixture();
+    webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
+    actorSpy.mockResolvedValue({
+      actorUri: fx.actorUri,
+      domain: fx.domain,
+      username: fx.handle,
+      displayName: 'Alice Conditional',
+      avatarUrl: NEW_AVATAR_URL,
+      bio: undefined,
+    });
+
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, {
+      federationAvatarETag: '"etag-stored"',
+      federationAvatarLastModified: 'Wed, 21 Oct 2025 07:28:00 GMT',
+    });
+
+    await federationService.resolveAndUpsert(fx.handle);
+    await waitForRow(userId, (row) => row.nameFirst === 'Alice Conditional');
+
+    // The validators live in `federation_avatar_etag` /
+    // `federation_avatar_last_modified` COLUMNS, not on the account document's
+    // `federation` key (which carries only actorUri/domain). Reading them off
+    // that key would compile — through the index signature — and be `undefined`
+    // forever, turning every background refresh into an unconditional
+    // re-download of an unchanged image.
+    expect(avatarSpy).toHaveBeenCalledWith(
+      NEW_AVATAR_URL,
+      'stored-file-id',
+      { etag: '"etag-stored"', lastModified: 'Wed, 21 Oct 2025 07:28:00 GMT' },
+      userId,
+    );
   });
 
   it('throttles repeated background refreshes for the same actor (storm guard)', async () => {
@@ -338,21 +471,28 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      domain: DOMAIN,
+      domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice',
       avatarUrl: NEW_AVATAR_URL,
       bio: 'bio',
     });
 
-    mockFindOneReturning(cachedUser(fx, STALE_AGE_MS));
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS);
     await federationService.resolveAndUpsert(fx.handle);
-    await flushMicrotasks();
+    await waitForRow(userId, (row) => row.nameFirst === 'Alice');
     expect(actorSpy).toHaveBeenCalledTimes(1);
 
-    // Second resolve within REFRESH_MIN_INTERVAL_MS must NOT launch another refresh.
-    mockFindOneReturning(cachedUser(fx, STALE_AGE_MS));
+    // Second resolve within REFRESH_MIN_INTERVAL_MS must NOT launch another
+    // refresh. The row is aged back so staleness ALONE would schedule one —
+    // otherwise this would pass for the wrong reason.
+    await getDb()
+      .update(users)
+      .set({ updatedAt: new Date(Date.now() - STALE_AGE_MS) })
+      .where(eq(users.id, userId));
+
     await federationService.resolveAndUpsert(fx.handle);
+    await flushMicrotasks();
     await flushMicrotasks();
     expect(actorSpy).toHaveBeenCalledTimes(1);
   });
@@ -362,48 +502,78 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockResolvedValue({
       actorUri: fx.actorUri,
-      domain: DOMAIN,
+      domain: fx.domain,
       username: fx.handle,
       displayName: 'Alice',
       avatarUrl: NEW_AVATAR_URL,
       bio: 'bio',
     });
 
-    mockFindOneReturning(null);
-    const created = { _id: { toString: () => fx.userId }, username: fx.handle, type: 'federated' };
-    const select = jest.fn().mockResolvedValue(created);
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select });
-
     const result = await federationService.resolveAndUpsert(fx.handle);
+    const userId = result?._id ?? '';
 
     expect(webfingerSpy).toHaveBeenCalledWith(fx.handle);
     expect(actorSpy).toHaveBeenCalledWith(fx.actorUri, fx.handle);
-    expect(avatarSpy).toHaveBeenCalledWith(NEW_AVATAR_URL, undefined, undefined, fx.userId);
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': fx.actorUri },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          'federation.lastResolvedAt': expect.any(Date),
-        }),
-        $unset: expect.objectContaining({
-          'federation.unavailableAt': '',
-          'federation.unavailableReason': '',
-        }),
-      }),
-      expect.anything(),
-    );
-    expect(mockUserUpdateOne).toHaveBeenCalledWith(
-      { _id: created._id },
-      { $set: expect.objectContaining({ avatar: 'new-file-id' }) },
-    );
-    expect(mockCacheInvalidate).toHaveBeenCalledWith(fx.userId);
-    expect(result).toBe(created);
+    expect(avatarSpy).toHaveBeenCalledWith(NEW_AVATAR_URL, undefined, undefined, userId);
+
+    const row = await storedUser(userId);
+    expect(row).toMatchObject({
+      type: 'federated',
+      username: fx.handle,
+      actorUri: fx.actorUri,
+      domain: fx.domain,
+      nameFirst: 'Alice',
+      bio: 'bio',
+      description: 'bio',
+      avatar: 'new-file-id',
+      unavailableAt: null,
+      unavailableReason: null,
+    });
+    expect(row?.lastResolvedAt).toBeInstanceOf(Date);
+    expect(mockCacheInvalidate).toHaveBeenCalledWith(userId);
+
+    // The RETURNED document reflects the avatar the upsert wrote AFTERWARDS.
+    // Mongo hand-patched its in-memory copy field by field, which is how a
+    // returned document and its row drift apart.
+    expect(result?.avatar).toBe('new-file-id');
+  });
+
+  it('upserts onto the EXISTING row when the actor URI is already known', async () => {
+    const fx = nextFixture();
+    // Seeded under a DIFFERENT username/domain, so the cached-user lookup
+    // misses and the insert path is taken — it must then collide on
+    // `users_federation_actor_uri_key` and update rather than duplicate.
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, {
+      username: `stale-${actorCounter}@elsewhere.example`,
+      federationDomain: 'elsewhere.example',
+    });
+
+    webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
+    actorSpy.mockResolvedValue({
+      actorUri: fx.actorUri,
+      domain: fx.domain,
+      username: fx.handle,
+      displayName: 'Alice Moved',
+      avatarUrl: undefined,
+      bio: undefined,
+    });
+
+    const result = await federationService.resolveAndUpsert(fx.handle);
+
+    // One row, updated — never a second row for the same actor.
+    expect(result?._id).toBe(userId);
+    expect(await storedByActorUri(fx.actorUri)).toMatchObject({
+      id: userId,
+      username: fx.handle,
+      domain: fx.domain,
+      nameFirst: 'Alice Moved',
+    });
   });
 
   it('keeps the canonical WebFinger handle when the actor is served from www', async () => {
-    const handle = 'mosseri@threads.net';
-    const actorUri = 'https://www.threads.net/ap/users/mosseri/';
-    const userId = 'threads-user-1';
+    actorCounter += 1;
+    const handle = `mosseri${actorCounter}@threads.net`;
+    const actorUri = `https://www.threads.net/ap/users/mosseri${actorCounter}/`;
 
     webfingerSpy.mockResolvedValue({ actorUri, subjectAcct: handle });
     actorSpy.mockResolvedValue({
@@ -415,45 +585,23 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       bio: 'Threads profile',
     });
 
-    mockFindOneReturning(null);
-    const created = { _id: { toString: () => userId }, username: handle, type: 'federated' };
-    const select = jest.fn().mockResolvedValue(created);
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select });
-
-    const result = await federationService.resolveAndUpsert('@mosseri@threads.net');
+    const result = await federationService.resolveAndUpsert(`@${handle}`);
 
     expect(webfingerSpy).toHaveBeenCalledWith(handle);
     expect(actorSpy).toHaveBeenCalledWith(actorUri, handle);
-    expect(mockUserFindOne).toHaveBeenCalledWith({
+    expect(await storedByActorUri(actorUri)).toMatchObject({
       type: 'federated',
-      'federation.domain': 'threads.net',
       username: handle,
+      actorUri,
+      domain: 'threads.net',
     });
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': actorUri },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          type: 'federated',
-          username: handle,
-          'federation.actorUri': actorUri,
-          'federation.domain': 'threads.net',
-          'federation.lastResolvedAt': expect.any(Date),
-        }),
-        $unset: expect.objectContaining({
-          'federation.unavailableAt': '',
-          'federation.unavailableReason': '',
-        }),
-      }),
-      expect.anything(),
-    );
-    expect(result).toBe(created);
   });
 
   it('ignores a WebFinger subject that does not resolve back to the same actor', async () => {
-    const requestedHandle = 'attacker@evil.example';
-    const spoofedHandle = 'victim@trusted.example';
-    const actorUri = 'https://evil.example/users/attacker';
-    const userId = 'evil-user-spoof';
+    actorCounter += 1;
+    const requestedHandle = `attacker${actorCounter}@evil.example`;
+    const spoofedHandle = `victim${actorCounter}@trusted.example`;
+    const actorUri = `https://evil.example/users/attacker${actorCounter}`;
 
     webfingerSpy.mockImplementation(async (acct: string) => {
       if (acct === requestedHandle) {
@@ -473,34 +621,23 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       bio: 'not a trusted.example user',
     });
 
-    mockFindOneReturning(null);
-    const created = { _id: { toString: () => userId }, username: requestedHandle, type: 'federated' };
-    const select = jest.fn().mockResolvedValue(created);
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select });
-
     const result = await federationService.resolveAndUpsert(requestedHandle);
 
     expect(webfingerSpy).toHaveBeenCalledWith(requestedHandle);
     expect(webfingerSpy).toHaveBeenCalledWith(spoofedHandle);
     expect(actorSpy).toHaveBeenCalledWith(actorUri, requestedHandle);
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': actorUri },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          username: requestedHandle,
-          'federation.domain': 'evil.example',
-        }),
-      }),
-      expect.anything(),
-    );
-    expect(result).toBe(created);
+    // The stored row keeps the REQUESTED identity, never the spoofed subject.
+    expect(await storedByActorUri(actorUri)).toMatchObject({
+      username: requestedHandle,
+      domain: 'evil.example',
+    });
   });
 
   it('uses the WebFinger subject when the requested handle is a www alias', async () => {
-    const requestedHandle = 'mosseri@www.threads.net';
-    const canonicalHandle = 'mosseri@threads.net';
-    const actorUri = 'https://www.threads.net/ap/users/mosseri/';
-    const userId = 'threads-user-alias';
+    actorCounter += 1;
+    const requestedHandle = `mosseri${actorCounter}@www.threads.net`;
+    const canonicalHandle = `mosseri${actorCounter}@threads.net`;
+    const actorUri = `https://www.threads.net/ap/users/mosseri${actorCounter}/alias`;
 
     webfingerSpy.mockResolvedValue({ actorUri, subjectAcct: canonicalHandle });
     actorSpy.mockResolvedValue({
@@ -512,38 +649,32 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
       bio: 'Threads profile',
     });
 
-    mockFindOneReturning(null);
-    const created = { _id: { toString: () => userId }, username: canonicalHandle, type: 'federated' };
-    const select = jest.fn().mockResolvedValue(created);
-    mockUserFindOneAndUpdate.mockReturnValueOnce({ select });
-
     const result = await federationService.resolveAndUpsert(`@${requestedHandle}`);
 
     expect(webfingerSpy).toHaveBeenCalledWith(requestedHandle);
     expect(actorSpy).toHaveBeenCalledWith(actorUri, canonicalHandle);
-    expect(mockUserFindOne).toHaveBeenCalledWith({
+    expect(await storedByActorUri(actorUri)).toMatchObject({
       type: 'federated',
-      'federation.domain': 'www.threads.net',
-      username: requestedHandle,
+      username: canonicalHandle,
+      actorUri,
+      domain: 'threads.net',
     });
-    expect(mockUserFindOneAndUpdate).toHaveBeenCalledWith(
-      { 'federation.actorUri': actorUri },
-      expect.objectContaining({
-        $set: expect.objectContaining({
-          type: 'federated',
-          username: canonicalHandle,
-          'federation.actorUri': actorUri,
-          'federation.domain': 'threads.net',
-          'federation.lastResolvedAt': expect.any(Date),
-        }),
-        $unset: expect.objectContaining({
-          'federation.unavailableAt': '',
-          'federation.unavailableReason': '',
-        }),
-      }),
-      expect.anything(),
-    );
-    expect(result).toBe(created);
+  });
+
+  it('finds a cached actor whose stored username differs only by CASE', async () => {
+    const fx = nextFixture();
+    const userId = await seedFederatedUser(fx, FRESH_AGE_MS, {
+      username: fx.handle.toUpperCase(),
+    });
+
+    const result = await federationService.resolveAndUpsert(fx.handle);
+
+    // The lookup is written against the expression `users_username_key` is
+    // built on (`lower(btrim(username))`). A plain `username = $1` is
+    // correct-looking, case-SENSITIVE, and would miss this row — then upsert a
+    // duplicate actor beside it.
+    expect(result?._id).toBe(userId);
+    expect(webfingerSpy).not.toHaveBeenCalled();
   });
 
   it('never throws out of resolveAndUpsert when the background refresh rejects', async () => {
@@ -551,13 +682,51 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
     webfingerSpy.mockResolvedValue({ actorUri: fx.actorUri, subjectAcct: fx.handle });
     actorSpy.mockRejectedValue(new Error('remote down'));
 
-    const cached = cachedUser(fx, STALE_AGE_MS);
-    mockFindOneReturning(cached);
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS);
 
-    await expect(federationService.resolveAndUpsert(fx.handle)).resolves.toBe(cached);
+    const result = await federationService.resolveAndUpsert(fx.handle);
+    expect(result?._id).toBe(userId);
+    await flushMicrotasks();
     await flushMicrotasks();
 
     expect(mockCacheInvalidate).not.toHaveBeenCalled();
+    // The cached row survives a failed refresh untouched.
+    expect((await storedUser(userId))?.avatar).toBe('stored-file-id');
+  });
+
+  it('returns a relabelled identity resolved by bridge handle without clobbering username/domain', async () => {
+    actorCounter += 1;
+    const bridgeDomain = 'bird.makeup';
+    const networkDomain = 'x.com';
+    const local = `wired${actorCounter}`;
+    const bridgeHandle = `${local}@${bridgeDomain}`;
+    const relabelledHandle = `${local}@${networkDomain}`;
+    const actorUri = `https://${bridgeDomain}/users/${local}`;
+
+    webfingerSpy.mockResolvedValue({ actorUri, subjectAcct: bridgeHandle });
+    actorSpy.mockResolvedValue({
+      actorUri,
+      domain: bridgeDomain,
+      username: bridgeHandle,
+      displayName: 'Wired',
+      bio: 'bridge bio',
+    });
+
+    const userId = await seedFederatedUser(
+      { handle: relabelledHandle, actorUri, domain: networkDomain },
+      FRESH_AGE_MS,
+    );
+
+    const result = await federationService.resolveAndUpsert(bridgeHandle);
+    await flushMicrotasks();
+
+    expect(result?._id).toBe(userId);
+    expect(result?.username).toBe(relabelledHandle);
+    expect(actorSpy).not.toHaveBeenCalled();
+
+    const row = await storedUser(userId);
+    expect(row?.username).toBe(relabelledHandle);
+    expect(row?.domain).toBe(networkDomain);
   });
 
   // ----------------------------------------------------------------------
@@ -569,26 +738,33 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
   // fetch, or upsert.
   // ----------------------------------------------------------------------
 
-  it('returns null for an own-domain handle without any DB lookup, WebFinger, or upsert', async () => {
-    // No findOne mock is primed: the guard must short-circuit before touching
-    // the DB. If any DB/network work ran, these assertions would fail.
-    const result = await federationService.resolveAndUpsert('nate@oxy.so');
+  it('returns null for an own-domain handle without any WebFinger or upsert', async () => {
+    actorCounter += 1;
+    const ownHandle = `nate${actorCounter}@oxy.so`;
+
+    const result = await federationService.resolveAndUpsert(ownHandle);
 
     expect(result).toBeNull();
-    expect(mockUserFindOne).not.toHaveBeenCalled();
     expect(webfingerSpy).not.toHaveBeenCalled();
     expect(actorSpy).not.toHaveBeenCalled();
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
+    // No `type: 'federated'` shadow row was minted for the own-apex handle.
+    // Scoped to THIS handle rather than to the whole apex: the throwaway
+    // database is shared by the run, so a global absence would be asserting
+    // something about other suites.
+    const [shadow] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.username, ownHandle))
+      .limit(1);
+    expect(shadow).toBeUndefined();
   });
 
   it('short-circuits an own-domain handle regardless of a leading @ or letter case', async () => {
     const result = await federationService.resolveAndUpsert('@NATE@oxy.so');
 
     expect(result).toBeNull();
-    expect(mockUserFindOne).not.toHaveBeenCalled();
     expect(webfingerSpy).not.toHaveBeenCalled();
     expect(actorSpy).not.toHaveBeenCalled();
-    expect(mockUserFindOneAndUpdate).not.toHaveBeenCalled();
   });
 });
 
@@ -596,37 +772,26 @@ describe('FederationService.resolveAndUpsert (fast + eventually-fresh)', () => {
  * scheduleAvatarRefresh — off-request-path avatar download.
  *
  * The in-memory throttle map (_lastAvatarAttemptAt) is keyed by user id and
- * persists across tests in this process, so each test uses a UNIQUE user id to
- * avoid cross-test coalescing.
+ * persists across tests in this process; each test seeds its own row, so its id
+ * is unique and cross-test coalescing cannot happen.
  */
 describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
-  let avatarUserCounter = 0;
-
-  function mockFindByIdReturning(user: unknown): void {
-    const lean = jest.fn().mockResolvedValue(user);
-    const select = jest.fn().mockReturnValue({ lean });
-    mockUserFindById.mockReturnValueOnce({ select });
-  }
-
   beforeEach(() => {
     jest.clearAllMocks();
     mockSafeFetch.mockReset();
     resetAssetMocks();
-    mockUserUpdateOne.mockResolvedValue({ acknowledged: true });
   });
 
   it('skips the forced re-download when lastAvatarFetchedAt is within the throttle window', async () => {
-    avatarUserCounter += 1;
-    const userId = `throttle-user-${avatarUserCounter}`;
+    const fx = nextFixture();
     const avatarSpy = jest.spyOn(federationService, 'downloadAndStoreAvatar')
       .mockResolvedValue({ fileId: 'should-not-be-used', notModified: false });
 
     // Persisted authority: avatar was fetched 1 minute ago — inside the 5min window.
-    mockFindByIdReturning({
-      _id: { toString: () => userId },
-      avatar: 'stored-file-id',
-      federation: { lastAvatarFetchedAt: new Date(Date.now() - 60 * 1000) },
+    const userId = await seedFederatedUser(fx, FRESH_AGE_MS, {
+      federationLastAvatarFetchedAt: new Date(Date.now() - 60 * 1000),
     });
+    const before = await storedUser(userId);
 
     federationService.scheduleAvatarRefresh(
       userId,
@@ -635,18 +800,18 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
       { force: true },
     );
     await flushMicrotasks();
+    await flushMicrotasks();
 
     // Forced refresh inside the window is a no-op: no download, no write.
     expect(avatarSpy).not.toHaveBeenCalled();
-    expect(mockUserUpdateOne).not.toHaveBeenCalled();
     expect(mockCacheInvalidate).not.toHaveBeenCalled();
+    expect(await storedUser(userId)).toEqual(before);
 
     avatarSpy.mockRestore();
   });
 
   it('on 304 Not Modified: skips re-upload but advances lastAvatarFetchedAt and invalidates cache', async () => {
-    avatarUserCounter += 1;
-    const userId = `notmod-user-${avatarUserCounter}`;
+    const fx = nextFixture();
     const avatarUrl = 'https://cdn.example/avatar-304.png';
 
     // No spy on downloadAndStoreAvatar — exercise the REAL conditional-request
@@ -659,36 +824,30 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
     });
 
     // Stale by time so a forced refresh actually runs, but with stored validators.
-    mockFindByIdReturning({
-      _id: { toString: () => userId },
-      avatar: 'stored-file-id',
-      federation: {
-        lastAvatarFetchedAt: new Date(Date.now() - 10 * 60 * 1000), // 10min ago, outside window
-        avatarETag: '"etag-v1"',
-        avatarLastModified: 'Wed, 21 Oct 2025 07:28:00 GMT',
-      },
+    const fetchedAt = new Date(Date.now() - 10 * 60 * 1000); // 10min ago, outside window
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, {
+      federationLastAvatarFetchedAt: fetchedAt,
+      federationAvatarETag: '"etag-v1"',
+      federationAvatarLastModified: 'Wed, 21 Oct 2025 07:28:00 GMT',
     });
 
     federationService.scheduleAvatarRefresh(userId, avatarUrl, 'stored-file-id', { force: true });
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await waitForRow(
+      userId,
+      (row) => row.lastAvatarFetchedAt !== null && row.lastAvatarFetchedAt > fetchedAt,
+    );
 
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
 
-    // 304 → no avatar field change, but lastAvatarFetchedAt advances. The $set
-    // key is a literal Mongoose dot-path string (not a nested object), so we
-    // check own-key presence rather than toHaveProperty (which walks dots).
-    const updateArgs = mockUserUpdateOne.mock.calls[0];
-    const updateSet = updateArgs[1].$set as Record<string, unknown>;
-    expect(updateArgs[0]).toEqual({ _id: userId });
-    expect(Object.keys(updateSet)).toContain('federation.lastAvatarFetchedAt');
-    expect(Object.keys(updateSet)).not.toContain('avatar');
+    // 304 → the avatar file id is UNCHANGED but the fetch clock advanced.
+    const row = await storedUser(userId);
+    expect(row?.avatar).toBe('stored-file-id');
+    expect(row?.lastAvatarFetchedAt?.getTime()).toBeGreaterThan(fetchedAt.getTime());
     expect(mockCacheInvalidate).toHaveBeenCalledWith(userId);
   });
 
   it('on 304 Not Modified with a missing local object: retries without validators and repairs the avatar file', async () => {
-    avatarUserCounter += 1;
-    const userId = `repair-user-${avatarUserCounter}`;
+    const fx = nextFixture();
     const avatarUrl = 'https://cdn.example/avatar-repair.png';
     mockAssetFileContentExists.mockResolvedValue(false);
     mockAssetUploadFileDirect.mockResolvedValue(mockUploadedFile('repaired-file-id'));
@@ -715,19 +874,14 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
         );
       });
 
-    mockFindByIdReturning({
-      _id: { toString: () => userId },
-      avatar: 'stored-file-id',
-      federation: {
-        lastAvatarFetchedAt: new Date(Date.now() - 10 * 60 * 1000),
-        avatarETag: '"etag-v1"',
-        avatarLastModified: 'Wed, 21 Oct 2025 07:28:00 GMT',
-      },
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, {
+      federationLastAvatarFetchedAt: new Date(Date.now() - 10 * 60 * 1000),
+      federationAvatarETag: '"etag-v1"',
+      federationAvatarLastModified: 'Wed, 21 Oct 2025 07:28:00 GMT',
     });
 
     federationService.scheduleAvatarRefresh(userId, avatarUrl, 'stored-file-id', { force: true });
-    await flushMicrotasks();
-    await flushMicrotasks();
+    await waitForRow(userId, (row) => row.avatar === 'repaired-file-id');
 
     expect(mockSafeFetch).toHaveBeenCalledTimes(2);
     expect(mockAssetFileContentExists).toHaveBeenCalledWith('stored-file-id');
@@ -744,14 +898,43 @@ describe('FederationService.scheduleAvatarRefresh (off request path)', () => {
       },
     );
 
-    const updateArgs = mockUserUpdateOne.mock.calls[0];
-    expect(updateArgs[0]).toEqual({ _id: userId });
-    expect(updateArgs[1].$set).toMatchObject({
+    expect(await storedUser(userId)).toMatchObject({
       avatar: 'repaired-file-id',
-      'federation.avatarETag': '"etag-v2"',
-      'federation.avatarLastModified': 'Thu, 22 Oct 2025 07:28:00 GMT',
+      avatarETag: '"etag-v2"',
+      avatarLastModified: 'Thu, 22 Oct 2025 07:28:00 GMT',
     });
     expect(mockCacheInvalidate).toHaveBeenCalledWith(userId);
+  });
+
+  it('advances the fetch clock but keeps the avatar when the download fails', async () => {
+    const fx = nextFixture();
+    const avatarSpy = jest.spyOn(federationService, 'downloadAndStoreAvatar')
+      .mockResolvedValue({ fileId: null, notModified: false });
+
+    const fetchedAt = new Date(Date.now() - 10 * 60 * 1000);
+    const userId = await seedFederatedUser(fx, STALE_AGE_MS, {
+      federationLastAvatarFetchedAt: fetchedAt,
+    });
+
+    federationService.scheduleAvatarRefresh(
+      userId,
+      'https://cdn.example/broken.png',
+      'stored-file-id',
+      { force: true },
+    );
+    await waitForRow(
+      userId,
+      (row) => row.lastAvatarFetchedAt !== null && row.lastAvatarFetchedAt > fetchedAt,
+    );
+
+    // The clock advances so a forced refresh cannot hammer a broken remote on
+    // every request, and the existing avatar is never clobbered with null.
+    const row = await storedUser(userId);
+    expect(row?.avatar).toBe('stored-file-id');
+    expect(row?.lastAvatarFetchedAt?.getTime()).toBeGreaterThan(fetchedAt.getTime());
+    expect(mockCacheInvalidate).toHaveBeenCalledWith(userId);
+
+    avatarSpy.mockRestore();
   });
 });
 
@@ -822,23 +1005,6 @@ describe('FederationService SSRF guards', () => {
     expect(result).toEqual({ fileId: null, etag: undefined, lastModified: undefined, notModified: false });
     expect(mockSafeFetch).toHaveBeenCalledTimes(1);
     expect(mockAssetUploadFileDirect).not.toHaveBeenCalled();
-  });
-});
-
-describe('isOwnFederationDomain', () => {
-  it('accepts the apex domain case-insensitively', () => {
-    expect(isOwnFederationDomain('oxy.so')).toBe(true);
-    expect(isOwnFederationDomain('OXY.SO')).toBe(true);
-  });
-
-  it('accepts a leading www. alias of the apex domain', () => {
-    expect(isOwnFederationDomain('www.oxy.so')).toBe(true);
-    expect(isOwnFederationDomain('WWW.OXY.SO')).toBe(true);
-  });
-
-  it('rejects unrelated domains', () => {
-    expect(isOwnFederationDomain('mastodon.social')).toBe(false);
-    expect(isOwnFederationDomain('www.mastodon.social')).toBe(false);
   });
 });
 

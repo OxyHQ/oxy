@@ -81,8 +81,8 @@ export const updateLabelSchema = z.object({
 });
 
 // Canonical recipient shape used across the inbound path (storeIncomingMessage),
-// the Mongoose Message model (IEmailAddress), the outbound transporter
-// (smtpOutbound.send), and the inbox UI. RFC 5321 address-spec is required;
+// the stored form (`EmailAddress` in `db/schema/messages.ts`), the outbound
+// transporter (smtpOutbound.send), and the inbox UI. RFC 5321 address-spec is required;
 // display name is optional. We do NOT accept bare strings or "Name <addr>"
 // — clients must parse and submit the canonical object.
 const recipientSchema = z.object({
@@ -126,8 +126,6 @@ export const sendMessageSchema = z.object({
 });
 
 // POST /email/drafts
-// Drafts do not carry attachments in this migration. Composers attach via
-// the file-manager flow and send (or save the body only, then re-open later).
 export const saveDraftSchema = z.object({
   to: z.array(recipientSchema).max(100).optional(),
   cc: z.array(recipientSchema).max(100).optional(),
@@ -137,7 +135,38 @@ export const saveDraftSchema = z.object({
   html: z.string().optional(),
   inReplyTo: z.string().trim().optional(),
   references: z.array(z.string().trim()).optional(),
+  attachments: z.array(attachmentInputSchema).max(20).optional(),
   existingDraftId: z.string().trim().optional(),
+  expectedRevision: z.number().int().min(1).optional(),
+});
+
+const savedSearchFiltersSchema = z.object({
+  q: z.string().max(500).optional(),
+  from: z.string().max(128).optional(),
+  to: z.string().max(128).optional(),
+  subject: z.string().max(128).optional(),
+  hasAttachment: z.boolean().optional(),
+  dateAfter: z.string().max(40).optional(),
+  dateBefore: z.string().max(40).optional(),
+  mailbox: z.string().max(255).optional(),
+  starred: z.boolean().optional(),
+  unread: z.boolean().optional(),
+  label: z.string().max(255).optional(),
+}).strict();
+
+export const createSavedSearchSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  query: z.string().trim().max(500),
+  filters: savedSearchFiltersSchema,
+  order: z.number().int().min(0).max(10000).optional(),
+});
+
+export const savedSearchIdParams = z.object({
+  savedSearchId: z.string().trim().min(1),
+});
+
+export const outboxIdParams = z.object({
+  outboxId: z.string().trim().min(1),
 });
 
 // POST /email/subscriptions/unsubscribe

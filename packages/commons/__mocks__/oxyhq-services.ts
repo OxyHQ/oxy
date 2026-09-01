@@ -22,6 +22,7 @@ interface MockOxyServices {
   getPublicKey?: jest.Mock;
   getPublicCard?: jest.Mock;
   getReputationBalance?: jest.Mock;
+  getMyReputationBalance?: jest.Mock;
   getReputationTransactions?: jest.Mock;
   getFileDownloadUrl?: jest.Mock;
   getCurrentUserId?: jest.Mock;
@@ -275,6 +276,16 @@ export const getExpoPushToken = jest.fn<Promise<string | null>, []>(
 
 export const takeLaunchNotificationData = jest.fn<Promise<unknown>, []>(async () => null);
 
+/**
+ * Android channel creation. Recorded so a test can pin that the vault creates
+ * the channel the API sends on BEFORE it registers a token — Android 8+ drops a
+ * notification whose channel does not exist, with no error on either side.
+ */
+export const ensureNotificationChannel = jest.fn<
+  Promise<boolean>,
+  [{ id: string; name: string; description?: string; importance?: 'default' | 'high' }]
+>(async () => true);
+
 /** The decision function the foreground install was last handed, if any. */
 let foregroundDecision: ((data: unknown) => ForegroundPresentation) | null = null;
 
@@ -336,6 +347,7 @@ export function __resetNotificationAdapter(): void {
   getExpoPushToken.mockReset().mockResolvedValue(__EXPO_PUSH_TOKEN);
   takeLaunchNotificationData.mockReset().mockResolvedValue(null);
   __notificationUnsubscribe.mockReset();
+  ensureNotificationChannel.mockReset().mockResolvedValue(true);
   installForegroundNotificationHandler.mockReset().mockImplementation(async (decide) => {
     foregroundDecision = decide;
     return true;

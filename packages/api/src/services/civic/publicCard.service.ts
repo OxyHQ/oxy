@@ -18,10 +18,14 @@
 
 import type { PublicCard, SignedPublicCard, ExportAttestation, PersonhoodStatus as PersonhoodStatusValue } from '@oxyhq/contracts';
 import { signedPublicCardSchema } from '@oxyhq/contracts';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { canonicalize } from '@oxyhq/protocol';
-import { User } from '../../models/User';
-import { ReputationBalance } from '../../models/ReputationBalance';
-import PersonhoodStatusModel from '../../models/PersonhoodStatus';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../../config/postgres';
+import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
+import { reputationBalances } from '../../db/schema/reputationBalances';
+import { userVerifiedDomains } from '../../db/schema/userVerifiedDomains';
+import { users } from '../../db/schema/users';
 import SignatureService from '../signature.service';
 import { buildUserDid, OXY_DID } from '../did.service';
 import { formatUserResponse } from '../../utils/userTransform';
@@ -58,9 +62,24 @@ function signCard(card: PublicCard): ExportAttestation | null {
  * The returned object is validated against `signedPublicCardSchema`.
  */
 export async function buildSignedPublicCard(userId: string): Promise<SignedPublicCard | null> {
-  const user = await User.findById(userId)
-    .select('username name avatar publicKey verified verifiedDomains accountStatus reputationTier')
-    .lean();
+  // Explicit columns, not a whole-row read: `users` carries protected columns
+  // (`phone`, the contact-discovery hashes, the refresh token) that a card must
+  // never see, and drizzle returns every column unless the select names them.
+  const [user] = await getDb()
+    .select({
+      _id: users.id,
+      username: users.username,
+      nameFirst: users.nameFirst,
+      nameLast: users.nameLast,
+      avatar: users.avatar,
+      publicKey: users.publicKey,
+      verified: users.verified,
+      accountStatus: users.accountStatus,
+      reputationTier: users.reputationTier,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   if (
     !user ||
     user.accountStatus === 'archived' ||
@@ -70,28 +89,39 @@ export async function buildSignedPublicCard(userId: string): Promise<SignedPubli
   }
 
   const formatted = formatUserResponse(user);
-  // formatUserResponse composes the canonical `name.displayName`; fall back to
-  // the username only if (impossibly) absent so `name` is always a string.
-  const displayName = formatted?.name?.displayName ?? formatted?.username ?? '';
+  const displayName =
+    formatted?.name?.displayName ?? getNormalizedUserHandle(formatted) ?? '';
   const username = formatted?.username;
   const avatarId = formatted?.avatar;
 
-  const [balance, personhood] = await Promise.all([
-    ReputationBalance.findOne({ userId }).lean(),
-    PersonhoodStatusModel.findOne({ userId }).select('isRealPerson').lean<{ isRealPerson?: boolean } | null>(),
+  const [balance, personhood, domains] = await Promise.all([
+    getDb()
+      .select({ trustTier: reputationBalances.trustTier })
+      .from(reputationBalances)
+      .where(eq(reputationBalances.userId, userId))
+      .limit(1),
+    getDb()
+      .select({ isRealPerson: personhoodStatuses.isRealPerson })
+      .from(personhoodStatuses)
+      .where(eq(personhoodStatuses.userId, userId))
+      .limit(1),
+    getDb()
+      .select({ domain: userVerifiedDomains.domain })
+      .from(userVerifiedDomains)
+      .where(eq(userVerifiedDomains.userId, userId)),
   ]);
-  const trustTier = balance?.trustTier ?? 'new';
+  const trustTier = balance[0]?.trustTier ?? 'new';
 
   // Personhood (Fase 3): a confirmed real person is `verified`; a user who has a
   // status row but has not yet crossed θ is `pending`; no row at all is
   // `unverified`.
-  const personhoodStatus: PersonhoodStatusValue = !personhood
+  const personhoodStatus: PersonhoodStatusValue = !personhood[0]
     ? 'unverified'
-    : personhood.isRealPerson
+    : personhood[0].isRealPerson
       ? 'verified'
       : 'pending';
 
-  const verifiedDomains = (user.verifiedDomains ?? []).map((domain) => domain.domain);
+  const verifiedDomains = domains.map((row) => row.domain);
 
   const card: PublicCard = {
     did: buildUserDid(userId),

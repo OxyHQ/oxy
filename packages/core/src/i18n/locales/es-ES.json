@@ -209,7 +209,7 @@
         "firstNamePlaceholder": "Introduce tu nombre",
         "lastName": "Apellido",
         "lastNamePlaceholder": "Introduce tu apellido (opcional)",
-        "invalidChars": "Usa solo letras y espacios"
+        "invalidChars": "Usa solo letras, espacios, apóstrofos y separadores de nombre"
       },
       "username": {
         "title": "Usuario",
@@ -636,13 +636,22 @@
       "remoteSignOutFailed": "Hubo un problema al cerrar sesión en el dispositivo. Inténtalo de nuevo.",
       "noOtherDeviceSessions": "No se encontraron otras sesiones de dispositivo para cerrar.",
       "signOutOthersSuccess": "¡Sesiones cerradas correctamente en los demás dispositivos!",
-      "signOutOthersFailed": "Hubo un problema al cerrar sesión en otros dispositivos. Inténtalo de nuevo."
+      "signOutOthersFailed": "Hubo un problema al cerrar sesión en otros dispositivos. Inténtalo de nuevo.",
+      "contextRemoved": "Se quitó {{account}}",
+      "contextRemoveFailed": "Hubo un problema al quitar esa cuenta. Inténtalo de nuevo.",
+      "principalRemoved": "Se cerró la sesión de {{name}} en este dispositivo",
+      "principalRemoveFailed": "Hubo un problema al cerrar esa sesión. Inténtalo de nuevo.",
+      "activateFailed": "Hubo un problema al cambiar de cuenta. Inténtalo de nuevo."
     },
     "confirms": {
       "remove": "¿Seguro que quieres eliminar a {{displayName}} de este dispositivo? Tendrás que iniciar sesión de nuevo para acceder a esta cuenta.",
       "logoutAll": "¿Seguro que quieres cerrar sesión en todas las cuentas? Esto eliminará todas las cuentas guardadas de este dispositivo.",
       "remoteLogout": "¿Seguro que quieres cerrar sesión en \"{{deviceName}}\"? Esto finalizará la sesión en ese dispositivo.",
-      "logoutOthers": "¿Seguro que quieres cerrar sesión en los otros {{count}} dispositivo(s)? Esto finalizará las sesiones en todos los demás dispositivos excepto en este."
+      "logoutOthers": "¿Seguro que quieres cerrar sesión en los otros {{count}} dispositivo(s)? Esto finalizará las sesiones en todos los demás dispositivos excepto en este.",
+      "removeContextTitle": "¿Quitar esta cuenta?",
+      "removeContext": "¿Dejar de usar {{account}} como {{person}} en este dispositivo? Quien más acceda a {{account}} aquí lo conserva.",
+      "removePrincipalTitle": "¿Cerrar sesión en este dispositivo?",
+      "removePrincipal": "¿Cerrar la sesión de {{name}} en este dispositivo? Se quitan todas las cuentas a las que llega desde aquí. No afecta a nadie más."
     },
     "device": {
       "loadingTitle": "Cargando sesiones de dispositivo...",
@@ -679,6 +688,14 @@
       "openedInCommons": "Abierto en Commons",
       "confirming": "Confirmando identidad",
       "confirmed": "Identidad confirmada"
+    },
+    "context": {
+      "unavailable": "No disponible ahora mismo",
+      "operatedBy": "Gestionada por {{name}}",
+      "remove": "Quitar {{account}} de {{person}}"
+    },
+    "principal": {
+      "signOut": "Cerrar la sesión de {{name}} en este dispositivo"
     }
   },
   "feedback": {
@@ -1748,17 +1765,60 @@
         "description": "Una cuenta programática con credenciales de servicio"
       }
     },
-    "organizationCategory": {
+    "accountCategory": {
+      "news": "Noticias",
+      "politics": "Política",
+      "business": "Negocios",
+      "startup": "Startups y emprendimiento",
+      "finance": "Finanzas e inversión",
+      "crypto": "Cripto y web3",
+      "marketplace": "Marketplace y anuncios",
+      "retail": "Comercio y ecommerce",
+      "real_estate": "Inmobiliaria",
       "agency": "Agencia inmobiliaria",
+      "landlord": "Casero y gestión de fincas",
       "cooperative": "Cooperativa de vivienda",
-      "landlord": "Propietario / administrador de fincas",
-      "other": "Otra organización"
+      "architecture": "Arquitectura y construcción",
+      "technology": "Tecnología",
+      "software": "Software y desarrollo",
+      "ai": "IA y aprendizaje automático",
+      "security": "Seguridad y privacidad",
+      "automation": "Automatización y herramientas",
+      "science": "Ciencia e investigación",
+      "education": "Educación y formación",
+      "books": "Libros y escritura",
+      "health": "Salud y medicina",
+      "fitness": "Deporte y bienestar",
+      "sports": "Deportes",
+      "gaming": "Videojuegos y esports",
+      "music": "Música",
+      "film": "Cine y TV",
+      "podcast": "Pódcast y audio",
+      "art": "Arte y diseño",
+      "photography": "Fotografía",
+      "comedy": "Comedia",
+      "food": "Comida y bebida",
+      "travel": "Viajes y lugares",
+      "fashion": "Moda y belleza",
+      "home_garden": "Hogar y jardín",
+      "diy": "Bricolaje y manualidades",
+      "automotive": "Coches y motor",
+      "animals": "Animales y mascotas",
+      "family": "Familia y crianza",
+      "nonprofit": "ONG y benéficas",
+      "government": "Gobierno y sector público",
+      "community": "Comunidad local",
+      "activism": "Activismo y defensa",
+      "environment": "Medio ambiente y sostenibilidad",
+      "religion": "Religión y espiritualidad",
+      "other": "Otra"
     },
     "create": {
       "title": "Crear cuenta",
       "subtitle": "Crea una cuenta que tú controlas. Tendrá su propio perfil, miembros y aplicaciones.",
       "displayName": {
-        "label": "Nombre visible"
+        "label": "Nombre visible",
+        "invalidChars": "Usa solo letras, espacios, apóstrofos y separadores de nombre"
       },
       "bio": {
         "label": "Biografía (opcional)"
@@ -1769,10 +1829,12 @@
         "taken": "El nombre de usuario ya está en uso",
         "tooShort": "El nombre de usuario debe tener al menos 3 caracteres",
         "invalidChars": "Solo letras, números, guiones y guiones bajos",
+        "mustEndInBot": "El nombre de usuario de una cuenta de bot debe terminar en “bot”",
         "checkFailed": "No se pudo comprobar la disponibilidad"
       },
-      "organizationCategory": {
-        "label": "Tipo de organización"
+      "accountCategory": {
+        "label": "Categorías",
+        "hint": "Elige hasta {{max}}. La primera es tu categoría principal."
       },
       "toasts": {
         "success": "Cuenta creada",
@@ -1795,6 +1857,7 @@
       "title": "Miembros",
       "subtitle": "Personas con acceso a esta cuenta.",
       "empty": "Aún no hay miembros.",
+      "inherited": "Heredado",
       "actions": {
         "remove": "Eliminar miembro",
         "transfer": "Transferir propiedad"
@@ -1835,7 +1898,8 @@
       "subtitle": "Gestiona el perfil, los miembros y el acceso de esta cuenta.",
       "save": "Guardar cambios",
       "displayName": {
-        "label": "Nombre visible"
+        "label": "Nombre visible",
+        "invalidChars": "Usa solo letras, espacios, apóstrofos y separadores de nombre"
       },
       "bio": {
         "label": "Biografía (opcional)"
@@ -2073,8 +2137,13 @@
       "filesWrite": "Subir y modificar tus archivos",
       "filesDelete": "Eliminar tus archivos",
       "webhooksReceive": "Recibir webhooks",
-      "chatCompletions": "Usar el chat con IA en tu nombre",
-      "modelsRead": "Ver los modelos de IA disponibles",
+      "inferenceInvoke": "Ejecutar peticiones de IA en tu nombre",
+      "inferenceModelsRead": "Ver los modelos de IA disponibles",
+      "inferenceUsageRead": "Ver su consumo y costes de IA",
+      "inferenceRoutingRead": "Ver cómo se enrutan las peticiones de IA",
+      "inferenceRoutingWrite": "Cambiar cómo se enrutan las peticiones de IA",
+      "inferenceProvidersRead": "Ver sus proveedores de IA conectados",
+      "inferenceProvidersWrite": "Gestionar sus proveedores de IA conectados",
       "federationWrite": "Actuar en servicios federados"
     },
     "account": {

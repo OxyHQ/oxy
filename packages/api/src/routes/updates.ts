@@ -15,19 +15,19 @@
  */
 
 import express from 'express';
+import { and, eq } from 'drizzle-orm';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
-import { ApplicationCredential } from '../models/ApplicationCredential';
-import Application from '../models/Application';
+import { getDb } from '../config/postgres';
+import { applicationCredentials, applications } from '../db/schema';
 import { isCredentialUsable } from '../utils/credentialUsability';
 import {
   buildManifestResponse,
   type ManifestRequest,
 } from '../services/updates/manifest.service';
 import { CodeSigningNotConfiguredError } from '../services/updates/signing.service';
-import type { UpdatePlatform } from '../models/UpdateChannel';
 
 const router = express.Router();
 
@@ -73,17 +73,30 @@ function extraParam(req: express.Request, key: string): string | undefined {
   return undefined;
 }
 
-/** Resolve the Application id for a clientId (usable credential → active app), or null. */
+/**
+ * Resolve the Application id for a clientId (usable credential → active app), or
+ * null. One round trip on a path every installed device polls: the credential
+ * and its application are a join, not two lookups.
+ */
 async function resolveApplicationId(clientId: string): Promise<string | null> {
-  const credential = await ApplicationCredential.findOne({ publicKey: clientId });
-  if (!credential || !isCredentialUsable(credential)) {
+  const [row] = await getDb()
+    .select({
+      applicationId: applications.id,
+      status: applicationCredentials.status,
+      expiresAt: applicationCredentials.expiresAt,
+    })
+    .from(applicationCredentials)
+    .innerJoin(applications, eq(applications.id, applicationCredentials.applicationId))
+    .where(
+      and(
+        eq(applicationCredentials.publicKey, clientId),
+        eq(applications.status, 'active')
+      )
+    );
+  if (!row || !isCredentialUsable(row)) {
     return null;
   }
-  const application = await Application.findOne({
-    _id: credential.applicationId,
-    status: 'active',
-  }).select('_id');
-  return application ? application._id.toString() : null;
+  return row.applicationId;
 }
 
 router.get(
@@ -118,7 +131,7 @@ router.get(
 
     const input: ManifestRequest = {
       applicationId,
-      platform: platform as UpdatePlatform,
+      platform,
       runtimeVersion,
       channelName: singleHeader(req, 'expo-channel-name'),
       currentUpdateId: singleHeader(req, 'expo-current-update-id'),

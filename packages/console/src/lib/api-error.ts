@@ -34,6 +34,23 @@ export function isUserNotFoundError(error: unknown): boolean {
   return /user not found/i.test(error.message);
 }
 
+/**
+ * Did the API REFUSE this read, as opposed to failing it?
+ *
+ * A 403 from an account-scoped route is an answer — the caller's membership does
+ * not carry the permission the route demands — and it is stable: the same
+ * request will be refused again. Screens use it to say so plainly, and the audit
+ * reads use it to decline to retry, because a retry only delays the message
+ * behind a spinner that reads as a system fault.
+ *
+ * Narrowed on `status`, never on the prose. The message names the missing
+ * permission (`Missing required permission: credentials:read`) and is
+ * operator-facing text that is free to change.
+ */
+export function isPermissionRefused(error: unknown): boolean {
+  return isApiAugmentedError(error) && error.status === 403;
+}
+
 /** Extract a human-readable message from an unknown error, with a fallback. */
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {

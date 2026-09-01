@@ -1,90 +1,25 @@
 /**
- * Reputation system constants (product name: "Oxy Trust").
+ * Reputation system tunables (product name: "Oxy Trust").
  *
- * This file is the SINGLE SOURCE OF TRUTH for every tunable in the reputation
- * ledger (#217) and the derived trust-tier / capped-influence model (#219).
- * Nothing in the reputation service, routes, or migration may hardcode any of
- * these values — import them from here so the documented, user-approved
- * defaults stay in one auditable place.
+ * This file is the SINGLE SOURCE OF TRUTH for every TUNABLE in the reputation
+ * ledger (#217) and the derived trust-tier / capped-influence model (#219) —
+ * the tier thresholds, the influence clamps and factors, the reliability
+ * smoothing, and the per-action point values. Nothing in the reputation
+ * service, routes, or migration may hardcode any of these values; import them
+ * from here so the documented, user-approved defaults stay in one auditable
+ * place.
+ *
+ * The CLOSED VALUE SETS this system is built on — `REPUTATION_CATEGORIES`,
+ * `TRUST_TIERS`, `REPUTATION_TRANSACTION_STATUSES`,
+ * `REPUTATION_TARGET_ENTITY_TYPES`, `REPUTATION_DISPUTE_STATUSES` and their
+ * derived unions — deliberately do NOT live here: they are part of the wire
+ * contract and are owned by `@oxyhq/contracts`, so the mongoose enums below,
+ * the route request schemas, and the SDK's unions are all the same tuple.
+ * Import them from `@oxyhq/contracts`.
  *
  * All exports are frozen (`as const`) so the values cannot drift at runtime.
  */
-
-/**
- * Reputation categories. Drives the per-category balance breakdown. Every
- * `ReputationRule` and `ReputationTransaction` carries exactly one of these.
- *
- * - content    — posts, comments, media a user authored.
- * - social     — follows, likes, social interactions.
- * - trust      — identity / verification / trust-graph signals.
- * - moderation — reports filed, moderation actions, review outcomes.
- * - physical   — real-world signals (event check-ins, verified purchases).
- * - penalty    — negative adjustments for abuse / policy violations.
- * - other      — anything that does not fit the buckets above.
- */
-export const REPUTATION_CATEGORIES = [
-  'content',
-  'social',
-  'trust',
-  'moderation',
-  'physical',
-  'penalty',
-  'other',
-] as const;
-
-export type ReputationCategory = (typeof REPUTATION_CATEGORIES)[number];
-
-/**
- * Transaction lifecycle status.
- * - active   — counts toward the balance.
- * - disputed — under dispute; still counts until the dispute resolves.
- * - reversed — superseded by a compensating reversal transaction; excluded.
- * - voided   — administratively excluded with no compensating entry.
- */
-export const REPUTATION_TRANSACTION_STATUSES = [
-  'active',
-  'disputed',
-  'reversed',
-  'voided',
-] as const;
-
-export type ReputationTransactionStatus = (typeof REPUTATION_TRANSACTION_STATUSES)[number];
-
-/** Trust tiers, lowest → highest trust (plus the punitive `restricted`). */
-export const TRUST_TIERS = [
-  'restricted',
-  'new',
-  'trusted',
-  'high_trust',
-  'verified',
-] as const;
-
-export type TrustTier = (typeof TRUST_TIERS)[number];
-
-/** Entity kinds a transaction may target. */
-export const REPUTATION_TARGET_ENTITY_TYPES = [
-  'post',
-  'comment',
-  'report',
-  'purchase',
-  'event',
-  'check_in',
-  'manual_review',
-  'user',
-  'other',
-] as const;
-
-export type ReputationTargetEntityType = (typeof REPUTATION_TARGET_ENTITY_TYPES)[number];
-
-/** Dispute lifecycle status. */
-export const REPUTATION_DISPUTE_STATUSES = [
-  'open',
-  'accepted',
-  'rejected',
-  'needs_review',
-] as const;
-
-export type ReputationDisputeStatus = (typeof REPUTATION_DISPUTE_STATUSES)[number];
+import type { TrustTier } from '@oxyhq/contracts';
 
 // =============================================================================
 // TRUST-TIER THRESHOLDS (#219)

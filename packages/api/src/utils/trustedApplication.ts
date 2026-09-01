@@ -1,4 +1,7 @@
-import type { ApplicationType } from '../models/Application';
+import type { APPLICATION_TYPES } from '../db/schema/applications';
+
+/** The `applications.type` closed value set, derived from the column itself. */
+type ApplicationType = (typeof APPLICATION_TYPES)[number];
 
 /**
  * Pure predicate: is this Application part of the platform-trusted set?

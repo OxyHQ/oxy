@@ -7,19 +7,18 @@ import {
     FlatList,
     TouchableOpacity,
 } from 'react-native';
-import type { ReputationLeaderboardEntry } from '@oxyhq/core';
-import { getAccountDisplayName, logger } from '@oxyhq/core';
+import type { ReputationLeaderboardEntry } from '@oxyhq/contracts';
+import { getNormalizedUserHandle, logger, trustTierLabel } from '@oxyhq/core';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { H6, Text } from '@oxyhq/bloom/typography';
 import { Chip } from '@oxyhq/bloom/chip';
 import { Button } from '@oxyhq/bloom/button';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 import type { BaseScreenProps } from '../../types/navigation';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useI18n } from '../../hooks/useI18n';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
 import { useOxy } from '../../context/OxyContext';
-import { getTrustTierLabel } from './trustTier';
 
 const AVATAR_SIZE = 40;
 const EMPTY_ICON_SIZE = 64;
@@ -72,7 +71,8 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
 
     const renderEntry = useCallback(
         ({ item }: { item: ReputationLeaderboardEntry }) => {
-            const displayName = getAccountDisplayName(item.user, locale);
+            const displayName =
+                item.user.name?.displayName ?? getNormalizedUserHandle(item.user) ?? '';
             const isViewer = currentUserId !== '' && item.user.id === currentUserId;
             const isPodium = item.rank <= PODIUM_RANK;
             // Viewer's own row and podium ranks get a subtle highlighted surface.
@@ -104,8 +104,8 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                             {displayName}
                         </Text>
                         <View style={styles.tierRow} className="mt-space-4">
-                            <Chip size="small" variant="soft" color={isPodium ? 'primary' : 'default'}>
-                                {getTrustTierLabel(item.trustTier, t)}
+                            <Chip size="small" variant="subtle" color={isPodium ? 'primary' : 'default'}>
+                                {trustTierLabel(locale, item.trustTier)}
                             </Chip>
                         </View>
                     </View>
@@ -115,7 +115,7 @@ const TrustLeaderboardScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
                 </TouchableOpacity>
             );
         },
-        [oxyServices, locale, currentUserId, handleEntryPress, t],
+        [oxyServices, currentUserId, handleEntryPress, locale],
     );
 
     const keyExtractor = useCallback(

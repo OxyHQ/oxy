@@ -1,15 +1,12 @@
 /**
  * User display name and date formatting utilities.
  *
- * The display-name helpers are thin wrappers around the canonical
- * `getAccountDisplayName` in `@oxyhq/core`, which handles all the edge cases
- * (missing username, missing name, fallback to truncated `publicKey`, i18n).
+ * Display-name helpers follow the API contract: prefer `name.displayName` when
+ * present, otherwise fall back to the normalized handle via
+ * `getNormalizedUserHandle`.
  */
 
-import {
-  getAccountDisplayName as coreGetAccountDisplayName,
-  type DisplayNameUserShape,
-} from '@oxyhq/core';
+import { getNormalizedUserHandle, type DisplayNameUserShape } from '@oxyhq/core';
 
 /**
  * Formats a date string to a readable format (e.g., "Feb 21, 2025")
@@ -31,44 +28,42 @@ export const formatDate = (dateString: string | undefined | null | Date): string
   }
 };
 
+function readDisplayName(user: DisplayNameUserShape | null | undefined): string {
+  const name = user?.name;
+  if (!name || typeof name !== 'object') return '';
+  return typeof name.displayName === 'string' ? name.displayName.trim() : '';
+}
+
 /**
  * Gets a display name from user data.
  *
- * Prefers full name → composed first+last → username → `Account 0x12345678…`
- * (derived from publicKey) → translated "Unnamed".
- *
- * @param user - User-like object with optional name/username/publicKey
- * @param locale - Optional locale for the final fallback label
+ * Prefers API `name.displayName`, then the normalized handle.
  */
 export const getDisplayName = (
   user: DisplayNameUserShape | null | undefined,
-  locale?: string,
-): string => coreGetAccountDisplayName(user, locale);
+): string => {
+  const displayName = readDisplayName(user);
+  if (displayName) return displayName;
+  return getNormalizedUserHandle(user) ?? '';
+};
 
 /**
- * Gets a short display name (first name or username).
- *
- * Used for compact UI (e.g. greetings). Falls back to the full display name
- * helper, which also handles publicKey-only accounts.
+ * Gets a short display name (first token) for compact UI.
  */
 export const getShortDisplayName = (
   user: DisplayNameUserShape | null | undefined,
-  locale?: string,
 ): string => {
-  if (!user) return coreGetAccountDisplayName(user, locale);
-
-  const name = user.name;
-  if (name && typeof name === 'object') {
-    const first = typeof name.first === 'string' ? name.first.trim() : '';
-    if (first) return first;
-    const full = typeof name.full === 'string' ? name.full.trim() : '';
-    if (full) return full.split(' ')[0];
-  } else if (typeof name === 'string' && name.trim()) {
-    return name.trim().split(' ')[0];
+  const displayName = readDisplayName(user);
+  if (displayName) {
+    const firstToken = displayName.split(/\s+/).find(Boolean);
+    if (firstToken) return firstToken;
   }
 
-  if (typeof user.username === 'string' && user.username.trim()) return user.username.trim();
+  const handle = getNormalizedUserHandle(user);
+  if (handle) {
+    const firstToken = handle.split(/\s+/).find(Boolean);
+    return firstToken ?? handle;
+  }
 
-  // Defer to the canonical helper for publicKey/unnamed fallbacks.
-  return coreGetAccountDisplayName(user, locale);
+  return '';
 };

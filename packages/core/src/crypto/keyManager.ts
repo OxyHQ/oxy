@@ -6,7 +6,6 @@
  */
 
 import { ec as EC } from 'elliptic';
-import type { ECKeyPair } from 'elliptic';
 import { isWeb, isIOS, isAndroid } from '../utils/platform';
 import { type ExpoCryptoLike, type ExpoSecureStoreLike, isReactNative, isNodeJS, loadAsyncStorage, loadExpoCrypto, loadNodeCrypto, loadSecureStore, loadSharedIdentityBridge } from '@oxyhq/protocol';
 import { isDev, logger } from '../logger';
@@ -2490,7 +2489,7 @@ export class KeyManager {
    * Get the elliptic curve key object from the stored private key
    * Used internally for signing operations
    */
-  static async getKeyPairObject(): Promise<ECKeyPair | null> {
+  static async getKeyPairObject(): Promise<EC.KeyPair | null> {
     if (isWebPlatform()) {
       return null; // Identity storage is only available on native platforms
     }

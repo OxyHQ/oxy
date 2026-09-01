@@ -101,8 +101,8 @@ export const useFollow = (userId?: string | string[]) => {
     if (!isSingleUser || !userId) throw new Error('toggleFollow is only available for single user mode');
     if (!canUsePrivateApi) throw new Error('Authentication is required to follow users');
     const currentlyFollowing = useFollowStore.getState().followingUsers[userId] ?? false;
-    await useFollowStore.getState().toggleFollowUser(userId, oxyServices, currentlyFollowing);
-    patchCachedUserRelationship(queryClient, userId, !currentlyFollowing);
+    const accepted = await useFollowStore.getState().toggleFollowUser(userId, oxyServices, currentlyFollowing);
+    if (accepted) patchCachedUserRelationship(queryClient, userId, !currentlyFollowing);
   }, [isSingleUser, userId, canUsePrivateApi, oxyServices, queryClient]);
 
   const setFollowStatus = useCallback((following: boolean) => {
@@ -157,15 +157,15 @@ export const useFollow = (userId?: string | string[]) => {
         following: state.followingCounts[singleUserId] ?? null,
       };
     },
-    enabled: !!singleUserId && followerCount === null && followingCount === null,
+    enabled: !!singleUserId && (followerCount === null || followingCount === null),
   });
 
   // Multi-user callbacks
   const toggleFollowForUser = useCallback(async (targetUserId: string) => {
     if (!canUsePrivateApi) throw new Error('Authentication is required to follow users');
     const currentState = useFollowStore.getState().followingUsers[targetUserId] ?? false;
-    await useFollowStore.getState().toggleFollowUser(targetUserId, oxyServices, currentState);
-    patchCachedUserRelationship(queryClient, targetUserId, !currentState);
+    const accepted = await useFollowStore.getState().toggleFollowUser(targetUserId, oxyServices, currentState);
+    if (accepted) patchCachedUserRelationship(queryClient, targetUserId, !currentState);
   }, [canUsePrivateApi, oxyServices, queryClient]);
 
   const setFollowStatusForUser = useCallback((targetUserId: string, following: boolean) => {
@@ -280,9 +280,9 @@ export const useFollowForButton = (userId: string, oxyServices: OxyServices, ini
     useCallback((s) => s.errors[userId] ?? null, [userId])
   );
 
-  const toggleFollow = useCallback(async () => {
+  const toggleFollow = useCallback(async (): Promise<boolean> => {
     const currentlyFollowing = useFollowStore.getState().followingUsers[userId] ?? false;
-    await useFollowStore.getState().toggleFollowUser(userId, oxyServices, currentlyFollowing);
+    return useFollowStore.getState().toggleFollowUser(userId, oxyServices, currentlyFollowing);
   }, [userId, oxyServices]);
 
   // Enqueue this id into the micro-batched resolver — every button that enqueues

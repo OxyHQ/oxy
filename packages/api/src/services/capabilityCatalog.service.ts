@@ -1,9 +1,11 @@
 import { createHash, createHmac } from 'node:crypto';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import {
   appCapabilityCatalogSchema,
   type AppCapabilityCatalog,
 } from '@oxyhq/contracts';
-import { AppCapabilityCatalogRegistration } from '../models/AppCapabilityCatalog';
+import { getDb } from '../config/postgres';
+import { appCapabilityCatalogRegistrations } from '../db/schema/agency';
 
 function canonicalValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalValue);
@@ -41,41 +43,83 @@ export async function registerCapabilityCatalog(input: {
   deployedAt?: Date;
 }) {
   const catalog = appCapabilityCatalogSchema.parse(input.catalog);
-  const existingOwner = await AppCapabilityCatalogRegistration.findOne({ appId: catalog.appId });
-  if (existingOwner && existingOwner.registeredByApplicationId.toString() !== input.applicationId) {
+  const db = getDb();
+  const [existingOwner] = await db
+    .select({ registeredByApplicationId: appCapabilityCatalogRegistrations.registeredByApplicationId })
+    .from(appCapabilityCatalogRegistrations)
+    .where(eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId))
+    .limit(1);
+  if (existingOwner && existingOwner.registeredByApplicationId !== input.applicationId) {
     throw new Error('Catalog appId is already owned by another application');
   }
 
   const digest = digestCatalog(catalog);
   const signature = signRegistration(catalog.appId, catalog.version, digest);
-  await AppCapabilityCatalogRegistration.updateMany(
-    { appId: catalog.appId, active: true },
-    { $set: { active: false } },
-  );
-  return AppCapabilityCatalogRegistration.findOneAndUpdate(
-    { appId: catalog.appId, version: catalog.version, digest },
-    {
-      $set: {
+  const deployedAt = input.deployedAt ?? new Date();
+  return db.transaction(async (tx) => {
+    await tx
+      .update(appCapabilityCatalogRegistrations)
+      .set({ active: false })
+      .where(and(
+        eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId),
+        eq(appCapabilityCatalogRegistrations.active, true),
+      ));
+    const [registration] = await tx
+      .insert(appCapabilityCatalogRegistrations)
+      .values({
+        appSlug: catalog.appId,
+        version: catalog.version,
         audience: catalog.audience,
         catalog,
+        digest,
         signature,
         registeredByApplicationId: input.applicationId,
         registeredByCredentialId: input.credentialId,
-        deployedAt: input.deployedAt ?? new Date(),
+        deployedAt,
         active: true,
-      },
-      $setOnInsert: { appId: catalog.appId, version: catalog.version, digest },
-    },
-    { upsert: true, new: true },
-  );
+      })
+      .onConflictDoUpdate({
+        target: [
+          appCapabilityCatalogRegistrations.appSlug,
+          appCapabilityCatalogRegistrations.version,
+          appCapabilityCatalogRegistrations.digest,
+        ],
+        set: {
+          audience: catalog.audience,
+          catalog,
+          signature,
+          registeredByApplicationId: input.applicationId,
+          registeredByCredentialId: input.credentialId,
+          deployedAt,
+          active: true,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    if (!registration) throw new Error('Catalog registration was not persisted');
+    return registration;
+  });
 }
 
 export async function activeCapabilityCatalog(appId: string) {
-  return AppCapabilityCatalogRegistration.findOne({ appId, active: true });
+  const [registration] = await getDb()
+    .select()
+    .from(appCapabilityCatalogRegistrations)
+    .where(and(
+      eq(appCapabilityCatalogRegistrations.appSlug, appId),
+      eq(appCapabilityCatalogRegistrations.active, true),
+    ))
+    .limit(1);
+  return registration;
 }
 
 export async function listActiveCapabilityCatalogs(appIds?: readonly string[]) {
-  const query: Record<string, unknown> = { active: true };
-  if (appIds?.length) query.appId = { $in: [...appIds] };
-  return AppCapabilityCatalogRegistration.find(query).sort({ appId: 1 });
+  const active = eq(appCapabilityCatalogRegistrations.active, true);
+  return getDb()
+    .select()
+    .from(appCapabilityCatalogRegistrations)
+    .where(appIds?.length
+      ? and(active, inArray(appCapabilityCatalogRegistrations.appSlug, [...appIds]))
+      : active)
+    .orderBy(asc(appCapabilityCatalogRegistrations.appSlug));
 }

@@ -1,159 +1,151 @@
-// The global jest.setup.cjs mocks `mongoose` wholesale, which strips `Types`
-// (and therefore `Types.ObjectId`). This suite needs the real `Types` helper —
-// the models themselves are mocked below — so restore the actual mongoose.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
+/**
+ * `getFollowingStatuses` — one answer per requested id, from real edges.
+ *
+ * The suite this replaces asserted the efficiency contract by counting calls on
+ * a mocked model ("runs at most ONE query regardless of N") and by inspecting
+ * the `$in` array ("never puts a structurally-invalid id in the query"). Both
+ * watched the query rather than the answer, and the second guarded an
+ * ObjectId-format filter the port DELETED on purpose: a `text` id that names no
+ * account simply matches no rows, so a malformed id now takes the identical
+ * "not following" path with no guard to maintain.
+ *
+ * What is actually load-bearing is the MAP: this replaces N per-button
+ * `GET /users/:id/follow-status` requests, so every requested id must appear
+ * with the right boolean. An id silently missing from the result renders as an
+ * un-followed button on a profile the viewer follows.
+ */
+
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
+import { userService } from '../user.service';
+
+const uniqueId = () => randomUUID().replace(/-/g, '');
+
+async function makeUsers(count: number): Promise<string[]> {
+  const ids = Array.from({ length: count }, () => uniqueId());
+  await getDb()
+    .insert(users)
+    .values(ids.map((id) => ({ id, username: `u${id}` })));
+  return ids;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-import { Types } from 'mongoose';
+afterAll(async () => {
+  await closePostgres();
+});
 
-const mockFollowFindLean = jest.fn();
-const mockFollowFindSelect = jest.fn(() => ({ lean: mockFollowFindLean }));
-const mockFollowFind = jest.fn(() => ({ select: mockFollowFindSelect }));
+describe('every requested id is answered', () => {
+  it('maps followed ids to true and the rest to false', async () => {
+    const [viewer, followedA, followedB, notFollowed] = await makeUsers(4);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: followedA },
+        { followerId: viewer, followedId: followedB },
+      ]);
 
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  default: {
-    find: mockFollowFind,
-  },
-  FollowType: {
-    USER: 'user',
-    HASHTAG: 'hashtag',
-    TOPIC: 'topic',
-  },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-import { UserService } from '../user.service';
-
-describe('UserService.getFollowingStatuses', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockFollowFindLean.mockResolvedValue([]);
+    expect(
+      await userService.getFollowingStatuses(viewer, [followedA, notFollowed, followedB])
+    ).toEqual({
+      [followedA]: true,
+      [notFollowed]: false,
+      [followedB]: true,
+    });
   });
 
-  it('maps every requested id to a boolean — followed ids true, the rest false', async () => {
-    const viewer = new Types.ObjectId().toHexString();
-    const followed = new Types.ObjectId();
-    const notFollowed = new Types.ObjectId();
+  it('includes an id that names no account, as false', async () => {
+    const [viewer] = await makeUsers(1);
+    const missing = uniqueId();
 
-    mockFollowFindLean.mockResolvedValue([{ followedId: followed }]);
+    // The key must be PRESENT. A result that merely omits unknown ids reads as
+    // `undefined` at the call site, which is falsy — so a test asserting only
+    // "not true" would pass against a map that lost the key.
+    const statuses = await userService.getFollowingStatuses(viewer, [missing]);
+    expect(statuses).toEqual({ [missing]: false });
+    expect(Object.keys(statuses)).toEqual([missing]);
+  });
 
-    const result = await new UserService().getFollowingStatuses(viewer, [
-      followed.toHexString(),
-      notFollowed.toHexString(),
+  it('answers a malformed id the same way, with no format guard', async () => {
+    // The port deleted the ObjectId-shape filter: a `text` id matches no rows.
+    const [viewer] = await makeUsers(1);
+
+    expect(await userService.getFollowingStatuses(viewer, ['', '  ', 'not-an-id'])).toEqual({
+      'not-an-id': false,
+    });
+  });
+
+  it('dedupes repeated ids while still answering each requested id once', async () => {
+    const [viewer, followed] = await makeUsers(2);
+    await getDb().insert(userFollows).values({ followerId: viewer, followedId: followed });
+
+    const statuses = await userService.getFollowingStatuses(viewer, [
+      followed,
+      followed,
+      followed,
     ]);
-
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(mockFollowFind).toHaveBeenCalledWith({
-      followerUserId: viewer,
-      followType: 'user',
-      followedId: { $in: [followed.toHexString(), notFollowed.toHexString()] },
-    });
-    expect(result).toEqual({
-      [followed.toHexString()]: true,
-      [notFollowed.toHexString()]: false,
-    });
+    expect(statuses).toEqual({ [followed]: true });
+    expect(Object.keys(statuses)).toHaveLength(1);
   });
 
-  it('runs at most ONE query regardless of N', async () => {
-    const viewer = new Types.ObjectId().toHexString();
-    const ids = Array.from({ length: 50 }, () => new Types.ObjectId().toHexString());
+  it('scales to a large id set without losing one', async () => {
+    // The efficiency contract used to be asserted by counting mock calls. What a
+    // caller can actually observe is that a big batch is answered COMPLETELY —
+    // a chunking bug drops the tail, which a 3-id fixture cannot see.
+    const [viewer, ...targets] = await makeUsers(121);
+    const followed = targets.filter((_, index) => index % 3 === 0);
+    await getDb()
+      .insert(userFollows)
+      .values(followed.map((followedId) => ({ followerId: viewer, followedId })));
 
-    mockFollowFindLean.mockResolvedValue([]);
+    const statuses = await userService.getFollowingStatuses(viewer, targets);
 
-    const result = await new UserService().getFollowingStatuses(viewer, ids);
-
-    expect(mockFollowFind).toHaveBeenCalledTimes(1);
-    expect(Object.keys(result)).toHaveLength(50);
-    expect(Object.values(result).every((v) => v === false)).toBe(true);
+    expect(Object.keys(statuses)).toHaveLength(targets.length);
+    expect(Object.values(statuses).filter(Boolean)).toHaveLength(followed.length);
+    for (const id of targets) {
+      expect(statuses[id]).toBe(followed.includes(id));
+    }
   });
+});
 
-  it('defaults structurally-invalid ids to false and never puts them in the query', async () => {
-    const viewer = new Types.ObjectId().toHexString();
-    const valid = new Types.ObjectId();
+describe('the direction of the edge', () => {
+  it('reports false when the target follows the VIEWER but not the reverse', async () => {
+    // The edge is directed; reading the wrong column turns every follower into a
+    // "following" on the viewer's buttons.
+    const [viewer, target] = await makeUsers(2);
+    await getDb().insert(userFollows).values({ followerId: target, followedId: viewer });
 
-    mockFollowFindLean.mockResolvedValue([{ followedId: valid }]);
-
-    const result = await new UserService().getFollowingStatuses(viewer, [
-      valid.toHexString(),
-      'not-an-object-id',
-    ]);
-
-    expect(mockFollowFind).toHaveBeenCalledWith({
-      followerUserId: viewer,
-      followType: 'user',
-      followedId: { $in: [valid.toHexString()] },
-    });
-    expect(result).toEqual({
-      [valid.toHexString()]: true,
-      'not-an-object-id': false,
+    expect(await userService.getFollowingStatuses(viewer, [target])).toEqual({
+      [target]: false,
     });
   });
 
-  it('dedupes requested ids while still mapping each requested id', async () => {
-    const viewer = new Types.ObjectId().toHexString();
-    const id = new Types.ObjectId();
+  it('does not leak another follower’s edges into the viewer’s answer', async () => {
+    const [viewer, stranger, target] = await makeUsers(3);
+    await getDb().insert(userFollows).values({ followerId: stranger, followedId: target });
 
-    mockFollowFindLean.mockResolvedValue([{ followedId: id }]);
-
-    const result = await new UserService().getFollowingStatuses(viewer, [
-      id.toHexString(),
-      id.toHexString(),
-    ]);
-
-    expect(mockFollowFind).toHaveBeenCalledWith({
-      followerUserId: viewer,
-      followType: 'user',
-      followedId: { $in: [id.toHexString()] },
+    expect(await userService.getFollowingStatuses(viewer, [target])).toEqual({
+      [target]: false,
     });
-    expect(result).toEqual({ [id.toHexString()]: true });
+  });
+});
+
+describe('degenerate inputs', () => {
+  it('returns all-false for an anonymous viewer', async () => {
+    const [followed] = await makeUsers(1);
+
+    expect(await userService.getFollowingStatuses('', [followed])).toEqual({
+      [followed]: false,
+    });
   });
 
-  it('returns all-false with NO query for an anonymous viewer', async () => {
-    const target = new Types.ObjectId().toHexString();
+  it('returns an empty map for an empty id set', async () => {
+    const [viewer] = await makeUsers(1);
 
-    const result = await new UserService().getFollowingStatuses('', [target]);
-
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(result).toEqual({ [target]: false });
-  });
-
-  it('returns {} with NO query for an empty id set', async () => {
-    const viewer = new Types.ObjectId().toHexString();
-
-    const result = await new UserService().getFollowingStatuses(viewer, []);
-
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(result).toEqual({});
+    expect(await userService.getFollowingStatuses(viewer, [])).toEqual({});
   });
 });

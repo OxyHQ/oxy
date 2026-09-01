@@ -1,5 +1,6 @@
 import type {
-  OrganizationCategory,
+  AccountKind,
+  AccountCategoryId,
   UserNameResponse,
   UserRelationship,
   ThemePreference,
@@ -134,6 +135,22 @@ export interface User {
     following?: number;
   };
   accountExpiresAfterInactivityDays?: number | null; // Days of inactivity before account expires (null = never expire)
+  /**
+   * Account-graph classification — WHAT this account is.
+   *
+   * ORTHOGONAL to `type` below, and easy to confuse with it: `type` says where
+   * the account lives and how it is driven (`local` / `federated` / `agent` /
+   * `automated`), `kind` says what it IS (`personal` / `organization` /
+   * `project` / `bot` / `channel`). A federated channel is `type: 'federated'`
+   * AND `kind: 'channel'`; neither value substitutes for the other.
+   *
+   * This is what a consumer rendering authored content reads to tell a
+   * channel's post from a person's — a channel is the author, so there is no
+   * second identity to carry alongside the user.
+   *
+   * Absent should be read as `personal` (the column's default), not as unknown.
+   */
+  kind?: AccountKind;
   // User type and external account support
   type?: 'local' | 'federated' | 'agent' | 'automated';
   isFederated?: boolean;
@@ -153,8 +170,16 @@ export interface User {
   // Managed account fields
   isManagedAccount?: boolean;
   managedBy?: string;
-  /** Real-estate taxonomy when this user is a `kind: 'organization'` account. */
-  organizationCategory?: OrganizationCategory;
+  /**
+   * What this account is about, for any NON-personal account. ORDERED — the
+   * first element is the primary category, and nothing may reorder it.
+   *
+   * Stable ids, not labels: render each through the
+   * `accounts.accountCategory.<id>` translation key so the reader sees their own
+   * language rather than the language of whoever chose it. Absent when the
+   * account has none.
+   */
+  accountCategories?: AccountCategoryId[];
   /**
    * The account's languages as full BCP-47 locales (`language-REGION`, e.g.
    * `en-US`, `es-MX`, `pt-BR`), ordered with the PRIMARY (UI) locale first.
@@ -246,6 +271,7 @@ export interface BlockedUser {
     _id: string;
     username: string;
     avatar?: string;
+    name?: { displayName?: string };
   };
   userId: string;
   createdAt?: string;
@@ -260,6 +286,7 @@ export interface RestrictedUser {
     _id: string;
     username: string;
     avatar?: string;
+    name?: { displayName?: string };
   };
   userId: string;
   createdAt?: string;

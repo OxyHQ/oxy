@@ -27,20 +27,10 @@ jest.mock('@oxyhq/core/server', () => ({
 }));
 
 jest.mock('../assetServiceSingleton', () => ({ assetService: {} }));
-jest.mock('../../models/User', () => ({ __esModule: true, default: {} }));
-jest.mock('../../models/Mailbox', () => ({ Mailbox: {} }));
-jest.mock('../../models/Message', () => ({ Message: {} }));
-jest.mock('../../models/Label', () => ({ Label: {} }));
-jest.mock('../../models/Bundle', () => ({ Bundle: {} }));
-jest.mock('../../models/Reminder', () => ({ Reminder: {} }));
-jest.mock('../../models/Contact', () => ({ Contact: {} }));
-jest.mock('../../models/EmailTemplate', () => ({ EmailTemplate: {} }));
-jest.mock('../../models/EmailFilter', () => ({ EmailFilter: {} }));
 jest.mock('../senderAvatar.service', () => ({ getAvatarPathsBatch: jest.fn() }));
 jest.mock('../aiLabeling.service', () => ({ aiLabelingService: {} }));
 jest.mock('../cardExtraction.service', () => ({ cardExtractionService: {} }));
 jest.mock('../smtp.outbound', () => ({ __esModule: true, smtpOutbound: { send: jest.fn() }, default: {} }));
-jest.mock('../push.service', () => ({ pushService: {} }));
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));

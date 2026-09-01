@@ -36,7 +36,9 @@
     "expo-system-ui": "{{v.expoSystemUi}}",
     "expo-web-browser": "{{v.expoWebBrowser}}",
     "expo-haptics": "{{v.expoHaptics}}",
+    "expo-image-picker": "{{v.expoImagePicker}}",
     "expo-image-manipulator": "{{v.expoImageManipulator}}",
+    "expo-document-picker": "{{v.expoDocumentPicker}}",
     "nativewind": "{{v.nativewind}}",
     "react": "{{v.react}}",
     "react-dom": "{{v.reactDom}}",
@@ -56,6 +58,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "{{v.tailwindPostcss}}",
     "@types/react": "{{v.reactTypes}}",
+    "@types/react-dom": "{{v.reactDomTypes}}",
     "babel-plugin-module-resolver": "{{v.babelModuleResolver}}",
     "babel-preset-expo": "{{v.babelPresetExpo}}",
     "eslint": "{{v.eslint}}",

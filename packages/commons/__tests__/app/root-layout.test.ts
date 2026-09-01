@@ -43,4 +43,17 @@ describe('Commons root layout', () => {
     // SDK's pinned lanes and re-create the duplication this app deleted.
     expect(ROOT_LAYOUT_SOURCE).not.toMatch(/useSessionAutoConnect|sessionConnectStore/);
   });
+
+  it('mounts shared connection-status toasts at the app root', () => {
+    expect(ROOT_LAYOUT_SOURCE).toMatch(
+      /import\s+\{\s*ConnectionStatusToasts\s*\}\s+from\s+'@oxyhq\/bloom\/connection-status'/,
+    );
+    expect(ROOT_LAYOUT_SOURCE).toMatch(/<ConnectionStatusToasts\s*\/>/);
+    // Outside OxyProvider so offline toasts still render during the boot shell.
+    const providerIdx = ROOT_LAYOUT_SOURCE.indexOf('<OxyProvider');
+    const toastIdx = ROOT_LAYOUT_SOURCE.indexOf('<ConnectionStatusToasts');
+    expect(toastIdx).toBeGreaterThan(-1);
+    expect(providerIdx).toBeGreaterThan(-1);
+    expect(toastIdx).toBeLessThan(providerIdx);
+  });
 });

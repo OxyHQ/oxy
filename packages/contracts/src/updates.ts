@@ -106,6 +106,8 @@ export const assetUploadTicketSchema = z.object({
    * carries the long immutable cache header (assets are content-addressed).
    */
   cacheControl: z.string(),
+  /** Base64 SHA-256 value required in the presigned PUT's checksum header. */
+  checksumSHA256: z.string(),
 });
 export type AssetUploadTicket = z.infer<typeof assetUploadTicketSchema>;
 

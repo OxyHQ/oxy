@@ -18,7 +18,11 @@
 export {
   createOptionalOxyAuth,
   createOxyAuthMiddleware,
+  getOxyBillingPrincipal,
+  getOxyDelegatedUserId,
+  getOxyRequestAttribution,
   getOxyUserId,
+  getRequiredOxyBillingPrincipal,
   getRequiredOxyUserId,
   isOxyAuthenticated,
   requireOxyAuth,
@@ -28,6 +32,8 @@ export type {
   OxyAuthenticatedRequest,
   OxyAuthMiddlewareOptions,
   OxyAuthRequest,
+  OxyBillingPrincipal,
+  OxyRequestAttribution,
   OxyRequestUser,
   OxyServiceActingAsContext,
   OxyServiceAppContext,
@@ -65,14 +71,26 @@ export type { OxyCorsOptions } from './cors';
 
 // Shared Helmet + Content-Security-Policy baseline (Cloudflare Insights beacon,
 // Oxy API/CDN origins) with additive, per-app extensions.
+//
+// `extractInlineScripts` / `inlineScriptCspHash` / `cspSourcesFor` are exported
+// so a post-deploy gate can ask the SERVED document and the SERVED policy the
+// same questions `buildOxyPagesHeaders` asked the built ones. A gate that
+// re-implemented the scan or the parse would be testing its own copy, and would
+// agree with a broken original.
 export {
   buildOxyCspDirectives,
+  buildOxyPagesHeaders,
   createOxySecurityHeaders,
+  cspSourcesFor,
+  extractInlineScripts,
+  formatOxyCspPolicy,
+  inlineScriptCspHash,
   OXY_CSP_BASELINE,
 } from './securityHeaders';
 export type {
   OxyCspDirective,
   OxyCspExtensions,
+  OxyPagesHeadersOptions,
   OxySecurityHeadersOptions,
 } from './securityHeaders';
 
@@ -94,16 +112,25 @@ export type {
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
 
+// Cross-service user-invalidation signal: oxy-api publishes when identity
+// changes, every consuming backend sweeps its caches instead of waiting out a TTL.
+export {
+  createOxyUserInvalidationHandler,
+  publishOxyUserInvalidation,
+} from './userInvalidation';
+export type {
+  OxyInvalidationPublisher,
+  OxyUserInvalidationHandlerOptions,
+} from './userInvalidation';
+// The identity-key enumeration itself is platform-neutral (`src/utils/`) so the
+// client mixins and this Node-only subscriber sweep the SAME list — a second
+// copy is what let `updateAccount` and `updateProfile` drift apart.
+export { evictOxyIdentityCache, oxyUserByIdCacheKey, OXY_IDENTITY_CACHE_PREFIXES } from '../utils/identityCacheSweep';
+export type { OxyIdentityCacheEvictor } from '../utils/identityCacheSweep';
+
 // Registrable-apex (eTLD+1) derivation via the Public Suffix List — the SINGLE
 // SOURCE OF TRUTH shared with the IdP worker and the client FAPI auto-detect.
 // Pure host handling (no browser deps), so it is safe on the server subpath and
 // lets `@oxyhq/api` derive `auth.<apex>` without duplicating PSL logic.
 export { registrableApex } from '../utils/registrableApex';
-export {
-  buildIdpHubOrigin,
-  buildHubSyncUrl,
-  isIdpHubOrigin,
-  isOfficialWebOrigin,
-  normalizeOfficialReturnOrigin,
-  parseHubSyncReturnUrl,
-} from '../utils/officialOrigins';
+export { isOfficialWebOrigin } from '../utils/officialOrigins';

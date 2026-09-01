@@ -1,9 +1,5 @@
-import type { ComponentType } from 'react';
+import { lazy, type ComponentType } from 'react';
 import type { BaseScreenProps } from '../types/navigation';
-
-// Lazy loading: Screens are loaded on-demand to break require cycles
-// This prevents screens (which import OxyContext) from being loaded
-// before OxyContext is fully initialized
 
 // Define all available route names
 export type RouteName =
@@ -46,85 +42,99 @@ export type RouteName =
     | 'Preferences' // General user preferences (theme, reduce-motion, etc.)
     | 'AccountDialog'; // Unified account switcher + sign-in surface (OxyAccountDialogScreen body)
 
-// Lazy screen loaders - functions that return screen components on-demand
-// This breaks the require cycle by deferring imports until screens are actually needed
-const screenLoaders: Record<RouteName, () => ComponentType<BaseScreenProps>> = {
-    ManageAccount: () => require('../screens/ManageAccountScreen').default,
-    AccountVerification: () => require('../screens/AccountVerificationScreen').default,
-    PaymentGateway: () => require('../screens/PaymentGatewayScreen').default,
-    Profile: () => require('../screens/ProfileScreen').default,
-    LanguageSelector: () => require('../screens/LanguageSelectorScreen').default,
-    PrivacySettings: () => require('../screens/PrivacySettingsScreen').default,
-    SearchSettings: () => require('../screens/SearchSettingsScreen').default,
-    FileManagement: () => require('../screens/FileManagementScreen').default,
-    HelpSupport: () => require('../screens/HelpSupportScreen').default,
-    FAQ: () => require('../screens/FAQScreen').default,
-    Feedback: () => require('../screens/FeedbackScreen').default,
-    LegalDocuments: () => require('../screens/LegalDocumentsScreen').default,
-    AppInfo: () => require('../screens/AppInfoScreen').default,
-    PremiumSubscription: () => require('../screens/PremiumSubscriptionScreen').default,
-    WelcomeNewUser: () => require('../screens/WelcomeNewUserScreen').default,
-    UserLinks: () => require('../screens/UserLinksScreen').default,
-    HistoryView: () => require('../screens/HistoryViewScreen').default,
-    SavesCollections: () => require('../screens/SavesCollectionsScreen').default,
-    EditProfile: () => require('../screens/EditProfileScreen').default,
-    EditProfileField: () => require('../screens/EditProfileFieldScreen').default,
+/**
+ * The component for each route, loaded on demand.
+ *
+ * Every entry is `lazy(() => import(...))`: the screen module is fetched and
+ * evaluated the first time its surface is presented, never at import time. That
+ * matters twice over — screens import `OxyContext`, which reaches back here, so
+ * eager evaluation would run screens mid-cycle; and it keeps native-only screen
+ * dependencies out of the evaluation path of every consumer that merely touches
+ * the SDK.
+ *
+ * What defers the load must NOT be `require()`. `@oxyhq/services` ships an ESM
+ * build, and a `require()` in ESM output forces web bundlers into CommonJS
+ * interop: rolldown-vite defers every module in the required subgraph behind a
+ * lazy initializer and then hands a consumer that statically imported one of
+ * them the still-`undefined` binding. That is how `OxySignInRequestSurface`
+ * reached auth.oxy.so/authorize as `undefined` and blanked the page with React
+ * error #130 — this registry pulled `OxyAccountDialogScreen`, and the whole
+ * sign-in surface subgraph with it, through `require()`.
+ *
+ * The value type is `ComponentType<never>`, which every screen satisfies. A few
+ * screens (`Profile`, `PaymentGateway`, `UserLinks`, `FollowersList`,
+ * `FollowingList`) declare props BEYOND {@link BaseScreenProps} — `userId`,
+ * `amount` — that only reach them through the route's untyped props bag
+ * (`present(route, props)`), so this map cannot prove they are satisfied. The
+ * previous `require()` returned `any` and hid that entirely; stating it here
+ * confines the gap to one documented widening in {@link getScreenComponent}.
+ */
+const screenComponents: Record<RouteName, ComponentType<never>> = {
+    ManageAccount: lazy(() => import('../screens/ManageAccountScreen')),
+    AccountVerification: lazy(() => import('../screens/AccountVerificationScreen')),
+    PaymentGateway: lazy(() => import('../screens/PaymentGatewayScreen')),
+    Profile: lazy(() => import('../screens/ProfileScreen')),
+    LanguageSelector: lazy(() => import('../screens/LanguageSelectorScreen')),
+    PrivacySettings: lazy(() => import('../screens/PrivacySettingsScreen')),
+    SearchSettings: lazy(() => import('../screens/SearchSettingsScreen')),
+    FileManagement: lazy(() => import('../screens/FileManagementScreen')),
+    HelpSupport: lazy(() => import('../screens/HelpSupportScreen')),
+    FAQ: lazy(() => import('../screens/FAQScreen')),
+    Feedback: lazy(() => import('../screens/FeedbackScreen')),
+    LegalDocuments: lazy(() => import('../screens/LegalDocumentsScreen')),
+    AppInfo: lazy(() => import('../screens/AppInfoScreen')),
+    PremiumSubscription: lazy(() => import('../screens/PremiumSubscriptionScreen')),
+    WelcomeNewUser: lazy(() => import('../screens/WelcomeNewUserScreen')),
+    UserLinks: lazy(() => import('../screens/UserLinksScreen')),
+    HistoryView: lazy(() => import('../screens/HistoryViewScreen')),
+    SavesCollections: lazy(() => import('../screens/SavesCollectionsScreen')),
+    EditProfile: lazy(() => import('../screens/EditProfileScreen')),
+    EditProfileField: lazy(() => import('../screens/EditProfileFieldScreen')),
     // Informational screens
-    LearnMoreUsernames: () => require('../screens/LearnMoreUsernamesScreen').default,
+    LearnMoreUsernames: lazy(() => import('../screens/LearnMoreUsernamesScreen')),
     // Oxy Trust screens
-    TrustCenter: () => require('../screens/trust/TrustCenterScreen').default,
-    TrustLeaderboard: () => require('../screens/trust/TrustLeaderboardScreen').default,
-    TrustRewards: () => require('../screens/trust/TrustRewardsScreen').default,
-    TrustRules: () => require('../screens/trust/TrustRulesScreen').default,
-    AboutTrust: () => require('../screens/trust/TrustAboutScreen').default,
-    TrustFAQ: () => require('../screens/trust/TrustFAQScreen').default,
+    TrustCenter: lazy(() => import('../screens/trust/TrustCenterScreen')),
+    TrustLeaderboard: lazy(() => import('../screens/trust/TrustLeaderboardScreen')),
+    TrustRewards: lazy(() => import('../screens/trust/TrustRewardsScreen')),
+    TrustRules: lazy(() => import('../screens/trust/TrustRulesScreen')),
+    AboutTrust: lazy(() => import('../screens/trust/TrustAboutScreen')),
+    TrustFAQ: lazy(() => import('../screens/trust/TrustFAQScreen')),
     // User list screens (followers/following)
-    FollowersList: () => require('../screens/FollowersListScreen').default,
-    FollowingList: () => require('../screens/FollowingListScreen').default,
-    CreateAccount: () => require('../screens/CreateAccountScreen').default,
-    AccountMembers: () => require('../screens/AccountMembersScreen').default,
-    AccountSettings: () => require('../screens/AccountSettingsScreen').default,
-    ChangeAvatar: () => require('../screens/ChangeAvatarScreen').default,
-    AvatarCrop: () => require('../screens/AvatarCropScreen').default,
-    Notifications: () => require('../screens/NotificationsScreen').default,
-    ConnectedApps: () => require('../screens/ConnectedAppsScreen').default,
-    Preferences: () => require('../screens/PreferencesScreen').default,
+    FollowersList: lazy(() => import('../screens/FollowersListScreen')),
+    FollowingList: lazy(() => import('../screens/FollowingListScreen')),
+    CreateAccount: lazy(() => import('../screens/CreateAccountScreen')),
+    AccountMembers: lazy(() => import('../screens/AccountMembersScreen')),
+    AccountSettings: lazy(() => import('../screens/AccountSettingsScreen')),
+    ChangeAvatar: lazy(() => import('../screens/ChangeAvatarScreen')),
+    AvatarCrop: lazy(() => import('../screens/AvatarCropScreen')),
+    Notifications: lazy(() => import('../screens/NotificationsScreen')),
+    ConnectedApps: lazy(() => import('../screens/ConnectedAppsScreen')),
+    Preferences: lazy(() => import('../screens/PreferencesScreen')),
     // Unified account switcher + sign-in surface. Its body lives in the
     // `OxyAccountDialogScreen` component (folded from the standalone dialog); the
     // surface stack provides the Dialog chrome around it.
-    AccountDialog: () => require('../components/OxyAccountDialogScreen').default,
+    AccountDialog: lazy(() => import('../components/OxyAccountDialogScreen')),
 };
 
-// Cache loaded components to avoid re-requiring
-const screenCache = new Map<RouteName, ComponentType<BaseScreenProps>>();
-
-// Helper function to get a screen component by route name (lazy loaded)
-export const getScreenComponent = (routeName: RouteName): ComponentType<BaseScreenProps> | undefined => {
-    // Return cached component if available
-    if (screenCache.has(routeName)) {
-        return screenCache.get(routeName);
-    }
-
-    // Lazy load the component
-    const loader = screenLoaders[routeName];
-    if (loader) {
-        try {
-            const component = loader();
-            screenCache.set(routeName, component);
-            return component;
-        } catch (error) {
-            if (__DEV__) {
-                console.error(`[Routes] Failed to load screen: ${routeName}`, error);
-            }
-            return undefined;
-        }
-    }
-
-    return undefined;
-};
+/**
+ * Resolve the component for a route.
+ *
+ * The map is total over {@link RouteName} — the compiler enforces that at its
+ * declaration — so this returns `undefined` only for a caller that reached here
+ * with an unchecked string; {@link isValidRoute} is how such a caller narrows.
+ *
+ * The surface host renders the result with {@link BaseScreenProps} merged with
+ * the route's own props bag, so that is the type it is handed back as. This one
+ * widening is where the gap documented on {@link screenComponents} lives: the map
+ * dispatches on a string key, so a screen's extra prop requirements are met at
+ * `present(route, props)` call sites, not provable here. No caching is needed —
+ * React memoizes each `lazy()` component's module after its first load.
+ */
+export const getScreenComponent = (routeName: RouteName): ComponentType<BaseScreenProps> | undefined =>
+    screenComponents[routeName] as ComponentType<BaseScreenProps>;
 
 // Helper function to check if a route exists
-// Uses the screenLoaders object to check existence without loading the screen
+// Uses the screenComponents map to check existence without loading the screen
 export const isValidRoute = (routeName: string): routeName is RouteName => {
-    return routeName in screenLoaders;
+    return routeName in screenComponents;
 };

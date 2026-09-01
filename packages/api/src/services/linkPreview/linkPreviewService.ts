@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto';
-import type { UpdateQuery } from 'mongoose';
+import { eq, inArray } from 'drizzle-orm';
 import { safeFetch, SsrfRejection, type SafeFetchResult } from '@oxyhq/core/server';
 import type { LinkPreview } from '@oxyhq/contracts';
-import { LinkPreview as LinkPreviewModel, type ILinkPreview } from '../../models/LinkPreview';
+import { getDb } from '../../config/postgres';
+import { linkPreviews } from '../../db/schema';
 import { assetService } from '../assetServiceSingleton';
 import { getAssetCdnUrl } from '../../config/cdn';
 import { isAllowedCacheMime } from '../../constants/federationCache';
 import { logger } from '../../utils/logger';
 import { enqueueLinkPreviewWarm } from '../../queue/linkPreviewWarm.queue';
 import { resolveLinkMetadata, normalizeUrl } from './linkMetadataResolver';
-import { serializeLinkPreview } from './linkPreviewSerializer';
+import { serializeLinkPreview, type SerializableLinkPreview } from './linkPreviewSerializer';
 import {
   acquireResolveLock,
   isUsablePreview,
@@ -44,6 +45,31 @@ import {
  *    origin URL is NEVER returned to a client. It lives only in the server-only
  *    `originImageUrl` column.
  */
+/**
+ * The columns a read may load: everything the client DTO needs, plus the two
+ * the SERVER needs (`id` to key a batch, `version` to judge freshness). The two
+ * `origin_*` columns are absent, which is the whole point — see
+ * `linkPreviewSerializer.ts`.
+ */
+const STORED_COLUMNS = {
+  id: linkPreviews.id,
+  requestedUrl: linkPreviews.requestedUrl,
+  canonicalUrl: linkPreviews.canonicalUrl,
+  title: linkPreviews.title,
+  description: linkPreviews.description,
+  siteName: linkPreviews.siteName,
+  favicon: linkPreviews.favicon,
+  imageUrl: linkPreviews.imageUrl,
+  status: linkPreviews.status,
+  version: linkPreviews.version,
+  resolvedAt: linkPreviews.resolvedAt,
+} as const;
+
+/** A stored preview as the service reads it. */
+type StoredLinkPreview = {
+  [K in keyof typeof STORED_COLUMNS]: (typeof linkPreviews.$inferSelect)[K];
+};
+
 class LinkPreviewService {
   /**
    * Count of in-flight synchronous (`wait=1`) resolves, server-wide (this is a
@@ -74,8 +100,41 @@ class LinkPreviewService {
     return createHash('sha256').update(normalizedUrl).digest('hex');
   }
 
+  /** Load one stored preview by its content-addressed id. */
+  private async load(id: string): Promise<StoredLinkPreview | null> {
+    const [row] = await getDb()
+      .select(STORED_COLUMNS)
+      .from(linkPreviews)
+      .where(eq(linkPreviews.id, id))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /**
+   * Upsert a resolution.
+   *
+   * Mongo's `findByIdAndUpdate(..., { upsert: true, new: true })` with a `$set`
+   * and a `$unset` becomes one `insert ... on conflict do update`. `$unset`
+   * carried no information a column cannot: an absent field and a NULL column
+   * both mean "this preview has no title", so the fields the resolver did not
+   * produce are written as NULL rather than deleted. Writing them EXPLICITLY is
+   * what makes a re-resolve that loses a title actually clear the old one —
+   * omitting the key from the `set` would leave the stale value in place.
+   */
+  private async store(
+    id: string,
+    values: Omit<typeof linkPreviews.$inferInsert, 'id'>
+  ): Promise<StoredLinkPreview | null> {
+    const [row] = await getDb()
+      .insert(linkPreviews)
+      .values({ id, ...values })
+      .onConflictDoUpdate({ target: linkPreviews.id, set: values })
+      .returning(STORED_COLUMNS);
+    return row ?? null;
+  }
+
   /** A stored preview is fresh while its version matches and it is within the refresh TTL. */
-  private isFresh(doc: Pick<ILinkPreview, 'version' | 'resolvedAt'>): boolean {
+  private isFresh(doc: Pick<StoredLinkPreview, 'version' | 'resolvedAt'>): boolean {
     if (doc.version < LINK_PREVIEW_RESOLVER_VERSION) return false;
     if (!doc.resolvedAt) return false;
     const ageSeconds = (Date.now() - doc.resolvedAt.getTime()) / 1000;
@@ -111,7 +170,7 @@ class LinkPreviewService {
       return hot;
     }
 
-    const doc = await LinkPreviewModel.findById(this.hash(normalized));
+    const doc = await this.load(this.hash(normalized));
     if (doc && this.isFresh(doc)) {
       const dto = serializeLinkPreview(doc);
       void storeHotPreview(normalized, dto);
@@ -165,9 +224,12 @@ class LinkPreviewService {
     if (misses.length > 0) {
       const missHashes = misses.map((n) => normToHash.get(n)).filter((h): h is string => Boolean(h));
       const docs = missHashes.length
-        ? await LinkPreviewModel.find({ _id: { $in: missHashes } })
+        ? await getDb()
+            .select(STORED_COLUMNS)
+            .from(linkPreviews)
+            .where(inArray(linkPreviews.id, missHashes))
         : [];
-      const docByHash = new Map<string, ILinkPreview>(docs.map((d) => [d._id, d]));
+      const docByHash = new Map<string, StoredLinkPreview>(docs.map((d) => [d.id, d]));
 
       for (const normalized of misses) {
         const docHash = normToHash.get(normalized);
@@ -205,7 +267,7 @@ class LinkPreviewService {
     const locked = await acquireResolveLock(normalized);
     if (!locked) {
       // Another worker/instance is resolving this URL — return the current best.
-      const existing = await LinkPreviewModel.findById(this.hash(normalized));
+      const existing = await this.load(this.hash(normalized));
       return existing ? serializeLinkPreview(existing) : { url: normalized, status: 'pending' };
     }
 
@@ -235,35 +297,26 @@ class LinkPreviewService {
         image: imageUrl,
         url: raw.url,
       });
-      const status: ILinkPreview['status'] = usable ? 'resolved' : 'empty';
+      const status: StoredLinkPreview['status'] = usable ? 'resolved' : 'empty';
 
-      const set: Record<string, unknown> = {
+      // An empty string was stored as "absent" by the Mongo writer, so it stays
+      // absent here rather than becoming a `''` the serializer would emit.
+      const orNull = (value: string | undefined): string | null =>
+        value === undefined || value === '' ? null : value;
+
+      const doc = await this.store(this.hash(normalized), {
         requestedUrl: normalized,
         canonicalUrl: raw.url || normalized,
         status,
         version: LINK_PREVIEW_RESOLVER_VERSION,
         resolvedAt: new Date(),
-      };
-      const unset: Record<string, ''> = {};
-      const assign = (field: string, value: string | undefined): void => {
-        if (value !== undefined && value !== null && value !== '') set[field] = value;
-        else unset[field] = '';
-      };
-      assign('title', raw.title);
-      assign('description', raw.description);
-      assign('siteName', raw.siteName);
-      assign('imageUrl', imageUrl);
-      assign('favicon', favicon);
-      assign('originImageUrl', raw.imageUrl);
-      assign('originFaviconUrl', raw.faviconUrl);
-
-      const update: UpdateQuery<ILinkPreview> = { $set: set };
-      if (Object.keys(unset).length > 0) update.$unset = unset;
-
-      const doc = await LinkPreviewModel.findByIdAndUpdate(this.hash(normalized), update, {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
+        title: orNull(raw.title),
+        description: orNull(raw.description),
+        siteName: orNull(raw.siteName),
+        imageUrl: orNull(imageUrl),
+        favicon: orNull(favicon),
+        originImageUrl: orNull(raw.imageUrl),
+        originFaviconUrl: orNull(raw.faviconUrl),
       });
 
       const dto = serializeLinkPreview(doc ?? this.fallbackDoc(normalized, status));
@@ -280,40 +333,39 @@ class LinkPreviewService {
 
   /** Persist a hollow/failed resolution as an `empty` preview + negative marker. */
   private async storeEmpty(normalized: string): Promise<LinkPreview> {
-    const update: UpdateQuery<ILinkPreview> = {
-      $set: {
-        requestedUrl: normalized,
-        canonicalUrl: normalized,
-        status: 'empty',
-        version: LINK_PREVIEW_RESOLVER_VERSION,
-        resolvedAt: new Date(),
-      },
-      $unset: {
-        title: '',
-        description: '',
-        siteName: '',
-        imageUrl: '',
-        favicon: '',
-        originImageUrl: '',
-        originFaviconUrl: '',
-      },
-    };
-    const doc = await LinkPreviewModel.findByIdAndUpdate(this.hash(normalized), update, {
-      upsert: true,
-      new: true,
-      setDefaultsOnInsert: true,
+    const doc = await this.store(this.hash(normalized), {
+      requestedUrl: normalized,
+      canonicalUrl: normalized,
+      status: 'empty',
+      version: LINK_PREVIEW_RESOLVER_VERSION,
+      resolvedAt: new Date(),
+      title: null,
+      description: null,
+      siteName: null,
+      imageUrl: null,
+      favicon: null,
+      originImageUrl: null,
+      originFaviconUrl: null,
     });
     await markNegative(normalized);
     return serializeLinkPreview(doc ?? this.fallbackDoc(normalized, 'empty'));
   }
 
-  /** Minimal in-memory doc for serialization when a write returned no document. */
-  private fallbackDoc(normalized: string, status: ILinkPreview['status']): SerializableFallback {
+  /** Minimal in-memory doc for serialization when a write returned no row. */
+  private fallbackDoc(
+    normalized: string,
+    status: StoredLinkPreview['status']
+  ): SerializableLinkPreview {
     return {
       requestedUrl: normalized,
       canonicalUrl: normalized,
       status,
       resolvedAt: new Date(),
+      title: null,
+      description: null,
+      siteName: null,
+      favicon: null,
+      imageUrl: null,
     };
   }
 
@@ -386,7 +438,7 @@ class LinkPreviewService {
       if (!cdnUrl) {
         return undefined;
       }
-      return this.cdnByIdUrl(file._id.toString());
+      return this.cdnByIdUrl(file.id);
     } catch (error) {
       logger.debug('[linkPreviewService] image re-host failed', {
         url: originUrl,
@@ -408,11 +460,5 @@ class LinkPreviewService {
     return 'link-preview-image';
   }
 }
-
-/** The minimal shape the serializer needs when no Mongo document is available. */
-type SerializableFallback = Pick<
-  ILinkPreview,
-  'requestedUrl' | 'canonicalUrl' | 'status' | 'resolvedAt'
->;
 
 export const linkPreviewService = new LinkPreviewService();

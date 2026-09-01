@@ -39,6 +39,8 @@ interface RecoveryPhraseStepProps {
   isContinuing?: boolean;
   backgroundColor: string;
   textColor: string;
+  /** Bottom inset for scroll content; defaults to auth onboarding clearance. */
+  contentBottomPad?: number;
 }
 
 /**
@@ -66,6 +68,7 @@ export function RecoveryPhraseStep({
   isContinuing = false,
   backgroundColor,
   textColor,
+  contentBottomPad = 60,
 }: RecoveryPhraseStepProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -93,7 +96,7 @@ export function RecoveryPhraseStep({
     return (
       <View style={[styles.container, { backgroundColor, paddingTop: insets.top + 16 }]}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: contentBottomPad }]}
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
@@ -113,7 +116,7 @@ export function RecoveryPhraseStep({
   return (
     <View style={[styles.container, { backgroundColor, paddingTop: insets.top + 16 }]}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: contentBottomPad }]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -221,7 +224,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
-    paddingBottom: 60,
   },
   header: {
     alignItems: 'center',

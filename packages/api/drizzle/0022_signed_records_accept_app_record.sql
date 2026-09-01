@@ -1,0 +1,24 @@
+-- oxy:deploy-phase=pre
+--
+-- PRE: the constraint is strictly WIDER than the one it replaces, so the image
+-- still serving cannot violate it — it only ever writes Oxy's own categories —
+-- while the arriving image needs the wider set before it can accept an app's
+-- record at all. `post` would leave app records rejected for the whole window.
+--
+-- Why the set gains `app_record`, and why it is one value rather than a lane,
+-- is argued in `@oxyhq/contracts`'s `oxyRecordTypes.ts`. The short of it: one
+-- chain per PERSON, held by Oxy, needs room for the records an app appends to
+-- that chain, and an app is distinguished by the envelope's `collection`
+-- (denormalized to `nsid`) rather than by inventing a category. The set stays
+-- closed, which is what keeps this CHECK meaningful.
+--
+-- LOCKING, and it is heavier than an index build: `ADD CONSTRAINT … CHECK`
+-- takes ACCESS EXCLUSIVE and scans the table to validate, so it blocks reads AND
+-- writes for the scan — not just writes. Every existing row already satisfies a
+-- widening, so nothing can fail; the cost is purely the scan. Left as a plain
+-- ADD rather than `NOT VALID` + `VALIDATE CONSTRAINT` because `signed_records`
+-- is small (identity/civic/node records, not post volume) and the two-step form
+-- buys a weaker lock only on a table where the scan is long enough to matter.
+-- If that stops being true, split it before dispatching.
+ALTER TABLE "signed_records" DROP CONSTRAINT "signed_records_type_check";--> statement-breakpoint
+ALTER TABLE "signed_records" ADD CONSTRAINT "signed_records_type_check" CHECK ("signed_records"."type" in ('identity', 'profile', 'reputation_attestation', 'real_life_attestation', 'validation_verdict', 'personhood_vouch', 'credential', 'node', 'app_record'));

@@ -151,17 +151,16 @@ export interface OxyContextState {
   createAccount: (data: CreateAccountInput) => Promise<AccountNode>;
 }
 
-export interface OxyContextProviderProps {
+export interface OxyRuntimeProviderProps {
   children: ReactNode;
   oxyServices?: OxyServices;
   baseURL?: string;
   authWebUrl?: string;
   authRedirectUri?: string;
   /**
-   * Authorize endpoint override for silent cross-origin session restore
-   * (web cross-app SSO). Defaults to the production Oxy IdP when unset; a
-   * local/staging deployment points it at its own IdP so cold boot never
-   * bounces the tab to production `auth.oxy.so`.
+   * Authorize endpoint override for web "Sign in with Oxy". Defaults to the
+   * production Oxy IdP when unset; a local/staging deployment points it at its
+   * own IdP so sign-in never reaches production `auth.oxy.so`.
    */
   authorizeBaseUrl?: string;
   storageKeyPrefix?: string;
@@ -174,11 +173,39 @@ export interface OxyContextProviderProps {
   sessionMode?: SessionMode;
   /**
    * Transport for WEB third-party sign-in. See `OxyProviderProps.webAuthMode`.
-   * @default 'redirect'
+   * @default 'popup'
    */
   webAuthMode?: WebAuthMode;
-  /** Sync device credentials to auth.oxy.so after interactive sign-in. @default true */
-  hubSync?: boolean;
+  /**
+   * Let NATIVE background code (a home-screen widget's WorkManager worker, a sync
+   * job) authenticate while the app process is dead and there is no JS runtime.
+   *
+   * With this on, the SDK provisions a purpose-built background credential
+   * whenever the app runs and stores it where `so.oxy.session.OxyBackgroundSession`
+   * can read it; Kotlin then exchanges it for a short access token on demand. The
+   * app writes no session code — this prop is the whole integration.
+   *
+   * OFF by default, because a credential that nobody needs is exposure that
+   * nobody needs. Turn it on only in an app that actually has background code to
+   * authenticate. Android-only today; inert on web and iOS.
+   *
+   * The credential cannot create a session (only the running app can provision
+   * one), cannot rotate or otherwise disturb the app's own device credential, and
+   * is re-authorized server-side on every use so it can never outlive a sign-out.
+   * It does NOT reduce authority: the token it mints is a full user access token,
+   * exactly like the device credential's.
+   *
+   * @default false
+   */
+  backgroundSession?: boolean;
+  /**
+   * Whether this origin/app persists the durable device credential at all. See
+   * `OxyProviderProps.deviceCredentialStorage` for the full rule and the one
+   * caller of `'ephemeral'`.
+   *
+   * @default 'persistent'
+   */
+  deviceCredentialStorage?: 'persistent' | 'ephemeral';
   onAuthStateChange?: (user: User | null) => void;
   onError?: (error: ApiError) => void;
 }

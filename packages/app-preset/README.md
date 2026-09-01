@@ -17,6 +17,7 @@ and JSON.
 | Config plugin | `['@oxyhq/app-preset', {}]` | `withSharedUserId` + iOS keychain entitlement + `expo-build-properties` + `@oxyhq/services/plugins/withSharedIdentityReader` |
 | Android release build | `@oxyhq/app-preset/plugin/withOxyAndroidRelease` | R8 `-optimize` ProGuard file + shared-keystore release signing (opt-in, see below) |
 | Android WebP resources | `@oxyhq/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
+| Oxy Updates (OTA) | `@oxyhq/app-preset/plugin/withOxyUpdates` | the `expo-updates` manifest URL, release channel, `runtimeVersion` policy and the shared code-signing certificate (opt-in, see below) |
 | Metro | `@oxyhq/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
 | Babel | `@oxyhq/app-preset/babel` | `babel-preset-expo` + `module-resolver` + `react-native-worklets/plugin` |
 | ESLint | `@oxyhq/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
@@ -78,6 +79,57 @@ keystore, so **always verify the artefact's certificate** (`keytool -printcert
 
 `withOxyAndroidWebp` requires `sharp` as a devDependency of the app.
 
+#### Oxy Updates (OTA) (opt-in)
+
+`withOxyUpdates` points `expo-updates` at the self-hosted **Oxy Updates** server
+(`/updates/v1` in oxy-api) and wires the ecosystem code-signing certificate. It is
+opt-in because it needs the app's own registered client id.
+
+```js
+plugins: [
+  ['@oxyhq/app-preset/plugin/withOxyUpdates', { clientId: OXY_CLIENT_ID }],
+]
+```
+
+Prerequisites in the app: `expo-updates` as a dependency (at the version
+`expo install expo-updates` resolves for its SDK), and a registered
+`ApplicationCredential` publicKey (`oxy_dk_...`), normally already present as an
+`EXPO_PUBLIC_OXY_CLIENT_ID`-backed constant because the same id identifies the app
+to the session and OAuth flows. `expo-updates` needs no plugin entry of its own:
+prebuild applies its config plugin automatically.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `clientId` | required | The registered `ApplicationCredential` publicKey |
+| `apiOrigin` | `https://api.oxy.so` | Origin serving `/updates/v1` |
+| `channel` | `production` | Release channel this binary polls |
+| `codeSigning` | `auto` | `require` to fail the build when the certificate is missing; `false` to skip signing |
+| `certificatePath` | bundled certificate | Only for a key-rotation overlap |
+| `runtimeVersionPolicy` | `appVersion` | `false` leaves whatever the app declared |
+
+**runtimeVersion is the `appVersion` policy on purpose.** It is the only policy the
+Oxy toolchain resolves end to end: `oxy-ship` derives the publish runtime from
+`expo config --json --type public`, where `fingerprint` resolves only to the
+sentinel `file:fingerprint` (it is a build-time value), so a fingerprint app would
+need `--runtime-version` passed by hand on every publish. The rule that follows:
+**the app `version` is the OTA compatibility boundary. Bump it whenever native
+code changes.** Installs on the old `version` then correctly stop receiving
+updates published under the new one; installs on an unbumped version would
+receive JS assuming native modules they do not have.
+
+**Code signing is one certificate for the whole ecosystem**, shipped in this
+package at `certs/oxy-updates-code-signing.pem` rather than copied into each app
+repo, so a rotation is one preset bump. See `certs/README.md` for how it is
+generated and rotated. Until that file exists, `withOxyUpdates` wires the update
+URL but not signature verification and warns on both platforms; because the
+certificate is baked into the native build, a binary shipped in that state can
+never verify a manifest for its lifetime, so **do not ship a store build of an
+OTA-enabled app before the certificate is committed.** Pass
+`{ codeSigning: 'require' }` to make that a build failure instead of a warning.
+
+Publishing is `oxy-ship` (`@oxyhq/ship`); see that package's README and its
+`templates/publish-update.yml` CI workflow.
+
 ### 2. Metro (`metro.config.js`)
 
 ```js
@@ -86,8 +138,16 @@ const { createOxyMetroConfig } = require('@oxyhq/app-preset/metro');
 module.exports = createOxyMetroConfig(__dirname, {
   sharedTypesPackage: '@myapp/shared-types', // optional
   cssInput: './global.css',                  // optional, this is the default
+  dropConsole: true,                         // optional, production web only
+  // svgTransformerPath: require.resolve('react-native-svg-transformer/expo'),
+  // extraBlockList: [path.join(__dirname, '../../.claude/worktrees')],
 });
 ```
+
+`extraBlockList` accepts regular expressions or directory paths. Directory
+paths are escaped and block only their descendants. `extraNodeModules`,
+`extraWatchFolders`, `extraAssetExts`, and `extraSourceExts` extend the shared
+defaults without replacing them.
 
 ### 3. Babel (`babel.config.js`)
 

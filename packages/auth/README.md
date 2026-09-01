@@ -14,9 +14,9 @@ There is no landing page at `/`.
 ## API Base URL
 
 The web app calls the API directly. In development it defaults to
-`http://localhost:3001`. Override with:
+`http://localhost:4100`. Override with:
 
-- `VITE_OXY_API_URL` (preferred) — Example: `http://localhost:3001`
+- `VITE_OXY_API_URL` (preferred) — Example: `http://localhost:4100`
 - `VITE_OXY_AUTH_URL` (legacy alias)
 
 ## Development
@@ -32,8 +32,8 @@ bun run dev
 ```
 
 Default ports:
-- Auth web: http://localhost:3002
-- API: http://localhost:3001
+- Auth web: http://localhost:8105
+- API: http://localhost:4100
 
 ## Flow Overview
 
@@ -46,7 +46,7 @@ Default ports:
 
 ## Deploy Safety (IdP is production-only — there is NO staging)
 
-`auth.oxy.so` is the OAuth authorize/consent IdP for the entire Oxy ecosystem and has **no staging environment** — every push to `main` deploys straight to production for all users. The IdP is a **pure-static Vite SPA** deployed to Cloudflare Pages — no Pages Function, no `_worker.js`, no server directory. It authenticates device-first through the same `OxyProvider` (`@oxyhq/services`) every Oxy app uses; the device-account chooser enumerates accounts via the shared device-first SDK (`useSwitchableAccounts`), not a bespoke feed. FedCM and the legacy `/sso` bounce machinery were removed from the IdP entirely. A broken IdP build (blank SPA, or a regression that re-adds the FedCM manifest) takes "Sign in with Oxy" down everywhere.
+`auth.oxy.so` is the OAuth authorize/consent IdP for the entire Oxy ecosystem and has **no staging environment** — every push to `main` deploys straight to production for all users. The IdP is a **pure-static Vite SPA** deployed to Cloudflare Pages — no Pages Function, no `_worker.js`, no server directory. It authenticates device-first through the same `OxyProvider` (`@oxyhq/services`) every Oxy app uses; the device-account chooser enumerates the server's device directory via the shared device-first SDK (`useDeviceSwitcher`), not a bespoke feed. FedCM and the legacy `/sso` bounce machinery were removed from the IdP entirely. A broken IdP build (blank SPA, or a regression that re-adds the FedCM manifest) takes "Sign in with Oxy" down everywhere.
 
 One gate protects the deploy (`.github/workflows/deploy-cloudflare.yml`, job `deploy-auth`): after the Cloudflare Pages deploy, `bun run smoke:idp` (`scripts/smoke-idp.ts`) hits the LIVE host on PUBLIC, unauthenticated endpoints only and turns the job RED on any failure. It asserts: `/login`, `/signup`, and `/authorize` carry the SPA root marker (build not broken); and `/.well-known/web-identity` does NOT serve a FedCM manifest (asserts the deletion stays deleted — a regression that re-adds `provider_urls` fails the gate).
 

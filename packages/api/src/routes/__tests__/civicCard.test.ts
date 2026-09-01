@@ -3,7 +3,7 @@
  *
  * Locks the EXACT public response shape a scanner consumes:
  *  - GET /civic/:userId/card → { card, attestation } (signedPublicCardSchema)
- *  - unknown user → 404; invalid userId → 404
+ *  - unknown user → 404; an id that names no account → 404 (whatever its FORMAT)
  *  - PUBLIC (no auth) + CORS-open + cacheable; the attestation signature is present.
  *
  * The publicCard SERVICE is mocked; this suite only locks the HTTP envelope.
@@ -40,7 +40,6 @@ jest.mock('../../services/civic/credential.service', () => ({
   verifyCredential: jest.fn(),
   revokeCredential: jest.fn(),
 }));
-jest.mock('../../models/PersonhoodStatus', () => ({ __esModule: true, default: { findOne: jest.fn() } }));
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
   serviceAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
@@ -133,9 +132,15 @@ describe('GET /civic/:userId/card', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for an invalid userId (service not called)', async () => {
+  it('returns 404 for an id that names no account, whatever its format', async () => {
+    // The route USED to short-circuit on an ObjectId-format check without
+    // calling the service. That check is deleted: after the cutover every new
+    // account id is a uuid v7, so a format gate would 404 the entire new id
+    // space. The service is now the one authority on "no such card" and answers
+    // 404 for an unresolvable id of any shape.
+    mockBuild.mockResolvedValueOnce(null);
     const res = await request(server, '/civic/not-an-objectid/card');
     expect(res.status).toBe(404);
-    expect(mockBuild).not.toHaveBeenCalled();
+    expect(mockBuild).toHaveBeenCalledWith('not-an-objectid');
   });
 });

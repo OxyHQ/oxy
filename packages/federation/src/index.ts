@@ -43,15 +43,62 @@ export {
  * Domain-parameterized ActivityPub URL builders — each app instantiates them once
  * with its own `FEDERATION_DOMAIN` so every actor stays `@user@its-own-domain`.
  */
-export { createUrlBuilders, normalizeActorUsername, type UrlBuilders } from './urls';
+export { createUrlBuilders, normalizeActorUsername, INSTANCE_ACTOR_USERNAME, type UrlBuilders } from './urls';
+
+/**
+ * Network identity: the MECHANISM for re-labelling an account republished by a
+ * bridge onto the network it actually came from, plus the network vocabulary and
+ * the bidirectional upstream-profile-URL rule.
+ *
+ * The mechanism is here; the ENTRIES are not, and must not be. Which operators
+ * may be trusted to re-attribute somebody's account is a moderation judgement an
+ * app commits and answers for — `createBridgeRelabeller` takes them as a
+ * parameter so no app inherits another's.
+ */
+export {
+  FEDERATION_NETWORKS,
+  BSKY_NETWORK_DOMAIN,
+  blueskyUsernameFromHandle,
+  createBridgeRelabeller,
+  stripBridgeBoilerplate,
+  upstreamProfileUrl,
+  parseUpstreamProfileUrl,
+  federatedUsernameFromUpstreamUrl,
+  upstreamHandleFromProfileField,
+  upstreamHandleFromAlsoKnownAs,
+  upstreamHandleFromAutomatedActor,
+  upstreamHandleFromPreferredUsername,
+  upstreamHandleFromProxyOf,
+  readProxyDeclarations,
+  type FederationNetwork,
+  type FederationBridgeEntry,
+  type BridgeRelabeller,
+  type BridgeConsentModel,
+  type BridgeDerivation,
+  type BridgedActorField,
+  type DeriveNetworkIdentity,
+  type NetworkIdentity,
+  type NetworkIdentityCandidate,
+  type ProxyDeclaration,
+} from './networkIdentity';
 
 /**
  * The shared JSON-LD `@context` (load-bearing term declarations) and the
  * ActivityPub URI helpers (actor-uri extraction + the per-instance domain policy:
  * blocked-domain check + local-post-id extraction).
+ *
+ * `canonicalFederationHost` / `isSameFederationHost` are exported because the
+ * domain policy is not the only thing that has to decide whether two spellings
+ * are the same host: a moderation blocklist, a transparency page and a content
+ * purge all ask the same question about the same hosts, and any of them keeping
+ * its own copy of the rule is a second opinion waiting to diverge from the one
+ * the engine enforces. They are the very functions {@link createDomainPolicy} is
+ * built from — not a parallel implementation that agrees today.
  */
 export { AP_CONTEXT } from './apContext';
 export {
+  canonicalFederationHost,
+  isSameFederationHost,
   extractActorUriFromActivityId,
   createDomainPolicy,
   type DomainPolicy,
@@ -59,11 +106,18 @@ export {
 } from './apUri';
 
 /**
- * The single builder of a LOCAL user's ActivityPub `Person` actor document —
- * byte-identical across apps, with media resolution injected.
+ * The single builder of a LOCAL user's ActivityPub actor document —
+ * byte-identical across apps, with media resolution injected. The actor `type`
+ * follows the Oxy account kind ({@link LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND}).
  */
 export {
   createLocalActorBuilder,
+  localActorTypeForAccountKind,
+  isApActorType,
+  AP_ACTOR_TYPES,
+  LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND,
+  type ApActorType,
+  type LocalActorType,
   type LocalActorBuilder,
   type LocalActorBuilderConfig,
   type BuildLocalActorParams,

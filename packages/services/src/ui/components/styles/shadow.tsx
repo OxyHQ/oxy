@@ -48,8 +48,8 @@ function v2Shadow(elevation: number | Animated.Value = 0): ViewStyle | ShadowSty
       return {};
     }
 
-    let height;
-    let radius;
+    let height: number;
+    let radius: number;
     switch (elevation) {
       case 1:
         height = 0.5;

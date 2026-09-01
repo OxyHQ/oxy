@@ -4,6 +4,9 @@ import {
   deviceSessionSyncSchema,
   deviceTokenMintRequestSchema,
   deviceTokenMintResponseSchema,
+  deviceBackgroundCredentialResponseSchema,
+  deviceBackgroundTokenRequestSchema,
+  deviceBackgroundTokenResponseSchema,
   sessionAccountsChangedEventSchema,
   SESSION_ACCOUNTS_CHANGED_EVENT,
   safeParseContract,
@@ -87,6 +90,64 @@ describe('deviceTokenMintResponseSchema', () => {
   it('rejects a response with an invalid nested state', () => {
     const v = { accessToken: 'a', expiresAt: 'e', nextDeviceSecret: 'n', state: { deviceId: 'd1' } };
     expect(safeParseContract(deviceTokenMintResponseSchema, v)).toBeNull();
+  });
+});
+
+describe('deviceBackgroundCredentialResponseSchema', () => {
+  const credential = { deviceId: 'd1', secret: 'bg_secret', accountId: 'a1', expiresAt: '2026-10-07T00:00:00.000Z' };
+
+  it('parses a valid provision response', () => {
+    expect(safeParseContract(deviceBackgroundCredentialResponseSchema, credential)).toEqual(credential);
+  });
+
+  it('rejects a credential without an account to scope it to', () => {
+    const { accountId, ...noAccount } = credential;
+    expect(safeParseContract(deviceBackgroundCredentialResponseSchema, noAccount)).toBeNull();
+  });
+
+  it('rejects an empty secret', () => {
+    expect(safeParseContract(deviceBackgroundCredentialResponseSchema, { ...credential, secret: '' })).toBeNull();
+  });
+});
+
+describe('deviceBackgroundTokenRequestSchema', () => {
+  it('parses a bearer-less { deviceId, secret }', () => {
+    const v = { deviceId: 'd1', secret: 'bg_secret' };
+    expect(safeParseContract(deviceBackgroundTokenRequestSchema, v)).toEqual(v);
+  });
+
+  it('rejects an empty deviceId / secret', () => {
+    expect(safeParseContract(deviceBackgroundTokenRequestSchema, { deviceId: '', secret: 's' })).toBeNull();
+    expect(safeParseContract(deviceBackgroundTokenRequestSchema, { deviceId: 'd1', secret: '' })).toBeNull();
+  });
+
+  it('never asks for a rotated secret back', () => {
+    expect(Object.keys(deviceBackgroundTokenRequestSchema.shape)).toEqual(['deviceId', 'secret']);
+  });
+});
+
+describe('deviceBackgroundTokenResponseSchema', () => {
+  const response = { accessToken: 'jwt.access', expiresAt: '2026-07-07T00:00:00.000Z', accountId: 'a1' };
+
+  it('parses a valid background token response', () => {
+    expect(safeParseContract(deviceBackgroundTokenResponseSchema, response)).toEqual(response);
+  });
+
+  it('rejects a response without the account the token belongs to', () => {
+    const { accountId, ...noAccount } = response;
+    expect(safeParseContract(deviceBackgroundTokenResponseSchema, noAccount)).toBeNull();
+  });
+
+  it('carries no device state and no rotated secret', () => {
+    expect(Object.keys(deviceBackgroundTokenResponseSchema.shape)).toEqual(['accessToken', 'expiresAt', 'accountId']);
+    const parsed = safeParseContract(deviceBackgroundTokenResponseSchema, {
+      ...response,
+      accounts: [{ accountId: 'a1', sessionId: 's1', authuser: 0 }],
+      activeAccountId: 'a1',
+      revision: 3,
+      nextDeviceSecret: 'next_secret',
+    });
+    expect(parsed).toEqual(response);
   });
 });
 

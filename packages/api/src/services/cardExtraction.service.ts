@@ -4,31 +4,64 @@
  * Extracts structured data cards (trips, purchases, events, bills, packages)
  * and key highlights from incoming emails using the Alia AI API.
  * Runs as fire-and-forget after message storage — never blocks email delivery.
+ *
+ * ## What the Postgres port changed
+ *
+ * **The card is FOUR COLUMNS, not a sub-document.** `$set: { card: {...} }`
+ * became `card_type` / `card_data` / `card_confidence` / `card_extracted_at`,
+ * and the table carries `messages_card_complete_check` — a card is whole or
+ * absent — so the four are written together or not at all. Nothing here may use
+ * a dotted path: drizzle keys `set()` by column PROPERTY and silently ignores a
+ * key naming no column, so `set({ 'card.type': … })` would write nothing and
+ * throw nothing.
+ *
+ * **`messages.text` is PROTECTED** (`schema/protectedColumns.ts`) and is named
+ * explicitly below because the extractor needs the body. `html` was in the Mongo
+ * projection and read by nothing — it is another protected body, so it is no
+ * longer fetched at all.
+ *
+ * **`attachments` is a child table.** Only its emptiness was ever used, so the
+ * projection became an `EXISTS`, not a load of every attachment row.
  */
 
 import axios from 'axios';
-import { Message, type CardType } from '../models/Message';
+import { and, eq, sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { qualified } from '@oxyhq/db';
+import {
+  MESSAGE_CARD_TYPES,
+  messages,
+  type MessageHighlight,
+} from '../db/schema/messages';
+import { messageAttachments } from '../db/schema/messageAttachments';
 import { AI_LABELING_CONFIG } from '../config/email.config';
 import { logger } from '../utils/logger';
 
 const ALIA_BASE_URL = 'https://api.alia.onl/v1';
 const ALIA_API_KEY = process.env.ALIA_API_KEY;
 
+/** Bytes of message body handed to the extractor. */
+const MAX_BODY_CHARS = 3000;
+
+/** Minimum model confidence below which a card is discarded. */
+const MIN_CARD_CONFIDENCE = 0.7;
+
+/** Upstream request timeout, in milliseconds. */
+const EXTRACTION_TIMEOUT_MS = 15000;
+
+/** The structured card kinds the schema admits. */
+type CardType = (typeof MESSAGE_CARD_TYPES)[number];
+
 interface ExtractedCard {
   type: CardType;
-  data: Record<string, any>;
+  /** Genuinely shape-less — it differs per card type, which is why it is `jsonb`. */
+  data: Record<string, unknown>;
   confidence: number;
-}
-
-interface ExtractedHighlight {
-  type: string;
-  value: string;
-  label: string;
 }
 
 interface ExtractionResult {
   card: ExtractedCard | null;
-  highlights: ExtractedHighlight[];
+  highlights: MessageHighlight[];
 }
 
 class CardExtractionService {
@@ -40,22 +73,41 @@ class CardExtractionService {
     try {
       if (!ALIA_API_KEY) return;
 
-      const message = await Message.findOne({ _id: messageId, userId })
-        .select('+text +html subject from to date attachments')
-        .lean();
+      const db = getDb();
+      const [message] = await db
+        .select({
+          subject: messages.subject,
+          fromName: messages.fromName,
+          fromAddress: messages.fromAddress,
+          date: messages.date,
+          // PROTECTED — named explicitly because the extractor reads the body.
+          text: messages.text,
+          // Only emptiness was ever used, so this asks the child table the one
+          // question it is asked instead of loading every attachment row.
+          // Both sides of the correlation are QUALIFIED: an unqualified pair
+          // inside a subquery resolves against the subquery's own table and
+          // silently answers a different question (`@oxyhq/db`'s casing module).
+          hasAttachments: sql<boolean>`exists (
+            select 1 from ${messageAttachments}
+            where ${qualified(messageAttachments.messageId)} = ${qualified(messages.id)}
+          )`,
+        })
+        .from(messages)
+        .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+        .limit(1);
       if (!message) return;
 
-      const textContent = (message.text || '').slice(0, 3000);
+      const textContent = (message.text || '').slice(0, MAX_BODY_CHARS);
       if (!textContent && !message.subject) return;
 
-      const fromStr = `${message.from.name || ''} <${message.from.address}>`.trim();
+      const fromStr = `${message.fromName || ''} <${message.fromAddress}>`.trim();
 
       const { system, user } = this.buildPrompt({
         from: fromStr,
         subject: message.subject,
         body: textContent,
-        date: message.date instanceof Date ? message.date.toISOString() : String(message.date),
-        hasAttachments: (message.attachments?.length ?? 0) > 0,
+        date: message.date.toISOString(),
+        hasAttachments: message.hasAttachments,
       });
 
       const response = await axios.post(
@@ -75,7 +127,7 @@ class CardExtractionService {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${ALIA_API_KEY}`,
           },
-          timeout: 15000,
+          timeout: EXTRACTION_TIMEOUT_MS,
         },
       );
 
@@ -84,20 +136,24 @@ class CardExtractionService {
 
       if (!result.card && result.highlights.length === 0) return;
 
-      const update: Record<string, any> = {};
+      // The four card columns move together or the row fails
+      // `messages_card_complete_check`. Keys are column PROPERTIES; a dotted
+      // path here would be dropped in silence.
+      const update: Partial<typeof messages.$inferInsert> = {};
       if (result.card) {
-        update.card = {
-          type: result.card.type,
-          data: result.card.data,
-          confidence: result.card.confidence,
-          extractedAt: new Date(),
-        };
+        update.cardType = result.card.type;
+        update.cardData = result.card.data;
+        update.cardConfidence = result.card.confidence;
+        update.cardExtractedAt = new Date();
       }
       if (result.highlights.length > 0) {
         update.highlights = result.highlights;
       }
 
-      await Message.updateOne({ _id: messageId, userId }, { $set: update });
+      await db
+        .update(messages)
+        .set(update)
+        .where(and(eq(messages.id, messageId), eq(messages.userId, userId)));
       logger.info('Card extraction complete', {
         messageId,
         cardType: result.card?.type ?? 'none',
@@ -159,12 +215,14 @@ class CardExtractionService {
 
       let card: ExtractedCard | null = null;
       if (parsed.card && typeof parsed.card === 'object') {
-        const validTypes: CardType[] = ['trip', 'purchase', 'event', 'bill', 'package'];
+        // The accepted set comes from the SCHEMA's own tuple, which is also what
+        // types the column and generates `messages_card_type_check` — so a type
+        // this parser lets through can never be one the table rejects.
         if (
-          validTypes.includes(parsed.card.type) &&
+          MESSAGE_CARD_TYPES.includes(parsed.card.type) &&
           typeof parsed.card.data === 'object' &&
           typeof parsed.card.confidence === 'number' &&
-          parsed.card.confidence >= 0.7
+          parsed.card.confidence >= MIN_CARD_CONFIDENCE
         ) {
           card = {
             type: parsed.card.type,
@@ -174,7 +232,7 @@ class CardExtractionService {
         }
       }
 
-      const highlights: ExtractedHighlight[] = [];
+      const highlights: MessageHighlight[] = [];
       if (Array.isArray(parsed.highlights)) {
         for (const h of parsed.highlights) {
           if (

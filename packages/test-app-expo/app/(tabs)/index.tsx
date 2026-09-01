@@ -3,6 +3,7 @@ import { Alert, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import { OxySignInButton, useOxy, type RouteName } from '@oxyhq/services';
 import Section from '@/components/section';
 import { GroupedSection } from '@/components/grouped-section';
@@ -30,11 +31,7 @@ export default function HomeScreen() {
   } = useOxy();
   const displayName = useMemo(() => {
     if (!user) return 'Unknown user';
-
-    const fullName = user.name?.full;
-    const firstLast = [user.name?.first, user.name?.last].filter(Boolean).join(' ').trim();
-
-    return fullName || firstLast || user.username || user.email || 'Unknown user';
+    return user.name?.displayName ?? getNormalizedUserHandle(user) ?? 'Unknown user';
   }, [user]);
 
   const handleLogout = useCallback(async () => {

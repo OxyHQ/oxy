@@ -29,7 +29,7 @@ import { useIdentity } from '@/hooks/useIdentity';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
 import { useAttestedEvent, type AttestedEventPayload } from '@/hooks/civic/useAttestedEvent';
-import { getDisplayName } from '@/utils/date-utils';
+import { getDisplayNameOrNull } from '@/utils/date-utils';
 import { useTranslation } from '@/lib/i18n';
 
 const CARD_WIDTH = 240;
@@ -79,7 +79,9 @@ export default function IdScreen() {
     isSynced: identitySyncState.isSynced,
   });
 
-  const displayName = getDisplayName(user);
+  // `getDisplayNameOrNull` answers `null` for intentional absence; card faces take
+  // `displayName?: string` (`undefined`, not `null`).
+  const displayName = getDisplayNameOrNull(user) ?? undefined;
   const avatarUrl = useAvatarUrl(user);
 
   // The public key lives in local secure storage — load it directly so the card
@@ -286,8 +288,7 @@ export default function IdScreen() {
       </Screen>
 
       {/*
-        QR scanner is an action, not a tab. Camera permission is resolved in a
-        detached sheet over this ID screen before the root scanner modal opens.
+        QR scanner is an action, not a tab — opens the root full-screen modal.
 
         `offset` lifts the FAB clear of the floating tab bar. It is the bar's RAW
         footprint: `Fab` supplies its own gap from that anchor, and the bottom

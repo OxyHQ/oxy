@@ -22,7 +22,7 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-const mockGetUserById = jest.fn();
+const mockGetPublicUserById = jest.fn();
 const mockGetUserMutuals = jest.fn();
 
 // Mutable viewer the stubbed `resolveViewerId` returns — set per test to model
@@ -55,7 +55,7 @@ jest.mock('../../services/assetServiceSingleton', () => ({
 }));
 jest.mock('../../services/user.service', () => ({
   userService: {
-    getUserById: mockGetUserById,
+    getPublicUserById: mockGetPublicUserById,
     getUserMutuals: mockGetUserMutuals,
   },
 }));
@@ -83,11 +83,6 @@ jest.mock('../../utils/validation', () => ({
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {},
-}));
-
 import usersRouter from '../users';
 import { errorHandler } from '../../middleware/errorHandler';
 
@@ -142,7 +137,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   currentViewerId = undefined;
   mockGetUserMutuals.mockReset();
-  mockGetUserById.mockResolvedValue({
+  mockGetPublicUserById.mockResolvedValue({
     _id: '5f000000000000000000000a',
     accountStatus: 'active',
     reputationTier: 'trusted',
@@ -174,7 +169,7 @@ describe('GET /users/:userId/mutuals', () => {
 
     expect(res.status).toBe(200);
     expect(mockGetUserMutuals).toHaveBeenCalledTimes(1);
-    expect(mockGetUserMutuals).toHaveBeenCalledWith(VIEWER, TARGET, { limit: 50, offset: 0 });
+    expect(mockGetUserMutuals).toHaveBeenCalledWith(VIEWER, TARGET, { limit: 50, offset: 0, sort: undefined });
     expect(res.body.data).toEqual([dto]);
     // Same envelope as GET /users/:userId/followers.
     expect(res.body.pagination).toEqual({ total: 1, limit: 50, offset: 0, hasMore: false });
@@ -190,7 +185,7 @@ describe('GET /users/:userId/mutuals', () => {
 
     expect(res.status).toBe(200);
     // The viewer is the server-derived one, NOT the attacker-supplied query.
-    expect(mockGetUserMutuals).toHaveBeenCalledWith(VIEWER, TARGET, { limit: 50, offset: 0 });
+    expect(mockGetUserMutuals).toHaveBeenCalledWith(VIEWER, TARGET, { limit: 50, offset: 0, sort: undefined });
   });
 
   it('does not 401 for an anonymous caller — still invokes the service with undefined', async () => {
@@ -202,7 +197,7 @@ describe('GET /users/:userId/mutuals', () => {
     const res = await getJson(server, `/users/${TARGET}/mutuals`);
 
     expect(res.status).toBe(200);
-    expect(mockGetUserMutuals).toHaveBeenCalledWith(undefined, TARGET, { limit: 50, offset: 0 });
+    expect(mockGetUserMutuals).toHaveBeenCalledWith(undefined, TARGET, { limit: 50, offset: 0, sort: undefined });
     expect(res.body.data).toEqual([]);
     expect(res.body.pagination).toEqual({ total: 0, limit: 50, offset: 0, hasMore: false });
   });
@@ -217,6 +212,6 @@ describe('GET /users/:userId/mutuals', () => {
 
     expect(res.status).toBe(200);
     // limit clamps to PAGINATION.MAX_LIMIT (100).
-    expect(mockGetUserMutuals).toHaveBeenCalledWith(VIEWER, TARGET, { limit: 100, offset: 20 });
+    expect(mockGetUserMutuals).toHaveBeenCalledWith(VIEWER, TARGET, { limit: 100, offset: 20, sort: undefined });
   });
 });

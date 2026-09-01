@@ -16,18 +16,28 @@
  *
  * On protocol version 0 (which predates directives) a directive decision degrades
  * to an empty `204` no-op; a real manifest is still served normally.
+ *
+ * ## The two reads this path makes, and why they are the shape they are
+ *
+ * The channel and its rollback directive come back together on a LEFT JOIN whose
+ * condition is the rollback table's whole primary key — so it contributes at most
+ * one row, and step 1 costs no extra round trip on a path every installed device
+ * polls. The manifest's asset list is a second read ordered BY ORDINAL: the
+ * manifest is signed and a device may fetch any historical update, so serving its
+ * assets in a different order than they were published invalidates the signature.
  */
 
 import crypto from 'crypto';
-import { AppUpdate, type IAppUpdate, type IUpdateAssetRef } from '../../models/AppUpdate';
-import { UpdateChannel } from '../../models/UpdateChannel';
-import type { UpdatePlatform } from '../../models/UpdateChannel';
+import { and, asc, desc, eq } from 'drizzle-orm';
+import type { UpdatePlatform } from '@oxyhq/contracts';
+import { getDb } from '../../config/postgres';
+import { appUpdateAssets, appUpdates, updateChannelRollbacks, updateChannels } from '../../db/schema';
 import { updateAssetCdnUrl, sha256HexToBase64Url } from './assetKeys';
 import { signPartBytes } from './signing.service';
 
 /** Parsed, validated inputs for a manifest resolution. */
 export interface ManifestRequest {
-  /** Resolved Application `_id` (string). */
+  /** Resolved Application id. */
   applicationId: string;
   platform: UpdatePlatform;
   runtimeVersion: string;
@@ -52,8 +62,32 @@ export interface ManifestResponse {
   body?: Buffer;
 }
 
+/**
+ * One asset descriptor of a manifest. `fileExtension` is absent for an asset
+ * that has none — and always for the launch asset, whose extension clients
+ * ignore.
+ */
+interface ManifestAssetRef {
+  sha256: string;
+  key: string;
+  contentType: string;
+  fileExtension?: string | null;
+}
+
+/** Everything the manifest for one published update is built from. */
+export interface PublishedUpdate {
+  updateId: string;
+  createdAt: Date;
+  runtimeVersion: string;
+  launchAsset: ManifestAssetRef;
+  /** In PUBLISHED order — see the header. */
+  assets: ManifestAssetRef[];
+  metadata: Record<string, string>;
+  extra: Record<string, unknown>;
+}
+
 type ManifestDecision =
-  | { kind: 'manifest'; update: IAppUpdate }
+  | { kind: 'manifest'; update: PublishedUpdate }
   | { kind: 'noUpdate' }
   | { kind: 'rollBackToEmbedded'; commitTime: Date };
 
@@ -80,24 +114,99 @@ export function isInRollout(
   return bucket < rolloutPercent * 100;
 }
 
-/** Resolve the rollout-aware head update, or null when none applies to this device. */
-async function resolveHead(input: ManifestRequest, channelId: string): Promise<IAppUpdate | null> {
-  const candidates = await AppUpdate.find({
-    applicationId: input.applicationId,
-    channelId,
-    runtimeVersion: input.runtimeVersion,
-    platform: input.platform,
-    status: 'published',
-  })
-    .sort({ createdAt: -1 })
+/**
+ * The head update's own row. Its asset list is deliberately NOT part of this —
+ * most polls end in `noUpdateAvailable`, and that decision is made from
+ * `updateId` alone, so the ordered asset read only happens for a request that
+ * really is receiving a manifest.
+ */
+interface HeadRow {
+  id: string;
+  updateId: string;
+  createdAt: Date;
+  runtimeVersion: string;
+  rolloutPercent: number;
+  launchAssetSha256: string;
+  launchAssetKey: string;
+  launchAssetContentType: string;
+  launchAssetFileExtension: string | null;
+  metadata: Record<string, string>;
+  extra: Record<string, unknown>;
+}
+
+/** Resolve the rollout-aware head update, or undefined when none applies to this device. */
+async function resolveHead(
+  input: ManifestRequest,
+  channelId: string
+): Promise<HeadRow | undefined> {
+  // `order by created_at desc` matches `app_updates_head_idx` exactly, so the
+  // lookback is served from the index rather than by sorting the track.
+  const candidates = await getDb()
+    .select({
+      id: appUpdates.id,
+      updateId: appUpdates.updateId,
+      createdAt: appUpdates.createdAt,
+      runtimeVersion: appUpdates.runtimeVersion,
+      rolloutPercent: appUpdates.rolloutPercent,
+      launchAssetSha256: appUpdates.launchAssetSha256,
+      launchAssetKey: appUpdates.launchAssetKey,
+      launchAssetContentType: appUpdates.launchAssetContentType,
+      launchAssetFileExtension: appUpdates.launchAssetFileExtension,
+      metadata: appUpdates.metadata,
+      extra: appUpdates.extra,
+    })
+    .from(appUpdates)
+    .where(
+      and(
+        eq(appUpdates.applicationId, input.applicationId),
+        eq(appUpdates.channelId, channelId),
+        eq(appUpdates.runtimeVersion, input.runtimeVersion),
+        eq(appUpdates.platform, input.platform),
+        eq(appUpdates.status, 'published')
+      )
+    )
+    .orderBy(desc(appUpdates.createdAt))
     .limit(ROLLOUT_LOOKBACK);
 
-  for (const candidate of candidates) {
-    if (isInRollout(candidate.updateId, candidate.rolloutPercent, input.deviceKey)) {
-      return candidate;
-    }
-  }
-  return null;
+  return candidates.find((candidate) =>
+    isInRollout(candidate.updateId, candidate.rolloutPercent, input.deviceKey)
+  );
+}
+
+/**
+ * Read the head's asset descriptors and assemble the manifest source.
+ *
+ * `order by ordinal` is the whole reason `app_update_assets` carries one: the
+ * manifest is signed, a device may fetch this update at any point in the future,
+ * and a reordered `assets` array is a different set of bytes under the same
+ * signature.
+ */
+async function loadPublishedUpdate(head: HeadRow): Promise<PublishedUpdate> {
+  const assets = await getDb()
+    .select({
+      sha256: appUpdateAssets.sha256,
+      key: appUpdateAssets.key,
+      contentType: appUpdateAssets.contentType,
+      fileExtension: appUpdateAssets.fileExtension,
+    })
+    .from(appUpdateAssets)
+    .where(eq(appUpdateAssets.appUpdateId, head.id))
+    .orderBy(asc(appUpdateAssets.ordinal));
+
+  return {
+    updateId: head.updateId,
+    createdAt: head.createdAt,
+    runtimeVersion: head.runtimeVersion,
+    launchAsset: {
+      sha256: head.launchAssetSha256,
+      key: head.launchAssetKey,
+      contentType: head.launchAssetContentType,
+      fileExtension: head.launchAssetFileExtension,
+    },
+    assets,
+    metadata: head.metadata,
+    extra: head.extra,
+  };
 }
 
 /** Run the decision tree for a manifest request. */
@@ -106,18 +215,34 @@ async function decide(input: ManifestRequest): Promise<ManifestDecision> {
     return { kind: 'noUpdate' };
   }
 
-  const channel = await UpdateChannel.findOne({
-    applicationId: input.applicationId,
-    name: input.channelName,
-  });
+  // One round trip for both step 1 and the channel id step 2 needs. The join
+  // condition is the rollback table's full primary key, so it matches at most
+  // one row and this can never fan the channel out.
+  const [channel] = await getDb()
+    .select({
+      id: updateChannels.id,
+      rollbackCommitTime: updateChannelRollbacks.commitTime,
+    })
+    .from(updateChannels)
+    .leftJoin(
+      updateChannelRollbacks,
+      and(
+        eq(updateChannelRollbacks.channelId, updateChannels.id),
+        eq(updateChannelRollbacks.runtimeVersion, input.runtimeVersion),
+        eq(updateChannelRollbacks.platform, input.platform)
+      )
+    )
+    .where(
+      and(
+        eq(updateChannels.applicationId, input.applicationId),
+        eq(updateChannels.name, input.channelName)
+      )
+    );
   if (!channel) {
     return { kind: 'noUpdate' };
   }
 
-  const rollback = channel.rollbacksToEmbedded.find(
-    (entry) => entry.runtimeVersion === input.runtimeVersion && entry.platform === input.platform
-  );
-  if (rollback) {
+  if (channel.rollbackCommitTime) {
     // The client is already on its embedded bundle — don't roll it back again.
     if (
       input.currentUpdateId &&
@@ -126,22 +251,22 @@ async function decide(input: ManifestRequest): Promise<ManifestDecision> {
     ) {
       return { kind: 'noUpdate' };
     }
-    return { kind: 'rollBackToEmbedded', commitTime: rollback.commitTime };
+    return { kind: 'rollBackToEmbedded', commitTime: channel.rollbackCommitTime };
   }
 
-  const head = await resolveHead(input, channel._id.toString());
+  const head = await resolveHead(input, channel.id);
   if (!head) {
     return { kind: 'noUpdate' };
   }
   if (head.updateId === input.currentUpdateId) {
     return { kind: 'noUpdate' };
   }
-  return { kind: 'manifest', update: head };
+  return { kind: 'manifest', update: await loadPublishedUpdate(head) };
 }
 
-/** Build a single expo manifest asset object from an embedded descriptor. */
+/** Build a single expo manifest asset object from a stored descriptor. */
 function assetToManifest(
-  ref: IUpdateAssetRef,
+  ref: ManifestAssetRef,
   isLaunchAsset: boolean
 ): Record<string, unknown> {
   const asset: Record<string, unknown> = {
@@ -158,14 +283,14 @@ function assetToManifest(
 }
 
 /** Build the manifest JSON object for a published update. */
-export function buildManifestObject(update: IAppUpdate): Record<string, unknown> {
+export function buildManifestObject(update: PublishedUpdate): Record<string, unknown> {
   return {
     id: update.updateId,
     createdAt: update.createdAt.toISOString(),
     runtimeVersion: update.runtimeVersion,
     launchAsset: assetToManifest(update.launchAsset, true),
     assets: update.assets.map((asset) => assetToManifest(asset, false)),
-    metadata: update.metadata ?? {},
+    metadata: update.metadata,
     extra: update.extra,
   };
 }

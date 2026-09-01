@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
-import { installForegroundNotificationHandler, type ForegroundPresentation } from '@oxyhq/services';
+import {
+  installForegroundNotificationHandler,
+  type ForegroundPresentation,
+} from '@oxyhq/services/notifications';
 import { authRequestCodeFromPush } from '@/lib/notifications/auth-request-push';
 
 /**

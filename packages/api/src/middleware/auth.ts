@@ -1,10 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import User, { type IUser } from '../models/User';
 import dotenv from 'dotenv';
 import { logger } from '../utils/logger';
-import type { Document } from 'mongoose';
 import sessionService from '../services/session.service';
+import type { AccountDocument } from '../services/user.service';
+import type { AccessTokenIdentity } from '../utils/sessionUtils';
 import { verifyServiceToken, type ServiceTokenPayload } from './serviceToken';
 import {
   extractTokenFromRequest,
@@ -17,10 +17,63 @@ import {
 dotenv.config();
 
 /**
- * Interface for requests with full user object
+ * Interface for requests with full user object.
+ *
+ * ## `req.user._id` is KEPT, and it is the account id
+ *
+ * `_id` here is a REAL property carrying the account id string — the value
+ * `userService.readAccountDocument` writes as `_id: row.id`. It is not a getter
+ * and not an alias computed at the middleware; nothing about the row's shape is
+ * misrepresented.
+ *
+ * It is kept rather than every call site moving to `id` because on the account
+ * document those two mean DIFFERENT THINGS. `AccountDocument.id` reproduces the
+ * old model's `id` virtual, `publicKey ?? _id` — so for every account holding a
+ * Commons identity key, the document's `id` is the PUBLIC KEY while `_id` is
+ * the account id. `_id` is the field that means "the account id" unconditionally,
+ * on `req.user` and on every `readAccountDocument` response alike; `id` only
+ * means it here because the handler below pins it. Migrating the `_id` readers
+ * onto `id` would make every ownership check depend on that pinning continuing
+ * to exist, which is strictly more fragile than reading the field that is
+ * already unambiguous.
+ *
+ * `_id` is also not Mongo baggage on this value. `users.id` holds the 24-char
+ * ObjectId hex verbatim by the migration contract's own decree, and carrying
+ * `_id` beside `id` on this document is the documented contract
+ * (`@oxyhq/contracts` `resolveUserId` = `user.id ?? user._id`).
+ *
+ * ## The cast is gone, which is the other half of the change
+ *
+ * This used to be `IUser & Document`, populated through
+ * `const fullUser = user as IUser & Document`. The cast meant `tsc` checked
+ * NONE of the reads that flow from here — a wrong shape would have surfaced as
+ * "not authenticated", API-wide, with a clean compile. The type is now exactly
+ * what `sessionService.validateSession` returns and there is no cast, so every
+ * `req.user.<field>` read is checked against the real document.
  */
 export interface AuthRequest extends Request {
-  user?: IUser & Document;
+  user?: AccountDocument;
+  /**
+   * The VERIFIED session this request authenticated with.
+   *
+   * Exposed because the follow graph has to know which application is acting,
+   * and the authorization record that answers that is keyed on the session id.
+   * Taking it from the token again downstream would mean parsing a credential
+   * twice and trusting the second read; taking it from a header or a body field
+   * would mean trusting the caller. This is the value the middleware already
+   * checked.
+   */
+  sessionId?: string;
+  /**
+   * What the bearer resolved to once its claims were checked against the
+   * session row (issue #937, Phase 6): subject and actor kept apart, plus the
+   * application, device context and scopes the session is bound to.
+   *
+   * This is the ONE place a route may learn which application is behind a user
+   * bearer. The token's own claims are never read again downstream — `req.user`
+   * answers "who", this answers "as whom, through what, with which scopes".
+   */
+  oxyToken?: AccessTokenIdentity;
 }
 
 /**
@@ -141,16 +194,25 @@ export const authMiddleware = async (req: AuthRequest, res: Response, next: Next
           });
         }
 
-        // Use user from validationResult - it's already populated with all fields
-        // This eliminates a redundant database query on every authenticated request
-        const fullUser = user as IUser & Document;
-        
-        // Ensure id field is set consistently
-        if (fullUser._id) {
-          fullUser.id = fullUser._id.toString();
-        }
-        req.user = fullUser;
-        
+        // Use user from validationResult — it is already the full account
+        // document, which eliminates a redundant database query on every
+        // authenticated request.
+        //
+        // `id` is pinned to the account id, exactly as before: on THIS object
+        // `id` and `_id` have always both been the account id, and 43 call
+        // sites read `req.user.id` as one (`profiles.ts`, `users.ts`,
+        // `userData.ts`, the notification controller…). The document's own `id`
+        // is `publicKey ?? _id`, so leaving it alone would silently hand those
+        // sites a PUBLIC KEY for every account holding a Commons identity —
+        // a change of value, not of name, at ownership checks.
+        //
+        // A SHALLOW COPY, not a mutation. `user` is the object held in
+        // `userCache` and shared by every concurrent request for this account;
+        // the `fullUser.id = …` this replaces wrote through to the cache entry.
+        req.user = { ...user, id: user._id };
+        (req as AuthRequest).sessionId = decoded.sessionId;
+        req.oxyToken = validationResult.token;
+
         next();
       } catch (dbError) {
         logger.error('Database error during session lookup', dbError instanceof Error ? dbError : new Error(String(dbError)), {
@@ -318,8 +380,10 @@ export const simpleAuthMiddleware = async (req: SimpleAuthRequest, res: Response
         });
       }
 
-      // Set user ID
-      const userId = validationResult.user?._id?.toString() || validationResult.session.userId.toString();
+      // Set user ID. Both sides are `text` columns now, so the `.toString()`
+      // calls that coerced an ObjectId are gone; the fallback to the session's
+      // own `user_id` remains, since it is the same id by foreign key.
+      const userId = validationResult.user?._id || validationResult.session.userId;
       req.user = { id: userId };
       next();
     } catch (error) {

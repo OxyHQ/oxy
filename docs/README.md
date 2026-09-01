@@ -55,6 +55,8 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
 | [identity/README.md](identity/README.md) | `did:web` documents (custodial ↔ self-sovereign), signed records (envelope v2, hash chain, `verifyEnvelope`), signed export, domain verification, "Sign in with Oxy" |
 | [reputation/README.md](reputation/README.md) | Oxy Trust ledger (tiers/influence), crypto-owned reputation, F2 real-life attestation + validator jury, F3 proof-of-personhood, F4 verifiable credentials |
 | [nodes/README.md](nodes/README.md) | The data-node model, `@oxyhq/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |
+| [inference/README.md](inference/README.md) | The inference platform: credentials, attribution, the model catalogue, exact billing, migrations — **and, in one place, what is not built yet and what tracks it** |
+| [runbooks/README.md](runbooks/README.md) | Rotation and break-glass procedures for every credential Oxy issues — trigger, commands, how to verify the write took, rollback, and what to do when the normal path is unavailable. The AWS half stays in `oxy-infra`. |
 | [architecture/oxy-auth-platform.md](architecture/oxy-auth-platform.md) | The auth platform master plan (phases, decisions, target architecture) |
 | [CHANGELOG.md](CHANGELOG.md) | Chronological "what changed and why" for the whole F0→F5 + Oxy ID rename + Commons/Reputation UI initiative, with commit SHAs |
 
@@ -68,6 +70,10 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
 - **Integrating "Sign in with Oxy" into a third-party app?**
   [auth/integration-guide.md](auth/integration-guide.md) is the copy-paste
   OAuth + PKCE walkthrough.
+- **Building against Oxy inference?** Start at
+  [inference/README.md](inference/README.md) — it is the status board, and it
+  says plainly that there is no public inference endpoint today. Do not skip it
+  and read the topic pages first.
 - **Working on Oxy ID / Commons / civic features?** Read
   [identity/README.md](identity/README.md) → [reputation/README.md](reputation/README.md)
   → [nodes/README.md](nodes/README.md), in that order — each builds on the prior.
@@ -85,9 +91,38 @@ topics and remain authoritative for their areas:
 - [AUTHENTICATION.md](AUTHENTICATION.md) — auth integration guide (Expo, Web, Node, WebSockets)
 - [SESSION-ARCHITECTURE.md](SESSION-ARCHITECTURE.md) — session architecture in depth
 - [SERVICE_TOKENS.md](SERVICE_TOKENS.md) — service-to-service auth (OAuth2 client credentials)
-- [INFRASTRUCTURE.md](INFRASTRUCTURE.md) — AWS resources (ECS, ALB, ECR, ElastiCache, MongoDB)
+- [INFRASTRUCTURE.md](INFRASTRUCTURE.md) — AWS resources (ECS, ALB, ECR, ElastiCache, RDS PostgreSQL)
 - [DEPLOYMENT.md](DEPLOYMENT.md) — GitHub OIDC, ECS Fargate, env vars, Cloudflare Pages
 - [REDIS.md](REDIS.md) — ElastiCache Valkey: rate limiting, Socket.IO adapter, caching
+
+---
+
+## Engineering notes (moved out of `AGENTS.md`)
+
+`AGENTS.md` carries only rules — the things that break silently if you get them
+wrong — and is bounded at 12 KB by `scripts/check-agents-md-size.mjs`. The
+mechanisms it used to restate live here:
+
+- [engineering/package-rules.md](engineering/package-rules.md) — the evidence behind every package boundary, build and runtime rule: the ambient-shim incident, the Hermes verification, the optional-peer resolver asymmetry
+- [engineering/build-and-deploy.md](engineering/build-and-deploy.md) — AWS, the inbound email path, containers and the Dockerfile gotcha, the workspace and dependency graph, contract-first schemas, key entry points, published version notes
+- [engineering/auth-and-identity.md](engineering/auth-and-identity.md) — the session contract, the application model, service tokens, the SSI layer, Sign in with Oxy, the Auth app
+- [engineering/platform-features.md](engineering/platform-features.md) — workspaces, Oxy Trust, rate limiting, federation, OTA updates, contact discovery, the accounts and commons apps, civic identity, the no-IP invariant
+- [engineering/sdk-patterns.md](engineering/sdk-patterns.md) — `HttpService`, the offline queue, persistence, `useSessionSocket`, the bottom-sheet and media patterns, `KeyManager` safety
+- [engineering/local-dev-cursor-cloud.md](engineering/local-dev-cursor-cloud.md) — local infra, building shared libs, the end-to-end auth smoke test
+- [engineering/measurement-traps.md](engineering/measurement-traps.md) — checks that run clean while measuring the wrong thing: what `origin/main..HEAD` actually compares, why `--theirs` is inverted during a rebase, and why a transforming query schema must parse its own output
+
+---
+
+## Audits (dated snapshots — provenance, not mechanism)
+
+An audit records what was true at ONE commit, with `path:line` evidence. It is
+never the mechanism doc: when it and the code disagree, the code is right and the
+audit has aged. Each file names its commit in its own header.
+
+- [audits/2026-08-15-account-and-application-ownership.md](audits/2026-08-15-account-and-application-ownership.md)
+  — inference/billing attribution, `Application.ownerAccountId`, account-graph
+  permissions and Console account switching, at `215b12fe` (OxyHQ/oxy#972
+  workstream 1)
 - [EMAIL.md](EMAIL.md) — native email (`username@oxy.so`), DKIM/SPF/DMARC, inbound webhook
 
 For the authoritative rules and version matrix, see the repo

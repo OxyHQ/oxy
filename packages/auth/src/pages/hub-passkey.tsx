@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { OxyAuthChooser, useOxy } from "@oxyhq/services"
-import { getAccountDisplayName, getCommonsApprovalBlockingReason, type CommonsApprovalInfo } from "@oxyhq/core"
+import { getCommonsApprovalBlockingReason, getNormalizedUserHandle, type CommonsApprovalInfo } from "@oxyhq/core"
 import { Button } from "@oxyhq/bloom/button"
 import { buildAuthUrl } from "@/lib/oxy-api-client"
 import { AuthFormLayout, AuthFormHeader, LoadingSpinner } from "@/components/auth-form-layout"
@@ -113,6 +113,7 @@ export function HubPasskeyPage() {
         setReadyToConfirm(false)
         setAcknowledgedUnverified(false)
         setAuthorizeError(null)
+        accountDialogController?.cancelSignIn()
         accountDialogController?.setView("accounts")
     }, [accountDialogController])
 
@@ -217,7 +218,7 @@ export function HubPasskeyPage() {
             <AuthFormLayout>
                 <AuthFormHeader
                     title={`Authorize sign-in to ${application.name}?`}
-                    description={`Continuing as ${getAccountDisplayName(user)}.`}
+                    description={`Continuing as ${user?.name?.displayName ?? getNormalizedUserHandle(user) ?? ''}.`}
                 />
                 <label className="flex items-start gap-2 text-sm">
                     <input
@@ -249,7 +250,7 @@ export function HubPasskeyPage() {
     return (
         <AuthFormLayout>
             <AuthFormHeader title={`Continue to ${application.name}`} />
-            <OxyAuthChooser onComplete={handleChooserComplete} />
+            <OxyAuthChooser autoStartSignIn={false} onComplete={handleChooserComplete} />
             <Button variant="ghost" onClick={handleCancel}>
                 Cancel
             </Button>

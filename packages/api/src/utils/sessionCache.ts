@@ -1,12 +1,52 @@
 import { getRedisClient } from '../config/redis';
-import type { ISession } from '../models/Session';
+import type { sessions } from '../db/schema/sessions';
+
+/**
+ * A cached session — one `sessions` row.
+ *
+ * Inferred from the schema rather than re-declared, and taken from the SCHEMA
+ * rather than from `session.service` (which imports this module — naming the
+ * table directly is what keeps that from becoming an import cycle).
+ */
+export type CachedSession = typeof sessions.$inferSelect;
+
+/**
+ * Date-valued columns of a `sessions` row.
+ *
+ * The Redis tier stores JSON, and `JSON.parse` hands every `Date` back as a
+ * STRING. Without reviving them a Redis hit and a local hit would disagree on
+ * the type of `expiresAt` — and `expiresAt.toISOString()` on the sign-in
+ * response would throw for whichever tier answered second. Mongo had the same
+ * latent split; typing the cache off the schema is what made it visible.
+ */
+const DATE_COLUMNS = [
+  'lastActiveAt',
+  'tokenRotatedAt',
+  'expiresAt',
+  'lastRefresh',
+  'createdAt',
+  'updatedAt',
+] as const satisfies readonly (keyof CachedSession)[];
+
+/** Re-hydrate the `Date` columns of a session parsed back out of Redis JSON. */
+function reviveSession(raw: unknown): CachedSession | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  for (const column of DATE_COLUMNS) {
+    const value = record[column];
+    if (typeof value === 'string') {
+      record[column] = new Date(value);
+    }
+  }
+  return record as unknown as CachedSession;
+}
 
 const DEFAULT_TTL = 5 * 60; // 5 minutes in seconds
 const LAST_ACTIVE_THRESHOLD = 60 * 1000; // 1 minute in ms
 const MAX_LOCAL_SIZE = 5000;
 
 class SessionCache {
-  private local: Map<string, { session: ISession; userId?: string; timestamp: number; ttl: number }> = new Map();
+  private local: Map<string, { session: CachedSession; userId?: string; timestamp: number; ttl: number }> = new Map();
   private pendingLastActiveUpdates: Map<string, Date> = new Map();
   private cleanupTimer: NodeJS.Timeout;
 
@@ -15,19 +55,19 @@ class SessionCache {
     this.cleanupTimer.unref?.();
   }
 
-  async getAsync(sessionId: string): Promise<ISession | null> {
+  async getAsync(sessionId: string): Promise<CachedSession | null> {
     const redis = getRedisClient();
     if (redis && redis.status === 'ready') {
       try {
         const data = await redis.get(`session:${sessionId}`);
-        if (data) return JSON.parse(data);
+        if (data) return reviveSession(JSON.parse(data));
         return null;
       } catch { /* fall through to local */ }
     }
     return this.getLocal(sessionId);
   }
 
-  get(sessionId: string): ISession | null {
+  get(sessionId: string): CachedSession | null {
     const local = this.getLocal(sessionId);
     if (local) return local;
 
@@ -35,15 +75,15 @@ class SessionCache {
     if (redis && redis.status === 'ready') {
       redis.get(`session:${sessionId}`).then(data => {
         if (data) {
-          const session = JSON.parse(data);
-          this.setLocal(sessionId, session);
+          const session = reviveSession(JSON.parse(data));
+          if (session) this.setLocal(sessionId, session);
         }
       }).catch(() => {});
     }
     return null;
   }
 
-  set(sessionId: string, session: ISession, ttl?: number): void {
+  set(sessionId: string, session: CachedSession, ttl?: number): void {
     const ttlSec = ttl ? Math.ceil(ttl / 1000) : DEFAULT_TTL;
     this.setLocal(sessionId, session, ttl);
 
@@ -80,8 +120,10 @@ class SessionCache {
           try {
             const data = await redis.get(key);
             if (data) {
-              const session = JSON.parse(data);
-              if (session.userId?.toString() === userId) {
+              const session = reviveSession(JSON.parse(data));
+              // `user_id` is a plain text column now, so this is a string
+              // compare rather than the ObjectId `.toString()` Mongo needed.
+              if (session?.userId === userId) {
                 await redis.del(key);
               }
             }
@@ -123,7 +165,7 @@ class SessionCache {
 
   // --- Local cache helpers ---
 
-  private getLocal(sessionId: string): ISession | null {
+  private getLocal(sessionId: string): CachedSession | null {
     const cached = this.local.get(sessionId);
     if (!cached) return null;
     if (Date.now() - cached.timestamp > cached.ttl) {
@@ -133,7 +175,7 @@ class SessionCache {
     return cached.session;
   }
 
-  private setLocal(sessionId: string, session: ISession, ttl?: number): void {
+  private setLocal(sessionId: string, session: CachedSession, ttl?: number): void {
     if (this.local.size >= MAX_LOCAL_SIZE) {
       // Evict oldest 10%
       const entries = Array.from(this.local.entries());
@@ -145,7 +187,7 @@ class SessionCache {
     }
     this.local.set(sessionId, {
       session,
-      userId: session.userId?.toString(),
+      userId: session.userId,
       timestamp: Date.now(),
       ttl: ttl || DEFAULT_TTL * 1000,
     });

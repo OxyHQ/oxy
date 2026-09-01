@@ -29,7 +29,7 @@ export { default as OxyPayButton } from './components/OxyPayButton';
 export { default as ProfileButton } from './components/ProfileButton';
 
 // Context + hooks
-export { useOxy } from './context/OxyContext';
+export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyContext';
 export { useAuth } from './hooks/useAuth';
 export { useFollow, useSeedFollowStatuses } from './hooks/useFollow';
 export { useStorage } from './hooks/useStorage';
@@ -44,7 +44,6 @@ export { default as AccountSettingsScreen } from './screens/AccountSettingsScree
 
 // Stores
 export { useAuthStore } from './stores/authStore';
-export { useAccountStore } from './stores/accountStore';
 
 // Error handlers (pure functions)
 export {

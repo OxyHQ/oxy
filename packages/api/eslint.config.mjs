@@ -7,6 +7,19 @@ export default defineConfig([
     ignores: ['dist/**', 'node_modules/**', 'coverage/**', '*.cjs', 'scripts/**'],
   },
   {
+    // `jest.config.js` is CommonJS — this package has no `"type": "module"` —
+    // so it reads node builtins with `require`, which the TS ruleset's
+    // ESM-only import rule flags. Every other jest config in this repo is
+    // `.cjs` and is already ignored above for exactly that reason; this one
+    // keeps the `.js` extension only because `.slugignore` and a dozen
+    // comments name it. Turn off the one rule that does not apply rather than
+    // renaming the file or dropping it from linting entirely.
+    files: ['jest.config.js'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       ecmaVersion: 2022,

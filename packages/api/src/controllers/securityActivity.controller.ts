@@ -1,7 +1,11 @@
-import { Request, type Response } from 'express';
+import { type Response } from 'express';
 import type { AuthRequest } from '../middleware/auth';
 import securityActivityService from '../services/securityActivityService';
-import { type SecurityEventType, SECURITY_EVENT_TYPES } from '../models/SecurityActivity';
+// The audit vocabulary comes from the TABLE, not from the mongoose model — the
+// schema module declares its own copy precisely so a consumer needs no mongoose
+// import, and `db/schema/__tests__/authSession.test.ts` holds the two copies in
+// agreement until the model is deleted.
+import { SECURITY_EVENT_TYPES } from '../db/schema/securityActivities';
 import { validatePagination } from '../utils/validation';
 import { sendPaginated } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
@@ -82,10 +86,15 @@ export const getSecurityActivity = async (req: AuthRequest, res: Response): Prom
       DEFAULT_LIMIT
     );
 
-    const eventType = req.query.eventType as SecurityEventType | undefined;
-    
-    // Validate event type if provided
-    if (eventType && !SECURITY_EVENT_TYPES.includes(eventType)) {
+    // Resolve the filter by LOOKING IT UP in the closed set rather than
+    // asserting a query-string value into it: `find` both validates and narrows,
+    // so no unchecked cast of user input is needed. An absent or empty
+    // `eventType` means "no filter" — unchanged from before.
+    const requestedEventType = req.query.eventType;
+    const eventType = requestedEventType
+      ? SECURITY_EVENT_TYPES.find((value) => value === requestedEventType)
+      : undefined;
+    if (requestedEventType && !eventType) {
       res.status(400).json({ error: 'Invalid event type' });
       return;
     }
@@ -96,16 +105,23 @@ export const getSecurityActivity = async (req: AuthRequest, res: Response): Prom
       eventType,
     });
 
-    // Transform activities for response
+    // Transform activities for response.
+    //
+    // `occurredAt` is emitted as `timestamp`: the table renames the Mongoose
+    // field (see `db/schema/securityActivities.ts` for why), and that rename
+    // must never reach a client — every Oxy app consuming `GET
+    // /security/activity` reads `timestamp`. The DTO is also a FIXED field set
+    // rather than a spread of the row, so nothing a writer smuggled into the
+    // open `metadata` column can surface as a new top-level field.
     const activities = result.activities.map((activity) => ({
-      id: activity._id.toString(),
-      userId: activity.userId.toString(),
+      id: activity.id,
+      userId: activity.userId,
       eventType: activity.eventType,
       eventDescription: activity.eventDescription,
-      metadata: activity.metadata || {},
+      metadata: activity.metadata,
       userAgent: activity.userAgent,
       deviceId: activity.deviceId,
-      timestamp: activity.timestamp,
+      timestamp: activity.occurredAt,
       severity: activity.severity,
       createdAt: activity.createdAt,
     }));
@@ -119,7 +135,7 @@ export const getSecurityActivity = async (req: AuthRequest, res: Response): Prom
     });
 
     sendPaginated(res, activities, result.total, parsedLimit, parsedOffset);
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error fetching security activity', error instanceof Error ? error : new Error(String(error)), {
       component: 'SecurityActivityController',
       method: 'getSecurityActivity',

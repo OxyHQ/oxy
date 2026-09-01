@@ -29,4 +29,9 @@ module.exports = {
   },
   testMatch: ['<rootDir>/src/**/__tests__/**/*.test.ts'],
   testTimeout: 10000,
+  moduleNameMapper: {
+    // Resolve @oxyhq/contracts from TypeScript source so federation tests do not
+    // depend on contracts being built first (actorObject.ts imports AccountKind).
+    '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
+  },
 };

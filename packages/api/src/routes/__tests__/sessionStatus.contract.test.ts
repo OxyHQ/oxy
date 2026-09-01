@@ -1,344 +1,298 @@
 /**
- * PRODUCER drift-guard for `GET /auth/session/status/:sessionToken`.
+ * PRODUCER drift-guard for `GET /auth/session/status/:sessionToken`, against a
+ * REAL Postgres.
  *
- * Phase B of centralizing the session-status contract. The API is the FAITHFUL
- * PRODUCER of `@oxyhq/contracts`'s `sessionStatusSchema`. These tests exercise
- * the REAL route handler (over an in-process HTTP server, with only the Mongoose
- * models / services mocked) and assert that the producer's `{ data: ... }` inner
- * object PARSES against the shared contract. If the route ever drifts from the
- * contract again — e.g. emits a shape the auth app's consent UI cannot parse —
- * these tests fail.
+ * The API is the FAITHFUL PRODUCER of `@oxyhq/contracts`'s
+ * `sessionStatusSchema`. These tests exercise the REAL route over real rows and
+ * assert that the `{ data: ... }` inner object PARSES against the shared
+ * contract, so a port that quietly changes a field's nullability is caught here
+ * rather than in an app's zod parse weeks later.
  *
- * The class of bug that motivated this contract: the auth app's LOCAL
- * `sessionStatusSchema` typed `sessionId` as a non-nullable `z.string().optional()`.
- * The producer emits `sessionId: authorizedSessionId || null`, so a PENDING
- * device session carries `sessionId: null` — `.optional()` permits
- * `undefined`/missing but REJECTS `null`, so the whole response collapsed to
- * `null` and the consent screen showed "Unable to identify the requesting
- * application". The PENDING case below is that EXACT shape (sessionId / publicKey
- * / userId all `null`) and MUST parse against the shared contract.
+ * The class of bug that motivated this contract: the auth app's LOCAL schema
+ * typed `sessionId` as `z.string().optional()`. The producer emits
+ * `sessionId: authorizedSessionId || null`, so a PENDING device request carries
+ * `sessionId: null` — `.optional()` permits `undefined` but REJECTS `null`, and
+ * the whole response collapsed to `null`. The PENDING case below is that EXACT
+ * shape and MUST parse.
  *
- * The wire shape is pinned via the REAL `serializePublicApplication` util and the
- * REAL response-building expressions in the route (`authorizedSessionId || null`,
- * etc.) — no hand-copied fixture. Only the data layer is mocked (matching
- * `authSessionAppIdentity.test.ts` / `sessionAuthorize.test.ts` style).
+ * Two port-specific hazards this now also covers: `authorized_session_id` /
+ * `authorized_user_id` are NULLABLE columns (not absent fields), and `purpose`
+ * is `NOT NULL DEFAULT 'device_sign_in'` — the `?? 'device_sign_in'` fallback for
+ * pre-field Mongo documents does not travel.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
+import { randomUUID } from 'node:crypto';
 import { sessionStatusSchema, safeParseContract } from '@oxyhq/contracts';
-
-const mockAuthSessionFindOne = jest.fn();
-const mockApplicationFindById = jest.fn();
-const mockUserFindById = jest.fn();
 
 jest.mock('../../middleware/auth', () => ({
   authMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
   serviceAuthMiddleware: jest.fn(),
   rejectQueryToken: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-
 jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-
-// Use the REAL validate middleware so the params schema is actually exercised.
-jest.unmock('../../middleware/validate');
-
-jest.mock('../../models/AuthSession', () => ({
-  __esModule: true,
-  default: { findOne: mockAuthSessionFindOne },
-  AuthSession: { findOne: mockAuthSessionFindOne },
-}));
-
-jest.mock('../../models/Session', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
-}));
-
-jest.mock('../../services/authSession.service', () => ({
-  claimAuthSession: jest.fn(),
-}));
-
-jest.mock('../../models/AuthCode', () => ({
-  __esModule: true,
-  AuthCode: { create: jest.fn() },
-  default: { create: jest.fn() },
-}));
-
-jest.mock('../../utils/validation', () => ({
-  isValidObjectId: (id: string) => /^[a-fA-F0-9]{24}$/.test(id),
-}));
-
-jest.mock('../../models/Application', () => ({
-  __esModule: true,
-  Application: { findOne: jest.fn(), findById: mockApplicationFindById },
-  default: { findOne: jest.fn(), findById: mockApplicationFindById },
-}));
-
-jest.mock('../../models/ApplicationCredential', () => ({
-  __esModule: true,
-  ApplicationCredential: { findOne: jest.fn() },
-  default: { findOne: jest.fn() },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: { findOne: jest.fn(), findById: mockUserFindById },
-  default: { findOne: jest.fn(), findById: mockUserFindById },
-}));
-
-
-jest.mock('../../utils/userTransform', () => ({
-  formatUserResponse: jest.fn(),
-}));
-
-jest.mock('../../utils/authSessionSocket', () => ({
-  emitAuthSessionUpdate: jest.fn(),
-}));
-
 jest.mock('../../services/session.service', () => ({
   __esModule: true,
-  default: { createSession: jest.fn() },
+  default: { createSession: jest.fn(), getAccessToken: jest.fn() },
 }));
-
-jest.mock('../../services/oauthCode.service', () => ({
-  issueAuthCode: jest.fn(),
-  exchangeAuthCode: jest.fn(),
-  AUTH_CODE_TTL_MS: 60_000,
+jest.mock('../../utils/authSessionSocket', () => ({
+  emitAuthSessionUpdate: jest.fn(),
+  emitAuthSessionProgress: jest.fn(),
 }));
-
-jest.mock('../../services/signature.service', () => ({
-  __esModule: true,
-  default: {
-    isValidPublicKey: jest.fn(),
-    verifyChallengeResponse: jest.fn(),
-    verifyRegistrationSignature: jest.fn(),
-    verifySignature: jest.fn(),
-    generateChallenge: jest.fn(),
-    shortenPublicKey: jest.fn(),
-  },
-}));
-
+jest.mock('../../utils/socket', () => ({ broadcastSessionAccountsChanged: jest.fn() }));
 jest.mock('../../controllers/session.controller', () => ({
   SessionController: {
     register: jest.fn(),
-    signUp: jest.fn(),
-    signIn: jest.fn(),
     requestChallenge: jest.fn(),
     verifyChallenge: jest.fn(),
-    requestPasswordReset: jest.fn(),
-    verifyRecoveryCode: jest.fn(),
-    resetPassword: jest.fn(),
     getUserByPublicKey: jest.fn(),
   },
 }));
-
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-
-// auth.ts statically imports the AppGrant model (OAuth consent
-// grants); mock them so the real Mongoose schema does not run under the global
-// mongoose mock (which lacks Schema.Types).
-jest.mock('../../models/AppGrant', () => ({
-  __esModule: true,
-  AppGrant: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
-  default: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
-}));
-import authRouter from '../auth';
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applications } from '../../db/schema/applications';
+import { authSessions } from '../../db/schema/authSessions';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import authRouter from '../auth';
 
 interface JsonResponse {
   status: number;
-  body: { data?: Record<string, unknown> };
+  body: Record<string, unknown>;
 }
 
-async function getStatus(server: http.Server, sessionToken: string): Promise<JsonResponse> {
+let server: http.Server;
+
+function get(path: string): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   return new Promise((resolve, reject) => {
-    const req = http.request(
-      {
-        method: 'GET',
-        host: '127.0.0.1',
-        port: address.port,
-        path: `/auth/session/status/${sessionToken}`,
-        headers: { 'content-type': 'application/json' },
-      },
-      (res) => {
-        let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          try {
-            resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} });
-          } catch (err) {
-            reject(err);
-          }
-        });
-      }
-    );
+    const req = http.request({ method: 'GET', host: '127.0.0.1', port: address.port, path }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => {
+        raw += chunk;
+      });
+      res.on('end', () =>
+        resolve({ status: res.statusCode ?? 0, body: raw.length ? JSON.parse(raw) : {} }),
+      );
+    });
     req.on('error', reject);
     req.end();
   });
 }
 
-let server: http.Server;
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
+}
 
-beforeAll((done) => {
+async function application(fields: Partial<typeof applications.$inferInsert> = {}): Promise<string> {
+  const ownerAccountId = await account();
+  const [row] = await getDb()
+    .insert(applications)
+    .values({
+      name: `App ${randomUUID()}`,
+      type: 'first_party',
+      isOfficial: true,
+      scopes: ['user:read'],
+      ...fields,
+      ownerAccountId,
+    })
+    .returning({ id: applications.id });
+  return row.id;
+}
+
+async function authRequest(
+  overrides: Partial<typeof authSessions.$inferInsert> = {},
+): Promise<string> {
+  const applicationId = overrides.applicationId ?? (await application());
+  const sessionToken = `at_${randomUUID().replace(/-/g, '')}`;
+  await getDb()
+    .insert(authSessions)
+    .values({
+      sessionToken,
+      authorizeCode: randomUUID().replace(/-/g, ''),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      status: 'pending',
+      ...overrides,
+      applicationId,
+    });
+  return sessionToken;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/auth', authRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
-});
-
-afterAll((done) => {
-  server.close(done);
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-});
-
-// A chainable User.findById(...).select(...).lean() mock for developer-name lookup.
-function mockOwner(owner: { username?: string; name?: { first?: string; last?: string } } | null) {
-  mockUserFindById.mockReturnValue({
-    select: () => ({ lean: () => Promise.resolve(owner) }),
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
   });
-}
+});
 
-const OFFICIAL_APP_ID = '64f7c2a1b8e9d3f4a1c2b300';
-const THIRD_PARTY_APP_ID = '64f7c2a1b8e9d3f4a1c2b301';
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
+});
 
-function officialApp() {
-  return {
-    _id: { toString: () => OFFICIAL_APP_ID },
-    name: 'Oxy Accounts',
-    description: 'First-party account manager',
-    icon: 'https://cloud.oxy.so/icons/accounts.png',
-    type: 'first_party',
-    status: 'active',
-    isOfficial: true,
-    isInternal: false,
-    scopes: ['user:read'],
-    createdByUserId: { toString: () => 'staff-1' },
-  };
-}
+describe('GET /auth/session/status/:sessionToken — @oxyhq/contracts sessionStatusSchema', () => {
+  it('parses a PENDING device request (sessionId / publicKey / userId all null)', async () => {
+    const sessionToken = await authRequest();
 
-function thirdPartyApp() {
-  return {
-    _id: { toString: () => THIRD_PARTY_APP_ID },
-    name: 'Acme Widgets',
-    description: 'A third-party integration',
-    icon: 'https://cdn.acme.example/icon.png',
-    websiteUrl: 'https://acme.example',
-    privacyPolicyUrl: 'https://acme.example/privacy',
-    termsUrl: 'https://acme.example/terms',
-    type: 'third_party',
-    status: 'active',
-    isOfficial: false,
-    isInternal: false,
-    scopes: ['files:read', 'user:read'],
-    createdByUserId: { toString: () => 'owner-1' },
-  };
-}
-
-describe('GET /auth/session/status/:sessionToken → @oxyhq/contracts sessionStatusSchema (producer contract)', () => {
-  it('PENDING device session (sessionId/publicKey/userId all null, application resolved) parses', async () => {
-    // This is the EXACT shape that broke the auth app's drifted local schema:
-    // a not-yet-authorized session carries null for every authorized-* field.
-    mockAuthSessionFindOne.mockResolvedValueOnce({
-      sessionToken: 'tok-pending',
-      applicationId: { toString: () => OFFICIAL_APP_ID },
-      status: 'pending',
-      authorizedSessionId: null,
-      authorizedBy: null,
-      authorizedUserId: null,
-      expiresAt: new Date(Date.now() + 60_000),
-      save: jest.fn(),
-    });
-    mockApplicationFindById.mockResolvedValueOnce(officialApp());
-
-    const res = await getStatus(server, 'tok-pending');
+    const res = await get(`/auth/session/status/${sessionToken}`);
 
     expect(res.status).toBe(200);
-    // The producer ALWAYS emits the keys, with null values for a pending session.
-    expect(res.body.data).toMatchObject({
-      status: 'pending',
-      authorized: false,
-      sessionId: null,
-      publicKey: null,
-      userId: null,
+    const data = res.body.data as Record<string, unknown>;
+    // The exact shape the auth app's drifted local schema used to reject.
+    expect(data.sessionId).toBeNull();
+    expect(data.publicKey).toBeNull();
+    expect(data.userId).toBeNull();
+    expect(safeParseContract(sessionStatusSchema, data)).not.toBeNull();
+  });
+
+  it('parses an AUTHORIZED request (string sessionId / publicKey / userId)', async () => {
+    const approver = await account({ publicKey: `02${randomUUID().replace(/-/g, '')}` });
+    const [row] = await getDb()
+      .select({ publicKey: users.publicKey })
+      .from(users)
+      .where(eq(users.id, approver))
+      .limit(1);
+    const sessionToken = await authRequest({
+      status: 'authorized',
+      authorizedUserId: approver,
+      authorizedBy: row.publicKey,
+      authorizedSessionId: `sess-${randomUUID()}`,
     });
-    expect(res.body.data?.application).not.toBeNull();
+
+    const res = await get(`/auth/session/status/${sessionToken}`);
+
+    const data = res.body.data as Record<string, unknown>;
+    expect(data.authorized).toBe(true);
+    expect(typeof data.sessionId).toBe('string');
+    expect(data.userId).toBe(approver);
+    expect(data.publicKey).toBe(row.publicKey);
+    expect(safeParseContract(sessionStatusSchema, data)).not.toBeNull();
+  });
+
+  it('carries the consent screen legal links and the developer attribution', async () => {
+    // These three travelled through `serializePublicApplication` before the port
+    // and must still: `privacyPolicyUrl` / `termsUrl` are rendered as legal
+    // links on the consent screen, and `developerName` is the owner attribution
+    // shown for a non-official app.
+    const owner = await account({
+      username: `ada${randomUUID().slice(0, 8)}`,
+      nameFirst: 'Ada',
+      nameLast: 'Lovelace',
+    });
+    const applicationId = await application({
+      name: 'Acme Widgets',
+      type: 'third_party',
+      isOfficial: false,
+      privacyPolicyUrl: 'https://acme.example/privacy',
+      termsUrl: 'https://acme.example/terms',
+      createdByUserId: owner,
+    });
+    const sessionToken = await authRequest({ applicationId });
+
+    const res = await get(`/auth/session/status/${sessionToken}`);
 
     const parsed = safeParseContract(sessionStatusSchema, res.body.data);
     expect(parsed).not.toBeNull();
-    expect(parsed?.sessionId).toBeNull();
-    expect(parsed?.publicKey).toBeNull();
-    expect(parsed?.userId).toBeNull();
-    expect(parsed?.application?.id).toBe(OFFICIAL_APP_ID);
-  });
-
-  it('AUTHORIZED session (string sessionId/publicKey/userId, application present) parses', async () => {
-    mockAuthSessionFindOne.mockResolvedValueOnce({
-      sessionToken: 'tok-authorized',
-      applicationId: { toString: () => THIRD_PARTY_APP_ID },
-      status: 'authorized',
-      authorizedSessionId: 'sess_64f7c2a1b8e9d3f4a1c2b3d4',
-      authorizedBy: '02a1b2c3d4e5f6',
-      authorizedUserId: { toString: () => '64f7c2a1b8e9d3f4a1c2b3d4' },
-      expiresAt: new Date(Date.now() + 60_000),
-      save: jest.fn(),
-    });
-    mockApplicationFindById.mockResolvedValueOnce(thirdPartyApp());
-    mockOwner({ name: { first: 'Ada', last: 'Lovelace' }, username: 'ada' });
-
-    const res = await getStatus(server, 'tok-authorized');
-
-    expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({
-      status: 'authorized',
-      authorized: true,
-      sessionId: 'sess_64f7c2a1b8e9d3f4a1c2b3d4',
-      publicKey: '02a1b2c3d4e5f6',
-      userId: '64f7c2a1b8e9d3f4a1c2b3d4',
-    });
-
-    const parsed = safeParseContract(sessionStatusSchema, res.body.data);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.sessionId).toBe('sess_64f7c2a1b8e9d3f4a1c2b3d4');
-    expect(parsed?.userId).toBe('64f7c2a1b8e9d3f4a1c2b3d4');
-    // developerName is attached for non-official apps.
-    expect(parsed?.application?.developerName).toBe('Ada Lovelace');
-    // Legal URLs flow through the serializer to the consent UI contract.
+    expect(parsed?.application?.id).toBe(applicationId);
     expect(parsed?.application?.privacyPolicyUrl).toBe('https://acme.example/privacy');
     expect(parsed?.application?.termsUrl).toBe('https://acme.example/terms');
+    expect(parsed?.application?.developerName).toBe('Ada Lovelace');
   });
 
-  it('application:null (bound app unresolved / hard-deleted) parses', async () => {
-    mockAuthSessionFindOne.mockResolvedValueOnce({
-      sessionToken: 'tok-noapp',
-      applicationId: { toString: () => THIRD_PARTY_APP_ID },
-      status: 'pending',
-      authorizedSessionId: null,
-      authorizedBy: null,
-      authorizedUserId: null,
-      expiresAt: new Date(Date.now() + 60_000),
-      save: jest.fn(),
+  it('omits an absent optional rather than emitting null', async () => {
+    // `serializePublicApplication` drops undefined/null optionals entirely, and
+    // Drizzle hands it `null` where Mongoose handed it `undefined` — so this is
+    // exactly where the port could have started emitting `termsUrl: null`.
+    const applicationId = await application({ privacyPolicyUrl: null, termsUrl: null });
+    const sessionToken = await authRequest({ applicationId });
+
+    const res = await get(`/auth/session/status/${sessionToken}`);
+
+    const app = (res.body.data as { application: Record<string, unknown> }).application;
+    expect(app).not.toHaveProperty('privacyPolicyUrl');
+    expect(app).not.toHaveProperty('termsUrl');
+    expect(app).not.toHaveProperty('description');
+  });
+
+  it('parses application:null when the bound app is no longer active', async () => {
+    const applicationId = await application();
+    const sessionToken = await authRequest({ applicationId });
+    await getDb()
+      .update(applications)
+      .set({ status: 'suspended' })
+      .where(eq(applications.id, applicationId));
+
+    const res = await get(`/auth/session/status/${sessionToken}`);
+
+    const data = res.body.data as Record<string, unknown>;
+    expect(data.application).toBeNull();
+    expect(safeParseContract(sessionStatusSchema, data)).not.toBeNull();
+  });
+
+  it('emits purpose for an OAuth-bound request, and parses', async () => {
+    const sessionToken = await authRequest({
+      purpose: 'oauth_authorization',
+      oauthRedirectUri: 'https://rp.example/cb',
+      oauthCodeChallenge: 'x'.repeat(43),
+      oauthCodeChallengeMethod: 'S256',
+      oauthScopes: ['user:read'],
     });
-    // App hard-deleted / no longer active → handler returns application: null.
-    mockApplicationFindById.mockResolvedValueOnce(null);
 
-    const res = await getStatus(server, 'tok-noapp');
+    const res = await get(`/auth/session/status/${sessionToken}`);
 
-    expect(res.status).toBe(200);
-    expect(res.body.data).toHaveProperty('application', null);
+    const data = res.body.data as Record<string, unknown>;
+    expect(data.purpose).toBe('oauth_authorization');
+    expect(safeParseContract(sessionStatusSchema, data)).not.toBeNull();
+  });
 
-    const parsed = safeParseContract(sessionStatusSchema, res.body.data);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.application).toBeNull();
+  it('emits purpose device_sign_in from the column DEFAULT, not a serializer fallback', async () => {
+    const sessionToken = await authRequest();
+
+    const res = await get(`/auth/session/status/${sessionToken}`);
+
+    expect((res.body.data as { purpose: string }).purpose).toBe('device_sign_in');
+  });
+
+  it('parses the delivery-progress timestamps in both directions', async () => {
+    const withProgress = await authRequest({
+      pushSentAt: new Date('2026-07-27T10:00:00.000Z'),
+      openedAt: new Date('2026-07-27T10:00:05.000Z'),
+    });
+    const withoutProgress = await authRequest();
+
+    const a = (await get(`/auth/session/status/${withProgress}`)).body.data as Record<string, unknown>;
+    const b = (await get(`/auth/session/status/${withoutProgress}`)).body.data as Record<string, unknown>;
+
+    expect(a.pushSentAt).toBe('2026-07-27T10:00:00.000Z');
+    expect(a.openedAt).toBe('2026-07-27T10:00:05.000Z');
+    expect(b.pushSentAt).toBeNull();
+    expect(b.openedAt).toBeNull();
+    expect(safeParseContract(sessionStatusSchema, a)).not.toBeNull();
+    expect(safeParseContract(sessionStatusSchema, b)).not.toBeNull();
+  });
+
+  it('echoes the presented sessionToken and nothing else secret', async () => {
+    const sessionToken = await authRequest();
+
+    const res = await get(`/auth/session/status/${sessionToken}`);
+
+    // `auth_sessions.session_token` is a protected column and the handler never
+    // selects it — the value here is the one the caller already held.
+    expect((res.body.data as { sessionToken: string }).sessionToken).toBe(sessionToken);
   });
 });

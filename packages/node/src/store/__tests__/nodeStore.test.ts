@@ -197,6 +197,41 @@ describe('NodeStore', () => {
     expect(await store.getBlob(wrongHash)).toBeNull();
   });
 
+  it('putBlob rejects a non-byte-array payload before it reaches the size column', async () => {
+    // `size: buf.length` at the SQL sink is only meaningful because `bytes` was
+    // proven to be a byte array first — on a string or an object `.length` is
+    // either the character count or `undefined`, and the row would record a
+    // size that does not describe the stored blob. CodeQL flags that `.length`
+    // (js/type-confusion-through-parameter-tampering, alert #472) because it
+    // does not model `Buffer.isBuffer` as a narrowing guard; this pins the
+    // guard that makes the flag a false positive, so removing it goes red here
+    // rather than quietly re-arming the alert.
+    const bytes = Buffer.from('hello blob world');
+    const hash = createHash('sha256').update(bytes).digest('hex');
+
+    for (const notBytes of ['hello blob world', 42, null, undefined, { length: 16 }, ['a', 'b']]) {
+      await expect(store.putBlob(hash, notBytes as unknown as Uint8Array)).rejects.toThrow(
+        'invalid_blob_bytes'
+      );
+    }
+    // Nothing was written under that address by any of them.
+    expect(await store.getBlob(hash)).toBeNull();
+
+    // The vacuity floor: the same address DOES accept the real bytes.
+    await store.putBlob(hash, bytes);
+    expect(Buffer.from((await store.getBlob(hash)) as Uint8Array).equals(bytes)).toBe(true);
+  });
+
+  it('putBlob rejects a non-string address before it reaches the SQL parameter', async () => {
+    const bytes = Buffer.from('hello blob world');
+
+    for (const notAHash of [42, null, undefined, ['a'], { toLowerCase: () => 'x' }]) {
+      await expect(store.putBlob(notAHash as unknown as string, bytes)).rejects.toThrow(
+        'invalid_blob_hash'
+      );
+    }
+  });
+
   it('getBlob rejects a malformed (non-SHA-256-hex) address as absent before any DB query', async () => {
     // A blob address that is not a well-formed 64-char SHA-256 hex digest can
     // never name a stored blob (every address is validated at pin time), so it

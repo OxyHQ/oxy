@@ -164,6 +164,73 @@ describe('HttpService in-session refresh handler', () => {
     // The second call is inside the post-failure cooldown → handler not re-run.
     expect(handlerCalls).toBe(1);
   });
+
+  it('lets an EXPIRED token re-mint promptly instead of waiting out the long proactive cooldown', async () => {
+    // Regression: an ECS rolling-deploy blip briefly fails a mint; the 15s
+    // proactive cooldown then left the client forwarding/omitting a now-expired
+    // bearer for up to 15s after the endpoint recovered (Mention /privacy 401s).
+    // An already-expired token must recover on the short cooldown instead.
+    globalThis.fetch = async () => jsonResponse({ ok: true });
+    const nowSpy = jest.spyOn(Date, 'now');
+    const T0 = 1_000_000_000_000;
+    nowSpy.mockReturnValue(T0);
+
+    const http = new HttpService({ baseURL: 'https://api.mention.earth', enableRetry: false });
+    // Current token is already 10s past exp (exp is in SECONDS).
+    http.setTokens(createJwt({ userId: 'u', exp: Math.floor(T0 / 1000) - 10 }));
+
+    let handlerCalls = 0;
+    http.setAuthRefreshHandler(async () => {
+      handlerCalls += 1;
+      return null;
+    });
+
+    // First attempt fails → records the failure timestamp.
+    await http.refreshAccessToken('preflight');
+    expect(handlerCalls).toBe(1);
+
+    // 500ms later: still inside the SHORT expired cooldown → NOT re-run. This is
+    // the storm guard — an expired token does not fully bypass the cooldown.
+    nowSpy.mockReturnValue(T0 + 500);
+    await http.refreshAccessToken('preflight');
+    expect(handlerCalls).toBe(1);
+
+    // 1.5s later: past the short expired cooldown but WELL inside the 15s
+    // proactive cooldown → the expired token re-mints promptly.
+    nowSpy.mockReturnValue(T0 + 1500);
+    await http.refreshAccessToken('preflight');
+    expect(handlerCalls).toBe(2);
+
+    nowSpy.mockRestore();
+  });
+
+  it('keeps the full 15s cooldown for a still-valid (proactive) near-expiry refresh', async () => {
+    globalThis.fetch = async () => jsonResponse({ ok: true });
+    const nowSpy = jest.spyOn(Date, 'now');
+    const T0 = 1_000_000_000_000;
+    nowSpy.mockReturnValue(T0);
+
+    const http = new HttpService({ baseURL: 'https://api.mention.earth', enableRetry: false });
+    // Token is still valid for another hour — a proactive refresh, not expired.
+    http.setTokens(createJwt({ userId: 'u', exp: Math.floor(T0 / 1000) + 3600 }));
+
+    let handlerCalls = 0;
+    http.setAuthRefreshHandler(async () => {
+      handlerCalls += 1;
+      return null;
+    });
+
+    await http.refreshAccessToken('preflight');
+    expect(handlerCalls).toBe(1);
+
+    // 1.5s later: past the short expired cooldown, but the token is NOT expired,
+    // so the full proactive cooldown still applies → no re-run (no storm).
+    nowSpy.mockReturnValue(T0 + 1500);
+    await http.refreshAccessToken('preflight');
+    expect(handlerCalls).toBe(1);
+
+    nowSpy.mockRestore();
+  });
 });
 
 describe('OxyServices.getAccessTokenExpiry', () => {

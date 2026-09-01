@@ -50,6 +50,69 @@ This package (`@oxyhq/services`) is the **single UI SDK** for every React surfac
 
 See [PLATFORM_GUIDE.md](./PLATFORM_GUIDE.md) for the complete architecture guide.
 
+### This package does not declare `sideEffects: false`
+
+It used to, and the declaration was **wrong**. Three modules in the build have
+top-level side effects, one of them the entry itself:
+
+| Module | Effect |
+|---|---|
+| `lib/module/index.js` | `setPlatformOS(Platform.OS)` — configures `@oxyhq/core` |
+| `lib/module/ui/navigation/surfaceBackBridge.js` | `installEscapeHandler()` — installs a global key handler |
+| `lib/module/ui/components/SettingsIcon.js` | assigns `displayName` |
+
+Removing a false declaration would be worth doing on its own. It also fixed a
+production outage, and that is the part worth remembering, because the symptom
+looked nothing like a `package.json` field.
+
+`auth.oxy.so/authorize` rendered a blank page with React error #130 ("element
+type is undefined") for every request that reached `OxySignInRequestSurface`,
+which blocked every OIDC login into Allo ([#784]). Source and dev server were
+fine; only the production bundle was broken. Two facts combined:
+
+1. **The UI graph was one large import cycle.** `ui/context/OxyContext` reaches
+   `ui/navigation/bottomSheetManager` → `navigation/routes`, `routes` reached
+   every screen (through `require()` calls it made for Metro's benefit), and
+   every screen reaches back into the context — a 67-module strongly connected
+   component that included `OxySignInRequestSurface`. A bundler cannot
+   concatenate a cycle, so it emits each member as a lazily-initialized wrapper
+   whose exported bindings are `undefined` until the initializer runs. Modules
+   outside the cycle, `OxyConsentScreen` among them, are emitted inline and were
+   never affected — which is exactly why only some screens broke.
+2. **`sideEffects: false` told the bundler that running those initializers was
+   unobservable**, so rolldown-vite omitted the initializer call at the
+   consuming import site in `packages/auth` while still emitting the reference.
+   The binding was therefore never assigned, and React was handed `undefined`.
+
+That cycle was the deeper defect, and it has since been cut down. `routes.ts`
+registers screens as `lazy(() => import(...))` rather than `require()`, so the
+registry no longer drags all 40 screens into the context's component; the two
+remaining `require()` sites became static imports read at call time. Measured on
+the built ESM output, the largest strongly connected component went from **67
+modules to 2**, and `OxySignInRequestSurface` is no longer inside any cycle.
+What is left is two mutual pairs — `surfaces` ↔ `SurfaceScreen` and
+`OxyContext` ↔ `useFollow` — each of which only ever reads the other at call or
+render time.
+
+Cycles still exist, so do not re-add `sideEffects` in any form. A narrowed,
+truthful list would leave every component still in a cycle exactly as exposed,
+because none of *them* has a top-level side effect either. The cost of not
+declaring it was measured at the time on the IdP's own production bundle, which
+is the heaviest consumer of this package on the web: **5,483.86 kB → 5,489.99 kB
+raw (+0.11%)** and **1,457.31 kB → 1,458.66 kB gzip (+0.09%)**.
+
+**No module in this package's source may call `require()`.** The build is ESM,
+and a surviving `require()` puts bundlers back into CommonJS interop — the same
+lazily-initialized wrappers, reachable the same silent way. To defer a read, use
+a thunk over a static import; to defer a *load*, use `import()`.
+`src/__tests__/esmSourcePurity.test.ts` enforces this.
+
+`packages/auth/lib/__tests__/authorize-surface-bundle.test.ts` builds the IdP's
+real production bundle and renders the surface out of it, so a regression fails
+in CI with React's own message instead of on auth.oxy.so.
+
+[#784]: https://github.com/OxyHQ/OxyHQServices/issues/784
+
 ## Installation
 
 ```bash
@@ -125,8 +188,12 @@ function UserProfile() {
 Typography is owned entirely by `@oxyhq/bloom`. `BloomThemeProvider` ships the
 Inter, BlomusModernus and Geist Mono families — variable `.ttf` files loaded via
 `expo-font` on native, `@font-face` rules injected as data URLs on web — and
-applies the default family to every `<Text>`. This package bundles no fonts and
-loads none, so it adds no font weight to consumer app binaries.
+applies the default family to every `<Text>`. This package bundles and loads no
+fonts for typography. Its screens do ship two generated icon-font subsets:
+only the Ionicons and Material Community Icons code points referenced by Services
+are included (currently about 75 KB combined instead of the 1.70 MB full fonts).
+The subsets keep the original glyph outlines and use private family names, so
+they do not collide with a consumer app's own icon fonts.
 
 ```typescript
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
@@ -455,7 +522,7 @@ function LoginScreen() {
 ```
 
 - **Official Oxy apps** (`isOfficial` / first-party types): opens the in-app account dialog.
-- **Third-party apps** (`type: 'third_party'`): starts the standard OAuth 2.0 Authorization Code + PKCE flow against `auth.oxy.so` (the SDK generates `state` + PKCE via `@oxyhq/core`). On web the transport is `OxyProvider` prop `webAuthMode: 'popup' | 'redirect'` (default `'redirect'`; issue #691 Phase 2) — `'popup'` opens a small window and relays the result via `postMessage` without navigating your app's tab, falling back to a redirect if the browser blocks it. Pass `oauthRedirectUri`; on native handle `onOAuthResult` to complete the token exchange.
+- **Third-party apps** (`type: 'third_party'`): starts the standard OAuth 2.0 Authorization Code + PKCE flow against `auth.oxy.so` (the SDK generates `state` + PKCE via `@oxyhq/core`). On web the transport is `OxyProvider` prop `webAuthMode: 'popup' | 'redirect'` (default `'popup'`; issue #691 Phases 2/7b) — `'popup'` opens a small window and relays the result via `postMessage` without navigating your app's tab, falling back to a redirect if the browser blocks it. Pass `oauthRedirectUri`; on native handle `onOAuthResult` to complete the token exchange.
 
 See the [integration guide](../../docs/auth/integration-guide.md) for Console registration, OAuth endpoints, and backend verification, and [AUTHENTICATION.md](../../docs/AUTHENTICATION.md) for the full model.
 
@@ -618,7 +685,7 @@ const metadata = getLanguageMetadata('es-ES');
 
 ### Common Issues
 
-#### 1. "useOxy must be used within an OxyContextProvider"
+#### 1. "useOxy() was called outside &lt;OxyProvider&gt;"
 
 **Solution**: Wrap your app with `OxyProvider`
 
@@ -694,7 +761,7 @@ Typed returns are defined in `ui/hooks/queries/paymentTypes.ts` (`Subscription`,
 
 ## Sign-In Token Planting
 
-`@oxyhq/core` `OxyServices.verifyChallenge()` plants `setTokens(accessToken, refreshToken ?? '')` internally before returning. `useAuthOperations.performSignIn` no longer needs to hand-plant the token or call a session-token fallback — just await `verifyChallenge` and proceed.
+`@oxyhq/core` `OxyServices.verifyChallenge()` plants `setTokens(accessToken)` internally before returning. `useAuthOperations.performSignIn` no longer needs to hand-plant the token or call a session-token fallback — just await `verifyChallenge` and proceed.
 
 ## Requirements
 
@@ -785,4 +852,6 @@ Comprehensive documentation is available in the `/docs` directory:
 
 ## License
 
-This project is licensed under the GNU Affero General Public License v3.0 only (AGPL-3.0-only), (c) The Oxy Foundation, Inc. See the [LICENSE](LICENSE) file for details.
+This package is licensed under the Apache License, Version 2.0, (c) The Oxy Collective, Inc. See the [LICENSE](LICENSE) and [NOTICE](NOTICE) files for details.
+
+Versions published before `28.0.0` were AGPL-3.0-only and stay that way; a licence change binds future versions only.

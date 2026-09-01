@@ -33,6 +33,29 @@ setPlatformOS(Platform.OS as PlatformOS);
 // ---------------------------------------------------------------------------
 export { default as OxyProvider } from './ui/components/OxyProvider';
 export { useOxy } from './ui/context/OxyContext';
+// `useOxy()` THROWS when no provider is mounted. `useOptionalOxy()` returns
+// `null` instead, for the rare component that renders on both sides of the
+// provider boundary; there is no fabricated forever-loading runtime.
+export { useOptionalOxy, OxyProviderMissingError } from './ui/context/OxyContext';
+
+// The runtime surface (ADR 0004). These subscribe to the ONE runtime with a
+// selector, so — unlike `useOxy()`, whose value is rebuilt by any of its fifty
+// members moving — a locale change or a dialog opening does not re-render them.
+export {
+  useOxyRuntime,
+  useOxySnapshot,
+  useActiveAccount,
+  useDeviceDirectory,
+  OxyRuntimeMissingError,
+} from './ui/runtime';
+export type {
+  ActiveAccount,
+  OxyRuntime,
+  OxyRuntimeError,
+  OxyRuntimeSnapshot,
+  OxyRuntimeStatus,
+  OxyTokenStatus,
+} from './ui/runtime';
 export type { OxyContextState } from './ui/context/OxyContext';
 export { useAuth } from './ui/hooks/useAuth';
 export type { AuthState, AuthActions, UseAuthReturn } from './ui/hooks/useAuth';
@@ -45,7 +68,6 @@ export { IdentityBoundSessionError } from './ui/session/identityBinding';
 // Zustand stores
 // ---------------------------------------------------------------------------
 export { useAuthStore } from './ui/stores/authStore';
-export { useAccountStore } from './ui/stores/accountStore';
 export {
     useAssetStore,
     useAssets as useAssetsStore,
@@ -173,9 +195,21 @@ export {
 // SDK's user query cache under both keys it owns (by-id + viewer-scoped
 // by-username). Consumers route ALL cache seeds (feed / list / search / profile
 // hydration) through this so a sparse source can never strip a field an
-// authoritative fetch already stored.
-export { upsertCachedUser, upsertCachedUsers } from './ui/hooks/queries/userCache';
-export type { CacheableUser } from './ui/hooks/queries/userCache';
+// authoritative fetch already stored. A write that DELIBERATELY empties a field
+// ("remove my picture") says so with `{ cleared: [...] }` — the payload cannot
+// express it, see the module docs.
+export {
+    upsertCachedUser,
+    upsertCachedUsers,
+    CLEARABLE_USER_FIELDS,
+    clearedFieldsFromProfileUpdate,
+    clearedFieldsFromAccountUpdate,
+} from './ui/hooks/queries/userCache';
+export type {
+    CacheableUser,
+    ClearableUserField,
+    UpsertCachedUserOptions,
+} from './ui/hooks/queries/userCache';
 
 // Mutation status aggregator (for "Syncing..." indicators)
 export { useMutationStatus } from './ui/hooks/useMutationStatus';
@@ -201,23 +235,25 @@ export { useFileFiltering } from './ui/hooks/useFileFiltering';
 export type { ViewMode, SortBy, SortOrder } from './ui/hooks/useFileFiltering';
 
 // ---------------------------------------------------------------------------
-// Device notifications (the ONE `expo-notifications` adapter)
+// Device notifications — DELIBERATELY NOT EXPORTED HERE
 // ---------------------------------------------------------------------------
-// The Expo-side half of push: permission, platform tag, and the EXPO push token
-// `@oxyhq/core`'s `registerPushToken` accepts (never a raw APNs/FCM token).
-// Native-only by construction — every entry point resolves its null/no-op result
-// from `Platform.OS` before `expo-notifications` is ever imported, and both
-// `expo-notifications` and `expo-constants` are OPTIONAL peers.
-export {
-    pushTokenPlatform,
-    hasNotificationPermission,
-    requestNotificationPermission,
-    getExpoPushToken,
-    takeLaunchNotificationData,
-    installForegroundNotificationHandler,
-    subscribeToNotificationResponses,
-} from './notifications/deviceNotifications';
-export type { ForegroundPresentation } from './notifications/deviceNotifications';
+// The `expo-notifications` adapter lives behind its own entry point:
+//
+//     import { getExpoPushToken } from '@oxyhq/services/notifications';
+//
+// It is the one module in this package whose dependencies (`expo-notifications`
+// and `expo-constants`) are optional peers that an app which does not use push
+// genuinely never installs. Re-exporting it from THIS barrel is what made that
+// optionality a lie: a barrel export puts the module in the import graph of
+// every consumer, and `tsc` must resolve the specifier of an `import()` even
+// when the call is lazy and wrapped in try/catch — so every consumer without
+// `expo-notifications` failed with TS2307 (plus TS7006 cascades) whether or not
+// it had ever heard of push. Behind a subpath the module is only ever pulled in
+// by an app that asked for it, which is what "optional peer" is supposed to
+// mean.
+//
+// Do NOT re-add these exports here. `__tests__/notifications/barrelIsolation.test.ts`
+// fails if you do.
 
 // ---------------------------------------------------------------------------
 // UI components
@@ -264,6 +300,40 @@ export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './ui/components/
 
 export { default as FollowButton } from './ui/components/FollowButton';
 export type { FollowButtonProps, SingleFollowButtonProps, MultiFollowButtonProps } from './ui/components/FollowButton';
+// The follow graph (#809): follows anything registered, not just users.
+export {
+  FollowTargetButton,
+  // The product rules the button encodes, for an application drawing its own
+  // affordance instead of using it — a chip grid, a compact row control.
+  // Unexported, they get duplicated, and the duplicate is where the "off here"
+  // rule goes wrong: pressing a follow that is switched off here must re-enable
+  // it here, not unfollow everywhere.
+  buildFollowMenuItems,
+  resolveFollowPrimaryAction,
+  FOLLOW_ACTION_LEAVES_ACTIVE,
+} from './ui/components/FollowTargetButton';
+export type {
+  FollowTargetButtonProps,
+  FollowVerb,
+  FollowLabels,
+  FollowDuration,
+} from './ui/components/FollowTargetButton';
+export { useFollowTarget } from './ui/hooks/useFollowTarget';
+export type { UseFollowTargetResult } from './ui/hooks/useFollowTarget';
+export {
+  useFollowTargetStore,
+  UNKNOWN_FOLLOW_STATUS,
+  // The answer to "does the user follow this at all". Documented in
+  // docs/FOLLOWS.md and, until now, not exported — so the one line of that
+  // guide most likely to be reached for did not resolve.
+  isFollowedGlobally,
+  withApplicationMode,
+  // Whether a cached status is safe to act on without a round trip — list rows
+  // often carry globalState without relationshipId.
+  isCompleteFollowStatus,
+  followRecordToStatus,
+  followRecordsToStatusMap,
+} from './ui/stores/followTargetStore';
 export { default as OxyPayButton } from './ui/components/OxyPayButton';
 export { LogoIcon } from './ui/components/logo/LogoIcon';
 export { LogoText } from './ui/components/logo/LogoText';
@@ -273,6 +343,7 @@ export { LogoText } from './ui/components/logo/LogoText';
 // `useOxy().openAccountDialog`.
 export { default as ProfileButton } from './ui/components/ProfileButton';
 export type { ProfileButtonProps } from './ui/components/ProfileButton';
+export type { AccountDialogMenuItem } from './ui/navigation/accountDialogManager';
 
 // The account switcher/sign-in/sign-up chooser WITHOUT dialog chrome — the
 // surface stack presents `OxyAccountDialogScreen` (which renders this) into
@@ -294,14 +365,14 @@ export { OxySignInRequestSurface } from './ui/components/OxySignInRequestSurface
 export type { OxySignInRequestSurfaceProps } from './ui/components/OxySignInRequestSurface';
 export type { OxySignInSurfaceAction } from './ui/components/authChooser/types';
 
-// Unified switchable-accounts hook — the single source of everything the user
-// can switch into: device sign-ins AND linked graph accounts (owned orgs +
-// shared-with-you), deduped by account id and hydrated with real
-// name/email/avatar/color. Backed by the shared `AccountDialogController` in
-// `@oxyhq/core`. Every switch routes through `useOxy().switchToAccount`.
-// The `SwitchableAccount` type lives in `@oxyhq/core` — import it from there.
-export { useSwitchableAccounts } from './ui/hooks/useSwitchableAccounts';
-export type { UseSwitchableAccountsResult } from './ui/hooks/useSwitchableAccounts';
+// The device switcher — the server's own directory (ADR 0002) of who is signed
+// in here and what each of them may act as, grouped by PERSON, with the two
+// removals an account id cannot name. Backed by the shared
+// `AccountDialogController` in `@oxyhq/core`; selecting a row activates a
+// `contextId`. `DevicePrincipalGroup` and `DeviceContext` live in `@oxyhq/core`
+// — import them from there.
+export { useDeviceSwitcher } from './ui/hooks/useDeviceSwitcher';
+export type { UseDeviceSwitcherResult } from './ui/hooks/useDeviceSwitcher';
 
 // Unified "Manage your Oxy Account" screen (the caller's own personal account)
 export { default as ProfileScreen } from './ui/screens/ProfileScreen';

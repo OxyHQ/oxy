@@ -23,7 +23,7 @@ import './crypto/polyfill';
 // ---------------------------------------------------------------------------
 // API client
 // ---------------------------------------------------------------------------
-export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError } from './OxyServices';
+export { OxyServices, AssetUrlResolutionError, OxyAuthenticationError, OxyAuthenticationTimeoutError, ServiceAssetMetadataError } from './OxyServices';
 export { OXY_CLOUD_URL, oxyClient } from './OxyServices';
 export type { LinkedHttpClient } from './OxyServices.base';
 // Auth-refresh handler surface — consumed by `@oxyhq/services`'s OxyContext to
@@ -43,13 +43,17 @@ export {
 } from './utils/commonsApproval';
 // Automatic "Sign in with Oxy" delivery selection — ONE pure decision that maps
 // the caller's facts onto exactly one primary route (open Commons / await push / QR).
-export { selectCommonsDelivery } from './utils/commonsDelivery';
+export { selectCommonsDelivery, pushTargetsFromDelivery, commonsDeliveryPlatform } from './utils/commonsDelivery';
 export type {
     CommonsDeliveryFacts,
     CommonsDeliveryPlatform,
     CommonsDeliveryRoute,
 } from './utils/commonsDelivery';
-export type { ServiceTokenResponse } from './mixins/OxyServices.auth';
+export type {
+    ServiceTokenResponse,
+    OAuthUserInfoResponse,
+    OAuthTokenExchangeResult,
+} from './mixins/OxyServices.auth';
 // "Sign in with Oxy" — handoff (Workstream C)
 export type {
     CommonsSignInHandle,
@@ -117,31 +121,50 @@ export type {
 } from './mixins/OxyServices.connectedApps';
 
 // ---------------------------------------------------------------------------
+// App store (public storefront + reviews + the listing a publisher edits)
+// ---------------------------------------------------------------------------
+export type {
+    StoreCategory,
+    StoreRating,
+    StoreListingSummary,
+    StoreListingDetail,
+    StoreScreenshot,
+    StoreScreenshotPlatform,
+    StoreReview,
+    StoreOwnReview,
+    WriteStoreReviewInput,
+    StoreListingStatus,
+    PublisherListing,
+    WriteListingInput,
+    AddScreenshotInput,
+    UpdateScreenshotInput,
+    StorePage,
+    StorePageOptions,
+    StoreReviewsOptions,
+} from './mixins/OxyServices.store';
+
+// ---------------------------------------------------------------------------
 // Accounts (unified account graph: tree, membership, roles, bot credentials)
 // plus the applications owned within it (Application = OAuth client).
 // ---------------------------------------------------------------------------
 export type {
     AccountKind,
-    OrganizationCategory,
+    AccountCategoryId,
     AccountRelationship,
     AccountRole,
     AccountMemberStatus,
     AccountMemberSource,
     AccountMember,
     AccountNode,
-    AccountCredentialType,
-    AccountCredentialEnvironment,
-    AccountCredentialStatus,
-    AccountCredential,
-    AccountCredentialWithSecret,
-    RotateAccountCredentialResult,
     ListAccountsOptions,
     CreateAccountInput,
     UpdateAccountInput,
+    ProvisionChannelInput,
+    ProvisionChannelMemberInput,
+    ProvisionChannelResult,
     InviteAccountMemberInput,
     UpdateAccountMemberInput,
     TransferAccountOwnershipInput,
-    CreateAccountCredentialInput,
     AccountSuccessResult,
     SwitchAccountResult,
     // Applications owned within the account graph (Application = OAuth client).
@@ -155,6 +178,7 @@ export type {
     CreateApplicationInput,
     UpdateApplicationInput,
     CreateApplicationCredentialInput,
+    RotateApplicationCredentialInput,
     ApplicationCredentialWithSecret,
     RotateApplicationCredentialResult,
     ApplicationUsagePeriod,
@@ -164,34 +188,21 @@ export type {
     ApplicationUsageStats,
 } from './mixins/OxyServices.accounts';
 
-export { ORGANIZATION_CATEGORIES } from './mixins/OxyServices.accounts';
+export {
+    ACCOUNT_CATEGORY_IDS,
+    MAX_ACCOUNT_CATEGORIES,
+    SELECTABLE_ACCOUNT_CATEGORY_IDS,
+    isSelectableAccountCategoryId,
+    kindAcceptsAccountCategories,
+} from './mixins/OxyServices.accounts';
 
 // ---------------------------------------------------------------------------
-// Reputation (Oxy Trust: ledger, balances, disputes, rules, influence)
+// Reputation (Oxy Trust: ledger, balances, disputes, rules, influence).
+// The whole type family — the closed value sets, the two balance views and the
+// `isFullReputationBalance` narrowing guard, the ledger/dispute/rule/leaderboard
+// shapes, and the write-endpoint inputs — is owned by `@oxyhq/contracts`, which
+// the API's serializers are validated against. Import them from there.
 // ---------------------------------------------------------------------------
-export type {
-    ReputationCategory,
-    TrustTier,
-    ReputationTransactionStatus,
-    ReputationTargetEntityType,
-    ReputationDisputeStatus,
-    ReputationInfluenceContext,
-    ReputationTransaction,
-    ReputationBalanceBreakdown,
-    ReputationInfluence,
-    ReputationReliability,
-    ReputationBalance,
-    ReputationDispute,
-    ReputationRule,
-    ReputationLeaderboardEntry,
-    ReputationInfluenceResult,
-    ReverseReputationTransactionResult,
-    AwardReputationInput,
-    CreateReputationDisputeInput,
-    ResolveReputationDisputeInput,
-    UpsertReputationRuleInput,
-    ReverseReputationTransactionInput,
-} from './mixins/OxyServices.reputation';
 
 // ---------------------------------------------------------------------------
 // Self-sovereign identity (DID, signed records, auth-method ↔ VM mapping,
@@ -239,6 +250,13 @@ export type {
     RevokeCredentialResult,
 } from './mixins/OxyServices.civic';
 export type { UserNodeStatus, UserNodeMode, UserNodeController, UserNodeLivenessStatus, RegisterNodeInput, RemoveNodeResult } from './mixins/OxyServices.nodes';
+
+/**
+ * Chains — the shared per-person record log. `ChainRecord` is generic over the
+ * app's own lexicon payload, so a consumer types its records without Oxy
+ * knowing any app's schema.
+ */
+export type { ChainRecord, ChainRecordPage, AppendedChainRecord } from './mixins/OxyServices.chains';
 
 // ---------------------------------------------------------------------------
 // Auth helpers (token refresh, error normalisation, retry policies)
@@ -463,11 +481,16 @@ export type { CircuitBreakerState, CircuitBreakerConfig } from './shared/utils/n
 // i18n
 // ---------------------------------------------------------------------------
 export { translate } from './i18n';
+export { accountCategoryLabel } from './i18n/accountCategoryLabels';
+export { accountRoleLabel } from './i18n/accountRoleLabels';
+export { reputationCategoryLabel } from './i18n/reputationCategoryLabels';
+export { trustTierLabel } from './i18n/trustTierLabels';
 
 // ---------------------------------------------------------------------------
 // API request / URL helpers
 // ---------------------------------------------------------------------------
 export {
+    buildQueryParams,
     buildSearchParams,
     buildUrl,
     buildPaginationParams,
@@ -475,6 +498,8 @@ export {
 } from './utils/apiUtils';
 export type {
     PaginationParams,
+    FollowGraphParams,
+    FollowGraphSort,
     ApiResponse,
     ErrorResponse,
 } from './utils/apiUtils';
@@ -483,8 +508,11 @@ export {
     ErrorCodes,
     createApiError,
     handleHttpError,
+    isHttpRequestError,
+    parseHttpErrorBody,
     validateRequiredFields,
 } from './utils/errorUtils';
+export type { HttpRequestError, ParsedHttpErrorBody } from './utils/errorUtils';
 
 export { retryAsync } from './utils/asyncUtils';
 
@@ -493,15 +521,16 @@ export { retryAsync } from './utils/asyncUtils';
 // ---------------------------------------------------------------------------
 export {
     EMAIL_REGEX,
-    USERNAME_REGEX,
     PASSWORD_REGEX,
+    MAX_DISPLAY_NAME_LENGTH,
+    DISPLAY_NAME_INVALID_MESSAGE,
     isValidEmail,
-    isValidUsername,
     isValidPassword,
     isValidDisplayName,
     DISPLAY_NAME_ALLOWED_SCRIPTS,
     DISPLAY_NAME_DISALLOWED_SOURCE,
     DISPLAY_NAME_ORPHANED_MARK_SOURCE,
+    DISPLAY_NAME_UNFLANKED_SEPARATOR_SOURCE,
     isRequiredString,
     isRequiredNumber,
     isRequiredBoolean,
@@ -605,10 +634,10 @@ export {
     OXY_AUTHORIZE_URL,
     OXY_OAUTH_STATE_STORAGE_KEY,
     OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY,
-    OXY_SILENT_OAUTH_ATTEMPTED_KEY,
-    OXY_CROSS_ORIGIN_RESTORE_ATTEMPTED_KEY,
+    OXY_OAUTH_REDIRECT_URI_STORAGE_KEY,
     OXY_OAUTH_RETURN_PATH_STORAGE_KEY,
     normalizeOAuthRedirectUri,
+    canonicalizeOAuthRedirectUri,
     persistOAuthHandshake,
     readOAuthHandshake,
     clearOAuthHandshake,
@@ -618,21 +647,10 @@ export {
 export type { PkcePair, BuildOAuthAuthorizeUrlParams } from './utils/oauthPkce';
 
 export {
-    buildIdpHubOrigin,
-    buildHubSyncUrl,
-    isIdpHubOrigin,
     isLoopbackOrigin,
     isOfficialWebOrigin,
     isAllowedDeviceJoinOrigin,
-    normalizeOfficialReturnOrigin,
-    parseHubSyncReturnUrl,
 } from './utils/officialOrigins';
-
-export {
-    syncHubAfterSignIn,
-    redeemHubTicketOnHub,
-} from './session/hubSync';
-export type { SyncHubAfterSignInOptions } from './session/hubSync';
 
 // ---------------------------------------------------------------------------
 // Session sync (device-scoped multi-account session client)
@@ -658,19 +676,55 @@ export {
     accountIdsOf,
 } from './session/projectSessionState';
 
-// Unified account-list projection (THE single source of truth for the account
-// chooser: device sign-ins ∪ account graph, deduped by accountId). Pure +
-// I/O-free — the caller hydrates profiles via `getUsersByIds`. Shared by
-// `@oxyhq/services` and auth.oxy.so so the list can't diverge.
+// Pure projections over the device DIRECTORY (`GET /session/device/directory`,
+// ADR 0002) — the read model that keeps the actor (the human who authenticated)
+// and the subject (the account being acted as) apart. The flat
+// `DeviceSessionState` collapses them into one row, so it can neither tell
+// "signed in as an org" from "a person operating that org" nor hold two people
+// reaching the same org on one device.
+// `canActivateContext` is the switchability question — `available` alone, never
+// composed with `onDevice`, which is a different fact in both directions.
+// `projectDevicePrincipals` is the switcher's shape: people, each with what
+// they may become. Grouped rather than flat because the same organization
+// reached through two people is TWO rows under two humans, which a list keyed
+// by account cannot say.
 export {
-    projectSwitchableAccounts,
-    switchableAccountIds,
-} from './session/accountProjection';
+    canActivateContext,
+    directoryDisplayName,
+    directoryHandle,
+    projectDevicePrincipals,
+    resolveActiveContext,
+    resolveDeviceContext,
+} from './session/deviceDirectory';
 export type {
-    SwitchableAccount,
-    SwitchableAccountUser,
-    ProjectSwitchableAccountsInput,
-} from './session/accountProjection';
+    DeviceContext,
+    DeviceContextActor,
+    DeviceContextSubject,
+    DevicePrincipalGroup,
+} from './session/deviceDirectory';
+
+// The switcher's RENDER model over that projection — names, handles and avatar
+// URLs resolved once. Shared by `@oxyhq/services`' account dialog and the
+// auth.oxy.so chooser so the two cannot drift, the same reason the flat
+// projection lived here before it.
+export { buildSwitcherRows, showsPrincipalHeaders } from './session/deviceSwitcherRows';
+export type {
+    ResolveAvatarUrl,
+    SwitcherContextRow,
+    SwitcherPrincipalRow,
+} from './session/deviceSwitcherRows';
+
+// The switch-target predicates over the account GRAPH — a list of accounts to
+// manage, not the device's list of identities to become (that is the directory
+// above). `isSwitchTargetAccount` is the structural half ("is this kind
+// switchable at all?"); `canSwitchIntoAccount` adds the caller's
+// `account:act_as` permission. Exported so the surfaces that render
+// `AccountNode`s — the Console workspace switcher, managed-accounts rows — ask
+// the SAME questions instead of testing a kind literal.
+export {
+    isSwitchTargetAccount,
+    canSwitchIntoAccount,
+} from './session/accountSwitchTargets';
 
 // Headless controller for the unified account dialog. Framework-agnostic
 // state machine + subscribe/getSnapshot store (bind via `useSyncExternalStore`)
@@ -712,6 +766,30 @@ export type {
     NativeKeyValueStorage,
 } from './session/authStateStore';
 
+// The shared NATIVE DeviceSession credential — how several official apps on one
+// device end up on ONE `DeviceSession` and therefore one active context. It is an
+// ordinary rotatable/revocable `deviceId` + `deviceSecret`, deliberately NOT the
+// Commons private identity key: an app that only needs a session must never be
+// handed the key that signs identity approvals.
+export {
+    createSharedMirroringAuthStateStore,
+    decideSharedDeviceJoin,
+    decideSharedDevicePublish,
+    normalizeSharedDeviceSessionRead,
+    publishProvenDeviceCredential,
+    readLocalDeviceCredential,
+} from './session/sharedDeviceCredential';
+export type {
+    SharedDeviceCredential,
+    SharedDeviceCredentialRead,
+    SharedDeviceCredentialStore,
+    SharedDeviceJoinDecision,
+    SharedDeviceJoinSkipReason,
+    SharedDevicePublishDecision,
+    SharedDevicePublishOutcome,
+    SharedDevicePublishSkipReason,
+} from './session/sharedDeviceCredential';
+
 // Identity-bound sessions (the identity vault). The pin is the durable
 // `{publicKey, accountId}` binding between this device's PRIMARY identity key
 // and the account it authenticates as; it is what keeps such a client from
@@ -747,6 +825,24 @@ export {
     TOKEN_REFRESH_LEAD_MS,
 } from './session/refresh';
 export type { RefreshDeps, TokenRefreshSchedulerHandle, DeviceSecretMintOutcome } from './session/refresh';
+
+// The inference API. `oxyServices.inference()` binds the session bearer into
+// the same client an external developer constructs with an `oxy_sk_…` machine
+// key — one surface, two credential lanes. See `docs/inference/sdk.md`.
+export {
+    OxyInferenceClient,
+    OxyInferenceError,
+    OXY_INFERENCE_BASE_URL,
+} from './inference/OxyInferenceClient';
+export type {
+    OxyInferenceClientOptions,
+    OxyInferenceCredential,
+    OxyInferenceFetch,
+    OxyInferenceRequestOptions,
+    OxyInferenceResponse,
+    OxyGenerationReceipt,
+    OxyResponsesRequest,
+} from './inference/OxyInferenceClient';
 
 export { runSessionColdBoot } from './boot/sessionColdBoot';
 export type {

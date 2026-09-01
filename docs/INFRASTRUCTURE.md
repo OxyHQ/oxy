@@ -9,8 +9,7 @@ All Oxy production infrastructure runs on **AWS** in the **us-west-2 (Oregon)** 
 | `oxy-cluster` | ECS Fargate cluster | — | us-west-2 | Runs all 6 backend services as Fargate tasks (linux/arm64) |
 | `oxy-alb` | Application Load Balancer | `<alb-dns-name>` | us-west-2 | HTTPS termination (ACM multi-SAN cert) + path/host routing to ECS services |
 | `oxy-valkey` | ElastiCache (Valkey) | — | us-west-2 | Rate limiting + Socket.IO adapter |
-| `oxy-mongo` | EC2 (MongoDB 8 self-hosted) | `<mongo-instance-id>` (EIP `<mongo-public-ip>`) | us-west-2 | Shared MongoDB for all Oxy apps. `/data` on a 100 GB gp3 EBS volume |
-| `<mongo-backup-bucket>` | S3 bucket | — | us-west-2 | Daily mongodump under `daily/` (14-day retention) |
+| `oxy-postgres` | RDS (PostgreSQL 17) | — | us-west-2 | The API serves from the `oxy_api` database. Shared instance — other Oxy apps sit in their own databases on it |
 | `<terraform-state-bucket>` | S3 bucket | — | us-west-2 | Terraform remote state |
 | ECR repos | `237343248947.dkr.ecr.us-west-2.amazonaws.com/oxy/<app>` | one per service | us-west-2 | linux/arm64 images for each backend |
 | `oxy-github-deploy` | IAM role | — | — | Trust policy for GitHub OIDC; no static AWS keys in GitHub |
@@ -36,7 +35,7 @@ All tasks run `assign_public_ip=true` so there is no NAT gateway in the path.
 |---------|-----------|
 | `oxy-accounts` | accounts.oxy.so |
 | `oxy-auth` | auth.oxy.so (third-party OAuth authorize/consent IdP — pure-static Vite SPA; the device-account chooser runs in the device-first SDK, so there is no Pages Function) |
-| `oxy-inbox` | inbox.oxy.so |
+| `oxy-inbox` | inbox.oxy.so — deployed from [OxyHQ/Inbox](https://github.com/OxyHQ/Inbox) |
 | `oxy-console` | console.oxy.so |
 
 ## Networking
@@ -44,34 +43,16 @@ All tasks run `assign_public_ip=true` so there is no NAT gateway in the path.
 - ALB listener on `:443` terminates TLS with the ACM multi-SAN cert (DNS-validated through the Cloudflare API). HTTP `:80` redirects to `:443`.
 - ALB target groups route by `Host:` header to the matching ECS service.
 - Cloudflare DNS is **DNS-only** (grey cloud) for the API hostnames so the ALB sees real client IPs and ACM can complete DNS-01 validation.
-- ECS tasks talk to ElastiCache and the MongoDB EC2 instance over the default VPC inside `us-west-2`.
-- Security group on the MongoDB EC2 instance allows `:27017` only from the ECS task ENIs and from the ops bastion path (SSM Session Manager — no SSH key on disk).
+- ECS tasks talk to ElastiCache and the RDS instance over the default VPC inside `us-west-2`.
+- Security group on the RDS instance allows `:5432` only from the ECS task ENIs and from the ops bastion path (SSM Session Manager — no SSH key on disk).
 
-## Database: MongoDB (self-hosted on EC2)
+## Database: PostgreSQL (RDS `oxy-postgres`)
 
-The MongoDB 8 instance is intentionally self-hosted rather than DocumentDB so we can use the full driver feature set (transactions, change streams, full text search). Backups are written nightly:
+The API's data lives in the `oxy_api` database on the shared `oxy-postgres` RDS instance. It is reached through one `DATABASE_URL` — a single connection string carrying the database name, so there is no per-app database selection at connect time.
 
-- Job: scheduled `mongodump --gzip --archive=…` running inside the instance.
-- Destination: `s3://<mongo-backup-bucket>/daily/<date>.gz`.
-- Retention: 14 days via the bucket lifecycle policy.
-- Restore runbook: `~/Oxy/oxy-infra/docs/runbooks/10-mongo-restore.md`.
+Schema is owned by Drizzle: `packages/api/src/db/schema/` declares it, `drizzle/` holds the generated migrations, and `bun run db:migrate` applies them. `packages/api/src/db/MIGRATION-CONTRACT.md` records the invariants the schema must hold.
 
-Admin credentials live in SSM Parameter Store (private MongoDB admin parameters). They are read by deploy jobs and the backup job — never committed.
-
-### Database naming convention
-
-The `MONGODB_URI` is the cluster URI (no database name embedded). Each app passes `dbName` to `mongoose.connect()`:
-
-```typescript
-const APP_NAME = "mention";
-const ENV_DB_MAP: Record<string, string> = { production: 'prod', development: 'dev' };
-const envSuffix = ENV_DB_MAP[process.env.NODE_ENV] || process.env.NODE_ENV;
-const dbName = `${APP_NAME}-${envSuffix}`;
-
-mongoose.connect(process.env.MONGODB_URI, { dbName });
-```
-
-Examples: `oxy-prod`, `mention-production`, `alia-production`, `homiio-production`, `allo-production`.
+Instance sizing, storage headroom, parameter groups, backup/restore and the tenancy question (which apps share the instance) are owned by `oxy-infra` — see `~/Oxy/oxy-infra/terraform-uswest2/postgres.tf` and `~/Oxy/oxy-infra/docs/postgres-shared-instance-capacity.md`. Deliberately not restated here: this document went stale once by duplicating infrastructure detail it does not own.
 
 ## Cache: ElastiCache Valkey (`oxy-valkey`)
 
@@ -116,14 +97,8 @@ Shared parameters (the shared parameter namespace) include AWS access-key variab
                                              |       |     |
                                              v       v     v
                                    +---------+----+ +-+---+----------+
-                                   | ElastiCache  | |  MongoDB on    |
-                                   |  Valkey      | |  EC2 + EBS     |
-                                   |  oxy-valkey  | |  (EIP)         |
+                                   | ElastiCache  | |  RDS           |
+                                   |  Valkey      | |  PostgreSQL 17 |
+                                   |  oxy-valkey  | |  oxy-postgres  |
                                    +--------------+ +----------------+
-                                                          |
-                                                          v
-                                                 +--------+--------+
-                                                 |  S3 backups     |
-                                                 |  (daily, 14d)   |
-                                                 +-----------------+
 ```

@@ -3,6 +3,7 @@ import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
 import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxyhq/contracts';
+import { trustTierLabel } from '@oxyhq/core';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { CenteredState } from '@/components/ui/centered-state';
@@ -63,7 +64,7 @@ export function AttestReviewSheet({
   onClose,
 }: AttestReviewSheetProps) {
   const colors = useColors();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const control = useDialogControl();
 
   useEffect(() => {
@@ -162,7 +163,7 @@ export function AttestReviewSheet({
               <CivicBadge
                 tone={getTrustTierMeta(card.trustTier).tone}
                 icon={TIER_ICON[card.trustTier]}
-                label={t(`civic.trustTier.${card.trustTier}`)}
+                label={trustTierLabel(locale, card.trustTier)}
               />
               {!verified && (
                 <CivicBadge tone="caution" icon="shield-alert-outline" label={t('civic.attest.review.unverified')} />
@@ -187,10 +188,14 @@ export function AttestReviewSheet({
   } else if (status === 'reviewing' && card) {
     actions = [
       {
-        label: t('civic.attest.review.confirm'),
+        label: t(
+          confirming
+            ? 'civic.attest.review.submitting'
+            : 'civic.attest.review.confirm',
+        ),
         onPress: onConfirm,
         shouldCloseOnPress: false,
-        loading: confirming,
+        disabled: confirming,
       },
       {
         label: t('common.cancel'),

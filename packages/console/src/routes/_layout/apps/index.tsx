@@ -9,7 +9,7 @@ import {
   Package01Icon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { useAuth } from '@oxyhq/services';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { useApplications, useCreateApplication } from '@/hooks/use-applications';
+import { useAccount } from '@/hooks/use-account';
 import { resolveStoredImageUrl } from '@/lib/image-upload';
 
 export const Route = createFileRoute('/_layout/apps/')({
@@ -51,8 +52,15 @@ function getErrorMessage(error: unknown, fallback: string): string {
 function AppsPage() {
   const navigate = useNavigate();
   const { oxyServices } = useAuth();
+  const { currentAccount, canCreateApplications } = useAccount();
   const { data: applications = [], isLoading } = useApplications();
   const createApplicationMutation = useCreateApplication();
+
+  // Creating an application is `apps:create` on the ACTIVE account, read from
+  // the server's own permission list on `callerMembership` rather than inferred
+  // from the role name — the server is the only authority on the role map, and
+  // a per-member revoke can withdraw the permission without changing the role.
+  const canCreate = currentAccount ? canCreateApplications(currentAccount) : false;
 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [name, setName] = useState('');
@@ -105,10 +113,12 @@ function AppsPage() {
               Applications you own or collaborate on
             </p>
           </div>
-          <Button size="sm" onClick={handleOpenCreate}>
-            <HugeiconsIcon icon={Add01Icon} size={16} className="mr-2" />
-            Create application
-          </Button>
+          {canCreate && (
+            <Button size="sm" onClick={handleOpenCreate}>
+              <HugeiconsIcon icon={Add01Icon} size={16} className="mr-2" />
+              Create application
+            </Button>
+          )}
         </div>
       </div>
 
@@ -132,12 +142,16 @@ function AppsPage() {
             />
             <p className="text-sm font-medium text-foreground mb-1">No applications yet</p>
             <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-              Create your first application to manage members, credentials, and usage.
+              {canCreate
+                ? 'Create your first application to manage members, credentials, and usage.'
+                : 'This account has no applications, and your membership does not include permission to create one. An owner or admin can grant it.'}
             </p>
-            <Button size="sm" onClick={handleOpenCreate}>
-              <HugeiconsIcon icon={Add01Icon} size={16} className="mr-2" />
-              Create your first application
-            </Button>
+            {canCreate && (
+              <Button size="sm" onClick={handleOpenCreate}>
+                <HugeiconsIcon icon={Add01Icon} size={16} className="mr-2" />
+                Create your first application
+              </Button>
+            )}
           </div>
         ) : (
           <div>

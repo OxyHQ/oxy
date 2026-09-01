@@ -1,169 +1,205 @@
 /**
- * UserService.getViewerGraph — the viewer's OWN social graph in one payload.
+ * `getViewerGraph` — the viewer's OWN social graph as one ids-only payload.
  *
- * `getViewerGraph` consolidates three per-viewer reads into a single call:
- *   - `followingIds` — the accounts the viewer follows (eligibility-filtered aggregate)
- *   - `mutualIds`    — the subset who follow back, REUSING `getMutualUserIds`
- *   - `blockedIds`   — the accounts the viewer has blocked (`Block.find({ userId })`)
+ * Four independent reads (following, mutuals, blocked, restricted) run in
+ * parallel and are assembled into one object. The suite this replaces asserted
+ * that four mocked models were each queried with a particular filter, and that
+ * `$limit` stages carried particular numbers. That could not catch the failure
+ * this shape is prone to and which a caller would actually suffer: two lists
+ * SWAPPED, or one list assembled from another's rows. Every list has the same
+ * type (`string[]`), so nothing upstream complains — a blocked account simply
+ * appears in `followingIds` and the consumer renders it.
+ *
+ * So each list is seeded with a DISJOINT set here and every assertion states
+ * both what a list contains and what it must not.
+ *
+ * `blocked` and `restricted` matter most: they are the viewer's own safety
+ * lists, and this is the only server-side read of the restrictions a delegated
+ * caller can make (the `/privacy/restricted` router is user-auth only).
  */
 
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
+import { randomUUID } from 'node:crypto';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { blocks } from '../../db/schema/blocks';
+import { restrictions } from '../../db/schema/restrictions';
+import { userFollows } from '../../db/schema/userFollows';
+import { users } from '../../db/schema/users';
+import { userService } from '../user.service';
+
+const uniqueId = () => randomUUID().replace(/-/g, '');
+
+async function makeUsers(
+  count: number,
+  overrides: Partial<typeof users.$inferInsert> = {}
+): Promise<string[]> {
+  const ids = Array.from({ length: count }, () => uniqueId());
+  await getDb()
+    .insert(users)
+    .values(ids.map((id) => ({ id, username: `u${id}`, ...overrides })));
+  return ids;
+}
+
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-import { Types } from 'mongoose';
-import { MAX_FOLLOWING_IDS, MAX_BLOCKED_IDS } from '../../utils/recommendationWeights';
+afterAll(async () => {
+  await closePostgres();
+});
 
-const mockFollowLean = jest.fn();
-const followQuery = {
-  select: jest.fn(() => followQuery),
-  limit: jest.fn(() => followQuery),
-  skip: jest.fn(() => followQuery),
-  sort: jest.fn(() => followQuery),
-  lean: mockFollowLean,
-};
-const mockFollowFind = jest.fn(() => followQuery);
-const mockFollowAggregate = jest.fn();
+describe('the four lists are assembled from their own rows', () => {
+  it('keeps following, mutual, blocked and restricted disjoint and correct', async () => {
+    const [viewer, followedOnly, mutual, blocked, restricted] = await makeUsers(5);
 
-const mockBlockLean = jest.fn();
-const blockQuery = {
-  select: jest.fn(() => blockQuery),
-  limit: jest.fn(() => blockQuery),
-  lean: mockBlockLean,
-};
-const mockBlockFind = jest.fn(() => blockQuery);
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: followedOnly },
+        { followerId: viewer, followedId: mutual },
+        { followerId: mutual, followedId: viewer },
+      ]);
+    await getDb().insert(blocks).values({ userId: viewer, blockedId: blocked });
+    await getDb().insert(restrictions).values({ userId: viewer, restrictedId: restricted });
 
-const mockUserFindLean = jest.fn();
-const mockUserFind = jest.fn(() => ({
-  select: jest.fn(() => ({
-    lean: mockUserFindLean,
-  })),
-}));
+    const graph = await userService.getViewerGraph(viewer);
 
-jest.mock('../../models/Follow', () => ({
-  __esModule: true,
-  default: {
-    find: mockFollowFind,
-    aggregate: mockFollowAggregate,
-  },
-  FollowType: {
-    USER: 'user',
-    HASHTAG: 'hashtag',
-    TOPIC: 'topic',
-  },
-}));
+    expect([...graph.followingIds].sort()).toEqual([followedOnly, mutual].sort());
+    // `mutualIds` is a SUBSET of following, not a separate axis.
+    expect(graph.mutualIds).toEqual([mutual]);
+    expect(graph.blockedIds).toEqual([blocked]);
+    expect(graph.restrictedIds).toEqual([restricted]);
 
-jest.mock('../../models/Block', () => ({
-  __esModule: true,
-  default: {
-    find: mockBlockFind,
-  },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {
-    find: mockUserFind,
-  },
-}));
-
-jest.mock('../../models/Subscription', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-jest.mock('../../utils/userCache', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../utils/graphCache', () => ({
-  __esModule: true,
-  default: {
-    get: jest.fn(),
-    set: jest.fn(),
-    invalidate: jest.fn(),
-  },
-}));
-
-jest.mock('../securityActivityService', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-import { UserService } from '../user.service';
-
-describe('UserService.getViewerGraph', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+    // The swap this shape invites: each safety list must hold ONLY its own ids.
+    expect(graph.blockedIds).not.toContain(restricted);
+    expect(graph.restrictedIds).not.toContain(blocked);
+    expect(graph.followingIds).not.toContain(blocked);
+    expect(graph.followingIds).not.toContain(restricted);
   });
 
-  it('returns following, mutual, and blocked ids from the parallel reads', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
+  it('reads the viewer’s own direction of block and restriction', async () => {
+    // Being blocked BY someone is not the same as blocking them, and the two
+    // columns of `blocks` are both user ids — so a predicate on the wrong one
+    // silently reports the inverse relationship.
+    const [viewer, blockedByThem, restrictedByThem] = await makeUsers(3);
+    await getDb().insert(blocks).values({ userId: blockedByThem, blockedId: viewer });
+    await getDb()
+      .insert(restrictions)
+      .values({ userId: restrictedByThem, restrictedId: viewer });
 
-    const f1 = new Types.ObjectId();
-    const f2 = new Types.ObjectId();
-    const b1 = new Types.ObjectId();
+    const graph = await userService.getViewerGraph(viewer);
 
-    mockFollowAggregate
-      .mockResolvedValueOnce([{ total: 2 }])
-      .mockResolvedValueOnce([{ userId: f1 }, { userId: f2 }]);
+    expect(graph.blockedIds).toEqual([]);
+    expect(graph.restrictedIds).toEqual([]);
+  });
 
-    mockFollowLean
-      .mockResolvedValueOnce([{ followedId: f1 }, { followedId: f2 }])
-      .mockResolvedValueOnce([{ followerUserId: f1 }]);
+  it('does not mix in another viewer’s graph', async () => {
+    const [viewer, stranger, theirFollow, theirBlock] = await makeUsers(4);
+    await getDb()
+      .insert(userFollows)
+      .values({ followerId: stranger, followedId: theirFollow });
+    await getDb().insert(blocks).values({ userId: stranger, blockedId: theirBlock });
 
-    mockUserFindLean.mockResolvedValueOnce([{ _id: f1 }]);
-    mockBlockLean.mockResolvedValueOnce([{ blockedId: b1 }]);
+    expect(await userService.getViewerGraph(viewer)).toEqual({
+      followingIds: [],
+      mutualIds: [],
+      blockedIds: [],
+      restrictedIds: [],
+    });
+  });
+});
 
-    const result = await new UserService().getViewerGraph(viewerId);
+describe('eligibility', () => {
+  it('drops an archived or restricted-tier account from following and mutuals', async () => {
+    const [viewer, visible] = await makeUsers(2);
+    const [archived] = await makeUsers(1, { accountStatus: 'archived' });
+    const [restrictedTier] = await makeUsers(1, { reputationTier: 'restricted' });
 
-    expect(result).toEqual({
-      followingIds: [f1.toString(), f2.toString()],
-      mutualIds: [f1.toString()],
-      blockedIds: [b1.toString()],
+    await getDb()
+      .insert(userFollows)
+      .values([
+        { followerId: viewer, followedId: visible },
+        { followerId: visible, followedId: viewer },
+        { followerId: viewer, followedId: archived },
+        { followerId: archived, followedId: viewer },
+        { followerId: viewer, followedId: restrictedTier },
+        { followerId: restrictedTier, followedId: viewer },
+      ]);
+
+    const graph = await userService.getViewerGraph(viewer);
+
+    expect(graph.followingIds).toEqual([visible]);
+    expect(graph.mutualIds).toEqual([visible]);
+  });
+
+  it('keeps a blocked account on the block list even if it is archived', async () => {
+    // The safety lists are not a discovery surface: forgetting someone is
+    // blocked because their account went dormant would un-block them.
+    const [viewer] = await makeUsers(1);
+    const [archived] = await makeUsers(1, { accountStatus: 'archived' });
+    await getDb().insert(blocks).values({ userId: viewer, blockedId: archived });
+
+    expect((await userService.getViewerGraph(viewer)).blockedIds).toEqual([archived]);
+  });
+});
+
+describe('bounds', () => {
+  it('honours caller limits on following and on the two safety lists', async () => {
+    const [viewer, ...others] = await makeUsers(7);
+    const followed = others.slice(0, 3);
+    const blockedIds = others.slice(3, 6);
+
+    await getDb()
+      .insert(userFollows)
+      .values(followed.map((id) => ({ followerId: viewer, followedId: id })));
+    await getDb()
+      .insert(blocks)
+      .values(blockedIds.map((id) => ({ userId: viewer, blockedId: id })));
+    await getDb()
+      .insert(restrictions)
+      .values(blockedIds.map((id) => ({ userId: viewer, restrictedId: id })));
+
+    const graph = await userService.getViewerGraph(viewer, {
+      followingLimit: 2,
+      blockedLimit: 1,
     });
 
-    expect(mockBlockFind).toHaveBeenCalledWith({ userId: viewerId });
-    expect(mockFollowAggregate).toHaveBeenCalledTimes(2);
+    expect(graph.followingIds).toHaveLength(2);
+    // ONE limit governs both safety lists — stated so a divergence is visible.
+    expect(graph.blockedIds).toHaveLength(1);
+    expect(graph.restrictedIds).toHaveLength(1);
+    // Whatever came back is a real member of the seeded set, not a stray id.
+    for (const id of graph.followingIds) expect(followed).toContain(id);
+    for (const id of graph.blockedIds) expect(blockedIds).toContain(id);
   });
 
-  it('returns an all-empty graph for an anonymous viewer without querying the database', async () => {
-    const result = await new UserService().getViewerGraph(undefined);
+  it('treats a zero or negative limit as "use the cap"', async () => {
+    const [viewer, ...followed] = await makeUsers(4);
+    await getDb()
+      .insert(userFollows)
+      .values(followed.map((id) => ({ followerId: viewer, followedId: id })));
 
-    expect(result).toEqual({ followingIds: [], mutualIds: [], blockedIds: [] });
-    expect(mockFollowFind).not.toHaveBeenCalled();
-    expect(mockFollowAggregate).not.toHaveBeenCalled();
-    expect(mockBlockFind).not.toHaveBeenCalled();
-  });
-
-  it('bounds the following and blocked scans by their caps', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
-    const f1 = new Types.ObjectId();
-
-    mockFollowAggregate
-      .mockResolvedValueOnce([{ total: 1 }])
-      .mockResolvedValueOnce([{ userId: f1 }]);
-    mockFollowLean.mockResolvedValueOnce([]);
-    mockBlockLean.mockResolvedValueOnce([]);
-
-    await new UserService().getViewerGraph(viewerId, {
-      followingLimit: MAX_FOLLOWING_IDS * 10,
-      blockedLimit: MAX_BLOCKED_IDS * 10,
+    const graph = await userService.getViewerGraph(viewer, {
+      followingLimit: 0,
+      blockedLimit: -1,
     });
 
-    const pagePipeline = mockFollowAggregate.mock.calls[1]?.[0] as Array<{ $limit?: number }>;
-    expect(pagePipeline?.find((stage) => stage.$limit !== undefined)?.$limit).toBe(MAX_FOLLOWING_IDS);
-    expect(blockQuery.limit).toHaveBeenCalledWith(MAX_BLOCKED_IDS);
+    expect([...graph.followingIds].sort()).toEqual([...followed].sort());
+  });
+});
+
+describe('an anonymous viewer', () => {
+  it('gets an all-empty graph', async () => {
+    expect(await userService.getViewerGraph(undefined)).toEqual({
+      followingIds: [],
+      mutualIds: [],
+      blockedIds: [],
+      restrictedIds: [],
+    });
+    expect(await userService.getViewerGraph('')).toEqual({
+      followingIds: [],
+      mutualIds: [],
+      blockedIds: [],
+      restrictedIds: [],
+    });
   });
 });

@@ -1,286 +1,73 @@
 /**
- * reputation.service tests (#217 ledger + #219 derived snapshot).
+ * Reputation LEDGER semantics (#217) and the derived snapshot (#219), against a
+ * real Postgres.
  *
- * Models and mongoose sessions are mocked with a tiny in-memory store that
- * supports exactly the operations the service performs (create / find / findOne
- * / findById / findOneAndUpdate-upsert / countDocuments / chained
- * sort/skip/limit/session/select/lean + document .save()). The pure derivation
- * formulas are covered separately in utils/__tests__/reputationDerive.test.ts;
- * here we assert ledger semantics end-to-end against the store.
+ * The suite this replaces shipped a ~300-line hand-written Mongo emulator: nine
+ * in-memory document stores, a `matchesQuery` that re-implemented `$gt`/`$in`/
+ * `$exists`/`$ne`, chainable `sort/skip/limit/session/select/lean` stubs, and a
+ * fake `.save()`. Every assertion was therefore a statement about that
+ * emulator's fidelity, and its `expect(txnStore.docs.length).toBe(1)` checks
+ * read the emulator's array rather than a table.
+ *
+ * The ledger's invariants are exactly the ones an emulator cannot vouch for:
+ *
+ *  - **Transactions are NEVER deleted.** A correction is a `reversed` original
+ *    plus a compensating `active` entry, or a `voided` status flip — so the
+ *    history stays auditable and the balance stays re-derivable.
+ *  - **The balance is a RECOMPUTABLE CACHE**, always equal to the aggregate of
+ *    the account's `active` transactions. Every case below re-reads it from the
+ *    service after the write, and the reversal cases assert the pair nets to
+ *    zero while BOTH rows survive in the table.
+ *  - **The multi-write paths are atomic.** Postgres has real transactions in
+ *    every deployment, so the Mongo `withTransaction` fallback that silently
+ *    re-ran the work session-lessly is deleted rather than translated.
+ *
+ * Award idempotency on `(application_id, source_action_id)` and the
+ * transactional atomicity of the award are covered against the partial unique
+ * index in `reputationCivic.postgres.test.ts`; this suite deliberately does not
+ * restate them and covers the arithmetic, the tiers and the corrections instead.
+ *
+ * The whole run shares one database, so every account and every rule carries a
+ * per-test random key and no assertion depends on a table being empty.
  */
 
-import { Types } from 'mongoose';
-
-// ---------------------------------------------------------------------------
-// In-memory document stores, one per collection.
-// ---------------------------------------------------------------------------
-
-interface AnyDoc {
-  _id: Types.ObjectId;
-  [key: string]: unknown;
-}
-
-function makeStore() {
-  return { docs: [] as AnyDoc[] };
-}
-
-const txnStore = makeStore();
-const balanceStore = makeStore();
-const ruleStore = makeStore();
-const disputeStore = makeStore();
-const userStore = makeStore();
-
-function clearStores(): void {
-  txnStore.docs = [];
-  balanceStore.docs = [];
-  ruleStore.docs = [];
-  disputeStore.docs = [];
-  userStore.docs = [];
-}
-
-/** Does the document match every key in the (flat) query? */
-function matchesQuery(doc: AnyDoc, query: Record<string, unknown>): boolean {
-  return Object.entries(query).every(([key, expected]) => {
-    const actual = doc[key];
-    if (expected !== null && typeof expected === 'object') {
-      const op = expected as Record<string, unknown>;
-      if ('$gt' in op) {
-        return actual instanceof Date && op.$gt instanceof Date
-          ? actual.getTime() > op.$gt.getTime()
-          : Number(actual) > Number(op.$gt);
-      }
-      if ('$in' in op) {
-        return (op.$in as unknown[]).some((v) => String(v) === String(actual));
-      }
-      if ('$exists' in op) {
-        return (actual !== undefined) === op.$exists;
-      }
-      if ('$ne' in op) {
-        return String(actual) !== String(op.$ne);
-      }
-    }
-    if (expected instanceof Types.ObjectId) {
-      return actual instanceof Types.ObjectId && actual.equals(expected);
-    }
-    if (expected instanceof Date) {
-      return actual instanceof Date && actual.getTime() === expected.getTime();
-    }
-    return String(actual) === String(expected);
-  });
-}
-
-/**
- * A chainable, list-returning query mirroring the Mongoose query subset the
- * service uses. `resolve()` produces the final array honouring skip/limit; the
- * object is a proper thenable so `await query` yields that array and
- * `.lean()` yields the first element.
- */
-function makeQuery(results: AnyDoc[]) {
-  let skipN = 0;
-  let limitN = Number.MAX_SAFE_INTEGER;
-  const resolveList = (): AnyDoc[] => results.slice(skipN, skipN + limitN);
-  const chain = {
-    sort: () => chain,
-    skip: (n: number) => {
-      skipN = n;
-      return chain;
-    },
-    limit: (n: number) => {
-      limitN = n;
-      return chain;
-    },
-    session: () => chain,
-    select: () => chain,
-    populate: () => chain,
-    lean: async (): Promise<AnyDoc | null> => results[0] ?? null,
-    then: (
-      onFulfilled: (value: AnyDoc[]) => unknown,
-      onRejected?: (reason: unknown) => unknown
-    ) => Promise.resolve(resolveList()).then(onFulfilled, onRejected),
-  };
-  return chain;
-}
-
-/**
- * A single-document thenable for `findById`. Resolves to the doc (or null) and
- * also supports `.select().lean()`.
- */
-function makeDocQuery(doc: AnyDoc | null) {
-  const chain = {
-    select: () => chain,
-    lean: async (): Promise<AnyDoc | null> => doc,
-    then: (
-      onFulfilled: (value: AnyDoc | null) => unknown,
-      onRejected?: (reason: unknown) => unknown
-    ) => Promise.resolve(doc).then(onFulfilled, onRejected),
-  };
-  return chain;
-}
-
-/** Attach a `.save()` that writes back into the owning store (idempotent). */
-function attachSave(doc: AnyDoc, store: ReturnType<typeof makeStore>): AnyDoc {
-  if (typeof doc.save === 'function') {
-    return doc;
-  }
-  Object.defineProperty(doc, 'save', {
-    enumerable: false,
-    configurable: true,
-    value: async () => {
-      const idx = store.docs.findIndex((d) => d._id.equals(doc._id));
-      if (idx === -1) {
-        store.docs.push(doc);
-      } else {
-        store.docs[idx] = doc;
-      }
-      return doc;
-    },
-  });
-  return doc;
-}
-
-function makeModel(store: ReturnType<typeof makeStore>) {
-  return {
-    async create(payload: Record<string, unknown> | Record<string, unknown>[]) {
-      const arr = Array.isArray(payload) ? payload : [payload];
-      const created = arr.map((data) => {
-        const doc = attachSave(
-          {
-            _id: (data._id as Types.ObjectId) ?? new Types.ObjectId(),
-            createdAt: (data.createdAt as Date) ?? new Date(),
-            updatedAt: new Date(),
-            ...data,
-          },
-          store
-        );
-        store.docs.push(doc);
-        return doc;
-      });
-      return Array.isArray(payload) ? created : created[0];
-    },
-    async findOne(query: Record<string, unknown> = {}) {
-      const found = store.docs.find((d) => matchesQuery(d, query));
-      return found ? attachSave(found, store) : null;
-    },
-    findById(id: string | Types.ObjectId) {
-      const target = id instanceof Types.ObjectId ? id : new Types.ObjectId(String(id));
-      const found = store.docs.find((d) => d._id.equals(target));
-      const result = found ? attachSave(found, store) : null;
-      // Supports both `await findById()` and `findById().select().lean()`.
-      return makeDocQuery(result);
-    },
-    find(query: Record<string, unknown> = {}) {
-      const results = store.docs
-        .filter((d) => matchesQuery(d, query))
-        .map((d) => attachSave(d, store));
-      return makeQuery(results);
-    },
-    async findOneAndUpdate(
-      query: Record<string, unknown>,
-      update: Record<string, unknown>,
-      options: { upsert?: boolean; new?: boolean } = {}
-    ) {
-      let doc = store.docs.find((d) => matchesQuery(d, query)) ?? null;
-      const set = (update.$set as Record<string, unknown>) ?? {};
-      const setOnInsert = (update.$setOnInsert as Record<string, unknown>) ?? {};
-      if (!doc) {
-        if (!options.upsert) {
-          return null;
-        }
-        doc = attachSave(
-          {
-            _id: new Types.ObjectId(),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            ...setOnInsert,
-            ...set,
-          },
-          store
-        );
-        store.docs.push(doc);
-      } else {
-        Object.assign(doc, set);
-        doc.updatedAt = new Date();
-      }
-      return doc;
-    },
-    async updateOne(
-      query: Record<string, unknown>,
-      update: Record<string, unknown>
-    ) {
-      const doc = store.docs.find((d) => matchesQuery(d, query));
-      if (!doc) {
-        return { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
-      }
-      const set = (update.$set as Record<string, unknown>) ?? {};
-      Object.assign(doc, set);
-      doc.updatedAt = new Date();
-      return { matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
-    },
-    async countDocuments(query: Record<string, unknown> = {}) {
-      return store.docs.filter((d) => matchesQuery(d, query)).length;
-    },
-  };
-}
-
-jest.mock('../../models/ReputationTransaction', () => ({
-  __esModule: true,
-  ReputationTransaction: makeModel(txnStore),
-  default: makeModel(txnStore),
-}));
-jest.mock('../../models/ReputationBalance', () => ({
-  __esModule: true,
-  ReputationBalance: makeModel(balanceStore),
-  default: makeModel(balanceStore),
-}));
-jest.mock('../../models/ReputationRule', () => ({
-  __esModule: true,
-  ReputationRule: makeModel(ruleStore),
-  default: makeModel(ruleStore),
-}));
-jest.mock('../../models/ReputationDispute', () => ({
-  __esModule: true,
-  ReputationDispute: makeModel(disputeStore),
-  default: makeModel(disputeStore),
-}));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: makeModel(userStore),
-  default: makeModel(userStore),
-}));
-
-// Mongoose: keep real Types/ObjectId/isValid, but stub startSession so the
-// transactional path runs the work inline without a real DB connection. The
-// service imports `mongoose` as the DEFAULT export and calls
-// `mongoose.startSession()`, so the patched object MUST be the default too.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  const startSession = jest.fn(async () => ({
-    withTransaction: async (fn: () => Promise<unknown>) => fn(),
-    endSession: async () => undefined,
-  }));
-  const patched = { ...actual, startSession };
-  return {
-    __esModule: true,
-    ...patched,
-    default: patched,
-  };
-});
-
+import { randomUUID } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
+import { applications } from '../../db/schema/applications';
+import { reputationTransactions } from '../../db/schema/reputationTransactions';
+import { users } from '../../db/schema/users';
+import {
+  INFLUENCE_MIN,
+  INFLUENCE_MAX,
+  REPORT_CONFIRMED_ACTION,
+  REPORT_REJECTED_ACTION,
+} from '../../utils/reputation.constants';
 import reputationService from '../reputation.service';
-import { REPORT_CONFIRMED_ACTION, REPORT_REJECTED_ACTION } from '../../utils/reputation.constants';
+import type { ReputationCategory } from '@oxyhq/contracts';
 
-const USER_ID = new Types.ObjectId().toString();
-const APP_ID = new Types.ObjectId().toString();
+const uniqueId = () => randomUUID().replace(/-/g, '');
 
-/** Seed a rule the service can look up by actionType. */
+/** An action key no other test in the run can collide with. */
+const actionKey = (label: string) => `${label}_${uniqueId().slice(0, 12)}`;
+
+async function makeUser(verified = false): Promise<string> {
+  const id = uniqueId();
+  await getDb()
+    .insert(users)
+    .values({ id, username: `u${id}`, verified });
+  return id;
+}
+
+/** A rule the service can resolve by `actionType`, written through the service. */
 async function seedRule(
   actionType: string,
   points: number,
-  category: string,
+  category: ReputationCategory,
   cooldownInMinutes = 0
-): Promise<void> {
-  ruleStore.docs.push({
-    _id: new Types.ObjectId(),
+): Promise<string> {
+  await reputationService.upsertRule({
     actionType,
     points,
     category,
@@ -288,276 +75,527 @@ async function seedRule(
     cooldownInMinutes,
     isEnabled: true,
   });
+  return actionType;
 }
 
-function seedUser(id: string, verified: boolean): void {
-  userStore.docs.push({ _id: new Types.ObjectId(id), verified });
+/**
+ * A real emitting application and one of its credentials.
+ *
+ * `reputation_transactions.application_id` / `.credential_id` are REAL foreign
+ * keys now, which is itself part of the port's contract: a ledger row can no
+ * longer name an application that does not exist. Seeding invented ids here
+ * would fail the insert, so the provenance cases carry genuine rows.
+ */
+async function makeEmitter(): Promise<{ applicationId: string; credentialId: string }> {
+  const [application] = await getDb()
+    .insert(applications)
+    .values({ name: `app-${uniqueId().slice(0, 8)}`, ownerAccountId: await makeUser() })
+    .returning({ id: applications.id });
+
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: 'test credential',
+      publicKey: `oxy_dk_${uniqueId()}`,
+      type: 'service',
+      environment: 'development',
+    })
+    .returning({ id: applicationCredentials.id });
+
+  return { applicationId: application.id, credentialId: credential.id };
 }
 
-beforeEach(() => {
-  clearStores();
+/** Ledger rows for one account, so "nothing was deleted" is checked directly. */
+async function ledgerRows(userId: string) {
+  return getDb()
+    .select({
+      id: reputationTransactions.id,
+      points: reputationTransactions.points,
+      status: reputationTransactions.status,
+      reversedTransactionId: reputationTransactions.reversedTransactionId,
+    })
+    .from(reputationTransactions)
+    .where(eq(reputationTransactions.userId, userId));
+}
+
+beforeAll(async () => {
+  await connectPostgres();
 });
 
-describe('award (#217)', () => {
-  it('a positive transaction increments the balance', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('post_created', 5, 'content');
+afterAll(async () => {
+  await closePostgres();
+});
 
-    await reputationService.award({ userId: USER_ID, actionType: 'post_created' });
-    const balance = await reputationService.getBalance(USER_ID);
+describe('award moves the balance by the rule’s points', () => {
+  it('credits a positive transaction into its category and the total', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('post_created'), 5, 'content');
+
+    await reputationService.award({ userId, actionType: action });
+    const balance = await reputationService.getBalance(userId);
 
     expect(balance.total).toBe(5);
     expect(balance.positive).toBe(5);
     expect(balance.breakdown.content).toBe(5);
   });
 
-  it('a negative transaction decrements the balance', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('spam_flagged', -10, 'penalty');
+  it('debits a negative transaction and restricts the tier', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('spam_flagged'), -10, 'penalty');
 
-    await reputationService.award({ userId: USER_ID, actionType: 'spam_flagged' });
-    const balance = await reputationService.getBalance(USER_ID);
+    await reputationService.award({ userId, actionType: action });
+    const balance = await reputationService.getBalance(userId);
 
     expect(balance.total).toBe(-10);
     expect(balance.negative).toBe(-10);
+    // `penalties` is the ABSOLUTE sum of negative points, across categories.
     expect(balance.breakdown.penalties).toBe(10);
-    // Negative total → restricted tier (#219).
     expect(balance.trustTier).toBe('restricted');
   });
 
-  it('rejects an unknown or disabled action', async () => {
-    seedUser(USER_ID, false);
+  it('sums several awards across categories', async () => {
+    const userId = await makeUser();
+    const content = await seedRule(actionKey('content'), 10, 'content');
+    const social = await seedRule(actionKey('social'), 3, 'social');
+    const penalty = await seedRule(actionKey('penalty'), -4, 'penalty');
+
+    await reputationService.award({ userId, actionType: content });
+    await reputationService.award({ userId, actionType: social });
+    await reputationService.award({ userId, actionType: penalty });
+
+    const balance = await reputationService.getBalance(userId);
+    expect(balance.total).toBe(9);
+    expect(balance.positive).toBe(13);
+    expect(balance.negative).toBe(-4);
+    expect(balance.breakdown.content).toBe(10);
+    expect(balance.breakdown.social).toBe(3);
+    expect(balance.breakdown.penalties).toBe(4);
+  });
+
+  it('rejects an unknown action without writing a ledger row', async () => {
+    const userId = await makeUser();
+
     await expect(
-      reputationService.award({ userId: USER_ID, actionType: 'nope' })
+      reputationService.award({ userId, actionType: actionKey('nope') })
     ).rejects.toThrow(/Unknown or disabled/);
+    expect(await ledgerRows(userId)).toEqual([]);
   });
 
-  it('enforces the per-action cooldown', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('daily_login', 1, 'social', 60);
+  it('rejects a DISABLED action, which is the same refusal by a different route', async () => {
+    const userId = await makeUser();
+    const action = actionKey('retired');
+    await reputationService.upsertRule({
+      actionType: action,
+      points: 5,
+      category: 'content',
+      description: 'retired rule',
+      isEnabled: false,
+    });
 
-    await reputationService.award({ userId: USER_ID, actionType: 'daily_login' });
-    await expect(
-      reputationService.award({ userId: USER_ID, actionType: 'daily_login' })
-    ).rejects.toThrow(/cooldown/i);
+    await expect(reputationService.award({ userId, actionType: action })).rejects.toThrow(
+      /Unknown or disabled/
+    );
+    expect(await ledgerRows(userId)).toEqual([]);
   });
 
-  it('stores applicationId/credentialId and is idempotent on (applicationId, sourceActionId)', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('report_confirmed', 8, 'moderation');
-    const credentialId = new Types.ObjectId().toString();
+  it('enforces the per-action cooldown and writes nothing on the refusal', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('daily_login'), 1, 'social', 60);
 
-    const first = await reputationService.award({
-      userId: USER_ID,
-      actionType: 'report_confirmed',
-      applicationId: APP_ID,
+    await reputationService.award({ userId, actionType: action });
+    await expect(reputationService.award({ userId, actionType: action })).rejects.toThrow(
+      /cooldown/i
+    );
+
+    // The refusal must not have banked a second point.
+    expect(await ledgerRows(userId)).toHaveLength(1);
+    expect((await reputationService.getBalance(userId)).total).toBe(1);
+  });
+
+  it('scopes the cooldown to (user, action), not to the action alone', async () => {
+    // A cooldown that ignored the subject would let one user's award block
+    // everyone else's — a global rate limit wearing a per-user label.
+    const action = await seedRule(actionKey('shared_cooldown'), 2, 'social', 60);
+    const first = await makeUser();
+    const second = await makeUser();
+
+    await reputationService.award({ userId: first, actionType: action });
+    await reputationService.award({ userId: second, actionType: action });
+
+    expect((await reputationService.getBalance(second)).total).toBe(2);
+  });
+
+  it('records the emitting application and credential on the row', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('report_confirmed'), 8, 'moderation');
+    const { applicationId, credentialId } = await makeEmitter();
+
+    const txn = await reputationService.award({
+      userId,
+      actionType: action,
+      applicationId,
       credentialId,
-      sourceActionId: 'src-1',
+      sourceActionId: `src-${uniqueId()}`,
       sourceActionType: REPORT_CONFIRMED_ACTION,
     });
-    const second = await reputationService.award({
-      userId: USER_ID,
-      actionType: 'report_confirmed',
-      applicationId: APP_ID,
-      credentialId,
-      sourceActionId: 'src-1',
-      sourceActionType: REPORT_CONFIRMED_ACTION,
-    });
 
-    expect(first._id.toString()).toBe(second._id.toString());
-    expect(first.applicationId?.toString()).toBe(APP_ID);
-    expect(first.credentialId?.toString()).toBe(credentialId);
-    expect(txnStore.docs.length).toBe(1);
-
-    const balance = await reputationService.getBalance(USER_ID);
-    expect(balance.total).toBe(8);
+    expect(txn.applicationId).toBe(applicationId);
+    expect(txn.credentialId).toBe(credentialId);
   });
 });
 
-describe('recalculateBalance (#217 + #219)', () => {
-  it('excludes voided; reversal pair nets to zero', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('a', 10, 'content');
-    await seedRule('b', 20, 'content');
-    await seedRule('c', 30, 'content');
+describe('recalculateBalance re-derives the total from the ACTIVE rows', () => {
+  it('excludes a void and nets a reversal pair to zero, deleting nothing', async () => {
+    const userId = await makeUser();
+    const a = await seedRule(actionKey('a'), 10, 'content');
+    const b = await seedRule(actionKey('b'), 20, 'content');
+    const c = await seedRule(actionKey('c'), 30, 'content');
 
-    const a = await reputationService.award({ userId: USER_ID, actionType: 'a' });
-    const b = await reputationService.award({ userId: USER_ID, actionType: 'b' });
-    await reputationService.award({ userId: USER_ID, actionType: 'c' });
+    const txnA = await reputationService.award({ userId, actionType: a });
+    const txnB = await reputationService.award({ userId, actionType: b });
+    await reputationService.award({ userId, actionType: c });
 
-    await reputationService.voidTransaction(a._id.toString(), {});
-    await reputationService.reverseTransaction(b._id.toString(), {});
+    await reputationService.voidTransaction(txnA.id, {});
+    await reputationService.reverseTransaction(txnB.id, {});
 
-    const balance = await reputationService.recalculateBalance(USER_ID);
-    // a (10) voided → removed; b (20) reversed pairs with its −20 reversal → 0;
-    // c (30) stays. Total = 30.
+    const balance = await reputationService.recalculateBalance(userId);
+    // a (10) voided → excluded; b (20) reversed, paired with its −20 → 0;
+    // c (30) stays.
     expect(balance.total).toBe(30);
     expect(balance.breakdown.content).toBe(30);
+
+    // The audit trail is intact: three originals plus one compensating entry.
+    const rows = await ledgerRows(userId);
+    expect(rows).toHaveLength(4);
+    expect(rows.filter((row) => row.status === 'voided')).toHaveLength(1);
+    expect(rows.filter((row) => row.status === 'reversed')).toHaveLength(1);
+    expect(rows.filter((row) => row.status === 'active')).toHaveLength(2);
   });
 
-  it('derives report reliability from confirmed/rejected source actions (#219)', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('rc', 5, 'moderation');
-    await seedRule('rr', 5, 'moderation');
+  it('agrees with getBalance, so the cache never states a different total', async () => {
+    // The balance table is a RECOMPUTABLE CACHE of the ledger. If the two ever
+    // disagree, the cached one is what every consumer reads.
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('cache'), 7, 'content');
+    await reputationService.award({ userId, actionType: action });
+
+    const recalculated = await reputationService.recalculateBalance(userId);
+    const cached = await reputationService.getBalance(userId);
+
+    expect(cached.total).toBe(recalculated.total);
+    expect(cached.breakdown).toEqual(recalculated.breakdown);
+    expect(cached.trustTier).toBe(recalculated.trustTier);
+  });
+
+  it('derives report reliability from the confirmed/rejected source actions', async () => {
+    const userId = await makeUser();
+    const confirmed = await seedRule(actionKey('rc'), 5, 'moderation');
+    const rejected = await seedRule(actionKey('rr'), 5, 'moderation');
+    const { applicationId } = await makeEmitter();
 
     for (let i = 0; i < 4; i += 1) {
       await reputationService.award({
-        userId: USER_ID,
-        actionType: 'rc',
-        applicationId: APP_ID,
-        sourceActionId: `c-${i}`,
+        userId,
+        actionType: confirmed,
+        applicationId,
+        sourceActionId: `c-${uniqueId()}`,
         sourceActionType: REPORT_CONFIRMED_ACTION,
       });
     }
     await reputationService.award({
-      userId: USER_ID,
-      actionType: 'rr',
-      applicationId: APP_ID,
-      sourceActionId: 'r-0',
+      userId,
+      actionType: rejected,
+      applicationId,
+      sourceActionId: `r-${uniqueId()}`,
       sourceActionType: REPORT_REJECTED_ACTION,
     });
 
-    const balance = await reputationService.recalculateBalance(USER_ID);
+    const balance = await reputationService.recalculateBalance(userId);
     expect(balance.reliability.accurateReports).toBe(4);
     expect(balance.reliability.rejectedReports).toBe(1);
     expect(balance.reliability.reportAccuracyScore).toBeCloseTo(0.8, 5);
   });
 
-  it('reflects User.verified in the trust tier', async () => {
-    seedUser(USER_ID, true);
-    await seedRule('x', 1, 'content');
-    await reputationService.award({ userId: USER_ID, actionType: 'x' });
+  it('counts reliability from ACTIVE rows only — a DISPUTED report stops counting', async () => {
+    // "Reliability is derived from ACTIVE transactions only: cancelled
+    // (reversed) or disputed reports do not count toward report accuracy."
+    //
+    // A `disputed` row is the discriminating fixture, and a `voided` one is NOT:
+    // a void is already excluded by the query that loads the rows, so a suite
+    // that only voids passes whether or not the per-row status branch exists.
+    // `disputed` reaches the branch and must be skipped there.
+    const userId = await makeUser();
+    const confirmed = await seedRule(actionKey('rc_disputed'), 5, 'moderation');
+    const { applicationId } = await makeEmitter();
 
-    const balance = await reputationService.recalculateBalance(USER_ID);
-    expect(balance.trustTier).toBe('verified');
+    const awarded = [];
+    for (let i = 0; i < 3; i += 1) {
+      awarded.push(
+        await reputationService.award({
+          userId,
+          actionType: confirmed,
+          applicationId,
+          sourceActionId: `c-${uniqueId()}`,
+          sourceActionType: REPORT_CONFIRMED_ACTION,
+        })
+      );
+    }
+
+    expect((await reputationService.recalculateBalance(userId)).reliability.accurateReports).toBe(
+      3
+    );
+
+    await reputationService.createDispute(awarded[0].id, userId, 'contested');
+
+    expect((await reputationService.recalculateBalance(userId)).reliability.accurateReports).toBe(
+      2
+    );
+  });
+
+  it('reflects User.verified in the trust tier', async () => {
+    const userId = await makeUser(true);
+    const action = await seedRule(actionKey('x'), 1, 'content');
+    await reputationService.award({ userId, actionType: action });
+
+    expect((await reputationService.recalculateBalance(userId)).trustTier).toBe('verified');
+  });
+
+  it('ranks a negative total as restricted even for a verified account', async () => {
+    // `restricted` sits ABOVE `verified` in the tier ladder: a verified badge
+    // must not buy off a negative standing.
+    const userId = await makeUser(true);
+    const action = await seedRule(actionKey('bad'), -3, 'penalty');
+    await reputationService.award({ userId, actionType: action });
+
+    expect((await reputationService.recalculateBalance(userId)).trustTier).toBe('restricted');
+  });
+
+  it('counts only the subject’s own rows', async () => {
+    const subject = await makeUser();
+    const other = await makeUser();
+    const action = await seedRule(actionKey('isolated'), 11, 'content');
+
+    await reputationService.award({ userId: subject, actionType: action });
+    await reputationService.award({ userId: other, actionType: action });
+
+    expect((await reputationService.recalculateBalance(subject)).total).toBe(11);
+    expect((await reputationService.recalculateBalance(other)).total).toBe(11);
   });
 });
 
-describe('reverse / void (#217 never delete)', () => {
-  it('reverseTransaction marks original reversed and appends a compensating txn', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('p', 15, 'content');
-    const txn = await reputationService.award({ userId: USER_ID, actionType: 'p' });
+describe('a correction never deletes', () => {
+  it('reverseTransaction marks the original and appends a compensating entry', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('p'), 15, 'content');
+    const txn = await reputationService.award({ userId, actionType: action });
 
-    const { original, reversal } = await reputationService.reverseTransaction(
-      txn._id.toString(),
-      {}
-    );
+    const { original, reversal } = await reputationService.reverseTransaction(txn.id, {});
 
     expect(original.status).toBe('reversed');
     expect(reversal.points).toBe(-15);
     expect(reversal.status).toBe('active');
-    expect(reversal.reversedTransactionId?.toString()).toBe(original._id.toString());
-    // Nothing deleted: original + reversal both persist.
-    expect(txnStore.docs.length).toBe(2);
+    expect(reversal.reversedTransactionId).toBe(original.id);
 
-    const balance = await reputationService.getBalance(USER_ID);
-    expect(balance.total).toBe(0);
+    // BOTH rows persist — this is the audit guarantee, and it is checked
+    // against the table rather than against a returned object.
+    const rows = await ledgerRows(userId);
+    expect(rows).toHaveLength(2);
+    expect(await reputationService.getBalance(userId)).toMatchObject({ total: 0 });
   });
 
-  it('voidTransaction excludes the txn from the balance with no compensating entry', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('q', 25, 'content');
-    const txn = await reputationService.award({ userId: USER_ID, actionType: 'q' });
+  it('reversing twice appends no second compensating entry', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('twice'), 15, 'content');
+    const txn = await reputationService.award({ userId, actionType: action });
 
-    const voided = await reputationService.voidTransaction(txn._id.toString(), {});
+    await reputationService.reverseTransaction(txn.id, {});
+    await reputationService.reverseTransaction(txn.id, {});
+
+    // A non-idempotent reversal would drive the total to −15 and read as a
+    // penalty nobody issued.
+    expect(await ledgerRows(userId)).toHaveLength(2);
+    expect((await reputationService.getBalance(userId)).total).toBe(0);
+  });
+
+  it('voidTransaction excludes the row with NO compensating entry', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('q'), 25, 'content');
+    const txn = await reputationService.award({ userId, actionType: action });
+
+    const voided = await reputationService.voidTransaction(txn.id, {});
+
     expect(voided.status).toBe('voided');
-    expect(txnStore.docs.length).toBe(1); // no compensating entry
-
-    const balance = await reputationService.getBalance(USER_ID);
-    expect(balance.total).toBe(0);
+    // The distinction from a reversal: one row, not two.
+    expect(await ledgerRows(userId)).toHaveLength(1);
+    expect((await reputationService.getBalance(userId)).total).toBe(0);
   });
 });
 
-describe('disputes (#217)', () => {
+describe('disputes', () => {
   it('createDispute marks the transaction disputed', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('d', 7, 'content');
-    const txn = await reputationService.award({ userId: USER_ID, actionType: 'd' });
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('d'), 7, 'content');
+    const txn = await reputationService.award({ userId, actionType: action });
 
-    const dispute = await reputationService.createDispute(
-      txn._id.toString(),
-      USER_ID,
-      'This was wrong'
-    );
+    const dispute = await reputationService.createDispute(txn.id, userId, 'This was wrong');
 
     expect(dispute.status).toBe('open');
-    const stored = txnStore.docs.find((d) => d._id.equals(txn._id));
-    expect(stored?.status).toBe('disputed');
+    const [stored] = await getDb()
+      .select({ status: reputationTransactions.status })
+      .from(reputationTransactions)
+      .where(eq(reputationTransactions.id, txn.id));
+    expect(stored.status).toBe('disputed');
   });
 
-  it('resolve-accepted reverses the disputed transaction', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('e', 12, 'content');
-    const txn = await reputationService.award({ userId: USER_ID, actionType: 'e' });
-    const dispute = await reputationService.createDispute(
-      txn._id.toString(),
-      USER_ID,
-      'wrong'
-    );
+  it('refuses a dispute of someone else’s transaction', async () => {
+    const owner = await makeUser();
+    const stranger = await makeUser();
+    const action = await seedRule(actionKey('notyours'), 7, 'content');
+    const txn = await reputationService.award({ userId: owner, actionType: action });
 
-    const resolverId = new Types.ObjectId().toString();
-    const resolved = await reputationService.resolveDispute(dispute._id.toString(), {
+    await expect(
+      reputationService.createDispute(txn.id, stranger, 'not mine')
+    ).rejects.toThrow(/your own transactions/);
+
+    const [stored] = await getDb()
+      .select({ status: reputationTransactions.status })
+      .from(reputationTransactions)
+      .where(eq(reputationTransactions.id, txn.id));
+    expect(stored.status).toBe('active');
+  });
+
+  it('accepting a dispute reverses the transaction', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('e'), 12, 'content');
+    const txn = await reputationService.award({ userId, actionType: action });
+    const dispute = await reputationService.createDispute(txn.id, userId, 'wrong');
+
+    const resolved = await reputationService.resolveDispute(dispute.id, {
       status: 'accepted',
-      resolvedByUserId: resolverId,
+      resolvedByUserId: await makeUser(),
     });
 
     expect(resolved.status).toBe('accepted');
-    const original = txnStore.docs.find((d) => d._id.equals(txn._id));
-    expect(original?.status).toBe('reversed');
-
-    const balance = await reputationService.getBalance(USER_ID);
-    expect(balance.total).toBe(0);
+    const rows = await ledgerRows(userId);
+    expect(rows.find((row) => row.id === txn.id)?.status).toBe('reversed');
+    expect(rows).toHaveLength(2);
+    expect((await reputationService.getBalance(userId)).total).toBe(0);
   });
 
-  it('resolve-rejected restores the disputed transaction to active', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('f', 9, 'content');
-    const txn = await reputationService.award({ userId: USER_ID, actionType: 'f' });
-    const dispute = await reputationService.createDispute(
-      txn._id.toString(),
-      USER_ID,
-      'wrong'
-    );
+  it('rejecting a dispute restores the transaction to active', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('f'), 9, 'content');
+    const txn = await reputationService.award({ userId, actionType: action });
+    const dispute = await reputationService.createDispute(txn.id, userId, 'wrong');
 
-    const resolverId = new Types.ObjectId().toString();
-    const resolved = await reputationService.resolveDispute(dispute._id.toString(), {
+    const resolved = await reputationService.resolveDispute(dispute.id, {
       status: 'rejected',
-      resolvedByUserId: resolverId,
+      resolvedByUserId: await makeUser(),
     });
 
     expect(resolved.status).toBe('rejected');
-    const original = txnStore.docs.find((d) => d._id.equals(txn._id));
-    expect(original?.status).toBe('active');
+    const rows = await ledgerRows(userId);
+    expect(rows.find((row) => row.id === txn.id)?.status).toBe('active');
+    // Restoring must not fabricate a compensating entry.
+    expect(rows).toHaveLength(1);
+    expect((await reputationService.getBalance(userId)).total).toBe(9);
+  });
 
-    const balance = await reputationService.getBalance(USER_ID);
-    expect(balance.total).toBe(9);
+  it('cannot dispute a transaction that was already reversed', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('gone'), 4, 'content');
+    const txn = await reputationService.award({ userId, actionType: action });
+    await reputationService.reverseTransaction(txn.id, {});
+
+    await expect(reputationService.createDispute(txn.id, userId, 'late')).rejects.toThrow(
+      /no longer be disputed/
+    );
   });
 });
 
-describe('getInfluence (#219 capped weights)', () => {
-  it('returns the context-specific capped weight', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('g', 50, 'content');
-    await reputationService.award({ userId: USER_ID, actionType: 'g' });
+describe('getInfluence', () => {
+  it('answers the context-specific weight, inside the clamp', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('g'), 50, 'content');
+    await reputationService.award({ userId, actionType: action });
 
-    const def = await reputationService.getInfluence(USER_ID, 'default');
-    const report = await reputationService.getInfluence(USER_ID, 'report');
+    const byContext = await Promise.all(
+      (['default', 'report', 'moderation', 'ranking'] as const).map((context) =>
+        reputationService.getInfluence(userId, context)
+      )
+    );
 
-    expect(def.context).toBe('default');
-    expect(def.weight).toBeGreaterThanOrEqual(0.1);
-    expect(def.weight).toBeLessThanOrEqual(3.0);
-    expect(report.context).toBe('report');
-    expect(report.weight).toBeGreaterThanOrEqual(0.1);
-    expect(report.weight).toBeLessThanOrEqual(3.0);
+    for (const result of byContext) {
+      expect(result.weight).toBeGreaterThanOrEqual(INFLUENCE_MIN);
+      expect(result.weight).toBeLessThanOrEqual(INFLUENCE_MAX);
+    }
+    expect(byContext.map((result) => result.context)).toEqual([
+      'default',
+      'report',
+      'moderation',
+      'ranking',
+    ]);
+
+    // Each context reads its OWN axis off the influence block — a switch that
+    // fell through would return the default weight everywhere.
+    const { influence } = byContext[0];
+    expect(byContext.map((result) => result.weight)).toEqual([
+      influence.defaultWeight,
+      influence.reportWeight,
+      influence.moderationWeight,
+      influence.rankingFeedbackWeight,
+    ]);
   });
 
-  it('floors a restricted (negative total) user to the influence minimum', async () => {
-    seedUser(USER_ID, false);
-    await seedRule('h', -5, 'penalty');
-    await reputationService.award({ userId: USER_ID, actionType: 'h' });
+  it('floors every axis of a restricted account to the minimum', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('h'), -5, 'penalty');
+    await reputationService.award({ userId, actionType: action });
 
-    const def = await reputationService.getInfluence(USER_ID, 'default');
-    expect(def.weight).toBe(0.1);
+    for (const context of ['default', 'report', 'moderation', 'ranking'] as const) {
+      expect((await reputationService.getInfluence(userId, context)).weight).toBe(INFLUENCE_MIN);
+    }
+  });
+});
+
+describe('the ledger row records what it was awarded for', () => {
+  it('carries the source action, target entity and category', async () => {
+    const userId = await makeUser();
+    const action = await seedRule(actionKey('provenance'), 6, 'trust');
+    const targetEntityId = uniqueId();
+    const { applicationId } = await makeEmitter();
+    const sourceActionId = `src-${uniqueId()}`;
+
+    await reputationService.award({
+      userId,
+      actionType: action,
+      applicationId,
+      sourceActionId,
+      sourceActionType: REPORT_CONFIRMED_ACTION,
+      targetEntityId,
+      targetEntityType: 'post',
+    });
+
+    const [row] = await getDb()
+      .select()
+      .from(reputationTransactions)
+      .where(
+        and(
+          eq(reputationTransactions.userId, userId),
+          eq(reputationTransactions.sourceActionId, sourceActionId)
+        )
+      );
+
+    expect(row).toMatchObject({
+      actionType: action,
+      points: 6,
+      category: 'trust',
+      status: 'active',
+      sourceActionType: REPORT_CONFIRMED_ACTION,
+      targetEntityId,
+      targetEntityType: 'post',
+      applicationId,
+    });
   });
 });

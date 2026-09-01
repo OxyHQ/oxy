@@ -22,11 +22,11 @@ Inbound:
                          ┌──────────────────┐
                          │  Oxy API         │  Validates recipient against Oxy users,
                          │  emailInbound.ts │  parses MIME, runs spam checks,
-                         │                  │  writes Mailbox/Message documents.
+                         │                  │  writes Mailbox/Message rows.
                          └────────┬─────────┘
                                   │
                                   ▼
-                            MongoDB (EC2)
+                          PostgreSQL (RDS)
                                   │
                                   ▼
                         S3 (attachments)
@@ -341,7 +341,16 @@ POST /api/email/drafts
 GET /api/email/search?q=invoice&mailbox=ID&limit=50&offset=0
 ```
 
-Full-text search across subject and body. The `mailbox` parameter is optional — omit it to search all mailboxes.
+Full-text search across subject and body, backed by PostgreSQL full-text search. The `mailbox` parameter is optional — omit it to search all mailboxes.
+
+The `q` parameter accepts the following read-state operators:
+
+- `is:read` filters to messages where `messages.seen = true`.
+- `is:unread` filters to messages where `messages.seen = false`.
+
+An operator may be combined with normal search text, for example
+`q=invoice%20is:unread`. Combining `is:read` and `is:unread` is rejected with
+`400 Bad Request`, as is sending `q` more than once.
 
 ### Attachments
 
@@ -549,7 +558,7 @@ In production, email runs entirely on AWS:
                 │
        ┌────────┴────────┐
        ▼                 ▼
-  MongoDB (EC2)     S3 (attachments)
+  PostgreSQL (RDS)  S3 (attachments)
 ```
 
 **Key points:**
@@ -557,7 +566,7 @@ In production, email runs entirely on AWS:
 - **AWS SES** handles transport (delivery + DKIM-signed outbound) and basic spam classification.
 - **Cloudflare Email Routing** delivers inbound mail for `@oxy.so` to the API webhook (`packages/api/src/routes/emailInbound.ts`).
 - The Oxy API runs as an **ECS Fargate** task in `oxy-cluster` behind the ALB — no on-box SMTP server in this path.
-- **MongoDB** is the self-hosted EC2 instance described in [Infrastructure](INFRASTRUCTURE.md).
+- **PostgreSQL** is the shared `oxy-postgres` RDS instance described in [Infrastructure](INFRASTRUCTURE.md).
 - **Auto-deploy**: push to `main` → GitHub Actions builds an `arm64` image → pushes to ECR → `aws ecs update-service --force-new-deployment`. See [Deployment](DEPLOYMENT.md).
 
 ### Self-hosted SMTP (legacy / non-AWS deployments)

@@ -9,7 +9,7 @@ import { useOxy } from '@oxyhq/services';
 import { alert, toast } from '@oxyhq/bloom';
 import { GroupedSection } from '@/components/grouped-section';
 import { Section } from '@/components/section';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { ClientSession } from '@oxyhq/core';
 import { useRelativeTime } from '@/hooks/useRelativeTime';
 import { useHapticPress } from '@/hooks/use-haptic-press';

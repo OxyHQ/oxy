@@ -3,12 +3,28 @@
  *
  * Classifies incoming emails using the Alia AI API and applies matching labels.
  * Runs through a bounded background queue after message storage — never blocks email delivery.
+ *
+ * ## Two Postgres details this file cannot get wrong
+ *
+ * **`messages.text` is a PROTECTED column** (`schema/protectedColumns.ts`): it
+ * was `select: false` in Mongoose, and `db.select().from(messages)` would hand
+ * it back. The classifier genuinely needs the body, so it is named EXPLICITLY in
+ * the projection below — the sanctioned opt-in, which reads differently from an
+ * ordinary select on purpose. Nothing read here reaches a response.
+ *
+ * **`labels` is a `text[]`, and `$addToSet` is not `||`.** Appending blindly
+ * would duplicate a label the message already carries, which the Mongo operator
+ * never did. The update rebuilds the array: existing entries in their existing
+ * order, then each new one that is not already present, in the order the
+ * classifier returned them.
  */
 
 import axios from 'axios';
-import { Label } from '../models/Label';
+import { and, eq, sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { labels as labelsTable } from '../db/schema/labels';
+import { messages } from '../db/schema/messages';
 import { SYSTEM_LABELS, isSystemLabel } from '../constants/systemLabels';
-import { Message } from '../models/Message';
 import { AI_LABELING_CONFIG } from '../config/email.config';
 import { logger } from '../utils/logger';
 
@@ -89,25 +105,40 @@ class AiLabelingService {
         return;
       }
 
+      const db = getDb();
+
       // The classifier chooses among the system labels plus whatever the user
       // has added. The system ones have no rows behind them, so querying the
-      // collection alone would leave a user who never made a label with
-      // nothing to classify into.
-      const custom = await Label.find({ userId }).select('name').lean();
+      // table alone would leave a user who never made a label with nothing to
+      // classify into.
+      const custom = await db
+        .select({ name: labelsTable.name })
+        .from(labelsTable)
+        .where(eq(labelsTable.userId, userId));
       const labelNames = [
         ...SYSTEM_LABELS.map((l) => l.name),
         ...custom.map((l) => l.name).filter((name) => !isSystemLabel(name)),
       ];
       if (labelNames.length === 0) return;
 
-      // Fetch message content for classification
-      const message = await Message.findOne({ _id: messageId, userId })
-        .select('subject from to text')
-        .lean();
+      // Fetch message content for classification. `text` is PROTECTED and is
+      // named here deliberately — see the module header. `to` was in the Mongo
+      // projection and used by nothing; it is a child table now
+      // (`message_recipients`) and is not fetched.
+      const [message] = await db
+        .select({
+          subject: messages.subject,
+          fromName: messages.fromName,
+          fromAddress: messages.fromAddress,
+          text: messages.text,
+        })
+        .from(messages)
+        .where(and(eq(messages.id, messageId), eq(messages.userId, userId)))
+        .limit(1);
       if (!message) return;
 
       const textPreview = (message.text || '').slice(0, AI_LABELING_CONFIG.maxBodyChars);
-      const fromStr = `${message.from.name || ''} <${message.from.address}>`.trim();
+      const fromStr = `${message.fromName || ''} <${message.fromAddress}>`.trim();
 
       const { system, user } = this.buildPrompt(labelNames, {
         from: fromStr,
@@ -140,10 +171,33 @@ class AiLabelingService {
       const assignedLabels = this.parseLabels(content, labelNames);
 
       if (assignedLabels.length > 0) {
-        await Message.updateOne(
-          { _id: messageId, userId },
-          { $addToSet: { labels: { $each: assignedLabels } } },
-        );
+        // `$addToSet` with `$each` adds each DISTINCT value once and skips any
+        // the array already holds. Both halves are reproduced: duplicates within
+        // the classifier's answer are collapsed here, and the SQL below appends
+        // only what is missing — existing entries keep their order, new ones
+        // follow in the order they were returned.
+        const additions = [...new Set(assignedLabels)];
+        const incoming = sql`array[${sql.join(
+          additions.map((name) => sql`${name}`),
+          sql`, `,
+        )}]::text[]`;
+
+        await getDb()
+          .update(messages)
+          .set({
+            labels: sql`(
+              select coalesce(array_agg(entry.label order by entry.bucket, entry.idx), '{}'::text[])
+              from (
+                  select kept.label, 0 as bucket, kept.idx
+                  from unnest(${messages.labels}) with ordinality as kept(label, idx)
+                union all
+                  select added.label, 1 as bucket, added.idx
+                  from unnest(${incoming}) with ordinality as added(label, idx)
+                  where added.label <> all(${messages.labels})
+              ) as entry
+            )`,
+          })
+          .where(and(eq(messages.id, messageId), eq(messages.userId, userId)));
         logger.info('AI labels applied', { messageId, labels: assignedLabels });
       }
     } catch (error) {

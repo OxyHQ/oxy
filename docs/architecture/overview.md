@@ -156,7 +156,7 @@ sequenceDiagram
     participant App as RP app (OxyProvider)
     participant SDK as @oxyhq/core OxyServices
     participant API as api.oxy.so (@oxyhq/api)
-    participant DB as MongoDB
+    participant DB as PostgreSQL
 
     Note over App,SDK: device-first cold boot restored a session (see auth docs)
     App->>SDK: oxyServices.getProfileByUsername("nate")
@@ -201,7 +201,7 @@ and delegates 401 refresh to the session owner.
   `api.oxy.so` (+ website API aliases).
 - `packages/auth` (the OAuth authorize/consent IdP) → Cloudflare Pages: the
   Vite + RN-Web SPA is now **pure static output** — the device-account chooser
-  runs entirely in the device-first SDK (`useSwitchableAccounts`), so the former
+  runs entirely in the device-first SDK (`useDeviceSwitcher`), so the former
   `/api/device-accounts` Pages Function was deleted in the 2c cutover. The deploy
   workflow deploys via a direct `bunx wrangler@4 pages deploy` step, and a
   post-deploy smoke gate re-checks the live host. Account management is NOT

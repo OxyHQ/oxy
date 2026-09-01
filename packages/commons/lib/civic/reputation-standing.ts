@@ -20,7 +20,7 @@
  * (`total < 0` or a high abuse score) and likewise has no forward progress.
  */
 
-import type { TrustTier, ReputationInfluence, ReputationReliability } from '@oxyhq/core';
+import type { TrustTier, ReputationInfluence, ReputationReliability } from '@oxyhq/contracts';
 
 /** Minimum lifetime total for the `trusted` tier (mirror reputation.constants.ts). */
 export const TRUST_TIER_TRUSTED_MIN = 100;

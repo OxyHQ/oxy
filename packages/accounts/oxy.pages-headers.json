@@ -1,0 +1,6 @@
+{
+  "csp": {
+    "imgSrc": ["blob:"],
+    "connectSrc": ["blob:"]
+  }
+}

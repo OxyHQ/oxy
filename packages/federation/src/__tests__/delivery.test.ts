@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { createDomainPolicy } from '../apUri';
 import {
   createDeliveryService,
   type DeliveryServiceConfig,
@@ -36,6 +37,7 @@ function makeRig(overrides: {
   federationEnabled?: boolean;
   sharingEnabled?: boolean;
   assertSafeInboxUrl?: DeliveryServiceConfig<StoredActor>['assertSafeInboxUrl'];
+  blockedHosts?: string[];
 } = {}) {
   const deliveredBodies: Array<{ url: string; body: string }> = [];
   const enqueued: DeliveryQueueJob[] = [];
@@ -46,6 +48,10 @@ function makeRig(overrides: {
   const refreshedInBackground: string[] = [];
 
   const sign: HttpSignatureSigner = async () => 'TESTSIG';
+  const domainPolicy =
+    overrides.blockedHosts === undefined
+      ? createDomainPolicy({ domain: DOMAIN })
+      : createDomainPolicy({ domain: DOMAIN, blockedDomains: overrides.blockedHosts });
 
   const config: DeliveryServiceConfig<StoredActor> = {
     federationEnabled: overrides.federationEnabled ?? true,
@@ -116,6 +122,7 @@ function makeRig(overrides: {
     profile: { getBanner: async () => 'https://cdn.example/banner.png' },
     buildLocalActorObject: (params) => ({ id: urls.actor(params.username), type: 'Person', name: params.displayName }),
     logger: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} },
+    isBlockedDomain: domainPolicy.isBlockedDomain,
   };
 
   return {
@@ -183,6 +190,24 @@ describe('sendFollow', () => {
     expect(rig.deliveredBodies).toHaveLength(0);
     expect(rig.upsertedFollows).toHaveLength(0);
   });
+
+  it('refuses to deliver Follow to a blocked origin even when the inbox is cached', async () => {
+    const remote = 'https://blocked.example/users/bob';
+    const rig = makeRig({
+      blockedHosts: ['blocked.example'],
+      actorsByUri: {
+        [remote]: { _id: 'ACTID', uri: remote, inboxUrl: 'https://blocked.example/inbox' },
+      },
+    });
+
+    const result = await rig.service.sendFollow('u-alice', 'alice', remote);
+    await flush();
+
+    expect(result).toEqual({ success: false, pending: false });
+    expect(rig.upsertedFollows).toHaveLength(0);
+    expect(rig.deliveredBodies).toHaveLength(0);
+    expect(rig.enqueued).toHaveLength(0);
+  });
 });
 
 describe('sendAccept', () => {
@@ -235,6 +260,19 @@ describe('sendAccept', () => {
     expect(rig.deliveredBodies).toHaveLength(1);
     expect(rig.deliveredBodies[0].url).toBe('https://remote.example/shared-inbox');
   });
+
+  it('skips Accept delivery to a blocked origin', async () => {
+    const remote = 'https://blocked.example/users/bob';
+    const rig = makeRig({
+      blockedHosts: ['blocked.example'],
+      actorsByUri: { [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://blocked.example/inbox' } },
+    });
+
+    await rig.service.sendAccept('u-alice', 'alice', 'https://blocked.example/follows/1', remote);
+
+    expect(rig.deliveredBodies).toHaveLength(0);
+    expect(rig.enqueued).toHaveLength(0);
+  });
 });
 
 describe('sendUndoFollow', () => {
@@ -264,6 +302,22 @@ describe('sendUndoFollow', () => {
       },
     });
   });
+
+  it('removes the local follow but skips Undo delivery to a blocked origin', async () => {
+    const remote = 'https://blocked.example/users/bob';
+    const rig = makeRig({
+      blockedHosts: ['blocked.example'],
+      actorsByUri: { [remote]: { _id: 'A', uri: remote, inboxUrl: 'https://blocked.example/inbox' } },
+    });
+
+    const ok = await rig.service.sendUndoFollow('u-alice', 'alice', remote);
+    await flush();
+
+    expect(ok).toBe(true);
+    expect(rig.deletedFollowIds).toEqual(['A']);
+    expect(rig.deliveredBodies).toHaveLength(0);
+    expect(rig.enqueued).toHaveLength(0);
+  });
 });
 
 describe('deliverToFollowers', () => {
@@ -291,7 +345,7 @@ describe('deliverToFollowers', () => {
     expect(rig.fallbackInserts).toHaveLength(0);
   });
 
-  it('falls back to the Mongo queue when BullMQ is unavailable', async () => {
+  it('falls back to the durable queue when BullMQ is unavailable', async () => {
     const rig = makeRig({
       enqueueReturns: false,
       followerActorUris: ['a'],
@@ -331,6 +385,21 @@ describe('deliverToFollowers', () => {
     expect(unsafeGuard).toHaveBeenCalledTimes(2);
     expect(rig.enqueued.map((j) => j.targetInbox)).toEqual(['https://safe.example/inbox']);
     expect(rig.fallbackInserts.map((j) => j.targetInbox)).toEqual(['https://safe.example/inbox']);
+  });
+
+  it('skips follower fan-out to blocked inboxes', async () => {
+    const rig = makeRig({
+      blockedHosts: ['blocked.example'],
+      followerActorUris: ['a', 'b'],
+      followerInboxes: {
+        a: { inboxUrl: 'https://blocked.example/inbox' },
+        b: { inboxUrl: 'https://safe.example/inbox' },
+      },
+    });
+
+    await rig.service.deliverToFollowers({ id: 'act1', type: 'Create' }, 'u-alice', 'alice');
+
+    expect(rig.enqueued.map((j) => j.targetInbox)).toEqual(['https://safe.example/inbox']);
   });
 });
 

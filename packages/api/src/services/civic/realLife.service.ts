@@ -26,14 +26,16 @@
  */
 
 import crypto from 'crypto';
+import { and, eq } from 'drizzle-orm';
 import { verifyEnvelopeSignature, type RejectionReason } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { realLifeAttestationRecordSchema } from '@oxyhq/contracts';
-import { User } from '../../models/User';
-import { ReputationTransaction } from '../../models/ReputationTransaction';
-import CivicNonce from '../../models/CivicNonce';
+import { getDb } from '../../config/postgres';
+import { isUniqueViolation } from '@oxyhq/db';
+import { civicNonces } from '../../db/schema/civicNonces';
+import { reputationTransactions } from '../../db/schema/reputationTransactions';
+import { users } from '../../db/schema/users';
 import { isSelfIssuedByUser, parseUserDid } from '../did.service';
-import { isValidObjectId } from '../../utils/validation';
 import { verifyAndStoreRecord } from '../signedRecord.service';
 import { isSockPuppetRelation } from './graphExclusion';
 import { reputationService } from '../reputation.service';
@@ -69,22 +71,16 @@ function hashNonce(nonce: string): string {
   return crypto.createHash('sha256').update(`${NONCE_PURPOSE}:${nonce}`).digest('hex');
 }
 
-/** True when an error is a MongoDB duplicate-key (E11000) error. */
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { code?: number }).code === 11000
-  );
-}
+/** The unique index that makes the nonce single-use. */
+const NONCE_HASH_UNIQUE = 'civic_nonces_nonce_hash_key';
 
 /**
  * Atomically claim a single-use nonce. Returns false when it was already used
- * (the unique `nonceHash` index rejects the second insert) — the replay guard.
+ * (the unique `nonce_hash` index rejects the second insert) — the replay guard.
  */
 async function claimNonce(nonce: string, subjectUserId: string, exp: number): Promise<boolean> {
   try {
-    await CivicNonce.create({
+    await getDb().insert(civicNonces).values({
       nonceHash: hashNonce(nonce),
       purpose: NONCE_PURPOSE,
       subjectUserId,
@@ -92,7 +88,7 @@ async function claimNonce(nonce: string, subjectUserId: string, exp: number): Pr
     });
     return true;
   } catch (error) {
-    if (isDuplicateKeyError(error)) {
+    if (isUniqueViolation(error, NONCE_HASH_UNIQUE)) {
       return false;
     }
     throw error;
@@ -140,7 +136,7 @@ export async function submitRealLifeAttestation(
   const record = parsedRecord.data;
 
   const subjectUserId = parseUserDid(record.about);
-  if (!subjectUserId || !isValidObjectId(subjectUserId)) {
+  if (!subjectUserId) {
     return { ok: false, reason: 'invalid_subject' };
   }
   if (subjectUserId === attestorUserId) {
@@ -153,8 +149,12 @@ export async function submitRealLifeAttestation(
     return { ok: false, reason: 'expired' };
   }
 
-  const subjectExists = await User.exists({ _id: subjectUserId });
-  if (!subjectExists) {
+  const [subject] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, subjectUserId))
+    .limit(1);
+  if (!subject) {
     return { ok: false, reason: 'subject_not_found' };
   }
 
@@ -183,19 +183,39 @@ export async function submitRealLifeAttestation(
   // no-op repeat never burns the subject's fresh QR. A same-QR double-tap race
   // is still serialised by the single-use nonce below (one caller wins the
   // insert; the other gets `nonce_used`), so only one award is ever created.
-  const existingPairAward = await ReputationTransaction.findOne({
-    userId: subjectUserId,
-    createdByUserId: attestorUserId,
-    actionType: REAL_LIFE_ATTESTED_ACTION,
-    status: 'active',
-  })
-    .select('points sourceActionId')
-    .lean();
+  const [existingPairAward] = await getDb()
+    .select({
+      points: reputationTransactions.points,
+      sourceActionId: reputationTransactions.sourceActionId,
+    })
+    .from(reputationTransactions)
+    .where(
+      and(
+        eq(reputationTransactions.userId, subjectUserId),
+        eq(reputationTransactions.createdByUserId, attestorUserId),
+        eq(reputationTransactions.actionType, REAL_LIFE_ATTESTED_ACTION),
+        eq(reputationTransactions.status, 'active'),
+      ),
+    )
+    .limit(1);
   if (existingPairAward) {
+    // The award's `sourceActionId` IS the original attestation's content
+    // address — this service is the only writer of this action type and always
+    // sets it — so the repeat reports the SAME address the first scan did. The
+    // lookup deliberately does NOT filter on it being present: narrowing here
+    // would let a row without one fall through to a SECOND +25 award, which is
+    // the one outcome the pair idempotency exists to prevent.
+    const originalRecordId = existingPairAward.sourceActionId;
+    if (originalRecordId === null) {
+      logger.warn('Real-life award has no source record id; repeat scan reports none', {
+        component: 'civic.realLife',
+        subjectUserId,
+        attestorUserId,
+      });
+    }
     return {
       ok: true,
-      recordId:
-        typeof existingPairAward.sourceActionId === 'string' ? existingPairAward.sourceActionId : '',
+      recordId: originalRecordId ?? '',
       subjectUserId,
       attestorUserId,
       points: existingPairAward.points,
@@ -210,11 +230,14 @@ export async function submitRealLifeAttestation(
   }
 
   // Store B's signed attestation on B's chain (authoritative verify + append).
+  // A `real_life_attestation` must be a v2 (chained) envelope — `oxyStorePolicy`
+  // enforces that — so the returned content address always names a stored row,
+  // and the award below can carry it as durable provenance.
   const stored = await verifyAndStoreRecord(envelope, attestorUserId);
   if (!stored.ok) {
     return { ok: false, reason: stored.reason };
   }
-  const recordId = stored.record.recordId ?? '';
+  const recordId = stored.record.recordId;
 
   // Award A the HIGH-weight points, recording B as the attestor + emitting the
   // Oxy provenance attestation that references B's envelope.
@@ -226,7 +249,7 @@ export async function submitRealLifeAttestation(
     reason: 'Real-life attestation by a counterparty',
     metadata: { attestorUserId, context: record.context, biometricOk: record.biometricOk ?? false },
     emitAttestation: true,
-    sourceEnvelopeIds: recordId ? [recordId] : [],
+    sourceEnvelopeIds: [recordId],
   });
 
   logger.info('Real-life attestation accepted', {

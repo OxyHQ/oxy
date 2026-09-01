@@ -1,5 +1,5 @@
 const PRODUCTION_API_URL = "https://api.oxy.so"
-const LOCAL_API_URL = "http://localhost:3001"
+const LOCAL_API_URL = "http://localhost:4100"
 
 export function getApiBaseUrl(): string {
   const envUrl =

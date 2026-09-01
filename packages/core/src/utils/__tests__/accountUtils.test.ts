@@ -1,4 +1,5 @@
 import {
+    createQuickAccount,
     getAccountDisplayName,
     getAccountFallbackHandle,
     formatPublicKeyHandle,
@@ -113,6 +114,27 @@ describe('getAccountFallbackHandle', () => {
     it('returns undefined when neither username nor publicKey is present', () => {
         expect(getAccountFallbackHandle({})).toBeUndefined();
         expect(getAccountFallbackHandle(null)).toBeUndefined();
+    });
+});
+
+describe('createQuickAccount', () => {
+    it('prefers API name.displayName over composed first/last', () => {
+        const account = createQuickAccount('sess-1', {
+            name: { first: 'Nate', last: 'Isern', displayName: 'Nate Isern' },
+            username: 'nateus',
+            id: 'user-1',
+        });
+        expect(account.displayName).toBe('Nate Isern');
+    });
+
+    it('falls back to the normalized handle when displayName is absent', () => {
+        const account = createQuickAccount('sess-1', {
+            name: { first: 'Nate', last: 'Isern' },
+            username: 'nateus',
+            id: 'user-1',
+        });
+        expect(account.displayName).toBe('nateus');
+        expect(account.displayName).not.toBe('Nate Isern');
     });
 });
 

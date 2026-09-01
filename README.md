@@ -1,66 +1,139 @@
-# @oxyhq/sdk
+<p align="center">
+  <img alt="Oxy" src=".github/assets/header.svg" width="100%">
+</p>
 
-Monorepo for the OxyHQ SDK. Provides modular packages for building web, mobile, and server applications on the Oxy platform.
+<p align="center">
+  <a href="https://github.com/OxyHQ"><img alt="Oxy" src=".github/assets/badge-oxy.svg" height="34"></a>
+  <a href="https://github.com/FairCoinOfficial"><img alt="FairCoin" src=".github/assets/badge-faircoin.svg" height="34"></a>
+  <a href="https://mention.earth/@oxy"><img alt="@oxy on Mention" src=".github/assets/badge-mention.svg" height="34"></a>
+</p>
 
-## Packages
+<p align="center">
+  <a href="https://www.npmjs.com/package/@oxyhq/services"><img alt="@oxyhq/services" src="https://img.shields.io/npm/v/@oxyhq/services?style=flat-square&label=%40oxyhq%2Fservices&labelColor=440151&color=D26AE7"></a>
+  <a href="https://www.npmjs.com/package/@oxyhq/core"><img alt="@oxyhq/core" src="https://img.shields.io/npm/v/@oxyhq/core?style=flat-square&label=%40oxyhq%2Fcore&labelColor=440151&color=D26AE7"></a>
+  <a href="LICENSE"><img alt="Apache-2.0 SDK, Breathe server" src="https://img.shields.io/badge/license-Apache--2.0%20SDK%20%C2%B7%20Breathe%20server-440151?style=flat-square"></a>
+  <img alt="Bun" src="https://img.shields.io/badge/bun-1.3+-440151?style=flat-square&logo=bun&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-440151?style=flat-square&logo=typescript&logoColor=white">
+</p>
 
-### Libraries
+<p align="center">
+  <b>This is not an SDK repo with extras attached.</b><br>
+  The SDK is one package of eighteen. So is the backend behind <code>api.oxy.so</code>,<br>
+  the identity vault people install on their phones, and the OAuth provider third parties integrate against.
+</p>
 
-| Package | Path | Description |
-|---------|------|-------------|
-| `@oxyhq/contracts` | `packages/contracts/` | Contract-first API schemas (Zod). Zero React/RN/Expo — server and clients import from it directly. |
-| `@oxyhq/protocol` | `packages/protocol/` | Oxy Protocol — signed-record envelope, canonical JSON, signature/verification, platform crypto. |
-| `@oxyhq/core` | `packages/core/` | Platform-agnostic foundation. API client, session engine (`SessionClient`), crypto, and types. Works in Node.js, browsers, and React Native. |
-| `@oxyhq/services` | `packages/services/` | **The single UI SDK** for Expo, React Native, and web (React Native Web). `OxyProvider`, auth UI (`OxyAccountDialog`, `OxySignInButton`, `OxyConsentScreen`), screens, hooks. |
-| `@oxyhq/api` | `packages/api/` | Express.js backend API server. |
-| `@oxyhq/node` | `packages/node/` | Self-hostable personal data node that stores a user's own signed records. |
-| `@oxyhq/expo-splash` | `packages/expo-splash/` | Shared native-splash toolkit for Oxy Expo apps. |
+---
 
-There is no separate web-only auth SDK: web apps use `@oxyhq/services` via React Native Web, so every platform shares one provider and one auth UI.
+<table>
+<tr>
+<td valign="top" width="50%">
 
-### Applications
+### 🔐 One session, every platform
 
-| App | Path | Description |
-|-----|------|-------------|
-| accounts | `packages/accounts/` | **Accounts by Oxy** — keyless management-only Expo app (sessions, privacy, settings). The sole owner of account management. Identity creation lives in Commons. |
-| commons | `packages/commons/` | **Commons by Oxy** — native-only Expo app that owns self-sovereign identity creation, signed records, domain verification, and "Sign in with Oxy" cross-device QR/deep-link handoff. |
-| auth | `packages/auth/` | `auth.oxy.so` — the OAuth authorize/consent IdP for third-party apps. Mounts `@oxyhq/services` components (Vite + React Native Web). Not a relying party. |
-| inbox | `packages/inbox/` | Inbox app (`inbox.oxy.so`). |
-| console | `packages/console/` | Developer console (`console.oxy.so`) — Application registry, credentials, usage. |
-| test-app-expo | `packages/test-app-expo/` | Expo test playground. |
+A device holds a `{deviceId, deviceSecret}` pair per origin and mints short lived access tokens by presenting it. The server stores only a hash of the secret.
 
-## Architecture
+No cookies. No refresh token family. Cold boot restores the session without ever redirecting to a login page.
 
-Each platform has a clear import path. Packages do not re-export from one another.
+</td>
+<td valign="top" width="50%">
 
-| Platform | Imports |
-|----------|---------|
-| Expo / React Native / Web | `@oxyhq/services` for the provider and UI, `@oxyhq/core` for types and services |
-| Node.js / backends | `@oxyhq/core` for the API client, `@oxyhq/core/server` for Express auth middleware, `@oxyhq/contracts` for schemas |
+### ✍️ Identity you actually own
 
-Sessions are **device-first**: the SDK's cold boot restores the session from the device session state on the server (see [docs/auth/device-session.md](./docs/auth/device-session.md)); interactive sign-in is an in-app dialog, never a redirect. Third-party apps integrate with standard OAuth 2.0 + PKCE via `auth.oxy.so` (see [docs/auth/integration-guide.md](./docs/auth/integration-guide.md)).
+Keys live on the person's device, in Commons. Records are signed client side and chained per subject, so ownership is proven by cryptography rather than granted by us.
 
-## Quick Start
+DIDs resolve at `did:web:oxy.so:u:<id>`, reversible in both directions.
 
-### Prerequisites
+</td>
+</tr>
+</table>
 
-- Node.js 18+
-- Bun 1.3+
+## Map
 
-### Install and Build
+```mermaid
+graph TD
+    P["@oxyhq/protocol<br/><i>signed records, canonical JSON</i>"] --> C["@oxyhq/core<br/><i>API client, session engine, crypto</i>"]
+    K["@oxyhq/contracts<br/><i>Zod schemas, one source of truth</i>"] --> C
+    K --> A["@oxyhq/api<br/><i>api.oxy.so</i>"]
+    F["@oxyhq/federation<br/><i>ActivityPub identity</i>"] --> A
+    C --> S["@oxyhq/services<br/><i>the single UI SDK</i>"]
+    C --> A
+    S --> Commons["Commons<br/><i>identity vault</i>"]
+    S --> Accounts["Accounts<br/><i>account management</i>"]
+    S --> IdP["auth.oxy.so<br/><i>OAuth provider</i>"]
+    S --> Console["Console"]
+    S --> Inbox["Inbox"]
 
-```bash
-bun install
-bun run build:all
+    style P fill:#440151,stroke:#D26AE7,color:#fff
+    style K fill:#440151,stroke:#D26AE7,color:#fff
+    style F fill:#440151,stroke:#D26AE7,color:#fff
+    style C fill:#5B0A6B,stroke:#D26AE7,color:#fff
+    style A fill:#5B0A6B,stroke:#D26AE7,color:#fff
+    style S fill:#5B0A6B,stroke:#D26AE7,color:#fff
 ```
 
-Build order (derived by turbo from the dependency graph): `contracts` -> `protocol` -> `core` -> `services` -> remaining packages.
+<table>
+<tr>
+<td valign="top" width="50%">
 
-### React (Expo, React Native, or Web via React Native Web)
+### 🧱 Substrate
+
+| Package | What it is |
+|---|---|
+| [`@oxyhq/protocol`](packages/protocol/) | Signed record envelope, canonical JSON, signing and verification |
+| [`@oxyhq/contracts`](packages/contracts/) | Contract first API schemas in Zod. Zero React or Expo, so server and clients share one source of truth |
+| [`@oxyhq/federation`](packages/federation/) | App agnostic ActivityPub identity and follow layer |
+| [`@oxyhq/core`](packages/core/) | API client, session engine, crypto, types. Node, browsers and React Native |
+
+### 🚀 Server and SDK
+
+| Package | What it is |
+|---|---|
+| [`@oxyhq/api`](packages/api/) | The Express backend behind `api.oxy.so` |
+| [`@oxyhq/services`](packages/services/) | **The single UI SDK.** Expo, React Native and web through React Native Web |
+| [`@oxyhq/node`](packages/node/) | Self hostable personal data node for a user's own signed records |
+
+</td>
+<td valign="top" width="50%">
+
+### 📱 Applications
+
+| App | What it is |
+|---|---|
+| [Commons](packages/commons/) | Native identity vault. Creation, signed records, domain verification, sign in approvals |
+| [Accounts](packages/accounts/) | Keyless account management: sessions, privacy, settings |
+| [auth](packages/auth/) | `auth.oxy.so`, the OAuth authorize and consent provider |
+| [Console](packages/console/) | `console.oxy.so`, application registry and credentials |
+
+### 🛠 Tooling
+
+| Package | What it is |
+|---|---|
+| [`create-oxy-app`](packages/create-oxy-app/) | `bun create oxy-app`, scaffolds a new app in the canonical shape |
+| [`@oxyhq/app-preset`](packages/app-preset/) | The Oxy distro of Expo: config plugin and Metro, Babel, CSS, ESLint bases |
+| [`@oxyhq/expo-splash`](packages/expo-splash/) | Shared native splash toolkit |
+| [`@oxyhq/ship`](packages/ship/) | `oxy-ship`, publishes Expo OTA updates |
+
+</td>
+</tr>
+</table>
+
+> There is no separate web only auth SDK. Web apps use `@oxyhq/services` through React Native Web, so every platform shares one provider and one auth UI.
+
+## Quick start
+
+```bash
+bun install && bun run build:all
+```
+
+Requires Node 18+ and Bun 1.3+. Build order comes from the dependency graph: `contracts` → `protocol` → `core` → `services` → everything else.
+
+<details>
+<summary><b>React: Expo, React Native, or web</b></summary>
+
+<br>
 
 ```tsx
 import { OxyProvider, useAuth } from "@oxyhq/services";
-import type { User } from "@oxyhq/core";
 
 function App() {
   return (
@@ -71,43 +144,56 @@ function App() {
 }
 
 function MyComponent() {
-  const { user, signIn, signOut, isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <button onClick={() => signIn()}>Sign In</button>;
+  const { user, signIn, isAuthenticated } = useAuth();
+  if (!isAuthenticated) return <button onClick={() => signIn()}>Sign in</button>;
   return <p>Welcome, {user?.username}</p>;
 }
 ```
 
-`signIn()` opens the in-app sign-in surface (`OxyAccountDialog`: Commons QR, or password under "Sign in without the app"). Cold boot is silent — the provider never redirects to a login page.
+`signIn()` opens the in app dialog: the accounts already on this device, plus one **Continue with Oxy** action. Oxy picks how the request reaches the identity — opening Commons, pushing to it, or showing a QR — instead of asking the person to choose a transport.
 
-### Node.js
+</details>
+
+<details>
+<summary><b>Node backends</b></summary>
+
+<br>
 
 ```ts
 import { OxyServices, oxyClient } from "@oxyhq/core";
 
-// Use the pre-configured singleton
 const user = await oxyClient.getUserById("user-id");
 
-// Or create a custom instance
 const oxy = new OxyServices({ baseURL: "https://api.oxy.so" });
 const profile = await oxy.getProfileByUsername("johndoe");
 ```
 
-## Development
+Protect routes with `@oxyhq/core/server`: `createOxyAuthMiddleware`, `requireOxyAuth`, `getRequiredOxyUserId`, plus `safeFetch` for SSRF safe outbound requests and `createOxyCors` for a deny by default CORS policy.
+
+</details>
+
+<details>
+<summary><b>Development commands</b></summary>
+
+<br>
 
 ```bash
-# Build all packages in order
-bun run build:all
-
-# Run the API server
-bun run start
-
-# Run dev mode across workspaces
-bun run dev
-
-# Run tests (turbo dispatches each package's own runner)
-bun run test
+bun run build:all   # build every package in dependency order
+bun run start       # run the API server
+bun run dev         # dev mode across workspaces
+bun run test        # tests, turbo dispatches each package's own runner
 ```
 
-## License
+Packages never re-export from one another. Apps import `@oxyhq/services` for the provider and UI, `@oxyhq/core` for types and services, and `@oxyhq/contracts` for schemas.
 
-AGPL-3.0-only -- The Oxy Foundation, Inc. See the [LICENSE](LICENSE) file for details.
+</details>
+
+## Contributing
+
+Issues and pull requests are welcome, especially from people who will tell us when something is badly designed. The mission is not a marketing layer, it is the part we are trying to protect.
+
+<br>
+
+<div align="center">
+<sub>Apache-2.0 for the SDK packages · Breathe License 1.0 for the server layer · The Oxy Collective, Inc. · <a href="LICENSE">LICENSE</a></sub>
+</div>

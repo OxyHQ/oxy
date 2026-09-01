@@ -1,13 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, TextInput, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet, TextInput, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 import { Section } from '@/components/section';
-import { Button, ImportantBanner, ScreenHeader } from '@/components/ui';
-import { ScreenContentWrapper } from '@/components/screen-content-wrapper';
+import { Button, ImportantBanner, KeyboardAwareScrollViewWrapper, ScreenHeader } from '@/components/ui';
 import { useOxy } from '@oxyhq/services';
 import { alert, toast } from '@oxyhq/bloom';
 import { KeyManager } from '@oxyhq/core';
@@ -116,11 +115,9 @@ export default function DeleteAccountScreen() {
 
   if (oxyLoading) {
     return (
-      <ScreenContentWrapper>
-        <View style={[styles.center, { backgroundColor: colors.background }]}>
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</ThemedText>
-        </View>
-      </ScreenContentWrapper>
+      <View style={[styles.center, styles.flex, { backgroundColor: colors.background }]}>
+        <ThemedText style={[styles.loadingText, { color: colors.text }]}>{t('common.loadingShort')}</ThemedText>
+      </View>
     );
   }
 
@@ -211,29 +208,31 @@ export default function DeleteAccountScreen() {
   );
 
   if (Platform.OS === 'web') {
-    return renderContent();
+    return (
+      <View style={[styles.flex, styles.scrollContent, { backgroundColor: colors.background }]}>
+        {renderContent()}
+      </View>
+    );
   }
 
   return (
-    <ScreenContentWrapper>
-      <ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        {renderContent()}
-      </ScrollView>
-    </ScreenContentWrapper>
+    <KeyboardAwareScrollViewWrapper
+      reserveTabBarFootprint
+      style={{ backgroundColor: colors.background }}
+      contentContainerStyle={styles.scrollContent}
+    >
+      {renderContent()}
+    </KeyboardAwareScrollViewWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex: {
     flex: 1,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 120,
+    flexGrow: 1,
   },
   center: {
     flex: 1,

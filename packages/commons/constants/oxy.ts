@@ -15,5 +15,5 @@
  * `packages/api/scripts/register-commons-clients.ts`.
  */
 export const OXY_CLIENT_ID =
-  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
+  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ||
   'oxy_dk_f65326da2a0d106bf98e873ce19b0ca9094d6c0c1f845a18';

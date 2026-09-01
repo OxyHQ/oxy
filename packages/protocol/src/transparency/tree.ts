@@ -20,6 +20,12 @@
  * as an interior node), an odd level splits so the LEFT subtree is the largest
  * power of two below the size, and a single-leaf tree's root is the leaf itself.
  *
+ * A built tree keeps every LEVEL, not just its leaves, because that is what
+ * makes serving proofs cheap: {@link inclusionProof} reads siblings straight out
+ * of the levels instead of re-hashing subtrees, so one build amortizes over all
+ * the proofs cut from it (a checkpoint is built once and proved thousands of
+ * times, once per subject that audits it).
+ *
  * Crucially, {@link verifyInclusionProof} needs only the verifier's OWN leaf,
  * its index, the tree size, the audit path, and the signed root — never the
  * other leaves. So a device or node can audit its own history against a
@@ -62,12 +68,16 @@ export interface TransparencyHeadEntry {
   headRecordId: string;
 }
 
-/** A built tree: its commitment plus the ordered leaf hashes proofs are cut from. */
+/** A built tree: its commitment plus every level proofs are cut from. */
 export interface TransparencyTree {
   root: string;
   treeSize: number;
-  /** Leaf hashes in committed order. */
-  leaves: string[];
+  /**
+   * Every level bottom-up: `levels[0]` is the leaf hashes in committed order,
+   * each next level is the one below it paired up, and the last is `[root]`
+   * (empty for a zero-leaf tree).
+   */
+  levels: string[][];
 }
 
 /** A tree built from head entries, with the leaf index of every subject. */
@@ -112,39 +122,41 @@ async function nodeHash(left: string, right: string): Promise<string> {
   return sha256(`${NODE_PREFIX}${left}${right}`);
 }
 
-/** The largest power of two strictly below `n` (RFC 6962's split point; `n > 1`). */
-function splitPoint(n: number): number {
-  let k = 1;
-  while (k * 2 < n) {
-    k *= 2;
-  }
-  return k;
-}
-
-/** The Merkle tree hash of a leaf-hash slice (RFC 6962 MTH). */
-async function merkleTreeHash(leaves: string[]): Promise<string> {
-  if (leaves.length === 0) {
-    return EMPTY_TRANSPARENCY_ROOT;
-  }
-  if (leaves.length === 1) {
-    return leaves[0];
-  }
-  const k = splitPoint(leaves.length);
-  const [left, right] = await Promise.all([
-    merkleTreeHash(leaves.slice(0, k)),
-    merkleTreeHash(leaves.slice(k)),
-  ]);
-  return nodeHash(left, right);
-}
-
 /**
  * Build a tree over already-hashed leaves, in the given order.
+ *
+ * Levels are built bottom-up, each one pairing the level below and carrying a
+ * trailing odd node up unchanged — which yields exactly RFC 6962's tree, whose
+ * recursive definition splits at the largest power of two below the size.
+ * `transparency.test.ts` pins that equivalence against a direct transcription of
+ * the RFC's MTH for every size up to 40, so the shape can never silently drift.
  *
  * The order IS part of the commitment — prefer
  * {@link buildTransparencyTreeFromHeads}, which owns the canonical ordering.
  */
 export async function buildTransparencyTree(leaves: string[]): Promise<TransparencyTree> {
-  return { root: await merkleTreeHash(leaves), treeSize: leaves.length, leaves: [...leaves] };
+  const levels: string[][] = [[...leaves]];
+  let current = levels[0];
+  while (current.length > 1) {
+    const pairCount = Math.floor(current.length / 2);
+    const parents = await Promise.all(
+      Array.from({ length: pairCount }, (_unused, pair) =>
+        nodeHash(current[pair * 2], current[pair * 2 + 1]),
+      ),
+    );
+    if (current.length % 2 === 1) {
+      parents.push(current[current.length - 1]);
+    }
+    levels.push(parents);
+    current = parents;
+  }
+
+  const top = levels[levels.length - 1];
+  return {
+    root: top.length === 1 ? top[0] : EMPTY_TRANSPARENCY_ROOT,
+    treeSize: leaves.length,
+    levels,
+  };
 }
 
 /**
@@ -177,23 +189,29 @@ export async function buildTransparencyTreeFromHeads(
 }
 
 /**
- * The audit path proving `index` is committed in a tree over `leaves`
- * (RFC 6962 PATH): each step is the sibling subtree hash, leaf-adjacent first.
+ * The audit path proving `index` is committed in `tree` (RFC 6962 PATH): each
+ * step is the sibling subtree hash, leaf-adjacent first.
+ *
+ * Pure index arithmetic over the tree's levels — no hashing, so cutting a proof
+ * costs O(log n) array reads however large the checkpoint is.
  */
-export async function inclusionProof(leaves: string[], index: number): Promise<string[]> {
-  if (!Number.isInteger(index) || index < 0 || index >= leaves.length) {
-    throw new Error(`Leaf index ${index} is outside a tree of ${leaves.length} leaves`);
+export function inclusionProof(tree: TransparencyTree, index: number): string[] {
+  if (!Number.isInteger(index) || index < 0 || index >= tree.treeSize) {
+    throw new Error(`Leaf index ${index} is outside a tree of ${tree.treeSize} leaves`);
   }
-  if (leaves.length === 1) {
-    return [];
+
+  const proof: string[] = [];
+  let position = index;
+  for (let level = 0; level < tree.levels.length - 1; level += 1) {
+    const nodes = tree.levels[level];
+    const sibling = position % 2 === 0 ? position + 1 : position - 1;
+    // A trailing odd node is carried up unpaired, so it contributes no step.
+    if (sibling < nodes.length) {
+      proof.push(nodes[sibling]);
+    }
+    position = Math.floor(position / 2);
   }
-  const k = splitPoint(leaves.length);
-  if (index < k) {
-    const path = await inclusionProof(leaves.slice(0, k), index);
-    return [...path, await merkleTreeHash(leaves.slice(k))];
-  }
-  const path = await inclusionProof(leaves.slice(k), index - k);
-  return [...path, await merkleTreeHash(leaves.slice(0, k))];
+  return proof;
 }
 
 /**

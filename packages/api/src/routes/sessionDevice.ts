@@ -1,12 +1,13 @@
 import { Router, type Request, type Response } from 'express';
-import type { DeviceSessionState } from '@oxyhq/contracts';
+import type { DeviceActivateResponse, DeviceSessionState } from '@oxyhq/contracts';
 import {
+  deviceActivateRequestSchema,
+  deviceActivateResponseSchema,
+  deviceBackgroundTokenRequestSchema,
   deviceTokenMintRequestSchema,
-  deviceHubTicketIssueRequestSchema,
-  deviceHubTicketRedeemRequestSchema,
 } from '@oxyhq/contracts';
-import { isOfficialWebOrigin, normalizeOfficialReturnOrigin } from '@oxyhq/core/server';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { requireFirstPartyDeviceAccess } from '../middleware/firstPartyDeviceAccess';
 import { requireSameSiteOrigin } from '../middleware/originGuard';
 import { decodeToken, extractTokenFromRequest } from '../middleware/authUtils';
 import { rateLimit } from '../middleware/rateLimiter';
@@ -16,6 +17,8 @@ import sessionService from '../services/session.service';
 import { broadcastDeviceState, broadcastSessionAccountsChanged } from '../utils/socket';
 import { asyncHandler } from '../utils/asyncHandler';
 import { logger } from '../utils/logger';
+import { isBrowserClient } from '../utils/origin';
+import { hashedIpKey } from '../utils/ipKey';
 
 const router = Router();
 
@@ -28,17 +31,14 @@ const deviceTokenLimiter = rateLimit({
   max: 30,
 });
 
-const hubTicketIssueLimiter = rateLimit({
-  prefix: 'rl:session:hub-ticket:',
+const backgroundTokenLimiter = rateLimit({
+  prefix: 'rl:session:background-token:',
   windowMs: 60_000,
   max: 30,
 });
 
-const hubTicketRedeemLimiter = rateLimit({
-  prefix: 'rl:session:redeem-ticket:',
-  windowMs: 60_000,
-  max: 30,
-});
+/** Lockout scope for the public background-token mint (per-deviceId). */
+const BACKGROUND_TOKEN_LOCKOUT_SCOPE = 'background-token';
 
 /**
  * POST /session/device/token — the phase-2c zero-cookie mint.
@@ -54,9 +54,9 @@ const hubTicketRedeemLimiter = rateLimit({
  * `nextDeviceSecret`: the secret is a stable device credential, so several
  * official apps/origins sharing one device can refresh concurrently without
  * invalidating one another. A dead/absent active session returns
- * `no_active_session` WITHOUT changing the credential.
- * — the client must re-authenticate and keeps its still-valid secret. Per-device
- * lockout + rate limiting blunt online secret-guessing.
+ * `no_active_session` WITHOUT changing the credential — the client must
+ * re-authenticate and keeps its still-valid secret. Per-device lockout + rate
+ * limiting blunt online secret-guessing.
  *
  * An optional `accountId` PINS the mint to one account of that device instead of
  * whichever one is currently active. It exists for identity-bound clients
@@ -134,79 +134,63 @@ router.post(
 );
 
 /**
- * POST /session/device/hub-ticket — mint a one-time ticket to sync device
- * credentials onto another official origin (typically auth.oxy.so).
- *
- * Bearer required; `deviceId` comes from the validated JWT claim.
+ * POST /session/device/background-token — bearer-less mint for native background
+ * code. Possession of the provisioned background secret IS the proof; the secret
+ * is NEVER rotated (unlike `POST /token`). Returns only the short access token,
+ * its expiry, and the account it belongs to — no device state.
  */
 router.post(
-  '/hub-ticket',
-  hubTicketIssueLimiter,
-  authMiddleware,
-  asyncHandler(async (req: AuthRequest, res: Response) => {
-    const parsed = deviceHubTicketIssueRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'returnOrigin is required' });
-      return;
-    }
-
-    const returnOrigin = normalizeOfficialReturnOrigin(parsed.data.returnOrigin);
-    if (!returnOrigin || !isOfficialWebOrigin(returnOrigin)) {
-      res.status(400).json({ error: 'invalid_return_origin' });
-      return;
-    }
-
-    const deviceId = resolveCallerDeviceId(req);
-    if (!deviceId) {
-      res.status(401).json({ error: 'No device' });
-      return;
-    }
-
-    const { issueHubTicket } = await import('../services/deviceHubTicket.service.js');
-    const issued = await issueHubTicket({ deviceId, returnOrigin });
-    res.json({ data: issued });
-  }),
-);
-
-/**
- * POST /session/device/redeem-ticket — exchange a one-time hub ticket for a
- * fresh device secret. PUBLIC: ticket possession is the proof.
- */
-router.post(
-  '/redeem-ticket',
-  hubTicketRedeemLimiter,
+  '/background-token',
+  backgroundTokenLimiter,
   asyncHandler(async (req: Request, res: Response) => {
-    const parsed = deviceHubTicketRedeemRequestSchema.safeParse(req.body);
+    const parsed = deviceBackgroundTokenRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: 'ticket and returnOrigin are required' });
+      res.status(400).json({ error: 'deviceId and secret are required' });
+      return;
+    }
+    const { deviceId, secret } = parsed.data;
+
+    const lockout = await isLockedOut({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    if (lockout.locked) {
+      if (typeof lockout.retryAfterSeconds === 'number') {
+        res.setHeader('Retry-After', String(lockout.retryAfterSeconds));
+      }
+      res.status(429).json({ error: 'Too many attempts' });
       return;
     }
 
-    const returnOrigin = normalizeOfficialReturnOrigin(parsed.data.returnOrigin);
-    if (!returnOrigin || !isOfficialWebOrigin(returnOrigin)) {
-      res.status(400).json({ error: 'invalid_return_origin' });
-      return;
-    }
-
-    const { redeemHubTicket } = await import('../services/deviceHubTicket.service.js');
-    const outcome = await redeemHubTicket(parsed.data.ticket, returnOrigin);
+    const outcome = await deviceSessionService.mintFromBackgroundSecret(deviceId, secret);
     if (!outcome.ok) {
-      res.status(401).json({ error: 'invalid_ticket' });
+      if (outcome.reason === 'background_credential_invalid') {
+        await recordFailure({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+      } else {
+        // The credential was proven — a dead bound account must not count as
+        // secret guessing.
+        await clearFailures({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+      }
+      res.status(401).json({ error: outcome.reason });
       return;
     }
 
+    await clearFailures({ scope: BACKGROUND_TOKEN_LOCKOUT_SCOPE, identifier: deviceId });
+    logger.info('device.token.mint', { mint_source: 'background', deviceId });
     res.json({
       data: {
-        deviceId: outcome.deviceId,
-        deviceSecret: outcome.deviceSecret,
+        accessToken: outcome.accessToken,
+        expiresAt: outcome.expiresAt,
+        accountId: outcome.accountId,
       },
     });
   }),
 );
 
-async function withActiveToken(state: DeviceSessionState) {
-  const activeToken = await deviceSessionService.resolveActiveToken(state);
-  return { state, activeToken };
+function withoutActiveToken(state: DeviceSessionState) {
+  // Bearer-authenticated device routes authorize the device, not every account
+  // registered on it. Returning another account's token here would let any
+  // account on the device disclose that token after changing activeAccountId.
+  // Token minting remains available only through /token, where the caller must
+  // prove possession of the device secret.
+  return { state, activeToken: null };
 }
 
 function resolveCallerDeviceId(req: AuthRequest): string | null {
@@ -222,7 +206,100 @@ function resolveCallerSession(req: AuthRequest): { deviceId: string; sessionId: 
   return { deviceId: decoded.deviceId, sessionId: decoded.sessionId };
 }
 
-router.use(requireSameSiteOrigin, authMiddleware);
+const backgroundCredentialLimiter = rateLimit({
+  prefix: 'rl:session:background-credential:',
+  windowMs: 60_000,
+  max: 10,
+  keyGenerator: (req) => {
+    const deviceId = resolveCallerDeviceId(req as AuthRequest);
+    const userId = (req as AuthRequest).user?._id?.toString();
+    if (deviceId && userId) {
+      return `bg-cred:${deviceId}:${userId}`;
+    }
+    return `bg-cred:ip:${hashedIpKey(req)}`;
+  },
+});
+
+/**
+ * Per-device budgets for the two ADR 0002 endpoints.
+ *
+ * Keyed on the caller's own device rather than their IP: several official apps
+ * share one device and one directory, and an office behind one NAT is not one
+ * client. The IP fallback only catches a request whose bearer carried no
+ * deviceId, which the handlers reject anyway.
+ *
+ * Each carries its OWN `prefix`. Two limiters sharing one Redis key double-count
+ * every request that passes through both (`ERR_ERL_DOUBLE_COUNT`) and silently
+ * halve the budget — the factory requires the field for exactly that reason.
+ */
+function perDeviceKey(scope: string) {
+  return (req: Request) => {
+    const deviceId = resolveCallerDeviceId(req as AuthRequest);
+    const userId = (req as AuthRequest).user?._id?.toString();
+    if (deviceId && userId) return `${scope}:${deviceId}:${userId}`;
+    return `${scope}:ip:${hashedIpKey(req)}`;
+  };
+}
+
+// The directory is read on every cold boot, every switcher open and every
+// `session_state` push, by each official app on the device independently.
+const directoryLimiter = rateLimit({
+  prefix: 'rl:session:device-directory:',
+  windowMs: 60_000,
+  max: 120,
+  keyGenerator: perDeviceKey('device-directory'),
+});
+
+// Activation is a deliberate human action; the ceiling only has to sit above a
+// user impatiently switching back and forth.
+const activateLimiter = rateLimit({
+  prefix: 'rl:session:device-activate:',
+  windowMs: 60_000,
+  max: 30,
+  keyGenerator: perDeviceKey('device-activate'),
+});
+
+// Everything below this line operates on the shared Oxy device, so a
+// third-party OAuth bearer is refused outright — see the middleware's own
+// docblock for why the verdict is the registry's and re-read per request. The
+// browser hub router applies the same guard for the same reason.
+router.use(requireSameSiteOrigin, authMiddleware, requireFirstPartyDeviceAccess);
+
+/**
+ * POST /session/device/background-credential — provision a non-rotating
+ * background credential for the caller's account on this device. Bearer required;
+ * NO body. The raw secret is returned exactly once for native background code to
+ * store — JS never mints from it. Browser callers are refused: native HTTP
+ * clients send no `Origin`/`Sec-Fetch-Site`; credentialed browser fetch always
+ * does, and a long-lived non-rotating secret must not be mintable from a web
+ * origin even with a valid bearer.
+ */
+router.post(
+  '/background-credential',
+  backgroundCredentialLimiter,
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    if (isBrowserClient(req.headers)) {
+      res.status(403).json({ error: 'browser_not_allowed' });
+      return;
+    }
+
+    const deviceId = resolveCallerDeviceId(req);
+    const accountId = req.user?._id?.toString();
+    if (!deviceId || !accountId) {
+      res.status(401).json({ error: 'No device' });
+      return;
+    }
+
+    const credential = await deviceSessionService.issueBackgroundCredential(deviceId, accountId);
+    if (!credential) {
+      res.status(401).json({ error: 'account_not_on_device' });
+      return;
+    }
+
+    logger.info('device.background.credential.issued', { deviceId });
+    res.json({ data: credential });
+  }),
+);
 
 // GET /state returns the DEVICE subset (this device's registered accounts). The
 // RP client additionally unions the org/shared account graph from `GET /accounts`;
@@ -232,7 +309,81 @@ router.get('/state', asyncHandler(async (req: AuthRequest, res: Response) => {
   const deviceId = resolveCallerDeviceId(req);
   if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
 
-  res.json({ data: await withActiveToken(await deviceSessionService.getState(deviceId)) });
+  res.json({ data: withoutActiveToken(await deviceSessionService.getState(deviceId)) });
+}));
+
+/**
+ * GET /session/device/directory
+ *
+ * The one server-authoritative read model an account switcher renders.
+ *
+ * Issue #937, ADR 0002.
+ * `/state` above is the FLAT compatibility projection of the same device and
+ * stays exactly as it is. This one adds what that shape structurally cannot
+ * carry: who each account is reachable THROUGH, and whether it is reachable at
+ * all right now. Switchability is an authorization question, and a client on a
+ * device holding two people can only ever answer it for one of them — it holds
+ * ONE caller's account graph and cannot enumerate the other principals'.
+ */
+router.get('/directory', directoryLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const deviceId = resolveCallerDeviceId(req);
+  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
+
+  res.json({ data: await deviceSessionService.getDirectory(deviceId) });
+}));
+
+/**
+ * POST /session/device/activate
+ *
+ * The one write of ADR 0002 — make one `principal acting as account` active.
+ *
+ * Takes a `contextId` and NOTHING else. An `accountId` cannot name what to
+ * activate on a device where two people can both reach the same organization,
+ * and resolving that ambiguity server-side would mean guessing inside an
+ * authorization path — so a body carrying one is refused outright rather than
+ * quietly falling back to `/switch`'s semantics under a new endpoint's name.
+ *
+ * `/switch` remains, unchanged, as the compatibility path for clients that have
+ * not moved yet.
+ */
+router.post('/activate', activateLimiter, asyncHandler(async (req: AuthRequest, res: Response) => {
+  const deviceId = resolveCallerDeviceId(req);
+  if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
+
+  const body: unknown = req.body ?? {};
+  if (typeof body === 'object' && body !== null && 'accountId' in body) {
+    res.status(400).json({ error: 'accountId_not_accepted' });
+    return;
+  }
+  const parsed = deviceActivateRequestSchema.safeParse(body);
+  if (!parsed.success) { res.status(400).json({ error: 'contextId required' }); return; }
+
+  const outcome = await deviceSessionService.activateContext(deviceId, parsed.data.contextId, req);
+  if (!outcome.ok) {
+    if (outcome.reason === 'unauthorized') {
+      // The target was stale or revoked and has been healed out of the device.
+      // Broadcast the healed state so the device's other apps drop it too, then
+      // reject — exactly what `/switch` does on the same class of failure.
+      broadcastDeviceState(outcome.state);
+      broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'revoke');
+      res.status(403).json({ error: 'Context not authorized' });
+      return;
+    }
+    res.status(404).json({ error: 'Context not on this device' });
+    return;
+  }
+
+  // An idempotent activation changed nothing — no revision moved, so there is
+  // nothing for the other apps on this device to converge on.
+  if (outcome.changed) {
+    broadcastDeviceState(outcome.state);
+    broadcastSessionAccountsChanged(outcome.accountId, outcome.state.revision, 'switch');
+  }
+  const dto: DeviceActivateResponse = {
+    directory: outcome.directory,
+    activeToken: outcome.activeToken,
+  };
+  res.json({ data: deviceActivateResponseSchema.parse(dto) });
 }));
 
 router.post('/add', asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -247,7 +398,11 @@ router.post('/add', asyncHandler(async (req: AuthRequest, res: Response) => {
   // expired/revoked session (JWT not yet expired but the session doc
   // deactivated) — such a session must NOT be re-added to the device set.
   if (!sessionDoc) { res.status(401).json({ error: 'Invalid session' }); return; }
-  const operatedByUserId = sessionDoc.operatedByUserId ? sessionDoc.operatedByUserId.toString() : undefined;
+  // `sessions.operated_by_user_id` is a plain text id, NULL for an ordinary
+  // personal session. That NULL is the whole distinction between a delegated
+  // (`account:act_as`) entry and a personal one, so it is mapped to `undefined`
+  // and the key is then OMITTED below rather than sent as an empty value.
+  const operatedByUserId = sessionDoc.operatedByUserId ?? undefined;
 
   const { state, changed } = await deviceSessionService.addAccount(session.deviceId, {
     accountId,
@@ -260,7 +415,7 @@ router.post('/add', asyncHandler(async (req: AuthRequest, res: Response) => {
     // Also signal the added account's user across their other apps/devices.
     broadcastSessionAccountsChanged(accountId, state.revision, 'add');
   }
-  res.json({ data: await withActiveToken(state) });
+  res.json({ data: withoutActiveToken(state) });
 }));
 
 router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -285,15 +440,59 @@ router.post('/switch', asyncHandler(async (req: AuthRequest, res: Response) => {
   }
   broadcastDeviceState(outcome.state);
   broadcastSessionAccountsChanged(accountId, outcome.state.revision, 'switch');
-  res.json({ data: await withActiveToken(outcome.state) });
+  res.json({ data: withoutActiveToken(outcome.state) });
 }));
 
+/**
+ * POST /session/device/signout
+ *
+ * The four `/signout` shapes, and why they are four.
+ *
+ * `docs/auth/principals-and-account-contexts.md` states five distinct meanings
+ * of "sign out"; conflating any two of them is a bug. This route serves
+ * meanings 2, 3 and 4:
+ *
+ *  - `{ contextId }`   — remove ONE `principal → account` pair. Never the
+ *                        account across the device: the same organization
+ *                        reached through a second person is a different
+ *                        session, a different audit actor and a different
+ *                        revocation path, and it stays.
+ *  - `{ principalId }` — remove ONE PERSON and every context they reach, and
+ *                        NOBODY ELSE'S — including when another principal
+ *                        independently operates the same account.
+ *  - `{ accountId }`   — the FLAT compatibility meaning: that account, however
+ *                        it is reached, plus the operator cascade. Unchanged.
+ *  - `{ all: true }`   — the whole device, credentials included. Unchanged.
+ *
+ * The first two elect a replacement active context in the documented order
+ * (same principal's personal, then another of that principal's, then the next
+ * principal's personal, then none).
+ */
 router.post('/signout', asyncHandler(async (req: AuthRequest, res: Response) => {
   const deviceId = resolveCallerDeviceId(req);
   if (!deviceId) { res.status(401).json({ error: 'No device' }); return; }
-  const { accountId, all } = req.body ?? {};
+  const { accountId, all, contextId, principalId } = req.body ?? {};
+
+  if (typeof contextId === 'string' || typeof principalId === 'string') {
+    if (typeof contextId === 'string' && typeof principalId === 'string') {
+      res.status(400).json({ error: 'contextId and principalId are different operations' });
+      return;
+    }
+    const outcome = typeof contextId === 'string'
+      ? await deviceSessionService.removeContext(deviceId, contextId)
+      : await deviceSessionService.removePrincipal(deviceId, String(principalId));
+    if (!outcome.ok) {
+      res.status(404).json({ error: 'Not on this device' });
+      return;
+    }
+    broadcastDeviceState(outcome.state);
+    broadcastSessionAccountsChanged(outcome.removedAccountIds, outcome.state.revision, 'signout');
+    res.json({ data: { directory: outcome.directory, ...withoutActiveToken(outcome.state) } });
+    return;
+  }
+
   const target = all === true ? { all: true as const } : accountId ? { accountId } : null;
-  if (!target) { res.status(400).json({ error: 'accountId or all required' }); return; }
+  if (!target) { res.status(400).json({ error: 'accountId, contextId, principalId or all required' }); return; }
   // Capture the account set BEFORE signout so we can signal every user actually
   // removed — this covers `all`, a single account, AND the operator-cascade
   // (signing out an operator removes their managed accounts too).
@@ -305,7 +504,7 @@ router.post('/signout', asyncHandler(async (req: AuthRequest, res: Response) => 
     .map((a) => a.accountId)
     .filter((id) => !remaining.has(id));
   broadcastSessionAccountsChanged(removedUserIds, state.revision, 'signout');
-  res.json({ data: await withActiveToken(state) });
+  res.json({ data: withoutActiveToken(state) });
 }));
 
 export default router;

@@ -53,6 +53,34 @@ function heads(n: number): TransparencyHeadEntry[] {
   }));
 }
 
+/**
+ * RFC 6962 §2.1 MTH, transcribed directly from the spec — the independent
+ * oracle the production bottom-up build is checked against.
+ *
+ * `buildTransparencyTree` builds levels iteratively (pair adjacent, carry a
+ * trailing odd node up) because that lets it keep the interior nodes for cheap
+ * proofs. This recursive split-at-the-largest-power-of-two definition is the
+ * normative one, and the equivalence between the two is an assumption the
+ * commitment rests on — so it is TESTED, never assumed.
+ */
+async function rfc6962MerkleTreeHash(leaves: string[]): Promise<string> {
+  if (leaves.length === 0) {
+    return EMPTY_TRANSPARENCY_ROOT;
+  }
+  if (leaves.length === 1) {
+    return leaves[0];
+  }
+  let k = 1;
+  while (k * 2 < leaves.length) {
+    k *= 2;
+  }
+  const [left, right] = await Promise.all([
+    rfc6962MerkleTreeHash(leaves.slice(0, k)),
+    rfc6962MerkleTreeHash(leaves.slice(k)),
+  ]);
+  return sha256(`oxy.transparency.node.v1:${left}${right}`);
+}
+
 describe('transparencyLeafHash', () => {
   it('is deterministic for the same head', async () => {
     expect(await transparencyLeafHash(HEAD_A)).toBe(await transparencyLeafHash(HEAD_A));
@@ -121,6 +149,22 @@ describe('buildTransparencyTree', () => {
     const tree = await buildTransparencyTree(l);
     expect(tree.root).toBe(await sha256(`oxy.transparency.node.v1:${left}${l[2]}`));
   });
+
+  it('matches the RFC 6962 recursive definition at every size from 0 to 40', async () => {
+    for (let size = 0; size <= 40; size++) {
+      const leaves = await Promise.all(heads(size).map(transparencyLeafHash));
+      const tree = await buildTransparencyTree(leaves);
+      expect(tree.root).toBe(await rfc6962MerkleTreeHash(leaves));
+      expect(tree.levels[0]).toEqual(leaves);
+    }
+  });
+
+  it('keeps the leaf level independent of the caller array', async () => {
+    const leaves = await Promise.all(heads(3).map(transparencyLeafHash));
+    const tree = await buildTransparencyTree(leaves);
+    leaves[0] = 'f'.repeat(64);
+    expect(tree.levels[0][0]).not.toBe('f'.repeat(64));
+  });
 });
 
 describe('buildTransparencyTreeFromHeads', () => {
@@ -144,13 +188,13 @@ describe('buildTransparencyTreeFromHeads', () => {
 });
 
 describe('verifyInclusionProof', () => {
-  it('verifies every leaf of every tree size from 1 to 9', async () => {
-    for (let size = 1; size <= 9; size++) {
+  it('verifies every leaf of every tree size from 1 to 40', async () => {
+    for (let size = 1; size <= 40; size++) {
       const entries = heads(size);
       const tree = await buildTransparencyTreeFromHeads(entries);
       for (let index = 0; index < size; index++) {
         const leaf = await transparencyLeafHash(entries[index]);
-        const proof = await inclusionProof(tree.leaves, index);
+        const proof = inclusionProof(tree, index);
         await expect(
           verifyInclusionProof({ leaf, index, treeSize: size, proof, root: tree.root }),
         ).resolves.toBe(true);
@@ -161,7 +205,7 @@ describe('verifyInclusionProof', () => {
   it('verifies from the leaf alone, without the rest of the leaf set', async () => {
     const entries = heads(7);
     const tree = await buildTransparencyTreeFromHeads(entries);
-    const proof = await inclusionProof(tree.leaves, 5);
+    const proof = inclusionProof(tree, 5);
     const leaf = await transparencyLeafHash(entries[5]);
     // Only the verifier's own leaf, its index, the tree size, the path and the
     // signed root — the full leaf set is never needed.
@@ -173,7 +217,7 @@ describe('verifyInclusionProof', () => {
   it('fails when the head record id was tampered with after the checkpoint', async () => {
     const entries = heads(5);
     const tree = await buildTransparencyTreeFromHeads(entries);
-    const proof = await inclusionProof(tree.leaves, 2);
+    const proof = inclusionProof(tree, 2);
     const tamperedLeaf = await transparencyLeafHash({ ...entries[2], headRecordId: 'f'.repeat(64) });
     await expect(
       verifyInclusionProof({ leaf: tamperedLeaf, index: 2, treeSize: 5, proof, root: tree.root }),
@@ -183,7 +227,7 @@ describe('verifyInclusionProof', () => {
   it('fails when a chain was rolled back to an earlier seq', async () => {
     const entries = heads(5);
     const tree = await buildTransparencyTreeFromHeads(entries);
-    const proof = await inclusionProof(tree.leaves, 3);
+    const proof = inclusionProof(tree, 3);
     const rolledBack = await transparencyLeafHash({ ...entries[3], seq: entries[3].seq - 1 });
     await expect(
       verifyInclusionProof({ leaf: rolledBack, index: 3, treeSize: 5, proof, root: tree.root }),
@@ -193,7 +237,7 @@ describe('verifyInclusionProof', () => {
   it('fails when the proof is replayed at a different index', async () => {
     const entries = heads(6);
     const tree = await buildTransparencyTreeFromHeads(entries);
-    const proof = await inclusionProof(tree.leaves, 1);
+    const proof = inclusionProof(tree, 1);
     const leaf = await transparencyLeafHash(entries[1]);
     await expect(
       verifyInclusionProof({ leaf, index: 2, treeSize: 6, proof, root: tree.root }),
@@ -204,7 +248,7 @@ describe('verifyInclusionProof', () => {
     const entries = heads(4);
     const tree = await buildTransparencyTreeFromHeads(entries);
     const otherTree = await buildTransparencyTreeFromHeads(heads(5));
-    const proof = await inclusionProof(tree.leaves, 0);
+    const proof = inclusionProof(tree, 0);
     const leaf = await transparencyLeafHash(entries[0]);
     await expect(
       verifyInclusionProof({ leaf, index: 0, treeSize: 4, proof, root: otherTree.root }),
@@ -214,7 +258,7 @@ describe('verifyInclusionProof', () => {
   it('fails when the proof path is truncated', async () => {
     const entries = heads(8);
     const tree = await buildTransparencyTreeFromHeads(entries);
-    const proof = await inclusionProof(tree.leaves, 0);
+    const proof = inclusionProof(tree, 0);
     await expect(
       verifyInclusionProof({
         leaf: await transparencyLeafHash(entries[0]),
@@ -229,7 +273,7 @@ describe('verifyInclusionProof', () => {
   it('rejects an index outside the tree instead of verifying', async () => {
     const entries = heads(3);
     const tree = await buildTransparencyTreeFromHeads(entries);
-    await expect(inclusionProof(tree.leaves, 3)).rejects.toThrow(/index/i);
+    expect(() => inclusionProof(tree, 3)).toThrow(/index/i);
   });
 });
 

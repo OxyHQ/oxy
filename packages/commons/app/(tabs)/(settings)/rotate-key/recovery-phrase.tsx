@@ -5,7 +5,7 @@ import { RecoveryPhraseService } from '@oxyhq/core';
 import { alert } from '@oxyhq/bloom';
 import { useColors } from '@/hooks/useColors';
 import { RecoveryPhraseStep } from '@/components/auth/RecoveryPhraseStep';
-import { CenteredState, Button } from '@/components/ui';
+import { CenteredState, Button, useScreenBottomPad } from '@/components/ui';
 import { useTranslation } from '@/lib/i18n';
 import { useRotateKeyFlow } from '@/contexts/rotate-key-flow-context';
 
@@ -24,6 +24,7 @@ export default function RotateKeyRecoveryPhraseScreen() {
   const colors = useColors();
   const { t } = useTranslation();
   const { pendingIdentityRef } = useRotateKeyFlow();
+  const contentBottomPad = useScreenBottomPad();
 
   const [words, setWords] = useState<string[] | null>(
     () => pendingIdentityRef.current?.words ?? null,
@@ -133,6 +134,7 @@ export default function RotateKeyRecoveryPhraseScreen() {
       onContinue={handleContinue}
       backgroundColor={colors.background}
       textColor={colors.text}
+      contentBottomPad={contentBottomPad}
     />
   );
 }

@@ -12,9 +12,12 @@
     "build:shared-types": "bun run --cwd packages/shared-types build",
     "build:frontend": "bun run --cwd packages/frontend export:web",
     "lint": "bun run --cwd packages/frontend lint",
+    "validate:agents-md": "bun ./scripts/check-agents-md-size.mjs && bun ./scripts/test-check-agents-md-size.mjs",
     "postinstall": "bun run build:shared-types"{{#backend}},
     "dev:backend": "bun run --cwd packages/backend dev",
     "build:backend": "bun run --cwd packages/backend build",
+    "db:generate": "bun run --cwd packages/backend db:generate",
+    "db:migrate": "bun run --cwd packages/backend db:migrate",
     "build": "bun run build:shared-types && bun run build:backend"{{/backend}}
   },
   "overrides": {

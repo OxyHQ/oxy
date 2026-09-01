@@ -22,7 +22,20 @@ import type { ChainHead } from '@oxyhq/protocol';
 import { oxyRecordStore, subjectKeyForUser, DEFAULT_LOG_LIMIT } from './oxyRecordStore';
 import { NODE_COLLECTION } from '../utils/nodes.constants';
 
-/** Public-safe NSIDs that unauthenticated node bootstrap may export. */
+/**
+ * Public-safe NSIDs that unauthenticated node bootstrap may export.
+ *
+ * DELIBERATELY not derived from `chainCollectionPolicy`'s
+ * `PUBLIC_CHAIN_COLLECTIONS`, and the distinction is load-bearing: that policy
+ * answers "may this collection be published at all", while this answers "does a
+ * bootstrapping node need it". Deriving one from the other would start exporting
+ * every app's public records — Mention posts included — from a CORS-open route
+ * whose purpose is letting a node verify an identity.
+ *
+ * The relationship that DOES hold is containment: nothing here may be a
+ * collection the policy calls private. `__tests__/chainCollectionPolicy.test.ts`
+ * asserts it, so the two cannot drift into disagreeing.
+ */
 export const PUBLIC_LOG_COLLECTIONS = ['app.oxy.identity', 'app.oxy.profile', NODE_COLLECTION] as const;
 
 /**

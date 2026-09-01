@@ -85,15 +85,13 @@ jest.mock('../../services/assetServiceSingleton', () => ({
     repairMissingFederationFileContent: (...args: unknown[]) =>
       mockRepairMissingFederationFileContent(...args),
   },
+}));
+
+jest.mock('../../services/s3ServiceSingleton', () => ({
   s3Service: {
     fileExists: (...args: unknown[]) => mockFileExists(...args),
     getObjectStreamRange: (...args: unknown[]) => mockGetObjectStreamRange(...args),
   },
-}));
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn() },
 }));
 
 import assetsRouter from '../assets';
@@ -221,6 +219,42 @@ describe('GET /assets/:id/stream — public CDN redirect', () => {
     // Private assets must never consult the public-CDN probe.
     expect(mockGetPublicCdnUrl).not.toHaveBeenCalled();
     expect(mockGetObjectStreamRange).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 404 when a requested variant cannot be ensured (never streams the original)', async () => {
+    mockGetFile.mockResolvedValue({
+      _id: PRIVATE_FILE_ID,
+      visibility: 'private',
+      storageKey: 'content/2026/06/vv/video.mp4',
+      mimeType: 'video/mp4',
+      variants: [],
+    });
+    mockEnsureVariant.mockRejectedValue(new Error('poster ffmpeg timed out'));
+
+    const res = await requestNoFollow(server, `/assets/${PRIVATE_FILE_ID}/stream?variant=thumb`);
+
+    expect(res.status).toBe(404);
+    expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
+  });
+
+  it('serves a placeholder when variant ensure fails and fallback=icon is requested', async () => {
+    mockGetFile.mockResolvedValue({
+      _id: PRIVATE_FILE_ID,
+      visibility: 'private',
+      storageKey: 'content/2026/06/vv/video.mp4',
+      mimeType: 'video/mp4',
+      variants: [],
+    });
+    mockEnsureVariant.mockRejectedValue(new Error('poster ffmpeg timed out'));
+
+    const res = await requestNoFollow(
+      server,
+      `/assets/${PRIVATE_FILE_ID}/stream?variant=thumb&fallback=icon`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toBe('<svg/>');
+    expect(mockGetObjectStreamRange).not.toHaveBeenCalled();
   });
 
   it('degrades to origin streaming when the public-CDN probe throws', async () => {

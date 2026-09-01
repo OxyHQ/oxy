@@ -39,8 +39,8 @@ import {
 } from '@oxyhq/bloom/admonition';
 import { surfaces as bloomSurfaces } from '@oxyhq/bloom/surfaces';
 import { useTheme } from '@oxyhq/bloom/theme';
-import { toast } from '@oxyhq/bloom';
-import { getAccountDisplayName, logger } from '@oxyhq/core';
+import { toast } from '@oxyhq/bloom/toast';
+import { getNormalizedUserHandle, logger } from '@oxyhq/core';
 import type { FileMetadata } from '@oxyhq/core';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
@@ -133,7 +133,7 @@ async function loadImagePicker(): Promise<ImagePickerModule | null> {
 
 const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) => {
     const bloomTheme = useTheme();
-    const { t, locale } = useI18n();
+    const { t } = useI18n();
     const { user, oxyServices } = useOxy();
 
     /** Set when a permission was refused — drives the inline denied notice. */
@@ -143,7 +143,10 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
 
     useSurfaceHeader(useMemo(() => ({ title: t('changeAvatar.title') }), [t]));
 
-    const displayName = useMemo(() => getAccountDisplayName(user, locale), [user, locale]);
+    const displayName = useMemo(
+        () => user?.name?.displayName ?? getNormalizedUserHandle(user) ?? '',
+        [user],
+    );
     const avatarUri = useMemo(
         // `thumb` is 256x256 — exactly a 2x source for the 132dp hero.
         () => (user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined),
@@ -279,7 +282,7 @@ const ChangeAvatarScreen: React.FC<BaseScreenProps> = ({ navigate, dismiss }) =>
     const removeCurrentPhoto = useCallback(async () => {
         const confirmed = await bloomSurfaces.confirm({
             title: t('changeAvatar.remove.confirmTitle'),
-            message: t('changeAvatar.remove.confirmMessage'),
+            description: t('changeAvatar.remove.confirmMessage'),
             confirmLabel: t('changeAvatar.remove.confirmLabel'),
             cancelLabel: t('common.cancel'),
             destructive: true,

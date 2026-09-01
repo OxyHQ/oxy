@@ -1,8 +1,10 @@
 import crypto from 'crypto';
 import dns from 'dns/promises';
 import net from 'net';
-import { SenderAvatar } from '../models/SenderAvatar';
-import User from '../models/User';
+import { and, inArray, sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { senderAvatarIsFresh, senderAvatars } from '../db/schema/senderAvatars';
+import { users } from '../db/schema/users';
 import { extractUsername } from '../config/email.config';
 
 const CACHE_TTL_DAYS = 7;
@@ -125,8 +127,14 @@ async function resolveAvatar(email: string): Promise<{ avatarPath: string | null
   const username = extractUsername(normalized);
   if (username) {
     try {
-      const user = await User.findOne({ username }).select('avatar').lean();
-      if (user && user.avatar) {
+      // `lower(btrim(username))`, matching `users_lower_username_key`. A plain
+      // equality is correct-looking, case-sensitive, and would not use the index.
+      const [user] = await getDb()
+        .select({ avatar: users.avatar })
+        .from(users)
+        .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
+        .limit(1);
+      if (user?.avatar) {
         return { avatarPath: `/api/assets/${user.avatar}/stream`, source: 'oxy' };
       }
     } catch {
@@ -171,12 +179,23 @@ async function resolveAvatar(email: string): Promise<{ avatarPath: string | null
 
 /**
  * Resolve a single sender's avatar with DB caching.
+ *
+ * The read carries `senderAvatarIsFresh()`. Mongo's TTL monitor was the ONLY
+ * thing that stopped an expired row being served here, which made a background
+ * job part of this table's correctness (`CONVENTIONS.md`, class (B)); with the
+ * predicate, an expired row that the sweep has not reached yet simply misses
+ * and falls through to the resolve-and-upsert path below — which is what an
+ * expired row was always supposed to cause.
  */
 export async function getAvatarPath(email: string): Promise<string | null> {
   const normalized = email.trim().toLowerCase();
 
   // Check cache
-  const cached = await SenderAvatar.findOne({ email: normalized }).lean();
+  const [cached] = await getDb()
+    .select({ avatarPath: senderAvatars.avatarPath })
+    .from(senderAvatars)
+    .where(and(sql`${senderAvatars.email} = ${normalized}`, senderAvatarIsFresh()))
+    .limit(1);
   if (cached) {
     return cached.avatarPath;
   }
@@ -184,12 +203,15 @@ export async function getAvatarPath(email: string): Promise<string | null> {
   // Resolve and cache
   const { avatarPath, source } = await resolveAvatar(normalized);
   const expiresAt = new Date(Date.now() + CACHE_TTL_DAYS * 24 * 60 * 60 * 1000);
+  const resolvedAt = new Date();
 
-  await SenderAvatar.updateOne(
-    { email: normalized },
-    { $set: { avatarPath, source, resolvedAt: new Date(), expiresAt } },
-    { upsert: true },
-  );
+  await getDb()
+    .insert(senderAvatars)
+    .values({ email: normalized, avatarPath, source, resolvedAt, expiresAt })
+    .onConflictDoUpdate({
+      target: senderAvatars.email,
+      set: { avatarPath, source, resolvedAt, expiresAt },
+    });
 
   return avatarPath;
 }
@@ -204,14 +226,19 @@ export async function getAvatarPathsBatch(emails: string[]): Promise<Map<string,
 
   if (unique.length === 0) return result;
 
-  // Bulk cache lookup
-  const cached = await SenderAvatar.find({ email: { $in: unique } }).lean();
+  // Bulk cache lookup — same freshness predicate as the single read, so a stale
+  // row is a MISS here too rather than a served stale avatar.
+  const cached = await getDb()
+    .select({ email: senderAvatars.email, avatarPath: senderAvatars.avatarPath })
+    .from(senderAvatars)
+    .where(and(inArray(senderAvatars.email, unique), senderAvatarIsFresh()));
   const cachedMap = new Map(cached.map((c) => [c.email, c.avatarPath]));
 
   const misses: string[] = [];
   for (const email of unique) {
-    if (cachedMap.has(email)) {
-      result.set(email, cachedMap.get(email)!);
+    const hit = cachedMap.get(email);
+    if (hit !== undefined) {
+      result.set(email, hit);
     } else {
       misses.push(email);
     }
@@ -228,14 +255,17 @@ export async function getAvatarPathsBatch(emails: string[]): Promise<Map<string,
           return { email, path };
         }),
       );
-      for (const r of resolved) {
-        if (r.status === 'fulfilled') {
-          result.set(r.value.email, r.value.path);
+      resolved.forEach((outcome, index) => {
+        if (outcome.status === 'fulfilled') {
+          result.set(outcome.value.email, outcome.value.path);
         } else {
-          // Resolution failed entirely — set null, don't cache
-          result.set(misses[resolved.indexOf(r)], null);
+          // Resolution failed entirely — report null, and cache nothing. The
+          // index is the position WITHIN this batch, which is what pairs an
+          // outcome with its address; `indexOf` on the settled array matched
+          // the first structurally-equal entry instead.
+          result.set(batch[index], null);
         }
-      }
+      });
     }
   }
 

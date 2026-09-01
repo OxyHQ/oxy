@@ -144,3 +144,17 @@ export function formatUserNameResponse(source: DisplayNameSource): NameResponse 
 
   return name;
 }
+
+/**
+ * Resolve a non-empty outbound-email "From:" / greeting name.
+ *
+ * Uses {@link composeDisplayName} for the real name, then falls back to
+ * `username` — the one place email call sites are allowed to synthesize a
+ * label when the user has no composed real name.
+ */
+export function resolveEmailFromName(source: DisplayNameSource): string {
+  const composed = composeDisplayName(source);
+  if (composed) return composed;
+  const username = typeof source.username === 'string' ? source.username.trim() : '';
+  return username;
+}

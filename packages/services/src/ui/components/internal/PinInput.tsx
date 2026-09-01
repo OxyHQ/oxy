@@ -64,6 +64,7 @@ const PinInput = forwardRef<PinInputHandle, PinInputProps>(({ value, onChange, l
         <View style={styles.pinContainer}>
             {Array.from({ length }).map((_, idx) => (
                 <TextInput
+                    // biome-ignore lint/suspicious/noArrayIndexKey: fixed-position PIN cells, order never changes
                     key={`pin-input-${idx}`}
                     ref={(ref) => { inputs.current[idx] = ref; }}
                     style={[

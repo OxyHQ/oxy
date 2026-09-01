@@ -11,8 +11,3 @@ export interface VariantConfig {
   format?: 'webp' | 'jpeg' | 'png';
 }
 
-export interface VariantCommitRetryOptions {
-  maxRetries?: number;
-  retryDelay?: number;
-}
-

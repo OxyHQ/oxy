@@ -40,17 +40,23 @@ const openAccountDialog = jest.fn();
 const getPublicApplication = jest.fn<Promise<PublicApplication>, [string]>();
 const startWebOAuthSignIn = jest.fn<Promise<WebOAuthSignInResult>, [StartWebOAuthSignInOptions]>();
 let clientId: string | null = 'oxy_dk_test';
-let webAuthMode: WebAuthMode = 'redirect';
+let webAuthMode: WebAuthMode = 'popup';
+
+const mockRuntime = () => ({
+  openAccountDialog,
+  oxyServices: { getPublicApplication },
+  clientId,
+  webAuthMode,
+  startWebOAuthSignIn,
+  currentLanguage: 'en-US',
+});
 
 jest.mock('../../src/ui/context/OxyContext', () => ({
   __esModule: true,
-  useOxy: () => ({
-    openAccountDialog,
-    oxyServices: { getPublicApplication },
-    clientId,
-    webAuthMode,
-    startWebOAuthSignIn,
-  }),
+  useOxy: () => mockRuntime(),
+  // The button's label goes through `useI18n()`, the one hook that reads the
+  // runtime optionally.
+  useOptionalOxy: () => mockRuntime(),
 }));
 
 jest.mock('../../src/ui/stores/authStore', () => ({
@@ -85,7 +91,7 @@ const openAuthorizeUrlNativeMock = openAuthorizeUrlNative as jest.MockedFunction
 beforeEach(() => {
   jest.clearAllMocks();
   clientId = 'oxy_dk_test';
-  webAuthMode = 'redirect';
+  webAuthMode = 'popup';
   Platform.OS = 'web';
   openAuthorizeUrlNativeMock.mockResolvedValue({ redirectUrl: null });
   startWebOAuthSignIn.mockResolvedValue({ status: 'redirecting', via: 'redirect-mode' });
@@ -134,9 +140,9 @@ describe('OxySignInButton', () => {
     fireEvent.click(screen.getByRole('button'));
 
     await waitFor(() => expect(startWebOAuthSignIn).toHaveBeenCalledTimes(1));
-    expect(startWebOAuthSignIn).toHaveBeenCalledWith({
-      redirectUri: 'https://rp.example/callback',
-    });
+    expect(startWebOAuthSignIn).toHaveBeenCalledWith(
+      expect.objectContaining({ redirectUri: 'https://rp.example/callback' }),
+    );
     expect(openAccountDialog).not.toHaveBeenCalled();
     // The button itself never navigates or writes the handshake — the transport
     // owns both, so exactly one implementation of either exists.
@@ -163,15 +169,18 @@ describe('OxySignInButton', () => {
     errorSpy.mockRestore();
   });
 
-  it('falls back to the dialog when the application cannot be resolved', async () => {
+  it('fails closed when the application cannot be resolved', async () => {
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
     getPublicApplication.mockRejectedValue(new Error('network'));
 
     render(<OxySignInButton oauthRedirectUri="https://rp.example/callback" />);
     fireEvent.click(screen.getByRole('button'));
 
-    await waitFor(() => expect(openAccountDialog).toHaveBeenCalledWith('signin'));
+    await waitFor(() => expect(warnSpy).toHaveBeenCalled());
+    expect(openAccountDialog).not.toHaveBeenCalled();
+    expect(startWebOAuthSignIn).not.toHaveBeenCalled();
     expect(redirectToAuthorizeMock).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledTimes(1);
 
     warnSpy.mockRestore();
   });
@@ -370,6 +379,7 @@ describe('OxySignInButton', () => {
   });
 
   it('opens no window in redirect mode, even for a third_party application', async () => {
+    webAuthMode = 'redirect';
     const openSpy = jest.spyOn(window, 'open');
     getPublicApplication.mockResolvedValue(makeApp({ type: 'third_party', isOfficial: false }));
 

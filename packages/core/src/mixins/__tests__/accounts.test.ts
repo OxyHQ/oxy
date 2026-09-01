@@ -17,9 +17,6 @@ import type { User } from '../../models/interfaces';
 import type {
   AccountNode,
   AccountMember,
-  AccountCredential,
-  AccountCredentialWithSecret,
-  RotateAccountCredentialResult,
   Application,
   ApplicationCredential,
   ApplicationCredentialWithSecret,
@@ -47,6 +44,7 @@ const memberFixture: AccountMember = {
   permissions: ['account:read', 'apps:read'],
   inherit: true,
   status: 'active',
+  source: 'direct',
   createdAt: '2026-06-29T00:00:00.000Z',
   updatedAt: '2026-06-29T00:00:00.000Z',
 };
@@ -59,20 +57,6 @@ const accountNodeFixture: AccountNode = {
   relationship: 'owner',
   callerMembership: { ...memberFixture, role: 'owner', source: 'direct' },
   childCount: 2,
-};
-
-const credentialFixture: AccountCredential = {
-  _id: 'cred1',
-  accountId: 'acc1',
-  name: 'bot-prod',
-  publicKey: 'oxy_dk_abc',
-  type: 'service',
-  environment: 'production',
-  scopes: ['user:read'],
-  status: 'active',
-  createdByUserId: 'u1',
-  createdAt: '2026-06-29T00:00:00.000Z',
-  updatedAt: '2026-06-29T00:00:00.000Z',
 };
 
 const appFixture: Application = {
@@ -271,13 +255,20 @@ describe('OxyServices.accounts', () => {
     it('posts the payload, unwraps `account`, and busts every list', async () => {
       makeRequestSpy.mockResolvedValue({ account: accountNodeFixture });
 
-      const result = await oxy.createAccount({ kind: 'organization', username: 'oxy-org' });
+      const result = await oxy.createAccount({
+        kind: 'organization',
+        username: 'oxy-org',
+        color: 'purple',
+      });
 
       expect(result).toEqual(accountNodeFixture);
+      // `color` rides the CREATE body, not a follow-up patch: an account that is
+      // discoverable without its colour and acquires one on a second request is
+      // a face that changes by itself.
       expect(makeRequestSpy).toHaveBeenCalledWith(
         'POST',
         '/accounts',
-        { kind: 'organization', username: 'oxy-org' },
+        { kind: 'organization', username: 'oxy-org', color: 'purple' },
         expect.objectContaining({ cache: false }),
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts');
@@ -289,13 +280,13 @@ describe('OxyServices.accounts', () => {
     it('patches, unwraps `account`, and busts the detail + lists', async () => {
       makeRequestSpy.mockResolvedValue({ account: accountNodeFixture });
 
-      const result = await oxy.updateAccount('acc1', { bio: 'hello' });
+      const result = await oxy.updateAccount('acc1', { bio: 'hello', color: 'mint' });
 
       expect(result).toEqual(accountNodeFixture);
       expect(makeRequestSpy).toHaveBeenCalledWith(
         'PATCH',
         '/accounts/acc1',
-        { bio: 'hello' },
+        { bio: 'hello', color: 'mint' },
         expect.objectContaining({ cache: false }),
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1');
@@ -385,6 +376,7 @@ describe('OxyServices.accounts', () => {
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/members');
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1');
+      expect(clearPrefixSpy).toHaveBeenCalledWith('GET:/accounts/');
     });
   });
 
@@ -403,6 +395,7 @@ describe('OxyServices.accounts', () => {
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/members');
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1');
+      expect(clearPrefixSpy).toHaveBeenCalledWith('GET:/accounts/');
     });
   });
 
@@ -421,6 +414,7 @@ describe('OxyServices.accounts', () => {
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/members');
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1');
+      expect(clearPrefixSpy).toHaveBeenCalledWith('GET:/accounts/');
     });
   });
 
@@ -439,6 +433,7 @@ describe('OxyServices.accounts', () => {
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/members');
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1');
+      expect(clearPrefixSpy).toHaveBeenCalledWith('GET:/accounts/');
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts');
       expect(clearPrefixSpy).toHaveBeenCalledWith('GET:/accounts?');
     });
@@ -468,91 +463,6 @@ describe('OxyServices.accounts', () => {
     it('returns an empty array when `applications` is absent', async () => {
       makeRequestSpy.mockResolvedValue({});
       expect(await oxy.listAccountApps('acc1')).toEqual([]);
-    });
-  });
-
-  describe('listAccountCredentials', () => {
-    it('unwraps the `credentials` array and caches the read', async () => {
-      makeRequestSpy.mockResolvedValue({ credentials: [credentialFixture] });
-
-      const result = await oxy.listAccountCredentials('acc1');
-
-      expect(result).toEqual([credentialFixture]);
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'GET',
-        '/accounts/acc1/credentials',
-        undefined,
-        expect.objectContaining({ cache: true }),
-      );
-    });
-
-    it('returns an empty array when `credentials` is absent', async () => {
-      makeRequestSpy.mockResolvedValue({});
-      expect(await oxy.listAccountCredentials('acc1')).toEqual([]);
-    });
-  });
-
-  describe('createAccountCredential', () => {
-    it('posts the config, returns the secret result, and busts the credentials cache', async () => {
-      const created: AccountCredentialWithSecret = {
-        credential: credentialFixture,
-        secret: 'sk_once',
-      };
-      makeRequestSpy.mockResolvedValue(created);
-
-      const result = await oxy.createAccountCredential('acc1', {
-        name: 'bot-prod',
-        environment: 'production',
-      });
-
-      expect(result).toEqual(created);
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'POST',
-        '/accounts/acc1/credentials',
-        { name: 'bot-prod', environment: 'production' },
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/credentials');
-    });
-  });
-
-  describe('rotateAccountCredential', () => {
-    it('posts to /rotate, encodes ids, returns the audit result, and busts credentials', async () => {
-      const rotated: RotateAccountCredentialResult = {
-        credential: { ...credentialFixture, _id: 'cred2' },
-        secret: 'sk_new',
-        rotatedFrom: 'cred1',
-        graceExpiresAt: '2026-07-06T00:00:00.000Z',
-      };
-      makeRequestSpy.mockResolvedValue(rotated);
-
-      const result = await oxy.rotateAccountCredential('acc1', 'cred 1');
-
-      expect(result).toEqual(rotated);
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'POST',
-        '/accounts/acc1/credentials/cred%201/rotate',
-        undefined,
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/credentials');
-    });
-  });
-
-  describe('revokeAccountCredential', () => {
-    it('deletes the credential and busts the credentials cache', async () => {
-      makeRequestSpy.mockResolvedValue({ success: true });
-
-      const result = await oxy.revokeAccountCredential('acc1', 'cred1');
-
-      expect(result).toEqual({ success: true });
-      expect(makeRequestSpy).toHaveBeenCalledWith(
-        'DELETE',
-        '/accounts/acc1/credentials/cred1',
-        undefined,
-        expect.objectContaining({ cache: false }),
-      );
-      expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1/credentials');
     });
   });
 
@@ -673,6 +583,39 @@ describe('OxyServices.accounts', () => {
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/applications/app1/credentials');
     });
+
+    it("forwards a machine credential's expiresInSeconds and its one-time token", async () => {
+      // A `machine` credential's material arrives in `token`, never `secret` —
+      // a surface rendering "the secret" must not silently print an API key.
+      const created: ApplicationCredentialWithSecret = {
+        credential: { ...appCredentialFixture, type: 'machine', tokenPrefix: 'oxy_sk_0123456789abcdef' },
+        secret: null,
+        token: 'oxy_sk_0123456789abcdef_' + 'a'.repeat(64),
+      };
+      makeRequestSpy.mockResolvedValue(created);
+
+      const result = await oxy.createAppCredential('app1', {
+        name: 'ci-runner',
+        type: 'machine',
+        environment: 'production',
+        scopes: ['inference:invoke'],
+        expiresInSeconds: 86_400,
+      });
+
+      expect(result.token).toBe(created.token);
+      expect(makeRequestSpy).toHaveBeenCalledWith(
+        'POST',
+        '/applications/app1/credentials',
+        {
+          name: 'ci-runner',
+          type: 'machine',
+          environment: 'production',
+          scopes: ['inference:invoke'],
+          expiresInSeconds: 86_400,
+        },
+        expect.objectContaining({ cache: false }),
+      );
+    });
   });
 
   describe('rotateAppCredential', () => {
@@ -695,6 +638,30 @@ describe('OxyServices.accounts', () => {
         expect.objectContaining({ cache: false }),
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/applications/app1/credentials');
+    });
+
+    it('forwards an opt-in rotation grace window', async () => {
+      // Omitting it (the case above) sends `undefined`, and the server then
+      // revokes the superseded machine token immediately. Sending it must reach
+      // the body, or a caller asking for zero-downtime rotation would silently
+      // get the instant-revoke behaviour instead.
+      const rotated: RotateApplicationCredentialResult = {
+        credential: { ...appCredentialFixture, _id: 'appcred2', type: 'machine' },
+        secret: null,
+        token: 'oxy_sk_fedcba9876543210_' + 'b'.repeat(64),
+        rotatedFrom: 'appcred1',
+        graceExpiresAt: '2026-08-17T00:00:00.000Z',
+      };
+      makeRequestSpy.mockResolvedValue(rotated);
+
+      await oxy.rotateAppCredential('app1', 'appcred1', { graceSeconds: 3600 });
+
+      expect(makeRequestSpy).toHaveBeenCalledWith(
+        'POST',
+        '/applications/app1/credentials/appcred1/rotate',
+        { graceSeconds: 3600 },
+        expect.objectContaining({ cache: false }),
+      );
     });
   });
 

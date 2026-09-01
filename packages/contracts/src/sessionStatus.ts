@@ -116,6 +116,11 @@ export const sessionStatusSchema = z.object({
     sessionId: z.string().nullable().optional(),
     publicKey: z.string().nullable().optional(),
     userId: z.string().nullable().optional(),
+    /**
+     * What approving this request does. Legacy rows read as `device_sign_in`.
+     * OAuth-bound sessions finalize into an authorization code (no `sessionId`).
+     */
+    purpose: z.enum(['device_sign_in', 'oauth_authorization']).optional(),
     pushSentAt: z.string().nullable().optional(),
     openedAt: z.string().nullable().optional(),
 });

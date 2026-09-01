@@ -16,7 +16,7 @@
  * `packages/api/src/utils/reputation.constants.ts`.
  */
 
-import type { ReputationCategory, ReputationTransaction } from '@oxyhq/core';
+import type { ReputationCategory, ReputationTransaction } from '@oxyhq/contracts';
 import type { MaterialCommunityIconName } from '@/types/icons';
 
 /** Presentation metadata for one activity row. */

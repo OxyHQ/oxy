@@ -23,12 +23,24 @@
  */
 
 import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxyhq/core';
+import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxyhq/contracts';
 import {
+  ensureNotificationChannel,
   getExpoPushToken,
   hasNotificationPermission,
   pushTokenPlatform,
-} from '@oxyhq/services';
+} from '@oxyhq/services/notifications';
 import { OXY_CLIENT_ID } from '@/constants/oxy';
+
+/**
+ * The channel's user-visible copy. Injected rather than read here: this module
+ * is not a component, and Commons' translations are only reachable through a
+ * hook — so the two hook call sites localize it and hand it down.
+ */
+export interface ApprovalChannelCopy {
+  name: string;
+  description: string;
+}
 
 /** The `@oxyhq/core` surface this module drives (satisfied by `OxyServices`). */
 export interface PushTokenRegistry {
@@ -86,7 +98,7 @@ export type PushRetirementOutcome =
 export async function registerInstallationPushToken(
   registry: PushTokenRegistry,
   environment: PushTokenEnvironment,
-  options: { clientId: string; deviceId?: string },
+  options: { clientId: string; deviceId?: string; channel: ApprovalChannelCopy },
 ): Promise<PushRegistrationOutcome> {
   const platform = environment.pushTokenPlatform();
   if (!platform) {
@@ -103,6 +115,16 @@ export async function registerInstallationPushToken(
   if (!expoPushToken) {
     return { status: 'skipped', reason: 'no-token' };
   }
+
+  // Before the token, never after: the very first request the server sends must
+  // already have a channel to land on, or Android 8+ drops it with no error.
+  // The id is the wire contract; the name and description are Commons copy.
+  await ensureNotificationChannel({
+    id: IDENTITY_APPROVAL_PUSH_CHANNEL,
+    name: options.channel.name,
+    description: options.channel.description,
+    importance: 'high',
+  });
 
   const input: RegisterPushTokenInput = {
     expoPushToken,
@@ -157,10 +179,12 @@ const deviceEnvironment: PushTokenEnvironment = {
  */
 export function registerVaultPushToken(
   registry: PushTokenRegistry,
+  channel: ApprovalChannelCopy,
   deviceId?: string,
 ): Promise<PushRegistrationOutcome> {
   return registerInstallationPushToken(registry, deviceEnvironment, {
     clientId: OXY_CLIENT_ID,
+    channel,
     ...(deviceId ? { deviceId } : {}),
   });
 }

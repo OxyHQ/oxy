@@ -57,10 +57,11 @@ export const deviceTokenMintRequestSchema = z.object({
 
 /**
  * Wire shape of a successful `POST /session/device/token`: the freshly-minted
- * short access token for the active account, its expiry, the NEXT rotating
- * device secret the client must persist (rotation-in-use — the presented secret
- * stays valid for a short grace so multi-tab races don't lock out), and the
- * projected device-session state.
+ * short access token for the active account, its expiry, the device secret the
+ * client must persist (`nextDeviceSecret` — on mint this echoes the presented
+ * secret unchanged so concurrent refreshes from multiple origins do not race),
+ * and the projected device-session state. Sign-in rotates the secret via
+ * `issueDeviceSecret`; mint does not.
  */
 export const deviceTokenMintResponseSchema = z.object({
   accessToken: z.string(),
@@ -71,38 +72,6 @@ export const deviceTokenMintResponseSchema = z.object({
 
 export type DeviceTokenMintRequest = z.infer<typeof deviceTokenMintRequestSchema>;
 export type DeviceTokenMintResponse = z.infer<typeof deviceTokenMintResponseSchema>;
-
-/* -------------------------------------------------------------------------- */
-/*  Hub ticket — server-side cross-origin device credential sync               */
-/* -------------------------------------------------------------------------- */
-
-/** Request body for `POST /session/device/hub-ticket`. */
-export const deviceHubTicketIssueRequestSchema = z.object({
-  returnOrigin: z.string().min(1),
-});
-
-/** Response from `POST /session/device/hub-ticket`. */
-export const deviceHubTicketIssueResponseSchema = z.object({
-  ticket: z.string().min(1),
-  expiresIn: z.number().int().positive(),
-});
-
-/** Request body for `POST /session/device/redeem-ticket`. */
-export const deviceHubTicketRedeemRequestSchema = z.object({
-  ticket: z.string().min(1),
-  returnOrigin: z.string().min(1),
-});
-
-/** Response from `POST /session/device/redeem-ticket`. */
-export const deviceHubTicketRedeemResponseSchema = z.object({
-  deviceId: z.string().min(1),
-  deviceSecret: z.string().min(1),
-});
-
-export type DeviceHubTicketIssueRequest = z.infer<typeof deviceHubTicketIssueRequestSchema>;
-export type DeviceHubTicketIssueResponse = z.infer<typeof deviceHubTicketIssueResponseSchema>;
-export type DeviceHubTicketRedeemRequest = z.infer<typeof deviceHubTicketRedeemRequestSchema>;
-export type DeviceHubTicketRedeemResponse = z.infer<typeof deviceHubTicketRedeemResponseSchema>;
 
 /* -------------------------------------------------------------------------- */
 /*  Instant cross-app session sync (token-free socket signal)                 */
@@ -151,3 +120,74 @@ export const sessionAccountsChangedEventSchema = z.object({
 
 export type SessionAccountsChangedReason = z.infer<typeof sessionAccountsChangedReasonSchema>;
 export type SessionAccountsChangedEvent = z.infer<typeof sessionAccountsChangedEventSchema>;
+
+/* -------------------------------------------------------------------------- */
+/*  Background credential — native background code with no JS runtime         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Response from `POST /session/device/background-credential` — provisioned by
+ * the SDK WHILE THE APP IS RUNNING (bearer required, `deviceId` and account
+ * derived server-side from it) and consumed afterwards only by native
+ * background code, which has no JS runtime to mint a token for itself.
+ *
+ * Deliberately a SEPARATE credential from the rotating `deviceSecret`: that one
+ * rotates on every mint, so background code presenting it would become a second
+ * writer of a value the JS runtime depends on, and background code killed
+ * mid-rotation would silently sign the user out on the next cold start. Against
+ * this credential background code is the sole writer, and it can never rotate
+ * anything JS reads.
+ *
+ * The raw `secret` is returned exactly once, at provision time — never stored
+ * retrievably, never logged, never re-read. A caller that loses it provisions
+ * a new one.
+ *
+ * `expiresAt` is an unvalidated string, like every other expiry in this file:
+ * no consumer on the JS path interprets it (native background code parses it
+ * itself), and a `.datetime()` here alone would leave one strict field beside
+ * two lax ones. If expiry is ever validated it goes on all three at once, with
+ * the API's serializers checked against it — the producer is the same server.
+ */
+export const deviceBackgroundCredentialResponseSchema = z.object({
+  deviceId: z.string().min(1),
+  secret: z.string().min(1),
+  accountId: z.string().min(1),
+  expiresAt: z.string(),
+});
+
+/**
+ * Request body for `POST /session/device/background-token` — presented by
+ * native background code with NO bearer and NO cookies: possession of the
+ * background `secret` IS the proof, as it is for the device-secret mint.
+ *
+ * Unlike that mint this one NEVER rotates the presented secret (hence no
+ * `next…` field to persist in the response), so background code interrupted
+ * anywhere between request and response leaves the credential intact and
+ * usable on its next run.
+ */
+export const deviceBackgroundTokenRequestSchema = z.object({
+  deviceId: z.string().min(1),
+  secret: z.string().min(1),
+});
+
+/**
+ * Wire shape of a successful `POST /session/device/background-token`: the short
+ * access token, its expiry, and the account the token belongs to — the last so
+ * a caller can key cached data per account and drop data belonging to a
+ * foreign one.
+ *
+ * Carries NO device state — no account list, no `activeAccountId`, no
+ * `revision`, unlike {@link deviceTokenMintResponseSchema} — deliberately, to
+ * cap what a compromised credential record yields.
+ */
+export const deviceBackgroundTokenResponseSchema = z.object({
+  accessToken: z.string(),
+  expiresAt: z.string(),
+  accountId: z.string().min(1),
+});
+
+export type DeviceBackgroundCredentialResponse = z.infer<
+  typeof deviceBackgroundCredentialResponseSchema
+>;
+export type DeviceBackgroundTokenRequest = z.infer<typeof deviceBackgroundTokenRequestSchema>;
+export type DeviceBackgroundTokenResponse = z.infer<typeof deviceBackgroundTokenResponseSchema>;

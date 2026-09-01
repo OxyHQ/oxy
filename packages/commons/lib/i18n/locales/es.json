@@ -1154,6 +1154,7 @@
       "heading": "Solicitud de inicio de sesión",
       "title": "Inicia sesión en {{app}}",
       "requestedFrom": "Solicitado desde {{client}}",
+      "officialBadge": "App oficial de Oxy",
       "developerBy": "de {{developer}}",
       "receivesTitle": "{{app}} recibirá",
       "receivesBasic": "Tu identidad, tu nombre y tu foto de perfil",
@@ -1163,6 +1164,7 @@
       "willActAs": "{{app}} actuará como",
       "identityUnchanged": "Sigues siendo tú. Tu identidad no cambia: solo autorizas a {{app}} a actuar como esta cuenta.",
       "confirm": "Confirmar identidad",
+      "confirming": "Confirmando identidad…",
       "reject": "No he sido yo",
       "rejecting": "Deteniendo…",
       "approvedTitle": "Sesión iniciada",
@@ -1187,6 +1189,10 @@
       "unverifiedBody": "No pudimos confirmar desde dónde se inició esta solicitud. Continúa solo si acabas de iniciarla tú en un dispositivo de confianza. Si no fuiste tú, pulsa «No he sido yo».",
       "privacyLink": "Política de privacidad",
       "termsLink": "Términos del servicio"
+    },
+    "channel": {
+      "name": "Solicitudes de inicio de sesión",
+      "description": "Avisos cuando otro dispositivo pide iniciar sesión como tú"
     }
   },
   "civic": {

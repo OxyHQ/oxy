@@ -1,11 +1,17 @@
 import express, { type Request, type Response } from "express";
-import User from "../models/User";
+import { and } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { users } from '../db/schema/users';
 import { logger } from '../utils/logger';
-import { sanitizeSearchQuery } from '../utils/sanitize';
-import { peopleSearchMongoMatch } from '../utils/profileQuery';
+import {
+  normalizePeopleSearchTerm,
+  peopleSearchMatch,
+  peopleSearchOrder,
+  peopleSearchPredicate,
+} from '../utils/profileQuery';
 import { validate } from '../middleware/validate';
 import { searchQuerySchema } from '../schemas/search.schemas';
-import { PUBLIC_USER_PROFILE_SELECT } from '../utils/publicUserProjection';
+import { publicUserColumns, toPublicUserView } from '../utils/publicUserProjection';
 import { formatUserResponse } from '../utils/userTransform';
 
 const router = express.Router();
@@ -22,11 +28,12 @@ router.get("/", validate({ query: searchQuerySchema }), async (req: Request, res
     const { query, type = "all", page, limit } = req.query as unknown as ValidatedSearchQuery;
     const skip = (page - 1) * limit;
 
-    // Strip a single leading `@` before sanitizing so handle-style queries match
-    // stored usernames (same rule as GET /profiles/search and POST /users/search).
-    const stripped = ((query as string) || '').trim().replace(/^@/, '');
-    const sanitized = sanitizeSearchQuery(stripped);
-    const searchQuery = { $regex: sanitized, $options: "i" };
+    // Strip a single leading `@` so handle-style queries match stored usernames
+    // (same rule as GET /profiles/search and POST /users/search). The term is
+    // passed RAW from here: `peopleSearchMatch` escapes it for LIKE and binds it
+    // as a parameter, so escaping it a second time on the way in would make
+    // `a+b` search for a literal backslash.
+    const term = normalizePeopleSearchTerm((query as string) || '');
 
     const results: {
       users: NonNullable<ReturnType<typeof formatUserResponse>>[];
@@ -34,27 +41,37 @@ router.get("/", validate({ query: searchQuerySchema }), async (req: Request, res
     } = { users: [], pagination: { page, limit, hasMore: false } };
 
     if (type === "all" || type === "users") {
-      const users = await User.find({
-        ...peopleSearchMongoMatch,
-        $or: [
-          { username: searchQuery },
-          { 'name.first': searchQuery },
-          { 'name.last': searchQuery },
-          { description: searchQuery },
-          { 'locations.name': searchQuery },
-          { 'locations.address.city': searchQuery },
-          { 'locations.address.country': searchQuery },
-        ]
-      })
-      .select(PUBLIC_USER_PROFILE_SELECT)
-      .sort({ _id: 1 })
-      .skip(skip)
-      .limit(limit);
+      // Ordered BEFORE paging (`peopleSearchOrder` ends on the unique `id`) so
+      // offset pagination is a strict total order and a row can never appear on
+      // two pages or be skipped between them.
+      const rows = await getDb()
+        .select(publicUserColumns)
+        .from(users)
+        .where(
+          and(
+            peopleSearchPredicate(),
+            peopleSearchMatch(term, { includeLocations: true })
+          )
+        )
+        .orderBy(...peopleSearchOrder())
+        .offset(skip)
+        .limit(limit);
 
-      results.users = users
-        .map((user) => formatUserResponse(user))
+      results.users = rows
+        .map((row) => {
+          const view = toPublicUserView(row);
+          return formatUserResponse({
+            ...view,
+            // This surface has ALWAYS emitted only the public consent leaf —
+            // its Mongo `$project` named `privacySettings.fediverseSharing` and
+            // nothing else, while `POST /users/search` (a `.select()` that also
+            // carried the discoverability gate) emits both. The two differ on
+            // the wire today; the port keeps each exactly as it was.
+            privacySettings: { fediverseSharing: view.privacySettings?.fediverseSharing },
+          });
+        })
         .filter((user): user is NonNullable<typeof user> => user !== null);
-      results.pagination.hasMore = users.length === limit;
+      results.pagination.hasMore = rows.length === limit;
     }
 
     res.json(results);

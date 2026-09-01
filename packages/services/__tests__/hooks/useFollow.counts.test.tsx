@@ -87,6 +87,22 @@ describe('useFollow single-user — count fetch via React Query', () => {
     await waitFor(() => expect(getUserById).not.toHaveBeenCalled());
   });
 
+  it('fetches counts when only one side is missing', async () => {
+    useFollowStore.getState().setFollowerCount('u3', 5);
+
+    const { result } = renderHook(() => useFollow('u3'));
+
+    await waitFor(() => {
+      if (!('followingCount' in result.current)) throw new Error('expected single-user shape');
+      expect(result.current.followingCount).toBe(3);
+    });
+
+    if (!('followerCount' in result.current)) throw new Error('expected single-user shape');
+    // fetchUserCounts reconciles both sides from the API response.
+    expect(result.current.followerCount).toBe(7);
+    expect(getUserById).toHaveBeenCalledTimes(1);
+  });
+
   it('does not fetch counts in multi-user mode', async () => {
     renderHook(() => useFollow(['u1', 'u2']));
     // Give any (incorrectly enabled) query a tick to fire.

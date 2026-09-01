@@ -9,12 +9,12 @@
  * `EXPO_PUBLIC_OXY_CLIENT_ID`.
  */
 export const OXY_CLIENT_ID =
-  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
+  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ||
   'oxy_dk_00f0e5d5a2e4697740a476d3cfc54f4490f01245d0d2dd05';
 
 /** Registered OAuth redirect surface for this web origin (exact match). */
 export const OXY_AUTH_REDIRECT_URI =
-  process.env.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI ?? 'https://accounts.oxy.so';
+  process.env.EXPO_PUBLIC_OXY_AUTH_REDIRECT_URI || 'https://accounts.oxy.so';
 
 /**
  * Deep link into the Commons app's delete-account flow. Account deletion is

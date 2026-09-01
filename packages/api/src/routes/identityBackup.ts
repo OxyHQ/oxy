@@ -20,6 +20,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import crypto from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ConflictError, NotFoundError, UnauthorizedError, BadRequestError } from '../utils/error';
@@ -33,7 +34,9 @@ import {
   type BackupStatusResponse,
   type EncryptedBackupEnvelope,
 } from '@oxyhq/contracts';
-import IdentityBackup, { type IIdentityBackup } from '../models/IdentityBackup';
+import { getDb } from '../config/postgres';
+import { identityBackups } from '../db/schema/identityBackups';
+import { isUniqueViolation } from '@oxyhq/db';
 
 const router = Router();
 
@@ -46,16 +49,32 @@ function lookupIdHashOf(rawLookupId: string): string {
   return crypto.createHash('sha256').update(rawLookupId).digest('hex');
 }
 
-/** Whether a thrown error is a Mongo duplicate-key (E11000) error. */
-function isDuplicateKeyError(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000;
+/**
+ * The stored fields the public envelope is projected from.
+ *
+ * `clientCreatedAt` is `text`, not a `timestamptz`: it holds the CLIENT's
+ * ISO-8601 snapshot time byte for byte, because the restore endpoint's contract
+ * is to hand back the exact envelope that was uploaded. Parsing it into a
+ * timestamp would re-render it in a different string form on read.
+ */
+interface StoredEnvelopeFields {
+  version: number;
+  kdfInfo: string;
+  nonce: string;
+  ciphertext: string;
+  publicKeyHint: string;
+  clientCreatedAt: string;
 }
 
-/** The stored fields the public envelope is projected from (lean-query friendly). */
-type StoredEnvelopeFields = Pick<
-  IIdentityBackup,
-  'version' | 'kdfInfo' | 'nonce' | 'ciphertext' | 'publicKeyHint' | 'createdAt'
->;
+/** The columns `toEnvelope` needs — named explicitly, never a whole-row read. */
+const ENVELOPE_COLUMNS = {
+  version: identityBackups.version,
+  kdfInfo: identityBackups.kdfInfo,
+  nonce: identityBackups.nonce,
+  ciphertext: identityBackups.ciphertext,
+  publicKeyHint: identityBackups.publicKeyHint,
+  clientCreatedAt: identityBackups.clientCreatedAt,
+} as const;
 
 /** Project a stored backup row into the public `EncryptedBackupEnvelope`. */
 function toEnvelope(doc: StoredEnvelopeFields): EncryptedBackupEnvelope {
@@ -66,7 +85,7 @@ function toEnvelope(doc: StoredEnvelopeFields): EncryptedBackupEnvelope {
     nonce: doc.nonce,
     ciphertext: doc.ciphertext,
     publicKeyHint: doc.publicKeyHint,
-    createdAt: doc.createdAt,
+    createdAt: doc.clientCreatedAt,
   };
 }
 
@@ -118,43 +137,47 @@ router.post(
   backupWriteLimiter,
   validate({ body: backupUploadRequestSchema }),
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user?._id?.toString();
+    const userId = req.user?._id;
     if (!userId) {
       throw new UnauthorizedError('Authentication required');
     }
 
     const body = req.body as BackupUploadRequest;
-    const lookupIdHash = lookupIdHashOf(body.lookupId);
+    const stored = {
+      lookupIdHash: lookupIdHashOf(body.lookupId),
+      publicKeyHint: body.publicKeyHint,
+      ciphertext: body.ciphertext,
+      nonce: body.nonce,
+      algorithm: body.algorithm,
+      kdfInfo: body.kdfInfo,
+      version: body.version,
+      clientCreatedAt: body.createdAt,
+    };
 
     try {
-      const doc = await IdentityBackup.findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            lookupIdHash,
-            publicKeyHint: body.publicKeyHint,
-            ciphertext: body.ciphertext,
-            nonce: body.nonce,
-            algorithm: body.algorithm,
-            kdfInfo: body.kdfInfo,
-            version: body.version,
-            createdAt: body.createdAt,
-          },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
-      );
+      const [row] = await getDb()
+        .insert(identityBackups)
+        .values({ userId, ...stored })
+        .onConflictDoUpdate({ target: identityBackups.userId, set: stored })
+        .returning({
+          publicKeyHint: identityBackups.publicKeyHint,
+          clientCreatedAt: identityBackups.clientCreatedAt,
+        });
 
       const payload: BackupStatusResponse = {
         exists: true,
-        publicKeyHint: doc.publicKeyHint,
-        createdAt: doc.createdAt,
+        publicKeyHint: row.publicKeyHint,
+        createdAt: row.clientCreatedAt,
       };
       res.status(200).json(payload);
     } catch (err) {
-      // A `lookupIdHash` collision with a DIFFERENT user's backup is
-      // astronomically unlikely at 256-bit entropy; never silently overwrite
-      // another user's record — surface a clean conflict.
-      if (isDuplicateKeyError(err)) {
+      // The caller's OWN row is handled by `onConflictDoUpdate`, so the only
+      // unique index left to fire is the locator one — a `lookupIdHash`
+      // collision with a DIFFERENT user's backup. Astronomically unlikely at
+      // 256-bit entropy; never silently overwrite another user's record —
+      // surface a clean conflict. Named, so a future index on this table cannot
+      // quietly start answering 409.
+      if (isUniqueViolation(err, 'identity_backups_lookup_id_hash_key')) {
         throw new ConflictError('Backup locator already in use.');
       }
       throw err;
@@ -170,14 +193,22 @@ router.get(
   '/status',
   authMiddleware,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user?._id?.toString();
+    const userId = req.user?._id;
     if (!userId) {
       throw new UnauthorizedError('Authentication required');
     }
 
-    const doc = await IdentityBackup.findOne({ userId }).lean();
-    const payload: BackupStatusResponse = doc
-      ? { exists: true, publicKeyHint: doc.publicKeyHint, createdAt: doc.createdAt }
+    const [row] = await getDb()
+      .select({
+        publicKeyHint: identityBackups.publicKeyHint,
+        clientCreatedAt: identityBackups.clientCreatedAt,
+      })
+      .from(identityBackups)
+      .where(eq(identityBackups.userId, userId))
+      .limit(1);
+
+    const payload: BackupStatusResponse = row
+      ? { exists: true, publicKeyHint: row.publicKeyHint, createdAt: row.clientCreatedAt }
       : { exists: false };
     res.status(200).json(payload);
   }),
@@ -192,12 +223,12 @@ router.delete(
   authMiddleware,
   backupDeleteLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user?._id?.toString();
+    const userId = req.user?._id;
     if (!userId) {
       throw new UnauthorizedError('Authentication required');
     }
 
-    await IdentityBackup.deleteOne({ userId });
+    await getDb().delete(identityBackups).where(eq(identityBackups.userId, userId));
     res.status(200).json({ success: true });
   }),
 );
@@ -216,11 +247,15 @@ router.get(
     if (!parsed.success) {
       throw new BadRequestError('Invalid backup locator');
     }
-    const doc = await IdentityBackup.findOne({ lookupIdHash: lookupIdHashOf(parsed.data) }).lean();
-    if (!doc) {
+    const [row] = await getDb()
+      .select(ENVELOPE_COLUMNS)
+      .from(identityBackups)
+      .where(eq(identityBackups.lookupIdHash, lookupIdHashOf(parsed.data)))
+      .limit(1);
+    if (!row) {
       throw new NotFoundError('Backup not found');
     }
-    res.status(200).json(toEnvelope(doc));
+    res.status(200).json(toEnvelope(row));
   }),
 );
 

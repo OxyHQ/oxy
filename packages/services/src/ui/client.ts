@@ -19,7 +19,7 @@ export { default as FollowButton } from './components/FollowButton';
 export { default as OxyPayButton } from './components/OxyPayButton';
 
 // Context
-export { useOxy } from './context/OxyContext';
+export { useOxy, useOptionalOxy, OxyProviderMissingError } from './context/OxyContext';
 
 // Hooks
 export { useAuth } from './hooks/useAuth';
@@ -34,7 +34,6 @@ export { default as ManageAccountScreen } from './screens/ManageAccountScreen';
 
 // Stores
 export { useAuthStore } from './stores/authStore';
-export { useAccountStore } from './stores/accountStore';
 
 // Error handler utilities
 export {

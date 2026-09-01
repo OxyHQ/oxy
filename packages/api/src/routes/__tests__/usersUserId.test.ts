@@ -9,9 +9,9 @@ import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
 
-import { Types } from 'mongoose';
+import { randomBytes } from 'node:crypto';
 
-const mockGetUserById = jest.fn();
+const mockGetPublicUserById = jest.fn();
 const mockGetUserStats = jest.fn();
 const mockFormatUserResponse = jest.fn();
 const mockGetViewerRelationship = jest.fn();
@@ -41,7 +41,7 @@ jest.mock('../../services/assetServiceSingleton', () => ({
 }));
 jest.mock('../../services/user.service', () => ({
   userService: {
-    getUserById: mockGetUserById,
+    getPublicUserById: mockGetPublicUserById,
     getUserStats: mockGetUserStats,
     formatUserResponse: mockFormatUserResponse,
     getViewerRelationship: mockGetViewerRelationship,
@@ -69,15 +69,10 @@ jest.mock('../../utils/validation', () => ({
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {},
-}));
-
 import usersRouter from '../users';
 import { errorHandler } from '../../middleware/errorHandler';
 
-const targetUserId = new Types.ObjectId();
+const targetUserId = randomBytes(12).toString('hex');
 
 interface JsonResponse {
   status: number;
@@ -139,50 +134,50 @@ describe('GET /users/:userId', () => {
   });
 
   it('returns 404 for a restricted-tier user', async () => {
-    mockGetUserById.mockResolvedValue({
+    mockGetPublicUserById.mockResolvedValue({
       _id: targetUserId,
       username: 'abuser',
       accountStatus: 'active',
       reputationTier: 'restricted',
     });
 
-    const res = await requestJson(server, targetUserId.toHexString());
+    const res = await requestJson(server, targetUserId);
     expect(res.status).toBe(404);
     expect(res.body.message).toMatch(/not found/i);
     expect(mockGetViewerRelationship).not.toHaveBeenCalled();
   });
 
   it('returns 404 for an archived user', async () => {
-    mockGetUserById.mockResolvedValue({
+    mockGetPublicUserById.mockResolvedValue({
       _id: targetUserId,
       username: 'gone',
       accountStatus: 'archived',
     });
 
-    const res = await requestJson(server, targetUserId.toHexString());
+    const res = await requestJson(server, targetUserId);
     expect(res.status).toBe(404);
     expect(mockGetViewerRelationship).not.toHaveBeenCalled();
   });
 
   it('omits relationship for anonymous viewers', async () => {
-    mockGetUserById.mockResolvedValue({
+    mockGetPublicUserById.mockResolvedValue({
       _id: targetUserId,
       username: 'nate',
       accountStatus: 'active',
       reputationTier: 'trusted',
     });
 
-    const res = await requestJson(server, targetUserId.toHexString());
+    const res = await requestJson(server, targetUserId);
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({ id: targetUserId.toString(), username: 'nate' });
+    expect(res.body.data).toEqual({ id: targetUserId, username: 'nate' });
     expect(res.body.data?.relationship).toBeUndefined();
     expect(mockGetViewerRelationship).not.toHaveBeenCalled();
   });
 
   it('omits relationship on a self-view', async () => {
-    const selfId = targetUserId.toHexString();
+    const selfId = targetUserId;
     currentViewerId = selfId;
-    mockGetUserById.mockResolvedValue({
+    mockGetPublicUserById.mockResolvedValue({
       _id: targetUserId,
       username: 'nate',
       accountStatus: 'active',
@@ -195,18 +190,18 @@ describe('GET /users/:userId', () => {
   });
 
   it('includes relationship when an authenticated viewer fetches another profile', async () => {
-    const viewerId = new Types.ObjectId().toHexString();
+    const viewerId = randomBytes(12).toString('hex');
     currentViewerId = viewerId;
-    mockGetUserById.mockResolvedValue({
+    mockGetPublicUserById.mockResolvedValue({
       _id: targetUserId,
       username: 'nate',
       accountStatus: 'active',
     });
     mockGetViewerRelationship.mockResolvedValue({ isFollowing: true, followsYou: false });
 
-    const res = await requestJson(server, targetUserId.toHexString());
+    const res = await requestJson(server, targetUserId);
     expect(res.status).toBe(200);
     expect(res.body.data?.relationship).toEqual({ isFollowing: true, followsYou: false });
-    expect(mockGetViewerRelationship).toHaveBeenCalledWith(viewerId, targetUserId.toHexString());
+    expect(mockGetViewerRelationship).toHaveBeenCalledWith(viewerId, targetUserId);
   });
 });

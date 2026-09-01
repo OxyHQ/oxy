@@ -1,41 +1,16 @@
-const mockFindOne = jest.fn();
-const mockCreate = jest.fn();
-
-jest.mock('mongoose', () => {
-  class Schema {
-    virtual() {
-      return { get: () => this };
-    }
-    index() {
-      return this;
-    }
-    pre() {
-      return this;
-    }
-  }
-  return {
-    __esModule: true,
-    default: {
-      Schema,
-      models: {},
-      model: jest.fn(() => ({
-        findOne: mockFindOne,
-        create: mockCreate,
-      })),
-    },
-    Schema,
-    models: {},
-    model: jest.fn(() => ({
-      findOne: mockFindOne,
-      create: mockCreate,
-    })),
-  };
-});
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { findOne: jest.fn(), findById: jest.fn() },
-}));
+/**
+ * `getUserActor` against a REAL Postgres.
+ *
+ * The suite this replaces mocked `mongoose` wholesale and fed the function an
+ * `as never` object, so neither the key lookup nor the actor's own shape was
+ * checked against anything. Here the key pair is a real row and the parameter
+ * is the declared `ActorSourceUser`, which is what makes the `as never` — and
+ * with it the ability to hand this function a shape it cannot serve —
+ * unnecessary.
+ *
+ * MOCKED, because each is a collaborator this file is not about: the asset and
+ * S3 services (avatar URL resolution) and `userCache`.
+ */
 
 jest.mock('../assetService', () => ({
   __esModule: true,
@@ -51,42 +26,79 @@ jest.mock('../../utils/userCache', () => ({
   default: { invalidate: jest.fn() },
 }));
 
-jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
-}));
+import { closePostgres, connectPostgres } from '../../config/postgres';
+import { getUserActor, getUserKeyPair, type ActorSourceUser } from '../federation.service';
 
-import { getUserActor } from '../federation.service';
+const DOMAIN = 'mention.earth';
 
-describe('getUserActor username normalization', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockFindOne.mockReturnValue({
-      lean: jest.fn().mockResolvedValue({
-        keyId: 'https://mention.earth/ap/users/bob#main-key',
-        publicKeyPem: 'PUBLIC',
-        privateKeyPem: 'PRIVATE',
-      }),
-    });
-  });
+beforeAll(async () => {
+  await connectPostgres();
+});
 
+afterAll(async () => {
+  await closePostgres();
+});
+
+describe('getUserActor', () => {
   it('lowercases mixed-case usernames in actor id and publicKey.owner', async () => {
     const actor = await getUserActor(
-      {
-        username: 'Bob',
-        name: { displayName: 'Bob Example' },
-        bio: '',
-        kind: 'personal',
-      } as never,
-      'mention.earth',
+      { username: 'Bob', name: { first: 'Bob', last: 'Example' }, bio: '', kind: 'personal' },
+      DOMAIN,
     );
 
     expect(actor).toMatchObject({
-      id: 'https://mention.earth/ap/users/bob',
+      id: `https://${DOMAIN}/ap/users/bob`,
       preferredUsername: 'bob',
       publicKey: {
-        id: 'https://mention.earth/ap/users/bob#main-key',
-        owner: 'https://mention.earth/ap/users/bob',
+        id: `https://${DOMAIN}/ap/users/bob#main-key`,
+        owner: `https://${DOMAIN}/ap/users/bob`,
       },
     });
+  });
+
+  it('publishes the SAME public key the key store holds for that actor', async () => {
+    const actor = await getUserActor({ username: 'grace', kind: 'personal' }, DOMAIN);
+    const keyPair = await getUserKeyPair('grace', DOMAIN);
+
+    // The actor document is what remote servers verify signatures against, so a
+    // published key that is not the stored one is a silent federation outage.
+    expect(actor).toMatchObject({
+      publicKey: { id: keyPair.keyId, publicKeyPem: keyPair.publicKeyPem },
+    });
+  });
+
+  it('maps each account kind onto its ActivityPub actor type', async () => {
+    const kinds: Array<[NonNullable<ActorSourceUser['kind']>, string]> = [
+      ['personal', 'Person'],
+      ['organization', 'Organization'],
+      ['project', 'Group'],
+      ['bot', 'Service'],
+    ];
+
+    for (const [kind, expected] of kinds) {
+      const actor = await getUserActor({ username: `kind-${kind}`, kind }, DOMAIN);
+      expect(actor).toMatchObject({ type: expected });
+    }
+  });
+
+  it('falls back to the handle when the account has no real display name', async () => {
+    const actor = await getUserActor({ username: 'henry', kind: 'personal' }, DOMAIN);
+
+    // An ActivityPub `name` must be a non-empty string, and the API no longer
+    // synthesizes a display name — the handle is the sanctioned fallback.
+    expect(actor).toMatchObject({ name: 'henry' });
+  });
+
+  it('uses an intentionally cleared bio instead of falling back to legacy description', async () => {
+    const actor = await getUserActor(
+      { username: 'cleared-bio', bio: '', description: 'legacy text', kind: 'personal' },
+      DOMAIN,
+    );
+
+    expect(actor).toMatchObject({ summary: '' });
+  });
+
+  it('returns null without touching the key store when there is no username', async () => {
+    expect(await getUserActor({ kind: 'personal' }, DOMAIN)).toBeNull();
   });
 });

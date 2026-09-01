@@ -103,9 +103,14 @@ const es: LocaleDict = {
       'Al continuar, {{app}} podrá iniciar sesión con tu cuenta de Oxy. Puedes gestionar las apps conectadas cuando quieras en los ajustes de tu cuenta de Oxy.',
     expiresAt: 'La solicitud caduca a las {{time}}.',
     signingIn: 'Iniciando sesión…',
-    silentFailedTitle: 'No se pudo completar el inicio de sesión',
-    silentFailedDesc:
-      'Vuelve a la app e inicia sesión allí. Si sigue ocurriendo, prueba a cerrar sesión y volver a entrar.',
+    // La entrega por ventana emergente informó de un fallo a la app que abrió
+    // esta ventana.
+    relayFailedTitle: 'No se pudo completar el inicio de sesión',
+    // Una solicitud que pedía completarse sin mostrar nada (`prompt=none`). Oxy
+    // nunca autoriza sin preguntarte, así que se rechaza.
+    silentUnsupportedTitle: 'Oxy siempre te pregunta antes',
+    silentUnsupportedDesc:
+      'Esta app pidió iniciar tu sesión sin mostrarte nada. Oxy no autoriza el acceso de esa forma. Vuelve a la app e inicia sesión de nuevo.',
     requestTitle: 'Solicitud de autorización',
     requestUnavailable: 'No pudimos cargar los detalles de esta solicitud.',
     completeTitle: 'Autorización completada',

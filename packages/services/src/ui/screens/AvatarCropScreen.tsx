@@ -55,7 +55,7 @@ import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useReduceMotion } from '../hooks/useReduceMotion';
 import { useSurfaceHeader, type SurfaceHeaderContent } from '../hooks/useSurfaceHeader';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import type { BaseScreenProps } from '../types/navigation';
 
 /** Component name used in `logger` context for filtered diagnostics. */

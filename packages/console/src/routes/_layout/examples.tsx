@@ -21,6 +21,9 @@ import {
   AgentTools,
 } from '@/components/ui/agent';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { InferenceAvailabilityNotice } from '@/components/inference-availability-notice';
+import { ModelPlaceholderNotice } from '@/components/model-placeholder-notice';
+import { MODEL_ID_PLACEHOLDER } from '@/lib/model-reference';
 
 export const Route = createFileRoute('/_layout/examples')({
   component: ExamplesPage,
@@ -30,11 +33,11 @@ const examples = {
   javascript: `const response = await fetch('https://api.oxy.so/v1/chat/completions', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer oxy_dk_YOUR_API_KEY',
+    'Authorization': 'Bearer ' + process.env.OXY_ACCESS_TOKEN,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    model: 'alia-v1',
+    model: '${MODEL_ID_PLACEHOLDER}',
     messages: [
       { role: 'user', content: 'Hello!' }
     ],
@@ -45,14 +48,15 @@ const data = await response.json();
 console.log(data.choices[0].message.content);`,
 
   python: `import openai
+import os
 
 client = openai.OpenAI(
-    api_key="oxy_dk_YOUR_API_KEY",
+    api_key=os.environ.get("OXY_ACCESS_TOKEN"),
     base_url="https://api.oxy.so/v1"
 )
 
 response = client.chat.completions.create(
-    model="alia-v1",
+    model="${MODEL_ID_PLACEHOLDER}",
     messages=[
         {"role": "user", "content": "Hello!"}
     ]
@@ -63,12 +67,12 @@ print(response.choices[0].message.content)`,
   nodejs: `import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: 'oxy_dk_YOUR_API_KEY',
+  apiKey: process.env.OXY_ACCESS_TOKEN,
   baseURL: 'https://api.oxy.so/v1',
 });
 
 const completion = await openai.chat.completions.create({
-  model: 'alia-v1',
+  model: '${MODEL_ID_PLACEHOLDER}',
   messages: [
     { role: 'user', content: 'Hello!' }
   ],
@@ -77,10 +81,10 @@ const completion = await openai.chat.completions.create({
 console.log(completion.choices[0].message.content);`,
 
   curl: `curl https://api.oxy.so/v1/chat/completions \\
-  -H "Authorization: Bearer oxy_dk_YOUR_API_KEY" \\
+  -H "Authorization: Bearer $OXY_ACCESS_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "alia-v1",
+    "model": "${MODEL_ID_PLACEHOLDER}",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -89,11 +93,11 @@ console.log(completion.choices[0].message.content);`,
   streaming: `const response = await fetch('https://api.oxy.so/v1/chat/completions', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer oxy_dk_YOUR_API_KEY',
+    'Authorization': 'Bearer ' + process.env.OXY_ACCESS_TOKEN,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    model: 'alia-v1',
+    model: '${MODEL_ID_PLACEHOLDER}',
     messages: [{ role: 'user', content: 'Hello!' }],
     stream: true,
   }),
@@ -120,7 +124,7 @@ while (true) {
   functionCalling: `import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: 'oxy_dk_YOUR_API_KEY',
+  apiKey: process.env.OXY_ACCESS_TOKEN,
   baseURL: 'https://api.oxy.so/v1',
 });
 
@@ -143,7 +147,7 @@ const tools = [
 ];
 
 const completion = await openai.chat.completions.create({
-  model: 'alia-v1',
+  model: '${MODEL_ID_PLACEHOLDER}',
   messages: [{ role: 'user', content: 'What is the weather in Madrid?' }],
   tools,
   tool_choice: 'auto',
@@ -173,7 +177,7 @@ const languageMap: Record<ExampleKey, BundledLanguage> = {
 // Sample agent configuration
 const sampleAgent = {
   name: 'Weather Assistant',
-  model: 'alia-v1',
+  model: MODEL_ID_PLACEHOLDER,
   instructions: `You are a helpful weather assistant. When the user asks about the weather, use the get_weather tool to fetch current conditions. Always be friendly and provide helpful weather-related advice.`,
   tools: {
     get_weather: {
@@ -217,6 +221,8 @@ function ExamplesPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Example code for integrating with the Oxy API
           </p>
+          <InferenceAvailabilityNotice className="mt-4" />
+          <ModelPlaceholderNotice className="mt-3" />
         </div>
 
         {/* Basic Chat Completion */}

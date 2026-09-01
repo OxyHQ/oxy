@@ -1,321 +1,267 @@
 /**
- * appSignals.service tests.
+ * appSignals.service — endorsement and interest ingest, against a REAL Postgres.
  *
- * The two new models (AppEndorsementEdge, AppUserSignal), the User model, and the
- * reputation service are mocked with a tiny in-memory store mirroring the exact
- * Mongoose subset the service uses (findOne / create / findOneAndDelete /
- * updateOne with $inc/$set/$setOnInsert+upsert, and User.findById().select().lean()).
+ * The edge ledger, the per-app roll-up and the user rows are real, so the
+ * idempotency index, the `NULLS NOT DISTINCT` source key and the foreign keys
+ * are the ones the shipped DDL creates. Only the reputation service is mocked —
+ * awarding is a separate subsystem with its own suite, and what matters here is
+ * WHO is awarded and HOW OFTEN.
  *
  * Coverage:
  *  - add is idempotent (re-ingesting the same edge is a no-op),
  *  - remove subtracts exactly the STORED weight (not the owner's current weight),
- *  - a zero-/floor-reputation owner contributes the influence FLOOR, not a large
- *    boost, and not zero,
+ *  - a floor-reputation owner contributes the influence FLOOR, not a large boost
+ *    and not zero,
  *  - the MEMBER (not the giver) is awarded, exactly once per edge,
- *  - self-endorsement and malformed ids are rejected,
+ *  - self-endorsement and ids that name no user are rejected,
+ *  - an unset `sourceId` is NULL and still collides with itself,
  *  - interest ingest is last-write-wins.
  */
 
-import { Types } from 'mongoose';
+import { and, eq } from 'drizzle-orm';
 import { INFLUENCE_MIN } from '../../utils/reputation.constants';
 
-interface AnyDoc {
-  _id: Types.ObjectId;
-  [key: string]: unknown;
-}
-
-function makeStore() {
-  return { docs: [] as AnyDoc[] };
-}
-
-const edgeStore = makeStore();
-const signalStore = makeStore();
-const userStore = makeStore();
-
-function clearStores(): void {
-  edgeStore.docs = [];
-  signalStore.docs = [];
-  userStore.docs = [];
-}
-
-/** Does the document match every key in the (flat) query? ObjectId-aware. */
-function matchesQuery(doc: AnyDoc, query: Record<string, unknown>): boolean {
-  return Object.entries(query).every(([key, expected]) => {
-    const actual = doc[key];
-    if (expected instanceof Types.ObjectId) {
-      return actual instanceof Types.ObjectId && actual.equals(expected);
-    }
-    return String(actual) === String(expected);
-  });
-}
-
-/** Single-document thenable for `findById(...).select(...).lean()`. */
-function makeDocQuery(doc: AnyDoc | null) {
-  const chain = {
-    select: () => chain,
-    lean: async (): Promise<AnyDoc | null> => doc,
-    then: (
-      onFulfilled: (value: AnyDoc | null) => unknown,
-      onRejected?: (reason: unknown) => unknown,
-    ) => Promise.resolve(doc).then(onFulfilled, onRejected),
-  };
-  return chain;
-}
-
-function makeModel(store: ReturnType<typeof makeStore>) {
-  return {
-    async create(payload: Record<string, unknown>) {
-      const doc: AnyDoc = {
-        _id: (payload._id as Types.ObjectId) ?? new Types.ObjectId(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        ...payload,
-      };
-      store.docs.push(doc);
-      return doc;
-    },
-    async findOne(query: Record<string, unknown> = {}) {
-      return store.docs.find((d) => matchesQuery(d, query)) ?? null;
-    },
-    findById(id: string | Types.ObjectId) {
-      const target = id instanceof Types.ObjectId ? id : new Types.ObjectId(String(id));
-      const found = store.docs.find((d) => d._id.equals(target)) ?? null;
-      return makeDocQuery(found);
-    },
-    async findOneAndDelete(query: Record<string, unknown> = {}) {
-      const idx = store.docs.findIndex((d) => matchesQuery(d, query));
-      if (idx === -1) return null;
-      const [removed] = store.docs.splice(idx, 1);
-      return removed;
-    },
-    async updateOne(
-      query: Record<string, unknown>,
-      update: Record<string, unknown>,
-      options: { upsert?: boolean } = {},
-    ) {
-      let doc = store.docs.find((d) => matchesQuery(d, query)) ?? null;
-      const inc = (update.$inc as Record<string, number>) ?? {};
-      const set = (update.$set as Record<string, unknown>) ?? {};
-      const setOnInsert = (update.$setOnInsert as Record<string, unknown>) ?? {};
-      if (!doc) {
-        if (!options.upsert) {
-          return { matchedCount: 0, modifiedCount: 0, upsertedCount: 0 };
-        }
-        doc = {
-          _id: new Types.ObjectId(),
-          endorsementScore: 0,
-          endorsementCount: 0,
-          interestScore: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          ...setOnInsert,
-        };
-        store.docs.push(doc);
-      }
-      for (const [field, delta] of Object.entries(inc)) {
-        doc[field] = (typeof doc[field] === 'number' ? (doc[field] as number) : 0) + delta;
-      }
-      Object.assign(doc, set);
-      doc.updatedAt = new Date();
-      return { matchedCount: 1, modifiedCount: 1, upsertedCount: doc ? 1 : 0 };
-    },
-  };
-}
-
-jest.mock('../../models/AppEndorsementEdge', () => ({
-  __esModule: true,
-  AppEndorsementEdge: makeModel(edgeStore),
-  default: makeModel(edgeStore),
-}));
-jest.mock('../../models/AppUserSignal', () => ({
-  __esModule: true,
-  AppUserSignal: makeModel(signalStore),
-  default: makeModel(signalStore),
-}));
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  User: makeModel(userStore),
-  default: makeModel(userStore),
-}));
-
-const mockGetInfluence = jest.fn();
 const mockAward = jest.fn();
 jest.mock('../reputation.service', () => ({
   __esModule: true,
   default: {
-    getInfluence: (...args: unknown[]) => mockGetInfluence(...args),
     award: (...args: unknown[]) => mockAward(...args),
   },
 }));
 
-// The global jest.setup mongoose mock omits `Types`, so restore the REAL
-// mongoose here — the service and this test both need a working
-// `Types.ObjectId` / `Types.ObjectId.isValid`. The models themselves are mocked
-// above, so the real mongoose is used only for its id utilities.
-jest.mock('mongoose', () => {
-  const actual = jest.requireActual('mongoose');
-  return { __esModule: true, ...actual, default: actual };
-});
+jest.mock('../../utils/logger', () => ({
+  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
 
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { appEndorsementEdges, appUserSignals, applications, users } from '../../db/schema';
 import { appSignalsService } from '../appSignals.service';
 
-function findSignal(appId: Types.ObjectId, userId: Types.ObjectId): AnyDoc | undefined {
-  return signalStore.docs.find(
-    (d) =>
-      (d.applicationId as Types.ObjectId).equals(appId) &&
-      (d.userId as Types.ObjectId).equals(userId),
-  );
+let APP_ID = '';
+let OWNER_ID = '';
+let MEMBER_ID = '';
+
+/** A real `users` row. `reputationRankWeight` defaults to the influence floor. */
+async function account(rankWeight?: number): Promise<string> {
+  const [row] = await getDb()
+    .insert(users)
+    .values(rankWeight === undefined ? {} : { reputationRankWeight: rankWeight })
+    .returning({ id: users.id });
+  return row.id;
 }
 
-const APP_ID = new Types.ObjectId();
-const OWNER_ID = new Types.ObjectId();
-const MEMBER_ID = new Types.ObjectId();
+/** The member's per-app roll-up row, or undefined. */
+async function readSignal(
+  applicationId: string,
+  userId: string
+): Promise<typeof appUserSignals.$inferSelect | undefined> {
+  const [row] = await getDb()
+    .select()
+    .from(appUserSignals)
+    .where(
+      and(eq(appUserSignals.applicationId, applicationId), eq(appUserSignals.userId, userId))
+    )
+    .limit(1);
+  return row;
+}
 
-beforeEach(() => {
-  clearStores();
-  mockGetInfluence.mockReset();
-  mockAward.mockReset();
-  mockAward.mockResolvedValue({ _id: new Types.ObjectId() });
+/** Every endorsement edge recorded for an application. */
+async function readEdges(
+  applicationId: string
+): Promise<(typeof appEndorsementEdges.$inferSelect)[]> {
+  return getDb()
+    .select()
+    .from(appEndorsementEdges)
+    .where(eq(appEndorsementEdges.applicationId, applicationId));
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(async () => {
+  jest.clearAllMocks();
+  mockAward.mockResolvedValue({ id: 'txn' });
+
+  OWNER_ID = await account();
+  const [app] = await getDb()
+    .insert(applications)
+    .values({ name: 'Signals App', ownerAccountId: OWNER_ID })
+    .returning({ id: applications.id });
+  APP_ID = app.id;
+  MEMBER_ID = await account();
 });
 
 describe('appSignalsService.ingestEndorsements', () => {
   it('adds an edge, increments the member roll-up by the owner weight, and awards the MEMBER once', async () => {
-    // Owner has a denormalized ranking weight of 2.0.
-    userStore.docs.push({ _id: OWNER_ID, reputationRankWeight: 2.0 });
+    const giver = await account(2.0);
 
-    const result = await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'add' },
+    const result = await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
     ]);
 
     expect(result).toEqual({ added: 1, removed: 0, skipped: 0, invalid: 0 });
-
-    const signal = findSignal(APP_ID, MEMBER_ID);
-    expect(signal?.endorsementScore).toBe(2.0);
-    expect(signal?.endorsementCount).toBe(1);
+    expect((await readSignal(APP_ID, MEMBER_ID))?.endorsementScore).toBe(2.0);
 
     // The MEMBER is awarded, not the giver. Exactly once.
     expect(mockAward).toHaveBeenCalledTimes(1);
     expect(mockAward.mock.calls[0][0]).toMatchObject({
-      userId: MEMBER_ID.toString(),
+      userId: MEMBER_ID,
       actionType: 'endorsement_received',
-      applicationId: APP_ID.toString(),
+      applicationId: APP_ID,
     });
   });
 
   it('is idempotent: re-ingesting the same edge is a no-op (skipped, no second award)', async () => {
-    userStore.docs.push({ _id: OWNER_ID, reputationRankWeight: 2.0 });
+    const giver = await account(2.0);
+    const edge = { ownerId: giver, memberId: MEMBER_ID, op: 'add' as const };
 
-    const edge = { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'add' as const };
-    await appSignalsService.ingestEndorsements(APP_ID.toString(), [edge]);
-    const second = await appSignalsService.ingestEndorsements(APP_ID.toString(), [edge]);
+    await appSignalsService.ingestEndorsements(APP_ID, [edge]);
+    const second = await appSignalsService.ingestEndorsements(APP_ID, [edge]);
 
     expect(second).toEqual({ added: 0, removed: 0, skipped: 1, invalid: 0 });
-
-    const signal = findSignal(APP_ID, MEMBER_ID);
-    // Score did NOT double.
-    expect(signal?.endorsementScore).toBe(2.0);
-    expect(signal?.endorsementCount).toBe(1);
+    // Score did NOT double, and only one edge exists.
+    expect((await readSignal(APP_ID, MEMBER_ID))?.endorsementScore).toBe(2.0);
+    expect(await readEdges(APP_ID)).toHaveLength(1);
     expect(mockAward).toHaveBeenCalledTimes(1);
   });
 
+  it('stores an unset sourceId as NULL, and two unset sources still collide', async () => {
+    const giver = await account(1.0);
+
+    await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
+    ]);
+    const edges = await readEdges(APP_ID);
+    expect(edges).toHaveLength(1);
+    // `''` was Mongo's sentinel for "unset"; the port stores NULL and relies on
+    // the index being `NULLS NOT DISTINCT` to keep the idempotency guarantee.
+    expect(edges[0].sourceId).toBeNull();
+
+    const second = await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
+    ]);
+    expect(second.skipped).toBe(1);
+    expect(await readEdges(APP_ID)).toHaveLength(1);
+  });
+
+  it('treats a different sourceId as a distinct endorsement', async () => {
+    const giver = await account(1.0);
+
+    await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add', sourceId: 'list-1' },
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add', sourceId: 'list-2' },
+    ]);
+
+    expect(await readEdges(APP_ID)).toHaveLength(2);
+    expect((await readSignal(APP_ID, MEMBER_ID))?.endorsementScore).toBe(2.0);
+  });
+
   it('remove subtracts exactly the STORED weight even if the owner reputation changed', async () => {
-    // Add at weight 2.0.
-    userStore.docs.push({ _id: OWNER_ID, reputationRankWeight: 2.0 });
-    await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'add' },
+    const giver = await account(2.0);
+    await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
     ]);
 
     // Owner's reputation later changes to 0.5 — the remove must still subtract 2.0.
-    const owner = userStore.docs.find((d) => d._id.equals(OWNER_ID));
-    if (owner) owner.reputationRankWeight = 0.5;
+    await getDb().update(users).set({ reputationRankWeight: 0.5 }).where(eq(users.id, giver));
 
-    const removeResult = await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'remove' },
+    const removeResult = await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'remove' },
     ]);
 
     expect(removeResult).toEqual({ added: 0, removed: 1, skipped: 0, invalid: 0 });
-
-    const signal = findSignal(APP_ID, MEMBER_ID);
-    expect(signal?.endorsementScore).toBe(0); // 2.0 - 2.0, NOT 2.0 - 0.5
-    expect(signal?.endorsementCount).toBe(0);
+    // 2.0 - 2.0, NOT 2.0 - 0.5.
+    expect((await readSignal(APP_ID, MEMBER_ID))?.endorsementScore).toBe(0);
+    expect(await readEdges(APP_ID)).toHaveLength(0);
   });
 
   it('remove of a non-existent edge is a no-op (skipped)', async () => {
-    const result = await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'remove' },
+    const result = await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: OWNER_ID, memberId: MEMBER_ID, op: 'remove' },
     ]);
     expect(result).toEqual({ added: 0, removed: 0, skipped: 1, invalid: 0 });
-    expect(findSignal(APP_ID, MEMBER_ID)).toBeUndefined();
+    expect(await readSignal(APP_ID, MEMBER_ID)).toBeUndefined();
   });
 
-  it('a zero-reputation owner (no denorm field) contributes the influence FLOOR, not a large boost and not zero', async () => {
-    // No User doc → falls back to reputationService.getInfluence, which returns
-    // the floor for a user with no reputation.
-    mockGetInfluence.mockResolvedValue({ context: 'ranking', weight: INFLUENCE_MIN, influence: {} });
+  it('a floor-reputation owner contributes the influence FLOOR, not a large boost and not zero', async () => {
+    // A brand-new account carries the column's floor default — the branch that
+    // recomputed a missing denormalized weight via the reputation service is
+    // unrepresentable here, because the column is NOT NULL.
+    const giver = await account();
 
-    await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'add' },
+    await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
     ]);
 
-    const signal = findSignal(APP_ID, MEMBER_ID);
-    expect(signal?.endorsementScore).toBe(INFLUENCE_MIN);
-    expect(signal?.endorsementScore).toBeGreaterThan(0);
-    expect(signal?.endorsementScore).toBeLessThan(1);
+    const score = (await readSignal(APP_ID, MEMBER_ID))?.endorsementScore;
+    expect(score).toBe(INFLUENCE_MIN);
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThan(1);
   });
 
-  it('a restricted owner (denorm weight floored to INFLUENCE_MIN) contributes the floor', async () => {
-    userStore.docs.push({ _id: OWNER_ID, reputationRankWeight: INFLUENCE_MIN });
-
-    await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'add' },
-    ]);
-
-    const signal = findSignal(APP_ID, MEMBER_ID);
-    expect(signal?.endorsementScore).toBe(INFLUENCE_MIN);
-    // getInfluence is NOT consulted when the denorm field is present.
-    expect(mockGetInfluence).not.toHaveBeenCalled();
-  });
-
-  it('rejects self-endorsement and malformed ids as invalid (no award, no edge)', async () => {
-    const result = await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: OWNER_ID.toString(), op: 'add' }, // self
-      { ownerId: 'not-an-objectid', memberId: MEMBER_ID.toString(), op: 'add' }, // malformed
+  it('rejects self-endorsement and an owner that names no user, applying neither', async () => {
+    const result = await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: OWNER_ID, memberId: OWNER_ID, op: 'add' }, // self
+      { ownerId: 'no-such-user', memberId: MEMBER_ID, op: 'add' }, // unknown owner
     ]);
     expect(result).toEqual({ added: 0, removed: 0, skipped: 0, invalid: 2 });
-    expect(edgeStore.docs).toHaveLength(0);
+    expect(await readEdges(APP_ID)).toHaveLength(0);
     expect(mockAward).not.toHaveBeenCalled();
   });
 
+  it('one bad edge does not fail the batch around it', async () => {
+    const giver = await account(1.0);
+    const result = await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: 'no-such-user', memberId: MEMBER_ID, op: 'add' },
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
+    ]);
+    expect(result).toEqual({ added: 1, removed: 0, skipped: 0, invalid: 1 });
+    expect((await readSignal(APP_ID, MEMBER_ID))?.endorsementScore).toBe(1.0);
+  });
+
   it('does not fail the batch when the member award throws', async () => {
-    userStore.docs.push({ _id: OWNER_ID, reputationRankWeight: 1.0 });
+    const giver = await account(1.0);
     mockAward.mockRejectedValueOnce(new Error('rule disabled'));
 
-    const result = await appSignalsService.ingestEndorsements(APP_ID.toString(), [
-      { ownerId: OWNER_ID.toString(), memberId: MEMBER_ID.toString(), op: 'add' },
+    const result = await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
     ]);
 
     // Edge + roll-up still applied despite the award failure.
     expect(result.added).toBe(1);
-    expect(findSignal(APP_ID, MEMBER_ID)?.endorsementScore).toBe(1.0);
+    expect((await readSignal(APP_ID, MEMBER_ID))?.endorsementScore).toBe(1.0);
   });
 });
 
 describe('appSignalsService.ingestInterests', () => {
   it('upserts the interest score (last write wins)', async () => {
-    await appSignalsService.ingestInterests(APP_ID.toString(), [
-      { userId: MEMBER_ID.toString(), interestScore: 0.3 },
-    ]);
-    expect(findSignal(APP_ID, MEMBER_ID)?.interestScore).toBe(0.3);
+    await appSignalsService.ingestInterests(APP_ID, [{ userId: MEMBER_ID, interestScore: 0.3 }]);
+    expect((await readSignal(APP_ID, MEMBER_ID))?.interestScore).toBe(0.3);
 
-    await appSignalsService.ingestInterests(APP_ID.toString(), [
-      { userId: MEMBER_ID.toString(), interestScore: 0.9 },
-    ]);
-    expect(findSignal(APP_ID, MEMBER_ID)?.interestScore).toBe(0.9);
+    await appSignalsService.ingestInterests(APP_ID, [{ userId: MEMBER_ID, interestScore: 0.9 }]);
+    expect((await readSignal(APP_ID, MEMBER_ID))?.interestScore).toBe(0.9);
   });
 
-  it('rejects a malformed user id as invalid', async () => {
-    const result = await appSignalsService.ingestInterests(APP_ID.toString(), [
-      { userId: 'nope', interestScore: 0.5 },
+  it('leaves an existing endorsement score untouched when writing interest', async () => {
+    const giver = await account(2.0);
+    await appSignalsService.ingestEndorsements(APP_ID, [
+      { ownerId: giver, memberId: MEMBER_ID, op: 'add' },
+    ]);
+    await appSignalsService.ingestInterests(APP_ID, [{ userId: MEMBER_ID, interestScore: 0.7 }]);
+
+    const signal = await readSignal(APP_ID, MEMBER_ID);
+    expect(signal?.endorsementScore).toBe(2.0);
+    expect(signal?.interestScore).toBe(0.7);
+  });
+
+  it('rejects a user id that names no user', async () => {
+    const result = await appSignalsService.ingestInterests(APP_ID, [
+      { userId: 'no-such-user', interestScore: 0.5 },
     ]);
     expect(result).toEqual({ upserted: 0, invalid: 1 });
   });

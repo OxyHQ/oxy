@@ -28,8 +28,6 @@ jest.mock('../../services/email.service', () => ({
 jest.mock('../../services/smtp.outbound', () => ({ smtpOutbound: {} }));
 jest.mock('../../services/assetServiceSingleton', () => ({ assetService: {} }));
 jest.mock('../../config/email.config', () => ({ resolveEmailAddress: jest.fn() }));
-jest.mock('../../models/User', () => ({ __esModule: true, default: {} }));
-jest.mock('../../models/Message', () => ({ Message: {} }));
 jest.mock('../../utils/logger', () => ({
   logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));

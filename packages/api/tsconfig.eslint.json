@@ -1,7 +1,13 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "."
+  },
   "include": [
     "src/**/*",
+    "drizzle.config.ts",
+    "jest.globalSetup.ts",
+    "jest.globalTeardown.ts",
     "jest.setup.js"
   ],
   "exclude": [

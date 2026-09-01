@@ -41,14 +41,8 @@ jest.mock('@oxyhq/core', () => ({
 jest.mock('../../src/ui/utils/deviceCredential', () => ({
   loadPersistedDeviceCredential: jest.fn(async () => null),
 }));
-jest.mock('../../src/ui/utils/crossOriginRestore', () => ({
-  consumeSilentOAuthError: jest.fn(),
-  isSilentRestoreEligibleOrigin: jest.fn(() => false),
-  maybeStartSilentOAuthRestore: jest.fn(async () => false),
-}));
 jest.mock('../../src/ui/utils/oauthReturn', () => ({
   tryCompleteOAuthReturn: jest.fn(async () => false),
-  consumeHubSyncFailure: jest.fn(),
 }));
 
 const netInfoFetch = jest.fn();
@@ -66,19 +60,9 @@ import {
   COLD_BOOT_OVERALL_DEADLINE_MS,
 } from '../../src/ui/boot/runProviderColdBoot';
 import { tryCompleteOAuthReturn } from '../../src/ui/utils/oauthReturn';
-import {
-  isSilentRestoreEligibleOrigin,
-  maybeStartSilentOAuthRestore,
-} from '../../src/ui/utils/crossOriginRestore';
 
 const tryCompleteOAuthReturnMock = tryCompleteOAuthReturn as jest.MockedFunction<
   typeof tryCompleteOAuthReturn
->;
-const isSilentRestoreEligibleOriginMock = isSilentRestoreEligibleOrigin as jest.MockedFunction<
-  typeof isSilentRestoreEligibleOrigin
->;
-const maybeStartSilentOAuthRestoreMock = maybeStartSilentOAuthRestore as jest.MockedFunction<
-  typeof maybeStartSilentOAuthRestore
 >;
 
 function makeOpts() {
@@ -156,6 +140,13 @@ describe('runProviderColdBoot — cold-boot bounding wiring', () => {
     expect(capturedOpts().isOffline?.()).toBe(true);
   });
 
+  it('native: connected but explicitly unreachable ⇒ isOffline() === true', async () => {
+    isWeb = false;
+    netInfoFetch.mockResolvedValue({ isConnected: true, isInternetReachable: false });
+    await runProviderColdBoot(makeOpts());
+    expect(capturedOpts().isOffline?.()).toBe(true);
+  });
+
   it('native: a NetInfo probe that never settles is raced out by the 500ms timeout ⇒ isOffline() === false', async () => {
     isWeb = false;
     netInfoFetch.mockReturnValue(new Promise(() => undefined)); // never resolves
@@ -175,10 +166,9 @@ describe('runProviderColdBoot — cold-boot bounding wiring', () => {
 
 /**
  * `sessionMode` wiring (issue #691). The mode + identity binding are forwarded
- * verbatim to `runSessionColdBoot`, and identity mode additionally SKIPS both web
- * OAuth lanes — the authorization-code return and the silent cross-origin restore
- * each commit whichever account the IdP resolves, which for an identity-bound
- * client is somebody else's account by construction.
+ * verbatim to `runSessionColdBoot`, and identity mode additionally SKIPS the web
+ * OAuth return leg — it commits whichever account the IdP resolves, which for an
+ * identity-bound client is somebody else's account by construction.
  */
 describe('runProviderColdBoot — sessionMode wiring', () => {
   const identity = { pinStore: { load: jest.fn(), save: jest.fn(), clear: jest.fn() } };
@@ -188,27 +178,18 @@ describe('runProviderColdBoot — sessionMode wiring', () => {
     runSessionColdBootMock.mockClear();
     netInfoFetch.mockReset();
     tryCompleteOAuthReturnMock.mockClear();
-    maybeStartSilentOAuthRestoreMock.mockClear();
-    // An eligible origin, so the silent-restore lane is reachable and its
-    // identity-mode suppression is a real assertion rather than a vacuous one.
-    isSilentRestoreEligibleOriginMock.mockReturnValue(true);
   });
 
-  afterEach(() => {
-    isSilentRestoreEligibleOriginMock.mockReturnValue(false);
-  });
-
-  it('defaults to account mode: forwards no identity binding and runs both web OAuth lanes', async () => {
+  it('defaults to account mode: forwards no identity binding and runs the web OAuth return leg', async () => {
     await runProviderColdBoot(makeOpts());
 
     const opts = capturedOpts();
     expect(opts.sessionMode).toBe('account');
     expect(opts.identity).toBeUndefined();
     expect(tryCompleteOAuthReturnMock).toHaveBeenCalledTimes(1);
-    expect(maybeStartSilentOAuthRestoreMock).toHaveBeenCalledTimes(1);
   });
 
-  it('identity mode: forwards the mode + binding and skips both web OAuth lanes', async () => {
+  it('identity mode: forwards the mode + binding and skips the web OAuth return leg', async () => {
     await runProviderColdBoot({
       ...makeOpts(),
       sessionMode: 'identity',
@@ -219,6 +200,5 @@ describe('runProviderColdBoot — sessionMode wiring', () => {
     expect(opts.sessionMode).toBe('identity');
     expect(opts.identity).toBe(identity);
     expect(tryCompleteOAuthReturnMock).not.toHaveBeenCalled();
-    expect(maybeStartSilentOAuthRestoreMock).not.toHaveBeenCalled();
   });
 });

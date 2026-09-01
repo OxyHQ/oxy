@@ -19,6 +19,7 @@ import {
   composeDisplayName,
   composeFullName,
   formatUserNameResponse,
+  resolveEmailFromName,
   truncatePublicKeyHandle,
 } from '../displayName';
 
@@ -169,5 +170,29 @@ describe('truncatePublicKeyHandle', () => {
     expect(truncatePublicKeyHandle(undefined)).toBeUndefined();
     expect(truncatePublicKeyHandle(null)).toBeUndefined();
     expect(truncatePublicKeyHandle('')).toBeUndefined();
+  });
+});
+
+describe('resolveEmailFromName', () => {
+  it('uses composed real name when present', () => {
+    expect(
+      resolveEmailFromName({
+        name: { first: 'Jane', last: 'Doe' },
+        username: 'janed',
+      }),
+    ).toBe('Jane Doe');
+  });
+
+  it('falls back to username when no real name exists', () => {
+    expect(resolveEmailFromName({ username: 'janed' })).toBe('janed');
+  });
+
+  it('prefers explicit displayName over username', () => {
+    expect(
+      resolveEmailFromName({
+        name: { displayName: 'Jane' },
+        username: 'janed',
+      }),
+    ).toBe('Jane');
   });
 });

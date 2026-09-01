@@ -3,7 +3,7 @@ import { APPLICATION_SCOPES } from '../utils/applicationScopes';
 import {
   APPLICATION_CREDENTIAL_TYPES,
   APPLICATION_CREDENTIAL_ENVIRONMENTS,
-} from '../models/ApplicationCredential';
+} from '../db/schema/applicationCredentials';
 
 /** Route params with :appId. */
 export const appIdRouteParams = z.object({
@@ -87,16 +87,82 @@ export const updateApplicationSchema = z
   .strict();
 
 /**
+ * Bounds on a `machine` credential's configured lifetime, in seconds.
+ *
+ * The floor keeps a key usable long enough to be worth minting; the ceiling —
+ * two years — exists because "never expires" is already available by omitting
+ * the field, so an explicit lifetime longer than the audit retention behind it
+ * would be a number nobody could later check against its own trail.
+ */
+const MIN_CREDENTIAL_LIFETIME_SECONDS = 60;
+const MAX_CREDENTIAL_LIFETIME_SECONDS = 730 * 24 * 60 * 60;
+
+/**
+ * Bounds on an explicitly requested rotation grace window, in seconds.
+ *
+ * The floor is ONE second rather than something operationally sensible, so the
+ * end of a window is observable in a test without mutating a row underneath the
+ * code under test. The ceiling is thirty days: a grace is a rollout window, and
+ * one longer than a month is a second live credential wearing a deadline.
+ */
+const MIN_ROTATION_GRACE_SECONDS = 1;
+const MAX_ROTATION_GRACE_SECONDS = 30 * 24 * 60 * 60;
+
+/**
  * POST /applications/:appId/credentials — create a credential.
  *
  * `scopes` is constrained to the SAME enum as application scopes (no free-form
  * strings). The route additionally intersects the requested scopes with the
  * owning application's granted scopes, so a credential can never exceed its
  * app's authority.
+ *
+ * `expiresInSeconds` is `machine`-only — on every other type `expires_at` means
+ * the rotation grace deadline, and letting a caller set it at creation would
+ * make a brand-new credential look like a rotated one. The route rejects it for
+ * those types rather than ignoring it.
  */
 export const createCredentialSchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(APPLICATION_CREDENTIAL_TYPES),
   environment: z.enum(APPLICATION_CREDENTIAL_ENVIRONMENTS),
   scopes: z.array(z.enum(APPLICATION_SCOPES)).optional(),
+  expiresInSeconds: z
+    .number()
+    .int()
+    .min(MIN_CREDENTIAL_LIFETIME_SECONDS)
+    .max(MAX_CREDENTIAL_LIFETIME_SECONDS)
+    .optional(),
 });
+
+/**
+ * POST /applications/:appId/credentials/:credId/rotate — rotate a credential.
+ *
+ * `graceSeconds` is `machine`-only and OPT-IN. Omitting it revokes the previous
+ * token the instant the replacement is minted; naming it keeps the old token
+ * working for exactly that long. The OAuth/service types keep their fixed
+ * seven-day grace and reject this field, so their contract is unchanged.
+ */
+export const rotateCredentialSchema = z
+  .object({
+    graceSeconds: z
+      .number()
+      .int()
+      .min(MIN_ROTATION_GRACE_SECONDS)
+      .max(MAX_ROTATION_GRACE_SECONDS)
+      .optional(),
+  })
+  .strict();
+
+/**
+ * GET /applications/:appId/credentials/:credId/audit — the credential's trail.
+ *
+ * Paging is a capped `limit` and nothing else, the same shape
+ * `providerConnectionAuditQuery` uses on the BYOK trail: the ceiling is what
+ * stops one request pulling a whole application's history, and the two audit
+ * surfaces answering the same question the same way is worth more than a cursor
+ * neither caller has asked for. `z.coerce` because a query string carries the
+ * value as text.
+ */
+export const credentialAuditQuerySchema = z
+  .object({ limit: z.coerce.number().int().min(1).max(200).default(50) })
+  .strict();

@@ -11,6 +11,9 @@ import { hashedIpKey } from "../utils/ipKey";
 
 const isProd = process.env.NODE_ENV !== 'development';
 
+/** hashedIpKey already buckets IPv6 before HMAC; silence express-rate-limit v8's false-positive scan. */
+const rateLimitValidate = { validate: { keyGeneratorIpFallback: false } } as const;
+
 // Build Redis-backed store options if available, otherwise fall back to in-memory.
 // Each limiter MUST pass a unique `prefix` so that hits land in distinct Redis
 // keys; otherwise a request that flows through both the global limiter and a
@@ -89,6 +92,8 @@ export function isFederationServiceToServicePath(path: string): boolean {
  *   - POST /assets/service/cache      (mirror remote media into the cache ns)
  *   - POST /assets/service/federation (persist durable federated media)
  *   - POST /assets/service/user-media (persist media for a local user; MCP)
+ *   - POST /assets/service/by-ids     (resolve asset metadata for a batch of ids)
+ *   - POST /assets/service/by-sha256  (reverse-resolve assets by content hash)
  *
  * Because these share a prefix with genuine browser/user routes (`/users/*`,
  * `/assets/*`), a PURE path match — as used for the IdP worker / federation
@@ -105,6 +110,13 @@ const SERVICE_TO_SERVICE_BULK_PATHS: ReadonlySet<string> = new Set([
   '/assets/service/cache',
   '/assets/service/federation',
   '/assets/service/user-media',
+  // The two bulk READ lookups. Omitting them was not a judgement call — they
+  // were introduced after this set and never added, so a relying app's metadata
+  // backfill ran under the 1000/15min browser budget and absorbed 24,423
+  // consecutive 429s in one run. Both carry `assetServiceLookupLimiter`, which
+  // is what the MOUNT-ORDER INVARIANT below requires of every entry here.
+  '/assets/service/by-ids',
+  '/assets/service/by-sha256',
 ]);
 
 /**
@@ -117,8 +129,12 @@ const SERVICE_TO_SERVICE_BULK_PATHS: ReadonlySet<string> = new Set([
  *
  * MOUNT-ORDER INVARIANT: every exempt path MUST carry its own dedicated service
  * limiter at its route — `/users/resolve` → `userResolveServiceLimiter`
- * (routes/users.ts), `/assets/service/*` → `cacheUploadLimiter` (routes/assets.ts).
- * The path set here and those route limiters must be kept in sync.
+ * (routes/users.ts), `/assets/service/{cache,federation,user-media}` →
+ * `cacheUploadLimiter`, `/assets/service/{by-ids,by-sha256}` →
+ * `assetServiceLookupLimiter` (both routes/assets.ts). The path set here and
+ * those route limiters must be kept in sync: an entry added here WITHOUT a route
+ * limiter is not a smaller fix, it is a regression — it removes the only ceiling
+ * that authenticated service traffic on that path has.
  */
 export function isServiceToServiceBulkRequest(req: Request): boolean {
   if (!SERVICE_TO_SERVICE_BULK_PATHS.has(req.path)) return false;
@@ -136,6 +152,7 @@ export function isServiceToServiceBulkRequest(req: Request): boolean {
 // isIdpServiceToServicePath) so shared-egress traffic never exhausts this budget.
 const rateLimiter = rateLimit({
   ...makeStore('rl:general:'),
+  ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 1000 : 2000,
   message: "Too many requests from this IP, please try again later.",
@@ -166,6 +183,7 @@ const rateLimiter = rateLimit({
 // other limiter (no ERR_ERL_DOUBLE_COUNT).
 const federationServiceLimiter = rateLimit({
   ...makeStore('rl:federation:service:'),
+  ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 60000 : 120000,
   message: "Too many federation signing requests, please slow down.",
@@ -185,6 +203,7 @@ const federationServiceLimiter = rateLimit({
 // READ budget distinct from every other limiter (no ERR_ERL_DOUBLE_COUNT).
 const idpServiceLimiter = rateLimit({
   ...makeStore('rl:idp:service:'),
+  ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 20000 : 40000,
   message: "Too many requests, please try again later.",
@@ -203,6 +222,7 @@ const idpServiceLimiter = rateLimit({
 // /auth/refresh roughly every 15 minutes.
 const authRateLimiter = rateLimit({
   ...makeStore('rl:auth:'),
+  ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 300 : 2000,
   message: "Too many authentication attempts from this IP, please try again later.",
@@ -215,6 +235,7 @@ const authRateLimiter = rateLimit({
 // Per-user rate limiting for authenticated requests
 const userRateLimiter = rateLimit({
   ...makeStore('rl:user:'),
+  ...rateLimitValidate,
   windowMs: 15 * 60 * 1000,
   max: isProd ? 200 : 2000,
   message: "Too many requests, please try again later.",
@@ -257,18 +278,10 @@ const securityHeaders = helmet({
     preload: true,
   } : false,
 
-  // Content-Security-Policy: Prevent XSS and data injection attacks
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      fontSrc: ["'self'"],
-      connectSrc: ["'self'"],
-      frameAncestors: ["'none'"],
-    },
-  },
+  // No Content-Security-Policy: oxy-api is JSON-only — a source-list CSP governs
+  // no browsing context here. HTML origins use @oxyhq/core/server
+  // buildOxyPagesHeaders / createOxySecurityHeaders instead.
+  contentSecurityPolicy: false,
 
   // X-Frame-Options: Prevent clickjacking attacks
   frameguard: {

@@ -1154,6 +1154,7 @@
       "heading": "Sign-in request",
       "title": "Sign in to {{app}}",
       "requestedFrom": "Requested from {{client}}",
+      "officialBadge": "Official Oxy app",
       "developerBy": "by {{developer}}",
       "receivesTitle": "{{app}} will receive",
       "receivesBasic": "Your identity, name, and profile picture",
@@ -1163,6 +1164,7 @@
       "willActAs": "{{app}} will act as",
       "identityUnchanged": "You stay yourself. Your identity doesn't change — you're allowing {{app}} to act as this account.",
       "confirm": "Confirm identity",
+      "confirming": "Confirming identity…",
       "reject": "This wasn't me",
       "rejecting": "Stopping…",
       "approvedTitle": "Signed in",
@@ -1187,6 +1189,10 @@
       "unverifiedBody": "We couldn't confirm where this sign-in request started. Only continue if you JUST started it yourself on a device you trust. If you didn't, tap “This wasn't me”.",
       "privacyLink": "Privacy Policy",
       "termsLink": "Terms of Service"
+    },
+    "channel": {
+      "name": "Sign-in requests",
+      "description": "Alerts when another device asks to sign in as you"
     }
   },
   "civic": {

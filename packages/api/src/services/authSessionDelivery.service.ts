@@ -17,22 +17,42 @@
  * Zero eligible installs is a NORMAL outcome (the client falls back to a QR),
  * not an error, and a push transport failure degrades to exactly the same
  * outcome — delivery must never fail the auth flow.
+ *
+ * ## What the Postgres port changed
+ *
+ * `auth_sessions.session_token` is a PROTECTED column
+ * (`db/schema/protectedColumns.ts`): possession of it alone exchanges an
+ * approved request for an access token. Both reads here therefore NAME the
+ * columns they need instead of selecting the row — `sessionToken` is one of
+ * them, because the route has to wake the waiting originator on its own secret
+ * channel, and naming it is how that read reads differently from an ordinary
+ * one.
+ *
+ * Eligibility became ONE join instead of two round trips. `capabilities` is a
+ * `text[]` with a GIN index (`applications_capabilities_idx` — ADDED by the
+ * port; Mongo declared none and scanned the collection on every delivery), so
+ * `capabilities @> array['identity:approval']` is an index scan, and an
+ * install with a NULL `application_id` — "not scoped to any application" —
+ * simply does not join, exactly as Mongo's `$in` over the capable ids excluded
+ * it.
  */
 
-import type mongoose from 'mongoose';
-import { AuthSession } from '../models/AuthSession';
-import { Application } from '../models/Application';
-import { PushToken } from '../models/PushToken';
+import { and, arrayContains, eq, gt, isNull } from 'drizzle-orm';
+
+import { getDb } from '../config/postgres';
+import { applications } from '../db/schema/applications';
+import { authSessions } from '../db/schema/authSessions';
+import { pushTokens } from '../db/schema/pushTokens';
 import { pushService } from './push.service';
 import { IDENTITY_APPROVAL_CAPABILITY } from '../utils/applicationCapabilities';
+// The Android channel the approval push is sent on. NOT an iOS `categoryId`:
+// the notification carries no action buttons, so it can only be opened (which
+// routes into the normal in-vault approval screen) or dismissed. It is a wire
+// contract because the vault must create a channel with this exact id before a
+// push can land — Android 8+ drops a notification whose channel it does not
+// know, silently and with no error on either side.
+import { IDENTITY_APPROVAL_PUSH_CHANNEL } from '@oxyhq/contracts';
 import { logger } from '../utils/logger';
-
-/**
- * Notification channel/category for approval requests. NOT an iOS `categoryId`:
- * the notification carries no action buttons, so it can only be opened (which
- * routes into the normal in-vault approval screen) or dismissed.
- */
-export const IDENTITY_APPROVAL_PUSH_CHANNEL = 'auth-approval';
 
 /** Runtime type discriminator of the push payload, mirrored by the vault. */
 export const IDENTITY_APPROVAL_PUSH_TYPE = 'oxy_commons_auth_request';
@@ -76,25 +96,24 @@ export type DeliverAuthRequestOutcome =
  * Resolve the push tokens of the user's installs that may approve an identity
  * request. Returns an empty array when the user has no such install, or when no
  * application currently carries the capability at all.
+ *
+ * The join IS the eligibility rule: an install whose `application_id` is NULL
+ * ("not scoped to any application") joins nothing and is never targeted, and a
+ * scoped install is targeted only while its application is `active` AND carries
+ * the staff-controlled capability.
  */
 async function resolveIdentityApprovalTokens(userId: string): Promise<string[]> {
-  const capableApps = await Application.find({
-    status: 'active',
-    capabilities: IDENTITY_APPROVAL_CAPABILITY,
-  })
-    .select('_id')
-    .lean<{ _id: mongoose.Types.ObjectId }[]>();
-
-  if (capableApps.length === 0) {
-    return [];
-  }
-
-  const installs = await PushToken.find({
-    userId,
-    applicationId: { $in: capableApps.map((app) => app._id) },
-  })
-    .select('token')
-    .lean<{ token: string }[]>();
+  const installs = await getDb()
+    .select({ token: pushTokens.token })
+    .from(pushTokens)
+    .innerJoin(applications, eq(pushTokens.applicationId, applications.id))
+    .where(
+      and(
+        eq(pushTokens.userId, userId),
+        eq(applications.status, 'active'),
+        arrayContains(applications.capabilities, [IDENTITY_APPROVAL_CAPABILITY]),
+      ),
+    );
 
   return installs.map((install) => install.token);
 }
@@ -112,7 +131,18 @@ export async function deliverAuthRequestToIdentityApps(params: {
 }): Promise<DeliverAuthRequestOutcome> {
   const { authorizeCode, identityUserId } = params;
 
-  const authSession = await AuthSession.findOne({ authorizeCode });
+  // Names `sessionToken` deliberately: it is a PROTECTED column and the route
+  // needs it to wake the waiting originator. Nothing else on the row is read,
+  // so nothing else is selected.
+  const [authSession] = await getDb()
+    .select({
+      sessionToken: authSessions.sessionToken,
+      status: authSessions.status,
+      expiresAt: authSessions.expiresAt,
+    })
+    .from(authSessions)
+    .where(eq(authSessions.authorizeCode, authorizeCode))
+    .limit(1);
   if (!authSession) {
     return { ok: false, status: 404, message: 'Auth session not found' };
   }
@@ -120,10 +150,12 @@ export async function deliverAuthRequestToIdentityApps(params: {
   if (authSession.expiresAt.getTime() <= Date.now()) {
     // Same lazy expiry the sibling approval endpoints perform. Conditioned on
     // `pending` so a concurrent approval is never overwritten.
-    await AuthSession.updateOne(
-      { authorizeCode, status: 'pending' },
-      { $set: { status: 'expired' } },
-    );
+    await getDb()
+      .update(authSessions)
+      .set({ status: 'expired' })
+      .where(
+        and(eq(authSessions.authorizeCode, authorizeCode), eq(authSessions.status, 'pending')),
+      );
     return { ok: false, status: 400, message: 'Auth session has expired' };
   }
 
@@ -168,11 +200,18 @@ export async function deliverAuthRequestToIdentityApps(params: {
 
   if (delivered) {
     // Progress is a TIMESTAMP, never a status — the state machine is untouched.
-    // Recorded once, and only while the request is still pending.
-    await AuthSession.updateOne(
-      { authorizeCode, status: 'pending', pushSentAt: null },
-      { $set: { pushSentAt: new Date() } },
-    );
+    // Recorded once, and only while the request is still pending. `status` is
+    // not in the `set`, so this update cannot move it even by accident.
+    await getDb()
+      .update(authSessions)
+      .set({ pushSentAt: new Date() })
+      .where(
+        and(
+          eq(authSessions.authorizeCode, authorizeCode),
+          eq(authSessions.status, 'pending'),
+          isNull(authSessions.pushSentAt),
+        ),
+      );
   }
 
   return {
@@ -203,24 +242,38 @@ export type MarkAuthRequestOpenedOutcome =
 export async function markAuthRequestOpened(
   authorizeCode: string,
 ): Promise<MarkAuthRequestOpenedOutcome> {
-  const authSession = await AuthSession.findOne({ authorizeCode });
+  // Same protected-column posture as the delivery read: `sessionToken` is named
+  // because the route wakes the originator with it, and nothing else is.
+  const [authSession] = await getDb()
+    .select({ sessionToken: authSessions.sessionToken })
+    .from(authSessions)
+    .where(eq(authSessions.authorizeCode, authorizeCode))
+    .limit(1);
   if (!authSession) {
     return { ok: false, status: 404, message: 'Auth session not found' };
   }
 
-  const update = await AuthSession.updateOne(
-    {
-      authorizeCode,
-      status: 'pending',
-      openedAt: null,
-      expiresAt: { $gt: new Date() },
-    },
-    { $set: { openedAt: new Date() } },
-  );
+  // The `expires_at > now()` half is carried over VERBATIM. `db/expiry.ts`
+  // sweeps `auth_sessions` on a one-hour grace so a late poll can answer
+  // "expired" rather than "never existed" — dropping this predicate because
+  // "the sweep handles it" would turn that bounded lag into a window in which
+  // an expired request still records progress.
+  const recorded = await getDb()
+    .update(authSessions)
+    .set({ openedAt: new Date() })
+    .where(
+      and(
+        eq(authSessions.authorizeCode, authorizeCode),
+        eq(authSessions.status, 'pending'),
+        isNull(authSessions.openedAt),
+        gt(authSessions.expiresAt, new Date()),
+      ),
+    )
+    .returning({ id: authSessions.id });
 
   return {
     ok: true,
     sessionToken: authSession.sessionToken,
-    recorded: (update.modifiedCount ?? 0) > 0,
+    recorded: recorded.length > 0,
   };
 }

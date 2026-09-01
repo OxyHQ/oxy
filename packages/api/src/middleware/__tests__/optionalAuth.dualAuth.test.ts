@@ -9,25 +9,41 @@
  * Asserts:
  *  - a VALID service token attaches `req.serviceApp` (non-blocking),
  *  - an INVALID/expired token attaches NO principal (anonymous) — never rejected,
- *  - a service token + `user:read` + valid `X-Oxy-User-Id` → that viewer id,
+ *  - a service token + `user:read` + an `X-Oxy-User-Id` of EITHER live account-id
+ *    shape → that viewer id,
  *  - a service token WITHOUT `user:read` ignores the header (anonymous),
  *  - a malformed / missing `X-Oxy-User-Id` → anonymous,
  *  - a USER token resolves to its OWN session user and IGNORES `X-Oxy-User-Id`
  *    (anti-impersonation),
  *  - no token → anonymous.
+ *
+ * ## The cutover bug the uuid-v7 cases pin
+ *
+ * `resolveViewerId` gated the delegation header on
+ * `Types.ObjectId.isValid(viewerId)`, which rejects the **uuid v7 every account
+ * created after the Postgres cutover carries** (`@oxyhq/db`'s
+ * `generatedId()`). A delegating service naming such a viewer therefore resolved
+ * to `undefined` and the request SILENTLY DEGRADED TO ANONYMOUS — viewer-scoped
+ * visibility filtering (blocks, restricts, private accounts, follow-gated
+ * fields) stopped applying, with no error anywhere. That is a privacy
+ * consequence, not a failure, which is exactly why nothing surfaced it.
+ *
+ * The guard is REPLACED, not deleted, and `optionalAuth.ts` says why: unlike its
+ * siblings in `securityActivityService` / `identityBinding.service`, this one is
+ * not a Mongoose `CastError` artifact but the documented input contract of a
+ * cross-principal delegation header. `isAccountIdFormat` accepts BOTH live
+ * shapes, so both are asserted below — narrow it back to 24-hex and
+ * `resolves a uuid v7 …` goes red.
  */
 
-// The global mongoose mock (jest.setup.cjs) omits `Types`, which optionalAuth's
-// resolveViewerId uses (`Types.ObjectId.isValid`). Restore the REAL mongoose.
-jest.mock('mongoose', () => jest.requireActual('mongoose'));
 // The global jest.setup.cjs stubs `jsonwebtoken` (sign → fixed string, verify →
 // fixed payload). The scoped-media-token tests below mint and verify REAL tokens
 // (HS256 over a key derived from ACCESS_TOKEN_SECRET), so restore the genuine
 // module for this suite.
 jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
-import { Types } from 'mongoose';
 import type { Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { v7 as uuidv7 } from 'uuid';
 import { signMediaToken } from '../../utils/mediaToken';
 
 const mockVerifyServiceToken = jest.fn();
@@ -38,8 +54,8 @@ jest.mock('../serviceToken', () => ({
 
 const mockAuthNonBlocking = jest.fn();
 // Fully mock authUtils (rather than requireActual) so loading optionalAuth does
-// NOT pull in the real session.service → Session model chain, which the global
-// mongoose mock cannot construct. We provide only the members optionalAuth
+// NOT pull in the real session.service chain and the database behind it. We
+// provide only the members optionalAuth
 // consumes: a pure bearer extractor and the non-blocking authenticator. The
 // scoped media token is verified by the REAL `utils/mediaToken` (pure crypto),
 // so no mock is needed for it.
@@ -77,8 +93,15 @@ function runMiddleware(req: OptionalUserOrServiceRequest): Promise<void> {
   });
 }
 
-const VIEWER_ID = new Types.ObjectId().toHexString();
-const OTHER_ID = new Types.ObjectId().toHexString();
+/**
+ * The id shape EVERY account created since the Postgres cutover carries —
+ * minted by the same `uuidv7()` inside `@oxyhq/db`'s `generatedId()` calls, not a
+ * look-alike literal.
+ */
+const VIEWER_ID = uuidv7();
+/** The pre-cutover shape, preserved verbatim in `text` for existing accounts. */
+const LEGACY_VIEWER_ID = '64b0000000000000000000aa';
+const OTHER_ID = uuidv7();
 
 beforeEach(() => {
   mockVerifyServiceToken.mockReset();
@@ -153,12 +176,26 @@ describe('resolveViewerId', () => {
     expect(resolveViewerId(req)).toBe(VIEWER_ID);
   });
 
-  it('resolves X-Oxy-User-Id for a service token holding user:read', () => {
+  it('resolves a uuid v7 X-Oxy-User-Id — a post-cutover viewer is NOT dropped to anonymous', () => {
+    // Under the deleted `Types.ObjectId.isValid` guard this returned `undefined`
+    // and every viewer-scoped visibility filter downstream stopped applying,
+    // silently, for every account created after the cutover.
+    expect(VIEWER_ID).not.toMatch(/^[0-9a-f]{24}$/i);
     const req = makeReq({
       serviceApp: { type: 'service', appId: 'a', appName: 'n', credentialId: 'c', scopes: ['user:read'] },
       headers: { 'x-oxy-user-id': VIEWER_ID },
     });
     expect(resolveViewerId(req)).toBe(VIEWER_ID);
+  });
+
+  it('still resolves a 24-hex X-Oxy-User-Id — pre-cutover accounts keep working', () => {
+    // Both shapes are live simultaneously: existing ids were preserved verbatim
+    // so every foreign key survived the backfill.
+    const req = makeReq({
+      serviceApp: { type: 'service', appId: 'a', appName: 'n', credentialId: 'c', scopes: ['user:read'] },
+      headers: { 'x-oxy-user-id': LEGACY_VIEWER_ID },
+    });
+    expect(resolveViewerId(req)).toBe(LEGACY_VIEWER_ID);
   });
 
   it('returns undefined for a service token WITHOUT user:read even with a valid header', () => {

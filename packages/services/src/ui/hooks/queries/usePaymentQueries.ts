@@ -30,8 +30,9 @@ import type {
  * Get the current user's subscription.
  *
  * Wraps `oxyServices.getCurrentUserSubscription()`
- * (`GET /subscription/:userId`). Returns the persisted subscription or the
- * API's `{ plan: 'basic' }` fallback when the user has never subscribed.
+ * (`GET /subscription/:userId`, billing-first). Returns the persisted
+ * subscription or the API's `{ plan: 'basic' }` fallback when the user has
+ * never subscribed.
  */
 export const useUserSubscription = (options?: { enabled?: boolean }) => {
   const { oxyServices, isAuthenticated, activeSessionId, user } = useOxy();

@@ -10,11 +10,11 @@ import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list'
 import { Avatar } from '@oxyhq/bloom/avatar';
 import FollowButton from '../components/FollowButton';
 import { useFollow } from '../hooks/useFollow';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';
-import { getAccountDisplayName, logger, normalizeProfileLinks } from '@oxyhq/core';
+import { getNormalizedUserHandle, logger, normalizeProfileLinks } from '@oxyhq/core';
 import { extractErrorMessage } from '../utils/errorHandlers';
 
 interface ProfileScreenProps extends BaseScreenProps {
@@ -42,7 +42,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
     } = useFollow(userId);
 
     const bloomTheme = useTheme();
-    const { t, locale } = useI18n();
+    const { t } = useI18n();
 
     // Check if current user is viewing their own profile
     // Normalize IDs by trimming whitespace to handle format mismatches
@@ -78,7 +78,9 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
                     );
                     throw err;
                 }),
-                oxyServices.getReputationBalance(userId)
+                (isOwnProfile
+                    ? oxyServices.getMyReputationBalance()
+                    : oxyServices.getReputationBalance(userId))
                     .then((balance): { total: number | undefined } => ({ total: balance.total }))
                     .catch((): { total: number | undefined } => ({ total: undefined })),
                 oxyServices.getUserStats
@@ -133,7 +135,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
     // title (a stable "Profile" fallback before it resolves), so the banner +
     // overlapping avatar scroll as content UNDER the shared gradient nav bar.
     // `onImage` tone keeps the title + close legible over the colored banner.
-    const displayName = profile ? getAccountDisplayName(profile, locale) : username || '';
+    // Ends in a string, deliberately: `getNormalizedUserHandle` answers `null` for a
+    // user it cannot normalise, and letting that null travel makes this `string | null`
+    // — which does not satisfy `Avatar.name` and does not typecheck. Empty is the honest
+    // bottom of the chain and every reader below already treats it as falsy
+    // (`displayName || t('profile.title')`), so nothing renders a literal "null".
+    const displayName = profile
+        ? (profile.name?.displayName ?? getNormalizedUserHandle(profile) ?? '')
+        : username || '';
     useSurfaceHeader({
         title: displayName || t('profile.title'),
         largeTitle: false,
@@ -187,8 +196,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ userId, username, theme, 
                 <View style={styles.avatarRow} className="px-screen-margin">
                     <View style={styles.avatarWrapper} className="border-bg bg-bg rounded-radius-max">
                         <Avatar
-                            source={profile?.avatar ? oxyServices.getFileDownloadUrl(profile.avatar, 'thumb') : undefined}
-                            name={displayName || username}
+                            // `getFileDownloadUrl` answers `null` for a reference it cannot
+                            // resolve, and `Avatar.source` takes `undefined` for "no picture" —
+                            // the two spellings of absent do not meet, so the coalesce is the
+                            // whole fix. Without it this file does not typecheck, which blocks
+                            // `bun run build` and therefore every publish of this package.
+                            source={
+                                profile?.avatar
+                                    ? (oxyServices.getFileDownloadUrl(profile.avatar, 'thumb') ?? undefined)
+                                    : undefined
+                            }
+                            name={displayName}
                             size={AVATAR_SIZE}
                         />
                     </View>

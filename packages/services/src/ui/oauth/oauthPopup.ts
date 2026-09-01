@@ -19,7 +19,7 @@
  *   opaque. The authorization result arrives ONLY as a `postMessage`.
  */
 
-import { logger } from '@oxyhq/core';
+import { canonicalizeOAuthRedirectUri, logger } from '@oxyhq/core';
 import { readOAuthPopupMessage } from './oauthPopupMessages';
 import type { OAuthPopupHandle, OAuthPopupOutcome } from './types';
 
@@ -119,6 +119,47 @@ export function closeOAuthPopup(popup: OAuthPopupHandle | null): void {
   }
 }
 
+/**
+ * When the IdP falls back to a top-level redirect inside the popup (no usable
+ * `window.opener`), a same-origin `redirect_uri` is readable from the opener.
+ * Cross-origin redirects remain opaque and are not handled here.
+ */
+function readSameOriginRedirectOutcome(
+  popup: OAuthPopupHandle,
+  redirectUri: string,
+  expectedState: string,
+): OAuthPopupOutcome | null {
+  try {
+    const href = popup.location.href;
+    if (!href) return null;
+
+    const popupUrl = new URL(href);
+    const expected = new URL(canonicalizeOAuthRedirectUri(redirectUri));
+    if (popupUrl.origin !== expected.origin) return null;
+    if (popupUrl.pathname !== expected.pathname) return null;
+
+    const oauthError = popupUrl.searchParams.get('error');
+    if (oauthError) {
+      const errorDescription = popupUrl.searchParams.get('error_description') ?? undefined;
+      return {
+        kind: 'oauth-error',
+        error: oauthError,
+        ...(errorDescription ? { errorDescription } : {}),
+      };
+    }
+
+    const code = popupUrl.searchParams.get('code');
+    if (!code) return null;
+
+    const state = popupUrl.searchParams.get('state');
+    if (!state || state !== expectedState) return { kind: 'state-mismatch' };
+    return { kind: 'code', code, state };
+  } catch {
+    // Cross-origin navigation — the popup URL is opaque to the opener.
+    return null;
+  }
+}
+
 /** Inputs for {@link awaitOAuthPopupResult}. */
 export interface AwaitOAuthPopupOptions {
   /** The exact window reference returned by {@link openOAuthPopup}. */
@@ -127,6 +168,12 @@ export interface AwaitOAuthPopupOptions {
   expectedOrigin: string;
   /** The CSRF `state` sent on the authorize request. */
   expectedState: string;
+  /**
+   * EXACT registered redirect URI for this attempt. When the IdP cannot
+   * `postMessage` (no usable opener) it falls back to redirecting the popup;
+   * if that lands on the same origin, the result is read from the popup URL.
+   */
+  redirectUri: string;
   /** @default DEFAULT_OAUTH_POPUP_TIMEOUT_MS */
   timeoutMs?: number;
 }
@@ -145,8 +192,13 @@ export interface AwaitOAuthPopupOptions {
 export function awaitOAuthPopupResult(
   options: AwaitOAuthPopupOptions,
 ): Promise<OAuthPopupOutcome> {
-  const { popup, expectedOrigin, expectedState, timeoutMs = DEFAULT_OAUTH_POPUP_TIMEOUT_MS } =
-    options;
+  const {
+    popup,
+    expectedOrigin,
+    expectedState,
+    redirectUri,
+    timeoutMs = DEFAULT_OAUTH_POPUP_TIMEOUT_MS,
+  } = options;
 
   const host = messageEventHost();
   if (!host) return Promise.resolve({ kind: 'unsupported' });
@@ -206,6 +258,12 @@ export function awaitOAuthPopupResult(
     timeoutTimer = setTimeout(() => settle({ kind: 'timed-out' }), timeoutMs);
 
     closePoll = setInterval(() => {
+      const redirectOutcome = readSameOriginRedirectOutcome(popup, redirectUri, expectedState);
+      if (redirectOutcome) {
+        settle(redirectOutcome);
+        return;
+      }
+
       if (!popup.closed) return;
       // Stop sampling immediately: the window is gone and only the in-flight
       // message (if any) can still change the outcome.

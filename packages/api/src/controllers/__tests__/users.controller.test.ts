@@ -1,322 +1,316 @@
+/**
+ * `POST /users/search` (`UsersController.searchUsers`) against a REAL Postgres.
+ *
+ * The third people-search surface, alongside `GET /search` and
+ * `GET /profiles/search`. It shares their predicate and their public projection
+ * but has its own serializer call and its own hard cap of 5 results, which is
+ * why it keeps its own suite rather than being folded into theirs.
+ *
+ * The previous version asserted the SHAPE of the Mongo filter object
+ * (`{ accountStatus: { $ne: 'archived' } }`, `PUBLIC_USER_PROFILE_SELECT`, the
+ * `$regex` inside `$or`). None of those exist any more — and even when they did,
+ * an assertion about a filter object cannot tell a working gate from one that
+ * matches nothing: the projection case in particular passed against a stub that
+ * returned an empty array. Here the gates are checked by seeding a row that must
+ * NOT come back, and the leak guard by seeding a row that really holds the
+ * secret.
+ *
+ * Nothing is mocked but the logger — the controller reaches Postgres directly.
+ * Every test scopes itself with a unique token so the shared test database
+ * cannot influence a result.
+ */
+
 import type { Request, Response, NextFunction } from 'express';
-
-const mockFind = jest.fn();
-
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: { find: mockFind },
-}));
+import { randomUUID } from 'node:crypto';
 
 jest.mock('../../utils/logger', () => ({
   logger: { error: jest.fn(), info: jest.fn(), debug: jest.fn(), warn: jest.fn() },
 }));
 
-jest.mock('../../utils/sanitize', () => ({
-  sanitizeSearchQuery: jest.fn((q: string) => q),
-}));
-
-jest.mock('../../utils/asyncHandler', () => ({
-  sendSuccess: jest.fn((res: Response, data: unknown) => res.status(200).json({ data })),
-}));
-
+import { eq } from 'drizzle-orm';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { USERS_PROTECTED_COLUMNS } from '../../db/schema/protectedColumns';
+import { users } from '../../db/schema/users';
+import { BadRequestError } from '../../utils/error';
 import { UsersController } from '../users.controller';
-import { BadRequestError, InternalServerError } from '../../utils/error';
-import { PUBLIC_USER_PROFILE_SELECT } from '../../utils/publicUserProjection';
-import { peopleSearchMongoMatch } from '../../utils/profileQuery';
 
-describe('UsersController', () => {
-  let usersController: UsersController;
-  let mockRequest: Partial<Request>;
-  let mockResponse: Partial<Response>;
-  let mockNext: NextFunction;
+/** The hard cap the controller applies to a search page. */
+const SEARCH_RESULT_CAP = 5;
 
-  beforeEach(() => {
-    usersController = new UsersController();
-    mockRequest = {};
-    mockResponse = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn().mockReturnThis(),
-    };
-    mockNext = jest.fn();
-    jest.clearAllMocks();
+let controller: UsersController;
+
+interface SearchOutcome {
+  data: Array<Record<string, unknown>>;
+  raw: string;
+}
+
+/**
+ * Run the controller against a real `res` double and return what a client
+ * receives.
+ *
+ * `sendSuccess` is the REAL one, so the envelope shape (`{ data }`) is part of
+ * what this exercises rather than something a mock decides. The payload is
+ * round-tripped through JSON deliberately: express serializes it before it
+ * leaves the process, and `JSON.stringify` DROPS a key whose value is
+ * `undefined` — so an in-memory `expect(row).not.toHaveProperty('email')` would
+ * fail on a field that never reaches the wire at all.
+ */
+async function search(query: unknown): Promise<SearchOutcome> {
+  let payload: unknown;
+  const res = {
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn((body: unknown) => {
+      payload = body;
+      return res;
+    }),
+  };
+  await controller.searchUsers(
+    { body: { query } } as Request,
+    res as unknown as Response,
+    jest.fn() as NextFunction,
+  );
+  const raw = JSON.stringify(payload) ?? '';
+  const envelope = (raw.length > 0 ? JSON.parse(raw) : {}) as {
+    data?: Array<Record<string, unknown>>;
+  };
+  return { data: envelope.data ?? [], raw };
+}
+
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
+}
+
+/** A search term no row seeded by another test or suite can match. */
+function token(): string {
+  return `t${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+}
+
+function ids(outcome: SearchOutcome): string[] {
+  return outcome.data.map((row) => row.id as string);
+}
+
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  await closePostgres();
+});
+
+beforeEach(() => {
+  controller = new UsersController();
+});
+
+describe('UsersController.searchUsers — input validation', () => {
+  it('throws BadRequestError when the query is missing', async () => {
+    await expect(search(undefined)).rejects.toThrow(BadRequestError);
   });
 
-  describe('searchUsers', () => {
-    it('should throw BadRequestError if query is missing', async () => {
-      mockRequest.body = {};
+  it('throws BadRequestError when the query is not a string', async () => {
+    await expect(search(123)).rejects.toThrow(BadRequestError);
+  });
 
-      await expect(
-        usersController.searchUsers(mockRequest as Request, mockResponse as Response, mockNext)
-      ).rejects.toThrow(BadRequestError);
+  it('throws BadRequestError when the query is only whitespace', async () => {
+    await expect(search('   ')).rejects.toThrow(BadRequestError);
+  });
+});
+
+describe('UsersController.searchUsers — discoverability gate', () => {
+  it('excludes an archived account while returning an active one that matches identically', async () => {
+    const term = token();
+    const visible = await account({ username: `active${term}` });
+    await account({ username: `archived${term}`, accountStatus: 'archived' });
+
+    const outcome = await search(term);
+
+    expect(ids(outcome)).toEqual([visible]);
+  });
+
+  it('excludes a restricted-tier account while returning trusted and default-tier matches', async () => {
+    const term = token();
+    const trusted = await account({ username: `trusted${term}`, reputationTier: 'trusted' });
+    const untiered = await account({ username: `untiered${term}` });
+    await account({ username: `restricted${term}`, reputationTier: 'restricted' });
+
+    const outcome = await search(term);
+
+    expect(ids(outcome).sort()).toEqual([trusted, untiered].sort());
+  });
+
+  it('excludes a private account while returning a public one', async () => {
+    const term = token();
+    const publicUser = await account({ username: `public${term}` });
+    await account({ username: `private${term}`, privacyIsPrivateAccount: true });
+
+    const outcome = await search(term);
+
+    expect(ids(outcome)).toEqual([publicUser]);
+  });
+});
+
+describe('UsersController.searchUsers — account kind', () => {
+  /**
+   * PINS THE ECOSYSTEM-WIDE PRODUCT DECISION, ON THIS SURFACE.
+   *
+   * People search is BLIND to `users.kind` — `peopleSearchPredicate` has no kind
+   * clause, so a bot and an organization are returned beside people here. Until
+   * this case existed, every people-search test in the API seeded only
+   * `personal` rows, which meant adding a kind clause (removing every bot,
+   * organization and channel from every search surface at once) was a change CI
+   * could not see. The mechanism is pinned in
+   * `utils/__tests__/profileQuery.test.ts`; this pins that THIS ROUTE still runs
+   * it, so a per-surface divergence fails too.
+   *
+   * The private bot is the control: without it, "the bot came back" is also what
+   * a route that had stopped applying the gate would produce.
+   */
+  it('returns bots, organizations and channels beside people', async () => {
+    const term = token();
+    const person = await account({ username: `person${term}`, kind: 'personal' });
+    const bot = await account({ username: `bot${term}`, kind: 'bot' });
+    const org = await account({ username: `org${term}`, kind: 'organization' });
+    const channel = await account({ username: `channel${term}`, kind: 'channel' });
+    await account({ username: `privbot${term}`, kind: 'bot', privacyIsPrivateAccount: true });
+
+    // Four rows, under this surface's hard cap of five, so the assertion is
+    // about the gate and never about the cap.
+    const outcome = await search(term);
+
+    expect(ids(outcome).sort()).toEqual([person, bot, org, channel].sort());
+  });
+});
+
+describe('UsersController.searchUsers — matching', () => {
+  it('matches on username, first name, last name and description', async () => {
+    const term = token();
+    const byUsername = await account({ username: `u${term}` });
+    const byFirst = await account({ username: `a${token()}`, nameFirst: `First${term}` });
+    const byLast = await account({ username: `b${token()}`, nameLast: `Last${term}` });
+    const byDescription = await account({ username: `c${token()}`, description: `about ${term}` });
+
+    const outcome = await search(term);
+
+    expect(ids(outcome).sort()).toEqual([byUsername, byFirst, byLast, byDescription].sort());
+  });
+
+  it('strips a single leading @ so a Bluesky handle matches the stored username', async () => {
+    const term = token();
+    const stored = `${term}.bsky.social@bsky.social`;
+    const id = await account({ username: stored });
+
+    const outcome = await search(`@${stored}`);
+
+    expect(ids(outcome)).toEqual([id]);
+  });
+
+  it('strips only the leading @ — a mid-string @ is the user@host separator', async () => {
+    const term = token();
+    const withHost = await account({ username: `${term}@mastodon.social` });
+    await account({ username: `${term}nohost` });
+
+    const outcome = await search(`@${term}@mastodon.social`);
+
+    expect(ids(outcome)).toEqual([withHost]);
+  });
+
+  it('does NOT strip a mid-string @ when there is no leading @', async () => {
+    const term = token();
+    const withHost = await account({ username: `${term}@mastodon.social` });
+    await account({ username: `${term}nohost` });
+
+    const outcome = await search(`${term}@mastodon.social`);
+
+    expect(ids(outcome)).toEqual([withHost]);
+  });
+
+  it('caps the page at five results', async () => {
+    const term = token();
+    for (let index = 0; index < SEARCH_RESULT_CAP + 3; index += 1) {
+      await account({ username: `n${index}${term}` });
+    }
+
+    const outcome = await search(term);
+
+    expect(outcome.data).toHaveLength(SEARCH_RESULT_CAP);
+  });
+
+  it('returns an empty list when nothing matches', async () => {
+    const outcome = await search(token());
+
+    expect(outcome.data).toEqual([]);
+  });
+});
+
+describe('UsersController.searchUsers — response shape', () => {
+  it('emits the user DTO with the canonical composed display name', async () => {
+    const term = token();
+    const id = await account({
+      username: `shape${term}`,
+      nameFirst: 'Test',
+      nameLast: 'User',
+      avatar: 'file_search',
+      color: 'blue',
+      bio: 'a bio',
     });
 
-    it('should throw BadRequestError if query is not a string', async () => {
-      mockRequest.body = { query: 123 };
+    const outcome = await search(term);
 
-      await expect(
-        usersController.searchUsers(mockRequest as Request, mockResponse as Response, mockNext)
-      ).rejects.toThrow(BadRequestError);
+    expect(outcome.data).toHaveLength(1);
+    const row = outcome.data[0];
+    expect(row.id).toBe(id);
+    expect(row.username).toBe(`shape${term}`);
+    expect(row.name).toEqual({
+      displayName: 'Test User',
+      first: 'Test',
+      last: 'User',
+      full: 'Test User',
     });
+    expect(row.avatar).toBe('file_search');
+    expect(row.bio).toBe('a bio');
+  });
 
-    it('should search users successfully', async () => {
-      const mockUsers = [
-        { username: 'testuser', name: { first: 'Test', last: 'User' } },
-        { username: 'anotheruser', name: { first: 'Another', last: 'User' } },
-      ];
-
-      mockRequest.body = { query: 'test' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue(mockUsers),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      expect(mockFind).toHaveBeenCalledWith({
-        ...peopleSearchMongoMatch,
-        $or: [
-          { username: { $regex: 'test', $options: 'i' } },
-          { 'name.first': { $regex: 'test', $options: 'i' } },
-          { 'name.last': { $regex: 'test', $options: 'i' } },
-        ],
-      });
-      // Search rows are PUBLIC user rows — same shared projection the
-      // follower/following/mutual lists use, asserted against the exported
-      // constant so the two cannot drift apart again.
-      expect(mockQuery.select).toHaveBeenCalledWith(PUBLIC_USER_PROFILE_SELECT);
-      expect(mockQuery.limit).toHaveBeenCalledWith(5);
-      expect(mockQuery.lean).toHaveBeenCalled();
+  it('never emits a protected column, even when the row carries one', async () => {
+    const term = token();
+    const username = `secretive${term}`;
+    const email = `${username}@oxy.so`;
+    const id = await account({
+      username,
+      email,
+      phone: '+34600555444',
+      publicKey: `04${randomUUID().replace(/-/g, '')}`,
+      refreshToken: `rt_secret_${term}`,
+      emailSignature: `signature_secret_${term}`,
+      autoForwardTo: `forward_secret_${term}@example.com`,
     });
+    const [derived] = await getDb()
+      .select({ hashedEmail: users.hashedEmail, hashedPhone: users.hashedPhone })
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
 
-    it('excludes archived accounts from the search filter', async () => {
-      mockRequest.body = { query: 'test' };
+    const outcome = await search(term);
 
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      // Dead federated actors (marked gone via POST /federation/actor-gone) and
-      // archived org/project accounts are filtered so they never appear as
-      // 0-post ghost search hits. Only `archived` is excluded — active accounts
-      // (the default) still match.
-      const filter = mockFind.mock.calls[0]?.[0] as { accountStatus?: unknown };
-      expect(filter.accountStatus).toEqual({ $ne: 'archived' });
-    });
-
-    it('excludes private accounts from the search filter', async () => {
-      mockRequest.body = { query: 'test' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      const filter = mockFind.mock.calls[0]?.[0] as {
-        'privacySettings.isPrivateAccount'?: unknown;
-      };
-      expect(filter['privacySettings.isPrivateAccount']).toEqual({ $ne: true });
-    });
-
-    it('excludes restricted-tier users from the search filter', async () => {
-      mockRequest.body = { query: 'test' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      // Users in the punitive `restricted` reputation tier (lifetime total < 0
-      // OR abuseScore >= threshold) are hidden from people search alongside
-      // archived accounts. `{ $ne: 'restricted' }` still matches docs whose
-      // `reputationTier` is absent (untiered/new users), so no live user hides.
-      const filter = mockFind.mock.calls[0]?.[0] as { reputationTier?: unknown };
-      expect(filter.reputationTier).toEqual({ $ne: 'restricted' });
-    });
-
-    it('hides restricted OR archived users while an active untiered user shows', async () => {
-      mockRequest.body = { query: 'match' };
-
-      // A candidate pool exercising every axis: a restricted user, an archived
-      // user, a non-punitive `trusted` user, and an untiered active user.
-      const pool = [
-        { username: 'clean_match', accountStatus: 'active' as const },
-        { username: 'trusted_match', accountStatus: 'active' as const, reputationTier: 'trusted' as const },
-        { username: 'archived_match', accountStatus: 'archived' as const, reputationTier: 'trusted' as const },
-        { username: 'restricted_match', accountStatus: 'active' as const, reputationTier: 'restricted' as const },
-      ];
-
-      // Faithfully evaluate the controller's `{ $ne }` gates against the pool —
-      // a missing field is NOT equal to the excluded value (Mongo semantics), so
-      // the untiered user survives.
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockImplementation(() => {
-          const filter = mockFind.mock.calls[0]?.[0] as {
-            accountStatus?: { $ne?: string };
-            reputationTier?: { $ne?: string };
-          };
-          const acctNe = filter.accountStatus?.$ne;
-          const tierNe = filter.reputationTier?.$ne;
-          return Promise.resolve(
-            pool.filter(
-              (u) =>
-                u.accountStatus !== acctNe &&
-                (u as { reputationTier?: string }).reputationTier !== tierNe
-            )
-          );
-        }),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      const responseJson = mockResponse.json as jest.Mock;
-      const returned = responseJson.mock.calls[0]?.[0]?.data as Array<{ username: string }>;
-      const usernames = returned.map((u) => u.username);
-      expect(usernames).toContain('clean_match');
-      expect(usernames).toContain('trusted_match');
-      expect(usernames).not.toContain('archived_match');
-      expect(usernames).not.toContain('restricted_match');
-    });
-
-    it('never projects the searched users\' email addresses', async () => {
-      mockRequest.body = { query: 'test' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      // This projection used to include `email`, so a public user search
-      // returned every match's email address. The shared projection is
-      // inclusion-only: `email` is simply never loaded.
-      const projection = mockQuery.select.mock.calls[0]?.[0] as string;
-      expect(projection.split(' ')).not.toContain('email');
-    });
-
-    it('strips a single leading @ so a Bluesky handle matches the stored username', async () => {
-      // The stored atproto username has no leading @; the client query does.
-      mockRequest.body = { query: '@adamrbjack.bsky.social@bsky.social' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      // `sanitizeSearchQuery` is mocked as identity, so the `$regex` value is the
-      // stripped query — the leading @ is gone, matching the stored username.
-      const filter = mockFind.mock.calls[0]?.[0] as { $or?: Array<{ username?: { $regex?: string } }> };
-      expect(filter.$or?.[0]?.username?.$regex).toBe('adamrbjack.bsky.social@bsky.social');
-    });
-
-    it('strips only the leading @ — a Mastodon @user@host matches user@host', async () => {
-      mockRequest.body = { query: '@user@mastodon.social' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      // One leading @ removed; the mid-string @ (the user@host separator) stays.
-      const filter = mockFind.mock.calls[0]?.[0] as { $or?: Array<{ username?: { $regex?: string } }> };
-      expect(filter.$or?.[0]?.username?.$regex).toBe('user@mastodon.social');
-    });
-
-    it('does NOT strip a mid-string @ when there is no leading @', async () => {
-      mockRequest.body = { query: 'user@mastodon.social' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([]),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await usersController.searchUsers(
-        mockRequest as Request,
-        mockResponse as Response,
-        mockNext
-      );
-
-      // A query with no leading @ is unchanged — the internal @ is preserved.
-      const filter = mockFind.mock.calls[0]?.[0] as { $or?: Array<{ username?: { $regex?: string } }> };
-      expect(filter.$or?.[0]?.username?.$regex).toBe('user@mastodon.social');
-    });
-
-    it('should throw InternalServerError on database errors', async () => {
-      mockRequest.body = { query: 'test' };
-
-      const mockQuery = {
-        select: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockRejectedValue(new Error('Database error')),
-      };
-      mockFind.mockReturnValue(mockQuery);
-
-      await expect(
-        usersController.searchUsers(mockRequest as Request, mockResponse as Response, mockNext)
-      ).rejects.toThrow(InternalServerError);
-    });
+    const row = outcome.data[0];
+    // The vacuity floor: the assertions below pass trivially against an empty
+    // page, so the row carrying the secrets has to be the one returned.
+    expect(row.id).toBe(id);
+    for (const column of USERS_PROTECTED_COLUMNS) {
+      expect(row).not.toHaveProperty(column);
+    }
+    expect(row).not.toHaveProperty('email');
+    expect(row).not.toHaveProperty('publicKey');
+    for (const secret of [
+      email,
+      '+34600555444',
+      `rt_secret_${term}`,
+      `signature_secret_${term}`,
+      `forward_secret_${term}@example.com`,
+      derived.hashedEmail,
+      derived.hashedPhone,
+    ]) {
+      expect(typeof secret).toBe('string');
+      expect(outcome.raw).not.toContain(secret);
+    }
   });
 });

@@ -17,28 +17,32 @@
  * passes BOTH the custodial-key check and the signature check.
  */
 
+import { and, eq } from 'drizzle-orm';
 import type { ResolvedVerificationMethods, VerificationMethodResolver } from '@oxyhq/protocol';
 import { OXY_DID, parseUserDid } from './did.service';
-import { User } from '../models/User';
-
-/** The minimal subject-account projection the resolver reads from the DB. */
-interface SubjectVerificationMethods {
-  publicKey?: string | null;
-  authMethods?: Array<{ type?: string | null; metadata?: { publicKey?: string | null } | null } | null> | null;
-}
+import { getDb } from '../config/postgres';
+import { userAuthMethods } from '../db/schema/userAuthMethods';
+import { users } from '../db/schema/users';
 
 /**
  * Collect the distinct current verification-method public keys for a subject:
  * its primary `publicKey` first, then any `identity` auth-method keys. Mirrors
  * the DID document's `verificationMethod` set.
+ *
+ * `authMethods[]` was an embedded array and is the `user_auth_methods` table
+ * now, so the `type === 'identity'` filter moves into the query — an account
+ * with many auth methods no longer loads the ones this cannot authorize.
  */
-function collectCurrentPublicKeys(subject: SubjectVerificationMethods): string[] {
+function collectCurrentPublicKeys(
+  primaryPublicKey: string | null,
+  identityKeys: Array<{ methodPublicKey: string | null }>
+): string[] {
   const keys: string[] = [];
-  if (subject.publicKey) {
-    keys.push(subject.publicKey);
+  if (primaryPublicKey) {
+    keys.push(primaryPublicKey);
   }
-  for (const method of subject.authMethods ?? []) {
-    const key = method?.type === 'identity' ? method.metadata?.publicKey : undefined;
+  for (const method of identityKeys) {
+    const key = method.methodPublicKey;
     if (key && !keys.includes(key)) {
       keys.push(key);
     }
@@ -57,16 +61,22 @@ export const oxyVerificationResolver: VerificationMethodResolver = {
     if (!userId) {
       return null;
     }
-    const user = await User.findById(userId)
-      .select('publicKey authMethods')
-      .lean<SubjectVerificationMethods | null>();
+    const [user] = await getDb()
+      .select({ publicKey: users.publicKey })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
     if (!user) {
       return null;
     }
+    const identityKeys = await getDb()
+      .select({ methodPublicKey: userAuthMethods.methodPublicKey })
+      .from(userAuthMethods)
+      .where(and(eq(userAuthMethods.userId, userId), eq(userAuthMethods.type, 'identity')));
 
     const custodialPublicKey = process.env.OXY_PUBLIC_KEY;
     return {
-      currentPublicKeys: collectCurrentPublicKeys(user),
+      currentPublicKeys: collectCurrentPublicKeys(user.publicKey, identityKeys),
       custodialIssuer: OXY_DID,
       // Omit the custodial key when unconfigured so a custodial record can never
       // verify in an environment with no Oxy key.

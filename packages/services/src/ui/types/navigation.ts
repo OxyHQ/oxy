@@ -74,11 +74,11 @@ export interface OxyProviderProps {
     authWebUrl?: string;
     authRedirectUri?: string;
     /**
-     * Authorize endpoint override for silent cross-origin session restore
-     * (web cross-app SSO on cold boot). Defaults to the production Oxy IdP
-     * (`https://auth.oxy.so/authorize`) when unset. Set this from an env var
-     * (e.g. Vite `VITE_OXY_AUTHORIZE_URL`, Expo `EXPO_PUBLIC_OXY_AUTHORIZE_URL`)
-     * so a local/staging deployment targets its own IdP instead of production.
+     * Authorize endpoint override for web "Sign in with Oxy". Defaults to the
+     * production Oxy IdP (`https://auth.oxy.so/authorize`) when unset. Set this
+     * from an env var (e.g. Vite `VITE_OXY_AUTHORIZE_URL`, Expo
+     * `EXPO_PUBLIC_OXY_AUTHORIZE_URL`) so a local/staging deployment targets its
+     * own IdP instead of production.
      */
     authorizeBaseUrl?: string;
     /**
@@ -98,9 +98,9 @@ export interface OxyProviderProps {
      * rather than hidden in the UI: `accounts` stays empty and is never fetched,
      * `switchToAccount` / `switchSession` reject with `IdentityBoundSessionError`,
      * `accountDialogController` is `null` and `openAccountDialog()` does nothing,
-     * and the two web OAuth cold-boot lanes (authorization-code return + silent
-     * cross-origin restore) are skipped — all of them commit whichever account
-     * the IdP resolves, which is not necessarily the local key's owner.
+     * and the web OAuth cold-boot lane (the authorization-code return leg) is
+     * skipped — it commits whichever account the IdP resolves, which is not
+     * necessarily the local key's owner.
      *
      * Read once at mount, like `baseURL` / `oxyServices`: changing it on a
      * mounted provider does not re-bind the session.
@@ -110,22 +110,23 @@ export interface OxyProviderProps {
     /**
      * How a WEB third-party "Sign in with Oxy" hands the user to the IdP.
      *
-     * - `'redirect'` (default) — a full-page navigation to `auth.oxy.so`, which
-     *   returns to the registered `redirect_uri` with `?code=`. The tab unmounts
-     *   and remounts, so route and unsaved state are lost.
-     * - `'popup'` — a small `auth.oxy.so` window opened from the user's click.
-     *   The app stays MOUNTED and becomes authenticated without a reload; the
-     *   IdP delivers only the authorization code + `state` back to the opener
-     *   via `postMessage` (never a token, device secret, or PKCE verifier). A
-     *   blocked popup falls back to the redirect automatically.
+     * - `'popup'` (default) — a small `auth.oxy.so` window opened from the
+     *   user's click. The app stays MOUNTED and becomes authenticated without a
+     *   reload; the IdP delivers only the authorization code + `state` back to
+     *   the opener via `postMessage` (never a token, device secret, or PKCE
+     *   verifier). A blocked popup falls back to the redirect automatically.
+     * - `'redirect'` — a full-page navigation to `auth.oxy.so`, which returns to
+     *   the registered `redirect_uri` with `?code=`. The tab unmounts and
+     *   remounts, so route and unsaved state are lost.
+     *
+     * Either way the navigation only ever happens from a real user gesture: the
+     * SDK never bounces the top-level window on its own (#691 phase 7b).
      *
      * Native is unaffected — it always uses an in-app auth session.
-     * @default 'redirect'
+     * @default 'popup'
      */
     webAuthMode?: WebAuthMode;
     queryClient?: QueryClient;
-    /** Sync device credentials to auth.oxy.so after interactive sign-in. @default true */
-    hubSync?: boolean;
     /**
      * Convenience: wrap the whole app subtree in `<RequireOxyAuth prompt=...>`.
      * `off` (default) renders children unconditionally; `soft` adds a dismissible
@@ -135,4 +136,37 @@ export interface OxyProviderProps {
      * @default 'off'
      */
     requireAuth?: 'off' | 'soft' | 'hard';
+    /**
+     * When true, provisions a non-rotating background credential for native code
+     * (Android widgets) that runs without a JS runtime. Android-only today; inert
+     * on web and iOS.
+     * @default false
+     */
+    backgroundSession?: boolean;
+    /**
+     * Whether this origin/app may persist the durable device credential
+     * (`deviceId` + `deviceSecret`) at all.
+     *
+     * `'persistent'` (the default, and every app's behaviour) stores it — web
+     * localStorage per origin, SecureStore per app on native — so the SDK can
+     * re-mint an access token on the next cold boot.
+     *
+     * `'ephemeral'` stores NOTHING durable: the session lives in memory for the
+     * lifetime of the page and is gone on reload. It exists for ONE caller,
+     * `auth.oxy.so` with the browser hub enabled (issue #937 Phase 5, ADR 0003),
+     * where the durable credential for the browser profile is the server-side
+     * DeviceSession behind the `__Host-oxy-device` handle. Two durable
+     * credentials for one origin is the dual authority that phase exists to
+     * remove — revoking the hub while a localStorage secret still mints would
+     * make a sign-out look like it worked — so the way to let the hub be
+     * authoritative is to stop persisting the other one, not to consult it
+     * second.
+     *
+     * Do NOT reach for this to make an app "more private". A relying-party
+     * origin set to `'ephemeral'` simply signs the user out on every reload,
+     * because nothing else on that origin remembers the device.
+     *
+     * @default 'persistent'
+     */
+    deviceCredentialStorage?: 'persistent' | 'ephemeral';
 }

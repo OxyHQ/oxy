@@ -125,6 +125,53 @@ describe('@oxyhq/core/server rate limiter', () => {
     expect(req.observedKey).toBe('user:validated-user');
   });
 
+  it('does not clobber an identity a preceding middleware already resolved', () => {
+    // The limiter mutates the SHARED `req`, so the unconditional
+    // `req.userId = null` that `oxy.auth({ optional: true })` writes for every
+    // request it cannot authenticate is not merely a bucketing detail — it
+    // erases the identity for every handler downstream of the limiter too.
+    // The resolver must therefore skip entirely when a user is already present.
+    // This handler stands in for that erasure.
+    const clobberingAuth = jest.fn(
+      (req: RateLimitTestRequest, _res: Response, next: NextFunction) => {
+        req.userId = null;
+        req.user = null;
+        req.sessionId = null;
+        next();
+      },
+    );
+    const oxy = makeOxy(clobberingAuth as unknown as RequestHandler);
+    const req = makeRequest({
+      userId: 'resolved-by-the-app',
+      user: { id: 'resolved-by-the-app' },
+      sessionId: 'app-session',
+    });
+
+    createOxyRateLimit(oxy)(req, {} as Response, jest.fn());
+
+    expect(req.userId).toBe('resolved-by-the-app');
+    expect(req.user).toEqual({ id: 'resolved-by-the-app' });
+    expect(req.sessionId).toBe('app-session');
+    expect(req.observedKey).toBe('user:resolved-by-the-app');
+    expect(clobberingAuth).not.toHaveBeenCalled();
+  });
+
+  it('still resolves the session when no identity is present yet', () => {
+    const authHandler = jest.fn((req: RateLimitTestRequest, _res: Response, next: NextFunction) => {
+      req.userId = 'resolved-by-oxy';
+      req.user = { id: 'resolved-by-oxy' };
+      req.sessionId = 'oxy-session';
+      next();
+    });
+    const oxy = makeOxy(authHandler as unknown as RequestHandler);
+    const req = makeRequest();
+
+    createOxyRateLimit(oxy)(req, {} as Response, jest.fn());
+
+    expect(authHandler).toHaveBeenCalledTimes(1);
+    expect(req.observedKey).toBe('user:resolved-by-oxy');
+  });
+
   it('continues through the anonymous limiter if optional auth returns an error', () => {
     const oxy = makeOxy((_req: Request, _res: Response, next: NextFunction) => {
       next(new Error('token rejected'));

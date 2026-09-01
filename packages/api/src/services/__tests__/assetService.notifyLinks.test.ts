@@ -3,7 +3,7 @@
  */
 
 import { AssetService } from '../assetService';
-import type { IFile } from '../../models/File';
+import type { FileRecord } from '../../types/file.types';
 import type { S3Service } from '../s3Service';
 
 const mockSafeFetch = jest.fn();
@@ -27,11 +27,6 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-jest.mock('../../models/File', () => ({
-  File: class {},
-  FileVisibility: {},
-}));
-
 jest.mock('../variantService', () => ({
   VariantService: class {
     constructor(_s3: unknown) {}
@@ -45,9 +40,9 @@ jest.mock('../../utils/fileCache', () => ({
   default: { invalidate: jest.fn(), set: jest.fn(), get: jest.fn() },
 }));
 
-function buildFile(webhookUrl: string): IFile {
+function buildFile(webhookUrl: string): FileRecord {
   return {
-    _id: { toString: () => 'file-1' },
+    id: 'file-1',
     links: [
       {
         app: 'mention',

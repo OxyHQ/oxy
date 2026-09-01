@@ -7,7 +7,7 @@
  *
  * Key schedule (from the recovery phrase; see
  * {@link RecoveryPhraseService.deriveBackupMaterial}):
- *   seed      = bip39.mnemonicToSeed(phrase)                    // 64 bytes, UNCHANGED
+ *   seed      = mnemonicToSeed(phrase)                          // 64 bytes, UNCHANGED
  *   backupKey = HKDF(seed, 'oxy-identity-backup-v1', 'oxy-backup-encryption-key')
  *   lookupId  = HKDF(seed, 'oxy-identity-backup-v1', 'oxy-backup-lookup-id')   // hex
  *

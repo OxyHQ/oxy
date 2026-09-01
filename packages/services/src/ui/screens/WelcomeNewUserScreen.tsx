@@ -3,8 +3,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Platform, Animated } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { toast } from '@oxyhq/bloom';
+import Ionicons from '../icons/Ionicons';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Button } from '@oxyhq/bloom/button';
 import { H1, Text } from '@oxyhq/bloom/typography';
@@ -13,7 +13,7 @@ import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
 import { useOxy } from '../context/OxyContext';
 import { useUpdateProfile } from '../hooks/mutations/useAccountMutations';
-import { getAccountDisplayName, type User } from '@oxyhq/core';
+import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 
 const GAP = 12;
 const INNER_GAP = 8;
@@ -63,10 +63,10 @@ const WelcomeNewUserScreen: React.FC<BaseScreenProps & { newUser?: User }> = ({
         ? oxyServices.getFileDownloadUrl(currentUser.avatar, 'thumb')
         : undefined;
 
-    // Steps content. Use the canonical helper so partially-onboarded accounts
-    // (publicKey only) still get a friendly greeting instead of a blank one.
-    const welcomeName = getAccountDisplayName(currentUser ?? null, locale);
-    const welcomeTitle = currentUser
+    // API DTO contract: explicit displayName, else the normalized handle.
+    const welcomeName =
+        currentUser?.name?.displayName ?? getNormalizedUserHandle(currentUser) ?? '';
+    const welcomeTitle = currentUser && welcomeName
         ? (t('welcomeNew.welcome.titleWithName', { username: welcomeName }) || `Welcome, ${welcomeName} 👋`)
         : (t('welcomeNew.welcome.title') || 'Welcome 👋');
     // Only ask the user for their name during onboarding when they don't have a

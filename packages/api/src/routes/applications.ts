@@ -1,20 +1,17 @@
 import express from 'express';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
-import { Application, type IApplication } from '../models/Application';
+import { and, count, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { apiKeyUsageEvents, applicationCredentials, applications } from '../db/schema';
 import {
   type APPLICATION_SCOPES,
   type ApplicationScope,
   isPaymentsScope,
   isPrivilegedScope,
 } from '../utils/applicationScopes';
-import {
-  ApplicationCredential,
-  type IApplicationCredential,
-} from '../models/ApplicationCredential';
-import ApiKeyUsage from '../models/ApiKeyUsage';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { isStaffUser } from '../middleware/requireStaff';
+import { rateLimit } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
@@ -30,34 +27,81 @@ import { stripSensitiveUrlQueryParams } from '../utils/sanitizeUrl';
 import { isTrustedApplication } from '../utils/trustedApplication';
 import { accountService } from '../services/account.service';
 import {
-  appPermissionsForAccountRole,
+  appPermissionsForAccountAccess,
+  effectivePermissionsForMember,
+  permissionsForAccountRole,
+  type AccountPermission,
   type AccountRole,
   type ApplicationPermission,
 } from '../utils/accountRoles';
 import {
   appIdRouteParams,
   appCredentialParams,
+  credentialAuditQuerySchema,
   periodQuerySchema,
   createApplicationSchema,
   listApplicationsQuerySchema,
   updateApplicationSchema,
   createCredentialSchema,
+  rotateCredentialSchema,
 } from '../schemas/application.schemas';
+import { generateMachineCredentialToken } from '../utils/machineCredentialToken';
+import { resolveOperatorId, resolveSubjectId } from '../middleware/operator';
+import {
+  listCredentialAuditTrail,
+  recordCredentialLifecycleEvent,
+} from '../services/applicationCredentialAudit.service';
+import {
+  storeListingBody,
+  storeScreenshotBody,
+  storeScreenshotOrderBody,
+  storeScreenshotParams,
+  storeScreenshotPatch,
+} from '../schemas/store.schemas';
+import type { AppScreenshotPlatform } from '../db/schema/appListingScreenshots';
+import {
+  addScreenshot,
+  deleteScreenshot,
+  getListingForApplication,
+  listScreenshots,
+  reorderScreenshots,
+  submitListing,
+  unpublishListing,
+  updateScreenshot,
+  upsertListing,
+} from '../services/store.service';
+
+/** A stored application row. */
+type ApplicationRow = typeof applications.$inferSelect;
+
+/**
+ * A credential row as read by this module — every column EXCEPT the two hash
+ * columns. See {@link CREDENTIAL_COLUMNS}.
+ */
+type CredentialRow = Omit<
+  typeof applicationCredentials.$inferSelect,
+  'secretHash' | 'tokenHash'
+>;
 
 /**
  * Resolved application access for the caller.
  *
- * Access to an application is DERIVED from the caller's effective `AccountMember`
- * role over the application's owning account (`app.ownerAccountId`), honouring
- * tree inheritance. The account role is mapped to a concrete set of application
- * permissions via `appPermissionsForAccountRole`. There is no per-app member
- * table.
+ * Access to an application is DERIVED from the caller's EFFECTIVE
+ * `AccountMember` access over the application's owning account
+ * (`app.ownerAccountId`), honouring tree inheritance — the role's baseline with
+ * the membership row's own `permission_grants` / `permission_revokes` applied,
+ * mapped into the application vocabulary by `appPermissionsForAccountAccess`.
+ * There is no per-app member table.
+ *
+ * The role is carried alongside because `callerMembership` reports it, NOT
+ * because anything here may gate on it: a role name cannot see a per-member
+ * delta, and gating on one is exactly the bypass issue #978 records.
  */
 interface AppAccess {
-  application: IApplication;
+  application: ApplicationRow;
   /** The caller's effective account role over `ownerAccountId`. */
   role: AccountRole;
-  /** Effective application permissions derived from that role. */
+  /** Effective application permissions — role baseline adjusted by the member's deltas. */
   permissions: Set<ApplicationPermission>;
 }
 
@@ -66,7 +110,7 @@ interface AppAccess {
  * the resolved application and the caller's access.
  */
 interface AppContextRequest extends AuthRequest {
-  application?: IApplication;
+  application?: ApplicationRow;
   access?: AppAccess;
 }
 
@@ -83,7 +127,64 @@ const WEBHOOK_SECRET_RANDOM_BYTES = 24;
  */
 const CREDENTIAL_ROTATION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Most-used endpoints reported by the usage summary. */
+const USAGE_TOP_ENDPOINTS = 10;
+
+/**
+ * The credential columns a client may ever see — every column except
+ * `secretHash` and `tokenHash`.
+ *
+ * Mongoose expressed this as `.select('-secretHash')`; drizzle enumerates
+ * columns explicitly and has no exclusion form, so the selection is named once
+ * here and reused by the list read AND by every `returning()`. A credential
+ * object in this module therefore never carries either hash in the first place,
+ * which is a stronger guarantee than remembering to drop it in the serializer:
+ * `CredentialRow` has no such property, so a serializer that tried to read one
+ * would fail `tsc`.
+ *
+ * `tokenPrefix` IS here. It is the machine credential's public identifier — the
+ * half a Console row can render to say which key it is — and it authorises
+ * nothing without the 256 secret bits that were shown exactly once.
+ */
+const CREDENTIAL_COLUMNS = {
+  id: applicationCredentials.id,
+  applicationId: applicationCredentials.applicationId,
+  name: applicationCredentials.name,
+  publicKey: applicationCredentials.publicKey,
+  tokenPrefix: applicationCredentials.tokenPrefix,
+  type: applicationCredentials.type,
+  environment: applicationCredentials.environment,
+  scopes: applicationCredentials.scopes,
+  status: applicationCredentials.status,
+  lastUsedAt: applicationCredentials.lastUsedAt,
+  expiresAt: applicationCredentials.expiresAt,
+  rotatedFromCredentialId: applicationCredentials.rotatedFromCredentialId,
+  createdByUserId: applicationCredentials.createdByUserId,
+  createdAt: applicationCredentials.createdAt,
+  updatedAt: applicationCredentials.updatedAt,
+};
+
 const router = express.Router();
+
+/**
+ * The audit trail's own budget.
+ *
+ * The only limiter on this router, and it is here rather than on the credential
+ * routes beside it because this is the one read whose cost grows with an
+ * application's history: a paged trail over a table that accrues a row per
+ * refused bearer, asked for by a Console panel that a member can leave open. The
+ * ceiling matches `providerReadLimiter` on the BYOK trail, which answers the same
+ * question about the same kind of data.
+ *
+ * `prefix` is mandatory and must be unique across the process: two limiters
+ * sharing one Redis key make `rate-limit-redis` throw `ERR_ERL_DOUBLE_COUNT` and
+ * halve both budgets. No other limiter in this package uses this one.
+ */
+const credentialAuditLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  prefix: 'rl:applications:credential-audit:',
+});
 
 /**
  * Rebuild the dynamic CORS origin snapshot after an Application
@@ -109,6 +210,21 @@ function requireUserId(req: AuthRequest): string {
     throw new UnauthorizedError('Authentication required');
   }
   return userId;
+}
+
+/**
+ * The application `requireAppPermission` already loaded, narrowed.
+ *
+ * The middleware has thrown 404 if it is absent, so this cannot fire; it
+ * exists because `req.application` is optional on the request type and the
+ * alternative is a non-null assertion, which the house rules forbid for good
+ * reason.
+ */
+function requireApplication(req: AppContextRequest): ApplicationRow {
+  if (!req.application) {
+    throw new NotFoundError('Application not found');
+  }
+  return req.application;
 }
 
 /** Compute the window start date for a usage period. */
@@ -184,7 +300,11 @@ function resolveRedirectUris(input: { redirectUris?: string[] }): string[] | und
  *   scope requires staff.
  *
  * `previousScopes` supplies the currently-granted set to reconcile against; it
- * is empty on create (nothing to preserve) and the stored scopes on update.
+ * is empty on create (nothing to preserve) and the stored scopes on update. It
+ * is `readonly string[]` rather than `ApplicationScope[]` because the stored
+ * column is a `text[]` — narrowing back to the vocabulary is what
+ * `isPrivilegedScope`'s type predicate does below.
+ *
  * Staff callers get an authoritative replace of exactly what they submit,
  * including intentional privileged-scope removal. Returns the validated,
  * deduplicated scope list.
@@ -192,7 +312,7 @@ function resolveRedirectUris(input: { redirectUris?: string[] }): string[] | und
 function authorizeRequestedScopes(
   req: AuthRequest,
   requestedScopes: ApplicationScope[],
-  previousScopes: readonly ApplicationScope[]
+  previousScopes: readonly string[]
 ): ApplicationScope[] {
   const deduped = Array.from(new Set(requestedScopes));
 
@@ -201,7 +321,7 @@ function authorizeRequestedScopes(
   }
 
   const previouslyGranted = new Set(previousScopes);
-  const requested = new Set(deduped);
+  const requested = new Set<string>(deduped);
 
   const newlyAddedPrivileged = deduped.filter(
     (scope) => isPrivilegedScope(scope) && !previouslyGranted.has(scope)
@@ -221,7 +341,7 @@ function authorizeRequestedScopes(
   // revoking a privileged scope is a staff-only mutation, so an omission is
   // treated as "leave it untouched" rather than a silent revoke.
   const preservedPrivileged = Array.from(previouslyGranted).filter(
-    (scope) => isPrivilegedScope(scope) && !requested.has(scope)
+    (scope): scope is ApplicationScope => isPrivilegedScope(scope) && !requested.has(scope)
   );
   if (preservedPrivileged.length > 0) {
     logger.warn('Preserving already-granted privileged application scope omitted by non-staff actor', {
@@ -244,30 +364,83 @@ interface SerializedCallerMembership {
   ownerAccountId: string;
 }
 
+/**
+ * The wire shape of an application. Declared explicitly so a column rename or a
+ * dropped field fails `tsc` here rather than silently changing the response.
+ *
+ * Every optional field is `?: T` and is fed `?? undefined` from its nullable
+ * column: Mongo omitted an unset field entirely, and `JSON.stringify` drops an
+ * `undefined` property but emits an explicit `null`. Mapping the column's NULL
+ * back to `undefined` is what keeps the response byte-identical.
+ */
+interface SerializedApplication {
+  _id: string;
+  name: string;
+  description?: string;
+  websiteUrl?: string;
+  privacyPolicyUrl?: string;
+  termsUrl?: string;
+  icon?: string;
+  type: ApplicationRow['type'];
+  status: ApplicationRow['status'];
+  isOfficial: boolean;
+  isInternal: boolean;
+  capabilities: string[];
+  redirectUris: string[];
+  scopes: string[];
+  webhookUrl?: string;
+  devWebhookUrl?: string;
+  ownerAccountId: string;
+  createdByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  callerMembership: SerializedCallerMembership | null;
+}
+
+/** The wire shape of a credential — NEVER carries secret material. */
+interface SerializedCredential {
+  _id: string;
+  applicationId: string;
+  name: string;
+  publicKey: string;
+  /** `oxy_sk_<id>` on a `machine` credential; absent on every other type. */
+  tokenPrefix?: string;
+  type: CredentialRow['type'];
+  environment: CredentialRow['environment'];
+  scopes: string[];
+  status: CredentialRow['status'];
+  lastUsedAt?: Date;
+  expiresAt?: Date;
+  rotatedFromCredentialId?: string;
+  createdByUserId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 /** Serialise an application for client responses (no webhook secret). */
 function serializeApplication(
-  app: IApplication,
+  app: ApplicationRow,
   callerMembership?: SerializedCallerMembership | null
-) {
+): SerializedApplication {
   return {
-    _id: app._id.toString(),
+    _id: app.id,
     name: app.name,
-    description: app.description,
-    websiteUrl: app.websiteUrl,
-    privacyPolicyUrl: app.privacyPolicyUrl,
-    termsUrl: app.termsUrl,
-    icon: app.icon,
+    description: app.description ?? undefined,
+    websiteUrl: app.websiteUrl ?? undefined,
+    privacyPolicyUrl: app.privacyPolicyUrl ?? undefined,
+    termsUrl: app.termsUrl ?? undefined,
+    icon: app.icon ?? undefined,
     type: app.type,
     status: app.status,
     isOfficial: app.isOfficial,
     isInternal: app.isInternal,
-    capabilities: app.capabilities ?? [],
-    redirectUris: app.redirectUris ?? [],
-    scopes: app.scopes ?? [],
-    webhookUrl: app.webhookUrl,
-    devWebhookUrl: app.devWebhookUrl,
-    ownerAccountId: app.ownerAccountId.toString(),
-    createdByUserId: app.createdByUserId.toString(),
+    capabilities: app.capabilities,
+    redirectUris: app.redirectUris,
+    scopes: app.scopes,
+    webhookUrl: app.webhookUrl ?? undefined,
+    devWebhookUrl: app.devWebhookUrl ?? undefined,
+    ownerAccountId: app.ownerAccountId,
+    createdByUserId: app.createdByUserId ?? undefined,
     createdAt: app.createdAt,
     updatedAt: app.updatedAt,
     callerMembership: callerMembership ?? null,
@@ -275,82 +448,109 @@ function serializeApplication(
 }
 
 /** Serialise a credential for client responses — NEVER includes the secret hash. */
-function serializeCredential(credential: IApplicationCredential) {
+function serializeCredential(credential: CredentialRow): SerializedCredential {
   return {
-    _id: credential._id.toString(),
-    applicationId: credential.applicationId.toString(),
+    _id: credential.id,
+    applicationId: credential.applicationId,
     name: credential.name,
     publicKey: credential.publicKey,
+    tokenPrefix: credential.tokenPrefix ?? undefined,
     type: credential.type,
     environment: credential.environment,
     scopes: credential.scopes,
     status: credential.status,
-    lastUsedAt: credential.lastUsedAt,
-    expiresAt: credential.expiresAt,
-    rotatedFromCredentialId: credential.rotatedFromCredentialId
-      ? credential.rotatedFromCredentialId.toString()
-      : undefined,
-    createdByUserId: credential.createdByUserId.toString(),
+    lastUsedAt: credential.lastUsedAt ?? undefined,
+    expiresAt: credential.expiresAt ?? undefined,
+    rotatedFromCredentialId: credential.rotatedFromCredentialId ?? undefined,
+    createdByUserId: credential.createdByUserId ?? undefined,
     createdAt: credential.createdAt,
     updatedAt: credential.updatedAt,
   };
 }
 
-/** Aggregate usage statistics for the supplied match filter. */
-async function getUsageStats(matchFilter: Record<string, unknown>) {
-  const [usage] = await ApiKeyUsage.aggregate([
-    { $match: matchFilter },
-    {
-      $group: {
-        _id: null,
-        totalRequests: { $sum: 1 },
-        totalTokens: { $sum: '$tokensUsed' },
-        totalCredits: { $sum: '$creditsUsed' },
-        avgResponseTime: { $avg: '$responseTime' },
-        successfulRequests: { $sum: { $cond: [{ $lt: ['$statusCode', 400] }, 1, 0] } },
-        errorRequests: { $sum: { $cond: [{ $gte: ['$statusCode', 400] }, 1, 0] } },
-      },
-    },
-  ]);
+/** Aggregate totals over the requested window. */
+interface UsageSummary {
+  totalRequests: number;
+  totalTokens: number;
+  totalCredits: number;
+  avgResponseTime: number;
+  successfulRequests: number;
+  errorRequests: number;
+}
 
-  const byDay = await ApiKeyUsage.aggregate([
-    { $match: matchFilter },
-    {
-      $group: {
-        _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
-        requests: { $sum: 1 },
-        tokens: { $sum: '$tokensUsed' },
-        credits: { $sum: '$creditsUsed' },
-      },
-    },
-    { $sort: { _id: 1 } },
-  ]);
+/** Per-day usage bucket. `_id` is the UTC day key (`YYYY-MM-DD`). */
+interface UsageByDay {
+  _id: string;
+  requests: number;
+  tokens: number;
+  credits: number;
+}
 
-  const byEndpoint = await ApiKeyUsage.aggregate([
-    { $match: matchFilter },
-    {
-      $group: {
-        _id: '$endpoint',
-        requests: { $sum: 1 },
-        tokens: { $sum: '$tokensUsed' },
-      },
-    },
-    { $sort: { requests: -1 } },
-    { $limit: 10 },
-  ]);
+/** Per-endpoint usage bucket. `_id` is the endpoint. */
+interface UsageByEndpoint {
+  _id: string;
+  requests: number;
+  tokens: number;
+}
 
-  return {
-    summary: usage || {
-      totalRequests: 0,
-      totalTokens: 0,
-      totalCredits: 0,
-      avgResponseTime: 0,
-      successfulRequests: 0,
-      errorRequests: 0,
-    },
-    byDay,
-    byEndpoint,
-  };
+/** Usage statistics for one application over a period. */
+interface UsageStats {
+  summary: UsageSummary;
+  byDay: UsageByDay[];
+  byEndpoint: UsageByEndpoint[];
+}
+
+/**
+ * Usage statistics for one application since `startDate`.
+ *
+ * `sum()` over an integer column yields `bigint`, which postgres.js hands back
+ * as a STRING; every integer total is therefore cast in SQL rather than
+ * converted in TypeScript. `avg` and the credit sum are already
+ * double-precision. `count(*) filter (where …)` replaces Mongo's
+ * `$sum: {$cond: […]}`.
+ */
+async function getUsageStats(applicationId: string, startDate: Date): Promise<UsageStats> {
+  const db = getDb();
+  const window = and(
+    eq(apiKeyUsageEvents.applicationId, applicationId),
+    gte(apiKeyUsageEvents.createdAt, startDate)
+  );
+
+  // Mongo's `$dateToString` formats in UTC; `to_char` over a `timestamptz`
+  // formats in the SESSION time zone, so the day key is pinned to UTC here or
+  // the buckets silently shift with the server's `TimeZone`.
+  const dayKey = sql<string>`to_char(${apiKeyUsageEvents.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`;
+  const tokenTotal = sql<number>`coalesce(sum(${apiKeyUsageEvents.tokensUsed}), 0)::int`;
+  const creditTotal = sql<number>`coalesce(sum(${apiKeyUsageEvents.creditsUsed}), 0)::double precision`;
+
+  const [summary] = await db
+    .select({
+      totalRequests: count(),
+      totalTokens: tokenTotal,
+      totalCredits: creditTotal,
+      avgResponseTime: sql<number>`coalesce(avg(${apiKeyUsageEvents.responseTime}), 0)::double precision`,
+      successfulRequests: sql<number>`(count(*) filter (where ${apiKeyUsageEvents.statusCode} < 400))::int`,
+      errorRequests: sql<number>`(count(*) filter (where ${apiKeyUsageEvents.statusCode} >= 400))::int`,
+    })
+    .from(apiKeyUsageEvents)
+    .where(window);
+
+  const byDay = await db
+    .select({ _id: dayKey, requests: count(), tokens: tokenTotal, credits: creditTotal })
+    .from(apiKeyUsageEvents)
+    .where(window)
+    .groupBy(dayKey)
+    .orderBy(dayKey);
+
+  const byEndpoint = await db
+    .select({ _id: apiKeyUsageEvents.endpoint, requests: count(), tokens: tokenTotal })
+    .from(apiKeyUsageEvents)
+    .where(window)
+    .groupBy(apiKeyUsageEvents.endpoint)
+    .orderBy(sql`count(*) desc`)
+    .limit(USAGE_TOP_ENDPOINTS);
+
+  return { summary, byDay, byEndpoint };
 }
 
 /** Generate a fresh credential public key + plaintext secret + its hash. */
@@ -369,43 +569,44 @@ function callerMembershipFromAccess(access: AppAccess | undefined): SerializedCa
     role: access.role,
     permissions: [...access.permissions],
     source: 'account',
-    ownerAccountId: access.application.ownerAccountId.toString(),
+    ownerAccountId: access.application.ownerAccountId,
   };
 }
 
 /**
  * Resolve the application (non-deleted) and the caller's effective access for
- * `:appId`. Access is the caller's effective `AccountMember` role over
- * `app.ownerAccountId` (with inheritance), mapped to application permissions.
- * Returns 404 when the app is missing/deleted and 403 when the caller has no
- * account access to its owner.
+ * `:appId`. Access is the caller's EFFECTIVE `AccountMember` access over
+ * `app.ownerAccountId` (with inheritance, grants and revokes), mapped to
+ * application permissions. Returns 404 when the app is missing/deleted and 403
+ * when the caller has no account access to its owner.
  */
 async function loadApplicationContext(req: AppContextRequest): Promise<AppAccess> {
-  const userId = requireUserId(req);
-  const appId = req.params.appId;
+  // The OPERATOR's access over the owning account, never the subject's. An
+  // operated session authenticates as the managed account, and that account is
+  // not a member of itself — asking it refuses the very people who own the
+  // organization the application belongs to.
+  const operatorId = await resolveOperatorId(req);
+  const db = getDb();
 
-  if (!mongoose.isValidObjectId(appId)) {
-    throw new NotFoundError('Application not found');
-  }
-
-  const application = await Application.findOne({
-    _id: appId,
-    status: { $ne: 'deleted' },
-  });
+  const [application] = await db
+    .select()
+    .from(applications)
+    .where(and(eq(applications.id, req.params.appId), ne(applications.status, 'deleted')))
+    .limit(1);
   if (!application) {
     throw new NotFoundError('Application not found');
   }
 
   const accountAccess = await accountService.resolveEffectiveAccess(
-    userId,
-    application.ownerAccountId.toString()
+    operatorId,
+    application.ownerAccountId
   );
   if (!accountAccess) {
     throw new ForbiddenError('You do not have access to this application');
   }
 
   const permissions = new Set<ApplicationPermission>(
-    appPermissionsForAccountRole(accountAccess.role)
+    appPermissionsForAccountAccess(accountAccess)
   );
 
   const access: AppAccess = { application, role: accountAccess.role, permissions };
@@ -444,55 +645,68 @@ router.get(
   '/',
   validate({ query: listApplicationsQuerySchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = requireUserId(req);
+    const operatorId = await resolveOperatorId(req);
     const ownerAccountIdFilter = req.query.ownerAccountId as string | undefined;
 
-    // The caller's effective account role per accessible account id.
-    const roleByAccountId = new Map<string, AccountRole>();
+    // The caller's EFFECTIVE account access per accessible account id — role
+    // AND permissions, because the permissions are what `callerMembership` is
+    // derived from and a role alone cannot see the member's own deltas.
+    const accessByAccountId = new Map<
+      string,
+      { role: AccountRole; permissions: AccountPermission[] }
+    >();
 
     if (ownerAccountIdFilter !== undefined) {
-      if (!mongoose.isValidObjectId(ownerAccountIdFilter)) {
-        throw new NotFoundError('Account not found');
-      }
-      const access = await accountService.resolveEffectiveAccess(userId, ownerAccountIdFilter);
+      const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountIdFilter);
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
-      if (!appPermissionsForAccountRole(access.role).includes('app:read')) {
-        throw new ForbiddenError('Missing required permission: app:read');
-      }
-      roleByAccountId.set(ownerAccountIdFilter, access.role);
+      accessByAccountId.set(ownerAccountIdFilter, access);
     } else {
-      const nodes = await accountService.listAccessibleAccounts(userId);
+      const nodes = await accountService.listAccessibleAccounts(operatorId);
       for (const node of nodes) {
-        const role: AccountRole | undefined =
-          node.relationship === 'self' ? 'owner' : node.callerMembership?.role;
-        if (role && appPermissionsForAccountRole(role).includes('app:read')) {
-          roleByAccountId.set(node.accountId, role);
+        // `self` carries no membership row: a user is the implicit owner of
+        // their own account, exactly as `resolveEffectiveAccess` treats it.
+        if (node.relationship === 'self') {
+          accessByAccountId.set(node.accountId, {
+            role: 'owner',
+            permissions: permissionsForAccountRole('owner'),
+          });
+        } else if (node.callerMembership) {
+          accessByAccountId.set(node.accountId, {
+            role: node.callerMembership.role,
+            permissions: effectivePermissionsForMember(node.callerMembership),
+          });
         }
       }
     }
 
-    const accountIds = [...roleByAccountId.keys()].map((id) => new mongoose.Types.ObjectId(id));
+    const accountIds = [...accessByAccountId.keys()];
     if (accountIds.length === 0) {
       res.json({ applications: [] });
       return;
     }
 
-    const applications = await Application.find({
-      ownerAccountId: { $in: accountIds },
-      status: { $ne: 'deleted' },
-    }).sort({ createdAt: -1 });
+    const rows = await getDb()
+      .select()
+      .from(applications)
+      .where(
+        and(
+          inArray(applications.ownerAccountId, accountIds),
+          ne(applications.status, 'deleted')
+        )
+      )
+      .orderBy(desc(applications.createdAt));
 
     res.json({
-      applications: applications.map((app) => {
-        const role = roleByAccountId.get(app.ownerAccountId.toString());
-        const callerMembership = role
+      applications: rows.map((app) => {
+        const access = accessByAccountId.get(app.ownerAccountId);
+        const callerMembership = access
           ? {
-              role,
-              permissions: appPermissionsForAccountRole(role),
+              role: access.role,
+              permissions: appPermissionsForAccountAccess(access),
               source: 'account' as const,
-              ownerAccountId: app.ownerAccountId.toString(),
+              ownerAccountId: app.ownerAccountId,
             }
           : null;
         return serializeApplication(app, callerMembership);
@@ -512,7 +726,10 @@ router.post(
   '/',
   validate({ body: createApplicationSchema }),
   asyncHandler(async (req: AuthRequest, res) => {
-    const userId = requireUserId(req);
+    // The same three-way split `POST /accounts` needed: where it hangs is the
+    // SUBJECT's question, whether it may be created is the OPERATOR's.
+    const operatorId = await resolveOperatorId(req);
+    const subjectId = resolveSubjectId(req);
     const body = req.body as {
       ownerAccountId?: string;
       name: string;
@@ -525,12 +742,11 @@ router.post(
       scopes?: typeof APPLICATION_SCOPES[number][];
     };
 
-    const ownerAccountId = body.ownerAccountId ?? userId;
-    if (!mongoose.isValidObjectId(ownerAccountId)) {
-      throw new BadRequestError('Invalid ownerAccountId');
-    }
+    // Acting as an organization and naming no owner means "this organization",
+    // which is what switching into it is for.
+    const ownerAccountId = body.ownerAccountId ?? subjectId;
 
-    const access = await accountService.resolveEffectiveAccess(userId, ownerAccountId);
+    const access = await accountService.resolveEffectiveAccess(operatorId, ownerAccountId);
     if (!access) {
       throw new ForbiddenError('You do not have access to the owning account');
     }
@@ -541,35 +757,38 @@ router.post(
     // Privileged scopes (e.g. federation:write) are NOT self-grantable.
     const scopes = authorizeRequestedScopes(req, body.scopes ?? [], []);
 
-    const application = await Application.create({
-      name: body.name,
-      description: body.description,
-      websiteUrl: body.websiteUrl || undefined,
-      privacyPolicyUrl: body.privacyPolicyUrl || undefined,
-      termsUrl: body.termsUrl || undefined,
-      icon: body.icon ? stripSensitiveUrlQueryParams(body.icon) : body.icon,
-      redirectUris: resolveRedirectUris(body) ?? [],
-      scopes,
-      ownerAccountId: new mongoose.Types.ObjectId(ownerAccountId),
-      createdByUserId: new mongoose.Types.ObjectId(userId),
-    });
+    const [application] = await getDb()
+      .insert(applications)
+      .values({
+        name: body.name,
+        description: body.description,
+        websiteUrl: body.websiteUrl || undefined,
+        privacyPolicyUrl: body.privacyPolicyUrl || undefined,
+        termsUrl: body.termsUrl || undefined,
+        icon: body.icon ? stripSensitiveUrlQueryParams(body.icon) : body.icon,
+        redirectUris: resolveRedirectUris(body) ?? [],
+        scopes,
+        ownerAccountId,
+        createdByUserId: operatorId,
+      })
+      .returning();
 
     // A newly-created app is `active` and may carry redirectUris, so it can add
     // origins to the approved-clients allow-list. Drop the cached set.
-    if (application.status === 'active' && (application.redirectUris?.length ?? 0) > 0) {
+    if (application.status === 'active' && application.redirectUris.length > 0) {
       refreshDynamicCorsOrigins();
     }
 
     logger.info('Application created', {
-      userId,
-      applicationId: application._id.toString(),
+      userId: operatorId,
+      applicationId: application.id,
       ownerAccountId: ownerAccountId,
       name: application.name,
     });
 
     const callerMembership: SerializedCallerMembership = {
       role: access.role,
-      permissions: appPermissionsForAccountRole(access.role),
+      permissions: appPermissionsForAccountAccess(access),
       source: 'account',
       ownerAccountId: ownerAccountId,
     };
@@ -607,8 +826,8 @@ router.patch(
   validate({ params: appIdRouteParams, body: updateApplicationSchema }),
   requireAppPermission('app:update'),
   asyncHandler(async (req: AppContextRequest, res) => {
-    const application = req.application;
-    if (!application) {
+    const stored = req.application;
+    if (!stored) {
       throw new NotFoundError('Application not found');
     }
 
@@ -624,62 +843,79 @@ router.patch(
       webhookUrl?: string;
       devWebhookUrl?: string | null;
       status?: 'active' | 'suspended' | 'pending_review';
-      type?: IApplication['type'];
+      type?: ApplicationRow['type'];
       isOfficial?: boolean;
       isInternal?: boolean;
       capabilities?: string[];
     };
 
-    if (body.name !== undefined) application.name = body.name;
-    if (body.description !== undefined) application.description = body.description;
-    if (body.websiteUrl !== undefined) application.websiteUrl = body.websiteUrl || undefined;
+    // Only the fields the caller actually supplied are written, so a partial
+    // update never rewrites a column it did not name.
+    const updates: Partial<typeof applications.$inferInsert> = {};
+
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.description !== undefined) updates.description = body.description;
+    if (body.websiteUrl !== undefined) updates.websiteUrl = body.websiteUrl || null;
     if (body.privacyPolicyUrl !== undefined) {
-      application.privacyPolicyUrl = body.privacyPolicyUrl || undefined;
+      updates.privacyPolicyUrl = body.privacyPolicyUrl || null;
     }
-    if (body.termsUrl !== undefined) application.termsUrl = body.termsUrl || undefined;
-    if (body.icon !== undefined) application.icon = stripSensitiveUrlQueryParams(body.icon);
+    if (body.termsUrl !== undefined) updates.termsUrl = body.termsUrl || null;
+    if (body.icon !== undefined) updates.icon = stripSensitiveUrlQueryParams(body.icon);
     if (body.scopes !== undefined) {
       // Privileged scopes (e.g. federation:write) are staff-only. A non-staff
       // caller may keep an already-granted privileged scope but may not add one.
-      application.scopes = authorizeRequestedScopes(req, body.scopes, application.scopes);
+      updates.scopes = authorizeRequestedScopes(req, body.scopes, stored.scopes);
     }
-    if (body.status !== undefined) application.status = body.status;
+    if (body.status !== undefined) updates.status = body.status;
     if (body.devWebhookUrl !== undefined) {
-      application.devWebhookUrl = body.devWebhookUrl || undefined;
+      updates.devWebhookUrl = body.devWebhookUrl || null;
     }
 
     const resolvedRedirectUris = resolveRedirectUris(body);
     if (resolvedRedirectUris !== undefined) {
-      application.redirectUris = resolvedRedirectUris;
+      updates.redirectUris = resolvedRedirectUris;
     }
 
     // Rotate the webhook secret whenever the webhook URL changes.
-    if (body.webhookUrl !== undefined && body.webhookUrl !== application.webhookUrl) {
-      application.webhookUrl = body.webhookUrl || undefined;
-      application.webhookSecret = body.webhookUrl
+    if (body.webhookUrl !== undefined && body.webhookUrl !== stored.webhookUrl) {
+      updates.webhookUrl = body.webhookUrl || null;
+      updates.webhookSecret = body.webhookUrl
         ? crypto.randomBytes(WEBHOOK_SECRET_RANDOM_BYTES).toString('hex')
-        : undefined;
+        : null;
     }
 
     // Staff-only fields — applied only for platform staff, silently dropped otherwise.
     if (isStaffUser(req)) {
-      if (body.type !== undefined) application.type = body.type;
-      if (body.isOfficial !== undefined) application.isOfficial = body.isOfficial;
-      if (body.isInternal !== undefined) application.isInternal = body.isInternal;
-      if (body.capabilities !== undefined) application.capabilities = body.capabilities;
+      if (body.type !== undefined) updates.type = body.type;
+      if (body.isOfficial !== undefined) updates.isOfficial = body.isOfficial;
+      if (body.isInternal !== undefined) updates.isInternal = body.isInternal;
+      if (body.capabilities !== undefined) updates.capabilities = body.capabilities;
     }
 
-    await application.save();
+    // An empty patch writes nothing at all — matching Mongoose's `save()` on a
+    // document with no modified paths, which also left `updatedAt` untouched.
+    let application = stored;
+    if (Object.keys(updates).length > 0) {
+      const [updated] = await getDb()
+        .update(applications)
+        .set(updates)
+        .where(eq(applications.id, stored.id))
+        .returning();
+      if (!updated) {
+        throw new NotFoundError('Application not found');
+      }
+      application = updated;
+    }
 
     // The federation-domain allow-list is DERIVED from this app's redirectUris
     // and status; invalidate eagerly so revoked redirectUris or a suspended
     // status stop authorising federation signing immediately.
-    credentialDomainCache.invalidate(application._id.toString());
+    credentialDomainCache.invalidate(application.id);
     refreshDynamicCorsOrigins();
 
     logger.info('Application updated', {
       userId: requireUserId(req),
-      applicationId: application._id.toString(),
+      applicationId: application.id,
     });
 
     res.json({
@@ -701,16 +937,22 @@ router.delete(
       throw new NotFoundError('Application not found');
     }
 
-    application.status = 'deleted';
-    await application.save();
+    const [deleted] = await getDb()
+      .update(applications)
+      .set({ status: 'deleted' })
+      .where(eq(applications.id, application.id))
+      .returning({ id: applications.id });
+    if (!deleted) {
+      throw new NotFoundError('Application not found');
+    }
 
     // A deleted app must immediately stop authorising federation signing.
-    credentialDomainCache.invalidate(application._id.toString());
+    credentialDomainCache.invalidate(application.id);
     refreshDynamicCorsOrigins();
 
     logger.info('Application deleted', {
       userId: requireUserId(req),
-      applicationId: application._id.toString(),
+      applicationId: application.id,
     });
 
     res.json({ success: true });
@@ -734,11 +976,11 @@ router.get(
       throw new NotFoundError('Application not found');
     }
 
-    const credentials = await ApplicationCredential.find({
-      applicationId: application._id,
-    })
-      .select('-secretHash')
-      .sort({ createdAt: -1 });
+    const credentials = await getDb()
+      .select(CREDENTIAL_COLUMNS)
+      .from(applicationCredentials)
+      .where(eq(applicationCredentials.applicationId, application.id))
+      .orderBy(desc(applicationCredentials.createdAt));
 
     res.json({ credentials: credentials.map(serializeCredential) });
   })
@@ -747,9 +989,17 @@ router.get(
 /**
  * Create a credential.
  *
- * The plaintext `secret` is returned in the response body EXACTLY ONCE and can
- * never be retrieved again — only its SHA-256 hash is persisted. `public`
- * credentials carry no secret (the `secret` field is `null`).
+ * Secret material is returned in the response body EXACTLY ONCE and can never be
+ * retrieved again — only a SHA-256 hash is persisted.
+ *
+ *  - `public` credentials carry no secret at all (`secret: null`).
+ *  - `confidential` / `service` credentials return `secret`, presented BESIDE
+ *    the `oxy_dk_…` client id.
+ *  - `machine` credentials return `token`: the single `oxy_sk_…` bearer string a
+ *    stock OpenAI SDK sends as `Authorization: Bearer …` (issue #972 §2.3).
+ *    `secret` stays `null` on those, so the wire shape every existing client
+ *    reads is unchanged and the two lanes are visibly distinct in the response
+ *    as well as in the table.
  */
 router.post(
   '/:appId/credentials',
@@ -763,9 +1013,10 @@ router.post(
 
     const body = req.body as {
       name: string;
-      type: IApplicationCredential['type'];
-      environment: IApplicationCredential['environment'];
+      type: CredentialRow['type'];
+      environment: CredentialRow['environment'];
       scopes?: ApplicationScope[];
+      expiresInSeconds?: number;
     };
 
     // A credential may never exceed its owning application's authority.
@@ -796,6 +1047,27 @@ router.post(
       throw new ForbiddenError('Service credentials are only available to trusted applications');
     }
 
+    const isMachineCredential = body.type === 'machine';
+
+    // A machine credential must NAME its authority. The service-token mint has a
+    // documented "no scopes means the application's full grant" fallback for
+    // credentials provisioned before scopes existed; there is no such legacy
+    // shape here, and defaulting an external, long-lived bearer key to
+    // everything its application can do is the wrong default to inherit. The
+    // machine lane therefore performs no fallback, and this is what stops a
+    // scopeless key resolving to no authority at all — which would fail later,
+    // opaquely, at the first scope check.
+    if (isMachineCredential && requestedScopes.length === 0) {
+      throw new BadRequestError('A machine credential must request at least one scope');
+    }
+
+    // `expiresInSeconds` sets `expires_at` on an ACTIVE row. On every other type
+    // that column means the rotation grace deadline, so accepting it there would
+    // make a brand-new credential indistinguishable from a rotated one.
+    if (body.expiresInSeconds !== undefined && !isMachineCredential) {
+      throw new BadRequestError('expiresInSeconds is only supported on machine credentials');
+    }
+
     const grantableScopes = new Set(application.scopes);
     const ungrantable = requestedScopes.filter((scope) => !grantableScopes.has(scope));
     if (ungrantable.length > 0) {
@@ -804,43 +1076,118 @@ router.post(
       );
     }
 
-    const { publicKey, secret, secretHash } = generateCredentialMaterial();
-    const isPublicClient = body.type === 'public';
+    // A privileged scope the APPLICATION holds is not a privileged scope any
+    // member may put on a new long-lived credential. `authorizeRequestedScopes`
+    // makes adding one to the application staff-only; without the same filter
+    // here, a member holding `credentials:create` (the `developer` role does, and
+    // it carries no `account:update`) could mint a credential carrying a scope
+    // staff granted for the application's own use, and act with it. The account
+    // credential path has always had this check — `accounts.ts`, "Privileged
+    // scopes … are NOT self-grantable" — so the two now read the same.
+    //
+    // Defence in depth rather than the whole fix: `POST
+    // /:appId/credentials/:credId/rotate` copies the previous credential's
+    // scopes forward and returns a fresh secret, so this cannot be the only
+    // thing standing between a member and a privileged credential. The surfaces
+    // that matter refuse the machine lane outright (issue #972 §3).
+    if (!isStaffUser(req)) {
+      const privileged = requestedScopes.filter((scope) => isPrivilegedScope(scope));
+      if (privileged.length > 0) {
+        throw new ForbiddenError(
+          `Granting the scope(s) [${privileged.join(', ')}] requires Oxy platform staff privileges`
+        );
+      }
+    }
 
-    const credential = await ApplicationCredential.create({
-      applicationId: application._id,
-      name: body.name,
-      secretHash: isPublicClient ? undefined : secretHash,
-      publicKey,
-      type: body.type,
-      environment: body.environment,
-      scopes: requestedScopes,
-      status: 'active',
-      createdByUserId: new mongoose.Types.ObjectId(requireUserId(req)),
+    const { publicKey, secret, secretHash } = generateCredentialMaterial();
+    const machineToken = isMachineCredential ? generateMachineCredentialToken() : null;
+    const isPublicClient = body.type === 'public';
+    const expiresAt =
+      body.expiresInSeconds !== undefined
+        ? new Date(Date.now() + body.expiresInSeconds * 1000)
+        : null;
+    const actorUserId = requireUserId(req);
+
+    // The credential and its audit row land together or neither does — a minted
+    // key with no `created` event is a key nobody can account for.
+    const credential = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .insert(applicationCredentials)
+        .values({
+          applicationId: application.id,
+          name: body.name,
+          // A machine credential holds NO `secret_hash`: that column is what the
+          // OAuth token endpoint and the service-token mint compare against, and
+          // the table's own CHECK refuses one here anyway.
+          secretHash: isPublicClient || isMachineCredential ? null : secretHash,
+          publicKey,
+          tokenPrefix: machineToken?.tokenPrefix ?? null,
+          tokenHash: machineToken?.tokenHash ?? null,
+          type: body.type,
+          environment: body.environment,
+          scopes: requestedScopes,
+          status: 'active',
+          expiresAt,
+          createdByUserId: actorUserId,
+        })
+        .returning(CREDENTIAL_COLUMNS);
+
+      await recordCredentialLifecycleEvent(tx, {
+        applicationId: application.id,
+        credentialId: row.id,
+        eventType: 'created',
+        actorUserId,
+        environment: row.environment,
+        metadata: { type: row.type, scopes: row.scopes },
+        effectiveUntil: expiresAt,
+      });
+
+      return row;
     });
 
     logger.info('Application credential created', {
-      applicationId: application._id.toString(),
-      credentialId: credential._id.toString(),
+      applicationId: application.id,
+      credentialId: credential.id,
       type: credential.type,
-      by: requireUserId(req),
+      by: actorUserId,
     });
 
     res.status(201).json({
       credential: serializeCredential(credential),
-      secret: isPublicClient ? null : secret,
+      secret: isPublicClient || isMachineCredential ? null : secret,
+      // Present ONLY on this response and only for a machine credential. There
+      // is no read path that can produce it again.
+      ...(machineToken ? { token: machineToken.token } : {}),
     });
   })
 );
 
 /**
- * Rotate a credential — zero-downtime. Mints a replacement (fresh keys) then
- * deprecates the previous one with a 7-day grace `expiresAt`. The new plaintext
- * `secret` is returned EXACTLY ONCE.
+ * Rotate a credential. Mints a replacement (fresh keys) then retires the
+ * previous one. The new secret material is returned EXACTLY ONCE.
+ *
+ * ## Two grace policies, and the difference is the point
+ *
+ * An OAuth/service credential is ALWAYS retired with the fixed seven-day grace
+ * (`deprecated`, `expires_at = now + CREDENTIAL_ROTATION_GRACE_MS`) — unchanged,
+ * because that is the contract every existing caller was written against.
+ *
+ * A `machine` credential's grace is OPT-IN (`graceSeconds`). Omitting it
+ * `revoked`s the previous token the instant the replacement is minted; naming it
+ * keeps the old token working for exactly that long and no longer. "Preserve the
+ * grace window WHERE EXPLICITLY CONFIGURED" (§2.3) is a real distinction and not
+ * a default: an always-on window means a leaked API key that someone rotated in
+ * a hurry stays live for a week, which is the opposite of what rotating it was
+ * for. `graceSeconds` is refused on the other types rather than silently
+ * ignored, so nobody can believe they narrowed a window they did not.
+ *
+ * Both writes run in ONE transaction: a mint that landed without its matching
+ * retirement would leave two live credentials for the same client, which is
+ * exactly the state this is trying to control.
  */
 router.post(
   '/:appId/credentials/:credId/rotate',
-  validate({ params: appCredentialParams }),
+  validate({ params: appCredentialParams, body: rotateCredentialSchema }),
   requireAppPermission('credentials:rotate'),
   asyncHandler(async (req: AppContextRequest, res) => {
     const application = req.application;
@@ -848,55 +1195,123 @@ router.post(
       throw new NotFoundError('Application not found');
     }
 
-    if (!mongoose.isValidObjectId(req.params.credId)) {
-      throw new NotFoundError('Credential not found');
-    }
-
-    const previous = await ApplicationCredential.findOne({
-      _id: req.params.credId,
-      applicationId: application._id,
-      status: { $ne: 'revoked' },
-    });
-    if (!previous) {
-      throw new NotFoundError('Credential not found');
-    }
-
-    if (previous.type === 'public') {
-      throw new BadRequestError('Public credentials do not have a rotatable secret');
-    }
-
+    const { graceSeconds } = req.body as { graceSeconds?: number };
     const { publicKey, secret, secretHash } = generateCredentialMaterial();
+    const actorUserId = requireUserId(req);
 
-    const rotated = await ApplicationCredential.create({
-      applicationId: application._id,
-      name: previous.name,
-      publicKey,
-      secretHash,
-      type: previous.type,
-      environment: previous.environment,
-      scopes: previous.scopes,
-      status: 'active',
-      rotatedFromCredentialId: previous._id,
-      createdByUserId: new mongoose.Types.ObjectId(requireUserId(req)),
-    });
+    const { previousId, rotated, machineToken, graceExpiresAt } = await getDb().transaction(
+      async (tx) => {
+        const [previous] = await tx
+          .select(CREDENTIAL_COLUMNS)
+          .from(applicationCredentials)
+          .where(
+            and(
+              eq(applicationCredentials.id, req.params.credId),
+              eq(applicationCredentials.applicationId, application.id),
+              ne(applicationCredentials.status, 'revoked')
+            )
+          )
+          .limit(1);
+        if (!previous) {
+          throw new NotFoundError('Credential not found');
+        }
+        if (previous.type === 'public') {
+          throw new BadRequestError('Public credentials do not have a rotatable secret');
+        }
 
-    const graceExpiresAt = new Date(Date.now() + CREDENTIAL_ROTATION_GRACE_MS);
-    previous.status = 'deprecated';
-    previous.expiresAt = graceExpiresAt;
-    await previous.save();
+        const isMachineCredential = previous.type === 'machine';
+        if (graceSeconds !== undefined && !isMachineCredential) {
+          throw new BadRequestError(
+            'graceSeconds is only supported when rotating a machine credential'
+          );
+        }
+
+        // The one place the two policies are decided. `null` means "no window":
+        // the previous credential is revoked outright.
+        const grace = isMachineCredential
+          ? graceSeconds === undefined
+            ? null
+            : new Date(Date.now() + graceSeconds * 1000)
+          : new Date(Date.now() + CREDENTIAL_ROTATION_GRACE_MS);
+
+        const token = isMachineCredential ? generateMachineCredentialToken() : null;
+
+        const [minted] = await tx
+          .insert(applicationCredentials)
+          .values({
+            applicationId: application.id,
+            name: previous.name,
+            publicKey,
+            secretHash: isMachineCredential ? null : secretHash,
+            tokenPrefix: token?.tokenPrefix ?? null,
+            tokenHash: token?.tokenHash ?? null,
+            type: previous.type,
+            environment: previous.environment,
+            scopes: previous.scopes,
+            status: 'active',
+            rotatedFromCredentialId: previous.id,
+            createdByUserId: actorUserId,
+          })
+          .returning(CREDENTIAL_COLUMNS);
+
+        await tx
+          .update(applicationCredentials)
+          .set(
+            grace
+              ? { status: 'deprecated', expiresAt: grace }
+              : // No window configured: the old token stops working now. The row
+                // survives — it is the audit hop `rotated_from_credential_id`
+                // points back at — but `isCredentialUsable` refuses `revoked`
+                // unconditionally.
+                { status: 'revoked' }
+          )
+          .where(eq(applicationCredentials.id, previous.id));
+
+        // Recorded against the credential the event is ABOUT — the one whose
+        // token stops working. The replacement's own `created` row and its
+        // `rotated_from_credential_id` carry the other half of the link.
+        await recordCredentialLifecycleEvent(tx, {
+          applicationId: application.id,
+          credentialId: previous.id,
+          eventType: 'rotated',
+          actorUserId,
+          environment: previous.environment,
+          metadata: { rotatedToCredentialId: minted.id, graceConfigured: grace !== null },
+          effectiveUntil: grace,
+        });
+        await recordCredentialLifecycleEvent(tx, {
+          applicationId: application.id,
+          credentialId: minted.id,
+          eventType: 'created',
+          actorUserId,
+          environment: minted.environment,
+          metadata: { type: minted.type, scopes: minted.scopes, rotatedFromCredentialId: previous.id },
+        });
+
+        return {
+          previousId: previous.id,
+          rotated: minted,
+          machineToken: token,
+          graceExpiresAt: grace,
+        };
+      }
+    );
 
     logger.info('Application credential rotated', {
-      applicationId: application._id.toString(),
-      previousCredentialId: previous._id.toString(),
-      newCredentialId: rotated._id.toString(),
-      graceExpiresAt: graceExpiresAt.toISOString(),
-      by: requireUserId(req),
+      applicationId: application.id,
+      previousCredentialId: previousId,
+      newCredentialId: rotated.id,
+      graceExpiresAt: graceExpiresAt?.toISOString() ?? null,
+      by: actorUserId,
     });
 
     res.json({
       credential: serializeCredential(rotated),
-      secret,
-      rotatedFrom: previous._id.toString(),
+      secret: machineToken ? null : secret,
+      ...(machineToken ? { token: machineToken.token } : {}),
+      rotatedFrom: previousId,
+      // `null` when no grace was configured — the previous credential is already
+      // revoked and there is no deadline to report.
       graceExpiresAt,
     });
   })
@@ -915,28 +1330,111 @@ router.delete(
       throw new NotFoundError('Application not found');
     }
 
-    if (!mongoose.isValidObjectId(req.params.credId)) {
-      throw new NotFoundError('Credential not found');
-    }
+    const actorUserId = requireUserId(req);
 
-    const credential = await ApplicationCredential.findOne({
-      _id: req.params.credId,
-      applicationId: application._id,
+    // One statement, and its RESULT decides the outcome: a credential that does
+    // not belong to this application updates no row and is a 404. The audit row
+    // rides the same transaction — a revocation nobody can date is the one this
+    // trail exists to answer.
+    const credential = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .update(applicationCredentials)
+        .set({ status: 'revoked' })
+        .where(
+          and(
+            eq(applicationCredentials.id, req.params.credId),
+            eq(applicationCredentials.applicationId, application.id)
+          )
+        )
+        .returning({
+          id: applicationCredentials.id,
+          environment: applicationCredentials.environment,
+          type: applicationCredentials.type,
+        });
+      if (!row) {
+        throw new NotFoundError('Credential not found');
+      }
+
+      await recordCredentialLifecycleEvent(tx, {
+        applicationId: application.id,
+        credentialId: row.id,
+        eventType: 'revoked',
+        actorUserId,
+        environment: row.environment,
+        metadata: { type: row.type },
+      });
+
+      return row;
     });
+
+    logger.info('Application credential revoked', {
+      applicationId: application.id,
+      credentialId: credential.id,
+      by: actorUserId,
+    });
+
+    res.json({ success: true });
+  })
+);
+
+/**
+ * `GET /applications/:appId/credentials/:credId/audit`
+ *
+ * One credential's lifecycle trail: created, rotated, revoked, and every bearer
+ * that resolved to it and was still refused. Append-only in the database rather
+ * than by convention — `0043_application_credential_audit_immutability.sql`.
+ *
+ * ## What it cannot return
+ *
+ * Secret material, and not because this handler is careful: the rows themselves
+ * hold none (`services/applicationCredentialAudit.service.ts` is their only
+ * writer and takes ids and closed enums, so there is no parameter a secret could
+ * arrive through), and the wire type has no property one could occupy — see
+ * {@link CredentialAuditTrailEntry}, which deliberately omits `metadata`. These
+ * rows exist BECAUSE the secret was shown exactly once.
+ *
+ * ## Authorization is the credential routes' own, not a new one
+ *
+ * `credentials:read` over the owning account, through `requireAppPermission` —
+ * the same gate `GET /:appId/credentials` uses, because this is the same data
+ * seen through time. A caller with no access to the application gets 403 from
+ * `loadApplicationContext`, exactly as every other route on this router does.
+ *
+ * The second refusal is the one that matters, and it is the reason this handler
+ * reads the credential row before reading the trail: `:credId` is a caller-chosen
+ * id, and the audit table is keyed on the credential rather than on the
+ * application. Without this read, a member of account A could pass their OWN
+ * `:appId` beside account B's `:credId` and be served B's trail — the shape of
+ * IDOR the house rules describe, arriving through a path parameter instead of a
+ * body. The statement below is scoped to the resolved application, so a
+ * credential that does not belong to it is a 404 and nothing else, matching what
+ * rotate and revoke already answer for the same input.
+ */
+router.get(
+  '/:appId/credentials/:credId/audit',
+  credentialAuditLimiter,
+  validate({ params: appCredentialParams, query: credentialAuditQuerySchema }),
+  requireAppPermission('credentials:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const application = requireApplication(req);
+    const { limit } = credentialAuditQuerySchema.parse(req.query);
+
+    const [credential] = await getDb()
+      .select({ id: applicationCredentials.id })
+      .from(applicationCredentials)
+      .where(
+        and(
+          eq(applicationCredentials.id, req.params.credId),
+          eq(applicationCredentials.applicationId, application.id)
+        )
+      )
+      .limit(1);
     if (!credential) {
       throw new NotFoundError('Credential not found');
     }
 
-    credential.status = 'revoked';
-    await credential.save();
-
-    logger.info('Application credential revoked', {
-      applicationId: application._id.toString(),
-      credentialId: credential._id.toString(),
-      by: requireUserId(req),
-    });
-
-    res.json({ success: true });
+    const events = await listCredentialAuditTrail(credential.id, limit);
+    res.json({ data: events, count: events.length });
   })
 );
 
@@ -959,14 +1457,154 @@ router.get(
     }
 
     const period = (req.query.period as string) || '7d';
-    const startDate = getStartDate(period);
+    res.json(await getUsageStats(application.id, getStartDate(period)));
+  })
+);
 
-    const stats = await getUsageStats({
-      appId: application._id,
-      timestamp: { $gte: startDate },
+// ============================================================================
+// Store listing
+//
+// The publisher's side of the app store hangs off the application, beside
+// credentials, webhooks and usage, because that is what it is: one more thing
+// an app has, edited by whoever may edit the app. It reuses
+// `requireAppPermission` wholesale — a store page must not become a second,
+// weaker way to act for somebody's application.
+//
+// The storefront that READS these pages is `/store`, and knows nothing about
+// applications the caller may administer.
+// ============================================================================
+
+/** The application's listing in whatever state, or null when it has none. */
+router.get(
+  '/:appId/listing',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('app:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json(await getListingForApplication(requireApplication(req).id));
+  })
+);
+
+/**
+ * Create the listing or replace its content. Never its status: publishing is
+ * the store's decision and has its own routes.
+ */
+router.put(
+  '/:appId/listing',
+  validate({ params: appIdRouteParams, body: storeListingBody }),
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const body = req.body as {
+      slug: string;
+      tagline?: string | null;
+      description?: string | null;
+      categorySlug?: string | null;
+      supportUrl?: string | null;
+      supportEmail?: string | null;
+    };
+    res.json(await upsertListing({ applicationId: requireApplication(req).id, ...body }));
+  })
+);
+
+/** Hand the page to the store for review. */
+router.post(
+  '/:appId/listing/submit',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json(await submitListing(requireApplication(req).id));
+  })
+);
+
+/** Take it down, or withdraw it from the queue. Back to a draft, never deleted. */
+router.post(
+  '/:appId/listing/unpublish',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json(await unpublishListing(requireApplication(req).id));
+  })
+);
+
+/** Every picture on the listing, in the author's order. */
+router.get(
+  '/:appId/listing/screenshots',
+  validate({ params: appIdRouteParams }),
+  requireAppPermission('app:read'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    res.json(await listScreenshots(requireApplication(req).id));
+  })
+);
+
+/**
+ * Attach an already-uploaded image. Appended to the end; `…/order` moves it.
+ *
+ * The upload itself is `/files`, unchanged: the store stores a reference, not a
+ * second copy of the asset pipeline.
+ */
+router.post(
+  '/:appId/listing/screenshots',
+  validate({ params: appIdRouteParams, body: storeScreenshotBody }),
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const body = req.body as {
+      fileId: string;
+      platform?: AppScreenshotPlatform;
+      caption?: string | null;
+    };
+    res.status(201).json(
+      await addScreenshot({
+        applicationId: requireApplication(req).id,
+        callerUserId: requireUserId(req),
+        ...body,
+      })
+    );
+  })
+);
+
+/**
+ * Set the order of every picture at once.
+ *
+ * Declared before `/:screenshotId` so `order` is read as the route it is, not
+ * as a screenshot with that id — Express matches in declaration order.
+ */
+router.put(
+  '/:appId/listing/screenshots/order',
+  validate({ params: appIdRouteParams, body: storeScreenshotOrderBody }),
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const { screenshotIds } = req.body as { screenshotIds: string[] };
+    res.json(await reorderScreenshots({ applicationId: requireApplication(req).id, screenshotIds }));
+  })
+);
+
+/** Edit a picture's caption or the frame it was taken in. */
+router.patch(
+  '/:appId/listing/screenshots/:screenshotId',
+  validate({ params: storeScreenshotParams, body: storeScreenshotPatch }),
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    const body = req.body as { platform?: AppScreenshotPlatform; caption?: string | null };
+    res.json(
+      await updateScreenshot({
+        applicationId: requireApplication(req).id,
+        screenshotId: req.params.screenshotId,
+        ...body,
+      })
+    );
+  })
+);
+
+/** Remove a picture. The file itself stays — it may be in use elsewhere. */
+router.delete(
+  '/:appId/listing/screenshots/:screenshotId',
+  validate({ params: storeScreenshotParams }),
+  requireAppPermission('app:update'),
+  asyncHandler(async (req: AppContextRequest, res) => {
+    await deleteScreenshot({
+      applicationId: requireApplication(req).id,
+      screenshotId: req.params.screenshotId,
     });
-
-    res.json(stats);
+    res.status(204).end();
   })
 );
 

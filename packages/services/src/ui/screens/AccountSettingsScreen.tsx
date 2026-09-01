@@ -5,21 +5,25 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { surfaces } from '@oxyhq/bloom/surfaces';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Text } from '@oxyhq/bloom/typography';
 import { Button } from '@oxyhq/bloom/button';
 import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import type { UpdateAccountInput } from '@oxyhq/core';
+import { DISPLAY_NAME_INVALID_MESSAGE, getNormalizedUserHandle, isValidDisplayName, MAX_DISPLAY_NAME_LENGTH, type UpdateAccountInput } from '@oxyhq/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { SettingsIcon } from '../components/SettingsIcon';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
+import {
+  clearedFieldsFromAccountUpdate,
+  upsertCachedUser,
+} from '../hooks/queries/userCache';
 
-const DISPLAY_NAME_MAX = 50;
+const DISPLAY_NAME_MAX = MAX_DISPLAY_NAME_LENGTH;
 const BIO_MAX = 160;
 
 const errorMessage = (error: unknown, fallback: string): string =>
@@ -62,14 +66,15 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
   // Editable fields, seeded lazily from the loaded account once.
   const [seeded, setSeeded] = useState(false);
   const [displayName, setDisplayName] = useState('');
+  const [displayNameError, setDisplayNameError] = useState('');
   const [bio, setBio] = useState('');
 
   // Seed the form from the account during render (no useEffect): the first time
   // the query resolves we capture its values into local edit state.
   if (node && !seeded) {
-    const first = node.account?.name?.first ?? '';
-    const last = node.account?.name?.last ?? '';
-    setDisplayName([first, last].filter(Boolean).join(' '));
+    setDisplayName(
+      node.account?.name?.displayName ?? getNormalizedUserHandle(node.account) ?? '',
+    );
     setBio(node.account?.bio ?? '');
     setSeeded(true);
   }
@@ -77,7 +82,11 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
   const updateMutation = useMutation({
     mutationKey: ['accounts', 'update', id],
     mutationFn: (input: UpdateAccountInput) => oxyServices.updateAccount(id, input),
-    onSuccess: () => {
+    onSuccess: (updatedNode, input) => {
+      const cleared = clearedFieldsFromAccountUpdate(input);
+      upsertCachedUser(queryClient, updatedNode.account, user?.id, {
+        cleared: cleared.length > 0 ? cleared : undefined,
+      });
       queryClient.invalidateQueries({ queryKey: ['accounts', 'detail', id] });
       queryClient.invalidateQueries({ queryKey: ['accounts'] });
       toast.success(t('accounts.settings.toasts.saved') || 'Account updated');
@@ -111,7 +120,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
   const handleArchive = useCallback(async () => {
     const confirmed = await surfaces.confirm({
       title: t('accounts.settings.archive.confirmTitle') || 'Archive account',
-      message:
+      description:
         t('accounts.settings.archive.confirmDescription')
         || 'Archive this account? It will be deactivated and its members will lose access.',
       confirmLabel: t('accounts.settings.archive.title') || 'Archive account',
@@ -121,16 +130,34 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
     if (confirmed) archiveMutation.mutate();
   }, [archiveMutation, t]);
 
-  const handleSave = useCallback(() => {
-    const trimmed = displayName.trim();
+  const handleDisplayNameChange = useCallback((value: string) => {
+    setDisplayName(value);
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setDisplayNameError('');
+      return;
+    }
     const nameParts = trimmed.split(/\s+/).filter(Boolean);
     const first = nameParts[0] || '';
-    const last = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
+    const last = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+    const invalidPart = [first, last].find((part) => part && !isValidDisplayName(part));
+    setDisplayNameError(
+      invalidPart
+        ? (t('accounts.settings.displayName.invalidChars') || DISPLAY_NAME_INVALID_MESSAGE)
+        : '',
+    );
+  }, [t]);
+
+  const handleSave = useCallback(() => {
+    const trimmed = displayName.trim();
+    if (!trimmed || displayNameError) return;
+    // Managed accounts (org / project / bot / channel) have a title, not a
+    // given-and-family name — persist the explicit displayName column.
     updateMutation.mutate({
-      name: { first, last },
+      name: { displayName: trimmed },
       bio: bio.trim() ? bio.trim() : null,
     });
-  }, [displayName, bio, updateMutation]);
+  }, [displayName, displayNameError, bio, updateMutation]);
 
   const title = t('accounts.settings.title') || 'Account settings';
 
@@ -171,15 +198,23 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
               {/* Profile edit */}
               {canUpdate ? (
                 <View className="gap-space-16 p-space-16 rounded-radius-20 bg-fill">
-                  <TextField>
-                    <TextFieldInput
-                      floatingLabel
-                      label={t('accounts.settings.displayName.label') || 'Display name'}
-                      value={displayName}
-                      onChangeText={setDisplayName}
-                      maxLength={DISPLAY_NAME_MAX}
-                    />
-                  </TextField>
+                  <View className="gap-space-4">
+                    <TextField isInvalid={Boolean(displayNameError)}>
+                      <TextFieldInput
+                        floatingLabel
+                        label={t('accounts.settings.displayName.label') || 'Display name'}
+                        value={displayName}
+                        onChangeText={handleDisplayNameChange}
+                        isInvalid={Boolean(displayNameError)}
+                        maxLength={DISPLAY_NAME_MAX}
+                      />
+                    </TextField>
+                    {displayNameError ? (
+                      <Text className="text-caption font-caption text-negative px-space-4">
+                        {displayNameError}
+                      </Text>
+                    ) : null}
+                  </View>
                   <View className="gap-space-4">
                     <TextField>
                       <TextFieldInput
@@ -200,7 +235,7 @@ const AccountSettingsScreen: React.FC<BaseScreenProps> = ({ onClose, goBack, nav
                   <Button
                     variant="primary"
                     onPress={handleSave}
-                    disabled={updateMutation.isPending || !displayName.trim()}
+                    disabled={updateMutation.isPending || !displayName.trim() || Boolean(displayNameError)}
                     loading={updateMutation.isPending}
                     accessibilityLabel={t('accounts.settings.save') || 'Save changes'}
                     className="w-full"

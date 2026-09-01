@@ -30,12 +30,11 @@ import {
   type RegisterPushTokenBody,
   type UnregisterPushTokenBody,
 } from '../schemas/notifications.schemas';
-import { PushToken } from '../models/PushToken';
-import { Application } from '../models/Application';
-import { ApplicationCredential } from '../models/ApplicationCredential';
-import { isCredentialUsable } from '../utils/credentialUsability';
+import { and, eq } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { pushTokens } from '../db/schema/pushTokens';
+import { resolveApplicationIdFromClientId } from '../utils/resolveApplicationFromClientId';
 import { logger } from '../utils/logger';
-import type mongoose from 'mongoose';
 import type { NextFunction, Response } from 'express';
 
 const router = express.Router();
@@ -82,37 +81,25 @@ router.get('/unread-count', asyncHandler(getUnreadCount));
 
 // ─── Push Token Management ──────────────────────────────────────────
 
-/** Explicit write whitelist for a push-token upsert — never `req.body`. */
+/**
+ * Explicit write whitelist for a push-token upsert — never `req.body`.
+ *
+ * `token` arrives already TRIMMED: `registerPushTokenSchema` declares
+ * `z.string().trim()` and `validate` replaces `req.body` with the parsed value.
+ * That is the port of Mongoose's `trim: true` on `PushToken.token`, which had no
+ * Postgres counterpart and would otherwise have let `"tok "` and `"tok"` become
+ * two rows under the `(user_id, token)` unique index (`CONVENTIONS.md`,
+ * "Mongoose behaviour that has no schema counterpart"). The unregister schema
+ * trims identically, so a token registered from a padded string is still
+ * deletable by the same padded string.
+ */
 interface PushTokenWrite {
   userId: string;
   token: string;
   platform: 'ios' | 'android' | 'web';
   deviceId?: string;
-  applicationId?: mongoose.Types.ObjectId;
-}
-
-/**
- * Resolve a caller-supplied `clientId` (an `ApplicationCredential.publicKey`) to
- * the active `Application` it belongs to, through the SAME usable-credential
- * predicate every other credential-resolution site uses. Returns null when the
- * credential is unknown, revoked / out of its rotation grace, or its application
- * is not active — the caller REJECTS in that case rather than silently storing
- * an unscoped token.
- */
-async function resolveApplicationIdFromClientId(
-  clientId: string,
-): Promise<mongoose.Types.ObjectId | null> {
-  const credential = await ApplicationCredential.findOne({ publicKey: clientId });
-  if (!credential || !isCredentialUsable(credential)) {
-    return null;
-  }
-
-  const application = await Application.findById(credential.applicationId);
-  if (!application || application.status !== 'active') {
-    return null;
-  }
-
-  return application._id;
+  /** Resolved server-side from the caller's `clientId`; a `text` id, either shape. */
+  applicationId?: string;
 }
 
 // Register a push token
@@ -146,23 +133,34 @@ router.post(
       write.applicationId = applicationId;
     }
 
+    // Only the fields the caller actually sent are updated on conflict, so
+    // re-registering an existing install never silently drops a scope it
+    // already carries — the same guarantee Mongo's explicit `$set` of the
+    // whitelist gave. `updated_at` is bumped by drizzle's `$onUpdate`, which
+    // applies to the `do update` branch too.
+    const onConflict: Partial<PushTokenWrite> = { platform: write.platform };
+    if (write.deviceId !== undefined) {
+      onConflict.deviceId = write.deviceId;
+    }
+    if (write.applicationId !== undefined) {
+      onConflict.applicationId = write.applicationId;
+    }
+
     try {
-      // Explicit `$set` of the whitelist above. Fields the caller did not send
-      // are left untouched, so re-registering an existing install never silently
-      // drops a scope it already carries.
-      await PushToken.findOneAndUpdate(
-        { userId, token },
-        { $set: write },
-        { upsert: true, new: true },
-      );
+      // ONE statement, so the concurrent-registration race Mongo answered with
+      // an `E11000` retry is now unrepresentable: `push_tokens_user_id_token_key`
+      // is the conflict target, and a duplicate takes the `do update` branch
+      // rather than raising.
+      await getDb()
+        .insert(pushTokens)
+        .values(write)
+        .onConflictDoUpdate({
+          target: [pushTokens.userId, pushTokens.token],
+          set: onConflict,
+        });
 
       return res.status(200).json({ data: { registered: true } });
     } catch (err: unknown) {
-      const errObj = err as { code?: number; message?: string };
-      // Ignore duplicate key errors (race condition safe)
-      if (errObj.code === 11000 || errObj.message?.includes('E11000')) {
-        return res.status(200).json({ data: { registered: true } });
-      }
       logger.error('Failed to register push token', err instanceof Error ? err : new Error(String(err)));
       return res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: 'Failed to register push token' });
     }
@@ -181,7 +179,9 @@ router.delete(
 
     const { token } = req.body as UnregisterPushTokenBody;
 
-    await PushToken.deleteOne({ userId, token });
+    await getDb()
+      .delete(pushTokens)
+      .where(and(eq(pushTokens.userId, userId), eq(pushTokens.token, token)));
 
     return res.status(200).json({ data: { unregistered: true } });
   }),

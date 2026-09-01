@@ -22,6 +22,7 @@ interface JwtPayload {
   type?: string;
   appId?: string;
   credentialId?: string;
+  ownerAccountId?: string;
   appName?: string;
   scopes?: string[];
   aud?: string | string[];
@@ -35,8 +36,16 @@ interface JwtPayload {
  * Confirms that a given service app holds an active delegation grant for
  * the supplied user, along with the explicit scope list the grant covers.
  *
- * The api side persists these via the `ServiceActingAs` model:
- *   { serviceAppId, userId, scopes: string[], grantedAt, expiresAt }
+ * The API side stores this as an ordinary `app_grants` row — the SAME revocable
+ * record the OAuth consent screen writes and the "Connected apps" UI lists and
+ * deletes — whose `scopes` name `acting-as:offline`. There is deliberately no
+ * separate delegation table: a second store would be a second revocation
+ * surface, and a user who disconnects an application in "Connected apps" means
+ * it, so one revoke has to end everything.
+ *
+ * `scopes` is what THAT USER consented to, not what the application may do in
+ * general. `requireScope` intersects it with the token's own app-wide scopes for
+ * a delegated request, and the intersection is the effective authority.
  *
  * The SDK never inspects the grant directly — it round-trips through
  * `GET /internal/service-acting-as/verify?appId=...&userId=...` so the
@@ -49,9 +58,21 @@ export interface ServiceActingAsVerification {
 
 /**
  * Service app metadata attached to requests authenticated with service tokens.
- * `scopes` reflects the scopes granted to the app at signup time (from the
- * `Application.scopes` field); route-level checks can require additional
- * scope-narrowing via `requireScope()`.
+ *
+ * Every field comes from the token's SIGNED payload and is populated only after
+ * the signature, `iss`/`aud`/`type` binding and expiry all pass — so a verifier
+ * holding this object can name the responsible principals without a lookup of
+ * its own. Together with `credentialId` and `ownerAccountId` it is the canonical
+ * attribution tuple of ADR 0007 minus the delegated user.
+ *
+ * `scopes` are the EFFECTIVE scopes: the credential's own scopes intersected
+ * with the owning application's grant at mint time (the API's `intersectScopes`
+ * is the single authority for that intersection — nothing re-intersects here).
+ * Route-level checks narrow further via `requireScope()`.
+ *
+ * A delegated end user is NOT a field of this type, and must never become one.
+ * It lives in `req.serviceActingAs` / `req.userId`, is authorised per request,
+ * and is attribution only.
  */
 export interface ServiceApp {
   appId: string;
@@ -59,6 +80,12 @@ export interface ServiceApp {
   scopes: string[];
   /** The credentialId of the specific service credential that minted this token. */
   credentialId: string;
+  /**
+   * The Oxy account that owns `appId` and is financially responsible for it.
+   * The BILLING principal — never a user id, and never the delegated
+   * `X-Oxy-User-Id` (ADR 0007).
+   */
+  ownerAccountId: string;
   /** Test/live isolation (F2.0): which `ApplicationCredential.environment` minted this token. */
   environment: OxyServiceEnvironment;
 }
@@ -122,11 +149,24 @@ interface AuthMiddlewareOptions {
    * When provided, service tokens will be cryptographically verified.
    * When omitted, service tokens will be rejected (secure default).
    *
-   * **Migration note (>=1.11.14):** the Oxy API now signs service tokens
-   * with a dedicated `SERVICE_TOKEN_SECRET` distinct from `ACCESS_TOKEN_SECRET`.
-   * Pass that value here. If you keep passing the access-token secret you will
-   * still verify ALL signed-by-Oxy tokens (which is the whole class of bug
-   * H4 was supposed to prevent — DO NOT do that in production).
+   * **The only value that works is `ACCESS_TOKEN_SECRET`, and you should not
+   * want to hold it — see issue #987 and ADR 0012.** The Oxy API signs service
+   * tokens with `ACCESS_TOKEN_SECRET` (`packages/api/src/routes/auth.ts`),
+   * which is also the key that signs every user access token. There is no
+   * separate service-token secret: earlier revisions of this comment named a
+   * `SERVICE_TOKEN_SECRET` that has never existed in the API, in any workflow or
+   * in any task definition, and passing one would fail every verification.
+   *
+   * The consequence to hold onto: the scheme is symmetric, so a host that can
+   * VERIFY a service token can also MINT one — including a user access token.
+   * **Local verification is therefore appropriate only inside the Oxy API's own
+   * trust boundary, and no service outside it holds this key today.** Do not be
+   * the first: if you need to verify Oxy service tokens from another service,
+   * follow #987 rather than copying the secret.
+   *
+   * `docs/adr/0012-service-token-signing-key-model.md` records the decision to
+   * retire this option in favour of asymmetric signing against a published
+   * JWKS, at which point it is removed rather than deprecated.
    */
   jwtSecret?: string;
   /**
@@ -185,11 +225,31 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
       }
 
       try {
+        // The verify endpoint is service-to-service and admits only a
+        // platform-TRUSTED calling application, so this call must carry the
+        // VERIFIER's own service token. Sent explicitly rather than through
+        // `makeServiceRequest`, which would drop `retry: false` and the timeout
+        // — and those two are not incidental: this runs inside request-handling
+        // middleware, so an inner retry loop multiplies the latency of every
+        // delegated request by the number of attempts.
+        //
+        // A verifier with no service credentials configured throws here and
+        // lands in the catch below, which is the correct outcome. A host that
+        // cannot prove who it is has no business being told which users have
+        // delegated to which applications, and the 60s negative cache stops a
+        // misconfigured deployment from turning every request into a round trip.
+        const serviceToken = await (this as unknown as OxyAuthInstance).getServiceToken();
+
         const result = await this.makeRequest<ServiceActingAsVerification>(
           'GET',
           '/internal/service-acting-as/verify',
           { appId, userId },
-          { cache: false, retry: false, timeout: 5000 },
+          {
+            cache: false,
+            retry: false,
+            timeout: 5000,
+            headers: { Authorization: `Bearer ${serviceToken}` },
+          },
         );
 
         const authorized = Boolean(result && result.authorized);
@@ -250,17 +310,40 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * Uses server-side session validation for security (not just JWT decode).
      *
      * **Design note — jwtDecode vs jwt.verify:**
-     * This middleware intentionally uses `jwtDecode()` (decode-only, no signature
-     * verification) for user tokens. This is by design, NOT a security gap:
-     * - Third-party apps using `oxy.auth()` don't have the Oxy JWT secret
-     * - Security comes from API-based session validation (`validateSession()`)
-     *   which checks the session server-side on every request
-     * - Service tokens (type: 'service') DO use cryptographic HMAC verification
-     *   via the `jwtSecret` option, since they are stateless. Service tokens
-     *   are additionally checked for `aud`, `iss`, and `type` claims to prevent
+     * This middleware uses `jwtDecode()` (decode-only, NO signature check) for
+     * user tokens, because third-party apps mounting `oxy.auth()` do not hold
+     * the Oxy signing secret. **Every claim in a user token is therefore
+     * attacker-controlled and proves nothing on its own.** The identity comes
+     * from somewhere else entirely:
+     * - A user token MUST carry a `sessionId`. That session is validated
+     *   server-side on every request via `validateSession()`, and the user id
+     *   is read off the VALIDATED SESSION — never off the token. A token whose
+     *   `userId` claim disagrees with the session is refused
+     *   (`SESSION_USER_MISMATCH`); a token with no `sessionId` at all is
+     *   refused outright (`SESSION_REQUIRED`). There is no local-claims path.
+     * - Service tokens (type: 'service') ARE stateless, so they use
+     *   cryptographic HMAC verification via the `jwtSecret` option, and are
+     *   additionally checked for `aud`, `iss`, and `type` claims to prevent
      *   cross-token-type confusion attacks.
      * - The backend's own `authMiddleware` uses `jwt.verify()` because it has
-     *   direct access to `SERVICE_TOKEN_SECRET` / `ACCESS_TOKEN_SECRET`.
+     *   direct access to `ACCESS_TOKEN_SECRET`.
+     *
+     * **Why session-less user tokens are refused rather than trusted:**
+     * every user access token the Oxy API issues carries a `sessionId` (see
+     * `packages/api/src/utils/sessionUtils.ts`, `generateSessionTokens` — the
+     * only mint site for user tokens, including the OAuth code exchange). So
+     * refusing session-less user tokens costs nothing legitimate, while
+     * accepting them let anyone authenticate as anyone by hand-rolling a JWT
+     * with a `userId` claim and a garbage signature.
+     *
+     * **Why the claimed user id is cross-checked against the session:**
+     * `GET /session/validate/:sessionId` is UNAUTHENTICATED and does not bind
+     * the bearer token — it returns whoever owns the session id it was handed.
+     * Trusting the token's `userId` claim after a successful validation would
+     * therefore let a caller holding ANY live session id (their own, for
+     * instance) pair it with a forged `userId` and be trusted as that user.
+     * `authSocket()` has always cross-checked this; the HTTP middleware now
+     * does too.
      *
      * **Service-token delegation (X-Oxy-User-Id):**
      * When a service token is accompanied by `X-Oxy-User-Id`, the SDK calls
@@ -275,7 +358,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * const oxy = new OxyServices({ baseURL: 'https://api.oxy.so' });
      *
      * // Protect all routes under /protected
-     * app.use('/protected', oxy.auth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }));
+     * app.use('/protected', oxy.auth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }));
      *
      * // Access user in route handler
      * app.get('/protected/me', (req, res) => {
@@ -289,7 +372,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * app.use('/public', oxy.auth({ optional: true }));
      *
      * // Require a specific scope on a service-token-protected route
-     * app.use('/internal/files', oxy.serviceAuth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }), oxy.requireScope('files:write'));
+     * app.use('/internal/files', oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }), oxy.requireScope('files:write'));
      * ```
      *
      * @param options Optional configuration
@@ -467,14 +550,20 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               return res.status(401).json(error);
             }
 
-            // Validate required service token fields
+            // Validate required service token fields. All of them are
+            // required, `ownerAccountId` included: an optional billing
+            // principal is one fallback away from being resolved from the
+            // delegated user, which is the exact confusion ADR 0007 forbids.
             const appId = decoded.appId;
             const credentialId = decoded.credentialId;
+            const ownerAccountId = decoded.ownerAccountId;
             const environment = decoded.environment;
             if (
               !appId ||
               typeof credentialId !== 'string' ||
               credentialId.length === 0 ||
+              typeof ownerAccountId !== 'string' ||
+              ownerAccountId.length === 0 ||
               !isOxyServiceEnvironment(environment)
             ) {
               if (optional) {
@@ -515,6 +604,11 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
                 return res.status(403).json(error);
               }
 
+              // ATTRIBUTION ONLY. `req.userId` answers "on whose behalf", never
+              // "who pays": the billing principal stays `req.serviceApp
+              // .ownerAccountId`, which this branch does not touch. Read it
+              // through `getOxyBillingPrincipal` (`@oxyhq/core/server`), whose
+              // return type a user id cannot satisfy (ADR 0007).
               req.userId = oxyUserId;
               req.user = { id: oxyUserId } as User;
               req.serviceActingAs = { userId: oxyUserId, scopes: grant.scopes };
@@ -529,6 +623,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               appId,
               appName: decoded.appName || 'unknown',
               credentialId,
+              ownerAccountId,
               scopes: Array.isArray(decoded.scopes) ? decoded.scopes : [],
               environment,
             };
@@ -543,8 +638,10 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             return next();
           }
 
-          const userId = decoded.userId || decoded.id;
-          if (!userId) {
+          // The CLAIMED user id. Never trusted as an identity — it is only ever
+          // compared against the id the validated session resolves to.
+          const claimedUserId = readStringClaim(decoded.userId) ?? readStringClaim(decoded.id);
+          if (!claimedUserId) {
             if (optional) {
               req.userId = null;
               req.user = null;
@@ -580,58 +677,82 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             return res.status(401).json(error);
           }
 
-          // Validate token against the Oxy API for session-based verification
-          // This ensures the session hasn't been revoked server-side
-          if (decoded.sessionId) {
-            try {
-              const validationResult = await oxyInstance.validateSession(decoded.sessionId, {
-                useHeaderValidation: true,
-              });
-
-              if (!validationResult || !validationResult.valid) {
-                if (optional) {
-                  req.userId = null;
-                  req.user = null;
-                  return next();
-                }
-
-                const error = {
-                  error: 'INVALID_SESSION',
-                  message: 'Session invalid or expired',
-                  code: 'INVALID_SESSION',
-                  status: 401
-                };
-                if (onError) return onError(error);
-                return res.status(401).json(error);
-              }
-
-              // Use validated user data from session validation (already has full user)
-              req.userId = userId;
-              req.accessToken = token;
-              req.sessionId = decoded.sessionId;
-
-              if (loadUser && validationResult.user) {
-                // Session validation already returns full user data
-                req.user = validationResult.user;
-              } else {
-                req.user = { id: userId } as User;
-              }
-
-              if (debug) {
-                logger.debug(`[oxy.auth] OK user=${userId} session=${decoded.sessionId}`, {
-                  component: 'auth',
-                  method: 'auth',
-                });
-              }
-
+          // A server-validated session is MANDATORY for a user token. The JWT
+          // signature is not verified on this path, so a bare decoded token
+          // proves nothing: without the session round-trip a forged token could
+          // claim any user id. Mirrors `authSocket()`, which has always
+          // required this.
+          const sessionId = readStringClaim(decoded.sessionId);
+          if (!sessionId) {
+            if (optional) {
+              req.userId = null;
+              req.user = null;
               return next();
-            } catch (validationError) {
-              if (debug) {
-                logger.debug('[oxy.auth] Session validation failed', {
-                  component: 'auth',
-                  method: 'auth',
-                }, validationError);
+            }
+
+            const error = {
+              error: 'SESSION_REQUIRED',
+              message: 'Access token is not bound to a session',
+              code: 'SESSION_REQUIRED',
+              status: 401
+            };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
+
+          // Validate the token against the Oxy API. This proves the session is
+          // real and unrevoked, AND yields the identity it belongs to.
+          try {
+            const validationResult = await oxyInstance.validateSession(sessionId, {
+              useHeaderValidation: true,
+            });
+
+            if (!validationResult || !validationResult.valid || !validationResult.user) {
+              if (optional) {
+                req.userId = null;
+                req.user = null;
+                return next();
               }
+
+              const error = {
+                error: 'INVALID_SESSION',
+                message: 'Session invalid or expired',
+                code: 'INVALID_SESSION',
+                status: 401
+              };
+              if (onError) return onError(error);
+              return res.status(401).json(error);
+            }
+
+            // The session — not the token — is the source of truth for identity.
+            const validatedUserId = getUserIdentityId(validationResult.user);
+            if (!validatedUserId) {
+              if (optional) {
+                req.userId = null;
+                req.user = null;
+                return next();
+              }
+
+              const error = {
+                error: 'INVALID_SESSION',
+                message: 'Session did not resolve to a usable identity',
+                code: 'INVALID_SESSION',
+                status: 401
+              };
+              if (onError) return onError(error);
+              return res.status(401).json(error);
+            }
+
+            if (validatedUserId !== claimedUserId) {
+              // Session-id/claim confusion: the caller presented a live session
+              // that belongs to somebody else. Worth a warning — it has no
+              // benign cause. Ids only; never the token or the payload.
+              logger.warn('[oxy.auth] Token rejected — claimed user does not own the session', {
+                component: 'auth',
+                method: 'auth',
+                claimedUserId,
+                validatedUserId,
+              });
 
               if (optional) {
                 req.userId = null;
@@ -640,58 +761,53 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
               }
 
               const error = {
-                error: 'SESSION_VALIDATION_ERROR',
-                message: 'Session validation failed',
-                code: 'SESSION_VALIDATION_ERROR',
+                error: 'SESSION_USER_MISMATCH',
+                message: 'Token user does not match the session',
+                code: 'SESSION_USER_MISMATCH',
                 status: 401
               };
               if (onError) return onError(error);
               return res.status(401).json(error);
             }
-          }
 
-          // Non-session token: use local validation only (userId from JWT)
-          req.userId = userId;
-          req.accessToken = token;
-          req.user = { id: userId } as User;
+            req.userId = validatedUserId;
+            req.accessToken = token;
+            req.sessionId = sessionId;
+            // Session validation already returned the full user, so `loadUser`
+            // costs no extra round-trip.
+            req.user = loadUser ? validationResult.user : ({ id: validatedUserId } as User);
 
-          // If loadUser requested with non-session token, fetch from API
-          if (loadUser) {
-            try {
-              // Temporarily set token to make the API call
-              const prevToken = oxyInstance.getAccessToken();
-              oxyInstance.setTokens(token);
-              const fullUser = await oxyInstance.getCurrentUser();
-              // Restore previous token
-              if (prevToken) {
-                oxyInstance.setTokens(prevToken);
-              } else {
-                oxyInstance.clearTokens();
-              }
-
-              if (fullUser) {
-                req.user = fullUser;
-              }
-            } catch (loadUserError) {
-              // Loading the full user is best-effort here; the basic { id }
-              // object is already attached. Log so misconfigured deployments
-              // can be diagnosed instead of silently failing.
-              logger.warn('[oxy.auth] loadUser fallback — could not fetch full profile', {
+            if (debug) {
+              logger.debug(`[oxy.auth] OK user=${validatedUserId} session=${sessionId}`, {
                 component: 'auth',
-                method: 'auth.loadUser',
-                userId,
-              }, loadUserError);
+                method: 'auth',
+              });
             }
-          }
 
-          if (debug) {
-            logger.debug(`[oxy.auth] OK user=${userId} (no session)`, {
-              component: 'auth',
-              method: 'auth',
-            });
-          }
+            return next();
+          } catch (validationError) {
+            if (debug) {
+              logger.debug('[oxy.auth] Session validation failed', {
+                component: 'auth',
+                method: 'auth',
+              }, validationError);
+            }
 
-          next();
+            if (optional) {
+              req.userId = null;
+              req.user = null;
+              return next();
+            }
+
+            const error = {
+              error: 'SESSION_VALIDATION_ERROR',
+              message: 'Session validation failed',
+              code: 'SESSION_VALIDATION_ERROR',
+              status: 401
+            };
+            if (onError) return onError(error);
+            return res.status(401).json(error);
+          }
         } catch (error) {
           const handled = oxyInstance.handleError(error) as Error & {
             code?: string;
@@ -768,7 +884,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
             return next(new Error('Invalid token'));
           }
 
-          const claimedUserId = decoded.userId || decoded.id;
+          const claimedUserId = readStringClaim(decoded.userId) ?? readStringClaim(decoded.id);
           if (!claimedUserId) {
             return next(new Error('Invalid token payload'));
           }
@@ -781,13 +897,14 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           // A server-validated session is mandatory. A bare decoded JWT proves
           // nothing — the signature is not verified here, so without a session
           // round-trip a forged token could claim any user id.
-          if (!decoded.sessionId) {
+          const sessionId = readStringClaim(decoded.sessionId);
+          if (!sessionId) {
             return next(new Error('Session required'));
           }
 
           let userId = claimedUserId;
           try {
-            const result = await oxyInstance.validateSession(decoded.sessionId, {
+            const result = await oxyInstance.validateSession(sessionId, {
               useHeaderValidation: true,
             });
             if (!result || !result.valid || !result.user) {
@@ -819,10 +936,10 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
           // reads from `socket.user.id`.
           socket.data = socket.data || {};
           socket.data.userId = userId;
-          socket.data.sessionId = decoded.sessionId || null;
+          socket.data.sessionId = sessionId;
           socket.data.token = token;
 
-          socket.user = { id: userId, userId, sessionId: decoded.sessionId };
+          socket.user = { id: userId, userId, sessionId };
 
           if (debug) {
             logger.debug(`[oxy.authSocket] OK user=${userId}`, {
@@ -851,7 +968,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * @example
      * ```typescript
      * // Protect internal endpoints
-     * app.use('/internal', oxy.serviceAuth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }));
+     * app.use('/internal', oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }));
      *
      * app.post('/internal/trigger', (req, res) => {
      *   console.log('Service app:', req.serviceApp);
@@ -884,6 +1001,20 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * service requests require the app scope. Delegated user requests require
      * BOTH the app scope and the per-user delegation scope.
      *
+     * The intersection is the point, not a redundancy, because the two scope
+     * lists answer different questions and neither implies the other:
+     *
+     *   `serviceApp.scopes`      what the PLATFORM allows this application to do
+     *                            (credential ∩ application ceiling, at mint time)
+     *   `serviceActingAs.scopes` what THIS USER allowed it to do (`app_grants`)
+     *
+     * Requiring only the app scope would let an application do to a user
+     * something that user never consented to; requiring only the grant would let
+     * a user hand an application authority staff never gave it, so a revoked
+     * platform scope would keep working for every user who had already
+     * consented. Effective authority is the intersection, and this is where it
+     * is taken.
+     *
      * Requests authenticated as a regular user (no service token) are rejected
      * with 403 — scope-protected endpoints are service-to-service by design.
      *
@@ -891,7 +1022,7 @@ export function OxyServicesUtilityMixin<T extends typeof OxyServicesBase>(Base: 
      * ```typescript
      * app.use(
      *   '/internal/files',
-     *   oxy.serviceAuth({ jwtSecret: process.env.SERVICE_TOKEN_SECRET }),
+     *   oxy.serviceAuth({ jwtSecret: process.env.ACCESS_TOKEN_SECRET }),
      *   oxy.requireScope('files:write'),
      * );
      * ```
@@ -978,12 +1109,17 @@ async function verifyServiceTokenSignature(token: string, secret: string): Promi
 }
 
 /**
- * Verify that a decoded service-token payload carries the expected `aud`,
- * `iss`, and `type` claims. Throws `ServiceTokenClaimError` on mismatch.
- * This is the defence against the H4 vulnerability where a recovery / 2FA /
- * access token signed by the same shared secret could be replayed as a
- * service token because no claim binding existed.
+ * Read a JWT claim that is only usable as a non-empty string.
+ *
+ * A decoded payload is attacker-controlled JSON: a claim the type declares as
+ * `string` can arrive as a number, an object, or `null`. Narrowing here keeps
+ * those values out of URL construction and identity comparison, so an
+ * unexpected shape becomes a 401 rather than a stringified surprise.
  */
+function readStringClaim(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
 /**
  * Resolve the canonical user id from a validated session's user object.
  *
@@ -997,6 +1133,13 @@ function getUserIdentityId(user: User): string | null {
   return typeof candidate === 'string' && candidate.length > 0 ? candidate : null;
 }
 
+/**
+ * Verify that a decoded service-token payload carries the expected `aud`,
+ * `iss`, and `type` claims. Throws `ServiceTokenClaimError` on mismatch.
+ * This is the defence against the H4 vulnerability where a recovery / 2FA /
+ * access token signed by the same shared secret could be replayed as a
+ * service token because no claim binding existed.
+ */
 function verifyServiceTokenClaims(
   decoded: JwtPayload,
   expected: { audience: string; issuer: string },
@@ -1054,6 +1197,7 @@ interface SocketLike {
 
 interface OxyAuthInstance {
   verifyServiceActingAs(appId: string, userId: string): Promise<ServiceActingAsVerification | null>;
+  getServiceToken(apiKey?: string, apiSecret?: string): Promise<string>;
   validateSession(
     sessionId: string,
     options?: { deviceFingerprint?: string; useHeaderValidation?: boolean },
@@ -1062,9 +1206,5 @@ interface OxyAuthInstance {
     user?: User;
     [key: string]: unknown;
   } | null>;
-  getAccessToken(): string | null;
-  setTokens(accessToken: string): void;
-  clearTokens(): void;
-  getCurrentUser(): Promise<User | null>;
   handleError(error: unknown): Error;
 }

@@ -1,0 +1,79 @@
+-- oxy:deploy-phase=post
+--
+-- Retire `account_credentials` (issue #972 workstream 2.3, §2 credential
+-- lifecycle).
+--
+-- WHAT THIS TABLE WAS, AND WHY IT GOES
+--
+-- A `service`-only credential issued against a `bot`-kind account rather than
+-- against an application: a full public lifecycle (list / create / rotate /
+-- revoke on `/accounts/:id/credentials`), a `secret_hash`, `APPLICATION_SCOPES`
+-- validation, a staff gate on privileged scopes, and the same seven-day rotation
+-- grace `application_credentials` uses.
+--
+-- And nothing ever authenticated against it. Its only resolver,
+-- `accountService.resolveUsableCredential`, had zero callers anywhere in the
+-- repository, tests included — the identically named calls in `routes/auth.ts`
+-- are a different, file-local function over `application_credentials`. No
+-- middleware read it. So a customer could mint, rotate and revoke a secret that
+-- granted access to nothing, and a revocation performed on one did nothing
+-- because there was nothing to revoke.
+--
+-- ADR 0005 invariant 3 forbids a second customer key table and, until this
+-- change, named only `developer_api_keys` (retired in `0047`). The owner's
+-- decision on the two readings — legitimate-and-name-it-as-an-exception versus
+-- third-removal-candidate — was the latter. ADR 0005 is updated in the same
+-- change, so the invariant and the schema now agree.
+--
+-- ROWS — MEASURED, NOT ASSUMED
+--
+-- Counted against PRODUCTION before this shipped, with read-only queries from a
+-- one-shot Fargate task on the live `oxy-oxy-api:201` task definition:
+--
+--   account_credentials              0 rows
+--   distinct accounts holding one    0
+--   rows by status                   none
+--
+-- A zero is only evidence beside a control, because "I found nothing" and "there
+-- is nothing" are indistinguishable from inside the query. The control on the
+-- same database through the same shape of query: `application_credentials` = 34.
+-- So the query worked and the database is populated; the table really is empty.
+--
+-- Nothing to migrate, so no row migration precedes this statement.
+--
+-- WHY NO `CASCADE`, WHICH IS WHAT drizzle-kit EMITTED
+--
+-- `drizzle-kit generate` emitted `DROP TABLE "account_credentials" CASCADE`.
+-- Measured against `meta/0049_snapshot.json` — the snapshot this migration is
+-- generated AGAINST, so the one describing the database at the moment it runs
+-- (150 tables, 283 foreign keys, with the table's own presence as the positive
+-- control and `users`' 133 inbound keys as the negative one) — exactly ONE foreign
+-- key targets this table, and it is the table's OWN
+-- `account_credentials_rotated_from_fk` self-reference, dropped with the table
+-- regardless. The production census agrees.
+--
+-- So `CASCADE` has nothing to do here, and a `CASCADE` that is not needed is a
+-- liability: it silently drops whatever else has come to depend on the table
+-- since this file was written, which is the opposite of what a reviewed migration
+-- should do. Plain `DROP TABLE` fails loudly instead, and a loud failure on a
+-- `post`-phase migration is the outcome to want.
+--
+-- WHY `post`
+--
+-- Dropping a table cannot be undone by rolling the image back, so it runs only
+-- once the image that no longer declares it is live. With the table empty the
+-- statement rewrites nothing and takes its `ACCESS EXCLUSIVE` lock only for the
+-- catalogue update — which makes `post` cheap here, not correct. The phase is
+-- about ordering against the still-serving image.
+--
+-- WHAT SURVIVES, DELIBERATELY
+--
+-- The `credentials:read` / `credentials:create` / `credentials:rotate` /
+-- `credentials:revoke` RBAC permissions stay in `utils/accountRoles.ts`. They are
+-- NOT specific to this table: `routes/applications.ts` gates the
+-- application-credential lane on the same strings through `requireAppPermission`,
+-- and `ACCOUNT_COUNTERPART` maps the application-lane spellings onto the
+-- account-lane ones — so the account-lane entries are still load-bearing for
+-- application credentials. Removing them would break the surviving lane.
+
+DROP TABLE "account_credentials";

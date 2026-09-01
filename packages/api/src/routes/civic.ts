@@ -19,7 +19,6 @@ import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
 import { asyncHandler } from '../utils/asyncHandler';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, UnauthorizedError } from '../utils/error';
-import { isValidObjectId } from '../utils/validation';
 import { getIO } from '../utils/socket';
 import {
   signedRecordEnvelopeSchema,
@@ -28,7 +27,10 @@ import {
   type CredentialStatus,
 } from '@oxyhq/contracts';
 import { requireStaff } from '../middleware/requireStaff';
-import PersonhoodStatus from '../models/PersonhoodStatus';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { personhoodStatuses } from '../db/schema/personhoodStatuses';
+import { users } from '../db/schema/users';
 import { buildSignedPublicCard } from '../services/civic/publicCard.service';
 import { submitRealLifeAttestation, type RealLifeRejectionReason } from '../services/civic/realLife.service';
 import {
@@ -260,9 +262,6 @@ router.get(
   '/:userId/card',
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('Card not found');
-    }
 
     const signed = await buildSignedPublicCard(userId);
     if (!signed) {
@@ -338,7 +337,16 @@ router.post(
     assertValidationScope(req);
 
     const { subjectUserId, actionType, sourceActionId, payload, highValue } = req.body;
-    if (!isValidObjectId(subjectUserId)) {
+    // Was an ObjectId-FORMAT check, which would reject every uuid v7 id minted
+    // after the cutover. The 400 is a real contract for a body field, so the
+    // check becomes EXISTENCE — otherwise an unknown subject reaches the
+    // `subject_user_id` foreign key and answers 500 instead of 400.
+    const [subject] = await getDb()
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, String(subjectUserId)))
+      .limit(1);
+    if (!subject) {
       throw new BadRequestError('Invalid subjectUserId');
     }
 
@@ -352,7 +360,7 @@ router.post(
     });
 
     res.status(201).json({
-      requestId: request._id.toString(),
+      requestId: request.id,
       selectedValidatorCount: request.selectedValidatorIds.length,
       expiresAt: request.expiresAt.toISOString(),
     });
@@ -375,8 +383,8 @@ router.get(
     const requests = await getValidatorInbox(userId);
     res.json({
       requests: requests.map((request) => ({
-        id: request._id.toString(),
-        subjectUserId: request.subjectUserId.toString(),
+        id: request.id,
+        subjectUserId: request.subjectUserId,
         actionType: request.actionType,
         payload: request.payload,
         payloadHash: request.payloadHash,
@@ -401,9 +409,6 @@ router.post(
     const userId = req.user?._id?.toString();
     if (!userId) {
       throw new UnauthorizedError('Authentication required');
-    }
-    if (!isValidObjectId(req.params.id)) {
-      throw new NotFoundError('Validation request not found');
     }
 
     const result = await submitVote(req.params.id, userId, req.body as SignedRecordEnvelope);
@@ -432,9 +437,6 @@ router.post(
     const userId = req.user?._id?.toString();
     if (!userId) {
       throw new UnauthorizedError('Authentication required');
-    }
-    if (!isValidObjectId(req.params.id)) {
-      throw new NotFoundError('Validation request not found');
     }
 
     const result = await denyValidation(req.params.id, userId);
@@ -507,9 +509,6 @@ router.delete(
       throw new UnauthorizedError('Authentication required');
     }
     const { subjectUserId } = req.params;
-    if (!isValidObjectId(subjectUserId)) {
-      throw new NotFoundError('Vouch not found');
-    }
 
     const result = await withdrawVouch(voucherUserId, subjectUserId);
     if (!result.ok) {
@@ -530,11 +529,16 @@ router.get(
   personhoodReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { userId } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('Personhood status not found');
-    }
-
-    const status = await PersonhoodStatus.findOne({ userId }).lean();
+    // The `isValidObjectId` guard is DELETED, not ported. Its only effect was to
+    // answer 404 for an id that is not 24 hex chars, and after the cutover EVERY
+    // new account id is a uuid v7 — so keeping it would 404 the whole new id
+    // space. An id that matches no row already returned this zeroed
+    // `unverified` shape, so a malformed one now answers the same way.
+    const [status] = await getDb()
+      .select()
+      .from(personhoodStatuses)
+      .where(eq(personhoodStatuses.userId, userId))
+      .limit(1);
     setPublicCardHeaders(res);
     res.json({
       userId,
@@ -544,7 +548,16 @@ router.get(
       realLifeCount: status?.realLifeCount ?? 0,
       biometricBound: status?.biometricBound ?? false,
       sybilPenalty: status?.sybilPenalty ?? 0,
-      breakdown: status?.breakdown ?? null,
+      breakdown: status
+        ? {
+            vouchSignal: status.breakdownVouchSignal,
+            realLifeSignal: status.breakdownRealLifeSignal,
+            biometricSignal: status.breakdownBiometricSignal,
+            evidence: status.breakdownEvidence,
+            sybilPenalty: status.breakdownSybilPenalty,
+            seed: status.breakdownSeed,
+          }
+        : null,
       updatedAt: status?.updatedAt ?? null,
     });
   }),
@@ -562,9 +575,6 @@ router.post(
   personhoodAdminLimiter,
   asyncHandler(async (req: AuthRequest, res: Response) => {
     const { userId } = req.params;
-    if (!isValidObjectId(userId)) {
-      throw new NotFoundError('User not found');
-    }
 
     const status = await recomputePersonhood(userId);
     res.json({
@@ -575,7 +585,16 @@ router.post(
       realLifeCount: status.realLifeCount,
       biometricBound: status.biometricBound,
       sybilPenalty: status.sybilPenalty,
-      breakdown: status.breakdown,
+      // The `breakdown` subdocument is six prefixed columns now; the WIRE shape
+      // is unchanged, so it is reassembled here at the serializer boundary.
+      breakdown: {
+        vouchSignal: status.breakdownVouchSignal,
+        realLifeSignal: status.breakdownRealLifeSignal,
+        biometricSignal: status.breakdownBiometricSignal,
+        evidence: status.breakdownEvidence,
+        sybilPenalty: status.breakdownSybilPenalty,
+        seed: status.breakdownSeed,
+      },
       updatedAt: status.updatedAt,
     });
   }),
@@ -646,9 +665,6 @@ router.get(
   credentialReadLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const { holderUserId } = req.params;
-    if (!isValidObjectId(holderUserId)) {
-      throw new NotFoundError('Credentials not found');
-    }
 
     const status = typeof req.query.status === 'string' ? req.query.status : undefined;
     if (status && status !== 'active' && status !== 'revoked' && status !== 'expired') {
@@ -675,9 +691,6 @@ router.post(
     const issuerUserId = req.user?._id?.toString();
     if (!issuerUserId) {
       throw new UnauthorizedError('Authentication required');
-    }
-    if (!isValidObjectId(req.params.id)) {
-      throw new NotFoundError('Credential not found');
     }
 
     const result = await revokeCredential(req.params.id, issuerUserId);

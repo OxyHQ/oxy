@@ -62,10 +62,18 @@ export interface BuildOAuthAuthorizeUrlParams {
   /** The PKCE `codeChallenge` from {@link generatePkcePair}. */
   codeChallenge: string;
   /**
-   * OAuth `prompt` parameter. Use `none` for silent cross-origin session restore
-   * (no UI when the IdP hub already has a session + grant).
+   * OAuth `prompt` parameter — `login` forces a fresh authentication even when
+   * the IdP already has a session, `consent` forces the consent screen even for
+   * an already-granted scope. Both are ordinary OAuth/OIDC and are here for
+   * third-party relying parties building their own authorize link.
+   *
+   * `'none'` is deliberately NOT in this union. It is the silent-SSO value, and
+   * it was the only value this SDK ever sent — from the cold-boot cross-origin
+   * restore deleted in #691 phase 7b. Accepting it again would hand consumers a
+   * one-line rebuild of the automatic, gesture-less full-page bounce to the IdP
+   * that the popup transport exists to eliminate.
    */
-  prompt?: 'none' | 'login' | 'consent';
+  prompt?: 'login' | 'consent';
   /**
    * How the IdP should deliver the authorization response. Omitted (the
    * default) means the ordinary top-level redirect back to `redirectUri`.
@@ -217,11 +225,8 @@ export const OXY_OAUTH_STATE_STORAGE_KEY = 'oxy_oauth_state';
 /** `sessionStorage` key for the PKCE `code_verifier` across an authorize redirect. */
 export const OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY = 'oxy_oauth_code_verifier';
 
-/** `sessionStorage` key — at most one silent OAuth attempt per navigation. */
-export const OXY_SILENT_OAUTH_ATTEMPTED_KEY = 'oxy.silent_oauth_attempted';
-
-/** `sessionStorage` key — blocks further cross-origin auto-restore in this tab. */
-export const OXY_CROSS_ORIGIN_RESTORE_ATTEMPTED_KEY = 'oxy.cross_origin_restore_attempted';
+/** `sessionStorage` key — the exact `redirect_uri` sent on the authorize request. */
+export const OXY_OAUTH_REDIRECT_URI_STORAGE_KEY = 'oxy.oauth_redirect_uri';
 
 /**
  * `sessionStorage` key for the in-app path to return to after an authorize
@@ -243,6 +248,25 @@ export function normalizeOAuthRedirectUri(input: string): string {
     return new URL(input).origin;
   } catch {
     return input;
+  }
+}
+
+/**
+ * Collapse `https://app.example/` → `https://app.example` for OAuth binding.
+ * Path-qualified redirect URIs are preserved — matches the API token exchange.
+ */
+export function canonicalizeOAuthRedirectUri(redirectUri: string): string {
+  try {
+    const parsed = new URL(redirectUri);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return redirectUri;
+    }
+    if (parsed.pathname === '/' && !parsed.search && !parsed.hash) {
+      return parsed.origin;
+    }
+    return redirectUri;
+  } catch {
+    return redirectUri;
   }
 }
 
@@ -310,12 +334,22 @@ export function consumeOAuthReturnPath(): string | null {
 }
 
 /** Persist the OAuth handshake for a full-page redirect return (web only). */
-export function persistOAuthHandshake(state: string, codeVerifier: string): boolean {
+export function persistOAuthHandshake(
+  state: string,
+  codeVerifier: string,
+  redirectUri?: string,
+): boolean {
   const store = (globalThis as { sessionStorage?: Storage }).sessionStorage;
   try {
     if (!store) throw new Error('sessionStorage is unavailable');
     store.setItem(OXY_OAUTH_STATE_STORAGE_KEY, state);
     store.setItem(OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY, codeVerifier);
+    if (redirectUri) {
+      store.setItem(
+        OXY_OAUTH_REDIRECT_URI_STORAGE_KEY,
+        canonicalizeOAuthRedirectUri(redirectUri),
+      );
+    }
     return true;
   } catch (error) {
     logger.warn(
@@ -328,13 +362,18 @@ export function persistOAuthHandshake(state: string, codeVerifier: string): bool
 }
 
 /** Read the persisted OAuth handshake, or `null` when absent. */
-export function readOAuthHandshake(): { state: string; codeVerifier: string } | null {
+export function readOAuthHandshake(): {
+  state: string;
+  codeVerifier: string;
+  redirectUri?: string;
+} | null {
   const store = (globalThis as { sessionStorage?: Storage }).sessionStorage;
   if (!store) return null;
   const state = store.getItem(OXY_OAUTH_STATE_STORAGE_KEY);
   const codeVerifier = store.getItem(OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY);
   if (!state || !codeVerifier) return null;
-  return { state, codeVerifier };
+  const redirectUri = store.getItem(OXY_OAUTH_REDIRECT_URI_STORAGE_KEY) ?? undefined;
+  return redirectUri ? { state, codeVerifier, redirectUri } : { state, codeVerifier };
 }
 
 /** Drop persisted OAuth handshake keys after a successful or aborted return. */
@@ -343,6 +382,7 @@ export function clearOAuthHandshake(): void {
   try {
     store?.removeItem(OXY_OAUTH_STATE_STORAGE_KEY);
     store?.removeItem(OXY_OAUTH_CODE_VERIFIER_STORAGE_KEY);
+    store?.removeItem(OXY_OAUTH_REDIRECT_URI_STORAGE_KEY);
     // The return path belongs to this handshake. Leaving it behind would let a
     // later, unrelated navigation in the same tab be redirected by it.
     store?.removeItem(OXY_OAUTH_RETURN_PATH_STORAGE_KEY);

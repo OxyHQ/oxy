@@ -1,78 +1,108 @@
 /**
- * /reputation/award authorization tests.
+ * `POST /reputation/award` authorization, against a REAL Postgres.
  *
- * Ensures service-token callers must carry the privileged reputation:write
- * scope before they can mutate the global reputation ledger.
+ * Awarding mutates the GLOBAL reputation ledger, so the gate is narrow: a
+ * service token carrying the privileged `reputation:write` scope, or platform
+ * staff. A regular user session may never award — there is no self-award.
+ *
+ * The second half of the gate is attribution: when a service token awards, the
+ * source-app identity comes from the TOKEN, and any `applicationId` /
+ * `credentialId` in the request body is ignored. The old suite asserted that a
+ * mocked `award` had been *called* with those values; here the write lands in
+ * `reputation_transactions` and the stored row is read back, so a spoofed
+ * attribution would be visible in the data rather than only in a call log.
+ *
+ * `jsonwebtoken` is restored to the real implementation: `authUserOrService`
+ * decides between the user and service lanes by verifying the token's `type`
+ * claim itself, so a stubbed `verify` would make that dispatch untestable. The
+ * two middlewares it dispatches TO are mocked — they attach the principal, which
+ * is their production contract.
  */
 
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
+import { randomUUID } from 'node:crypto';
+import { reputationTransactionSchema, safeParseContract } from '@oxyhq/contracts';
 
-const mockJwtVerify = jest.fn();
-const mockServiceAuthMiddleware = jest.fn();
-const mockAuthMiddleware = jest.fn();
-const mockAward = jest.fn();
-const mockResolveUserIdToObjectId = jest.fn();
+/** `authUserOrService` verifies the token itself, so the real JWT must be used. */
+jest.mock('jsonwebtoken', () => jest.requireActual('jsonwebtoken'));
 
-jest.mock('jsonwebtoken', () => ({
-  __esModule: true,
-  default: { verify: (...args: unknown[]) => mockJwtVerify(...args) },
-  verify: (...args: unknown[]) => mockJwtVerify(...args),
-}));
+const ACCESS_TOKEN_SECRET = 'reputation-award-test-secret';
+
+/** The principal the dispatched middleware attaches. */
+let currentServiceApp: { appId: string; credentialId: string; scopes: string[] } | undefined;
+let currentUser: { _id: string; isStaff?: boolean } | undefined;
 
 jest.mock('../../middleware/auth', () => ({
-  authMiddleware: (...args: unknown[]) => mockAuthMiddleware(...args),
-  serviceAuthMiddleware: (...args: unknown[]) => mockServiceAuthMiddleware(...args),
+  authMiddleware: (
+    req: { user?: { _id: string; isStaff?: boolean } },
+    res: { status: (code: number) => { json: (body: unknown) => void } },
+    next: () => void,
+  ) => {
+    if (!currentUser) {
+      res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required' });
+      return;
+    }
+    req.user = currentUser;
+    next();
+  },
+  serviceAuthMiddleware: (
+    req: {
+      serviceApp?: {
+        type: string;
+        appId: string;
+        appName: string;
+        credentialId: string;
+        scopes: string[];
+      };
+    },
+    res: { status: (code: number) => { json: (body: unknown) => void } },
+    next: () => void,
+  ) => {
+    if (!currentServiceApp) {
+      res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid service token' });
+      return;
+    }
+    req.serviceApp = { type: 'service', appName: 'Test App', ...currentServiceApp };
+    next();
+  },
 }));
-
+jest.mock('../../middleware/optionalAuth', () => ({
+  optionalAuthMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
+}));
 jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-
-jest.mock('../../utils/validation', () => ({
-  resolveUserIdToObjectId: (...args: unknown[]) => mockResolveUserIdToObjectId(...args),
-  validatePagination: (_limit: unknown, _offset: unknown, _max: number, defaultLimit: number) => ({
-    limit: defaultLimit,
-    offset: 0,
-  }),
-}));
-
-jest.mock('../../services/reputation.service', () => ({
-  __esModule: true,
-  default: {
-    award: (...args: unknown[]) => mockAward(...args),
-    listTransactions: jest.fn(),
-    getBalance: jest.fn(),
-    createDispute: jest.fn(),
-    upsertRule: jest.fn(),
-    listEnabledRules: jest.fn(),
-    getLeaderboard: jest.fn(),
-    getInfluence: jest.fn(),
-    listDisputesForUser: jest.fn(),
-    listOpenDisputes: jest.fn(),
-    reverseTransaction: jest.fn(),
-    voidTransaction: jest.fn(),
-    recalculateBalance: jest.fn(),
-    resolveDispute: jest.fn(),
-  },
-}));
-
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import reputationRouter from '../reputation.routes';
+import { eq } from 'drizzle-orm';
+import jwt from 'jsonwebtoken';
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
+import { applications } from '../../db/schema/applications';
+import { reputationRules } from '../../db/schema/reputationRules';
+import { reputationTransactions } from '../../db/schema/reputationTransactions';
+import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
+import reputationRouter from '../reputation.routes';
 
 interface JsonResponse {
   status: number;
-  body: { error?: string; message?: string; data?: Record<string, unknown> };
+  body: { error?: string; message?: string; data?: { transaction?: Record<string, unknown> } };
 }
 
-async function requestJson(server: http.Server, payload: unknown): Promise<JsonResponse> {
+let server: http.Server;
+
+function award(payload: unknown, tokenType: 'service' | 'user'): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
-  const body = JSON.stringify(payload ?? {});
+  const body = JSON.stringify(payload);
+  const token = jwt.sign(
+    tokenType === 'service' ? { type: 'service' } : { type: 'access' },
+    ACCESS_TOKEN_SECRET,
+  );
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
@@ -81,24 +111,20 @@ async function requestJson(server: http.Server, payload: unknown): Promise<JsonR
         port: address.port,
         path: '/reputation/award',
         headers: {
-          authorization: 'Bearer service-token',
+          authorization: `Bearer ${token}`,
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
-          // Close each socket after its response so the server has no lingering
-          // keep-alive connections at teardown (`server.close` resolves cleanly).
           connection: 'close',
         },
       },
       (res) => {
         let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          try {
-            resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} });
-          } catch (err) {
-            reject(err);
-          }
+        res.on('data', (chunk) => {
+          raw += chunk;
         });
+        res.on('end', () =>
+          resolve({ status: res.statusCode ?? 0, body: raw.length > 0 ? JSON.parse(raw) : {} }),
+        );
       },
     );
     req.on('error', reject);
@@ -107,88 +133,240 @@ async function requestJson(server: http.Server, payload: unknown): Promise<JsonR
   });
 }
 
-let server: http.Server;
+async function account(fields: Partial<typeof users.$inferInsert> = {}): Promise<string> {
+  const [row] = await getDb().insert(users).values(fields).returning({ id: users.id });
+  return row.id;
+}
 
-beforeAll((done) => {
-  process.env.ACCESS_TOKEN_SECRET = 'test-secret';
+/** An application plus one service credential, both real rows the FKs can point at. */
+async function serviceApplication(): Promise<{ appId: string; credentialId: string }> {
+  const ownerAccountId = await account();
+  const [app] = await getDb()
+    .insert(applications)
+    .values({
+      name: `App ${randomUUID()}`,
+      type: 'internal',
+      scopes: ['user:read'],
+      ownerAccountId,
+    })
+    .returning({ id: applications.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: app.id,
+      name: 'service',
+      publicKey: `oxy_dk_${randomUUID().replace(/-/g, '')}`,
+      type: 'service',
+      environment: 'production',
+    })
+    .returning({ id: applicationCredentials.id });
+  return { appId: app.id, credentialId: credential.id };
+}
+
+/** A rule the award can resolve. Randomized so parallel suites cannot collide. */
+async function awardableAction(points = 5): Promise<string> {
+  const actionType = `test_action_${randomUUID().replace(/-/g, '')}`;
+  await getDb().insert(reputationRules).values({
+    actionType,
+    points,
+    category: 'content',
+    description: 'Test action',
+  });
+  return actionType;
+}
+
+async function storedTransactions(userId: string) {
+  return getDb()
+    .select({
+      id: reputationTransactions.id,
+      points: reputationTransactions.points,
+      applicationId: reputationTransactions.applicationId,
+      credentialId: reputationTransactions.credentialId,
+      createdByUserId: reputationTransactions.createdByUserId,
+      sourceActionId: reputationTransactions.sourceActionId,
+    })
+    .from(reputationTransactions)
+    .where(eq(reputationTransactions.userId, userId));
+}
+
+beforeAll(async () => {
+  process.env.ACCESS_TOKEN_SECRET = ACCESS_TOKEN_SECRET;
+  await connectPostgres();
   const app = express();
   app.use(express.json());
   app.use('/reputation', reputationRouter);
   app.use(errorHandler);
-  server = app.listen(0, '127.0.0.1', done);
+  await new Promise<void>((resolve) => {
+    server = app.listen(0, '127.0.0.1', resolve);
+  });
 });
 
-afterAll((done) => {
-  server.close(done);
+afterAll(async () => {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  await closePostgres();
 });
 
 beforeEach(() => {
-  jest.clearAllMocks();
-  mockJwtVerify.mockReturnValue({ type: 'service' });
-  mockResolveUserIdToObjectId.mockResolvedValue('64cccccccccccccccccccccc');
-  mockAward.mockResolvedValue({
-    _id: { toString: () => 'txn1' },
-    userId: { toString: () => '64cccccccccccccccccccccc' },
-    points: 1,
-    actionType: 'post_created',
-    category: 'content',
-    status: 'active',
-    createdAt: new Date('2026-06-24T00:00:00.000Z'),
-    updatedAt: new Date('2026-06-24T00:00:00.000Z'),
-  });
+  currentServiceApp = undefined;
+  currentUser = undefined;
 });
 
-describe('POST /reputation/award service-token scope gate', () => {
-  it('rejects a service token that lacks reputation:write', async () => {
-    mockServiceAuthMiddleware.mockImplementation((req, _res, next) => {
-      req.serviceApp = {
-        type: 'service',
-        appId: 'app1',
-        appName: 'Third Party',
-        credentialId: 'cred1',
-        scopes: [],
-      };
-      next();
-    });
+describe('POST /reputation/award — service-token scope gate', () => {
+  it('rejects a service token that lacks reputation:write, and writes nothing', async () => {
+    const service = await serviceApplication();
+    const subject = await account();
+    const actionType = await awardableAction();
+    currentServiceApp = { ...service, scopes: [] };
 
-    const res = await requestJson(server, {
-      userId: 'victim',
-      actionType: 'post_created',
-      sourceActionId: 'attacker-controlled-action',
-    });
+    const res = await award(
+      { userId: subject, actionType, sourceActionId: 'attacker-controlled-action' },
+      'service',
+    );
 
     expect(res.status).toBe(403);
     expect(res.body.message).toMatch(/reputation:write/i);
-    expect(mockAward).not.toHaveBeenCalled();
+    expect(await storedTransactions(subject)).toHaveLength(0);
   });
 
   it('allows a service token that carries reputation:write', async () => {
-    mockServiceAuthMiddleware.mockImplementation((req, _res, next) => {
-      req.serviceApp = {
-        type: 'service',
-        appId: 'app1',
-        appName: 'Privileged App',
-        credentialId: 'cred1',
-        scopes: ['reputation:write'],
-      };
-      next();
-    });
+    const service = await serviceApplication();
+    const subject = await account();
+    const actionType = await awardableAction(7);
+    currentServiceApp = { ...service, scopes: ['reputation:write'] };
 
-    const res = await requestJson(server, {
-      userId: 'member',
-      actionType: 'post_created',
-      applicationId: 'spoofed-app',
-      credentialId: 'spoofed-credential',
-      sourceActionId: 'real-action',
-    });
+    const res = await award(
+      { userId: subject, actionType, sourceActionId: 'real-action' },
+      'service',
+    );
 
     expect(res.status).toBe(201);
-    expect(mockAward).toHaveBeenCalledWith(expect.objectContaining({
-      userId: '64cccccccccccccccccccccc',
-      actionType: 'post_created',
-      applicationId: 'app1',
-      credentialId: 'cred1',
-      sourceActionId: 'real-action',
-    }));
+    const transaction = res.body.data?.transaction ?? {};
+    expect(transaction.userId).toBe(subject);
+    expect(transaction.points).toBe(7);
+    expect(transaction.actionType).toBe(actionType);
+    expect(transaction.category).toBe('content');
+    expect(transaction.status).toBe('active');
+    expect(safeParseContract(reputationTransactionSchema, transaction)).not.toBeNull();
+  });
+
+  it('attributes the stored row to the TOKEN, ignoring a spoofed body attribution', async () => {
+    const service = await serviceApplication();
+    const otherTenant = await serviceApplication();
+    const subject = await account();
+    const actionType = await awardableAction();
+    currentServiceApp = { ...service, scopes: ['reputation:write'] };
+
+    const res = await award(
+      {
+        userId: subject,
+        actionType,
+        applicationId: otherTenant.appId,
+        credentialId: otherTenant.credentialId,
+        sourceActionId: 'real-action',
+      },
+      'service',
+    );
+
+    expect(res.status).toBe(201);
+    const stored = await storedTransactions(subject);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].applicationId).toBe(service.appId);
+    expect(stored[0].credentialId).toBe(service.credentialId);
+    expect(stored[0].sourceActionId).toBe('real-action');
+    expect(stored[0].createdByUserId).toBeNull();
+  });
+
+  it('rejects an unknown action type rather than inventing points for it', async () => {
+    const service = await serviceApplication();
+    const subject = await account();
+    currentServiceApp = { ...service, scopes: ['reputation:write'] };
+
+    const res = await award(
+      { userId: subject, actionType: `unknown_${randomUUID().replace(/-/g, '')}` },
+      'service',
+    );
+
+    expect(res.status).toBe(400);
+    expect(await storedTransactions(subject)).toHaveLength(0);
+  });
+});
+
+describe('POST /reputation/award — user lane', () => {
+  it('refuses a regular authenticated user, and writes nothing', async () => {
+    const subject = await account();
+    const actionType = await awardableAction();
+    currentUser = { _id: await account() };
+
+    const res = await award({ userId: subject, actionType }, 'user');
+
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/service token or staff/i);
+    expect(await storedTransactions(subject)).toHaveLength(0);
+  });
+
+  it('refuses a user awarding THEMSELVES', async () => {
+    const self = await account();
+    const actionType = await awardableAction();
+    currentUser = { _id: self };
+
+    const res = await award({ userId: self, actionType }, 'user');
+
+    expect(res.status).toBe(403);
+    expect(await storedTransactions(self)).toHaveLength(0);
+  });
+
+  it('allows staff, and records them as the actor', async () => {
+    const subject = await account();
+    const actionType = await awardableAction(3);
+    const staff = await account({ isStaff: true });
+    currentUser = { _id: staff, isStaff: true };
+
+    const res = await award({ userId: subject, actionType }, 'user');
+
+    expect(res.status).toBe(201);
+    const stored = await storedTransactions(subject);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].points).toBe(3);
+    expect(stored[0].createdByUserId).toBe(staff);
+    expect(stored[0].applicationId).toBeNull();
+  });
+
+  it('rejects a request with no authorization header at all', async () => {
+    const address = server.address() as AddressInfo;
+    const body = JSON.stringify({ userId: await account(), actionType: await awardableAction() });
+    const res = await new Promise<JsonResponse>((resolve, reject) => {
+      const req = http.request(
+        {
+          method: 'POST',
+          host: '127.0.0.1',
+          port: address.port,
+          path: '/reputation/award',
+          headers: {
+            'content-type': 'application/json',
+            'content-length': Buffer.byteLength(body),
+            connection: 'close',
+          },
+        },
+        (response) => {
+          let raw = '';
+          response.on('data', (chunk) => {
+            raw += chunk;
+          });
+          response.on('end', () =>
+            resolve({
+              status: response.statusCode ?? 0,
+              body: raw.length > 0 ? JSON.parse(raw) : {},
+            }),
+          );
+        },
+      );
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+
+    expect(res.status).toBe(401);
   });
 });

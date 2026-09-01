@@ -37,6 +37,11 @@ module.exports = {
     '^@react-native-async-storage/async-storage$':
       '<rootDir>/__mocks__/async-storage.ts',
     '^@oxyhq/services$': '<rootDir>/__mocks__/oxyhq-services.ts',
+    // The push adapter ships behind its own entry point. It maps to the SAME
+    // stub as the barrel so a test asserting on `installForegroundNotificationHandler`
+    // sees the one `jest.fn()` instance no matter which specifier the code under
+    // test imported it from.
+    '^@oxyhq/services/notifications$': '<rootDir>/__mocks__/oxyhq-services.ts',
     '^@oxyhq/bloom/theme$': '<rootDir>/__mocks__/bloom-theme.ts',
     '^@oxyhq/bloom/composition-bar$': '<rootDir>/__mocks__/bloom-composition-bar.tsx',
     '^react-native-reanimated$': '<rootDir>/__mocks__/react-native-reanimated.ts',

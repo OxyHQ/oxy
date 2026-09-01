@@ -1,7 +1,12 @@
+import { ACCOUNT_KINDS } from '@oxyhq/contracts';
 import {
   AP_CONTEXT,
   createLocalActorBuilder,
   createUrlBuilders,
+  AP_ACTOR_TYPES,
+  isApActorType,
+  LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND,
+  localActorTypeForAccountKind,
   type ActorMediaResolver,
 } from '../index';
 
@@ -116,6 +121,130 @@ describe('createLocalActorBuilder (golden actor vector)', () => {
     expect(warnings[0]).toContain('Omitting actor image');
     expect(JSON.stringify(actor)).not.toContain('"icon"');
     expect(JSON.stringify(actor)).not.toContain('"image"');
+  });
+});
+
+/**
+ * The RECOGNITION vocabulary, which is a different question from what we emit:
+ * an inbound `Update` carrying a profile is dispatched on it, so a type missing
+ * here means that class of account's profile edits are applied to NOTHING, with
+ * no error raised anywhere.
+ *
+ * `Group` and `Organization` are the two that matter and the two most likely to
+ * be "tidied" out, since this engine never emits `Group` at all: a Lemmy
+ * community IS a `Group`, and a Mention channel is now an `Organization`.
+ */
+describe('AS2 actor recognition vocabulary', () => {
+  it('recognizes all five AS2 actor types', () => {
+    expect([...AP_ACTOR_TYPES].sort()).toEqual([
+      'Application',
+      'Group',
+      'Organization',
+      'Person',
+      'Service',
+    ]);
+    for (const type of AP_ACTOR_TYPES) {
+      expect(isApActorType(type)).toBe(true);
+    }
+  });
+
+  it('separates actors from the content objects sharing the dispatch', () => {
+    // The inbound Update handler is `if (Note|Article) … else if (isApActorType)`,
+    // so a predicate that answered true for content would route an edited post
+    // into an actor refetch.
+    expect(isApActorType('Note')).toBe(false);
+    expect(isApActorType('Article')).toBe(false);
+    expect(isApActorType(undefined)).toBe(false);
+    expect(isApActorType('person')).toBe(false);
+  });
+
+  it('covers every type the emitted subset draws from', () => {
+    for (const emitted of Object.values(LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND)) {
+      expect(isApActorType(emitted)).toBe(true);
+    }
+  });
+});
+
+/**
+ * The actor `type` is the ONE field that varies by account kind, and it is a
+ * public claim about what an account IS — a `Person` is a human being. These
+ * assertions are written so that a mapping which collapsed to a single constant
+ * (the easiest way to break this by accident) cannot pass:
+ *
+ *  - the per-kind table names BOTH sides of every branch, so a fixture set made
+ *    only of channels could not tell "channels are Service" from "everything is
+ *    Service";
+ *  - the coverage assertion is driven by contracts' own `ACCOUNT_KINDS`, so a
+ *    kind added upstream fails here rather than silently inheriting `Person`;
+ *  - the distinct-value floor fails any constant mapping outright.
+ */
+describe('actor type by Oxy account kind', () => {
+  it('maps each kind to the AS2 type announced for it', () => {
+    expect(localActorTypeForAccountKind('personal')).toBe('Person');
+    expect(localActorTypeForAccountKind('organization')).toBe('Organization');
+    expect(localActorTypeForAccountKind('project')).toBe('Organization');
+    expect(localActorTypeForAccountKind('bot')).toBe('Service');
+    expect(localActorTypeForAccountKind('channel')).toBe('Organization');
+  });
+
+  it('never announces a human-curated channel as automated', () => {
+    // `Service` is what Mastodon writes for "this is an automated account"
+    // (account.rb:224) and is half of `bot?` (account.rb:90) — the Automated
+    // badge, the SimilarProfilesSource exclusion and Lemmy's `bot_account`.
+    // A channel is curated by people; only `bot` may claim automation.
+    expect(localActorTypeForAccountKind('channel')).not.toBe('Service');
+    expect(localActorTypeForAccountKind('bot')).toBe('Service');
+    // `Group` is never emitted for anything: Lemmy would reclassify the actor as
+    // a community that silently never receives content, and PeerTube rejects a
+    // `Group` lacking `attributedTo` outright.
+    expect(Object.values(LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND)).not.toContain('Group');
+  });
+
+  it('covers every account kind contracts defines, with more than one answer', () => {
+    // Coverage: driven by the upstream vocabulary, so a new kind fails here.
+    expect(Object.keys(LOCAL_ACTOR_TYPE_BY_ACCOUNT_KIND).sort()).toEqual([...ACCOUNT_KINDS].sort());
+    // Vacuity floor: a mapping that returned one constant would pass every
+    // single-kind assertion above and fail this.
+    const answers = ACCOUNT_KINDS.map((kind) => localActorTypeForAccountKind(kind));
+    expect(new Set(answers).size).toBe(3);
+    // And specifically: the two kinds either side of the channel decision differ.
+    expect(localActorTypeForAccountKind('channel')).not.toBe(
+      localActorTypeForAccountKind('personal'),
+    );
+  });
+
+  it('falls back to Person for an absent, null, or unrecognized kind', () => {
+    expect(localActorTypeForAccountKind(undefined)).toBe('Person');
+    expect(localActorTypeForAccountKind(null)).toBe('Person');
+    // Version skew: an Oxy API that knows a kind this package does not must not
+    // produce `type: undefined` — a malformed actor Mastodon negative-caches.
+    expect(localActorTypeForAccountKind('venue')).toBe('Person');
+    expect(localActorTypeForAccountKind(7)).toBe('Person');
+  });
+
+  it('emits the kind-derived type from the builder, keeping key order frozen', () => {
+    // A channel: NOT a person, and the whole point of the change.
+    const channel = buildActor({ ...PARAMS, kind: 'channel' });
+    expect(channel.type).toBe('Organization');
+    // The other side of the branch — without this the assertion above would hold
+    // just as well for a builder that hardcoded 'Organization'.
+    const personal = buildActor({ ...PARAMS, kind: 'personal' });
+    expect(personal.type).toBe('Person');
+    expect(buildActor({ ...PARAMS, kind: 'bot' }).type).toBe('Service');
+
+    // `type` is field 2 of the byte-frozen document: only its VALUE may vary.
+    expect(Object.keys(channel)).toEqual(Object.keys(EXPECTED_ACTOR));
+    expect(Object.keys(channel)[1]).toBe('type');
+    expect(JSON.stringify(channel)).toBe(
+      JSON.stringify({ ...EXPECTED_ACTOR, type: 'Organization' }),
+    );
+  });
+
+  it('leaves an actor with no kind byte-identical to the pre-change document', () => {
+    // The golden vector's PARAMS carries no `kind` — the regression guard that
+    // this change is inert for every ordinary account already federated.
+    expect(buildActor(PARAMS).type).toBe('Person');
+    expect(JSON.stringify(buildActor(PARAMS))).toBe(JSON.stringify(EXPECTED_ACTOR));
   });
 });
 

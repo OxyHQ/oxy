@@ -1,0 +1,896 @@
+/**
+ * Account-scoped billing (issue #972, sections 7.1, 7.4 and 7.5).
+ *
+ * Mounted at `/billing/accounts`, BEFORE `/billing`, so Express matches the
+ * literal segment rather than treating `accounts` as a parameter of the
+ * personal-billing router.
+ *
+ * ## The change this surface IS
+ *
+ * The pre-existing `/billing` routes key every read and write on the bearer's
+ * own subject — `req.user._id` — which makes the billable principal an implicit
+ * personal user. The audit found the consequence: an organization could own
+ * applications and be billed for nothing, and a `channel` account could not
+ * acquire a balance at all, because switching into a channel is refused while
+ * nothing stops one from owning an application.
+ *
+ * Every route here takes an `accountId` in the path and authorises the caller
+ * against THAT account through the account graph
+ * (`resolveCallerAccountAccess`), with inheritance, per-member revokes and the
+ * archived-account refusal all coming from the one membership reader. The
+ * bearer's own subject is never the answer to "whose balance is this".
+ *
+ * ## Two rights, and which is which
+ *
+ * `billing:read` reads; `billing:manage` writes. Both are baseline for `owner`,
+ * `admin`, `editor` and the `billing` role, absent from `developer` and
+ * `viewer`, and genuinely removable by a per-member revoke
+ * (`utils/accountRoles.ts`). Before this workstream almost nothing read them —
+ * the audit's finding F5 — so this is the surface that gives them meaning.
+ *
+ * ## What is STAFF-gated, and why those three
+ *
+ *  - `billingMode` and `creditLimit`, because an account granting itself
+ *    `invoiced` mode with a credit limit is an account issuing itself credit.
+ *  - promotional grants, because that is issuing money.
+ *  - invoicing, reconciliation and cost centres, because they are platform
+ *    operations over other people's records rather than account settings.
+ *
+ * Everything else — provisioning, auto-recharge, spending limits, checkout,
+ * portal — is ordinary self-service for anyone holding `billing:manage`.
+ *
+ * ## Not found, not forbidden
+ *
+ * An account the caller has no access to answers 404, never 403. Distinguishing
+ * them makes the account id space an existence oracle. A caller who HAS access
+ * but lacks the right permission gets 403, because at that point they already
+ * know the account exists.
+ */
+
+import { Router, type Response } from 'express';
+import { authMiddleware, type AuthRequest } from '../middleware/auth';
+import { rateLimit } from '../middleware/rateLimiter';
+import { requireStaff, requireStaffCapability } from '../middleware/requireStaff';
+import { validate } from '../middleware/validate';
+import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
+import {
+  accountBillingParams,
+  accountInvoicesSchema,
+  accountPortalBody,
+  closeInvoicePeriodBody,
+  promotionalGrantBody,
+  provisionBillingBody,
+  reconciliationBody,
+  reconciliationRunParams,
+  topUpCheckoutBody,
+  updateBillingProfileBody,
+  type AccountInvoicesDto,
+} from '../schemas/accountBilling.schemas';
+import { LEDGER_AUTHORITATIVE_NOTE } from '../schemas/inferenceReporting.schemas';
+import {
+  grantPromotionalCredit,
+  listAutoRechargeAttempts,
+  provisionAccountBilling,
+  resolveAccountBillingState,
+  toAutoRechargeAttempt,
+  updateBillingProfile,
+  type BillingProfilePatch,
+} from '../services/accountBilling.service';
+import {
+  closeInvoicePeriod,
+  listAccountInvoices,
+} from '../services/accountInvoicing.service';
+import {
+  getReconciliationReport,
+  listReconciliationRuns,
+  reconcilePayments,
+} from '../services/billingReconciliation.service';
+import { resolveProductEntitlement } from '../services/entitlement.service';
+import { resolveCallerAccountAccess } from '../services/attribution.service';
+import {
+  createAccountPortalSession,
+  createBalanceTopUpCheckout,
+  stripePaymentProcessorLedger,
+} from '../services/stripeAccountBilling.service';
+import {
+  resolveBillingAccount,
+  type BillingAccount,
+} from '../services/inferenceLedger.service';
+import type { StaffLedgerActor } from '../db/schema/billingLedgerEntries';
+import { getDb } from '../config/postgres';
+import { asyncHandler } from '../utils/asyncHandler';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../utils/error';
+import { isAllowedRedirect } from '../utils/redirectAllowlist';
+import { logger } from '../utils/logger';
+import { DEFAULT_LEDGER_CURRENCY } from '../db/schema/ledgerColumns';
+import type { AccountPermission } from '../utils/accountRoles';
+
+const router = Router();
+
+/**
+ * Reads, writes and processor round trips get separate budgets, per the
+ * unique-prefix rule: two limiters sharing one Redis key make
+ * `rate-limit-redis` throw `ERR_ERL_DOUBLE_COUNT` and halve both.
+ *
+ * Checkout is the tightest of the three. It creates a session at Stripe on every
+ * call, so an unbounded loop here is an unbounded loop against a third party.
+ */
+const billingReadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 600,
+  prefix: 'rl:billing:account:read:',
+});
+
+const billingWriteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  prefix: 'rl:billing:account:write:',
+});
+
+const billingCheckoutLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  prefix: 'rl:billing:account:checkout:',
+});
+
+/**
+ * Top-up VELOCITY, keyed on the billing profile (#972 sections 8 and 12, "rate
+ * limits and fraud controls before enabling prepaid public inference").
+ *
+ * ## Why a second limiter on a route that already has one
+ *
+ * `billingCheckoutLimiter` keys on `hashedIpKey`, the factory's default. That is
+ * the right unit for "one machine hammering the API" and the wrong one for the
+ * fraud question, which is about a PROFILE: a card being probed against one
+ * balance from a dozen addresses satisfies the IP budget twelve times over, and
+ * the account-id path segment is no better because a project that inherits its
+ * organization's profile can be addressed by any of the account ids in the
+ * subtree — twelve ids, one payer, one card.
+ *
+ * So this keys on the resolved PAYER, which is `billing_profiles`' primary key
+ * and the thing a card is attached to. `resolveTopUpPayer` runs first and is what
+ * makes that key available; see the note there for why the resolution moved into
+ * a middleware.
+ *
+ * ## The numbers, and what they are not
+ *
+ * 10 checkout sessions per hour per profile. A person funding a balance opens
+ * one, occasionally two after a failure; ten is far above any honest pattern and
+ * far below what card-probing needs to be useful. It is a VELOCITY CEILING, not
+ * card-testing detection — detecting that is a product decision this workstream
+ * deliberately leaves open (`docs/inference/rollout.md`), and a limiter is not a
+ * substitute for it.
+ *
+ * The prefix is unique, as the factory requires: two limiters sharing one Redis
+ * key make `rate-limit-redis` throw `ERR_ERL_DOUBLE_COUNT` and silently halve
+ * both budgets.
+ */
+const topUpVelocityLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  prefix: 'rl:billing:topup:',
+  message:
+    'Too many top-up attempts for this billing profile in the last hour. Try again later, or ' +
+    'contact support if a payment is not completing.',
+  keyGenerator: (req) => (req as BillingRequest).topUpPayer?.accountId ?? '',
+  // The NEGATION of "the key exists", never a policy decision. A request whose
+  // payer did not resolve never reaches the handler anyway — `resolveTopUpPayer`
+  // has already thrown — so bucketing it under one shared empty key would only
+  // exhaust that bucket for everybody.
+  skip: (req) => (req as BillingRequest).topUpPayer === undefined,
+});
+
+/**
+ * Resolve and AUTHORISE the payer before the velocity limiter reads its key.
+ *
+ * The limiter has to key on the billing profile, which is not knowable from the
+ * path — a project that merely inherits resolves to its organization — so the
+ * resolution has to happen in front of it. Doing it here rather than in the
+ * handler means it happens exactly ONCE: the handler reads `req.topUpPayer`
+ * instead of resolving again, so there is one authorization decision on this
+ * route and not two that could disagree.
+ *
+ * Ordering consequence, stated because it is a real behaviour change: an
+ * unauthorised caller now gets its 403/404 BEFORE the velocity budget is
+ * consulted, which is correct — a stranger's failed attempts must not exhaust the
+ * owner's budget — and a `429` therefore always means "this profile, too often".
+ */
+const resolveTopUpPayer = asyncHandler(async (req, _res, next) => {
+  const billingRequest = req as BillingRequest;
+  const { accountId } = accountBillingParams.parse(req.params);
+  billingRequest.topUpPayer = await authorizeBillingProfile(
+    principalOf(billingRequest),
+    accountId,
+    'billing:manage'
+  );
+  next();
+});
+
+/**
+ * The two staff writes on this surface that MOVE MONEY (#972 section 12,
+ * "least-privilege admin roles").
+ *
+ * `requireStaff` still runs first and still means "any staff"; this narrows the
+ * two operations that create balance out of nothing (a promotional grant) and
+ * that book a rounding entry against a customer (closing an invoice period). The
+ * reads beside them — a reconciliation report, an invoice list — stay on the
+ * plain flag, because the thing worth restricting is the write, not the ability
+ * to look at the ledger.
+ *
+ * Reconciliation is deliberately NOT graded: it compares Oxy's record against
+ * the processor's and repairs nothing, so the row it writes is a report rather
+ * than a movement. If it ever credits what it finds, it belongs here.
+ */
+const requireBillingAdjust = requireStaffCapability('billing:adjust');
+
+/* -------------------------------------------------------------------------- */
+/*  Principals                                                                */
+/* -------------------------------------------------------------------------- */
+
+interface BillingRequest extends AuthRequest {
+  serviceApp?: ServiceTokenPayload;
+  /**
+   * The PAYER this request resolved to, for the routes that resolve it in a
+   * middleware because a rate limiter has to key on it.
+   *
+   * Set only by {@link resolveTopUpPayer}. Nothing else reads it, and no handler
+   * may assume it is present — the routes that need it name that middleware in
+   * their own chain.
+   */
+  topUpPayer?: BillingAccount;
+}
+
+type BillingPrincipal =
+  | { readonly kind: 'user'; readonly userId: string }
+  | { readonly kind: 'service'; readonly service: ServiceTokenPayload };
+
+/**
+ * Dispatch between the package's two existing verifiers, adding no third.
+ *
+ * The same arrangement `inferenceRoutingPolicies.ts` and
+ * `inferenceProviderConnections.ts` use. A bearer that is not a valid service
+ * token falls through to `authMiddleware`, which produces the 401 — so an
+ * expired user token is answered by the middleware that understands user tokens.
+ */
+const billingPrincipal = (
+  req: BillingRequest,
+  res: Response,
+  next: (error?: unknown) => void
+): void => {
+  const header = req.headers.authorization;
+  if (header !== undefined && header.startsWith('Bearer ')) {
+    const verification = verifyServiceToken(header.slice('Bearer '.length));
+    if (verification.ok) {
+      req.serviceApp = verification.payload;
+      next();
+      return;
+    }
+  }
+  void authMiddleware(req, res, next);
+};
+
+function principalOf(req: BillingRequest): BillingPrincipal {
+  if (req.serviceApp !== undefined) {
+    return { kind: 'service', service: req.serviceApp };
+  }
+  const userId = req.user?.id;
+  if (typeof userId !== 'string' || userId.length === 0) {
+    throw new UnauthorizedError('Authentication is required for this operation');
+  }
+  return { kind: 'user', userId };
+}
+
+/**
+ * The staff member behind a staff-gated write, in the form the journal records
+ * (issue #1023).
+ *
+ * `requireStaff` reads `req.user.isStaff` and so has already refused a service
+ * credential, which never populates `req.user` at all. The refusal below is what
+ * makes that reachable to the type system rather than remembered: a ledger entry
+ * whose author is "some deployment's key" would name nobody, and naming nobody
+ * is exactly what the `machine` kind is for.
+ */
+function staffActorOf(req: BillingRequest): StaffLedgerActor {
+  const principal = principalOf(req);
+  if (principal.kind !== 'user') {
+    throw new ForbiddenError('A service credential may not author a ledger entry');
+  }
+  return { kind: 'staff', userId: principal.userId };
+}
+
+/**
+ * May this principal act on `accountId`'s billing? Throws the refusal.
+ *
+ * A SERVICE token reaches only its own owner account, and only for reads. There
+ * is no write lane for a service credential on this surface at all: provisioning
+ * a profile, moving a credit limit or starting a checkout are decisions a person
+ * with `billing:manage` makes, and a machine credential that could make them
+ * would put an account's financial configuration behind a key that lives in a
+ * deployment environment.
+ */
+async function authorizeAccount(
+  principal: BillingPrincipal,
+  accountId: string,
+  permission: AccountPermission
+): Promise<void> {
+  if (principal.kind === 'service') {
+    if (permission !== 'billing:read') {
+      throw new ForbiddenError('A service credential may not change billing configuration');
+    }
+    if (!principal.service.scopes.includes('inference:usage:read')) {
+      throw new ForbiddenError('This credential does not carry the inference:usage:read scope');
+    }
+    if (principal.service.ownerAccountId !== accountId) {
+      throw new NotFoundError('No billing profile is available for that account');
+    }
+    return;
+  }
+
+  const access = await resolveCallerAccountAccess(principal.userId, accountId);
+  if (access.status === 'no-access') {
+    // 404, not 403 — see the module header.
+    throw new NotFoundError('No billing profile is available for that account');
+  }
+  if (!access.access.accountPermissions.includes(permission)) {
+    throw new ForbiddenError(`This action requires the ${permission} permission`);
+  }
+}
+
+/** The email a Stripe customer is created with, when the caller is a person. */
+function callerEmail(req: BillingRequest): string | undefined {
+  const email = req.user?.email;
+  return typeof email === 'string' && email.length > 0 ? email : undefined;
+}
+
+/**
+ * The billing account that pays for `accountId`, authorised AGAINST THE PAYER.
+ *
+ * The two halves are inseparable, which is why they are one function.
+ *
+ * Every record reached through here — a spending limit, an invoice, a
+ * processor charge, an auto-recharge attempt — belongs to the PAYER, not to the
+ * account in the path. Resolving the payer and then authorising the path account
+ * would be a privilege escalation with the inheritance rule as its vector: a
+ * member whose membership exists only on a child project holds `billing:manage`
+ * there and NONE on the organization, yet every one of those operations would
+ * execute against the organization's rows. They could raise, disable or delete
+ * the organization's budgets by id, and aim a `hard_stop` at a sibling project's
+ * application.
+ *
+ * So authority is asked for on the account whose records are about to be
+ * touched. A project that has a profile of its OWN is its own payer and is
+ * unaffected; a project that merely inherits gets 404 on these routes unless the
+ * caller also holds the right over the account actually paying.
+ *
+ * `GET /:accountId` and the two limit LISTINGS deliberately do NOT go through
+ * this: seeing the balance you spend from and the budgets that can refuse your
+ * traffic is the inheritance feature, and `inherited` + `billingAccountId` say
+ * whose money it is. Reading a ceiling is not the same right as moving one.
+ */
+async function authorizeBillingProfile(
+  principal: BillingPrincipal,
+  accountId: string,
+  permission: AccountPermission
+): Promise<BillingAccount> {
+  const resolution = await resolveBillingAccount(getDb(), accountId);
+  if (resolution.status === 'not-provisioned') {
+    throw new NotFoundError('This account has no billing profile');
+  }
+  await authorizeAccount(principal, resolution.billingAccount.accountId, permission);
+  return resolution.billingAccount;
+}
+
+/** The same, for the callers that need only the id. */
+async function authorizeBillingAccount(
+  principal: BillingPrincipal,
+  accountId: string,
+  permission: AccountPermission
+): Promise<string> {
+  return (await authorizeBillingProfile(principal, accountId, permission)).accountId;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Profile and balance                                                       */
+/* -------------------------------------------------------------------------- */
+
+router.use(billingPrincipal);
+
+/*
+ * ORDER MATTERS. `/reconciliation/runs/:runId` is registered BEFORE the
+ * `/:accountId` family, or Express is free to capture the literal
+ * `reconciliation` as an account id. Same trap the bulk-follow routes and the
+ * provider-connection routes record.
+ */
+
+/** `GET /billing/accounts/reconciliation/runs/:runId` — one pass and its findings. */
+router.get(
+  '/reconciliation/runs/:runId',
+  billingReadLimiter,
+  requireStaff,
+  validate({ params: reconciliationRunParams }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { runId } = reconciliationRunParams.parse(req.params);
+    const report = await getReconciliationReport(runId);
+    if (report === undefined) {
+      throw new NotFoundError('No such reconciliation run');
+    }
+    res.json({ data: report });
+  })
+);
+
+/**
+ * `GET /billing/accounts/:accountId`
+ *
+ * Who pays for this account, what they hold, and whether the money is their own.
+ * The four balance buckets are separate fields with no total beside them — a
+ * grant and a purchase are never one number.
+ */
+router.get(
+  '/:accountId',
+  billingReadLimiter,
+  validate({ params: accountBillingParams }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+
+    const resolution = await resolveAccountBillingState(accountId);
+    switch (resolution.status) {
+      case 'resolved':
+        res.json({ data: resolution.state });
+        return;
+      case 'not-provisioned':
+        // 200 with an explicit null, not 404: the account exists and the answer
+        // "nobody has decided who pays for this yet" is the one Console renders
+        // a provisioning button from. A 404 would be indistinguishable from an
+        // account the caller cannot see.
+        res.json({ data: null, reason: 'not_provisioned' });
+        return;
+      case 'unknown-account':
+        throw new NotFoundError('No billing profile is available for that account');
+    }
+  })
+);
+
+/**
+ * `POST /billing/accounts/:accountId`
+ *
+ * Give the account a billing profile and a zeroed balance of its own.
+ * Idempotent, and it deliberately does NOT short-circuit for an account that
+ * currently inherits — acquiring your own profile stops you drawing on your
+ * parent, which is a real decision the caller is making.
+ */
+router.post(
+  '/:accountId',
+  billingWriteLimiter,
+  validate({ params: accountBillingParams, body: provisionBillingBody }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    const principal = principalOf(req);
+    await authorizeAccount(principal, accountId, 'billing:manage');
+
+    const body = provisionBillingBody.parse(req.body);
+    const staff = principal.kind === 'user' && req.user?.isStaff === true;
+    if (!staff && (body.billingMode !== undefined || body.creditLimit !== undefined)) {
+      throw new ForbiddenError(
+        'Only Oxy staff may set a billing mode or a credit limit; an account cannot issue itself credit'
+      );
+    }
+
+    const result = await provisionAccountBilling({
+      accountId,
+      currency: body.currency,
+      billingMode: body.billingMode,
+      creditLimit: body.creditLimit,
+    });
+    if (result.status === 'unknown-account') {
+      throw new NotFoundError('No billing profile is available for that account');
+    }
+    res.status(201).json({ data: result.state });
+  })
+);
+
+/**
+ * `PATCH /billing/accounts/:accountId`
+ *
+ * Change the account's OWN profile. Never an inherited one — see
+ * `updateBillingProfile`.
+ */
+router.patch(
+  '/:accountId',
+  billingWriteLimiter,
+  validate({ params: accountBillingParams, body: updateBillingProfileBody }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    const principal = principalOf(req);
+    await authorizeAccount(principal, accountId, 'billing:manage');
+
+    const body = updateBillingProfileBody.parse(req.body);
+    const staff = principal.kind === 'user' && req.user?.isStaff === true;
+    if (!staff && (body.billingMode !== undefined || body.creditLimit !== undefined)) {
+      throw new ForbiddenError(
+        'Only Oxy staff may change a billing mode or a credit limit'
+      );
+    }
+
+    // An explicit field list, never a spread: this record decides whether an
+    // account may spend money it does not have.
+    const patch: BillingProfilePatch = {
+      status: body.status,
+      billingMode: body.billingMode,
+      creditLimit: body.creditLimit,
+      autoRechargeEnabled: body.autoRecharge?.enabled,
+      autoRechargeThreshold: body.autoRecharge?.threshold,
+      autoRechargeAmount: body.autoRecharge?.amount,
+    };
+
+    const result = await updateBillingProfile(accountId, patch);
+    switch (result.status) {
+      case 'updated':
+        res.json({ data: result.profile });
+        return;
+      case 'not-provisioned':
+        throw new NotFoundError('This account has no billing profile of its own');
+      case 'incomplete-auto-recharge':
+        throw new BadRequestError(
+          'An enabled auto-recharge needs both a threshold and an amount; without them it is a ' +
+            'setting that reads as on and never fires'
+        );
+    }
+  })
+);
+
+/*
+ * SPENDING LIMITS AND THEIR ALERTS ARE NOT SERVED HERE.
+ *
+ * `/inference/reporting` owns the budget surface (#972 workstream 8):
+ * `GET/POST /accounts/:accountId/spending-limits`,
+ * `PATCH /spending-limits/:spendingLimitId`, and
+ * `GET /accounts/:accountId/spending-limits/alerts`. It reads each budget
+ * through the SAME query the reservation path enforces with, so a customer's
+ * "spent against this budget" and the number that actually refuses their request
+ * cannot disagree — which a second CRUD here could not promise.
+ *
+ * A second write path to `spending_limits` is the specific thing that would go
+ * wrong: two authorisation rules, two scope-ownership checks and two answers to
+ * what a budget is, on a table whose whole job is to refuse spending.
+ */
+
+/* -------------------------------------------------------------------------- */
+/*  Money in                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `POST /billing/accounts/:accountId/checkout`
+ *
+ * A hosted checkout that funds the PAYER's prepaid balance. The balance is NOT
+ * credited here — it moves when Stripe's webhook confirms the charge, so a
+ * balance is only ever credited by the processor's own confirmation.
+ *
+ * ## The session is keyed on the PAYER and on the PROFILE's currency
+ *
+ * Both, because either one taken from the request produces the same outcome and
+ * it is the worst one available: the customer's card is charged and the money
+ * lands nowhere.
+ *
+ *  - A project that merely inherits has no `account_balances` row of its own, so
+ *    a session created under the project's id would settle into
+ *    `recordTopUp` → `lockBalance` → `no-billing-profile`. The charge stands and
+ *    a log line is all there is.
+ *  - An account provisioned in EUR has no USD balance row, so a USD checkout
+ *    reaches exactly the same dead end.
+ *
+ * So the payer is resolved first and the currency is READ from its profile. A
+ * body naming a different currency is refused rather than quietly ignored — a
+ * client that asked for EUR and silently got USD would report the wrong figure
+ * to the customer before they ever paid.
+ */
+router.post(
+  '/:accountId/checkout',
+  billingCheckoutLimiter,
+  validate({ params: accountBillingParams, body: topUpCheckoutBody }),
+  // Resolved and authorised HERE so the velocity limiter below can key on the
+  // payer, which the path cannot name. See `topUpVelocityLimiter`.
+  resolveTopUpPayer,
+  topUpVelocityLimiter,
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    const billing = req.topUpPayer;
+    if (billing === undefined) {
+      // Unreachable through the chain above, which either sets it or throws. It
+      // is checked rather than asserted so the guarantee is the type system's and
+      // not a comment's — reordering the middleware would make this fire instead
+      // of charging a card against an unresolved profile.
+      throw new UnauthorizedError('The paying account could not be resolved');
+    }
+
+    const body = topUpCheckoutBody.parse(req.body);
+    if (!isAllowedRedirect(body.successUrl) || !isAllowedRedirect(body.cancelUrl)) {
+      logger.warn('Rejected account top-up with a disallowed redirect URL', { accountId });
+      throw new BadRequestError('successUrl/cancelUrl must be on an allowed domain');
+    }
+    if (body.currency !== undefined && body.currency !== billing.currency) {
+      throw new BadRequestError(
+        `This account is billed in ${billing.currency}; a ${body.currency} top-up would be ` +
+          'charged and then have nowhere to land'
+      );
+    }
+
+    const result = await createBalanceTopUpCheckout({
+      accountId: billing.accountId,
+      amount: body.amount,
+      currency: billing.currency,
+      successUrl: body.successUrl,
+      cancelUrl: body.cancelUrl,
+      email: callerEmail(req),
+    });
+    if (result.status === 'amount-not-representable') {
+      throw new BadRequestError(
+        `${result.amount} cannot be charged exactly in this currency's minor unit; there is no ` +
+          'correct rounding of a top-up, so it is refused rather than adjusted'
+      );
+    }
+    res.json({ data: { sessionId: result.sessionId, url: result.url } });
+  })
+);
+
+/** `POST /billing/accounts/:accountId/portal` — payment methods and invoices. */
+router.post(
+  '/:accountId/portal',
+  billingCheckoutLimiter,
+  validate({ params: accountBillingParams, body: accountPortalBody }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    // The portal manages the PAYER's payment methods and invoices, so it opens
+    // on the payer's Stripe customer and takes the payer's right.
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:manage'
+    );
+
+    const { returnUrl } = accountPortalBody.parse(req.body);
+    if (!isAllowedRedirect(returnUrl)) {
+      logger.warn('Rejected account portal with a disallowed return URL', { accountId });
+      throw new BadRequestError('returnUrl must be on an allowed domain');
+    }
+
+    const url = await createAccountPortalSession(billingAccountId, returnUrl, callerEmail(req));
+    res.json({ data: { url } });
+  })
+);
+
+/**
+ * `GET /billing/accounts/:accountId/auto-recharge`
+ *
+ * Recent automatic top-ups. Read-only: the settings live on the profile, and the
+ * attempts are the record of what the sweep did with them.
+ */
+router.get(
+  '/:accountId/auto-recharge',
+  billingReadLimiter,
+  validate({ params: accountBillingParams }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    // The payer's charge history, so the payer's right. A project member has no
+    // business reading what was charged to the organization's card.
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:read'
+    );
+    const attempts = await listAutoRechargeAttempts(billingAccountId);
+    // Through the contract's own serializer, never hand-built here: a body
+    // assembled at the route is a shape the compatibility gate cannot see.
+    const data = attempts.map(toAutoRechargeAttempt);
+    res.json({ data, count: data.length });
+  })
+);
+
+/**
+ * `POST /billing/accounts/:accountId/grants` — issue promotional credit.
+ *
+ * STAFF ONLY. Granted credit lands in `promotional_funds`, never in
+ * `purchased_funds`: it may expire, is never refundable, and is spent first.
+ */
+router.post(
+  '/:accountId/grants',
+  billingWriteLimiter,
+  requireStaff,
+  requireBillingAdjust,
+  validate({ params: accountBillingParams, body: promotionalGrantBody }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    const body = promotionalGrantBody.parse(req.body);
+
+    const result = await grantPromotionalCredit({
+      accountId,
+      currency: body.currency ?? DEFAULT_LEDGER_CURRENCY,
+      amount: body.amount,
+      // Namespaced so an operator's ticket id cannot collide with a processor
+      // reference in the journal's single idempotency key space.
+      idempotencyKey: `grant:${body.idempotencyKey}`,
+      // WHO issued it. Read from the authenticated caller, never from the body:
+      // a client-supplied actor is a signature anyone can forge.
+      actor: staffActorOf(req),
+    });
+    if (result.status === 'no-billing-profile') {
+      throw new NotFoundError('This account has no billing profile to credit');
+    }
+    res.status(result.status === 'recorded' ? 201 : 200).json({ data: result });
+  })
+);
+
+/* -------------------------------------------------------------------------- */
+/*  Invoices                                                                  */
+/* -------------------------------------------------------------------------- */
+
+/** `GET /billing/accounts/:accountId/invoices` — the account's own invoices. */
+router.get(
+  '/:accountId/invoices',
+  billingReadLimiter,
+  validate({ params: accountBillingParams }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    // An invoice is the payer's whole period of spend across every project, so
+    // it takes the payer's right rather than the path account's.
+    const billingAccountId = await authorizeBillingAccount(
+      principalOf(req),
+      accountId,
+      'billing:read'
+    );
+    const invoices = await listAccountInvoices(billingAccountId);
+    const dto: AccountInvoicesDto = {
+      schemaVersion: 1,
+      consistency: 'authoritative',
+      source: 'financial_ledger',
+      note: LEDGER_AUTHORITATIVE_NOTE,
+      rows: invoices,
+    };
+    res.json({ data: accountInvoicesSchema.parse(dto) });
+  })
+);
+
+/**
+ * `POST /billing/accounts/:accountId/invoices` — close a period.
+ *
+ * STAFF ONLY, and only for an `invoiced` account. A prepaid account's charges
+ * were settled from its own money at request time, so an invoice for one would
+ * be a statement — and a statement that booked a rounding entry would move money
+ * that has already been paid.
+ */
+router.post(
+  '/:accountId/invoices',
+  billingWriteLimiter,
+  requireStaff,
+  requireBillingAdjust,
+  validate({ params: accountBillingParams, body: closeInvoicePeriodBody }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    const body = closeInvoicePeriodBody.parse(req.body);
+
+    const periodStart = new Date(body.periodStart);
+    const periodEnd = new Date(body.periodEnd);
+    if (periodEnd <= periodStart) {
+      throw new BadRequestError('periodEnd must be after periodStart');
+    }
+
+    const result = await closeInvoicePeriod({
+      accountId,
+      currency: body.currency ?? DEFAULT_LEDGER_CURRENCY,
+      periodStart,
+      periodEnd,
+      // The staff member closing the period authors the rounding entry it books.
+      actor: staffActorOf(req),
+    });
+    switch (result.status) {
+      case 'issued':
+        res.status(201).json({ data: result.invoice });
+        return;
+      case 'already-issued':
+        res.json({ data: result.invoice });
+        return;
+      case 'nothing-to-invoice':
+        throw new ConflictError('No unbilled settled charges in that period');
+      case 'not-provisioned':
+        throw new NotFoundError('This account has no billing profile');
+      case 'not-invoiced':
+        throw new ConflictError(
+          'This account is prepaid: its charges were settled at request time, so there is ' +
+            'nothing to invoice in arrears'
+        );
+    }
+  })
+);
+
+/* -------------------------------------------------------------------------- */
+/*  Entitlements                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `GET /billing/accounts/:accountId/entitlements`
+ *
+ * The interface a product (Alia) asks "what may this account do". Plan and
+ * allowances in one section, pay-as-you-go money in another, and nothing that
+ * sums them — the two are different units and #972 is explicit that confusing
+ * them is the failure.
+ *
+ * A SERVICE credential may read its own owner account's entitlements with
+ * `inference:usage:read`. That is the scope, rather than a new one, because
+ * "what is this account entitled to consume" is the same question the usage
+ * scope already answers — and adding a scope means a migration to the scope
+ * CHECK for no additional authority.
+ */
+router.get(
+  '/:accountId/entitlements',
+  billingReadLimiter,
+  validate({ params: accountBillingParams }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    await authorizeAccount(principalOf(req), accountId, 'billing:read');
+
+    const resolution = await resolveProductEntitlement(accountId);
+    if (resolution.status === 'unknown-account') {
+      throw new NotFoundError('No billing profile is available for that account');
+    }
+    res.json({ data: resolution.entitlement });
+  })
+);
+
+/* -------------------------------------------------------------------------- */
+/*  Reconciliation                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `POST /billing/accounts/:accountId/reconciliation` — run a pass.
+ *
+ * STAFF ONLY. Compares Oxy's own record of processor payments against the
+ * processor's, over a window, and PUBLISHES the difference. It repairs nothing:
+ * a reconciliation that silently credited what it found would make Stripe the
+ * ledger, which is the invariant this workstream exists to hold.
+ */
+router.post(
+  '/:accountId/reconciliation',
+  billingWriteLimiter,
+  requireStaff,
+  validate({ params: accountBillingParams, body: reconciliationBody }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    const body = reconciliationBody.parse(req.body);
+
+    const periodStart = new Date(body.periodStart);
+    const periodEnd = new Date(body.periodEnd);
+    if (periodEnd <= periodStart) {
+      throw new BadRequestError('periodEnd must be after periodStart');
+    }
+
+    const report = await reconcilePayments({
+      ledger: stripePaymentProcessorLedger(),
+      accountId,
+      currency: body.currency ?? DEFAULT_LEDGER_CURRENCY,
+      periodStart,
+      periodEnd,
+    });
+    res.status(201).json({ data: report });
+  })
+);
+
+/** `GET /billing/accounts/:accountId/reconciliation` — recent passes. */
+router.get(
+  '/:accountId/reconciliation',
+  billingReadLimiter,
+  requireStaff,
+  validate({ params: accountBillingParams }),
+  asyncHandler(async (req: BillingRequest, res: Response) => {
+    const { accountId } = accountBillingParams.parse(req.params);
+    const runs = await listReconciliationRuns(accountId);
+    res.json({ data: runs, count: runs.length });
+  })
+);
+
+export default router;

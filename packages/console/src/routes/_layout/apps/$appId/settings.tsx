@@ -1,6 +1,11 @@
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
-import { ChartLineData02Icon, Key01Icon, Settings01Icon } from '@hugeicons/core-free-icons';
+import {
+  ChartLineData02Icon,
+  Key01Icon,
+  Settings01Icon,
+  WebhookIcon,
+} from '@hugeicons/core-free-icons';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Spinner } from '@/components/ui/spinner';
@@ -9,6 +14,7 @@ import { AppDetailHeader } from '@/components/apps/app-detail-header';
 import { GeneralSection } from '@/components/apps/general-section';
 import { CredentialsSection } from '@/components/apps/credentials-section';
 import { UsageSection } from '@/components/apps/usage-section';
+import { WebhooksAuditSection } from '@/components/apps/webhooks-audit-section';
 
 export const Route = createFileRoute('/_layout/apps/$appId/settings')({
   component: AppSettingsPage,
@@ -42,7 +48,11 @@ function AppSettingsPage() {
   }
 
   const showCredentialsTab = access.can('credentials:read');
-  const showUsageTab = access.can('apps:read');
+  // `webhooks:read` answers to `apps:read` by containment on the account side,
+  // so this is not the same tab as General with different fields — it is the
+  // right the API enforces over the two endpoint columns, asked for by name.
+  const showWebhooksTab = access.can('webhooks:read');
+  const showUsageTab = access.can('usage:read');
 
   return (
     <ScrollArea className="flex-1 bg-background">
@@ -61,6 +71,12 @@ function AppSettingsPage() {
                 Credentials
               </TabsTrigger>
             )}
+            {showWebhooksTab && (
+              <TabsTrigger value="webhooks">
+                <HugeiconsIcon icon={WebhookIcon} size={16} />
+                Webhooks and audit
+              </TabsTrigger>
+            )}
             {showUsageTab && (
               <TabsTrigger value="usage">
                 <HugeiconsIcon icon={ChartLineData02Icon} size={16} />
@@ -76,6 +92,21 @@ function AppSettingsPage() {
           {showCredentialsTab && (
             <TabsContent value="credentials" className="max-w-3xl">
               <CredentialsSection application={application} access={access} />
+            </TabsContent>
+          )}
+
+          {showWebhooksTab && (
+            <TabsContent value="webhooks" className="max-w-2xl">
+              {/*
+                Keyed by application so navigating between two applications
+                mounts a fresh draft instead of carrying the previous one's
+                typing into a form that would then save it to the wrong app.
+              */}
+              <WebhooksAuditSection
+                key={application._id}
+                application={application}
+                access={access}
+              />
             </TabsContent>
           )}
 

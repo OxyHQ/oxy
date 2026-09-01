@@ -1,3 +1,4 @@
+import { createDomainPolicy } from '../apUri';
 import {
   createInboundDispatcher,
   ActorResolutionPendingError,
@@ -27,6 +28,7 @@ function makeRig(overrides: {
   inboundFollow?: { _id: unknown; localUserId: string } | null;
   actorOxyUserIdForUndo?: string | null;
   validate?: (activity: Record<string, unknown>) => InboundActivityValidation;
+  blockedHosts?: string[];
 } = {}) {
   const bridgeFollowCalls: Array<[string, string]> = [];
   const bridgeUnfollowCalls: Array<[string, string]> = [];
@@ -39,14 +41,20 @@ function makeRig(overrides: {
   const outboundRejected: Array<[string, string | undefined]> = [];
   const onInboundFollowAcceptedCalls: Array<[string, string, string]> = [];
   const onOutboundFollowAcceptedCalls: string[] = [];
+  const domainPolicy =
+    overrides.blockedHosts === undefined
+      ? createDomainPolicy({ domain: 'mention.earth' })
+      : createDomainPolicy({ domain: 'mention.earth', blockedDomains: overrides.blockedHosts });
+  const validatedActivities: Array<Record<string, unknown>> = [];
 
   const config: InboundDispatcherConfig = {
-    validateActivity:
-      overrides.validate ??
-      ((activity) => {
-        const type = typeof activity.type === 'string' ? activity.type : undefined;
-        return type ? { ok: true, type } : { ok: false, summary: 'no type' };
-      }),
+    isBlockedDomain: domainPolicy.isBlockedDomain,
+    validateActivity: (activity) => {
+      validatedActivities.push(activity);
+      if (overrides.validate) return overrides.validate(activity);
+      const type = typeof activity.type === 'string' ? activity.type : undefined;
+      return type ? { ok: true, type } : { ok: false, summary: 'no type' };
+    },
     identity: {
       resolveUserByUsername: async () =>
         overrides.localUser === undefined ? { _id: 'u-alice' } : overrides.localUser,
@@ -103,6 +111,7 @@ function makeRig(overrides: {
 
   return {
     dispatcher: createInboundDispatcher(config),
+    validatedActivities,
     bridgeFollowCalls,
     bridgeUnfollowCalls,
     acceptsSent,
@@ -251,6 +260,122 @@ describe('content verbs → onContentActivity', () => {
   it('drops a malformed activity without dispatching', async () => {
     const rig = makeRig({ validate: () => ({ ok: false, summary: 'bad shape' }) });
     await rig.dispatcher.processInboxActivity({ type: 'Create' }, REMOTE_ACTOR);
+    expect(rig.contentActivities).toHaveLength(0);
+  });
+});
+
+/**
+ * Instance domain policy on the inbound path.
+ *
+ * A suspended instance must not be able to create ANYTHING here. The dispatcher is
+ * the one place every inbound transport and every verb converges, so this is where
+ * a blocked origin is refused — and, critically, it is refused on evidence the
+ * dispatcher holds itself (the verified origin URI) rather than on whether an actor
+ * happens to be cached, which is what made the blocklist inert before.
+ */
+describe('blocked-origin domain policy', () => {
+  const BLOCKED_ACTOR = 'https://spam.example/users/mallory';
+
+  it.each(['Create', 'Announce', 'Like', 'Delete', 'Update'])(
+    'drops %s from a blocked origin without reaching the app',
+    async (type) => {
+      const rig = makeRig({ blockedHosts: ['spam.example'] });
+      await rig.dispatcher.processInboxActivity({ type, actor: BLOCKED_ACTOR }, BLOCKED_ACTOR);
+      expect(rig.contentActivities).toHaveLength(0);
+    },
+  );
+
+  it('drops a Follow from a blocked origin — no Oxy edge, no follow row, no Accept', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Follow', id: 'f1', actor: BLOCKED_ACTOR, object: LOCAL_ACTOR },
+      BLOCKED_ACTOR,
+    );
+    expect(rig.bridgeFollowCalls).toHaveLength(0);
+    expect(rig.inboundAcceptedUpserts).toHaveLength(0);
+    expect(rig.acceptsSent).toHaveLength(0);
+    expect(rig.onInboundFollowAcceptedCalls).toHaveLength(0);
+  });
+
+  it('drops an Accept from a blocked origin — no outbox backfill is triggered', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Accept', actor: BLOCKED_ACTOR, object: { type: 'Follow', id: 'follow-1' } },
+      BLOCKED_ACTOR,
+    );
+    expect(rig.outboundAcceptedByActivityId).toHaveLength(0);
+    expect(rig.onOutboundFollowAcceptedCalls).toHaveLength(0);
+  });
+
+  it('drops Undo(Follow) from a blocked origin — no unbridge or follow-row delete', async () => {
+    const rig = makeRig({
+      blockedHosts: ['spam.example'],
+      inboundFollow: { _id: 'row1', localUserId: 'u-alice' },
+      actorOxyUserIdForUndo: 'u-mallory',
+    });
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Undo', actor: BLOCKED_ACTOR, object: { type: 'Follow', object: LOCAL_ACTOR } },
+      BLOCKED_ACTOR,
+    );
+    expect(rig.bridgeUnfollowCalls).toHaveLength(0);
+    expect(rig.deletedFollowIds).toHaveLength(0);
+    expect(rig.validatedActivities).toHaveLength(0);
+  });
+
+  it('drops Reject(Follow) from a blocked origin — no outbound rejection is recorded', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Reject', actor: BLOCKED_ACTOR, object: { type: 'Follow', id: 'follow-1' } },
+      BLOCKED_ACTOR,
+    );
+    expect(rig.outboundRejected).toHaveLength(0);
+    expect(rig.validatedActivities).toHaveLength(0);
+  });
+
+  it('blocks a www.-prefixed host via createDomainPolicy canonicalization', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    const wwwActor = 'https://www.spam.example/users/mallory';
+    await rig.dispatcher.processInboxActivity({ type: 'Create', actor: wwwActor }, wwwActor);
+    expect(rig.contentActivities).toHaveLength(0);
+    expect(rig.validatedActivities).toHaveLength(0);
+  });
+
+  it('refuses the origin BEFORE the payload is parsed', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    await rig.dispatcher.processInboxActivity({ type: 'Create', actor: BLOCKED_ACTOR }, BLOCKED_ACTOR);
+    expect(rig.validatedActivities).toHaveLength(0);
+  });
+
+  it('matches the host case-insensitively and ignores port/path/userinfo', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Create', actor: 'https://SPAM.Example:443/users/mallory' },
+      'https://SPAM.Example:443/users/mallory',
+    );
+    expect(rig.contentActivities).toHaveLength(0);
+  });
+
+  it('fails closed on an origin URI with no parseable host', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    await rig.dispatcher.processInboxActivity({ type: 'Create', actor: 'not-a-uri' }, 'not-a-uri');
+    expect(rig.contentActivities).toHaveLength(0);
+    expect(rig.validatedActivities).toHaveLength(0);
+  });
+
+  it('still dispatches an allowed origin while another host is blocked', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    await rig.dispatcher.processInboxActivity({ type: 'Create', actor: REMOTE_ACTOR }, REMOTE_ACTOR);
+    expect(rig.contentActivities).toEqual([{ type: 'Create', verifiedActorUri: REMOTE_ACTOR }]);
+  });
+
+  it('keys the decision on the VERIFIED origin, not the actor the payload claims', async () => {
+    const rig = makeRig({ blockedHosts: ['spam.example'] });
+    // A blocked instance cannot buy itself a pass by naming an allowed actor in the
+    // body: the signature proved `BLOCKED_ACTOR`, and that is what is checked.
+    await rig.dispatcher.processInboxActivity(
+      { type: 'Create', actor: REMOTE_ACTOR },
+      BLOCKED_ACTOR,
+    );
     expect(rig.contentActivities).toHaveLength(0);
   });
 });

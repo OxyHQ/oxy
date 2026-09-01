@@ -6,6 +6,12 @@
  * `workspace:^` strings in the published manifest. `bun publish` substitutes
  * them to real semver ranges before packing.
  *
+ * The same now applies to `catalog:`, and this guard is what makes the catalog
+ * safe to use in a PUBLISHED package: measured on bun 1.3.14, `bun pm pack`
+ * rewrites a catalogued dependency to the catalog's own range (`^2.1.3` stayed
+ * `^2.1.3`) while `npm pack` shipped the literal string `catalog:`, which no
+ * consumer can resolve — the identical failure mode, one protocol later.
+ *
  * Wired into publishable packages' prepublishOnly scripts.
  */
 

@@ -8,11 +8,14 @@
 # Prerequisites:
 #   - Repo secrets OXY_SHIP_CLIENT_ID / OXY_SHIP_SECRET: a `service`-type
 #     ApplicationCredential for THIS app, granted the `updates:publish` scope.
+#     This is a DIFFERENT credential from the app's public `oxy_dk_` client id.
 #   - The app embeds the Oxy Updates code-signing certificate and points
-#     expo-updates at https://updates.oxy.so/updates/v1/apps/<clientId>/manifest.
-#   - `oxy-ship` on PATH. Until `@oxyhq/ship` is published to npm it is run from a
-#     checkout of OxyHQServices (see the "Run oxy-ship" step) — swap to
-#     `bunx oxy-ship` once it is published.
+#     expo-updates at https://api.oxy.so/updates/v1/apps/<clientId>/manifest.
+#     Both come from `@oxyhq/app-preset/plugin/withOxyUpdates`; see that
+#     package's README, section "Oxy Updates (OTA)".
+#   - oxy-api has UPDATES_CODE_SIGNING_PRIVATE_KEY configured. Without it every
+#     manifest request that asks for a signature answers HTTP 500.
+#   - `bunx oxy-ship` (from `@oxyhq/ship` on npm, or a workspace checkout).
 #
 # This publishes ONLY the OTA update. It does NOT build native binaries.
 

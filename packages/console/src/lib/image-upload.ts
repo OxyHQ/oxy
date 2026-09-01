@@ -103,11 +103,30 @@ export async function uploadPublicImage(
   oxyServices: OxyServices,
   file: File
 ): Promise<string> {
+  const fileId = await uploadPublicImageFileId(oxyServices, file);
+  return stripSensitiveImageUrlQueryParams(oxyServices.getFileDownloadUrl(fileId));
+}
+
+/**
+ * Upload a public image and return the FILE ID.
+ *
+ * The logo widgets store a URL because that is what the Application record
+ * holds; a store screenshot stores the id, because `app_listing_screenshots`
+ * carries a real foreign key to `files` — which is what stops a purged asset
+ * leaving a hole on a published page. Both go through this one upload so the
+ * two surfaces cannot drift on visibility or validation.
+ *
+ * @throws when the upload fails or the response is missing a file id.
+ */
+export async function uploadPublicImageFileId(
+  oxyServices: OxyServices,
+  file: File
+): Promise<string> {
   const response = await oxyServices.uploadRawFile(file, PUBLIC_VISIBILITY);
   if (!isRawFileUploadResponse(response)) {
     throw new Error('Upload did not return a file id');
   }
-  return stripSensitiveImageUrlQueryParams(oxyServices.getFileDownloadUrl(response.file.id));
+  return response.file.id;
 }
 
 /** Resolve a stored file id (or absolute URL) to a renderable image URL. */

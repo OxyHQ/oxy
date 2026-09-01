@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@oxyhq/services';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { Add01Icon, Delete02Icon, Image01Icon } from '@hugeicons/core-free-icons';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import type {Application, CallerAccess} from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getErrorMessage } from '@/lib/api-error';
-import { mergePaymentsScopes } from '@/lib/application-scopes';
+import { availablePaymentsScopes, mergePaymentsScopes } from '@/lib/application-scopes';
 import { stripSensitiveImageUrlQueryParams } from '@/lib/image-upload';
 import {
   useDeleteApplication,
@@ -45,8 +45,8 @@ interface GeneralSectionProps {
 export function GeneralSection({ application, access }: GeneralSectionProps) {
   const navigate = useNavigate();
   const { oxyServices } = useAuth();
-  const canEdit = access.can('apps:update');
-  const canDelete = access.can('apps:delete');
+  const canEdit = access.can('app:update');
+  const canDelete = access.can('app:delete');
   const updateApplication = useUpdateApplication();
   const deleteApplication = useDeleteApplication();
 
@@ -58,8 +58,18 @@ export function GeneralSection({ application, access }: GeneralSectionProps) {
   const [icon, setIcon] = useState(application.icon ?? '');
   const [redirectUris, setRedirectUris] = useState<Array<string>>(application.redirectUris);
   const [newRedirectUri, setNewRedirectUri] = useState('');
-  const [paymentsRead, setPaymentsRead] = useState(application.scopes.includes('payments:read'));
-  const [paymentsWrite, setPaymentsWrite] = useState(application.scopes.includes('payments:write'));
+  // Through `availablePaymentsScopes`, which returns `PaymentsScope[]`, so a
+  // misspelt scope here is a build error. `application.scopes` is `string[]`, so
+  // comparing a literal against it directly compiles and answers false forever —
+  // the same hazard as the permission call sites above, in the adjacent
+  // vocabulary.
+  const grantedPaymentsScopes = availablePaymentsScopes(application.scopes);
+  const [paymentsRead, setPaymentsRead] = useState(
+    grantedPaymentsScopes.includes('payments:read')
+  );
+  const [paymentsWrite, setPaymentsWrite] = useState(
+    grantedPaymentsScopes.includes('payments:write')
+  );
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const nextScopes = mergePaymentsScopes(application.scopes, {

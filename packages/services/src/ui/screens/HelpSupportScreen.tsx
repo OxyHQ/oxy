@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Linking } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsIcon } from '../components/SettingsIcon';

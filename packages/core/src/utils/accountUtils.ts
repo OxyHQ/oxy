@@ -4,6 +4,7 @@
  */
 
 import { translate } from '../i18n';
+import { getNormalizedUserHandle } from './userHandle';
 
 export interface QuickAccount {
     sessionId: string;
@@ -154,7 +155,14 @@ export const createQuickAccount = (
     existingAccount?: QuickAccount,
     getFileDownloadUrl?: (fileId: string, variant: string) => string
 ): QuickAccount => {
-    const displayName = getAccountDisplayName(userData);
+    const nameObj =
+        userData.name && typeof userData.name === 'object' ? userData.name : undefined;
+    const apiDisplayName =
+        typeof nameObj?.displayName === 'string' ? nameObj.displayName.trim() : '';
+    const displayName =
+        apiDisplayName ||
+        getNormalizedUserHandle(userData) ||
+        getAccountDisplayName(null);
     const userId = userData.id || (typeof userData._id === 'string' ? userData._id : userData._id?.toString());
 
     // Preserve existing avatarUrl if avatar hasn't changed (prevents image reload)

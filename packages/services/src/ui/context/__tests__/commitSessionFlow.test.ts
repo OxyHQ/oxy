@@ -132,6 +132,19 @@ describe('commitDeviceSetAndResolve — cold boot (activate: false)', () => {
     expect(deps.markAuthResolved).toHaveBeenCalledTimes(1);
   });
 
+  it('falls back to the minimal commit-input user when getCurrentUser returns null', async () => {
+    const order: string[] = [];
+    const deps = buildDeps(order, {
+      getCurrentUser: jest.fn(async () => null),
+    });
+
+    await commitDeviceSetAndResolve(deps);
+    await flush();
+
+    expect(deps.loginSuccess).toHaveBeenCalledWith(makeUser('fallback'));
+    expect(deps.markAuthResolved).toHaveBeenCalledTimes(1);
+  });
+
   it('logs (never swallows) a failing background reconcile and still resolves', async () => {
     const warnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => undefined);
     const order: string[] = [];

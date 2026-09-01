@@ -44,7 +44,7 @@ jest.mock('../../src/ui/session', () => {
   };
 });
 
-import { OxyContextProvider, useOxy } from '../../src/ui/context/OxyContext';
+import { OxyRuntimeProvider, useOxy } from '../../src/ui/context/OxyContext';
 import type { OxyContextState } from '../../src/ui/context/OxyContext';
 import { useAuthStore } from '../../src/ui/stores/authStore';
 import { createSessionClient } from '../../src/ui/session';
@@ -122,12 +122,33 @@ function buildFakeClient(initial: DeviceSessionState) {
     bootstrap,
     push,
     getState: () => state,
+    // The dialog controller reads the directory on every snapshot build, so a
+    // stand-in that omits these is not a SessionClient. Null is the honest
+    // answer for a fake that was never given one.
+    getDirectory: () => null,
+    refreshDirectory: async () => null,
+    activateContext: async () => null,
     fakeClient: {
       getState: () => state,
+      // The dialog controller reads the directory on every snapshot build, so a
+      // stand-in that omits these is not a SessionClient. Null is the honest
+      // answer for a fake that was never given one.
+      getDirectory: () => null,
+      refreshDirectory: async () => null,
+      activateContext: async () => null,
       subscribe: (listener: StateListener) => {
         listeners.add(listener);
         return () => listeners.delete(listener);
       },
+      // The device DIRECTORY half (ADR 0002). This fake never reads one, so it
+      // answers `null` — the shape a client that has not opted into the
+      // directory holds. Omitting it entirely made the runtime's projection
+      // throw and be swallowed, which reads as "the projection did nothing".
+      getDirectory: () => null,
+      refreshDirectory: async () => undefined,
+      activateContext: async () => undefined,
+      signOutContext: async () => undefined,
+      signOutPrincipal: async () => undefined,
       start,
       addCurrentAccount,
       switchAccount,
@@ -214,9 +235,9 @@ function renderProvider(oxyServices: unknown, baseURL: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <OxyContextProvider oxyServices={oxyServices as never} baseURL={baseURL}>
+      <OxyRuntimeProvider oxyServices={oxyServices as never} baseURL={baseURL}>
         <Capture />
-      </OxyContextProvider>
+      </OxyRuntimeProvider>
     </QueryClientProvider>,
   );
 }

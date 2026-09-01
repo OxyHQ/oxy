@@ -1,4 +1,5 @@
 import { useFollowStore } from './followStore';
+import { useFollowTargetStore } from './followTargetStore';
 
 /**
  * Drop session-scoped Zustand slices so the next user/account never inherits
@@ -10,4 +11,5 @@ import { useFollowStore } from './followStore';
  */
 export function resetSessionScopedStores(): void {
   useFollowStore.getState().resetFollowState();
+  useFollowTargetStore.getState().reset();
 }

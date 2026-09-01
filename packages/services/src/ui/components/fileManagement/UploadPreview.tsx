@@ -1,8 +1,8 @@
 import type React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Dialog, type DialogControlProps } from '@oxyhq/bloom';
+import Ionicons from '../../icons/Ionicons';
+import { Dialog, type DialogControlProps } from '@oxyhq/bloom/dialog';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { formatFileSize, getFileIcon } from '../../utils/fileManagement';
 import type { PendingUploadFile } from '../../screens/fileManagement/shared';

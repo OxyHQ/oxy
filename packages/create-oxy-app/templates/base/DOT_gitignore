@@ -1,9 +1,11 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Build output. Deliberately NOT a bare `lib/`: the frontend template ships
+# `packages/frontend/lib` (config, queryClient, themePersistence, i18n) and that
+# pattern would ignore it, so a generated app's first commit would silently omit
+# every module behind the `@/lib/*` alias. `shared-types` builds to `dist/`.
 dist/
-lib/
 web-build/
 
 # Expo

@@ -1,29 +1,33 @@
 import type { Response } from 'express';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import {
   emailAgentContextSchema,
   type CapabilityTicketClaims,
   type EmailContextMessage,
 } from '@oxyhq/contracts';
-import Mailbox from '../models/Mailbox';
-import Message from '../models/Message';
+import { getDb } from '../config/postgres';
+import { messages as messagesTable } from '../db/schema/messages';
 import type { EmailCapabilityRequest } from '../middleware/emailCapabilityAuth';
+import { emailService } from '../services/email.service';
 
 function contextMessage(message: {
-  _id: unknown;
-  mailboxId: unknown;
-  from: { name?: string; address: string };
+  id: string;
+  mailboxId: string;
+  fromName: string | null;
+  fromAddress: string;
   subject: string;
   receivedAt: Date;
-  flags: { seen: boolean; answered: boolean };
+  seen: boolean;
+  answered: boolean;
 }): EmailContextMessage {
   return {
-    messageId: String(message._id),
-    mailboxId: String(message.mailboxId),
-    from: { ...(message.from.name ? { name: message.from.name } : {}), address: message.from.address },
+    messageId: message.id,
+    mailboxId: message.mailboxId,
+    from: { ...(message.fromName ? { name: message.fromName } : {}), address: message.fromAddress },
     subject: message.subject,
     receivedAt: message.receivedAt.toISOString(),
-    seen: message.flags.seen,
-    answered: message.flags.answered,
+    seen: message.seen,
+    answered: message.answered,
   };
 }
 
@@ -34,29 +38,45 @@ export async function getEmailAgentContext(request: EmailCapabilityRequest, resp
     ? ticket.resource.resourceId
     : typeof request.query.mailbox === 'string' ? request.query.mailbox : null;
   const limit = Math.min(Math.max(Number.parseInt(String(request.query.limit ?? '20'), 10) || 20, 1), 50);
-  const mailboxQuery: Record<string, unknown> = { userId: accountId };
-  if (resourceMailboxId) mailboxQuery._id = resourceMailboxId;
-  const mailboxes = await Mailbox.find(mailboxQuery).sort({ path: 1 }).lean();
-  const mailboxIds = mailboxes.map((mailbox) => mailbox._id);
-  const messages = mailboxIds.length === 0 ? [] : await Message.find({
-    userId: accountId,
-    mailboxId: { $in: mailboxIds },
-    'flags.seen': false,
-  }).select('mailboxId from subject receivedAt flags.seen flags.answered flags.draft').sort({ receivedAt: -1 }).limit(limit).lean();
-  const recentUnread = messages.map(contextMessage);
+  const accountMailboxes = await emailService.listMailboxes(accountId);
+  const selectedMailboxes = resourceMailboxId
+    ? accountMailboxes.filter((mailbox) => mailbox.id === resourceMailboxId)
+    : accountMailboxes;
+  const mailboxIds = selectedMailboxes.map((mailbox) => mailbox.id);
+  const unreadMessages = mailboxIds.length === 0 ? [] : await getDb()
+    .select({
+      id: messagesTable.id,
+      mailboxId: messagesTable.mailboxId,
+      fromName: messagesTable.fromName,
+      fromAddress: messagesTable.fromAddress,
+      subject: messagesTable.subject,
+      receivedAt: messagesTable.receivedAt,
+      seen: messagesTable.seen,
+      answered: messagesTable.answered,
+      draft: messagesTable.draft,
+    })
+    .from(messagesTable)
+    .where(and(
+      eq(messagesTable.userId, accountId),
+      inArray(messagesTable.mailboxId, mailboxIds),
+      eq(messagesTable.seen, false),
+    ))
+    .orderBy(desc(messagesTable.receivedAt))
+    .limit(limit);
+  const recentUnread = unreadMessages.map(contextMessage);
   const context = emailAgentContextSchema.parse({
     accountId,
     resourceMailboxId,
     generatedAt: new Date().toISOString(),
-    mailboxes: mailboxes.map((mailbox) => ({
-      mailboxId: mailbox._id.toString(),
+    mailboxes: selectedMailboxes.map((mailbox) => ({
+      mailboxId: mailbox.id,
       name: mailbox.name,
       path: mailbox.path,
       totalMessages: mailbox.totalMessages,
       unseenMessages: mailbox.unseenMessages,
     })),
     recentUnread,
-    needsResponse: messages.filter((message) => !message.flags.answered && !message.flags.draft).map(contextMessage),
+    needsResponse: unreadMessages.filter((message) => !message.answered && !message.draft).map(contextMessage),
   });
   response.json({ data: context });
 }

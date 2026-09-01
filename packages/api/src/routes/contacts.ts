@@ -4,9 +4,10 @@
  * Privacy-preserving discovery of which of a user's address-book contacts
  * already have Oxy accounts. Clients hash emails/phones locally with SHA-256
  * (see `utils/contactHash.ts` for the canonical algorithm) and upload only
- * those digests. The server intersects them against precomputed indexes on
- * the `User` collection and returns matched user IDs only for users who
- * explicitly opted in to contact discovery for that identifier type.
+ * those digests. The server intersects them against the partial indexes on
+ * `users.hashed_email` / `users.hashed_phone` and returns matched user IDs only
+ * for users who explicitly opted in to contact discovery for that identifier
+ * type.
  *
  * Privacy invariants:
  *   - Raw email / phone never traverses this route.
@@ -22,10 +23,19 @@
  *   - Authenticated user only (no service tokens — this is owner-only data).
  *   - Per-user 5 req/min via `keyGenerator` keyed on the resolved user ID.
  *   - Per-request payload capped at 200 hashes per channel (~400 total).
+ *
+ * ## `hashed_email` / `hashed_phone` are PROTECTED columns, read on purpose
+ *
+ * Both are in `protectedColumns.ts`, so no ordinary read returns them. This
+ * route names them explicitly in its `select`, which is exactly the sanctioned
+ * opt-in: the matched hash is the only thing that lets the CLIENT map a match
+ * back to the address-book entry that produced it, and it is a value the caller
+ * already supplied — the response tells them nothing they did not send.
  */
 
 import { Router, type Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
 import { hashedIpKey } from '../utils/ipKey';
@@ -33,7 +43,8 @@ import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import { ForbiddenError, UnauthorizedError } from '../utils/error';
 import { logger } from '../utils/logger';
-import User from '../models/User';
+import { getDb } from '../config/postgres';
+import { users } from '../db/schema/users';
 import { discoverContactsSchema } from '../schemas/contacts.schemas';
 
 const router = Router();
@@ -103,6 +114,29 @@ interface DiscoverMatch {
   matchType: 'email' | 'phone';
 }
 
+/** A matched account and the contact hash that matched it. */
+interface HashMatchRow {
+  id: string;
+  hash: string | null;
+}
+
+/**
+ * Matched rows → wire matches.
+ *
+ * The `hash === null` arm narrows the column's type rather than discarding a
+ * possible row: `hashed_email`/`hashed_phone` are GENERATED and therefore
+ * nullable in the schema, but `col in ($1, …)` never matches a NULL, so a row
+ * that reached here always carries the hash it was selected by.
+ */
+function toMatches(
+  rows: readonly HashMatchRow[],
+  matchType: DiscoverMatch['matchType'],
+): DiscoverMatch[] {
+  return rows.flatMap((row) =>
+    row.hash === null ? [] : [{ userId: row.id, hashedIdentifier: row.hash, matchType }],
+  );
+}
+
 /**
  * @openapi
  * /contacts/discover:
@@ -115,9 +149,9 @@ interface DiscoverMatch {
  *       email and phone number locally (lowercased; phone numbers normalised
  *       to E.164 — see `utils/contactHash.ts` in `@oxyhq/core`) and upload
  *       only the resulting 64-character hex digests. The server intersects
- *       them against precomputed indexes on the `User` collection and returns
- *       matched Oxy user IDs only when the matched user has opted in to
- *       contact discovery for that identifier type.
+ *       them against the indexed `users.hashed_email` / `users.hashed_phone`
+ *       columns and returns matched Oxy user IDs only when the matched user
+ *       has opted in to contact discovery for that identifier type.
  *
  *       Privacy invariants:
  *         - Raw email / phone never traverses this endpoint.
@@ -229,80 +263,58 @@ router.post(
     // merge results so that a single user matched on both email and phone
     // shows up as two distinct entries — the client may want to surface that
     // either signal contributed to the match.
+    //
+    // Mongo's `type: { $in: ['local', null] }` becomes a plain equality: the
+    // `null` arm existed only for documents predating the field, and
+    // `users.type` is `NOT NULL DEFAULT 'local'`, so the legacy branch does not
+    // travel.
+    const db = getDb();
+    const callerId = req.user.id;
     const [emailMatches, phoneMatches] = await Promise.all([
       uniqueEmailHashes.length > 0
-        ? User.find(
-            {
-              hashedEmail: { $in: uniqueEmailHashes },
-              // Don't return the caller's own account — they already know
-              // they're on Oxy.
-              _id: { $ne: req.user.id },
-              accountStatus: { $ne: 'archived' },
-              reputationTier: { $ne: 'restricted' },
-              // Federated/agent/automated accounts are not meant to surface
-              // in a personal contact-sync flow.
-              type: { $in: ['local', null] },
-              // Contact discovery is opt-in. Without this gate, deterministic
-              // email/phone hashes can be used as an account-enumeration oracle.
-              'privacySettings.discoverableByEmail': true,
-            },
-            { _id: 1, hashedEmail: 1 },
-          )
-            .lean()
-            .exec()
-        : Promise.resolve([] as Array<{ _id: unknown; hashedEmail?: string }>),
+        ? db
+            .select({ id: users.id, hash: users.hashedEmail })
+            .from(users)
+            .where(
+              and(
+                inArray(users.hashedEmail, uniqueEmailHashes),
+                // Don't return the caller's own account — they already know
+                // they're on Oxy.
+                ne(users.id, callerId),
+                ne(users.accountStatus, 'archived'),
+                ne(users.reputationTier, 'restricted'),
+                // Federated/agent/automated accounts are not meant to surface
+                // in a personal contact-sync flow.
+                eq(users.type, 'local'),
+                // Contact discovery is opt-in. Without this gate, deterministic
+                // email/phone hashes can be used as an account-enumeration oracle.
+                eq(users.privacyDiscoverableByEmail, true),
+              ),
+            )
+        : Promise.resolve([] as HashMatchRow[]),
       uniquePhoneHashes.length > 0
-        ? User.find(
-            {
-              hashedPhone: { $in: uniquePhoneHashes },
-              _id: { $ne: req.user.id },
-              accountStatus: { $ne: 'archived' },
-              reputationTier: { $ne: 'restricted' },
-              type: { $in: ['local', null] },
-              // Contact discovery is opt-in. Without this gate, deterministic
-              // phone hashes can be used as an account-enumeration oracle.
-              'privacySettings.discoverableByPhone': true,
-            },
-            { _id: 1, hashedPhone: 1 },
-          )
-            .lean()
-            .exec()
-        : Promise.resolve([] as Array<{ _id: unknown; hashedPhone?: string }>),
+        ? db
+            .select({ id: users.id, hash: users.hashedPhone })
+            .from(users)
+            .where(
+              and(
+                inArray(users.hashedPhone, uniquePhoneHashes),
+                ne(users.id, callerId),
+                ne(users.accountStatus, 'archived'),
+                ne(users.reputationTier, 'restricted'),
+                eq(users.type, 'local'),
+                // Contact discovery is opt-in. Without this gate, deterministic
+                // phone hashes can be used as an account-enumeration oracle.
+                eq(users.privacyDiscoverableByPhone, true),
+              ),
+            )
+        : Promise.resolve([] as HashMatchRow[]),
     ]);
 
-    const matches: DiscoverMatch[] = [];
-
-    for (const doc of emailMatches) {
-      const userIdStr =
-        typeof doc._id === 'string'
-          ? doc._id
-          : doc._id != null && typeof (doc._id as { toString: () => string }).toString === 'function'
-            ? (doc._id as { toString: () => string }).toString()
-            : null;
-      if (userIdStr && typeof doc.hashedEmail === 'string') {
-        matches.push({
-          userId: userIdStr,
-          hashedIdentifier: doc.hashedEmail,
-          matchType: 'email',
-        });
-      }
-    }
-
-    for (const doc of phoneMatches) {
-      const userIdStr =
-        typeof doc._id === 'string'
-          ? doc._id
-          : doc._id != null && typeof (doc._id as { toString: () => string }).toString === 'function'
-            ? (doc._id as { toString: () => string }).toString()
-            : null;
-      if (userIdStr && typeof doc.hashedPhone === 'string') {
-        matches.push({
-          userId: userIdStr,
-          hashedIdentifier: doc.hashedPhone,
-          matchType: 'phone',
-        });
-      }
-    }
+    const matches: DiscoverMatch[] = [
+      ...toMatches(emailMatches, 'email'),
+      ...toMatches(phoneMatches, 'phone'),
+    ];
 
     logger.info('Contact discovery completed', {
       component: 'contacts',

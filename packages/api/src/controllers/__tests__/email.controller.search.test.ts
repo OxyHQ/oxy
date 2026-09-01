@@ -20,15 +20,6 @@ jest.mock('../../config/email.config', () => ({
   resolveEmailAddress: jest.fn(),
 }));
 
-jest.mock('../../models/User', () => ({
-  __esModule: true,
-  default: {},
-}));
-
-jest.mock('../../models/Message', () => ({
-  Message: {},
-}));
-
 jest.mock('../../utils/logger', () => ({
   logger: { error: jest.fn(), info: jest.fn(), debug: jest.fn(), warn: jest.fn() },
 }));
@@ -71,6 +62,9 @@ describe('email.controller searchMessages', () => {
       hasAttachment: undefined,
       dateAfter: undefined,
       dateBefore: undefined,
+      starred: undefined,
+      label: undefined,
+      seen: undefined,
     });
     expect(res.json).toHaveBeenCalledWith({
       data: [],
@@ -95,62 +89,52 @@ describe('email.controller searchMessages', () => {
     expect(mockSearchMessages).not.toHaveBeenCalled();
   });
 
-  it('maps is:unread in q to a seen=false filter without sending the operator to text search', async () => {
+  it.each([
+    ['is:read', true],
+    ['is:unread', false],
+  ])('maps %s to the messages.seen filter', async (q, seen) => {
     const req = {
       user: { id: userId },
-      query: { q: 'is:unread' },
+      query: { q },
     };
 
     await searchMessages(req as never, res as Response);
 
-    expect(mockSearchMessages).toHaveBeenCalledWith(userId, '', {
-      limit: 50,
-      offset: 0,
-      mailboxId: undefined,
-      from: undefined,
-      to: undefined,
-      subject: undefined,
-      hasAttachment: undefined,
-      dateAfter: undefined,
-      dateBefore: undefined,
-      starred: undefined,
-      label: undefined,
-      seen: false,
-    });
+    expect(mockSearchMessages).toHaveBeenCalledWith(userId, '', expect.objectContaining({ seen }));
   });
 
-  it('maps is:read while preserving ordinary text terms', async () => {
+  it('keeps normal search text when an is operator is present', async () => {
     const req = {
       user: { id: userId },
-      query: { q: 'invoice is:read' },
+      query: { q: 'invoice is:unread' },
     };
 
     await searchMessages(req as never, res as Response);
 
-    expect(mockSearchMessages).toHaveBeenCalledWith(userId, 'invoice', expect.objectContaining({ seen: true }));
-  });
-
-  it('rejects conflicting read-state operators', async () => {
-    const req = {
-      user: { id: userId },
-      query: { q: 'is:unread is:read' },
-    };
-
-    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(
-      'is:read and is:unread cannot be used together',
+    expect(mockSearchMessages).toHaveBeenCalledWith(
+      userId,
+      'invoice',
+      expect.objectContaining({ seen: false }),
     );
+  });
+
+  it('rejects conflicting read operators', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: 'is:read is:unread' },
+    };
+
+    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(BadRequestError);
     expect(mockSearchMessages).not.toHaveBeenCalled();
   });
 
-  it('rejects repeated q parameters instead of accepting an ambiguous value', async () => {
+  it('rejects a repeated q query parameter', async () => {
     const req = {
       user: { id: userId },
       query: { q: ['is:unread', 'is:read'] },
     };
 
-    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(
-      'q must be a single string value',
-    );
+    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(BadRequestError);
     expect(mockSearchMessages).not.toHaveBeenCalled();
   });
 });

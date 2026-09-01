@@ -22,6 +22,14 @@
  * @param {string} [options.cssInput='./global.css'] NativeWind CSS entry point.
  * @param {(string|RegExp)[]} [options.extraBlockList=[]] Extra Metro
  *   `blockList` patterns appended to the Oxy defaults.
+ * @param {boolean} [options.dropConsole=false] Strip console calls from the
+ *   production web bundle. Hermes native bundles do not use Metro's minifier.
+ * @param {string} [options.svgTransformerPath] Resolved SVG transformer path.
+ *   When set, `svg` moves from asset extensions to source extensions.
+ * @param {Record<string,string>} [options.extraNodeModules={}] Extra aliases.
+ * @param {string[]} [options.extraWatchFolders=[]] Additional watch roots.
+ * @param {string[]} [options.extraAssetExts=[]] Additional asset extensions.
+ * @param {string[]} [options.extraSourceExts=[]] Additional source extensions.
  * @returns {import('metro-config').MetroConfig}
  */
 const { getDefaultConfig } = require('expo/metro-config');
@@ -33,11 +41,21 @@ function blockPath(dir) {
   return new RegExp(`${resolved.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/.*`);
 }
 
+function unique(values) {
+  return [...new Set(values)];
+}
+
 function createOxyMetroConfig(projectRoot, options = {}) {
   const {
     sharedTypesPackage,
     cssInput = './global.css',
     extraBlockList = [],
+    dropConsole = false,
+    svgTransformerPath,
+    extraNodeModules: configuredExtraNodeModules = {},
+    extraWatchFolders = [],
+    extraAssetExts = [],
+    extraSourceExts = [],
   } = options;
 
   const monorepoRoot = path.resolve(projectRoot, '../..');
@@ -46,7 +64,7 @@ function createOxyMetroConfig(projectRoot, options = {}) {
   config.projectRoot = projectRoot;
 
   // Include the monorepo root so Metro resolves hoisted deps in root node_modules/.
-  config.watchFolders = [monorepoRoot];
+  config.watchFolders = unique([monorepoRoot, ...extraWatchFolders.map((folder) => path.resolve(folder))]);
 
   const blockList = [
     blockPath(path.join(monorepoRoot, 'packages/backend')),
@@ -66,8 +84,8 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     /\.test\.(js|ts|tsx|jsx)$/,
     /\.spec\.(js|ts|tsx|jsx)$/,
     /\.md$/,
-    /README/,
-    ...extraBlockList,
+    /(?:^|[/\\])README(?:\.[^/\\]+)?$/,
+    ...extraBlockList.map((pattern) => typeof pattern === 'string' ? blockPath(pattern) : pattern),
   ];
 
   const extraNodeModules = {};
@@ -83,6 +101,7 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     extraNodeModules: {
       ...config.resolver.extraNodeModules,
       ...extraNodeModules,
+      ...configuredExtraNodeModules,
     },
     // Resolve from the app's node_modules first, then the monorepo root (hoisted deps).
     nodeModulesPaths: [
@@ -93,22 +112,31 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     unstable_enableSymlinks: true,
     // Enable package.json "exports" resolution (required by @oxyhq/bloom subpath exports).
     unstable_enablePackageExports: true,
-    sourceExts: [...config.resolver.sourceExts, 'ts', 'tsx'],
+    sourceExts: unique([
+      ...config.resolver.sourceExts,
+      'ts',
+      'tsx',
+      ...(svgTransformerPath ? ['svg'] : []),
+      ...extraSourceExts,
+    ]),
     // Bloom imports `.woff2`/`.woff` fonts directly from JS on web; Metro does not
     // include them in default assetExts. SVGs stay ASSETS (metro's default): the
     // apps `require('*.svg')` them as image URIs (e.g. `<Image source={require(
     // '…/empty.svg')} />`) — there is no react-native-svg-transformer configured,
     // so removing `svg` from assetExts leaves it unresolvable (breaks the build).
     assetExts: [
-      ...config.resolver.assetExts,
+      ...config.resolver.assetExts.filter((extension) => !svgTransformerPath || extension !== 'svg'),
       'wasm',
       'woff2',
       'woff',
+      ...extraAssetExts,
     ],
   };
+  config.resolver.assetExts = unique(config.resolver.assetExts);
 
   config.transformer = {
     ...config.transformer,
+    ...(svgTransformerPath ? { babelTransformerPath: svgTransformerPath } : {}),
     minifierConfig: {
       ...config.transformer?.minifierConfig,
       keep_classnames: false,
@@ -129,7 +157,7 @@ function createOxyMetroConfig(projectRoot, options = {}) {
       compress: {
         arguments: true,
         dead_code: true,
-        drop_console: false,
+        drop_console: dropConsole,
         drop_debugger: true,
         ecma: 2020,
         evaluate: true,

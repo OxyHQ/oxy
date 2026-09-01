@@ -1,0 +1,45 @@
+-- oxy:deploy-phase=pre
+-- account_members.permission_grants / permission_revokes — the per-member
+-- adjustment to the role's baseline permission set.
+--
+-- SAFE TO APPLY BEFORE THE CODE THAT USES IT DEPLOYS, which is the order this
+-- repo's migrations run in. Both statements are purely additive: nothing is
+-- dropped or renamed, so no column the running image selects by name goes away,
+-- and both columns carry a DEFAULT, so an INSERT issued by the old image (which
+-- does not name them) still succeeds. The old image reads neither column, so a
+-- row written by the new image is fully legible to it.
+--
+-- Neither column carries a `CHECK` restricting it to the permission vocabulary,
+-- and that is a decision rather than an omission. `users_account_categories_
+-- check` in migration 0013 is the shape being deliberately avoided here: with
+-- `check (col <@ array[…])`, later NARROWING that array makes every subsequent
+-- UPDATE of a row holding a now-absent value fail — including an UPDATE naming
+-- only `role`, reported against a column the caller never mentioned. Measured on
+-- Postgres 17.5, and `NOT VALID` does not rescue it: that skips the existing-row
+-- scan at ALTER time and the next update of such a row still fails.
+--
+-- The difference from `account_categories` is that THIS vocabulary is expected
+-- to shrink — six of its twenty-three strings are already read by no code — so
+-- the constraint would be a landmine with a known trigger. It is enforced at the
+-- write boundary instead (the zod schema 400s an unknown permission) and
+-- filtered at the read boundary (`resolveEffectivePermissions` builds its result
+-- by filtering the vocabulary, so a retired string cannot grant anything). A
+-- string that goes out of vocabulary is left in the row rather than scrubbed,
+-- for the same reason 0013 left `organization_category` in place: re-instating
+-- the permission restores the grant instead of having silently lost it.
+--
+-- Adding a column with a non-volatile DEFAULT does not rewrite the table on
+-- Postgres 11+ (the default is recorded in `pg_attribute.attmissingval`), so
+-- neither statement takes a long ACCESS EXCLUSIVE lock on `account_members`.
+--
+-- NOT IN THIS MIGRATION, deliberately: `db:generate` also proposes dropping
+-- `users.organization_category` and its CHECK, because the schema stopped
+-- declaring the column in 0013 while that migration deliberately left it in the
+-- database. Its drop is 0013's deferred second half — gated on a pre-check
+-- written into that file — and carrying it along inside an unrelated migration
+-- would apply someone else's deferred decision without the pre-check having been
+-- run. `meta/0014_snapshot.json` therefore still records the column, so a future
+-- `db:generate` proposes the drop again rather than recording it as applied.
+
+ALTER TABLE "account_members" ADD COLUMN "permission_grants" text[] DEFAULT '{}' NOT NULL;--> statement-breakpoint
+ALTER TABLE "account_members" ADD COLUMN "permission_revokes" text[] DEFAULT '{}' NOT NULL;

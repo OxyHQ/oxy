@@ -1,7 +1,7 @@
 /**
- * Push service tests.
+ * Push service, against a REAL Postgres registry with only `fetch` stubbed.
  *
- * Two things are pinned here:
+ * Three things are pinned here:
  *
  *  1. **The email notification is byte-for-byte what it always was.** The
  *     hardcoded `channelId: 'email'` became a caller-supplied channel; the wire
@@ -10,29 +10,48 @@
  *  2. **The channel is caller-supplied and never defaulted**, and the explicit
  *     token-targeting entry point delivers to exactly the tokens it is given
  *     (used by identity-approval delivery, where the CALLER owns the targeting).
+ *  3. **`DeviceNotRegistered` pruning really removes the row, and only that
+ *     row.** The previous version asserted that `PushToken.deleteOne` had been
+ *     CALLED with a particular filter object — which is a claim about a query,
+ *     not about the registry. Here the installs are real rows, so the assertion
+ *     is that the dead one is gone and the live ones (including another
+ *     identity's install of the same token string) are untouched.
  *
- * Batching and `DeviceNotRegistered` pruning are exercised too — they must
- * survive the parameterisation.
+ * Batching survives the parameterisation too.
  */
 
-const mockPushTokenFind = jest.fn();
-const mockPushTokenDeleteOne = jest.fn();
-
-jest.mock('../../models/PushToken', () => ({
-  __esModule: true,
-  PushToken: { find: mockPushTokenFind, deleteOne: mockPushTokenDeleteOne },
-  default: { find: mockPushTokenFind, deleteOne: mockPushTokenDeleteOne },
-}));
+import { randomUUID } from 'node:crypto';
+import { asc, eq } from 'drizzle-orm';
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
+import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
+import { pushTokens } from '../../db/schema/pushTokens';
+import { users } from '../../db/schema/users';
 import { pushService } from '../push.service';
 
-/** `PushToken.find(...).select(...).lean()` chain. */
-function findChain(rows: { token: string }[]) {
-  return { select: () => ({ lean: () => Promise.resolve(rows) }) };
+let USER_ID: string;
+let OTHER_USER_ID: string;
+
+async function insertUser(): Promise<string> {
+  const [row] = await getDb().insert(users).values({}).returning({ id: users.id });
+  return row.id;
+}
+
+async function insertInstall(userId: string, token: string): Promise<void> {
+  await getDb().insert(pushTokens).values({ userId, token, platform: 'ios' });
+}
+
+/** Every token registered for `userId`, oldest first. */
+async function installsOf(userId: string): Promise<string[]> {
+  const rows = await getDb()
+    .select({ token: pushTokens.token })
+    .from(pushTokens)
+    .where(eq(pushTokens.userId, userId))
+    .orderBy(asc(pushTokens.createdAt), asc(pushTokens.token));
+  return rows.map((row) => row.token);
 }
 
 function okTickets(count: number) {
@@ -45,25 +64,31 @@ function okTickets(count: number) {
 const originalFetch = global.fetch;
 let fetchMock: jest.Mock;
 
-beforeEach(() => {
+beforeAll(async () => {
+  await connectPostgres();
+});
+
+afterAll(async () => {
+  global.fetch = originalFetch;
+  await closePostgres();
+});
+
+beforeEach(async () => {
   jest.clearAllMocks();
   fetchMock = jest.fn();
   global.fetch = fetchMock as unknown as typeof fetch;
-  mockPushTokenDeleteOne.mockResolvedValue({ deletedCount: 1 });
-});
-
-afterAll(() => {
-  global.fetch = originalFetch;
+  USER_ID = await insertUser();
+  OTHER_USER_ID = await insertUser();
 });
 
 describe('pushService.sendPushNotification — email notification is unchanged', () => {
   it('sends the exact same wire payload the email caller always sent', async () => {
-    mockPushTokenFind.mockReturnValue(findChain([{ token: 'ExponentPushToken[email-device]' }]));
+    await insertInstall(USER_ID, 'ExponentPushToken[email-device]');
     fetchMock.mockResolvedValue(okTickets(1));
 
     // Exactly what `email.service.ts` passes on an inbound non-spam message.
     await pushService.sendPushNotification({
-      userId: 'user-1',
+      userId: USER_ID,
       title: 'Ada Lovelace',
       body: 'Analytical Engine notes',
       channelId: 'email',
@@ -88,26 +113,28 @@ describe('pushService.sendPushNotification — email notification is unchanged',
     );
   });
 
-  it('targets every install of the user and reports accepted counts', async () => {
-    mockPushTokenFind.mockReturnValue(findChain([{ token: 'tok-a' }, { token: 'tok-b' }]));
+  it('targets every install of the user and NO install of anybody else', async () => {
+    await insertInstall(USER_ID, 'tok-a');
+    await insertInstall(USER_ID, 'tok-b');
+    await insertInstall(OTHER_USER_ID, 'tok-someone-else');
     fetchMock.mockResolvedValue(okTickets(2));
 
     const result = await pushService.sendPushNotification({
-      userId: 'user-1',
+      userId: USER_ID,
       title: 'T',
       body: 'B',
       channelId: 'email',
     });
 
-    expect(mockPushTokenFind).toHaveBeenCalledWith({ userId: 'user-1' });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const sent = JSON.parse(String(init.body)) as Array<{ to: string }>;
+    expect(sent.map((m) => m.to).sort()).toEqual(['tok-a', 'tok-b']);
     expect(result).toEqual({ targeted: 2, accepted: 2 });
   });
 
   it('does not call the push API when the user has no installs', async () => {
-    mockPushTokenFind.mockReturnValue(findChain([]));
-
     const result = await pushService.sendPushNotification({
-      userId: 'user-1',
+      userId: USER_ID,
       title: 'T',
       body: 'B',
       channelId: 'email',
@@ -123,7 +150,7 @@ describe('pushService — caller-supplied channel', () => {
     fetchMock.mockResolvedValue(okTickets(1));
 
     await pushService.sendPushToTokens({
-      userId: 'user-1',
+      userId: USER_ID,
       tokens: ['tok-a'],
       title: 'Sign-in request',
       body: 'Open Commons to review this request.',
@@ -144,17 +171,19 @@ describe('pushService — caller-supplied channel', () => {
 
 describe('pushService.sendPushToTokens — explicit targeting', () => {
   it('delivers to exactly the tokens it was given (never a registry lookup)', async () => {
+    // The identity has a DIFFERENT install registered; explicit targeting must
+    // ignore the registry entirely, because the caller owns the decision.
+    await insertInstall(USER_ID, 'tok-registered-but-not-targeted');
     fetchMock.mockResolvedValue(okTickets(2));
 
     const result = await pushService.sendPushToTokens({
-      userId: 'user-1',
+      userId: USER_ID,
       tokens: ['tok-a', 'tok-b'],
       title: 'T',
       body: 'B',
       channelId: 'auth-approval',
     });
 
-    expect(mockPushTokenFind).not.toHaveBeenCalled();
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const sent = JSON.parse(String(init.body)) as Array<{ to: string }>;
     expect(sent.map((m) => m.to)).toEqual(['tok-a', 'tok-b']);
@@ -166,7 +195,7 @@ describe('pushService.sendPushToTokens — explicit targeting', () => {
 
     await expect(
       pushService.sendPushToTokens({
-        userId: 'user-1',
+        userId: USER_ID,
         tokens: ['tok-a'],
         title: 'T',
         body: 'B',
@@ -180,7 +209,7 @@ describe('pushService.sendPushToTokens — explicit targeting', () => {
 
     await expect(
       pushService.sendPushToTokens({
-        userId: 'user-1',
+        userId: USER_ID,
         tokens: ['tok-a'],
         title: 'T',
         body: 'B',
@@ -189,7 +218,13 @@ describe('pushService.sendPushToTokens — explicit targeting', () => {
     ).resolves.toEqual({ targeted: 1, accepted: 0 });
   });
 
-  it('prunes DeviceNotRegistered tokens and still counts the accepted ones', async () => {
+  it('deletes the DeviceNotRegistered install and leaves every other row alone', async () => {
+    await insertInstall(USER_ID, 'tok-live');
+    await insertInstall(USER_ID, 'tok-dead');
+    // The same token string belonging to a DIFFERENT identity: the prune is
+    // scoped to (user, token), so this row must survive.
+    await insertInstall(OTHER_USER_ID, 'tok-dead');
+
     fetchMock.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({
@@ -201,24 +236,47 @@ describe('pushService.sendPushToTokens — explicit targeting', () => {
     });
 
     const result = await pushService.sendPushToTokens({
-      userId: 'user-1',
+      userId: USER_ID,
       tokens: ['tok-live', 'tok-dead'],
       title: 'T',
       body: 'B',
       channelId: 'auth-approval',
     });
 
-    expect(mockPushTokenDeleteOne).toHaveBeenCalledTimes(1);
-    expect(mockPushTokenDeleteOne).toHaveBeenCalledWith({ userId: 'user-1', token: 'tok-dead' });
+    expect(await installsOf(USER_ID)).toEqual(['tok-live']);
+    expect(await installsOf(OTHER_USER_ID)).toEqual(['tok-dead']);
     expect(result).toEqual({ targeted: 2, accepted: 1 });
+  });
+
+  it('keeps an install the push service rejected for some OTHER reason', async () => {
+    // Only `DeviceNotRegistered` retires a token. A rate-limit or a message-size
+    // error is transient and must not cost the user their registration.
+    await insertInstall(USER_ID, 'tok-live');
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        data: [{ status: 'error', details: { error: 'MessageTooBig' } }],
+      }),
+    });
+
+    const result = await pushService.sendPushToTokens({
+      userId: USER_ID,
+      tokens: ['tok-live'],
+      title: 'T',
+      body: 'B',
+      channelId: 'auth-approval',
+    });
+
+    expect(await installsOf(USER_ID)).toEqual(['tok-live']);
+    expect(result).toEqual({ targeted: 1, accepted: 0 });
   });
 
   it('batches at 100 messages per request', async () => {
     fetchMock.mockImplementation(() => Promise.resolve(okTickets(100)));
 
-    const tokens = Array.from({ length: 150 }, (_, i) => `tok-${i}`);
+    const tokens = Array.from({ length: 150 }, () => `tok-${randomUUID()}`);
     await pushService.sendPushToTokens({
-      userId: 'user-1',
+      userId: USER_ID,
       tokens,
       title: 'T',
       body: 'B',

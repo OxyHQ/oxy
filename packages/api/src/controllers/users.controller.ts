@@ -6,13 +6,19 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import User from '../models/User';
+import { and } from 'drizzle-orm';
+import { getDb } from '../config/postgres';
+import { users } from '../db/schema/users';
 import { logger } from '../utils/logger';
 import { BadRequestError, InternalServerError } from '../utils/error';
 import { sendSuccess } from '../utils/asyncHandler';
-import { sanitizeSearchQuery } from '../utils/sanitize';
-import { peopleSearchMongoMatch } from '../utils/profileQuery';
-import { PUBLIC_USER_PROFILE_SELECT } from '../utils/publicUserProjection';
+import {
+  normalizePeopleSearchTerm,
+  peopleSearchMatch,
+  peopleSearchPredicate,
+} from '../utils/profileQuery';
+import { publicUserColumns, toPublicUserView } from '../utils/publicUserProjection';
+import { formatUserResponse } from '../utils/userTransform';
 
 export class UsersController {
   /**
@@ -36,30 +42,27 @@ export class UsersController {
       // `@adamrbjack.bsky.social` finds `adamrbjack.bsky.social@bsky.social`, and
       // a Mastodon `@user@host` matches `user@host`. Only ONE leading `@` is
       // removed — a mid-string `@` (the `user@host` separator) is preserved.
-      const strippedQuery = query.trim().replace(/^@/, '');
+      // The term is passed RAW: `peopleSearchMatch` escapes it for LIKE and
+      // binds it as a parameter, so escaping it here as well would make `a+b`
+      // search for a literal backslash.
+      const term = normalizePeopleSearchTerm(query);
 
-      // Sanitize search query (length limit + regex escaping)
-      const sanitizedQuery = sanitizeSearchQuery(strippedQuery);
+      const rows = await getDb()
+        .select(publicUserColumns)
+        .from(users)
+        .where(and(peopleSearchPredicate(), peopleSearchMatch(term)))
+        .limit(5);
 
-      // Search for users where username or name matches the query.
-      const users = await User.find({
-        ...peopleSearchMongoMatch,
-        $or: [
-          { username: { $regex: sanitizedQuery, $options: 'i' } },
-          { 'name.first': { $regex: sanitizedQuery, $options: 'i' } },
-          { 'name.last': { $regex: sanitizedQuery, $options: 'i' } },
-        ],
-      })
-        .select(PUBLIC_USER_PROFILE_SELECT)
-        .limit(5)
-        .lean();
+      const formattedUsers = rows
+        .map((row) => formatUserResponse(toPublicUserView(row)))
+        .filter((user): user is NonNullable<typeof user> => user !== null);
 
       logger.debug('User search performed', {
-        query: sanitizedQuery,
-        resultsCount: users.length,
+        query: term,
+        resultsCount: formattedUsers.length,
       });
 
-      sendSuccess(res, users);
+      sendSuccess(res, formattedUsers);
     } catch (error) {
       // Re-throw known errors
       if (error instanceof BadRequestError || error instanceof InternalServerError) {

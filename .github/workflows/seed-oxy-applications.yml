@@ -1,0 +1,214 @@
+name: Seed Oxy applications
+
+# Registers the official Oxy applications — and, more to the point today, MINTS
+# THE CLIENT ID an app needs before anybody can sign in to it.
+#
+# `packages/api/scripts/seed-oxy-applications.ts` declares each application, but a
+# declaration is not a registration: the `clientId` is the public key of an
+# `ApplicationCredential` minted at seed time, so it exists only once this has run
+# against the database the live IdP reads. CrowdSource is the current case — it is
+# built, deployed and serving, and no reviewer can sign in to it because no
+# credential has ever been minted.
+#
+# WHY IT IS SHAPED LIKE THIS — three reasons. This is the reference shape for a
+# Fargate one-shot in this repo; `run-postgres-migrations.yml` follows it:
+#
+# 1. The database is on a PRIVATE VPC address, unreachable from a GitHub runner,
+#    so the script has to run as an ECS task INSIDE the VPC ("Fargate one-shot").
+#
+# 2. It runs the CURRENTLY DEPLOYED code. It reuses the live service's task
+#    definition — same secrets, role, subnets, security groups — and overrides
+#    only the command, touching nothing the service runs.
+#
+# 3. `ONLY_APPS` is REQUIRED here, with no default. The seeder resolves it before
+#    connecting, so a misspelled name costs nothing and never reaches the
+#    database; requiring it means a run can only ever touch applications somebody
+#    named on purpose. An unbounded run is possible by passing every name, which
+#    is exactly the deliberate act it should be.
+#
+# The seeder UPSERTS and reuses an existing active production credential, so a
+# second run over seeded data mints nothing and reports 0 inserts. That makes it
+# safe to re-run, and it also means a re-run is how you READ BACK a client id you
+# have lost — the summary prints the mapping either way.
+#
+# ALWAYS run dry FIRST (`dry_run=true`, the default). The plan names every
+# application the run would touch and reports the client id as
+# `(dry-run-not-minted)`; nothing is written. Read the plan, then re-run with
+# dry_run=false and take the client id from `OXY_APP_MAPPING_JSON` in the output.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only_apps:
+        description: "Comma-separated application names this run may touch (e.g. 'CrowdSource')"
+        required: true
+        type: string
+      dry_run:
+        description: 'Report what WOULD be written, write nothing'
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  # Never let two seed runs upsert the same applications at once.
+  group: seed-oxy-applications
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  APP: oxy-api
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  DOCKERFILE: Dockerfile
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  seed:
+    # This job receives production credentials and secrets. Only the protected
+    # main branch may select the code that runs in the production VPC.
+    if: github.ref == 'refs/heads/main'
+    # Same arch as the deployed image — the service runs linux/arm64.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Refuse an empty application list
+        env:
+          ONLY_APPS: ${{ inputs.only_apps }}
+        run: |
+          set -euo pipefail
+          # The seeder already fails closed on an empty value, but failing here
+          # costs no image build and no ECS task.
+          if [ -z "${ONLY_APPS// /}" ]; then
+            echo "::error::only_apps is required and must name at least one application."
+            exit 1
+          fi
+          echo "This run may touch: $ONLY_APPS"
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push the seeder image (its own tag; never `latest`)
+        id: image
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          TAG="seed-oxyapps-$(git rev-parse --short HEAD)"
+          IMG="$ECR_REGISTRY/oxy/$APP:$TAG"
+          docker build -f "$DOCKERFILE" -t "$IMG" .
+          docker push "$IMG"
+          echo "image=$IMG" >> "$GITHUB_OUTPUT"
+          echo "Built $IMG"
+
+      - name: Run the seeder as an ECS one-shot task
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          ONLY_APPS: ${{ inputs.only_apps }}
+        run: |
+          set -euo pipefail
+
+          # Task definition and network config come from the LIVE service, so the
+          # one-shot runs with the same secrets, roles, subnets and security groups
+          # the API already runs with. Nothing is hardcoded and nothing drifts when
+          # the service is redeployed.
+          SERVICE_JSON=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" \
+            --query 'services[0]' --output json)
+
+          LIVE_TASK_DEF=$(echo "$SERVICE_JSON" | jq -r '.taskDefinition')
+          SUBNETS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.subnets | join(",")')
+          SEC_GROUPS=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.securityGroups | join(",")')
+          # Mirror the service's public-IP setting: the cluster's subnets are
+          # public with NO NAT gateway, so a task without a public IP cannot even
+          # pull its image from ECR.
+          ASSIGN_IP=$(echo "$SERVICE_JSON" | jq -r '.networkConfiguration.awsvpcConfiguration.assignPublicIp')
+
+          echo "live task definition: $LIVE_TASK_DEF"
+
+          aws ecs describe-task-definition --task-definition "$LIVE_TASK_DEF" \
+            --query 'taskDefinition' --output json > live-taskdef.json
+
+          CONTAINER=$(jq -r '.containerDefinitions[0].name' live-taskdef.json)
+
+          # A throwaway revision differing from the live one ONLY by the image.
+          jq --arg img "$IMAGE" '
+            .containerDefinitions[0].image = $img
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+          ' live-taskdef.json > seed-taskdef.json
+
+          SEED_TASK_DEF=$(aws ecs register-task-definition \
+            --cli-input-json file://seed-taskdef.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+
+          echo "seed task definition: $SEED_TASK_DEF"
+
+          OVERRIDES=$(jq -nc \
+            --arg name "$CONTAINER" \
+            --arg dry "$DRY_RUN" \
+            --arg only "$ONLY_APPS" \
+            '{containerOverrides:[{
+               name: $name,
+               command: ["bun","run","packages/api/scripts/seed-oxy-applications.ts"],
+               environment: [
+                 {name:"DRY_RUN", value:$dry},
+                 {name:"ONLY_APPS", value:$only}
+               ]
+             }]}')
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$SEED_TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SEC_GROUPS],assignPublicIp=$ASSIGN_IP}" \
+            --overrides "$OVERRIDES" \
+            --started-by "gh-seed-oxyapps" \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "task: $TASK_ARN"
+          echo "Waiting for the task to stop…"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          TASK_ID="${TASK_ARN##*/}"
+          LOG_OPTS=$(jq -r '.containerDefinitions[0].logConfiguration.options' live-taskdef.json)
+          LOG_GROUP=$(echo "$LOG_OPTS" | jq -r '."awslogs-group"')
+          LOG_PREFIX=$(echo "$LOG_OPTS" | jq -r '."awslogs-stream-prefix"')
+
+          echo "──────── seeder output ────────"
+          # The mapping, including each application's clientId, is printed by the
+          # script as a single `OXY_APP_MAPPING_JSON=` line. That line is the
+          # answer this workflow exists to produce.
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "$LOG_PREFIX/$CONTAINER/$TASK_ID" \
+            --start-from-head \
+            --query 'events[].message' --output text || echo "(no logs retrieved)"
+          echo "───────────────────────────────"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          REASON=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].stoppedReason' --output text)
+
+          echo "exit code: $EXIT_CODE  (stopped reason: $REASON)"
+
+          # A seed whose result you cannot see is a seed you have not run.
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::Seed task exited with $EXIT_CODE"
+            exit 1
+          fi

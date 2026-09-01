@@ -90,7 +90,9 @@ const authorizeUrl = buildOAuthAuthorizeUrl({
   codeChallenge: pkce.codeChallenge,
   state,
 });
-// Top-level navigate to authorizeUrl; exchange the returned code at POST /auth/oauth/token.
+// Top-level navigate to authorizeUrl, then exchange the returned code at
+// POST /auth/oauth/token — an RFC 6749 §4.1.3 form-urlencoded request. The
+// `exchangeOAuthCode` method on OxyServices builds it for you.
 ```
 
 See the [integration guide](../../../docs/auth/integration-guide.md) for the full flow (SPA, confidential server, native custom scheme).

@@ -37,6 +37,110 @@ export const ErrorCodes = {
 } as const;
 
 /**
+ * The `Error` shape the SDK rejects with when an HTTP request fails.
+ *
+ * `HttpService` throws this for every non-2xx response, and
+ * `OxyServices.handleError` (the wrapper the mixin methods rethrow through)
+ * preserves `message`, `status`, `code` and `details`. `response` only survives
+ * on the raw `HttpService`/`makeRequest` path, so treat it as optional.
+ *
+ * Narrow a caught value with {@link isHttpRequestError} instead of asserting.
+ */
+export interface HttpRequestError extends Error {
+    /** HTTP status of the failed response. */
+    status: number;
+    /** Machine-readable code the server sent, when it sent one. */
+    code?: string;
+    /** Structured error detail the server sent, when it sent an object. */
+    details?: Record<string, unknown>;
+    /**
+     * Present on errors thrown directly by `HttpService`. `data` is the parsed
+     * JSON error body verbatim — the escape hatch for any server field the SDK
+     * does not lift onto `code`/`details`.
+     */
+    response?: {
+        status: number;
+        statusText: string;
+        data?: unknown;
+    };
+}
+
+/**
+ * Narrow a caught value to {@link HttpRequestError}.
+ *
+ * Returns `false` for a plain {@link ApiError} object (those are objects, not
+ * `Error`s) — run an arbitrary thrown value through {@link handleHttpError}
+ * first if you need one normalized.
+ */
+export function isHttpRequestError(value: unknown): value is HttpRequestError {
+    if (!(value instanceof Error)) {
+        return false;
+    }
+    return typeof (value as Partial<HttpRequestError>).status === 'number';
+}
+
+/**
+ * The fields {@link parseHttpErrorBody} lifts off a parsed error response body.
+ */
+export interface ParsedHttpErrorBody {
+    message?: string;
+    code?: string;
+    details?: Record<string, unknown>;
+}
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const nonEmptyString = (value: unknown): string | undefined =>
+    typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+
+/**
+ * Extract `message` / `code` / `details` from a parsed HTTP error response body.
+ *
+ * Handles every error envelope in use across the Oxy ecosystem:
+ *
+ * - `{ error: { code, message, details? } }` — nested envelope (CrowdSource and
+ *   other Oxy services). Never stringify the nested object: `new Error(obj)`
+ *   yields the literal message `"[object Object]"`.
+ * - `{ error: '<CODE>', message, details? }` — oxy-api's canonical shape
+ *   (`ApiError.toJSON`), where the top-level `error` field IS the code.
+ * - `{ error: '<CODE>', error_description }` — RFC 6749 §5.2 / RFC 6750 §3, the
+ *   OAuth token and userinfo endpoints. `error_description` is the human text
+ *   and `error` is the machine code, so both survive.
+ * - `{ message, code }` — e.g. the API's CSRF rejections.
+ * - `{ error: '<human message>' }` — legacy hand-rolled routes. With no sibling
+ *   `message`/`error_description` the string is the message, not a code: a bare
+ *   `error` string is not machine-readable enough to promote to `code`.
+ *
+ * Anything else — a non-object body (`null`, `[]`, `"str"`, `42`), or an object
+ * carrying none of these fields — yields an empty result, leaving the caller on
+ * its status-based fallback message. Total function: never throws.
+ */
+export function parseHttpErrorBody(body: unknown): ParsedHttpErrorBody {
+    if (!isPlainRecord(body)) {
+        return {};
+    }
+
+    const nested = isPlainRecord(body.error) ? body.error : undefined;
+    const errorString = nonEmptyString(body.error);
+    // A sibling that proves the top-level `error` is a CODE rather than prose.
+    const siblingMessage = nonEmptyString(body.message) ?? nonEmptyString(body.error_description);
+
+    return {
+        message: siblingMessage ?? (nested ? nonEmptyString(nested.message) : errorString),
+        code:
+            (nested ? nonEmptyString(nested.code) : undefined) ??
+            nonEmptyString(body.code) ??
+            (siblingMessage ? errorString : undefined),
+        details: isPlainRecord(body.details)
+            ? body.details
+            : nested && isPlainRecord(nested.details)
+                ? nested.details
+                : undefined,
+    };
+}
+
+/**
  * Create a standardized API error
  */
 export function createApiError(
@@ -98,21 +202,28 @@ export function handleHttpError(error: unknown): ApiError {
 
   // Handle fetch Response errors - check if it has response property with status
   if (error && typeof error === 'object' && 'response' in error) {
-    const fetchError = error as { 
-      response?: { 
-        status: number; 
+    const fetchError = error as {
+      response?: {
+        status: number;
         statusText?: string;
       };
       status?: number;
       message?: string;
+      details?: unknown;
     };
-    
+
     const status = fetchError.response?.status || fetchError.status;
     if (status) {
+      // `details` is carried through when present: a body may ship structured
+      // detail without a machine-readable `code` (which is what routes the
+      // error to the already-an-ApiError branch above), and dropping it here
+      // would make it unreachable to every caller that rethrows via
+      // `OxyServices.handleError`.
       return createApiError(
         fetchError.message || `HTTP ${status} error`,
         getErrorCodeFromStatus(status),
-        status
+        status,
+        isPlainRecord(fetchError.details) ? fetchError.details : undefined
       );
     }
   }

@@ -1,9 +1,13 @@
 /**
  * Device-boot mixin tests. Stubs `makeRequest` so the tests run with no network
  * and asserts `mintFromDeviceSecret`'s route/shape, contract validation, and the
- * `skipAuth` flag on the bearer-less mint call.
+ * `skipAuth` flag on the bearer-less mint call, plus `provisionBackgroundCredential`'s
+ * route/options, contract validation and its 404-tolerant degrade.
  */
-import type { DeviceTokenMintResponse } from '@oxyhq/contracts';
+import type {
+  DeviceBackgroundCredentialResponse,
+  DeviceTokenMintResponse,
+} from '@oxyhq/contracts';
 import { OxyServices } from '../../OxyServices';
 
 describe('OxyServices.deviceBoot', () => {
@@ -62,6 +66,59 @@ describe('OxyServices.deviceBoot', () => {
       const err = Object.assign(new Error('no_active_session'), { status: 401 });
       makeRequest.mockRejectedValueOnce(err);
       await expect(oxy.mintFromDeviceSecret('dev-1', 'ds')).rejects.toThrow('no_active_session');
+    });
+  });
+
+  describe('provisionBackgroundCredential', () => {
+    const CREDENTIAL: DeviceBackgroundCredentialResponse = {
+      deviceId: 'dev-1',
+      secret: 'bg-secret',
+      accountId: 'user-1',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    };
+
+    /** `HttpService` annotates its rejections with both `status` and `response.status`. */
+    const httpError = (status: number, message: string) =>
+      Object.assign(new Error(message), {
+        status,
+        response: { status, statusText: message },
+      });
+
+    it('POSTs to the background-credential route with NO body and no cache, and returns the validated credential', async () => {
+      makeRequest.mockResolvedValueOnce(CREDENTIAL);
+      const result = await oxy.provisionBackgroundCredential();
+      expect(result).toEqual(CREDENTIAL);
+      // No body: the server derives BOTH the deviceId and the account from the
+      // validated bearer. Normal authenticated path — no skipAuth (a 401 belongs
+      // in the ordinary re-mint lane), no bypassQueue (not control-plane).
+      expect(makeRequest).toHaveBeenCalledWith(
+        'POST',
+        '/session/device/background-credential',
+        undefined,
+        { cache: false },
+      );
+    });
+
+    it('returns null on 404 (endpoint absent) instead of throwing, so an SDK ahead of the API degrades to "no background session"', async () => {
+      makeRequest.mockRejectedValueOnce(httpError(404, 'HTTP 404: Not Found'));
+      await expect(oxy.provisionBackgroundCredential()).resolves.toBeNull();
+    });
+
+    it('throws on an unexpected response shape (missing secret)', async () => {
+      makeRequest.mockResolvedValueOnce({
+        deviceId: 'dev-1',
+        accountId: 'user-1',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+      });
+      await expect(oxy.provisionBackgroundCredential()).rejects.toThrow();
+    });
+
+    it('propagates a non-404 failure (401 / 500) — only an absent endpoint degrades quietly', async () => {
+      makeRequest.mockRejectedValueOnce(httpError(401, 'unauthorized'));
+      await expect(oxy.provisionBackgroundCredential()).rejects.toThrow('unauthorized');
+
+      makeRequest.mockRejectedValueOnce(httpError(500, 'server exploded'));
+      await expect(oxy.provisionBackgroundCredential()).rejects.toThrow('server exploded');
     });
   });
 });

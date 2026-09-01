@@ -19,6 +19,21 @@ interface RateLimitOptions {
   max: number;
   keyGenerator?: (req: Request) => string;
   message?: string;
+  /**
+   * Skip this limiter entirely for a request.
+   *
+   * For limiters whose KEY only exists once an earlier middleware has resolved a
+   * principal — the machine-credential limiters key on `credentialId` /
+   * `applicationId`, which a session-authenticated request on the same route
+   * simply does not have. Without this they would bucket every such request
+   * under one shared key and exhaust it for everybody; with it they measure only
+   * the traffic they are about.
+   *
+   * A `skip` must be the NEGATION of "the key exists", never a policy decision:
+   * anything that decides whether a caller deserves a limit belongs in the
+   * route, where it is visible.
+   */
+  skip?: (req: Request) => boolean;
 }
 
 function makeStore(prefix: string) {
@@ -42,5 +57,9 @@ export function rateLimit(options: RateLimitOptions) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: options.keyGenerator ?? hashedIpKey,
+    ...(options.skip ? { skip: options.skip } : {}),
+    // hashedIpKey already buckets IPv6 to /56 before HMAC (see ipKey.ts); the v8
+    // static source scan false-positives on req.ip and spams ERR_ERL_KEY_GEN_IPV6.
+    validate: { keyGeneratorIpFallback: false },
   });
 }

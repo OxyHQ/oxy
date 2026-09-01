@@ -1,0 +1,103 @@
+---
+title: Listing on the app store
+description: Writing your app's store page, submitting it for review, screenshots, and replying to reviews.
+order: 4
+---
+
+# Listing on the app store
+
+A **store listing** is the page people read before they decide whether to use your app. It is separate from the app itself: registering a [developer app](/developers/docs/console#developer-apps) gets you an OAuth client, and a listing is what puts that client on a shelf where somebody can find it.
+
+The two stay separate on purpose. Turn the store off and OAuth still works; delete a listing and the app keeps running for everyone who already uses it.
+
+Not every app wants one. An internal tool, a service credential, a first-party client nobody chooses — those simply have no listing, which is why it is a separate record and not more fields on the app.
+
+## What the listing holds, and what it does not
+
+Your store page carries the things that only make sense in a store:
+
+| Field | |
+|-------|--|
+| **Store address** | The slug in the URL — `oxy.so/apps/mention`. Lowercase letters, digits and single hyphens. |
+| **Tagline** | One line, shown whole on the card. |
+| **Description** | Markdown. The long text on the page. |
+| **Category** | One shelf. |
+| **Support page / email** | Where somebody goes when it misbehaves. |
+| **Screenshots** | In the order you set. |
+
+It does **not** carry your app's name, icon, website, privacy policy or terms. Those live on the app record and the store reads them, so the consent screen and the store page cannot disagree about what your app is called or where its privacy policy is. Edit them under **Apps → your app → Settings**.
+
+It also carries no version history and no install count. The store renders your published updates and your grant records directly — a copy here would be a second number that drifts.
+
+<Callout>
+**The rating is not a field.** It is computed from the visible reviews every time the page is read, so hiding an abusive review takes it out of the average immediately rather than when some counter is next repaired.
+</Callout>
+
+## Writing the page
+
+**Apps → your app → Store.**
+
+The form is the whole page. Saving replaces what was there, which is what makes clearing a tagline expressible at all — leave a field empty and it is stored as empty, not skipped.
+
+A new page starts as a **draft**. Only you and the rest of your account's members can see it.
+
+## The four states
+
+```
+draft ──submit──▶ in review ──approve──▶ published
+  ▲                   │                     │
+  └──withdraw─────────┘                     │
+  ▲                   │                     │
+  │                   └──reject──▶ sent back│
+  └──────────────────────────────────────take down
+```
+
+| State | What it means |
+|-------|---------------|
+| **Draft** | Only you can see it. Submit it when you want the store to look. |
+| **In review** | With the store. You can withdraw it while it waits. |
+| **Published** | Live. |
+| **Sent back** | The store did not publish it. Fix what it asked for and submit again. |
+
+Two things follow from this that are worth knowing before you are surprised by them:
+
+**Saving does not move the page.** Correcting a typo on a live listing leaves it live, and the correction is visible immediately. Fixing a rejected page does not re-submit it — press **Submit for review** when you are ready.
+
+**Taking a page down returns it to a draft.** It does not delete anything: the slug, the words and the screenshots are yours and stay. Nor does it touch the reviews, which are about the app rather than the page.
+
+<Callout variant="warning">
+**Changing the store address after publishing breaks the old one.** Every link anyone has saved carries the slug. Pick it before you submit.
+</Callout>
+
+## Screenshots
+
+Upload an image and it is appended to the end. Move them with the arrows; the order you see is the order on the page.
+
+Removing a screenshot unpins the image from the listing — it does not delete the uploaded file, which may be in use elsewhere.
+
+The file has to be an image, has to be live, and has to belong to you or to an account you can act for. That last one is the same membership check that governs every other write to your app, so a colleague can attach an asset the account owns and nobody can attach a stranger's.
+
+## Reviews, and replying to them
+
+Anyone signed in to Oxy can review your app: one review each, whole stars from one to five, and writing again replaces what they said rather than adding a second.
+
+A reader can see whether a reviewer has actually authorized your app — it is read from their grant when the page loads, not stored on the review, so it stops being true the moment they disconnect. It is absent for a first-party app nobody has to consent to, so its absence means nothing in particular.
+
+**You can answer each review once.** The reply shows under it and is attributed to whoever wrote it, not to the app — moderation needs a person's name on it. Editing the reply re-attributes it to whoever edited.
+
+Replying needs the same permission as editing the app itself, so an **owner**, an **admin** or an **editor** on the owning account can do it, and a **viewer**, a **developer** or a **billing** member cannot.
+
+## Who can do what
+
+Everything on this page derives from your role on the account that **owns** the app — there is no separate store membership.
+
+| | Read the page | Edit it, submit, reply |
+|--|--|--|
+| Owner, admin, editor | ✅ | ✅ |
+| Developer, billing, viewer | ✅ | — |
+
+If a control is missing rather than disabled, it is because your role does not carry it.
+
+## Doing it from code
+
+Everything here is in the `@oxyhq/core` client — `getAppListing`, `writeAppListing`, `submitAppListing`, `unpublishAppListing`, and the screenshot calls. See the [REST reference](/developers/docs/api) for the endpoints behind them.

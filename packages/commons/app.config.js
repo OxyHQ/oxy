@@ -11,6 +11,19 @@ const IS_DEV_VARIANT = process.env.APP_VARIANT === 'development';
 const APP_ID = IS_DEV_VARIANT ? 'so.oxy.commons.dev' : 'so.oxy.commons';
 const APP_NAME = IS_DEV_VARIANT ? 'Commons (Dev)' : 'Commons by Oxy';
 
+// Registered ApplicationCredential publicKey, used at BUILD time to bake this
+// app's Oxy Updates manifest URL into the binary. It must equal the runtime
+// value in `constants/oxy.ts` (that file cannot be required from here: it is
+// TypeScript and app.config.js is plain CommonJS), so
+// `__tests__/updates/app-config-client-id.test.ts` asserts the two agree.
+const OXY_CLIENT_ID =
+  process.env.EXPO_PUBLIC_OXY_CLIENT_ID ??
+  'oxy_dk_f65326da2a0d106bf98e873ce19b0ca9094d6c0c1f845a18';
+
+// Channel this binary polls. `production` unless a preview build overrides it;
+// `oxy-ship publish --channel <name>` writes to the matching channel.
+const OXY_UPDATES_CHANNEL = process.env.EXPO_PUBLIC_OXY_UPDATES_CHANNEL ?? 'production';
+
 module.exports = {
   expo: {
     name: APP_NAME,
@@ -28,7 +41,7 @@ module.exports = {
         backgroundImage: './assets/images/android-icon-background.png',
         monochromeImage: './assets/images/android-icon-monochrome.png',
       },
-      versionCode: 2,
+      versionCode: 3,
       predictiveBackGestureEnabled: true,
       softwareKeyboardLayoutMode: 'resize',
       permissions: [
@@ -124,11 +137,7 @@ module.exports = {
       // must be in the same shared-keychain UID as the other Oxy apps so
       // "Sign in with Oxy" shares the session across apps (requires all Oxy apps
       // to be signed with the same key — the oxy-ecosystem release keystore).
-      // The dev variant is a CLEAN ROOM: a distinct applicationId AND no
-      // sharedUserId, so a debug-signed build can install beside the
-      // release-signed production app (a shared UID requires one identical
-      // certificate) and can never orphan the production identity's keys.
-      ...(IS_DEV_VARIANT ? [] : ['./plugins/withSharedUserId']),
+      './plugins/withSharedUserId',
       // Release buildType bits expo-build-properties cannot express: the R8
       // -optimize proguard file, and the real release signing config
       // (credentials come from Gradle properties, never the repo). Commons
@@ -139,11 +148,29 @@ module.exports = {
       // now ships inside @oxyhq/services) that lets same-key Oxy apps read the
       // shared identity keypair Commons writes. Commons is the ONLY app that
       // hosts it.
-      // Skipped in the clean-room dev variant: a debug-signed build cannot share
-      // the signature-level so.oxy.shared.permission.READ_IDENTITY the installed
-      // release app already owns (INSTALL_FAILED_DUPLICATE_PERMISSION), and with a
-      // different certificate it could never read that provider anyway.
-      ...(IS_DEV_VARIANT ? [] : ['@oxyhq/services/plugins/withSharedIdentityProvider']),
+      '@oxyhq/services/plugins/withSharedIdentityProvider',
+      // Also hosts the OxyDeviceSessionProvider — a SEPARATE provider, permission
+      // and encrypted file for the shared DEVICE SESSION credential. Commons is
+      // identity-bound and never publishes into that slot itself; it hosts the
+      // provider because, as a member of the so.oxy.shared UID, it serves the
+      // same file its UID siblings write, so a same-signature app outside the UID
+      // can join the device session even when Accounts is not installed.
+      '@oxyhq/services/plugins/withSharedDeviceSessionProvider',
+      // Oxy Updates (OTA). Points expo-updates at this app's manifest endpoint on
+      // the self-hosted update server in oxy-api, sets the runtimeVersion policy
+      // and wires the ecosystem code-signing certificate. `expo-updates` itself
+      // needs no entry here: prebuild applies its config plugin automatically for
+      // every installed versioned Expo SDK package.
+      [
+        '@oxyhq/app-preset/plugin/withOxyUpdates',
+        {
+          clientId: OXY_CLIENT_ID,
+          channel: OXY_UPDATES_CHANNEL,
+          ...(process.env.EXPO_PUBLIC_API_URL
+            ? { apiOrigin: process.env.EXPO_PUBLIC_API_URL }
+            : {}),
+        },
+      ],
       'expo-secure-store',
       'expo-font',
       'expo-image',

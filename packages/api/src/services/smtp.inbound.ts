@@ -8,14 +8,50 @@
 
 import { SMTPServer, type SMTPServerSession, type SMTPServerAddress, type SMTPServerDataStream } from 'smtp-server';
 import { simpleParser, type ParsedMail } from 'mailparser';
+import { sql } from 'drizzle-orm';
 import { SMTP_INBOUND_CONFIG, EMAIL_DOMAIN, extractUsername, extractAliasTag } from '../config/email.config';
+import { getDb } from '../config/postgres';
+import { users } from '../db/schema/users';
 import { emailService } from './email.service';
 import { spamService } from './spam.service';
-import User from '../models/User';
 import { logger } from '../utils/logger';
 import fs from 'fs';
 
 let smtpServer: SMTPServer | null = null;
+
+/**
+ * The account a `RCPT TO` address belongs to, or `null` when there is none.
+ *
+ * Extracted from the `onRcptTo` handler so the lookup this SMTP server accepts
+ * or rejects mail on is reachable without booting a TLS listener — the handler
+ * itself is a closure inside `new SMTPServer({...})` and `startSmtpInbound`
+ * refuses to run without readable certificates.
+ *
+ * The match is written `lower(btrim(username)) = lower(btrim($1))`, the
+ * EXPRESSION `users_lower_username_key` is built on and the same spelling the
+ * Cloudflare-webhook path uses (`routes/emailInbound.ts`). Mongo compared
+ * `{ username }` for exact equality against a lower-cased address, so mail to
+ * `Nate@oxy.so` was rejected for an account stored as `Nate` while the webhook
+ * path delivered it — the two inbound routes now agree.
+ *
+ * Only `id` is selected. `users` is in `db/schema/protectedColumns.ts`, and a
+ * bare `select()` here would pull the raw phone, the contact-discovery hashes
+ * and the refresh token into an SMTP handler.
+ */
+export async function findRecipientAccountId(emailAddress: string): Promise<string | null> {
+  const username = extractUsername(emailAddress.toLowerCase());
+  if (!username) {
+    return null;
+  }
+
+  const [account] = await getDb()
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(btrim(${users.username})) = lower(btrim(${username}))`)
+    .limit(1);
+
+  return account?.id ?? null;
+}
 
 /**
  * Create and start the SMTP inbound server.
@@ -83,14 +119,13 @@ export function startSmtpInbound(): SMTPServer {
     ) {
       try {
         const emailAddr = address.address.toLowerCase();
-        const username = extractUsername(emailAddr);
 
-        if (!username) {
+        if (!extractUsername(emailAddr)) {
           return callback(new Error(`550 Recipient rejected: not our domain`));
         }
 
-        const user = await User.findOne({ username }).select('_id').lean();
-        if (!user) {
+        const accountId = await findRecipientAccountId(emailAddr);
+        if (!accountId) {
           return callback(new Error(`550 Recipient not found: ${emailAddr}`));
         }
 

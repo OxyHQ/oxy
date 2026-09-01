@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import { toast } from '@oxyhq/bloom';
+import { toast } from '@oxyhq/bloom/toast';
 import type { OxyServices } from '@oxyhq/core';
 import type { Translate } from './types';
 

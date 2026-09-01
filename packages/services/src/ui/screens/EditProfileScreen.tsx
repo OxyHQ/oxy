@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
-import { getAccountDisplayName } from '@oxyhq/core';
+import { getNormalizedUserHandle } from '@oxyhq/core';
 import type { BaseScreenProps } from '../types/navigation';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import ProfileSummaryCard from '../components/ProfileSummaryCard';
@@ -24,12 +24,15 @@ import type { ProfileFieldType } from './EditProfileFieldScreen';
  */
 const EditProfileScreen: React.FC<BaseScreenProps> = ({ navigate }) => {
     const bloomTheme = useTheme();
-    const { t, locale } = useI18n();
+    const { t } = useI18n();
     const { user, oxyServices, openAvatarPicker } = useOxy();
 
     useSurfaceHeader({ title: t('editProfile.title') || 'Edit Profile' });
 
-    const displayName = useMemo(() => getAccountDisplayName(user, locale), [user, locale]);
+    const displayName = useMemo(
+        () => user?.name?.displayName ?? getNormalizedUserHandle(user) ?? '',
+        [user],
+    );
     const avatarUri = useMemo(
         () => (user?.avatar ? oxyServices.getFileDownloadUrl(user.avatar, 'thumb') : undefined),
         [user?.avatar, oxyServices],

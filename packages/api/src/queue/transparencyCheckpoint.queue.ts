@@ -24,7 +24,7 @@
  */
 
 import { Queue, Worker, type Job } from 'bullmq';
-import { buildCheckpoint } from '../services/transparency.service';
+import { buildCheckpoint, getLatestCheckpoint } from '../services/transparency.service';
 import { logger } from '../utils/logger';
 import { getQueueConnectionOptions } from './connection';
 import { isQueueEnabled } from './queueManager';
@@ -66,6 +66,32 @@ export async function publishCheckpoint(periodEnd: number): Promise<void> {
   }
 }
 
+/**
+ * Publish a genesis checkpoint on boot when the log is empty, and surface a
+ * distinct error when signing is misconfigured so silent 404s do not linger.
+ */
+async function bootstrapTransparencyPublishing(): Promise<void> {
+  const latest = await getLatestCheckpoint();
+  if (!process.env.OXY_PRIVATE_KEY) {
+    if (!latest) {
+      logger.error(
+        'Transparency log cannot publish: OXY_PRIVATE_KEY is not configured and no checkpoint exists yet',
+        { component: 'transparencyCheckpoint' },
+      );
+    } else {
+      logger.warn(
+        'Transparency log cannot publish new checkpoints: OXY_PRIVATE_KEY is not configured',
+        { component: 'transparencyCheckpoint', latestIndex: latest.index },
+      );
+    }
+    return;
+  }
+
+  if (!latest) {
+    await publishCheckpoint(Date.now());
+  }
+}
+
 /** Start the unref'd in-process publish interval (fallback path). */
 function startFallback(): void {
   if (fallbackTimer) return;
@@ -102,6 +128,7 @@ export async function startTransparencyCheckpointJobs(): Promise<void> {
   if (!isQueueEnabled()) {
     startFallback();
     logger.info('Transparency checkpoints using in-process interval fallback (REDIS_URL unset)');
+    void bootstrapTransparencyPublishing();
     return;
   }
 
@@ -143,6 +170,8 @@ export async function startTransparencyCheckpointJobs(): Promise<void> {
     await teardownQueue();
     startFallback();
   }
+
+  void bootstrapTransparencyPublishing();
 }
 
 /** Stop publishing (test teardown / graceful shutdown). */

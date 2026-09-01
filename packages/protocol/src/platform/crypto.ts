@@ -37,15 +37,15 @@
  *   │                  │                       │ throws — Node crypto is not   │
  *   │                  │                       │ available on Hermes/RN        │
  *   ├──────────────────┼───────────────────────┼───────────────────────────────┤
- *   │ loadExpoCrypto   │ throws — expo-crypto  │ static `import 'expo-crypto'` │
- *   │                  │ is not part of a      │                               │
+ *   │ loadExpoCrypto   │ throws — expo-crypto  │ optional `require('expo-      │
+ *   │                  │ is not part of a      │ crypto')`                     │
  *   │                  │ Node/Vite bundle      │                               │
  *   ├──────────────────┼───────────────────────┼───────────────────────────────┤
- *   │ loadSecureStore  │ throws (web/Node have │ static `import 'expo-secure-` │
- *   │                  │ their own storage)    │ store'                        │
+ *   │ loadSecureStore  │ throws (web/Node have │ optional `require('expo-      │
+ *   │                  │ their own storage)    │ secure-store')`               │
  *   ├──────────────────┼───────────────────────┼───────────────────────────────┤
- *   │ loadAsyncStorage │ throws (web/Node have │ static `import '@react-       │
- *   │                  │ their own storage)    │ native-async-storage/...'     │
+ *   │ loadAsyncStorage │ throws (web/Node have │ optional `require('@react-    │
+ *   │                  │ their own storage)    │ native-async-storage/...')`   │
  *   ├──────────────────┼───────────────────────┼───────────────────────────────┤
  *   │ getRandomBytesRN │ throws (RN-only)      │ direct call into expo-crypto  │
  *   └──────────────────┴───────────────────────┴───────────────────────────────┘
@@ -55,8 +55,10 @@
  * esbuild, Rollup, and Node itself can bundle / require it without ever
  * attempting to resolve those RN-only packages.
  *
- * The React Native variant references ONLY the RN packages. It never
- * mentions `'crypto'` — so Metro and Hermes have nothing to choke on.
+ * The React Native variant references ONLY the RN packages, each behind
+ * Metro's optional-dependency mechanism (a literal `require()` inside a `try`)
+ * because they are declared OPTIONAL peer dependencies. It never mentions
+ * `'crypto'` — so Metro and Hermes have nothing to choke on.
  *
  * # Why not a single file with dynamic import?
  *

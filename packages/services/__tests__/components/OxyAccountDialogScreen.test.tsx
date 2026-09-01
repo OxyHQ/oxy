@@ -38,10 +38,12 @@ const makeSnapshot = (over?: Partial<AccountDialogSnapshot>): AccountDialogSnaps
 
 let snapshot = makeSnapshot();
 const setView = jest.fn();
+const cancelSignIn = jest.fn();
 const controller = {
   subscribe: (_l: () => void) => () => undefined,
   getSnapshot: () => snapshot,
   setView,
+  cancelSignIn,
 };
 
 const closeAccountDialog = jest.fn();
@@ -155,6 +157,29 @@ describe('OxyAccountDialogScreen — shared nav header', () => {
     render(<OxyAccountDialogScreen />);
 
     lastHeader()?.onBack?.();
+    expect(setView).toHaveBeenCalledWith('accounts');
+  });
+
+  it('the back handler withdraws an active sign-in request before returning to accounts', () => {
+    snapshot = makeSnapshot({
+      view: 'qr',
+      signIn: {
+        phase: 'waiting',
+        authorizeCode: 'AUTH-CODE',
+        qrPayload: 'oxycommons://approve?code=AUTH-CODE',
+        expiresAt: Date.now() + 300_000,
+        error: null,
+        route: 'qr',
+        routeFailed: false,
+        pushSentAt: null,
+        openedAt: null,
+        progress: 'waiting',
+      },
+    });
+    render(<OxyAccountDialogScreen />);
+
+    lastHeader()?.onBack?.();
+    expect(cancelSignIn).toHaveBeenCalled();
     expect(setView).toHaveBeenCalledWith('accounts');
   });
 
