@@ -12,7 +12,7 @@
  * than as a missing variable.
  *
  * Every case sets the three variables explicitly and restores them afterwards, so
- * an ambient `RELAY_*` in a developer's environment cannot make an assertion pass
+ * an ambient `KAANA_*` in a developer's environment cannot make an assertion pass
  * or fail for a reason this file does not name.
  */
 
@@ -23,20 +23,20 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import {
-  RELAY_BASE_URL_VARIABLE,
-  RELAY_SIGNING_KEY_ID_VARIABLE,
-  RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
-  relayPublicKeyBase64,
-  resolveRelayDataPlane,
-} from '../relayDataPlane';
+  KAANA_BASE_URL_VARIABLE,
+  KAANA_SIGNING_KEY_ID_VARIABLE,
+  KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
+  kaanaPublicKeyBase64,
+  resolveKaanaDataPlane,
+} from '../kaanaDataPlane';
 import { logger } from '../../utils/logger';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
 const VARIABLES = [
-  RELAY_BASE_URL_VARIABLE,
-  RELAY_SIGNING_KEY_ID_VARIABLE,
-  RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
+  KAANA_BASE_URL_VARIABLE,
+  KAANA_SIGNING_KEY_ID_VARIABLE,
+  KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
 ] as const;
 
 const ORIGINAL = Object.fromEntries(VARIABLES.map((name) => [name, process.env[name]]));
@@ -54,9 +54,9 @@ function configure(values: Partial<Record<(typeof VARIABLES)[number], string>>):
 }
 
 const COMPLETE = {
-  [RELAY_BASE_URL_VARIABLE]: 'https://relay.internal',
-  [RELAY_SIGNING_KEY_ID_VARIABLE]: 'oxy-edge-2026-08',
-  [RELAY_SIGNING_PRIVATE_KEY_VARIABLE]: EDGE_PRIVATE_PEM,
+  [KAANA_BASE_URL_VARIABLE]: 'https://kaana.internal',
+  [KAANA_SIGNING_KEY_ID_VARIABLE]: 'oxy-edge-2026-08',
+  [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: EDGE_PRIVATE_PEM,
 } as const;
 
 beforeEach(() => {
@@ -74,7 +74,7 @@ describe('an unconfigured deployment', () => {
   it('resolves absent, silently, when none of the three variables is set', () => {
     configure({});
 
-    expect(resolveRelayDataPlane()).toEqual({ status: 'absent' });
+    expect(resolveKaanaDataPlane()).toEqual({ status: 'absent' });
     // Silently: this is the DEFAULT state of every deployment, and an error line
     // per boot would train an operator to ignore the one that matters.
     expect(mockedLogger.error).not.toHaveBeenCalled();
@@ -82,52 +82,52 @@ describe('an unconfigured deployment', () => {
 
   it('treats an empty string exactly as unset, rather than as a base URL', () => {
     configure({
-      [RELAY_BASE_URL_VARIABLE]: '   ',
-      [RELAY_SIGNING_KEY_ID_VARIABLE]: '',
-      [RELAY_SIGNING_PRIVATE_KEY_VARIABLE]: '',
+      [KAANA_BASE_URL_VARIABLE]: '   ',
+      [KAANA_SIGNING_KEY_ID_VARIABLE]: '',
+      [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: '',
     });
 
-    expect(resolveRelayDataPlane()).toEqual({ status: 'absent' });
+    expect(resolveKaanaDataPlane()).toEqual({ status: 'absent' });
   });
 });
 
 describe('a partial configuration is refused, loudly', () => {
   it('refuses a base URL with no signing key, rather than forwarding unsigned', () => {
-    configure({ [RELAY_BASE_URL_VARIABLE]: COMPLETE[RELAY_BASE_URL_VARIABLE] });
+    configure({ [KAANA_BASE_URL_VARIABLE]: COMPLETE[KAANA_BASE_URL_VARIABLE] });
 
-    const resolution = resolveRelayDataPlane();
+    const resolution = resolveKaanaDataPlane();
     expect(resolution.status).toBe('unreadable');
-    expect(resolution).toMatchObject({ variable: RELAY_SIGNING_KEY_ID_VARIABLE });
+    expect(resolution).toMatchObject({ variable: KAANA_SIGNING_KEY_ID_VARIABLE });
     expect(mockedLogger.error).toHaveBeenCalledWith(
-      'inference.relay.config_unreadable',
+      'inference.kaana.config_unreadable',
       expect.any(Error),
-      expect.objectContaining({ variable: RELAY_SIGNING_KEY_ID_VARIABLE })
+      expect.objectContaining({ variable: KAANA_SIGNING_KEY_ID_VARIABLE })
     );
   });
 
   it('refuses a signing key with no base URL', () => {
     configure({
-      [RELAY_SIGNING_KEY_ID_VARIABLE]: COMPLETE[RELAY_SIGNING_KEY_ID_VARIABLE],
-      [RELAY_SIGNING_PRIVATE_KEY_VARIABLE]: EDGE_PRIVATE_PEM,
+      [KAANA_SIGNING_KEY_ID_VARIABLE]: COMPLETE[KAANA_SIGNING_KEY_ID_VARIABLE],
+      [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: EDGE_PRIVATE_PEM,
     });
 
-    expect(resolveRelayDataPlane()).toMatchObject({
+    expect(resolveKaanaDataPlane()).toMatchObject({
       status: 'unreadable',
-      variable: RELAY_BASE_URL_VARIABLE,
+      variable: KAANA_BASE_URL_VARIABLE,
     });
   });
 
   it('never puts the value in the log — one of the three is a private key', () => {
-    configure({ ...COMPLETE, [RELAY_BASE_URL_VARIABLE]: 'not-a-url' });
+    configure({ ...COMPLETE, [KAANA_BASE_URL_VARIABLE]: 'not-a-url' });
 
-    expect(resolveRelayDataPlane().status).toBe('unreadable');
+    expect(resolveKaanaDataPlane().status).toBe('unreadable');
     const serialized = JSON.stringify(mockedLogger.error.mock.calls);
     expect(serialized).not.toContain('not-a-url');
     expect(serialized).not.toContain('PRIVATE KEY');
     // POSITIVE CONTROL on the search: what the log DOES carry is found the same
     // way, so the two absences above are real absences and not an unreadable
     // haystack.
-    expect(serialized).toContain(RELAY_BASE_URL_VARIABLE);
+    expect(serialized).toContain(KAANA_BASE_URL_VARIABLE);
   });
 });
 
@@ -136,23 +136,23 @@ describe('a key this build cannot sign with is refused at resolution', () => {
     const rsa = generateKeyPairSync('rsa', { modulusLength: 2048 });
     configure({
       ...COMPLETE,
-      [RELAY_SIGNING_PRIVATE_KEY_VARIABLE]: rsa.privateKey
+      [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: rsa.privateKey
         .export({ format: 'pem', type: 'pkcs8' })
         .toString(),
     });
 
-    expect(resolveRelayDataPlane()).toMatchObject({
+    expect(resolveKaanaDataPlane()).toMatchObject({
       status: 'unreadable',
-      variable: RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
+      variable: KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
     });
   });
 
   it('refuses text that is neither a PEM nor base64 of one', () => {
-    configure({ ...COMPLETE, [RELAY_SIGNING_PRIVATE_KEY_VARIABLE]: 'hunter2' });
+    configure({ ...COMPLETE, [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: 'hunter2' });
 
-    expect(resolveRelayDataPlane()).toMatchObject({
+    expect(resolveKaanaDataPlane()).toMatchObject({
       status: 'unreadable',
-      variable: RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
+      variable: KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
     });
   });
 
@@ -161,10 +161,10 @@ describe('a key this build cannot sign with is refused at resolution', () => {
     // never be configured with, so it is refused here rather than becoming a
     // signature nothing can verify.
     for (const keyId of ['oxy:edge', 'oxy,edge', 'oxy edge', 'oxy\nedge']) {
-      configure({ ...COMPLETE, [RELAY_SIGNING_KEY_ID_VARIABLE]: keyId });
-      expect(resolveRelayDataPlane()).toMatchObject({
+      configure({ ...COMPLETE, [KAANA_SIGNING_KEY_ID_VARIABLE]: keyId });
+      expect(resolveKaanaDataPlane()).toMatchObject({
         status: 'unreadable',
-        variable: RELAY_SIGNING_KEY_ID_VARIABLE,
+        variable: KAANA_SIGNING_KEY_ID_VARIABLE,
       });
     }
   });
@@ -172,16 +172,16 @@ describe('a key this build cannot sign with is refused at resolution', () => {
 
 describe('a complete configuration', () => {
   it('resolves an Ed25519 key and normalizes the base URL', () => {
-    configure({ ...COMPLETE, [RELAY_BASE_URL_VARIABLE]: 'https://relay.internal/' });
+    configure({ ...COMPLETE, [KAANA_BASE_URL_VARIABLE]: 'https://kaana.internal/' });
 
-    const resolution = resolveRelayDataPlane();
+    const resolution = resolveKaanaDataPlane();
     expect(resolution.status).toBe('configured');
     if (resolution.status !== 'configured') return;
 
     // The trailing slash is gone, so the path this client builds is
     // `…/internal/v1/inference` and never `…//internal/v1/inference`.
-    expect(resolution.config.baseUrl).toBe('https://relay.internal');
-    expect(resolution.config.keyId).toBe(COMPLETE[RELAY_SIGNING_KEY_ID_VARIABLE]);
+    expect(resolution.config.baseUrl).toBe('https://kaana.internal');
+    expect(resolution.config.keyId).toBe(COMPLETE[KAANA_SIGNING_KEY_ID_VARIABLE]);
     expect(resolution.config.privateKey.asymmetricKeyType).toBe('ed25519');
     expect(mockedLogger.error).not.toHaveBeenCalled();
   });
@@ -189,18 +189,18 @@ describe('a complete configuration', () => {
   it('accepts the base64-of-PEM form production supplies through SSM', () => {
     configure({
       ...COMPLETE,
-      [RELAY_SIGNING_PRIVATE_KEY_VARIABLE]: Buffer.from(EDGE_PRIVATE_PEM, 'utf8').toString(
+      [KAANA_SIGNING_PRIVATE_KEY_VARIABLE]: Buffer.from(EDGE_PRIVATE_PEM, 'utf8').toString(
         'base64'
       ),
     });
 
-    const resolution = resolveRelayDataPlane();
+    const resolution = resolveKaanaDataPlane();
     expect(resolution.status).toBe('configured');
     if (resolution.status !== 'configured') return;
     // The SAME key as the PEM form, not merely another usable one: the public
     // half is what the data plane is configured with, so the two encodings
     // agreeing is the property that matters.
-    expect(relayPublicKeyBase64(resolution.config)).toBe(
+    expect(kaanaPublicKeyBase64(resolution.config)).toBe(
       Buffer.from(
         edgeKey.publicKey.export({ format: 'jwk' }).x as string,
         'base64url'
@@ -211,11 +211,11 @@ describe('a complete configuration', () => {
   it('derives the 32-byte public key the data plane’s own key set takes', () => {
     configure(COMPLETE);
 
-    const resolution = resolveRelayDataPlane();
+    const resolution = resolveKaanaDataPlane();
     expect(resolution.status).toBe('configured');
     if (resolution.status !== 'configured') return;
 
-    const encoded = relayPublicKeyBase64(resolution.config);
+    const encoded = kaanaPublicKeyBase64(resolution.config);
     // The data plane refuses a key that decodes to any other length, so this is
     // the assertion that would catch an SPKI header leaking into the value.
     expect(Buffer.from(encoded, 'base64')).toHaveLength(32);

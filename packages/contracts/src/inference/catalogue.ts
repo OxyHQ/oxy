@@ -358,8 +358,9 @@ export const inferenceProviderSchema = z.object({
 /* -------------------------------------------------------------------------- */
 
 /**
- * One concrete servable route: a revision, on a provider, in some regions,
- * under a data policy, with an availability scope and a commercial permission.
+ * One concrete servable route: a revision, on a provider, with any regional
+ * attestations the upstream exposes, under a data policy, with an availability
+ * scope and a commercial permission.
  *
  * This is the object a routing policy filters and a route switch names — never
  * a model. Two deployments of the SAME revision are what same-model failover
@@ -374,7 +375,8 @@ export const modelDeploymentSchema = z
     provider: inferenceProviderSlugSchema,
     /** Always revision-pinned: a deployment serves specific weights. */
     modelReference: modelReferenceSchema,
-    regions: z.array(inferenceRegionSchema).min(1),
+    /** Empty means the upstream supplies no regional attestation for this route. */
+    regions: z.array(inferenceRegionSchema),
     dataPolicy: inferenceDataPolicySchema,
     availabilityScope: availabilityScopeSchema,
     commercialPermission: commercialPermissionSchema,

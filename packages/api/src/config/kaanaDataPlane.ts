@@ -5,14 +5,14 @@
  * Three variables, all three or none:
  *
  * ```text
- * RELAY_BASE_URL                    https://relay.internal — no path, no trailing slash needed
- * RELAY_EDGE_SIGNING_KEY_ID         the id Relay knows this key by (its `kid`)
- * RELAY_EDGE_SIGNING_PRIVATE_KEY    an Ed25519 private key, PEM or base64-of-PEM
+ * KAANA_BASE_URL                    https://kaana.internal — no path, no trailing slash needed
+ * KAANA_EDGE_SIGNING_KEY_ID         the id Kaana knows this key by (its `kid`)
+ * KAANA_EDGE_SIGNING_PRIVATE_KEY    an Ed25519 private key, PEM or base64-of-PEM
  * ```
  *
  * ## Absent is the default, and absent means exactly what it meant before
  *
- * A deployment that sets none of them has no data plane: `createHttpRelayClient`
+ * A deployment that sets none of them has no data plane: `createHttpKaanaClient`
  * returns `undefined`, the edge reaches {@link DataPlaneNotConfiguredError} and
  * answers a typed `service_unavailable`, and `stream: true` is refused. That is
  * byte-for-byte the behaviour of every deployment today, which is what makes
@@ -20,7 +20,7 @@
  *
  * ## A PARTIAL configuration is refused, never half-used
  *
- * A base URL with no signing key would produce unsigned envelopes that Relay
+ * A base URL with no signing key would produce unsigned envelopes that Kaana
  * refuses one by one — a working-looking deployment answering `internal_error`
  * on every request. So a subset resolves `unreadable`, is reported once at
  * `error` level, and leaves the deployment with no data plane. The safe state and
@@ -30,55 +30,55 @@
  *
  * ## Read at construction, not per request
  *
- * Unlike the rollout flags, this resolves ONCE — `createHttpRelayClient()` is
+ * Unlike the rollout flags, this resolves ONCE — `createHttpKaanaClient()` is
  * called where the router is built. A private key parsed per request would be
  * thousands of needless key parses, and re-reading the variable mid-process
- * cannot help: Relay has to be told the matching PUBLIC key out of band, so a
- * key this process picked up without a restart is a key Relay has never heard of.
+ * cannot help: Kaana has to be told the matching PUBLIC key out of band, so a
+ * key this process picked up without a restart is a key Kaana has never heard of.
  *
  * ## The private key is the only secret here
  *
- * `RELAY_EDGE_SIGNING_PRIVATE_KEY` is a signing key and belongs in SSM
- * (`/oxy/oxy-api/RELAY_EDGE_SIGNING_PRIVATE_KEY`), which means adding it to BOTH
+ * `KAANA_EDGE_SIGNING_PRIVATE_KEY` is a signing key and belongs in SSM
+ * (`/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`), which means adding it to BOTH
  * hand-maintained allowlists in `.github/workflows/deploy-aws.yml` — the
- * `SYNC_<NAME>` env block and the `API_SECRETS` list — at the moment a Relay
+ * `SYNC_<NAME>` env block and the `API_SECRETS` list — at the moment a Kaana
  * deployment first needs it. `scripts/check-deploy-secrets-sync.mjs` guards that
  * pair. The base URL and the key id are not secrets and belong in the ECS task
  * definition's plain environment.
  *
- * The key material never leaves this module: {@link RelayDataPlaneConfig} carries
+ * The key material never leaves this module: {@link KaanaDataPlaneConfig} carries
  * a `KeyObject`, whose `toString()` is `[object Object]` rather than a PEM, and
  * nothing here logs it. What IS logged once at startup is the derived PUBLIC key,
- * because that is what an operator has to paste into Relay's own
- * `RELAY_EDGE_PUBLIC_KEYS` and a public key is not a secret.
+ * because that is what an operator has to paste into Kaana's own
+ * `KAANA_EDGE_PUBLIC_KEYS` and a public key is not a secret.
  */
 
 import { createPrivateKey, createPublicKey, type KeyObject } from 'node:crypto';
 import { logger } from '../utils/logger';
 
-export const RELAY_BASE_URL_VARIABLE = 'RELAY_BASE_URL';
-export const RELAY_SIGNING_KEY_ID_VARIABLE = 'RELAY_EDGE_SIGNING_KEY_ID';
-export const RELAY_SIGNING_PRIVATE_KEY_VARIABLE = 'RELAY_EDGE_SIGNING_PRIVATE_KEY';
+export const KAANA_BASE_URL_VARIABLE = 'KAANA_BASE_URL';
+export const KAANA_SIGNING_KEY_ID_VARIABLE = 'KAANA_EDGE_SIGNING_KEY_ID';
+export const KAANA_SIGNING_PRIVATE_KEY_VARIABLE = 'KAANA_EDGE_SIGNING_PRIVATE_KEY';
 
 /** What a configured deployment forwards with. */
-export interface RelayDataPlaneConfig {
+export interface KaanaDataPlaneConfig {
   /** Absolute `http(s)` origin, with any trailing slash removed. */
   readonly baseUrl: string;
-  /** The `kid` Relay indexes this key by; also the second line of every signature. */
+  /** The `kid` Kaana indexes this key by; also the second line of every signature. */
   readonly keyId: string;
   /** Ed25519. Never serialized, never logged. */
   readonly privateKey: KeyObject;
 }
 
-export type RelayDataPlaneResolution =
-  | { readonly status: 'configured'; readonly config: RelayDataPlaneConfig }
+export type KaanaDataPlaneResolution =
+  | { readonly status: 'configured'; readonly config: KaanaDataPlaneConfig }
   /** Not one of the three variables is set: this deployment has no data plane. */
   | { readonly status: 'absent' }
   | { readonly status: 'unreadable'; readonly variable: string; readonly expected: string };
 
 /**
- * Relay parses its key set from a `kid:base64,kid:base64` string, so a key id
- * containing either separator is one Relay could never be configured with — and
+ * Kaana parses its key set from a `kid:base64,kid:base64` string, so a key id
+ * containing either separator is one Kaana could never be configured with — and
  * a line break would let a key id forge a line of the signing input, which is
  * how a signature over one envelope is made to verify another.
  */
@@ -87,46 +87,46 @@ const FORBIDDEN_KEY_ID_CHARACTERS = /[:,\r\n\s]/;
 const MAX_KEY_ID_LENGTH = 128;
 
 /** Resolve this deployment's data plane from the environment. */
-export function resolveRelayDataPlane(): RelayDataPlaneResolution {
-  const baseUrl = process.env[RELAY_BASE_URL_VARIABLE]?.trim() ?? '';
-  const keyId = process.env[RELAY_SIGNING_KEY_ID_VARIABLE]?.trim() ?? '';
-  const rawPrivateKey = process.env[RELAY_SIGNING_PRIVATE_KEY_VARIABLE]?.trim() ?? '';
+export function resolveKaanaDataPlane(): KaanaDataPlaneResolution {
+  const baseUrl = process.env[KAANA_BASE_URL_VARIABLE]?.trim() ?? '';
+  const keyId = process.env[KAANA_SIGNING_KEY_ID_VARIABLE]?.trim() ?? '';
+  const rawPrivateKey = process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE]?.trim() ?? '';
 
   if (baseUrl.length === 0 && keyId.length === 0 && rawPrivateKey.length === 0) {
     return { status: 'absent' };
   }
 
   if (baseUrl.length === 0) {
-    return unreadable(RELAY_BASE_URL_VARIABLE, 'an absolute http(s) URL, e.g. https://relay.internal');
+    return unreadable(KAANA_BASE_URL_VARIABLE, 'an absolute http(s) URL, e.g. https://kaana.internal');
   }
   const origin = parseBaseUrl(baseUrl);
   if (origin === undefined) {
-    return unreadable(RELAY_BASE_URL_VARIABLE, 'an absolute http(s) URL, e.g. https://relay.internal');
+    return unreadable(KAANA_BASE_URL_VARIABLE, 'an absolute http(s) URL, e.g. https://kaana.internal');
   }
 
   if (keyId.length === 0 || keyId.length > MAX_KEY_ID_LENGTH) {
     return unreadable(
-      RELAY_SIGNING_KEY_ID_VARIABLE,
-      `1 to ${MAX_KEY_ID_LENGTH} characters naming the key Relay trusts, e.g. oxy-edge-2026-08`
+      KAANA_SIGNING_KEY_ID_VARIABLE,
+      `1 to ${MAX_KEY_ID_LENGTH} characters naming the key Kaana trusts, e.g. oxy-edge-2026-08`
     );
   }
   if (FORBIDDEN_KEY_ID_CHARACTERS.test(keyId)) {
     return unreadable(
-      RELAY_SIGNING_KEY_ID_VARIABLE,
-      'a key id with no colon, comma, whitespace or line break — Relay parses its key set as kid:base64,kid:base64'
+      KAANA_SIGNING_KEY_ID_VARIABLE,
+      'a key id with no colon, comma, whitespace or line break — Kaana parses its key set as kid:base64,kid:base64'
     );
   }
 
   if (rawPrivateKey.length === 0) {
     return unreadable(
-      RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
+      KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
       'an Ed25519 private key as PEM, or that PEM base64-encoded'
     );
   }
   const privateKey = parseEd25519PrivateKey(rawPrivateKey);
   if (privateKey === undefined) {
     return unreadable(
-      RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
+      KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
       'an Ed25519 private key as PEM, or that PEM base64-encoded — generate one with `openssl genpkey -algorithm ed25519`'
     );
   }
@@ -136,15 +136,15 @@ export function resolveRelayDataPlane(): RelayDataPlaneResolution {
 
 /**
  * The base64 raw public key matching a configured private key — the second half
- * of the `kid:base64` entry Relay's own `RELAY_EDGE_PUBLIC_KEYS` takes.
+ * of the `kid:base64` entry Kaana's own `KAANA_EDGE_PUBLIC_KEYS` takes.
  *
  * Exported because it is the only way an operator can confirm the two sides hold
  * the same pair without being shown key material: a public key is not a secret,
- * and Relay's `edgeauth` package says so in as many words.
+ * and Kaana's `edgeauth` package says so in as many words.
  */
-export function relayPublicKeyBase64(config: RelayDataPlaneConfig): string {
+export function kaanaPublicKeyBase64(config: KaanaDataPlaneConfig): string {
   // SPKI DER for Ed25519 is a fixed 12-byte header followed by the 32 raw bytes,
-  // and Relay's ParsePublicKeys expects exactly those 32. Node has no "raw"
+  // and Kaana's ParsePublicKeys expects exactly those 32. Node has no "raw"
   // export for an Ed25519 public key, but the JWK form's `x` IS the raw key in
   // base64url, so the conversion is a re-encode rather than a byte offset nobody
   // would notice drifting.
@@ -163,11 +163,11 @@ export function relayPublicKeyBase64(config: RelayDataPlaneConfig): string {
  * who pasted the wrong thing into the wrong variable would otherwise have it
  * copied into CloudWatch.
  */
-function unreadable(variable: string, expected: string): RelayDataPlaneResolution {
+function unreadable(variable: string, expected: string): KaanaDataPlaneResolution {
   logger.error(
-    'inference.relay.config_unreadable',
+    'inference.kaana.config_unreadable',
     new Error(`${variable} is set to a value this build cannot use; this deployment has no data plane`),
-    { component: 'inference-relay', variable, expected }
+    { component: 'inference-kaana', variable, expected }
   );
   return { status: 'unreadable', variable, expected };
 }
@@ -193,7 +193,7 @@ function parseBaseUrl(value: string): string | undefined {
  * secrets through SSM where a base64 blob survives every layer unchanged, while a
  * developer pastes what `openssl genpkey` printed. Anything that is neither, or
  * that decodes to a key of another algorithm, returns `undefined` — an RSA key
- * here would sign happily and be rejected by Relay on every request.
+ * here would sign happily and be rejected by Kaana on every request.
  */
 function parseEd25519PrivateKey(raw: string): KeyObject | undefined {
   const pem = raw.includes('-----BEGIN') ? raw : decodeBase64Pem(raw);

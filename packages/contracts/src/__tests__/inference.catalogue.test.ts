@@ -104,6 +104,8 @@ describe('the six catalogue objects are distinct', () => {
 
     expect(modelDeploymentSchema.safeParse(deployment).success).toBe(true);
 
+    expect(modelDeploymentSchema.safeParse({ ...deployment, regions: [] }).success).toBe(true);
+
     expect(
       routingProfileSchema.safeParse({
         schemaVersion: 1,

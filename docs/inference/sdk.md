@@ -345,7 +345,7 @@ plane does not teach every client to retry forever
   refused after authentication and admission and before any provider is
   contacted. Nothing is charged: the hold is released before the refusal returns.
 - **"Built" and "configured" are different facts here**, and the refusal is the
-  second one. `services/relayClient.ts` says it plainly: the data plane exists as
+  second one. `services/kaanaClient.ts` says it plainly: the data plane exists as
   a repository with a build and a test suite, no deployment of it is configured,
   and that is why every invoke refuses. The fix is three environment variables,
   not a project.

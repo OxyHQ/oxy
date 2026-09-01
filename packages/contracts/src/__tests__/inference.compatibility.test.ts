@@ -1102,7 +1102,7 @@ describe('inference contract versioning', () => {
     // result, and the revision-scoped documentation view) plus the two embedded
     // documentation records they carry. No existing shape's `schemaVersion`
     // moved and no existing field changed, so this is not MAJOR.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.3.0');
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.4.0');
   });
 
   it('matches the frozen schema version map exactly', () => {

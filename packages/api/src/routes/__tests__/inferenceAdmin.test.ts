@@ -161,7 +161,7 @@ async function insertPendingDeployment(): Promise<DeploymentFixture> {
   const db = getDb();
   const publisherSlug = `apub${suffix()}`;
   const providerSlug = `aprv${suffix()}`;
-  const internalRouteId = `relay-route-${suffix()}`;
+  const internalRouteId = `kaana-route-${suffix()}`;
   const wholesaleAmount = '0.000000700000';
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: 'Admin Pub' });

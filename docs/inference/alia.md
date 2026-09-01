@@ -248,7 +248,7 @@ never register a GitHub secret with a placeholder value.
   still forwards to `api.alia.onl` on one static `ALIA_API_KEY`, over three
   routes: `POST /alia/chat/completions` (the edge now owns `/v1/chat/completions`),
   `POST /v1/voice/token` and `POST /v1/voice/transcribe`. #972 conditions the
-  removal on "Oxy→Relay and Alia→Relay being live"; the `OxyHQ/Relay` repository
+  removal on "Oxy→Kaana and Alia→Kaana being live"; the `OxyHQ/Kaana` repository
   exists (public since 2026-08-16) but nothing Oxy can reach is live — no
   deployment, no endpoint, no routing execution Oxy invokes — so the condition
   cannot be met and the proxy is the only thing serving those paths. It

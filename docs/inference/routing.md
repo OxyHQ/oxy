@@ -183,10 +183,11 @@ This is the part to read twice.
   switches" above. A hold is sized against the most expensive route in that list,
   so failing over to a dearer deployment can never cost more than the request was
   admitted for.
-- **A routing-profile target is refused** at the edge, with `no_route_available`
-  and `param: routingProfile`. Choosing among a profile's candidates is routing
-  EXECUTION, which belongs to the data plane; the control plane picking one
-  would be inventing a routing decision it has no way to test.
+- **Routing-profile targets.** Oxy expands the profile's ordered candidates,
+  applies the same viewer, modality, policy and pricing checks to each, and sends
+  only the surviving revision-pinned deployments in `authorizedRoutes`. Kaana
+  executes within that signed list and cannot invent a destination. With
+  fallback disabled the list contains only the admitted primary.
 
 ### Enforced against the candidate routes
 
@@ -219,7 +220,9 @@ Two readings worth stating outright, because the alternatives look reasonable:
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it may serve from, and which one it picks is the data plane's — so
   a route that MAY run outside your allowed set cannot honour a residency
-  requirement and does not qualify.
+  requirement and does not qualify. An empty deployment set means no regional
+  attestation, not “everywhere”; it fails both an allow-list and a deny-list and
+  is eligible only when neither regional control is present.
 - **`requireZeroDataRetention` needs the route to actually not retain**, not
   merely to be capable of it. `zeroDataRetentionAvailable` is a capability; a
   route carrying it while still retaining payloads by default is excluded.

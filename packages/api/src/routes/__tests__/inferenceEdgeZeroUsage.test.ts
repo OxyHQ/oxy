@@ -70,7 +70,7 @@ import { usageReceipts } from '../../db/schema/usageReceipts';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
-import type { RelayClient, RelayCompletion } from '../../services/relayClient';
+import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
@@ -94,14 +94,14 @@ function json(response: RawResponse): Record<string, unknown> {
 
 /** A server per test, so each can be given its own data plane. */
 async function withServer(
-  relayClient: RelayClient,
+  kaanaClient: KaanaClient,
   run: (
     request: (path: string, body: unknown, headers: Record<string, string>) => Promise<RawResponse>
   ) => Promise<void>
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
-  app.use('/v1', createInferenceEdgeRouter({ relayClient }));
+  app.use('/v1', createInferenceEdgeRouter({ kaanaClient }));
 
   const server = await new Promise<http.Server>((resolve) => {
     const created = app.listen(0, '127.0.0.1', () => resolve(created));
@@ -329,15 +329,15 @@ async function makeFixture(): Promise<Fixture> {
  *
  * `units` is passed through verbatim, INCLUDING an empty array, because the shape
  * under test is one the wire schema admits and this file must be able to produce
- * it. TESTS ONLY — `services/relayClient.ts` has no production implementation.
+ * it. TESTS ONLY — `services/kaanaClient.ts` has no production implementation.
  */
-function relayReporting(
+function kaanaReporting(
   units: readonly { unit: 'input_tokens' | 'output_tokens'; quantity: number }[],
   provider: string,
   seen: InferenceRequest[]
-): RelayClient {
+): KaanaClient {
   return {
-    execute: async (envelope): Promise<RelayCompletion> => {
+    execute: async (envelope): Promise<KaanaCompletion> => {
       seen.push(envelope);
       const now = new Date().toISOString();
       return {
@@ -426,7 +426,7 @@ describe('a completed report that metered nothing', () => {
     const before = await balanceOf(fixture.accountId);
     const seen: InferenceRequest[] = [];
 
-    await withServer(relayReporting([], fixture.provider, seen), async (request) => {
+    await withServer(kaanaReporting([], fixture.provider, seen), async (request) => {
       const response = await request('/v1/responses', body(fixture), bearer(fixture.token));
 
       expect(response.status).not.toBe(200);
@@ -466,7 +466,7 @@ describe('a completed report that metered nothing', () => {
     // The residual the wire schema does not close: this validates upstream and
     // still means nothing was metered.
     await withServer(
-      relayReporting(
+      kaanaReporting(
         [
           { unit: 'input_tokens', quantity: 0 },
           { unit: 'output_tokens', quantity: 0 },
@@ -510,7 +510,7 @@ describe('a completed report that metered nothing', () => {
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      relayReporting([{ unit: 'input_tokens', quantity: 0 }], fixture.provider, seen),
+      kaanaReporting([{ unit: 'input_tokens', quantity: 0 }], fixture.provider, seen),
       async (request) => {
         await request('/v1/responses', body(fixture), bearer(fixture.token));
       }
@@ -535,7 +535,7 @@ describe('a completed report that metered nothing', () => {
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      relayReporting([{ unit: 'input_tokens', quantity: 1 }], fixture.provider, seen),
+      kaanaReporting([{ unit: 'input_tokens', quantity: 1 }], fixture.provider, seen),
       async (request) => {
         const response = await request('/v1/responses', body(fixture), bearer(fixture.token));
         // The same fixture, the same path, one non-zero unit — served. Without

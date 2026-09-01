@@ -251,7 +251,7 @@ describe('normalizedUsageReportSchema', () => {
   });
 
   it('accepts a failed report with no units, because that is how failure is reported', () => {
-    // `outcomeFor` in the reference data plane's `internal/relay/executor.go`
+    // `outcomeFor` in the reference data plane's `internal/kaana/executor.go`
     // DERIVES `failed` from having no units and `partial` from having some, so an
     // unconditional minimum would refuse every failure — and a refused report is
     // a request that ran, cost money upstream, and can never be settled.

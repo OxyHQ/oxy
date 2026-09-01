@@ -139,7 +139,7 @@ async function insertRoute(options: {
   const modelSlug = `cmdl${suffix()}`;
   const revision = `cr${suffix()}`;
   const providerSlug = `cprv${suffix()}`;
-  const internalRouteId = `relay-route-${suffix()}`;
+  const internalRouteId = `kaana-route-${suffix()}`;
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: 'Cat Pub' });
 

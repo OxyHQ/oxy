@@ -175,7 +175,7 @@ export const inferenceRequestOutcomeSchema = z.enum([
  * The three other outcomes legitimately carry none, which is why the rule is
  * conditional rather than a `.min(1)` on the field. In the reference data plane
  * `failed` is DERIVED from having no units — `outcomeFor` in
- * `internal/relay/executor.go` returns `partial` when units exist and `failed`
+ * `internal/kaana/executor.go` returns `partial` when units exist and `failed`
  * when they do not — and `cancelled` is reported for a client that stopped
  * before anything was measured. An unconditional minimum would refuse those
  * reports, and a refused report is a request that ran, cost money upstream and

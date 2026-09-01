@@ -23,7 +23,7 @@
  *
  * ## An unreadable value resolves to the SAFE state, loudly
  *
- * Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
+ * Kaana's `KAANA_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
  * dangerous switch, and the shape {@link resolveInferenceCharging} copies —
  * makes a malformed value a hard boot failure. That is proportionate for a data
  * plane whose entire job is the thing being gated. It is not proportionate here:
@@ -333,7 +333,7 @@ export function isMachineCredentialLaneEnabled(): boolean {
  *
  * ## Why a bare `true` is refused
  *
- * The shape is Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` and it is refused for
+ * The shape is Kaana's `KAANA_ASSUME_FAILOVER_AUTHORIZED` and it is refused for
  * the same reason: `true` is the value that arrives by accident. It is what a
  * copied task definition carries, what a `.env` picks up, and what somebody
  * types to see whether a flag does anything. `commercial-launch:2026-08-16` is
@@ -342,7 +342,7 @@ export function isMachineCredentialLaneEnabled(): boolean {
  *
  * ## It does not expire, and that is argued rather than inherited
  *
- * Relay's does not either. Expiry would be wrong here in both directions: at
+ * Kaana's does not either. Expiry would be wrong here in both directions: at
  * public scale an expired authorization either serves the world for free or
  * refuses every request, and both are expensive. What the date buys instead is
  * an age reported beside the flag in {@link describeRolloutFlags}, which is the

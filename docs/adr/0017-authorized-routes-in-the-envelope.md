@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-08-17
 - Issue: #972 (workstreams 6 and 13)
-- Changes: [ADR 0006](0006-oxy-relay-boundary.md) (what crosses the boundary, and
+- Changes: [ADR 0006](0006-oxy-kaana-boundary.md) (what crosses the boundary, and
   one responsibility-matrix row), [ADR 0010](0010-public-api-compatibility.md)
   (the internal envelope). Neither is amended in place: neither states a
   procedure for its own amendment the way
@@ -32,12 +32,12 @@ decision over a set it was never sent.
 
 The consequence is measured, not hypothetical. The first implementation ever
 written against this contract reports it as the sharpest of nineteen findings and
-the one that blocks working code (`OxyHQ/Relay`, `README.md` §"What Oxy still has
+the one that blocks working code (`OxyHQ/Kaana`, `README.md` §"What Oxy still has
 to decide", item 11):
 
 > Every one of them governs what this repository's failover does, and the
 > envelope carries none of them — only `{routingPolicyId, policyVersion}`. So a
-> Relay that failed over by default would override, for every customer who set
+> Kaana that failed over by default would override, for every customer who set
 > it, a control the platform advertises to them. This build therefore ships
 > failover **off**, and choosing among the deployments of one model at all is
 > withheld with it.
@@ -77,10 +77,12 @@ executing a route requires:
 - **`modelReference` is always revision-pinned**, the same rule
   `modelDeploymentSchema` enforces. An unpinned entry would leave the data plane
   choosing a revision, which is a substitution nobody authorized.
-- **`regions` is plural**, matching `modelDeploymentSchema.regions`. A deployment
-  declares every region it MAY serve from and choosing among them is routing
-  execution (ADR 0006); Oxy checked the whole set against the customer's
-  residency controls as a SUBSET, so any region here is one the policy permits.
+- **`regions` is plural**, matching `modelDeploymentSchema.regions`. A non-empty
+  list declares every attested region the deployment MAY serve from and Oxy
+  checks the whole set against the customer's residency controls as a SUBSET.
+  An explicit empty list means no regional attestation exists; it is eligible
+  only when the effective policy has neither `allowedRegions` nor
+  `deniedRegions`. Kaana still compares the signed list to inventory exactly.
 - **`{routingPolicyId, policyVersion}` stays.** It is provenance: a settled
   receipt must still record the exact revision of the customer's own
   configuration that produced the charge.
@@ -131,9 +133,10 @@ not self-executing. **The populating change landed on 2026-08-18** in
 `inferenceEdge.service.ts`, for the `same_model` half: `resolveEdgeRoute` now
 returns `permitted.kept[0]` as the route and the rest as `alternates`, and
 `buildEnvelope` sends them as `authorizedRoutes` whenever the customer's
-`fallback` controls authorize failover among them. The `cross_model` half is not
-built: it needs each destination in `inference_routing_policy_fallbacks` resolved
-to concrete deployments and re-filtered, and it remains a follow-up.
+`fallback` controls authorize failover among them. The `cross_model` half now
+resolves both later candidates of an explicitly selected routing profile and
+each destination in `inference_routing_policy_fallbacks` to concrete deployments,
+then applies the same viewer, modality, policy, capacity and pricing filters.
 
 ### No per-route price
 
@@ -199,10 +202,11 @@ means.
     price version — sound only while the envelope carried one route. The hold is
     now sized at the dearest authorized route, and an alternate whose ceiling
     cannot be quoted, or is quoted in another currency, is not authorized.
-- **`cross_model` is not populated.** Every entry this edge emits is `same_model`,
-  so an envelope it builds cannot express a substitution across model lines. The
-  cross-model half needs each destination in `inference_routing_policy_fallbacks`
-  resolved to concrete deployments and re-filtered, and is a follow-up.
+- **`cross_model` is explicit and bounded.** It is populated only from later
+  candidates of the selected routing profile or from the pinned policy version's
+  `authorizedCrossModel` rows. Every entry is resolved and filtered independently,
+  labelled `authorizedByPolicy: true`, included in the hold ceiling and omitted
+  when fallback is disabled.
 - **A deployment id now crosses the boundary in the Oxy→data-plane direction.**
   `deploymentIdSchema` already documents the id as opaque to CUSTOMERS, and it is
   the data plane's own key rather than Oxy's, so this direction of exchange is the
@@ -217,7 +221,7 @@ means.
   envelope.** A profile target with an authorized list is servable: the customer
   named no model, every destination is named and authorized one entry each, and
   the data plane still never chooses a candidate Oxy did not send.
-- Nothing here gives the data plane a policy value, so a Relay-side schema review
+- Nothing here gives the data plane a policy value, so a Kaana-side schema review
   stays a boundary review: a column holding a policy CONTROL is still forbidden;
   a write-once copy of an authorized route is the intended shape.
 
@@ -227,7 +231,7 @@ means.
   **Oxy** | consumes a versioned policy snapshot"* is superseded. The data plane
   consumes a policy REFERENCE as provenance and an ordered list of ROUTES the
   policy authorized. It consumes no control value.
-- The "What crosses the boundary" bullet *"Oxy → Relay, per request: … the
+- The "What crosses the boundary" bullet *"Oxy → Kaana, per request: … the
   resolved routing policy snapshot and its version, and the reservation ceiling
   (ADR 0009)"* is superseded twice over: the snapshot is replaced by
   `authorizedRoutes` plus the reference, and no reservation travels — #1018 had

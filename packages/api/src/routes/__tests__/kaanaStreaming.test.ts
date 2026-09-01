@@ -5,7 +5,7 @@
  *
  * ## What makes the signature assertions falsifiable
  *
- * The stub Relay VERIFIES the Ed25519 signature with a public key it holds, and
+ * The stub Kaana VERIFIES the Ed25519 signature with a public key it holds, and
  * refuses `401` when it does not verify. So a broken signature fails these tests
  * rather than being ignored — and the POSITIVE CONTROL for that claim is
  * `rejects a tampered body`, which replays a request's own valid headers over
@@ -13,7 +13,7 @@
  * request" would also be what a stub that verifies nothing reports.
  *
  * `the signing input is the four lines the ADR specifies` is the second half:
- * every other case verifies with `relaySigningInput`, the production function, so
+ * every other case verifies with `kaanaSigningInput`, the production function, so
  * a change to the FRAMING would keep both sides agreeing with each other. That
  * one case builds the four lines by hand.
  *
@@ -60,10 +60,10 @@ jest.mock('../../utils/logger', () => ({
 import { and, eq } from 'drizzle-orm';
 import type { InferenceRequest, UsageQuantity } from '@oxyhq/contracts';
 import {
-  RELAY_BASE_URL_VARIABLE,
-  RELAY_SIGNING_KEY_ID_VARIABLE,
-  RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
-} from '../../config/relayDataPlane';
+  KAANA_BASE_URL_VARIABLE,
+  KAANA_SIGNING_KEY_ID_VARIABLE,
+  KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
+} from '../../config/kaanaDataPlane';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { PRIVACY_REVIEW_VARIABLE } from '../../config/rolloutFlags';
 import { accountBalances } from '../../db/schema/accountBalances';
@@ -82,13 +82,13 @@ import { usageReceipts } from '../../db/schema/usageReceipts';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
 import {
-  createHttpRelayClient,
-  RELAY_INFERENCE_PATH,
-  RELAY_KEY_ID_HEADER,
-  RELAY_SIGNATURE_HEADER,
-  RELAY_TIMESTAMP_HEADER,
-  relaySigningInput,
-} from '../../services/httpRelayClient';
+  createHttpKaanaClient,
+  KAANA_INFERENCE_PATH,
+  KAANA_KEY_ID_HEADER,
+  KAANA_SIGNATURE_HEADER,
+  KAANA_TIMESTAMP_HEADER,
+  kaanaSigningInput,
+} from '../../services/httpKaanaClient';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
@@ -110,7 +110,7 @@ const EDGE_PRIVATE_PEM = edgeKeyPair.privateKey
 /** The stub holds ONLY this. It cannot construct an envelope it would accept. */
 const EDGE_PUBLIC_KEY: KeyObject = edgeKeyPair.publicKey;
 
-/** Relay's own bound: five minutes either way, and no nonce cache (ADR 0015). */
+/** Kaana's own bound: five minutes either way, and no nonce cache (ADR 0015). */
 const MAX_SKEW_MS = 5 * 60 * 1000;
 
 /* -------------------------------------------------------------------------- */
@@ -157,9 +157,9 @@ interface ScriptContext {
   readonly finish: () => void;
 }
 
-type RelayScript = (context: ScriptContext) => Promise<void>;
+type KaanaScript = (context: ScriptContext) => Promise<void>;
 
-interface RelayStub {
+interface KaanaStub {
   readonly baseUrl: string;
   /** Every envelope that verified, in order. */
   readonly received: InferenceRequest[];
@@ -170,12 +170,12 @@ interface RelayStub {
   verified: number;
   rejected: number;
   aborted: number;
-  script: RelayScript;
+  script: KaanaScript;
   close(): Promise<void>;
 }
 
 /**
- * Verify a request the way Relay's own `internal/edgeauth` does.
+ * Verify a request the way Kaana's own `internal/edgeauth` does.
  *
  * One boolean for every cause, deliberately: an unknown key id, a stale
  * timestamp and a bad signature are all "this did not come from the Oxy edge",
@@ -183,28 +183,28 @@ interface RelayStub {
  * forgery attempt was closer.
  */
 function verifyEdgeSignature(headers: http.IncomingHttpHeaders, body: Buffer): boolean {
-  const keyId = headers[RELAY_KEY_ID_HEADER.toLowerCase()];
+  const keyId = headers[KAANA_KEY_ID_HEADER.toLowerCase()];
   if (keyId !== EDGE_KEY_ID) return false;
 
-  const timestamp = Number(headers[RELAY_TIMESTAMP_HEADER.toLowerCase()]);
+  const timestamp = Number(headers[KAANA_TIMESTAMP_HEADER.toLowerCase()]);
   if (!Number.isInteger(timestamp)) return false;
   if (Math.abs(Date.now() - timestamp) > MAX_SKEW_MS) return false;
 
-  const raw = headers[RELAY_SIGNATURE_HEADER.toLowerCase()];
+  const raw = headers[KAANA_SIGNATURE_HEADER.toLowerCase()];
   if (typeof raw !== 'string' || !raw.startsWith('v1=')) return false;
   const signature = Buffer.from(raw.slice('v1='.length), 'base64');
   if (signature.length !== 64) return false;
 
   return verifySignature(
     null,
-    relaySigningInput(EDGE_KEY_ID, timestamp, body),
+    kaanaSigningInput(EDGE_KEY_ID, timestamp, body),
     EDGE_PUBLIC_KEY,
     signature
   );
 }
 
-async function startRelayStub(): Promise<RelayStub> {
-  const stub: RelayStub = {
+async function startKaanaStub(): Promise<KaanaStub> {
+  const stub: KaanaStub = {
     baseUrl: '',
     received: [],
     headers: [],
@@ -227,7 +227,7 @@ async function startRelayStub(): Promise<RelayStub> {
       stub.headers.push(req.headers);
       stub.bodies.push(body);
 
-      if (req.url !== RELAY_INFERENCE_PATH || !verifyEdgeSignature(req.headers, body)) {
+      if (req.url !== KAANA_INFERENCE_PATH || !verifyEdgeSignature(req.headers, body)) {
         stub.rejected += 1;
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(
@@ -236,7 +236,7 @@ async function startRelayStub(): Promise<RelayStub> {
             code: 'authentication_failed',
             message: 'the request is not a signed Oxy edge envelope',
             retryable: false,
-            requestId: `req_relay_${randomUUID()}`,
+            requestId: `req_kaana_${randomUUID()}`,
           })
         );
         return;
@@ -320,7 +320,7 @@ interface StreamedResponse {
 }
 
 interface EdgeHarness {
-  readonly stub: RelayStub;
+  readonly stub: KaanaStub;
   /** Issue one request; `onFrame` sees each SSE frame as it arrives. */
   readonly request: (
     method: 'GET' | 'POST',
@@ -334,29 +334,29 @@ interface EdgeHarness {
 /**
  * A stub data plane, a configured edge and an HTTP client, for one test.
  *
- * The router is built from `createHttpRelayClient()`, so what is exercised is the
+ * The router is built from `createHttpKaanaClient()`, so what is exercised is the
  * REAL client resolved from the REAL environment variables — not a fake handed in
  * through the router's options.
  */
 async function withEdge(
-  script: RelayScript,
+  script: KaanaScript,
   run: (harness: EdgeHarness) => Promise<void>
 ): Promise<void> {
-  const stub = await startRelayStub();
+  const stub = await startKaanaStub();
   stub.script = script;
 
-  process.env[RELAY_BASE_URL_VARIABLE] = stub.baseUrl;
-  process.env[RELAY_SIGNING_KEY_ID_VARIABLE] = EDGE_KEY_ID;
-  process.env[RELAY_SIGNING_PRIVATE_KEY_VARIABLE] = EDGE_PRIVATE_PEM;
+  process.env[KAANA_BASE_URL_VARIABLE] = stub.baseUrl;
+  process.env[KAANA_SIGNING_KEY_ID_VARIABLE] = EDGE_KEY_ID;
+  process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE] = EDGE_PRIVATE_PEM;
 
-  const relayClient = createHttpRelayClient();
-  expect(relayClient).toBeDefined();
+  const kaanaClient = createHttpKaanaClient();
+  expect(kaanaClient).toBeDefined();
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use(
     '/v1',
-    createInferenceEdgeRouter(relayClient === undefined ? {} : { relayClient })
+    createInferenceEdgeRouter(kaanaClient === undefined ? {} : { kaanaClient })
   );
 
   const server = await new Promise<http.Server>((resolve) => {
@@ -372,9 +372,9 @@ async function withEdge(
       server.close(() => resolve());
     });
     await stub.close();
-    delete process.env[RELAY_BASE_URL_VARIABLE];
-    delete process.env[RELAY_SIGNING_KEY_ID_VARIABLE];
-    delete process.env[RELAY_SIGNING_PRIVATE_KEY_VARIABLE];
+    delete process.env[KAANA_BASE_URL_VARIABLE];
+    delete process.env[KAANA_SIGNING_KEY_ID_VARIABLE];
+    delete process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE];
   }
 }
 
@@ -505,14 +505,14 @@ async function makeFixture(): Promise<Fixture> {
 
   const [account] = await db
     .insert(users)
-    .values({ username: `relay-${tag}`, email: `relay-${tag}@example.test` })
+    .values({ username: `kaana-${tag}`, email: `kaana-${tag}@example.test` })
     .returning({ id: users.id });
 
   const scopes = ['inference:invoke', 'inference:usage:read'];
 
   const [application] = await db
     .insert(applications)
-    .values({ name: `Relay ${tag}`, ownerAccountId: account.id, scopes })
+    .values({ name: `Kaana ${tag}`, ownerAccountId: account.id, scopes })
     .returning({ id: applications.id });
 
   const minted = generateMachineCredentialToken();
@@ -624,7 +624,7 @@ async function makeFixture(): Promise<Fixture> {
 
   await provisionBillingProfile({ accountId: account.id });
   await recordTopUp({
-    idempotencyKey: `relay-top-up-${tag}`,
+    idempotencyKey: `kaana-top-up-${tag}`,
     accountId: account.id,
     currency: 'USD',
     amount: '10.000000000000',
@@ -792,7 +792,7 @@ const UNITS: UsageQuantity[] = [
 const EXPECTED_CHARGE = 100 * INPUT_PRICE_PER_TOKEN + 200 * OUTPUT_PRICE_PER_TOKEN;
 
 /** A complete, well-formed stream: start, two deltas, usage, done, report. */
-function servesCompletely(provider: string): RelayScript {
+function servesCompletely(provider: string): KaanaScript {
   return async (context) => {
     const emit = emitter(context, provider);
     emit.start();
@@ -850,16 +850,16 @@ function chunksOf(response: StreamedResponse): Record<string, unknown>[] {
 const ROLLOUT_ENVIRONMENT = {
   INFERENCE_EDGE_AUDIENCE: 'public',
   INFERENCE_MACHINE_CREDENTIAL_AUTH: 'enabled',
-  INFERENCE_CHARGING_AUTHORIZED: 'relay-suite-fixture:2026-08-01',
-  INFERENCE_PRIVACY_REVIEW: 'relay-suite-fixture:2026-08-01',
+  INFERENCE_CHARGING_AUTHORIZED: 'kaana-suite-fixture:2026-08-01',
+  INFERENCE_PRIVACY_REVIEW: 'kaana-suite-fixture:2026-08-01',
 } as const;
 
 const ORIGINAL_ENVIRONMENT = Object.fromEntries(
   [
     ...Object.keys(ROLLOUT_ENVIRONMENT),
-    RELAY_BASE_URL_VARIABLE,
-    RELAY_SIGNING_KEY_ID_VARIABLE,
-    RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
+    KAANA_BASE_URL_VARIABLE,
+    KAANA_SIGNING_KEY_ID_VARIABLE,
+    KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
   ].map((key) => [key, process.env[key]])
 );
 
@@ -901,14 +901,14 @@ describe('the signed envelope', () => {
       expect(stub.rejected).toBe(0);
 
       const headers = stub.headers[0];
-      expect(headers[RELAY_KEY_ID_HEADER.toLowerCase()]).toBe(EDGE_KEY_ID);
-      expect(headers[RELAY_SIGNATURE_HEADER.toLowerCase()]).toMatch(/^v1=[A-Za-z0-9+/]+=*$/);
+      expect(headers[KAANA_KEY_ID_HEADER.toLowerCase()]).toBe(EDGE_KEY_ID);
+      expect(headers[KAANA_SIGNATURE_HEADER.toLowerCase()]).toMatch(/^v1=[A-Za-z0-9+/]+=*$/);
 
       // MILLISECONDS, not seconds. A unix-seconds value is ~1.8e9 and would be
       // more than 5 minutes from now when read as milliseconds, so the stub would
       // have rejected it — but asserting the magnitude says WHY rather than
       // leaving a future reader to derive it.
-      const timestamp = Number(headers[RELAY_TIMESTAMP_HEADER.toLowerCase()]);
+      const timestamp = Number(headers[KAANA_TIMESTAMP_HEADER.toLowerCase()]);
       expect(timestamp).toBeGreaterThan(1_700_000_000_000);
       expect(Math.abs(Date.now() - timestamp)).toBeLessThan(MAX_SKEW_MS);
     });
@@ -960,12 +960,12 @@ describe('the signed envelope', () => {
       expect(tampered).not.toEqual(original);
 
       const replay = await postToStub(stub, tampered, {
-        [RELAY_KEY_ID_HEADER]: String(stub.headers[0][RELAY_KEY_ID_HEADER.toLowerCase()]),
-        [RELAY_TIMESTAMP_HEADER]: String(
-          stub.headers[0][RELAY_TIMESTAMP_HEADER.toLowerCase()]
+        [KAANA_KEY_ID_HEADER]: String(stub.headers[0][KAANA_KEY_ID_HEADER.toLowerCase()]),
+        [KAANA_TIMESTAMP_HEADER]: String(
+          stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]
         ),
-        [RELAY_SIGNATURE_HEADER]: String(
-          stub.headers[0][RELAY_SIGNATURE_HEADER.toLowerCase()]
+        [KAANA_SIGNATURE_HEADER]: String(
+          stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]
         ),
       });
 
@@ -975,12 +975,12 @@ describe('the signed envelope', () => {
       // And the UNTAMPERED body with the same headers is accepted, so the 401
       // above is about the bytes and not about replaying a request at all.
       const honest = await postToStub(stub, original, {
-        [RELAY_KEY_ID_HEADER]: String(stub.headers[0][RELAY_KEY_ID_HEADER.toLowerCase()]),
-        [RELAY_TIMESTAMP_HEADER]: String(
-          stub.headers[0][RELAY_TIMESTAMP_HEADER.toLowerCase()]
+        [KAANA_KEY_ID_HEADER]: String(stub.headers[0][KAANA_KEY_ID_HEADER.toLowerCase()]),
+        [KAANA_TIMESTAMP_HEADER]: String(
+          stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]
         ),
-        [RELAY_SIGNATURE_HEADER]: String(
-          stub.headers[0][RELAY_SIGNATURE_HEADER.toLowerCase()]
+        [KAANA_SIGNATURE_HEADER]: String(
+          stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]
         ),
       });
       expect(honest.status).toBe(200);
@@ -993,7 +993,7 @@ describe('the signed envelope', () => {
     const body = Buffer.from('{"schemaVersion":1}', 'utf8');
 
     const expected = [
-      'oxy-relay-envelope:v1',
+      'oxy-kaana-envelope:v1',
       keyId,
       String(timestamp),
       createHash('sha256').update(body).digest('hex'),
@@ -1001,7 +1001,7 @@ describe('the signed envelope', () => {
 
     // Built by hand here, so a change to the FRAMING fails this case rather than
     // leaving both sides of the wire agreeing with each other about something new.
-    expect(relaySigningInput(keyId, timestamp, body).toString('utf8')).toBe(expected);
+    expect(kaanaSigningInput(keyId, timestamp, body).toString('utf8')).toBe(expected);
     expect(expected.endsWith('\n')).toBe(false);
   });
 
@@ -1036,11 +1036,11 @@ describe('the signed envelope', () => {
 
 /** POST straight to the stub, bypassing the edge — used for the tamper control. */
 function postToStub(
-  stub: RelayStub,
+  stub: KaanaStub,
   body: Buffer,
   headers: Record<string, string>
 ): Promise<{ status: number }> {
-  const url = new URL(`${stub.baseUrl}${RELAY_INFERENCE_PATH}`);
+  const url = new URL(`${stub.baseUrl}${KAANA_INFERENCE_PATH}`);
   return new Promise((resolve, reject) => {
     const request = http.request(
       {
@@ -1820,11 +1820,11 @@ describe('an unconfigured deployment', () => {
   });
 
   it('resolves no client at all when the environment names no data plane', () => {
-    delete process.env[RELAY_BASE_URL_VARIABLE];
-    delete process.env[RELAY_SIGNING_KEY_ID_VARIABLE];
-    delete process.env[RELAY_SIGNING_PRIVATE_KEY_VARIABLE];
+    delete process.env[KAANA_BASE_URL_VARIABLE];
+    delete process.env[KAANA_SIGNING_KEY_ID_VARIABLE];
+    delete process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE];
 
-    expect(createHttpRelayClient()).toBeUndefined();
+    expect(createHttpKaanaClient()).toBeUndefined();
   });
 });
 

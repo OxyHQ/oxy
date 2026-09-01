@@ -14,7 +14,7 @@ and the rollback plan.
 
 Tracking issue: [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
 Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
-[0006](../adr/0006-oxy-relay-boundary.md) ·
+[0006](../adr/0006-oxy-kaana-boundary.md) ·
 [0007](../adr/0007-canonical-request-attribution.md) ·
 [0008](../adr/0008-catalogue-concept-separation.md) ·
 [0009](../adr/0009-usage-reservation-and-settlement.md) ·
@@ -28,7 +28,7 @@ Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
 
 Oxy is the **control plane**: accounts, applications, credentials, scopes,
 attribution, the model catalogue, routing policy, BYOK metadata, the financial
-ledger, the usage API and the Console. A separate data plane, **Relay** — the
+ledger, the usage API and the Console. A separate data plane, **Kaana** — the
 production name, settled by [ADR 0011](../adr/0011-inference-data-plane-name.md) —
 will own provider adapters, routing execution, streaming and upstream cost
 measurement. **The
@@ -84,7 +84,7 @@ the reason given in [deprecation.md](./deprecation.md).
 
 ### The data plane — workstream 13
 
-The repository exists — `OxyHQ/Relay`, public, Go, created 2026-08-16, verified
+The repository exists — `OxyHQ/Kaana`, public, Go, created 2026-08-16, verified
 2026-08-17 — and what it contains is a question for that repository, not this one.
 What matters here is unchanged: **nothing Oxy can reach.** No deployment, no
 endpoint, no routing execution Oxy invokes, no streaming, no health scoring, no
@@ -239,7 +239,7 @@ read it back rather than inferring it from this repository.
 withheld, and the list of what remains blocked.
 
 Alia also remains the upstream of the proxy above. That does not change here:
-removing it is conditioned on Relay being LIVE, which is a claim about a
+removing it is conditioned on Kaana being LIVE, which is a claim about a
 deployment Oxy can reach and not about a repository — the repository exists, and
 nothing Oxy can reach does. The
 proxy kept a working path when the edge took `/v1/chat/completions` — it is

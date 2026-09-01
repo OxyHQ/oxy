@@ -32,7 +32,7 @@
  * **The grace window.** "Both tokens serve" is also what a route that
  * authenticates anything reports. The control is the NO-GRACE variant of the same
  * rotation: the previous token gets 401 and the request never reaches the fake
- * relay, so a 200 in the grace case is evidence about `isCredentialUsable`
+ * Kaana, so a 200 in the grace case is evidence about `isCredentialUsable`
  * reading the deadline rather than about the edge being permissive.
  *
  * Rotation runs through the SHIPPED `/applications/:id/credentials/:id/rotate`
@@ -141,7 +141,7 @@ import { usageReceipts } from '../../db/schema/usageReceipts';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
-import type { RelayClient, RelayCompletion } from '../../services/relayClient';
+import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { resetFailureAuditCooldown } from '../../services/applicationCredentialAudit.service';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import applicationsRouter from '../applications';
@@ -193,7 +193,7 @@ const ORIGINAL_ROLLOUT_ENVIRONMENT = Object.fromEntries(
 
 let server: http.Server;
 /** Swapped per test, so each case can give the edge its own (or no) data plane. */
-let currentRelay: RelayClient | undefined;
+let currentKaana: KaanaClient | undefined;
 
 beforeAll(async () => {
   Object.assign(process.env, ROLLOUT_ENVIRONMENT);
@@ -205,16 +205,16 @@ beforeAll(async () => {
   app.use('/applications', applicationsRouter);
   // The edge, reading whichever data plane the current test installed. The
   // indirection exists because one server has to serve both routers, and
-  // `createInferenceEdgeRouter` takes its relay once at construction.
+  // `createInferenceEdgeRouter` takes its Kaana client once at construction.
   app.use(
     '/v1',
     createInferenceEdgeRouter({
-      relayClient: {
+      kaanaClient: {
         execute: (envelope, options) => {
-          if (currentRelay === undefined) {
+          if (currentKaana === undefined) {
             throw new Error('no data plane was installed for this test');
           }
-          return currentRelay.execute(envelope, options);
+          return currentKaana.execute(envelope, options);
         },
       },
     })
@@ -240,7 +240,7 @@ afterAll(async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   accessGrants.clear();
-  currentRelay = undefined;
+  currentKaana = undefined;
   sessionUserId = '';
   // The credential lane's failure-audit cooldown is process-global, so a 401 in
   // one case would otherwise suppress the audit row a later one depends on.
@@ -513,11 +513,11 @@ function signServiceToken(input: {
   );
 }
 
-/** A fake data plane. TESTS ONLY — `services/relayClient.ts` has no production one. */
-function fakeRelay(
-  build: (envelope: InferenceRequest) => RelayCompletion,
+/** A fake data plane. TESTS ONLY — `services/kaanaClient.ts` has no production one. */
+function fakeKaana(
+  build: (envelope: InferenceRequest) => KaanaCompletion,
   seen?: InferenceRequest[]
-): RelayClient {
+): KaanaClient {
   return {
     execute: async (envelope) => {
       seen?.push(envelope);
@@ -529,7 +529,7 @@ function fakeRelay(
 function completionFor(
   envelope: InferenceRequest,
   units: { input: number; output: number; provider: string }
-): RelayCompletion {
+): KaanaCompletion {
   const modelReference =
     envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
   const now = new Date().toISOString();
@@ -584,7 +584,7 @@ describe('the service-token lane, with a delegated user', () => {
     const delegatedBefore = await balanceOf(delegatedAccountId);
     const seen: InferenceRequest[] = [];
 
-    currentRelay = fakeRelay(
+    currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 2000, provider: fixture.provider }),
       seen
     );
@@ -649,7 +649,7 @@ describe('the service-token lane, with a delegated user', () => {
       credentialId: fixture.credentialId,
     });
     const seen: InferenceRequest[] = [];
-    currentRelay = fakeRelay(
+    currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
       seen
     );
@@ -682,7 +682,7 @@ describe('the service-token lane, with a delegated user', () => {
       credentialScopes: ['inference:invoke'],
     });
     const seen: InferenceRequest[] = [];
-    currentRelay = fakeRelay(
+    currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
       seen
     );
@@ -713,7 +713,7 @@ describe('the service-token lane, with a delegated user', () => {
       appScopes: ['inference:invoke'],
       credentialScopes: ['inference:invoke'],
     });
-    currentRelay = fakeRelay(
+    currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: granted.provider }),
       seen
     );
@@ -768,7 +768,7 @@ describe('credential rotation during traffic', () => {
   it('serves BOTH tokens inside the grace window, each receipt naming its own credential', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
     const seen: InferenceRequest[] = [];
-    currentRelay = fakeRelay(
+    currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
       seen
     );
@@ -816,7 +816,7 @@ describe('credential rotation during traffic', () => {
   it('CONTROL: with no grace configured the previous token is refused and never reaches the data plane', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
     const seen: InferenceRequest[] = [];
-    currentRelay = fakeRelay(
+    currentKaana = fakeKaana(
       (envelope) => completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
       seen
     );
@@ -835,7 +835,7 @@ describe('credential rotation during traffic', () => {
     const onOld = await request('POST', '/v1/responses', responsesBody(fixture), bearer(fixture.token));
     expect(onOld.status).toBe(401);
     // The half that makes this a control rather than a status-code check: the
-    // refused request never reached the fake relay, so "the grace window works"
+    // refused request never reached the fake Kaana client, so "the grace window works"
     // in the case above cannot be satisfied by a route that accepts anything.
     expect(seen).toHaveLength(1);
 
@@ -854,14 +854,14 @@ describe('credential rotation during traffic', () => {
 
   it('settles a request under the credential that authenticated it, after that credential is retired', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
-    let releaseRelay: (() => void) | undefined;
+    let releaseKaana: (() => void) | undefined;
     const inFlight = new Promise<void>((resolve) => {
-      releaseRelay = resolve;
+      releaseKaana = resolve;
     });
 
     // A data plane that holds the request open until this test lets it finish, so
     // the rotation genuinely lands MID-REQUEST rather than between two of them.
-    currentRelay = {
+    currentKaana = {
       execute: async (envelope) => {
         await inFlight;
         return completionFor(envelope, { input: 12, output: 20, provider: fixture.provider });
@@ -873,7 +873,7 @@ describe('credential rotation during traffic', () => {
     // authenticated on is `revoked` before it settles.
     const rotated = await rotate(fixture);
     expect(rotated.graceExpiresAt).toBeNull();
-    releaseRelay?.();
+    releaseKaana?.();
 
     const response = await pending;
     // The request that was already admitted completes and is charged. Refusing it

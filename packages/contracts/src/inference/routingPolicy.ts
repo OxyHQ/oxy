@@ -261,12 +261,12 @@ export const routingPolicyReferenceSchema = z
  * evaluated to put this entry in the list, and repeating them would invite the
  * data plane to evaluate them a second time — differently, in another language.
  *
- * `regions` is plural and matches `modelDeploymentSchema.regions`, because a
- * deployment declares every region it MAY serve from and choosing among them is
- * routing execution (ADR 0006). Oxy checked the whole set against the customer's
- * residency controls as a SUBSET, so any region in this list is one the policy
- * permits and the data plane's choice among them cannot escape it. Collapsing it
- * to one region would make Oxy take a decision the boundary assigns elsewhere.
+ * `regions` is plural and matches `modelDeploymentSchema.regions`. A non-empty
+ * list declares every region the deployment MAY serve from; Oxy checks the
+ * whole set against the customer's residency controls as a SUBSET. An explicit
+ * empty list means the upstream supplied no regional attestation. Oxy may only
+ * authorize that route when both regional policy lists are empty, so the data
+ * plane never invents geography and cannot escape a residency rule.
  */
 const authorizedRouteFields = {
   /** Which concrete endpoint. Opaque to customers; the data plane's own key. */
@@ -274,7 +274,7 @@ const authorizedRouteFields = {
   /** Always revision-pinned: the entry names the exact weights to serve. */
   modelReference: modelReferenceSchema,
   provider: inferenceProviderSlugSchema,
-  regions: z.array(inferenceRegionSchema).min(1),
+  regions: z.array(inferenceRegionSchema),
 } as const;
 
 /**

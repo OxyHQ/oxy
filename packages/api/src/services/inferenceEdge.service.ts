@@ -46,8 +46,8 @@
  *
  * ## A deployment with no data plane refuses, exactly as it did before
  *
- * `services/httpRelayClient.ts` is the production implementation, but a
- * deployment that has not configured one (`config/relayDataPlane.ts`) is
+ * `services/httpKaanaClient.ts` is the production implementation, but a
+ * deployment that has not configured one (`config/kaanaDataPlane.ts`) is
  * constructed with no client: the edge answers a typed `service_unavailable` with
  * a `requestId`, having reserved and released the hold, and `stream: true` is
  * refused with a typed `invalid_request`. It never falls back to the Alia proxy
@@ -103,9 +103,9 @@
  * prompt with a positive control proving the logger was called at all.
  */
 
-import { randomUUID } from 'node:crypto';
-import type { Request } from 'express';
-import { and, asc, desc, eq, or } from 'drizzle-orm';
+import { randomUUID } from "node:crypto";
+import type { Request } from "express";
+import { and, asc, desc, eq, or } from "drizzle-orm";
 import {
   inferenceRequestSchema,
   INFERENCE_SCOPES,
@@ -124,22 +124,29 @@ import {
   type RoutingPolicyReference,
   type UsageSource,
   type UsageUnit,
-} from '@oxyhq/contracts';
-import { getDb } from '../config/postgres';
-import { isChargingAuthorized, isMachineCredentialLaneEnabled } from '../config/rolloutFlags';
-import { applications } from '../db/schema/applications';
-import { USAGE_UNIT_COLUMN_KEYS } from '../db/schema/ledgerColumns';
-import { usageReceipts, usageReceiptUnitPrices } from '../db/schema/usageReceipts';
-import { usageReservations } from '../db/schema/usageReservations';
-import { extractTokenFromRequest } from '../middleware/authUtils';
+} from "@oxyhq/contracts";
+import { getDb } from "../config/postgres";
+import {
+  isChargingAuthorized,
+  isMachineCredentialLaneEnabled,
+} from "../config/rolloutFlags";
+import { applications } from "../db/schema/applications";
+import { USAGE_UNIT_COLUMN_KEYS } from "../db/schema/ledgerColumns";
+import {
+  usageReceipts,
+  usageReceiptUnitPrices,
+} from "../db/schema/usageReceipts";
+import { usageReservations } from "../db/schema/usageReservations";
+import { extractTokenFromRequest } from "../middleware/authUtils";
 import {
   resolveMachineCredential,
   type MachineCredentialPrincipal,
-} from '../middleware/machineCredential';
-import { verifyServiceToken } from '../middleware/serviceToken';
-import { resolveCredentialAttributionById } from './attribution.service';
+} from "../middleware/machineCredential";
+import { verifyServiceToken } from "../middleware/serviceToken";
+import { resolveCredentialAttributionById } from "./attribution.service";
 import {
   exceedsAmount,
+  listRoutingProfiles,
   resolveCatalogueViewer,
   resolveEdgeRoute,
   routingConstraintsOf,
@@ -148,39 +155,45 @@ import {
   type CatalogueViewer,
   type EdgeModalityRequirement,
   type EdgeRoute,
-} from './inferenceCatalogue.service';
+} from "./inferenceCatalogue.service";
 import {
   quoteUnits,
   reserve,
   settle,
   type LedgerAttribution,
   type ReservationView,
-} from './inferenceLedger.service';
+} from "./inferenceLedger.service";
 import {
   recordRouteSwitch,
   resolveEffectiveRoutingPolicy,
   type RouteSwitchDetail,
-} from './inferenceRoutingPolicy.service';
-import { recordInferenceUsage } from './inferenceTelemetry.service';
+} from "./inferenceRoutingPolicy.service";
+import { recordInferenceUsage } from "./inferenceTelemetry.service";
 import {
   DataPlaneNotConfiguredError,
-  RelayEnvelopeRejectedError,
-  RelayIncompleteError,
-  RelayProtocolError,
-  type RelayClient,
-  type RelayCompletion,
-  type RelayUsageEvidence,
-} from './relayClient';
-import { intersectScopes, type ApplicationScope } from '../utils/applicationScopes';
-import { buildInferenceError, inferenceErrorStatus } from '../utils/inferenceEdgeErrors';
-import { logger } from '../utils/logger';
+  KaanaEnvelopeRejectedError,
+  KaanaIncompleteError,
+  KaanaProtocolError,
+  type KaanaClient,
+  type KaanaCompletion,
+  type KaanaUsageEvidence,
+} from "./kaanaClient";
+import {
+  intersectScopes,
+  type ApplicationScope,
+} from "../utils/applicationScopes";
+import {
+  buildInferenceError,
+  inferenceErrorStatus,
+} from "../utils/inferenceEdgeErrors";
+import { logger } from "../utils/logger";
 import {
   generationReceiptSchema,
   type EdgeOperation,
   type GenerationReceipt,
   type NormalizedEdgeRequest,
-} from '../schemas/inferenceEdge.schemas';
-import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
+} from "../schemas/inferenceEdge.schemas";
+import { machineCredentialTokenPrefix } from "../utils/machineCredentialToken";
 
 /* -------------------------------------------------------------------------- */
 /*  Limits                                                                    */
@@ -240,7 +253,7 @@ export const MAX_IDEMPOTENCY_KEY_LENGTH = 128;
  * which is exactly how a reader tells the two cases apart.
  */
 export const PLATFORM_DEFAULT_ROUTING_POLICY: RoutingPolicyReference = {
-  routingPolicyId: 'platform-default',
+  routingPolicyId: "platform-default",
   policyVersion: 1,
 };
 
@@ -281,7 +294,7 @@ export const PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER = false;
  * scope inside that hour, and both must lock the caller out on the next request.
  */
 export interface EdgePrincipal {
-  readonly lane: 'machine_credential' | 'service_token';
+  readonly lane: "machine_credential" | "service_token";
   readonly applicationId: string;
   readonly credentialId: string;
   /** `applications.owner_account_id` — the billing principal (ADR 0007). */
@@ -328,24 +341,31 @@ export type EdgeAuthentication =
  *
  * Every refusal is the same answer to the caller. `reason` is for the log.
  */
-export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthentication> {
+export async function authenticateEdgeCaller(
+  req: Request,
+): Promise<EdgeAuthentication> {
   const token = extractTokenFromRequest(req);
   if (!token) {
-    return { ok: false, reason: 'no_bearer' };
+    return { ok: false, reason: "no_bearer" };
   }
 
-  if (machineCredentialTokenPrefix(token) !== null && !isMachineCredentialLaneEnabled()) {
-    return { ok: false, reason: 'machine_lane_disabled' };
+  if (
+    machineCredentialTokenPrefix(token) !== null &&
+    !isMachineCredentialLaneEnabled()
+  ) {
+    return { ok: false, reason: "machine_lane_disabled" };
   }
 
   const machine = await resolveMachineCredential(token);
   if (machine.ok) {
-    const application = await loadCatalogueApplication(machine.principal.applicationId);
+    const application = await loadCatalogueApplication(
+      machine.principal.applicationId,
+    );
     return {
       ok: true,
       machinePrincipal: machine.principal,
       principal: {
-        lane: 'machine_credential',
+        lane: "machine_credential",
         applicationId: machine.principal.applicationId,
         credentialId: machine.principal.credentialId,
         ownerAccountId: machine.principal.ownerAccountId,
@@ -357,7 +377,7 @@ export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthenti
     };
   }
 
-  if (machine.reason !== 'not_machine_token') {
+  if (machine.reason !== "not_machine_token") {
     return { ok: false, reason: `machine_${machine.reason}` };
   }
 
@@ -369,29 +389,31 @@ export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthenti
   // The credential ROW, not the token's claims, is the authority for the
   // application and owner hop (ADR 0007) — and re-reading it is what makes a
   // revocation effective inside the token's own hour of life.
-  const attribution = await resolveCredentialAttributionById(verification.payload.credentialId);
-  if (attribution.status !== 'resolved') {
+  const attribution = await resolveCredentialAttributionById(
+    verification.payload.credentialId,
+  );
+  if (attribution.status !== "resolved") {
     return { ok: false, reason: `credential_${attribution.status}` };
   }
-  if (attribution.attribution.application.applicationStatus !== 'active') {
-    return { ok: false, reason: 'application_inactive' };
+  if (attribution.attribution.application.applicationStatus !== "active") {
+    return { ok: false, reason: "application_inactive" };
   }
 
   const application = await loadCatalogueApplication(
-    attribution.attribution.application.applicationId
+    attribution.attribution.application.applicationId,
   );
 
   return {
     ok: true,
     principal: {
-      lane: 'service_token',
+      lane: "service_token",
       applicationId: attribution.attribution.application.applicationId,
       credentialId: attribution.attribution.credentialId,
       ownerAccountId: attribution.attribution.application.ownerAccountId,
       environment: attribution.attribution.credentialEnvironment,
       scopes: intersectScopes(
         attribution.attribution.credentialScopes,
-        attribution.attribution.applicationScopes
+        attribution.attribution.applicationScopes,
       ),
       applicationType: application?.type ?? null,
       applicationIsInternal: application?.isInternal ?? null,
@@ -401,7 +423,7 @@ export async function authenticateEdgeCaller(req: Request): Promise<EdgeAuthenti
 
 /** The two application columns the catalogue audience is derived from. */
 async function loadCatalogueApplication(
-  applicationId: string
+  applicationId: string,
 ): Promise<{ type: string | null; isInternal: boolean | null } | undefined> {
   const [row] = await getDb()
     .select({ type: applications.type, isInternal: applications.isInternal })
@@ -444,15 +466,15 @@ export interface EdgeExecutionContext {
   readonly delegatedUserId?: string;
   /** The customer's `Idempotency-Key`, when they sent one. */
   readonly idempotencyKey?: string;
-  readonly apiFormat: ClientRequestMetadata['apiFormat'];
+  readonly apiFormat: ClientRequestMetadata["apiFormat"];
   readonly endpoint: string;
   /** Aborted when the client disconnects. */
   readonly signal: AbortSignal;
   /**
    * The data plane. Absent when this deployment configured none — see
-   * `config/relayDataPlane.ts` — in which case every invoke refuses.
+   * `config/kaanaDataPlane.ts` — in which case every invoke refuses.
    */
-  readonly relayClient?: RelayClient;
+  readonly kaanaClient?: KaanaClient;
 }
 
 export interface EdgeCompletion {
@@ -466,7 +488,7 @@ export interface EdgeCompletion {
    * `X-Oxy-Provider` and a customer reading their usage dashboard see one answer.
    */
   readonly servingProvider: string;
-  readonly finishReason: RelayCompletion['finishReason'];
+  readonly finishReason: KaanaCompletion["finishReason"];
   readonly output: readonly InferenceMessage[];
   readonly units: Partial<Record<UsageUnit, number>>;
   readonly routingPolicy: RoutingPolicyReference;
@@ -503,21 +525,21 @@ export interface EdgeCompletion {
 }
 
 export type EdgeExecution =
-  | { readonly status: 'completed'; readonly completion: EdgeCompletion }
-  | { readonly status: 'refused'; readonly error: InferenceError };
+  | { readonly status: "completed"; readonly completion: EdgeCompletion }
+  | { readonly status: "refused"; readonly error: InferenceError };
 
 /** The customer-visible frames one streamed request produces. */
 export type EdgeStreamFrame =
   /**
    * The first thing a streaming route learns, yielded when the data plane's own
    * first frame arrives rather than at admission. That timing is what lets a
-   * refusal Relay makes at the ENVELOPE layer still be an HTTP status: nothing is
+   * refusal Kaana makes at the ENVELOPE layer still be an HTTP status: nothing is
    * committed to the response until something real is about to be written to it.
    */
-  | { readonly kind: 'open'; readonly head: EdgeStreamHead }
-  | { readonly kind: 'event'; readonly event: InferenceStreamEvent }
+  | { readonly kind: "open"; readonly head: EdgeStreamHead }
+  | { readonly kind: "event"; readonly event: InferenceStreamEvent }
   /** Terminal. Before an `open` it is an HTTP error; after one, a stream event. */
-  | { readonly kind: 'error'; readonly error: InferenceError };
+  | { readonly kind: "error"; readonly error: InferenceError };
 
 /** What a route needs before it writes the first byte of a stream. */
 export interface EdgeStreamHead {
@@ -545,11 +567,13 @@ export interface EdgeStreamHead {
 /** Everything admission resolved, and the hold it took. */
 interface AdmittedRequest {
   readonly route: EdgeRoute;
+  /** The effective target, including a routing-policy default the caller omitted. */
+  readonly routingTarget: InferenceRequest["target"];
   /**
    * Every route this request is authorized to be served on, in preference
-   * order — `route` first, then the same-model failover destinations the
-   * customer's `fallback` controls permit. What {@link buildEnvelope} sends as
-   * `authorizedRoutes` (ADR 0017).
+   * order — `route` first, then every same- or cross-model destination the
+   * effective target and the customer's `fallback` controls permit. What
+   * {@link buildEnvelope} sends as `authorizedRoutes` (ADR 0017).
    *
    * NON-EMPTY, always: element 0 is `route`. A list of exactly one says "serve
    * this, no failover", which is what a policy with fallback off authorizes and
@@ -570,18 +594,18 @@ interface AdmittedRequest {
 }
 
 type Admission =
-  | { readonly status: 'admitted'; readonly admitted: AdmittedRequest }
-  | { readonly status: 'refused'; readonly error: InferenceError };
+  | { readonly status: "admitted"; readonly admitted: AdmittedRequest }
+  | { readonly status: "refused"; readonly error: InferenceError };
 
 /** Log a refusal and build the customer's error. One origin for both. */
 function refuseRequest(
   context: EdgeExecutionContext,
   code: InferenceErrorCode,
   message: string,
-  options: { param?: string; reason?: string } = {}
+  options: { param?: string; reason?: string } = {},
 ): InferenceError {
   const { principal } = context;
-  logger.warn('inference.edge.refused', {
+  logger.warn("inference.edge.refused", {
     requestId: context.requestId,
     code,
     applicationId: principal.applicationId,
@@ -634,18 +658,18 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   const refuse = (
     code: InferenceErrorCode,
     message: string,
-    options: { param?: string; reason?: string } = {}
+    options: { param?: string; reason?: string } = {},
   ): Admission => ({
-    status: 'refused',
+    status: "refused",
     error: refuseRequest(context, code, message, options),
   });
 
   // 4. Authorize. `inference:invoke` spends the OWNING ACCOUNT's balance, which
   //    is why it is checked before anything is resolved or reserved.
-  if (!principal.scopes.includes('inference:invoke')) {
+  if (!principal.scopes.includes("inference:invoke")) {
     return refuse(
-      'insufficient_scope',
-      'This credential does not hold the inference:invoke scope.'
+      "insufficient_scope",
+      "This credential does not hold the inference:invoke scope.",
     );
   }
 
@@ -653,11 +677,11 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   // typed refusal it always has. Checked here, before anything is reserved, and
   // after the scope check so an unauthorized caller is still told about their
   // scope rather than about a capability they could not have used either way.
-  if (request.stream && context.relayClient === undefined) {
+  if (request.stream && context.kaanaClient === undefined) {
     return refuse(
-      'invalid_request',
-      'Streaming responses are not served by this edge yet. Send stream: false.',
-      { param: 'stream' }
+      "invalid_request",
+      "Streaming responses are not served by this edge yet. Send stream: false.",
+      { param: "stream" },
     );
   }
 
@@ -667,9 +691,9 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   const nonText = firstNonTextPart(request.input);
   if (nonText !== undefined) {
     return refuse(
-      'unsupported_modality',
+      "unsupported_modality",
       `Input parts of type ${nonText} are not served by this edge yet.`,
-      { param: 'input' }
+      { param: "input" },
     );
   }
 
@@ -678,14 +702,14 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   //     means the platform default, which is a real answer rather than a gap.
   const policy = await resolveEffectiveRoutingPolicy(principal.applicationId);
   const routingPolicy: RoutingPolicyReference =
-    policy.status === 'resolved'
+    policy.status === "resolved"
       ? {
           routingPolicyId: policy.stored.policy.routingPolicyId,
           policyVersion: policy.stored.policy.policyVersion,
         }
       : PLATFORM_DEFAULT_ROUTING_POLICY;
   const routingPolicyVersionId =
-    policy.status === 'resolved' ? policy.stored.versionId : undefined;
+    policy.status === "resolved" ? policy.stored.versionId : undefined;
 
   // The same version's data-handling, provider, residency, licence and hosting
   // controls, in the shape the route resolver filters candidates on. Passed
@@ -693,7 +717,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   // platform default, which imposes no constraints, and saying so by name is
   // what stops "unconstrained" from being the answer nobody chose (issue #1011).
   const routingConstraints =
-    policy.status === 'resolved'
+    policy.status === "resolved"
       ? routingConstraintsOf(policy.stored.policy)
       : UNCONSTRAINED_ROUTING;
 
@@ -702,58 +726,113 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   // that was just pinned rather than from whatever is current at settlement.
   const target =
     request.target ??
-    (policy.status === 'resolved' ? policy.stored.policy.defaultTarget : undefined);
+    (policy.status === "resolved"
+      ? policy.stored.policy.defaultTarget
+      : undefined);
 
   if (target === undefined) {
     return refuse(
-      'invalid_request',
-      'Name a model, or configure a default target on this application’s routing policy.',
-      { param: 'model' }
+      "invalid_request",
+      "Name a model, or configure a default target on this application’s routing policy.",
+      { param: "model" },
     );
   }
 
-  if (target.kind !== 'model') {
-    // A routing profile names a SET of candidates and choosing among them is
-    // routing EXECUTION, which is the data plane's (ADR 0006). The SHAPE is no
-    // longer the blocker: `authorizedRoutes` can enumerate a profile's
-    // destinations without any data plane resolving the profile (ADR 0017). What
-    // is missing is here — this edge resolves ONE model reference, and a profile
-    // needs each of its candidates resolved to concrete deployments, re-filtered,
-    // and ranked into one order. Refusing is the honest answer until that exists;
-    // picking a candidate here would be the control plane inventing a routing
-    // decision, and doing it with no way to test the choice.
-    return refuse(
-      'no_route_available',
-      'Routing profiles are not yet served by this edge. Name a concrete model.',
-      { param: 'routingProfile' }
+  const viewer = viewerForPrincipal(principal);
+  const requiredModality = modalityForOperation(request.operation);
+  let requestedModelReference: string;
+  let resolution: Awaited<ReturnType<typeof resolveEdgeRoute>>;
+  let crossModelCandidates: readonly {
+    readonly route: EdgeRoute;
+    readonly alternates: readonly EdgeRoute[];
+  }[] = [];
+
+  if (target.kind === "model") {
+    requestedModelReference = target.modelReference;
+    resolution = await resolveEdgeRoute(
+      viewer,
+      requestedModelReference,
+      routingConstraints,
+      requiredModality,
     );
+  } else {
+    // A profile is a control-plane object. Oxy expands its ordered candidates
+    // into concrete, policy-filtered deployments; Kaana receives only those
+    // signed routes and therefore cannot invent a model that the profile did not
+    // name. The first surviving candidate is the admitted primary. Later
+    // candidates become cross-model destinations only when fallback is enabled.
+    const profile = (await listRoutingProfiles()).find(
+      (candidate) => candidate.slug === target.routingProfile,
+    );
+    if (profile === undefined) {
+      return refuse(
+        "no_route_available",
+        `No routing profile ${target.routingProfile} is available.`,
+        { param: "routingProfile", reason: "unknown_routing_profile" },
+      );
+    }
+
+    const survivors: {
+      readonly route: EdgeRoute;
+      readonly alternates: readonly EdgeRoute[];
+    }[] = [];
+    const profileFailures = new Set<string>();
+    for (const candidate of profile.candidates) {
+      const candidateResolution = await resolveEdgeRoute(
+        viewer,
+        candidate.modelReference,
+        routingConstraints,
+        requiredModality,
+      );
+      if (candidateResolution.status === "resolved") {
+        survivors.push(candidateResolution);
+      } else {
+        profileFailures.add(candidateResolution.status);
+      }
+    }
+
+    const primary = survivors[0];
+    if (primary === undefined) {
+      const policyExcluded = profileFailures.has("policy-excluded");
+      return refuse(
+        policyExcluded ? "policy_violation" : "no_route_available",
+        policyExcluded
+          ? `Every route in ${target.routingProfile} is excluded by this application’s routing policy.`
+          : `No route in ${target.routingProfile} can serve this request.`,
+        {
+          param: "routingProfile",
+          reason: policyExcluded
+            ? "profile_policy_excluded"
+            : "profile_has_no_route",
+        },
+      );
+    }
+
+    resolution = { status: "resolved", ...primary };
+    requestedModelReference = primary.route.modelReference;
+    const fallbackDisabled =
+      policy.status === "resolved"
+        ? policy.stored.policy.fallback.disabled
+        : true;
+    crossModelCandidates = fallbackDisabled ? [] : survivors.slice(1);
   }
 
-  const requestedModelReference = target.modelReference;
-
-  // 5. Resolve the route, under this request's own policy.
-  const resolution = await resolveEdgeRoute(
-    viewerForPrincipal(principal),
-    requestedModelReference,
-    routingConstraints,
-    modalityForOperation(request.operation)
-  );
-  if (resolution.status === 'unknown-model') {
+  if (resolution.status === "unknown-model") {
     // A model that does not exist and one this credential may not see are
     // deliberately the same answer — the catalogue is not an oracle for what Oxy
     // runs internally.
     await recordEdgeTelemetry(context, {
       requestedModelReference,
-      statusCode: inferenceErrorStatus('model_not_found'),
+      statusCode: inferenceErrorStatus("model_not_found"),
       units: {},
     });
     return refuse(
-      'model_not_found',
+      "model_not_found",
       `No model ${requestedModelReference} is available to you.`,
-      { param: 'model' }
+      { param: "model" },
     );
   }
-  if (resolution.status === 'policy-excluded') {
+  if (resolution.status === "policy-excluded") {
     // The request is refused, not downgraded. Nothing has been reserved and
     // nothing is forwarded: a request that cannot be served under its own policy
     // must fail rather than fall back to a route that policy forbade, which is
@@ -763,22 +842,22 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     // budget on a configuration decision.
     await recordEdgeTelemetry(context, {
       requestedModelReference,
-      statusCode: inferenceErrorStatus('policy_violation'),
+      statusCode: inferenceErrorStatus("policy_violation"),
       units: {},
     });
     return refuse(
-      'policy_violation',
-      `Every route for ${requestedModelReference} is excluded by this application’s routing policy: ${resolution.constraints.join(', ')}.`,
-      { reason: `policy_excluded:${resolution.constraints.join(',')}` }
+      "policy_violation",
+      `Every route for ${requestedModelReference} is excluded by this application’s routing policy: ${resolution.constraints.join(", ")}.`,
+      { reason: `policy_excluded:${resolution.constraints.join(",")}` },
     );
   }
-  if (resolution.status === 'modality-unsupported') {
+  if (resolution.status === "modality-unsupported") {
     // `unsupported_modality` and not `model_not_found`: the model exists and this
     // credential can see it, it just cannot do what this endpoint asks. Telling a
     // caller the model does not exist would send them to change a correct id.
     await recordEdgeTelemetry(context, {
       requestedModelReference,
-      statusCode: inferenceErrorStatus('unsupported_modality'),
+      statusCode: inferenceErrorStatus("unsupported_modality"),
       units: {},
     });
     const wanted =
@@ -786,33 +865,64 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         ? `${resolution.required.input} input`
         : `${resolution.required.input} input and ${resolution.required.output} output`;
     return refuse(
-      'unsupported_modality',
-      `${requestedModelReference} does not serve ${wanted}. It accepts ${resolution.supportedInput.join(', ')} and produces ${resolution.supportedOutput.join(', ')}.`,
-      { param: 'model' }
+      "unsupported_modality",
+      `${requestedModelReference} does not serve ${wanted}. It accepts ${resolution.supportedInput.join(", ")} and produces ${resolution.supportedOutput.join(", ")}.`,
+      { param: "model" },
     );
   }
-  if (resolution.status === 'unpriced-route') {
+  if (resolution.status === "unpriced-route") {
     await recordEdgeTelemetry(context, {
       requestedModelReference,
-      statusCode: inferenceErrorStatus('no_route_available'),
+      statusCode: inferenceErrorStatus("no_route_available"),
       units: {},
     });
     return refuse(
-      'no_route_available',
+      "no_route_available",
       `No priced route is available for ${requestedModelReference}.`,
-      { reason: 'unpriced_route' }
+      { reason: "unpriced_route" },
     );
   }
   const route = resolution.route;
 
+  // A concrete, unpinned model may use only the cross-model destinations named
+  // by the pinned policy version. A pinned revision never does: the contract
+  // makes a cross-model entry for that target unrepresentable.
+  if (
+    target.kind === "model" &&
+    !target.modelReference.includes("@") &&
+    policy.status === "resolved" &&
+    !policy.stored.policy.fallback.disabled
+  ) {
+    const resolvedFallbacks: {
+      readonly route: EdgeRoute;
+      readonly alternates: readonly EdgeRoute[];
+    }[] = [];
+    for (const modelReference of policy.stored.policy.fallback
+      .authorizedCrossModel) {
+      const fallbackResolution = await resolveEdgeRoute(
+        viewer,
+        modelReference,
+        routingConstraints,
+        requiredModality,
+      );
+      if (fallbackResolution.status === "resolved") {
+        resolvedFallbacks.push(fallbackResolution);
+      }
+    }
+    crossModelCandidates = resolvedFallbacks;
+  }
+
   // 6a. Explicit context and output ceilings, enforced at the edge rather than
   //     inherited from whatever the upstream provider happens to enforce.
   const requestedOutput = request.maxOutputTokens;
-  if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
+  if (
+    requestedOutput !== undefined &&
+    requestedOutput > route.maxOutputTokens
+  ) {
     return refuse(
-      'output_limit_exceeded',
+      "output_limit_exceeded",
       `${requestedModelReference} generates at most ${route.maxOutputTokens} output tokens.`,
-      { param: 'max_output_tokens' }
+      { param: "max_output_tokens" },
     );
   }
   // Zero for every operation that does not generate a token stream. The context
@@ -820,14 +930,14 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   // question: an embeddings request still has to fit the model's context.
   const maxOutputTokens = outputTokenBudget(
     request.operation,
-    requestedOutput ?? route.maxOutputTokens
+    requestedOutput ?? route.maxOutputTokens,
   );
   const estimatedInputTokens = estimateInputTokens(request);
   if (estimatedInputTokens + maxOutputTokens > route.maxContextTokens) {
     return refuse(
-      'context_length_exceeded',
+      "context_length_exceeded",
       `The request and its maximum output exceed the ${route.maxContextTokens}-token context of ${requestedModelReference}.`,
-      { param: 'input' }
+      { param: "input" },
     );
   }
 
@@ -847,19 +957,25 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   const ceilingUnits: Partial<Record<UsageUnit, number>> = ceilingForOperation(
     request.operation,
     estimatedInputTokens,
-    maxOutputTokens
+    maxOutputTokens,
   );
   const quote = await quoteUnits(route.priceVersionId, ceilingUnits);
-  if (quote.status !== 'quoted') {
+  if (quote.status !== "quoted") {
     logger.error(
-      'inference.edge.unquotable_route',
-      new Error(`route ${route.modelReference} could not be priced: ${quote.status}`),
-      { requestId, modelReference: route.modelReference, priceVersionId: route.priceVersionId }
+      "inference.edge.unquotable_route",
+      new Error(
+        `route ${route.modelReference} could not be priced: ${quote.status}`,
+      ),
+      {
+        requestId,
+        modelReference: route.modelReference,
+        priceVersionId: route.priceVersionId,
+      },
     );
     return refuse(
-      'no_route_available',
+      "no_route_available",
       `No priced route is available for ${requestedModelReference}.`,
-      { reason: quote.status }
+      { reason: quote.status },
     );
   }
 
@@ -878,7 +994,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   //        `fallbackDisabled` for a deployment-scope switch. This is the control's
   //        first preventive enforcement point.
   const authorizesSameModelFailover =
-    policy.status === 'resolved'
+    policy.status === "resolved"
       ? !policy.stored.policy.fallback.disabled &&
         policy.stored.policy.fallback.sameModelDeployment
       : PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER;
@@ -894,7 +1010,10 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
 
   if (authorizesSameModelFailover) {
     for (const alternate of resolution.alternates) {
-      const alternateQuote = await quoteUnits(alternate.priceVersionId, ceilingUnits);
+      const alternateQuote = await quoteUnits(
+        alternate.priceVersionId,
+        ceilingUnits,
+      );
       // Two ways an alternate is dropped rather than refused, both narrowing:
       // a route whose ceiling cannot be quoted has no bound to hold against, and
       // one quoted in another currency cannot be settled against this hold at
@@ -907,13 +1026,18 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       // and a list that is short because the catalogue holds one deployment
       // look identical from outside. Ids only — never a quantity a prompt could
       // be reconstructed from.
-      if (alternateQuote.status !== 'quoted' || alternateQuote.currency !== quote.currency) {
-        logger.warn('inference.edge.unauthorizable_alternate', {
+      if (
+        alternateQuote.status !== "quoted" ||
+        alternateQuote.currency !== quote.currency
+      ) {
+        logger.warn("inference.edge.unauthorizable_alternate", {
           requestId,
           deploymentId: alternate.deploymentId,
           priceVersionId: alternate.priceVersionId,
           reason:
-            alternateQuote.status === 'quoted' ? 'currency_mismatch' : alternateQuote.status,
+            alternateQuote.status === "quoted"
+              ? "currency_mismatch"
+              : alternateQuote.status,
         });
         continue;
       }
@@ -926,6 +1050,54 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     }
   }
 
+  // A profile's later candidates, or a concrete model's explicitly authorised
+  // policy fallbacks, are the only source of cross-model entries. Each one was
+  // independently resolved through the same viewer, modality and policy
+  // filters as the primary. Capacity is checked again against THIS request so a
+  // fallback cannot accept a context/output ceiling smaller than the hold was
+  // built to permit.
+  const crossRoutes = crossModelCandidates.flatMap((candidate) => [
+    candidate.route,
+    ...(authorizesSameModelFailover ? candidate.alternates : []),
+  ]);
+  for (const alternate of crossRoutes) {
+    if (
+      authorizedRoutes.some(
+        (authorized) => authorized.deploymentId === alternate.deploymentId,
+      ) ||
+      alternate.maxOutputTokens < maxOutputTokens ||
+      alternate.maxContextTokens < estimatedInputTokens + maxOutputTokens
+    ) {
+      continue;
+    }
+
+    const alternateQuote = await quoteUnits(
+      alternate.priceVersionId,
+      ceilingUnits,
+    );
+    if (
+      alternateQuote.status !== "quoted" ||
+      alternateQuote.currency !== quote.currency
+    ) {
+      logger.warn("inference.edge.unauthorizable_alternate", {
+        requestId,
+        deploymentId: alternate.deploymentId,
+        priceVersionId: alternate.priceVersionId,
+        reason:
+          alternateQuote.status === "quoted"
+            ? "currency_mismatch"
+            : alternateQuote.status,
+      });
+      continue;
+    }
+
+    authorizedRoutes.push(alternate);
+    if (exceedsAmount(alternateQuote.amount, maxAmount)) {
+      ceilingPriceVersionId = alternate.priceVersionId;
+      maxAmount = alternateQuote.amount;
+    }
+  }
+
   const ledgerKey = ledgerIdempotencyKey(context);
 
   // Idempotency is a CHARGE guarantee, not response replay: prompts and
@@ -933,11 +1105,14 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   // return for a repeated key. A key already bound to a reservation — held or
   // settled — is therefore refused rather than re-executed, which is what makes
   // "a retried request must not produce a second charge" structural.
-  if (context.idempotencyKey !== undefined && (await reservationExists(ledgerKey))) {
+  if (
+    context.idempotencyKey !== undefined &&
+    (await reservationExists(ledgerKey))
+  ) {
     return refuse(
-      'idempotency_conflict',
-      'This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.',
-      { param: 'Idempotency-Key' }
+      "idempotency_conflict",
+      "This Idempotency-Key has already been used. Responses are not retained, so it cannot be replayed.",
+      { param: "Idempotency-Key" },
     );
   }
 
@@ -970,7 +1145,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     });
 
     const held = reservationOrRefusal(reservation, requestId, quote.currency);
-    if ('error' in held) {
+    if ("error" in held) {
       await recordEdgeTelemetry(context, {
         requestedModelReference,
         statusCode: inferenceErrorStatus(held.error.code),
@@ -981,22 +1156,23 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         // existence. The row says which route the request would have taken.
         servingProvider: route.provider,
       });
-      logger.warn('inference.edge.reservation_refused', {
+      logger.warn("inference.edge.reservation_refused", {
         requestId,
         code: held.error.code,
         accountId: principal.ownerAccountId,
         applicationId: principal.applicationId,
         reservationStatus: reservation.status,
       });
-      return { status: 'refused', error: held.error };
+      return { status: "refused", error: held.error };
     }
     hold = held.reservation;
   }
 
   return {
-    status: 'admitted',
+    status: "admitted",
     admitted: {
       route,
+      routingTarget: target,
       authorizedRoutes,
       requestedModelReference,
       maxOutputTokens,
@@ -1025,13 +1201,13 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
  * would refuse rather than quietly answer it non-streamed.
  */
 export async function executeInferenceRequest(
-  context: EdgeExecutionContext
+  context: EdgeExecutionContext,
 ): Promise<EdgeExecution> {
   const { requestId, principal } = context;
 
   const admission = await admitRequest(context);
-  if (admission.status === 'refused') {
-    return { status: 'refused', error: admission.error };
+  if (admission.status === "refused") {
+    return { status: "refused", error: admission.error };
   }
   const { admitted } = admission;
   const { route, hold } = admitted;
@@ -1039,58 +1215,93 @@ export async function executeInferenceRequest(
   // 7. Build and forward the versioned internal envelope.
   const envelope = buildEnvelope(context, admitted, false);
 
-  let completion: RelayCompletion;
+  let completion: KaanaCompletion;
   try {
-    if (context.relayClient === undefined) {
+    if (context.kaanaClient === undefined) {
       throw new DataPlaneNotConfiguredError();
     }
-    completion = await context.relayClient.execute(envelope, { signal: context.signal });
+    completion = await context.kaanaClient.execute(envelope, {
+      signal: context.signal,
+    });
   } catch (error) {
     const failure = classifyForwardFailure(error, context.signal);
-    // Whatever the data plane DID measure before it stopped — `RelayIncompleteError`
+    // Whatever the data plane DID measure before it stopped — `KaanaIncompleteError`
     // carries it — is what this settles against. A full refund on a request that
     // produced two hundred tokens would be Oxy absorbing a cost it can account
     // for, which is the mirror of the over-charge the reservation prevents.
     //
     // Built ONCE and shared with the telemetry row below, so the receipt and the
-    // event name the same provider: a failure whose evidence was a full report
-    // names the REPORTED provider on both, and one with no report names the
-    // admitted route on both. Two `settlementFrom` calls would be two chances to
-    // disagree about a request that already failed.
+    // event name the same provider: a failure whose evidence was a TRUSTED full
+    // report names the REPORTED provider on both, and one with no trusted report
+    // names the admitted route on both. Two `settlementFrom` calls would be two
+    // chances to disagree about a request that already failed.
+    const evidence = usageEvidenceOf(error);
+    const reportValidation =
+      evidence?.kind === "report"
+        ? validateReportRoute(
+            evidence.report,
+            requestId,
+            admitted.authorizedRoutes,
+          )
+        : undefined;
+    if (reportValidation?.status === "invalid") {
+      logger.error(
+        "inference.edge.incomplete_usage_report_rejected",
+        new Error(
+          "the incomplete response carried a usage report that did not match the signed request and route list",
+        ),
+        {
+          requestId,
+          accountId: principal.ownerAccountId,
+          reason: reportValidation.reason,
+        },
+      );
+    }
+    const trustedEvidence =
+      reportValidation?.status === "invalid" ? undefined : evidence;
+    const servedRoute =
+      reportValidation?.status === "valid" ? reportValidation.route : route;
     const settlement = settlementFrom(
-      usageEvidenceOf(error),
+      trustedEvidence,
       failure.outcome,
-      route.provider
+      route.provider,
     );
-    await settleMeasured(context, admitted, settlement);
+    await settleMeasured(context, admitted, settlement, servedRoute);
     await recordEdgeTelemetry(context, {
       requestedModelReference: admitted.requestedModelReference,
       statusCode: inferenceErrorStatus(failure.code),
-      units: {},
-      resolvedModelReference: route.modelReference,
+      units: settlement.units,
+      resolvedModelReference: servedRoute.modelReference,
       servingProvider: settlement.servingProvider,
       outcome: failure.outcome,
     });
     return {
-      status: 'refused',
-      error: refuseRequest(context, failure.code, failure.message, { reason: failure.reason }),
+      status: "refused",
+      error: refuseRequest(context, failure.code, failure.message, {
+        reason: failure.reason,
+      }),
     };
   }
 
-  // The data plane answering about a different request, or serving a model the
-  // edge did not admit, are both refusals rather than warnings: no routing
-  // policy authorizes any substitution today, so a differing model reference is
-  // a substitution nobody permitted.
-  const mismatch = validateCompletion(completion, requestId, route);
-  if (mismatch !== undefined) {
+  // Bind the report back to one exact route in the signed authorization list.
+  // Model and provider alone are not enough when one provider exposes several
+  // deployments of the same weights: `deploymentId` is the unambiguous key.
+  // The contract still permits an omitted deployment id, so that older shape is
+  // accepted only when model+provider identify exactly one authorized route.
+  const validation = validateCompletion(
+    completion,
+    requestId,
+    admitted.authorizedRoutes,
+  );
+  if (validation.status === "invalid") {
     await settleMeasured(
       context,
       admitted,
-      settlementFrom(undefined, 'failed', route.provider)
+      settlementFrom(undefined, "failed", route.provider),
     );
     await recordEdgeTelemetry(context, {
       requestedModelReference: admitted.requestedModelReference,
-      statusCode: inferenceErrorStatus(mismatch.code),
+      statusCode: inferenceErrorStatus(validation.code),
       units: {},
       resolvedModelReference: route.modelReference,
       // ADMITTED, deliberately, even though the rejected report carries a
@@ -1100,15 +1311,16 @@ export async function executeInferenceRequest(
       // a document the edge declined to believe. The admitted route is the last
       // thing about this request Oxy itself established.
       servingProvider: route.provider,
-      outcome: 'failed',
+      outcome: "failed",
     });
     return {
-      status: 'refused',
-      error: refuseRequest(context, mismatch.code, mismatch.message, {
-        reason: mismatch.reason,
+      status: "refused",
+      error: refuseRequest(context, validation.code, validation.message, {
+        reason: validation.reason,
       }),
     };
   }
+  const servedRoute = validation.route;
 
   // 8. Settle against the exact usage, releasing the rest of the hold in the
   //    same transaction — or, while shadow metering, price the same usage and
@@ -1133,7 +1345,7 @@ export async function executeInferenceRequest(
   const servingProvider = completion.usage.servingProvider;
 
   if (hold === undefined) {
-    await recordShadowMetering(context, route, units, {
+    await recordShadowMetering(context, servedRoute, units, {
       outcome: completion.usage.outcome,
       usageSource: completion.usage.usageSource,
       servingProvider,
@@ -1153,36 +1365,39 @@ export async function executeInferenceRequest(
       outcome: completion.usage.outcome,
       usageSource: completion.usage.usageSource,
       units,
-      resolvedModelReference: route.modelReference,
+      resolvedModelReference: servedRoute.modelReference,
       servingProvider,
-      priceVersionId: route.priceVersionId,
+      priceVersionId: servedRoute.priceVersionId,
       ...(admitted.routingPolicyVersionId === undefined
         ? {}
         : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
     });
 
-    if (settlement.status !== 'settled' && settlement.status !== 'already-settled') {
+    if (
+      settlement.status !== "settled" &&
+      settlement.status !== "already-settled"
+    ) {
       // The generation happened and could not be charged for. That is an Oxy
       // failure, and it is loud: the hold stands until the sweeper releases it,
       // so the customer's money comes back on its own while the discrepancy is
       // visible.
       logger.error(
-        'inference.edge.settlement_failed',
+        "inference.edge.settlement_failed",
         new Error(`settlement returned ${settlement.status}`),
         {
           requestId,
           reservationId: hold.reservationId,
           accountId: principal.ownerAccountId,
           settlementStatus: settlement.status,
-        }
+        },
       );
       return {
-        status: 'refused',
+        status: "refused",
         error: refuseRequest(
           context,
-          'internal_error',
-          'The request completed but could not be settled.',
-          { reason: settlement.status }
+          "internal_error",
+          "The request completed but could not be settled.",
+          { reason: settlement.status },
         ),
       };
     }
@@ -1194,7 +1409,7 @@ export async function executeInferenceRequest(
   // fails a request that has already been served — see
   // {@link recordEdgeRouteSwitch}.
   //
-  // `?? []` because `RelayCompletion` is deserialized JSON, and a required
+  // `?? []` because `KaanaCompletion` is deserialized JSON, and a required
   // property on a wire-derived shape is a CLAIM about what the far side sends
   // rather than an enforcement of it: a producer that omits this leaves
   // `undefined` at runtime and `for…of` throws with `tsc` having signed off. The
@@ -1215,7 +1430,7 @@ export async function executeInferenceRequest(
     requestedModelReference: admitted.requestedModelReference,
     statusCode: 200,
     units,
-    resolvedModelReference: route.modelReference,
+    resolvedModelReference: servedRoute.modelReference,
     servingProvider,
     outcome: completion.usage.outcome,
     usageSource: completion.usage.usageSource,
@@ -1232,13 +1447,13 @@ export async function executeInferenceRequest(
   });
 
   return {
-    status: 'completed',
+    status: "completed",
     completion: {
       requestId,
       ...(completion.generationId === undefined
         ? {}
         : { generationId: completion.generationId }),
-      resolvedModelReference: route.modelReference,
+      resolvedModelReference: servedRoute.modelReference,
       servingProvider,
       finishReason: completion.finishReason,
       output: completion.output,
@@ -1272,8 +1487,8 @@ export async function executeInferenceRequest(
  * generator with a return completion, which runs its `finally`. So:
  *
  *  - the hold is settled exactly once, whatever happened, and
- *  - `RelayClient.stream`'s own `finally` aborts the upstream hop, which is what
- *    propagates a client disconnect to Relay and from there to the provider.
+ *  - `KaanaClient.stream`'s own `finally` aborts the upstream hop, which is what
+ *    propagates a client disconnect to Kaana and from there to the provider.
  *
  * A cancelled request is a SETTLEMENT case (ADR 0009), never a discarded one: the
  * units measured before the cut are charged and the rest of the hold is released,
@@ -1283,7 +1498,7 @@ export async function executeInferenceRequest(
  *
  *  1. the terminal `usage_report` frame — the full normalized report;
  *  2. the last in-stream `usage` event, when the report never arrived, which is
- *     the ordinary case for a client disconnect: Relay still produces a report
+ *     the ordinary case for a client disconnect: Kaana still produces a report
  *     but can no longer deliver the frame to a connection that is gone;
  *  3. nothing, when neither arrived — settled as ZERO units marked `estimated`,
  *     which the ledger records as the refund reason `usage_unavailable`.
@@ -1295,18 +1510,18 @@ export async function executeInferenceRequest(
  * estimator, and this is not the place for one.
  */
 export async function* streamInferenceRequest(
-  context: EdgeExecutionContext
+  context: EdgeExecutionContext,
 ): AsyncGenerator<EdgeStreamFrame> {
   const admission = await admitRequest(context);
-  if (admission.status === 'refused') {
-    yield { kind: 'error', error: admission.error };
+  if (admission.status === "refused") {
+    yield { kind: "error", error: admission.error };
     return;
   }
   const { admitted } = admission;
   const { route } = admitted;
 
-  const relayClient = context.relayClient;
-  if (relayClient === undefined) {
+  const kaanaClient = context.kaanaClient;
+  if (kaanaClient === undefined) {
     // Unreachable: `admitRequest` refuses a streaming request with no data plane
     // before reserving anything. Handled rather than asserted because the
     // alternative is a non-null assertion, and because a future edit to that
@@ -1314,15 +1529,15 @@ export async function* streamInferenceRequest(
     await settleMeasured(
       context,
       admitted,
-      settlementFrom(undefined, 'failed', route.provider)
+      settlementFrom(undefined, "failed", route.provider),
     );
     yield {
-      kind: 'error',
+      kind: "error",
       error: refuseRequest(
         context,
-        'invalid_request',
-        'Streaming responses are not served by this edge yet. Send stream: false.',
-        { param: 'stream', reason: 'no_data_plane' }
+        "invalid_request",
+        "Streaming responses are not served by this edge yet. Send stream: false.",
+        { param: "stream", reason: "no_data_plane" },
       ),
     };
     return;
@@ -1331,15 +1546,17 @@ export async function* streamInferenceRequest(
   const envelope = buildEnvelope(context, admitted, true);
 
   let report: NormalizedUsageReport | undefined;
-  let partial: RelayUsageEvidence | undefined;
+  let partial: KaanaUsageEvidence | undefined;
   let terminal: InferenceError | undefined;
   let forwardFailure: ForwardFailure | undefined;
   let opened = false;
   let sawOutput = false;
 
   try {
-    for await (const frame of relayClient.stream(envelope, { signal: context.signal })) {
-      if (frame.kind === 'usage') {
+    for await (const frame of kaanaClient.stream(envelope, {
+      signal: context.signal,
+    })) {
+      if (frame.kind === "usage") {
         report = frame.usage;
         // Never forwarded as a customer event: it is the technical record
         // settlement runs against, and the contract's stream union has no member
@@ -1351,7 +1568,7 @@ export async function* streamInferenceRequest(
       if (!opened) {
         opened = true;
         yield {
-          kind: 'open',
+          kind: "open",
           head: {
             requestId: context.requestId,
             resolvedModelReference: route.modelReference,
@@ -1363,15 +1580,19 @@ export async function* streamInferenceRequest(
         };
       }
 
-      if (event.type === 'usage') {
-        partial = { kind: 'partial', units: event.units, usageSource: event.usageSource };
-      } else if (event.type === 'delta' && event.text.length > 0) {
+      if (event.type === "usage") {
+        partial = {
+          kind: "partial",
+          units: event.units,
+          usageSource: event.usageSource,
+        };
+      } else if (event.type === "delta" && event.text.length > 0) {
         sawOutput = true;
-      } else if (event.type === 'error') {
+      } else if (event.type === "error") {
         terminal = event.error;
       }
 
-      yield { kind: 'event', event };
+      yield { kind: "event", event };
 
       // AFTER the yield, deliberately. A `yield` suspends until the route asks
       // for the next frame, so this insert sits between "the customer has the
@@ -1380,7 +1601,7 @@ export async function* streamInferenceRequest(
       // accumulated for the `finally` because a notice already shown to a
       // customer must survive a process that dies later in the same stream, and
       // because this function keeps no array of events by design.
-      if (event.type === 'route_switch') {
+      if (event.type === "route_switch") {
         await recordEdgeRouteSwitch(context, admitted, event);
       }
     }
@@ -1392,33 +1613,47 @@ export async function* streamInferenceRequest(
     // it crosses a service boundary. Unlike the non-streaming path this cannot
     // also refuse the response — the customer already has it — so the request
     // settles as unmeasured and the discrepancy is loud in the log.
-    const usable = report === undefined ? undefined : validateUsageReport(report, context.requestId, route);
+    const usable =
+      report === undefined
+        ? undefined
+        : validateUsageReport(
+            report,
+            context.requestId,
+            admitted.authorizedRoutes,
+          );
     if (report !== undefined && usable === undefined) {
       logger.error(
-        'inference.edge.stream_usage_report_rejected',
-        new Error('the streamed usage report does not answer the request that was admitted'),
+        "inference.edge.stream_usage_report_rejected",
+        new Error(
+          "the streamed usage report does not answer the request that was admitted",
+        ),
         {
           requestId: context.requestId,
           resolvedModelReference: route.modelReference,
           accountId: context.principal.ownerAccountId,
-        }
+        },
       );
     }
 
-    const evidence: RelayUsageEvidence | undefined =
-      usable !== undefined ? { kind: 'report', report: usable } : partial;
+    const evidence: KaanaUsageEvidence | undefined =
+      usable !== undefined
+        ? { kind: "report", report: usable.report }
+        : partial;
     const outcome = streamOutcome(context, { terminal, sawOutput });
     const settlement = settlementFrom(evidence, outcome, route.provider);
+    const servedRoute = usable?.route ?? route;
 
-    await settleMeasured(context, admitted, settlement);
+    await settleMeasured(context, admitted, settlement, servedRoute);
     await recordEdgeTelemetry(context, {
       requestedModelReference: admitted.requestedModelReference,
       // A stream that produced any frame answered 200 and cannot un-answer it.
       statusCode: opened
         ? 200
-        : inferenceErrorStatus(forwardFailure?.code ?? terminal?.code ?? 'internal_error'),
+        : inferenceErrorStatus(
+            forwardFailure?.code ?? terminal?.code ?? "internal_error",
+          ),
       units: settlement.units,
-      resolvedModelReference: route.modelReference,
+      resolvedModelReference: servedRoute.modelReference,
       // REPORTED when a usable report arrived, admitted otherwise — the same
       // value the receipt carries, resolved once in `settlementFrom`. A stream's
       // `X-Oxy-Provider` header deliberately differs here: see
@@ -1426,10 +1661,12 @@ export async function* streamInferenceRequest(
       servingProvider: settlement.servingProvider,
       outcome: settlement.outcome,
       usageSource: settlement.usageSource,
-      ...(usable === undefined ? {} : { routeSwitches: usable.routeSwitches }),
-      ...(usable?.timeToFirstTokenMs === undefined
+      ...(usable === undefined
         ? {}
-        : { timeToFirstTokenMs: usable.timeToFirstTokenMs }),
+        : { routeSwitches: usable.report.routeSwitches }),
+      ...(usable?.report.timeToFirstTokenMs === undefined
+        ? {}
+        : { timeToFirstTokenMs: usable.report.timeToFirstTokenMs }),
       ...(settlement.generationId === undefined
         ? {}
         : { generationId: settlement.generationId }),
@@ -1437,14 +1674,19 @@ export async function* streamInferenceRequest(
   }
 
   // A transport or protocol failure produced no terminal event, so the customer
-  // has not been told the stream ended. Relay's OWN terminal error was already
+  // has not been told the stream ended. Kaana's OWN terminal error was already
   // forwarded verbatim as an event, which is why there is nothing to add for it.
   if (forwardFailure !== undefined) {
     yield {
-      kind: 'error',
-      error: refuseRequest(context, forwardFailure.code, forwardFailure.message, {
-        reason: forwardFailure.reason,
-      }),
+      kind: "error",
+      error: refuseRequest(
+        context,
+        forwardFailure.code,
+        forwardFailure.message,
+        {
+          reason: forwardFailure.reason,
+        },
+      ),
     };
   }
 }
@@ -1460,11 +1702,11 @@ export async function* streamInferenceRequest(
  */
 function streamOutcome(
   context: EdgeExecutionContext,
-  observed: { terminal: InferenceError | undefined; sawOutput: boolean }
-): 'failed' | 'cancelled' | 'partial' {
-  if (context.signal.aborted) return 'cancelled';
-  if (observed.terminal?.code === 'cancelled') return 'cancelled';
-  return observed.sawOutput ? 'partial' : 'failed';
+  observed: { terminal: InferenceError | undefined; sawOutput: boolean },
+): "failed" | "cancelled" | "partial" {
+  if (context.signal.aborted) return "cancelled";
+  if (observed.terminal?.code === "cancelled") return "cancelled";
+  return observed.sawOutput ? "partial" : "failed";
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1478,7 +1720,7 @@ function streamOutcome(
  *
  * Reached from BOTH dialects and BOTH transports: a streaming request records
  * each `route_switch` event as it forwards it, and a non-streaming one records
- * the events `RelayCompletion.routeSwitchEvents` carried out of the fold. The
+ * the events `KaanaCompletion.routeSwitchEvents` carried out of the fold. The
  * writer itself is `inferenceRoutingPolicy.service.ts`'s `recordRouteSwitch`,
  * which already owns the authorisation lookup and the idempotency — this function
  * is the edge's adapter onto it, not a second writer.
@@ -1528,27 +1770,29 @@ function streamOutcome(
 async function recordEdgeRouteSwitch(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
-  event: InferenceStreamRouteSwitchEvent
+  event: InferenceStreamRouteSwitchEvent,
 ): Promise<void> {
   if (event.requestId !== context.requestId) {
     // Same reasoning as `validateUsageReport`: a record that crosses a service
     // boundary and names a different request is discarded, not stored under this
     // one's id.
     logger.error(
-      'inference.edge.route_switch_request_mismatch',
-      new Error('the data plane reported a route switch for a different request'),
-      { requestId: context.requestId, sequence: event.sequence }
+      "inference.edge.route_switch_request_mismatch",
+      new Error(
+        "the data plane reported a route switch for a different request",
+      ),
+      { requestId: context.requestId, sequence: event.sequence },
     );
     return;
   }
 
   const routingPolicyVersionId = admitted.routingPolicyVersionId;
   if (routingPolicyVersionId === undefined) {
-    logger.warn('inference.edge.route_switch_unrecordable', {
+    logger.warn("inference.edge.route_switch_unrecordable", {
       requestId: context.requestId,
       sequence: event.sequence,
       scope: event.detail.scope,
-      reason: 'platform_default_policy_has_no_version_row',
+      reason: "platform_default_policy_has_no_version_row",
     });
     return;
   }
@@ -1558,9 +1802,9 @@ async function recordEdgeRouteSwitch(
   // `recordRouteSwitch` LOOKS the authorisation up instead, so there is no field
   // here for the data plane's claim about itself to travel in.
   const detail: RouteSwitchDetail =
-    event.detail.scope === 'deployment'
+    event.detail.scope === "deployment"
       ? {
-          scope: 'deployment',
+          scope: "deployment",
           modelReference: event.detail.modelReference,
           toProvider: event.detail.toProvider,
           ...(event.detail.toDeploymentId === undefined
@@ -1568,7 +1812,7 @@ async function recordEdgeRouteSwitch(
             : { toDeploymentId: event.detail.toDeploymentId }),
         }
       : {
-          scope: 'model',
+          scope: "model",
           requestedModelId: event.detail.requestedModelId,
           fromModelReference: event.detail.fromModelReference,
           toModelReference: event.detail.toModelReference,
@@ -1592,24 +1836,27 @@ async function recordEdgeRouteSwitch(
     // `(request_id, sequence)` key makes a retried or redelivered event a no-op,
     // which is the same guarantee the ledger's own idempotency key gives the
     // charge. No second mechanism is introduced for it.
-    if (result.status === 'recorded' || result.status === 'already-recorded') return;
+    if (result.status === "recorded" || result.status === "already-recorded")
+      return;
 
     logger.error(
-      'inference.edge.route_switch_refused',
-      new Error(`the reported route switch could not be recorded: ${result.status}`),
+      "inference.edge.route_switch_refused",
+      new Error(
+        `the reported route switch could not be recorded: ${result.status}`,
+      ),
       {
         requestId: context.requestId,
         sequence: event.sequence,
         scope: event.detail.scope,
         routingPolicyVersionId,
         status: result.status,
-      }
+      },
     );
   } catch (error) {
     logger.error(
-      'inference.edge.route_switch_write_failed',
+      "inference.edge.route_switch_write_failed",
       error instanceof Error ? error : new Error(String(error)),
-      { requestId: context.requestId, sequence: event.sequence }
+      { requestId: context.requestId, sequence: event.sequence },
     );
   }
 }
@@ -1654,41 +1901,41 @@ async function reservationExists(idempotencyKey: string): Promise<boolean> {
 function reservationOrRefusal(
   result: Awaited<ReturnType<typeof reserve>>,
   requestId: string,
-  currency: string
+  currency: string,
 ): { reservation: ReservationView } | { error: InferenceError } {
   switch (result.status) {
-    case 'reserved':
-    case 'already-reserved':
+    case "reserved":
+    case "already-reserved":
       return { reservation: result.reservation };
-    case 'no-billing-profile':
+    case "no-billing-profile":
       return {
         error: buildInferenceError({
-          code: 'insufficient_balance',
+          code: "insufficient_balance",
           message:
-            'The account that owns this application has no inference billing profile. Add one in the Oxy Console.',
+            "The account that owns this application has no inference billing profile. Add one in the Oxy Console.",
           requestId,
         }),
       };
-    case 'insufficient-funds':
+    case "insufficient-funds":
       return {
         error: buildInferenceError({
-          code: 'insufficient_balance',
+          code: "insufficient_balance",
           message: `This request needs ${result.required} ${result.currency} and ${result.available} ${result.currency} is available.`,
           requestId,
         }),
       };
-    case 'spending-limit-exceeded':
+    case "spending-limit-exceeded":
       return {
         error: buildInferenceError({
-          code: 'spending_limit_exceeded',
-          message: 'A spending limit on this account stops this request.',
+          code: "spending_limit_exceeded",
+          message: "A spending limit on this account stops this request.",
           requestId,
         }),
       };
-    case 'currency-mismatch':
+    case "currency-mismatch":
       return {
         error: buildInferenceError({
-          code: 'internal_error',
+          code: "internal_error",
           message: `This route is priced in ${currency} and the account is billed in ${result.expected}.`,
           requestId,
         }),
@@ -1702,7 +1949,7 @@ function reservationOrRefusal(
  * query all key on it — and a renamed string that still compiles would take all
  * three down silently.
  */
-export const SHADOW_METERING_EVENT = 'inference.edge.shadow_metered';
+export const SHADOW_METERING_EVENT = "inference.edge.shadow_metered";
 
 /**
  * Price a completed request exactly as it would be charged, and record the
@@ -1731,7 +1978,7 @@ async function recordShadowMetering(
   route: EdgeRoute,
   units: Partial<Record<UsageUnit, number>>,
   measured: {
-    readonly outcome: NormalizedUsageReport['outcome'];
+    readonly outcome: NormalizedUsageReport["outcome"];
     readonly usageSource: UsageSource;
     /**
      * The provider the data plane reported, or the admitted route's when it
@@ -1743,7 +1990,7 @@ async function recordShadowMetering(
     readonly servingProvider: string;
     readonly generationId?: string;
     readonly routingPolicyVersionId: string | undefined;
-  }
+  },
 ): Promise<void> {
   const quote = await quoteUnits(route.priceVersionId, units);
 
@@ -1764,11 +2011,11 @@ async function recordShadowMetering(
       : { routingPolicyVersionId: measured.routingPolicyVersionId }),
   };
 
-  if (quote.status !== 'quoted') {
+  if (quote.status !== "quoted") {
     logger.error(
-      'inference.edge.shadow_metering_unpriced',
+      "inference.edge.shadow_metering_unpriced",
       new Error(`shadow metering could not price the request: ${quote.status}`),
-      attribution
+      attribution,
     );
     return;
   }
@@ -1789,7 +2036,7 @@ async function recordShadowMetering(
 interface MeasuredSettlement {
   readonly units: Partial<Record<UsageUnit, number>>;
   readonly usageSource: UsageSource;
-  readonly outcome: NormalizedUsageReport['outcome'];
+  readonly outcome: NormalizedUsageReport["outcome"];
   readonly generationId: string | undefined;
   /**
    * The provider this request's receipt, telemetry event and rollup bucket name.
@@ -1835,20 +2082,20 @@ interface MeasuredSettlement {
  * Substituting a guess there would put a provider in a receipt on no evidence.
  */
 function settlementFrom(
-  evidence: RelayUsageEvidence | undefined,
-  fallbackOutcome: 'failed' | 'cancelled' | 'partial',
-  admittedProvider: string
+  evidence: KaanaUsageEvidence | undefined,
+  fallbackOutcome: "failed" | "cancelled" | "partial",
+  admittedProvider: string,
 ): MeasuredSettlement {
   if (evidence === undefined) {
     return {
       units: {},
-      usageSource: 'estimated',
+      usageSource: "estimated",
       outcome: fallbackOutcome,
       generationId: undefined,
       servingProvider: admittedProvider,
     };
   }
-  if (evidence.kind === 'report') {
+  if (evidence.kind === "report") {
     return {
       units: unitsFromReport(evidence.report),
       usageSource: evidence.report.usageSource,
@@ -1867,8 +2114,8 @@ function settlementFrom(
 }
 
 /** The usage evidence a data-plane failure carried, when it carried any. */
-function usageEvidenceOf(error: unknown): RelayUsageEvidence | undefined {
-  return error instanceof RelayIncompleteError ? error.usage : undefined;
+function usageEvidenceOf(error: unknown): KaanaUsageEvidence | undefined {
+  return error instanceof KaanaIncompleteError ? error.usage : undefined;
 }
 
 /**
@@ -1894,12 +2141,13 @@ function usageEvidenceOf(error: unknown): RelayUsageEvidence | undefined {
 async function settleMeasured(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
-  settlement: MeasuredSettlement
+  settlement: MeasuredSettlement,
+  servedRoute: EdgeRoute = admitted.route,
 ): Promise<void> {
-  const { route, hold } = admitted;
+  const { hold } = admitted;
 
   if (hold === undefined) {
-    await recordShadowMetering(context, route, settlement.units, {
+    await recordShadowMetering(context, servedRoute, settlement.units, {
       outcome: settlement.outcome,
       usageSource: settlement.usageSource,
       servingProvider: settlement.servingProvider,
@@ -1922,30 +2170,30 @@ async function settleMeasured(
       outcome: settlement.outcome,
       usageSource: settlement.usageSource,
       units: settlement.units,
-      resolvedModelReference: route.modelReference,
+      resolvedModelReference: servedRoute.modelReference,
       servingProvider: settlement.servingProvider,
-      priceVersionId: route.priceVersionId,
+      priceVersionId: servedRoute.priceVersionId,
       ...(admitted.routingPolicyVersionId === undefined
         ? {}
         : { routingPolicyVersionId: admitted.routingPolicyVersionId }),
     });
-    if (result.status !== 'settled' && result.status !== 'already-settled') {
+    if (result.status !== "settled" && result.status !== "already-settled") {
       logger.error(
-        'inference.edge.release_failed',
+        "inference.edge.release_failed",
         new Error(`settlement returned ${result.status}`),
         {
           requestId: context.requestId,
           reservationId: hold.reservationId,
           outcome: settlement.outcome,
           usageSource: settlement.usageSource,
-        }
+        },
       );
     }
   } catch (error) {
     logger.error(
-      'inference.edge.release_threw',
+      "inference.edge.release_threw",
       error instanceof Error ? error : new Error(String(error)),
-      { requestId: context.requestId, reservationId: hold.reservationId }
+      { requestId: context.requestId, reservationId: hold.reservationId },
     );
   }
 }
@@ -1954,7 +2202,7 @@ interface ForwardFailure {
   readonly code: InferenceErrorCode;
   readonly message: string;
   readonly reason: string;
-  readonly outcome: 'failed' | 'cancelled';
+  readonly outcome: "failed" | "cancelled";
 }
 
 /**
@@ -1972,8 +2220,8 @@ interface ForwardFailure {
  *
  * ## A 4xx from the data plane is never the customer's fault
  *
- * `RelayEnvelopeRejectedError` means Oxy's signature, envelope version or body
- * was refused. Surfacing Relay's code would tell a customer their API key is bad
+ * `KaanaEnvelopeRejectedError` means Oxy's signature, envelope version or body
+ * was refused. Surfacing Kaana's code would tell a customer their API key is bad
  * when it is Oxy's signing key that is, so it becomes `internal_error` and the
  * real status goes to the log.
  *
@@ -1982,68 +2230,75 @@ interface ForwardFailure {
  * An unconfigured deployment is fixed by an operator, and telling every SDK to
  * retry would turn one misconfiguration into a retry storm.
  */
-function classifyForwardFailure(error: unknown, signal: AbortSignal): ForwardFailure {
+function classifyForwardFailure(
+  error: unknown,
+  signal: AbortSignal,
+): ForwardFailure {
   if (error instanceof DataPlaneNotConfiguredError) {
     return {
-      code: 'service_unavailable',
-      message: 'No inference data plane is configured for this deployment.',
-      reason: 'no_data_plane',
-      outcome: 'failed',
+      code: "service_unavailable",
+      message: "No inference data plane is configured for this deployment.",
+      reason: "no_data_plane",
+      outcome: "failed",
     };
   }
   if (signal.aborted) {
     return {
-      code: 'cancelled',
-      message: 'The client closed the connection before the request completed.',
-      reason: 'client_disconnected',
-      outcome: 'cancelled',
+      code: "cancelled",
+      message: "The client closed the connection before the request completed.",
+      reason: "client_disconnected",
+      outcome: "cancelled",
     };
   }
-  if (error instanceof RelayIncompleteError) {
-    if (error.reason === 'terminal_error' && error.failure !== undefined) {
+  if (error instanceof KaanaIncompleteError) {
+    if (error.reason === "terminal_error" && error.failure !== undefined) {
       return {
         code: error.failure.code,
         message: error.failure.message,
-        reason: `relay_error:${error.failure.code}`,
-        outcome: error.failure.code === 'cancelled' ? 'cancelled' : 'failed',
+        reason: `kaana_error:${error.failure.code}`,
+        outcome: error.failure.code === "cancelled" ? "cancelled" : "failed",
       };
     }
-    if (error.reason === 'usage_missing') {
+    if (error.reason === "usage_missing") {
       return {
-        code: 'internal_error',
-        message: 'The request ran and Oxy could not read the usage it produced.',
-        reason: 'relay_usage_missing',
-        outcome: 'failed',
+        code: "internal_error",
+        message:
+          "The request ran and Oxy could not read the usage it produced.",
+        reason: "kaana_usage_missing",
+        outcome: "failed",
       };
     }
     return {
-      code: 'provider_error',
-      message: 'The inference data plane stopped responding before the request completed.',
-      reason: 'relay_stream_truncated',
-      outcome: 'failed',
+      code: "provider_error",
+      message:
+        "The inference data plane stopped responding before the request completed.",
+      reason: "kaana_stream_truncated",
+      outcome: "failed",
     };
   }
-  if (error instanceof RelayEnvelopeRejectedError) {
+  if (error instanceof KaanaEnvelopeRejectedError) {
     return {
-      code: 'internal_error',
-      message: 'The request could not be forwarded to the inference data plane.',
-      reason: `relay_rejected_envelope:${error.status}`,
-      outcome: 'failed',
+      code: "internal_error",
+      message:
+        "The request could not be forwarded to the inference data plane.",
+      reason: `kaana_rejected_envelope:${error.status}`,
+      outcome: "failed",
     };
   }
-  if (error instanceof RelayProtocolError) {
+  if (error instanceof KaanaProtocolError) {
     return {
-      code: 'internal_error',
-      message: 'The inference data plane answered in a form Oxy could not read.',
-      reason: 'relay_protocol',
-      outcome: 'failed',
+      code: "internal_error",
+      message:
+        "The inference data plane answered in a form Oxy could not read.",
+      reason: "kaana_protocol",
+      outcome: "failed",
     };
   }
   return {
-    code: 'provider_error',
-    message: 'The inference data plane could not serve this request.',
-    reason: 'relay_error',
-    outcome: 'failed',
+    code: "provider_error",
+    message: "The inference data plane could not serve this request.",
+    reason: "kaana_error",
+    outcome: "failed",
   };
 }
 
@@ -2057,35 +2312,73 @@ function classifyForwardFailure(error: unknown, signal: AbortSignal): ForwardFai
  * malformed report reaching `settle` would be a number nobody validated turning
  * into money.
  */
+type CompletionValidation =
+  | { readonly status: "valid"; readonly route: EdgeRoute }
+  | {
+      readonly status: "invalid";
+      readonly code: InferenceErrorCode;
+      readonly message: string;
+      readonly reason: string;
+    };
+
 function validateCompletion(
-  completion: RelayCompletion,
+  completion: KaanaCompletion,
   requestId: string,
-  route: EdgeRoute
-): { code: InferenceErrorCode; message: string; reason: string } | undefined {
+  authorizedRoutes: readonly EdgeRoute[],
+): CompletionValidation {
   const report = normalizedUsageReportSchema.safeParse(completion.usage);
   if (!report.success) {
     return {
-      code: 'internal_error',
-      message: 'The inference data plane returned a usage report Oxy could not read.',
-      reason: `usage_report_invalid:${report.error.issues[0]?.path.join('.') ?? 'unknown'}`,
+      status: "invalid",
+      code: "internal_error",
+      message:
+        "The inference data plane returned a usage report Oxy could not read.",
+      reason: `usage_report_invalid:${report.error.issues[0]?.path.join(".") ?? "unknown"}`,
     };
   }
 
-  if (completion.usage.requestId !== requestId) {
+  return validateReportRoute(report.data, requestId, authorizedRoutes);
+}
+
+function validateReportRoute(
+  report: NormalizedUsageReport,
+  requestId: string,
+  authorizedRoutes: readonly EdgeRoute[],
+): CompletionValidation {
+  if (report.requestId !== requestId) {
     return {
-      code: 'internal_error',
-      message: 'The inference data plane answered a different request.',
-      reason: 'request_id_mismatch',
+      status: "invalid",
+      code: "internal_error",
+      message: "The inference data plane answered a different request.",
+      reason: "request_id_mismatch",
     };
   }
-  if (completion.usage.resolvedModelReference !== route.modelReference) {
+  const candidates = authorizedRoutes.filter(
+    (route) =>
+      route.modelReference === report.resolvedModelReference &&
+      route.provider === report.servingProvider &&
+      (report.deploymentId === undefined ||
+        route.deploymentId === report.deploymentId),
+  );
+  if (candidates.length === 0) {
     return {
-      code: 'policy_violation',
-      message: 'The request was served by a model no routing policy authorized.',
-      reason: 'model_substituted',
+      status: "invalid",
+      code: "policy_violation",
+      message:
+        "The request was served by a deployment no routing policy authorized.",
+      reason: "route_not_authorized",
     };
   }
-  return undefined;
+  if (candidates.length > 1) {
+    return {
+      status: "invalid",
+      code: "internal_error",
+      message:
+        "The inference data plane did not identify which authorized deployment served the request.",
+      reason: "deployment_id_required",
+    };
+  }
+  return { status: "valid", route: candidates[0] };
 }
 
 /**
@@ -2099,26 +2392,36 @@ function validateCompletion(
 function validateUsageReport(
   report: NormalizedUsageReport,
   requestId: string,
-  route: EdgeRoute
-): NormalizedUsageReport | undefined {
-  if (report.requestId !== requestId) return undefined;
-  if (report.resolvedModelReference !== route.modelReference) return undefined;
-  return report;
+  authorizedRoutes: readonly EdgeRoute[],
+):
+  | { readonly report: NormalizedUsageReport; readonly route: EdgeRoute }
+  | undefined {
+  const validation = validateReportRoute(report, requestId, authorizedRoutes);
+  if (validation.status === "invalid") return undefined;
+  return { report, route: validation.route };
 }
 
 /** The contract's unit array as the `{ unit: quantity }` map the ledger takes. */
-function unitsFromReport(report: NormalizedUsageReport): Partial<Record<UsageUnit, number>> {
+function unitsFromReport(
+  report: NormalizedUsageReport,
+): Partial<Record<UsageUnit, number>> {
   return unitsFromQuantities(report.units);
 }
 
 function unitsFromQuantities(
-  quantities: readonly { unit: UsageUnit; quantity: number }[]
+  quantities: readonly { unit: UsageUnit; quantity: number }[],
 ): Partial<Record<UsageUnit, number>> {
   const units: Partial<Record<UsageUnit, number>> = {};
   for (const quantity of quantities) {
     units[quantity.unit] = quantity.quantity;
   }
   return units;
+}
+
+/** The stable publisher/model line shared by all of its pinned revisions. */
+function modelLineOf(reference: string): string {
+  const revision = reference.indexOf("@");
+  return revision === -1 ? reference : reference.slice(0, revision);
 }
 
 /**
@@ -2132,10 +2435,22 @@ function unitsFromQuantities(
 function buildEnvelope(
   context: EdgeExecutionContext,
   admitted: AdmittedRequest,
-  stream: boolean
+  stream: boolean,
 ): InferenceRequest {
   const { principal, request } = context;
-  const { route, authorizedRoutes, maxOutputTokens, routingPolicy } = admitted;
+  const {
+    route,
+    routingTarget,
+    authorizedRoutes,
+    maxOutputTokens,
+    routingPolicy,
+  } = admitted;
+
+  const authorizesCrossModel = authorizedRoutes.some(
+    (authorized) =>
+      modelLineOf(authorized.modelReference) !==
+      modelLineOf(route.modelReference),
+  );
 
   return inferenceRequestSchema.parse({
     schemaVersion: 1,
@@ -2152,17 +2467,25 @@ function buildEnvelope(
         : { userId: context.delegatedUserId }),
       requestId: context.requestId,
     },
-    // The route is always revision-PINNED, even when the customer named only
-    // the model line: the data plane must serve the exact weights the edge
-    // priced and reserved against.
-    target: { kind: 'model', modelReference: route.modelReference },
-    modality: 'text',
+    // Keep a routing profile a profile. A concrete model target normally pins
+    // to the admitted revision, preserving the single-model behaviour. When
+    // the signed list authorizes a cross-model destination, however, the
+    // original unpinned target must stay unpinned: the contract deliberately
+    // makes cross-model substitution unrepresentable for an exact revision.
+    // The signed deployments below still pin every route Kaana may execute.
+    target:
+      routingTarget.kind === "routing_profile" || authorizesCrossModel
+        ? routingTarget
+        : { kind: "model", modelReference: route.modelReference },
+    modality: "text",
     input: request.input,
     stream,
     maxOutputTokens,
     sampling: request.sampling,
     tools: request.tools,
-    ...(request.toolChoice === undefined ? {} : { toolChoice: request.toolChoice }),
+    ...(request.toolChoice === undefined
+      ? {}
+      : { toolChoice: request.toolChoice }),
     ...(request.responseFormat === undefined
       ? {}
       : { responseFormat: request.responseFormat }),
@@ -2190,29 +2513,39 @@ function buildEnvelope(
     //
     // A one-entry list is not a degenerate case: it is what a policy with fallback
     // off, and what the platform default, authorize — serve this route or fail.
-    // The list is never empty (`authorizedRoutes[0]` is the admitted route) and
-    // never carries a `cross_model` entry: this edge populates the same-model half
-    // only, so a substitution across model lines remains something no envelope it
-    // builds can express.
+    // The list is never empty (`authorizedRoutes[0]` is the admitted route).
+    // Every model line after the primary is marked `cross_model` and carries the
+    // contract's literal proof that Oxy authorized it from the effective profile
+    // or pinned routing-policy version.
     //
     // Do NOT add a policy snapshot field beside this. A second, unpublished shape
     // on this hop is exactly the divergence the contract package exists to
     // prevent, and it would put the eleven filtered controls back on the data
     // plane's side of the boundary.
-    authorizedRoutes: authorizedRoutes.map((authorized) => ({
-      substitution: 'same_model',
-      deploymentId: authorized.deploymentId,
-      modelReference: authorized.modelReference,
-      provider: authorized.provider,
-      regions: authorized.regions,
-    })),
+    authorizedRoutes: authorizedRoutes.map((authorized) => {
+      const crossModel =
+        modelLineOf(authorized.modelReference) !==
+        modelLineOf(route.modelReference);
+      return {
+        substitution: crossModel ? "cross_model" : "same_model",
+        ...(crossModel ? { authorizedByPolicy: true as const } : {}),
+        deploymentId: authorized.deploymentId,
+        modelReference: authorized.modelReference,
+        provider: authorized.provider,
+        regions: authorized.regions,
+      };
+    }),
     routingPolicy,
   });
 }
 
-const INFERENCE_SCOPE_SET: ReadonlySet<string> = new Set<string>(INFERENCE_SCOPES);
+const INFERENCE_SCOPE_SET: ReadonlySet<string> = new Set<string>(
+  INFERENCE_SCOPES,
+);
 
-function isInferenceScope(scope: ApplicationScope): scope is ApplicationScope & InferenceScope {
+function isInferenceScope(
+  scope: ApplicationScope,
+): scope is ApplicationScope & InferenceScope {
   return INFERENCE_SCOPE_SET.has(scope);
 }
 
@@ -2237,20 +2570,22 @@ function isInferenceScope(scope: ApplicationScope): scope is ApplicationScope & 
  * Total over {@link EdgeOperation} with no default arm, so a new endpoint cannot
  * reach the router without declaring what it needs a model to do.
  */
-export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequirement {
+export function modalityForOperation(
+  operation: EdgeOperation,
+): EdgeModalityRequirement {
   switch (operation.kind) {
-    case 'completion':
+    case "completion":
       return TEXT_COMPLETION_MODALITY;
-    case 'embeddings':
-      return { input: 'text', output: 'embedding' };
-    case 'rerank':
+    case "embeddings":
+      return { input: "text", output: "embedding" };
+    case "rerank":
       // Input only. `INFERENCE_MODALITIES` has no member for a ranking, and
       // claiming `text` output would assert something false about the model.
-      return { input: 'text' };
-    case 'speech':
-      return { input: 'text', output: 'audio' };
-    case 'images':
-      return { input: 'text', output: 'image' };
+      return { input: "text" };
+    case "speech":
+      return { input: "text", output: "audio" };
+    case "images":
+      return { input: "text", output: "image" };
   }
 }
 
@@ -2265,7 +2600,7 @@ export function modalityForOperation(operation: EdgeOperation): EdgeModalityRequ
  * fail to quote.
  */
 function outputTokenBudget(operation: EdgeOperation, resolved: number): number {
-  return operation.kind === 'completion' ? resolved : 0;
+  return operation.kind === "completion" ? resolved : 0;
 }
 
 /**
@@ -2292,24 +2627,30 @@ function outputTokenBudget(operation: EdgeOperation, resolved: number): number {
 export function ceilingForOperation(
   operation: EdgeOperation,
   estimatedInputTokens: number,
-  maxOutputTokens: number
+  maxOutputTokens: number,
 ): Partial<Record<UsageUnit, number>> {
   switch (operation.kind) {
-    case 'completion':
-      return { input_tokens: estimatedInputTokens, output_tokens: maxOutputTokens };
-    case 'embeddings':
-      return { input_tokens: estimatedInputTokens, embeddings: operation.embeddings };
-    case 'rerank':
+    case "completion":
+      return {
+        input_tokens: estimatedInputTokens,
+        output_tokens: maxOutputTokens,
+      };
+    case "embeddings":
+      return {
+        input_tokens: estimatedInputTokens,
+        embeddings: operation.embeddings,
+      };
+    case "rerank":
       // `requests` is deliberately NOT included. A route priced only on tokens is
       // the common case, and adding a unit the route does not price would make
       // `quoteUnits` refuse it — turning a pricing convention into an outage.
       return { input_tokens: estimatedInputTokens };
-    case 'speech':
+    case "speech":
       // `characters` alone. See the `speech` arm of `EdgeOperation` for why no
       // duration figure appears: a duration-priced route fails to quote and is
       // refused, which is the sound outcome.
       return { characters: operation.characters };
-    case 'images':
+    case "images":
       return { input_tokens: estimatedInputTokens, images: operation.images };
   }
 }
@@ -2318,18 +2659,18 @@ export function estimateInputTokens(request: NormalizedEdgeRequest): number {
   let characters = 0;
   let messages = 0;
 
-  if (request.input.format === 'messages') {
+  if (request.input.format === "messages") {
     messages = request.input.messages.length;
     for (const message of request.input.messages) {
       for (const part of message.content) {
-        if (part.type === 'text') characters += part.text.length;
+        if (part.type === "text") characters += part.text.length;
       }
       if (message.name !== undefined) characters += message.name.length;
       for (const call of message.toolCalls ?? []) {
         characters += call.name.length + call.arguments.length;
       }
     }
-  } else if (request.input.format === 'text') {
+  } else if (request.input.format === "text") {
     messages = 1;
     characters += request.input.text.length;
   } else {
@@ -2346,10 +2687,10 @@ export function estimateInputTokens(request: NormalizedEdgeRequest): number {
 
 /** The first non-text content part in an input, if there is one. */
 function firstNonTextPart(input: InferenceInput): string | undefined {
-  if (input.format !== 'messages') return undefined;
+  if (input.format !== "messages") return undefined;
   for (const message of input.messages) {
     for (const part of message.content) {
-      if (part.type !== 'text') return part.type;
+      if (part.type !== "text") return part.type;
     }
   }
   return undefined;
@@ -2362,8 +2703,8 @@ interface EdgeTelemetryInput {
   readonly resolvedModelReference?: string;
   readonly servingProvider?: string;
   readonly generationId?: string;
-  readonly outcome?: NormalizedUsageReport['outcome'];
-  readonly usageSource?: NormalizedUsageReport['usageSource'];
+  readonly outcome?: NormalizedUsageReport["outcome"];
+  readonly usageSource?: NormalizedUsageReport["usageSource"];
   /**
    * How many allowed route switches the data plane performed. Absent on every
    * path that never reached one, where the recorder's own `0` is the truth.
@@ -2418,7 +2759,7 @@ interface EdgeTelemetryInput {
  */
 async function recordEdgeTelemetry(
   context: EdgeExecutionContext,
-  input: EdgeTelemetryInput
+  input: EdgeTelemetryInput,
 ): Promise<number> {
   // Rounded to a whole millisecond: the column is an integer, and drizzle would
   // otherwise hand Postgres a float for a `bigint` column.
@@ -2433,11 +2774,13 @@ async function recordEdgeTelemetry(
         ? {}
         : { delegatedUserId: context.delegatedUserId }),
       requestId: context.requestId,
-      ...(input.generationId === undefined ? {} : { generationId: input.generationId }),
+      ...(input.generationId === undefined
+        ? {}
+        : { generationId: input.generationId }),
       environment: context.principal.environment,
       endpoint: context.endpoint,
       statusCode: input.statusCode,
-      outcome: input.outcome ?? 'failed',
+      outcome: input.outcome ?? "failed",
       requestedModelReference: input.requestedModelReference,
       ...(input.resolvedModelReference === undefined
         ? {}
@@ -2445,19 +2788,21 @@ async function recordEdgeTelemetry(
       ...(input.servingProvider === undefined
         ? {}
         : { servingProvider: input.servingProvider }),
-      usageSource: input.usageSource ?? 'oxy_measured',
+      usageSource: input.usageSource ?? "oxy_measured",
       units: input.units,
       latencyMs,
       ...(input.timeToFirstTokenMs === undefined
         ? {}
         : { timeToFirstTokenMs: input.timeToFirstTokenMs }),
-      ...(input.routeSwitches === undefined ? {} : { routeSwitches: input.routeSwitches }),
+      ...(input.routeSwitches === undefined
+        ? {}
+        : { routeSwitches: input.routeSwitches }),
     });
   } catch (error) {
     logger.error(
-      'inference.edge.telemetry_failed',
+      "inference.edge.telemetry_failed",
       error instanceof Error ? error : new Error(String(error)),
-      { requestId: context.requestId }
+      { requestId: context.requestId },
     );
   }
 
@@ -2474,8 +2819,8 @@ export function allocateRequestId(): string {
 /* -------------------------------------------------------------------------- */
 
 export type GenerationReceiptLookup =
-  | { readonly status: 'found'; readonly receipt: GenerationReceipt }
-  | { readonly status: 'not-found' };
+  | { readonly status: "found"; readonly receipt: GenerationReceipt }
+  | { readonly status: "not-found" };
 
 /**
  * Read back the settled receipt for one request.
@@ -2494,10 +2839,10 @@ export type GenerationReceiptLookup =
  */
 export async function readGenerationReceipt(
   principal: EdgePrincipal,
-  id: string
+  id: string,
 ): Promise<GenerationReceiptLookup> {
-  if (!principal.scopes.includes('inference:usage:read')) {
-    return { status: 'not-found' };
+  if (!principal.scopes.includes("inference:usage:read")) {
+    return { status: "not-found" };
   }
 
   const db = getDb();
@@ -2507,14 +2852,14 @@ export async function readGenerationReceipt(
     .where(
       and(
         eq(usageReceipts.applicationId, principal.applicationId),
-        or(eq(usageReceipts.requestId, id), eq(usageReceipts.generationId, id))
-      )
+        or(eq(usageReceipts.requestId, id), eq(usageReceipts.generationId, id)),
+      ),
     )
     .orderBy(desc(usageReceipts.settledAt))
     .limit(1);
 
   if (!row) {
-    return { status: 'not-found' };
+    return { status: "not-found" };
   }
 
   const snapshotRows = await db
@@ -2528,7 +2873,7 @@ export async function readGenerationReceipt(
     .orderBy(asc(usageReceiptUnitPrices.unit));
 
   return {
-    status: 'found',
+    status: "found",
     receipt: generationReceiptSchema.parse({
       schemaVersion: 1,
       receiptId: row.id,
@@ -2536,7 +2881,9 @@ export async function readGenerationReceipt(
       ...(row.generationId === null ? {} : { generationId: row.generationId }),
       applicationId: row.applicationId,
       credentialId: row.applicationCredentialId,
-      ...(row.delegatedUserId === null ? {} : { delegatedUserId: row.delegatedUserId }),
+      ...(row.delegatedUserId === null
+        ? {}
+        : { delegatedUserId: row.delegatedUserId }),
       environment: row.environment,
       outcome: row.outcome,
       usageSource: row.usageSource,

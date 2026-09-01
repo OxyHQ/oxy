@@ -3,15 +3,15 @@
  * ADR 0010, ADR 0015).
  *
  * This module declares the SHAPE of the call the edge makes.
- * `services/httpRelayClient.ts` is the production implementation of it.
+ * `services/httpKaanaClient.ts` is the production implementation of it.
  *
  * ## What is built, and what is configured, are two different facts
  *
- * The data plane EXISTS: `OxyHQ/Relay` is a public Go repository with a build, a
+ * The data plane EXISTS: `OxyHQ/Kaana` is a public Go repository with a build, a
  * test suite and a CI contract-drift gate. **No deployment of it is configured
  * here**, and that — not the absence of an implementation — is why every invoke
  * still refuses today. A deployment that has not set the three variables in
- * `config/relayDataPlane.ts` has NO data plane: every invoke resolves to
+ * `config/kaanaDataPlane.ts` has NO data plane: every invoke resolves to
  * {@link DataPlaneNotConfiguredError} and the edge answers a typed
  * `service_unavailable`. It never falls through to the Alia proxy and never
  * pretends to serve.
@@ -19,7 +19,7 @@
  * The distinction matters because this header is what a reader consults to
  * understand a refusal. "Nothing is built" and "nothing is configured" have
  * different fixes — the first is a project, the second is three environment
- * variables and a public key handed to Relay.
+ * variables and a public key handed to Kaana.
  *
  * ## What crosses the boundary
  *
@@ -29,9 +29,9 @@
  *
  * Back: units and events, never money.
  *
- *  - {@link RelayCompletion} for a non-streaming request, whose `usage` is a
+ *  - {@link KaanaCompletion} for a non-streaming request, whose `usage` is a
  *    {@link NormalizedUsageReport}.
- *  - a sequence of {@link RelayStreamFrame} for a streaming one: the contract's
+ *  - a sequence of {@link KaanaStreamFrame} for a streaming one: the contract's
  *    own {@link InferenceStreamEvent}s as they are produced, plus the terminal
  *    usage report.
  *
@@ -41,11 +41,11 @@
  *
  * ## Two methods, one wire path
  *
- * Relay's transport is an event stream in BOTH directions of the `stream` flag:
+ * Kaana's transport is an event stream in BOTH directions of the `stream` flag:
  * `POST /internal/v1/inference` answers `200` and an SSE body whatever the
  * envelope asked for, because a status code chosen from a failure would have to
- * be chosen before the stream that fails exists. So {@link RelayClient.execute}
- * is a FOLD over {@link RelayClient.stream} in the real client — one HTTP call,
+ * be chosen before the stream that fails exists. So {@link KaanaClient.execute}
+ * is a FOLD over {@link KaanaClient.stream} in the real client — one HTTP call,
  * one decoder, one signature — and the second method exists only because the two
  * callers want different things from the same bytes. Declaring one method and
  * folding at the edge would move that fold into the module that also owns
@@ -55,7 +55,7 @@
  *
  * The edge has RESERVED spend by the time it reaches either method. That is why
  * failure here is expressed as typed errors that CARRY what the settlement needs
- * — {@link RelayIncompleteError} holds the usage that did arrive, when any did —
+ * — {@link KaanaIncompleteError} holds the usage that did arrive, when any did —
  * rather than as a bare throw the caller can only answer with a full refund.
  */
 
@@ -72,7 +72,7 @@ import type {
 } from '@oxyhq/contracts';
 
 /** What the data plane returns for a completed, non-streaming request. */
-export interface RelayCompletion {
+export interface KaanaCompletion {
   /**
    * The generation this request produced, when it produced one that can be
    * looked up later. Absent for a request that failed before generating.
@@ -117,7 +117,7 @@ export interface RelayCompletion {
    * omitting a required field is not a type error anywhere — verified, `tsc
    * --noEmit` exited 0 on the red `main`.
    *
-   * `httpRelayClient` still always sets it, so a real completion still
+   * `httpKaanaClient` still always sets it, so a real completion still
    * distinguishes "reported none" from "did not report" — by construction rather
    * than by type.
    */
@@ -134,7 +134,7 @@ export interface RelayCompletion {
  * Collapsing them would leave the edge discriminating on `type` against a union
  * that has no member for a usage report.
  */
-export type RelayStreamFrame =
+export type KaanaStreamFrame =
   | { readonly kind: 'event'; readonly event: InferenceStreamEvent }
   | { readonly kind: 'usage'; readonly usage: NormalizedUsageReport };
 
@@ -155,7 +155,7 @@ export type RelayStreamFrame =
  * and whether the client cancelled, so it supplies those from its own knowledge
  * rather than being handed a guess.
  */
-export type RelayUsageEvidence =
+export type KaanaUsageEvidence =
   | { readonly kind: 'report'; readonly report: NormalizedUsageReport }
   | {
       readonly kind: 'partial';
@@ -164,7 +164,7 @@ export type RelayUsageEvidence =
     };
 
 /** Options every call carries. */
-export interface RelayExecuteOptions {
+export interface KaanaExecuteOptions {
   /**
    * Aborted when the client disconnects. The data plane propagates the
    * cancellation to its upstream provider and reports the request as
@@ -182,8 +182,8 @@ export interface RelayExecuteOptions {
  * are the data plane's to own (ADR 0006), and every one of those would be a
  * second place a routing constraint could be dropped.
  */
-export interface RelayClient {
-  execute(envelope: InferenceRequest, options: RelayExecuteOptions): Promise<RelayCompletion>;
+export interface KaanaClient {
+  execute(envelope: InferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
   /**
    * The normalized events as they are produced, then the usage report.
    *
@@ -193,8 +193,8 @@ export interface RelayClient {
    */
   stream(
     envelope: InferenceRequest,
-    options: RelayExecuteOptions
-  ): AsyncIterable<RelayStreamFrame>;
+    options: KaanaExecuteOptions
+  ): AsyncIterable<KaanaStreamFrame>;
 }
 
 /**
@@ -217,21 +217,21 @@ export class DataPlaneNotConfiguredError extends Error {
  * The data plane refused the ENVELOPE, before executing anything.
  *
  * A `4xx` from `POST /internal/v1/inference` is never the customer's fault: the
- * only things Relay refuses at that layer are an unsigned or badly signed
+ * only things Kaana refuses at that layer are an unsigned or badly signed
  * envelope, an unrecognised `schemaVersion`, a body over its own limit, and an
  * envelope with no `attribution.requestId`. Every one of those is something Oxy
- * built or failed to sign, so surfacing Relay's own code to the customer would
+ * built or failed to sign, so surfacing Kaana's own code to the customer would
  * tell them their API key is bad when it is Oxy's signing key that is.
  *
  * `status` and `upstreamCode` are for the log. Neither reaches a customer.
  */
-export class RelayEnvelopeRejectedError extends Error {
+export class KaanaEnvelopeRejectedError extends Error {
   readonly status: number;
   readonly upstreamCode: string | undefined;
 
   constructor(status: number, upstreamCode: string | undefined) {
     super(`The inference data plane refused the envelope with HTTP ${status}.`);
-    this.name = 'RelayEnvelopeRejectedError';
+    this.name = 'KaanaEnvelopeRejectedError';
     this.status = status;
     this.upstreamCode = upstreamCode;
   }
@@ -245,7 +245,7 @@ export class RelayEnvelopeRejectedError extends Error {
  * request deliberately, one that stopped talking, and one that finished but left
  * nothing to charge from.
  */
-export type RelayIncompleteReason =
+export type KaanaIncompleteReason =
   /** The stream's terminal `error` event. `failure` carries it. */
   | 'terminal_error'
   /** The stream ended with no terminal event — the data plane or its upstream died. */
@@ -257,7 +257,7 @@ export type RelayIncompleteReason =
  * A non-streaming request that produced no completion, carrying whatever the
  * settlement can be computed from.
  *
- * One shape for all three of {@link RelayIncompleteReason}, because the edge
+ * One shape for all three of {@link KaanaIncompleteReason}, because the edge
  * answers all three the same WAY — an error to the customer and a settlement of
  * exactly what was measured — while `reason` is what decides which error.
  *
@@ -266,23 +266,23 @@ export type RelayIncompleteReason =
  * against a receipt marked `estimated` — see `inferenceEdge.service.ts`, which
  * names the open policy question that behaviour stands in for.
  */
-export class RelayIncompleteError extends Error {
-  readonly reason: RelayIncompleteReason;
+export class KaanaIncompleteError extends Error {
+  readonly reason: KaanaIncompleteReason;
   /** The data plane's own terminal error, already validated. */
   readonly failure: InferenceError | undefined;
   /** Everything that can be settled exactly, when anything can. */
-  readonly usage: RelayUsageEvidence | undefined;
+  readonly usage: KaanaUsageEvidence | undefined;
 
   constructor(
-    reason: RelayIncompleteReason,
+    reason: KaanaIncompleteReason,
     message: string,
     detail: {
       readonly failure?: InferenceError;
-      readonly usage?: RelayUsageEvidence;
+      readonly usage?: KaanaUsageEvidence;
     } = {}
   ) {
     super(message);
-    this.name = 'RelayIncompleteError';
+    this.name = 'KaanaIncompleteError';
     this.reason = reason;
     this.failure = detail.failure;
     this.usage = detail.usage;
@@ -299,9 +299,9 @@ export class RelayIncompleteError extends Error {
  * usage report the stake is money — it is the input to a charge — and for a
  * stream event it is output a customer would otherwise never learn was dropped.
  */
-export class RelayProtocolError extends Error {
+export class KaanaProtocolError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'RelayProtocolError';
+    this.name = 'KaanaProtocolError';
   }
 }

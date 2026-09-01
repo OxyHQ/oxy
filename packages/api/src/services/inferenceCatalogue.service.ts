@@ -33,7 +33,7 @@
  *     `schema/__tests__/inferenceCatalogue.test.ts` fails until somebody
  *     classifies it either way.
  *
- * Relay remains the source of technical deployment health and route
+ * Kaana remains the source of technical deployment health and route
  * availability (ADR 0006). Nothing here reports whether a route is answering
  * right now; `status` is the catalogue's own decision about whether a route may
  * be OFFERED, which is a different question. Collapsing the two is what the
@@ -183,7 +183,7 @@ export function resolveCatalogueViewer(
  * Catalogue statuses under which a route may still be offered.
  *
  * `degraded` is included: it means "offer it with a warning", not "it is timing
- * out" — which is Relay's signal, and not stored here. `disabled` and `retired`
+ * out" — which is Kaana's signal, and not stored here. `disabled` and `retired`
  * are never offered.
  */
 const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
@@ -752,19 +752,23 @@ export function violatedConstraints(
     violated.push('providerDenylist');
   }
 
-  // SUBSET, not intersection. A deployment declares every region it MAY serve
-  // from and choosing among them is routing execution (ADR 0006), so a route
-  // that may run outside the allowed set cannot honour a residency requirement.
-  // Never vacuously true over an empty array: `regions` carries a
-  // `cardinality(...) >= 1` CHECK.
+  // SUBSET, not intersection. A non-empty deployment region set declares every
+  // region it MAY serve from, so a route that may run outside the allowed set
+  // cannot honour a residency requirement. An empty set is no attestation and
+  // therefore fails closed under either kind of explicit regional policy.
   if (
     constraints.allowedRegions.length > 0 &&
-    !candidate.regions.every((region) => constraints.allowedRegions.includes(region))
+    (candidate.regions.length === 0 ||
+      !candidate.regions.every((region) => constraints.allowedRegions.includes(region)))
   ) {
     violated.push('allowedRegions');
   }
 
-  if (candidate.regions.some((region) => constraints.deniedRegions.includes(region))) {
+  if (
+    constraints.deniedRegions.length > 0 &&
+    (candidate.regions.length === 0 ||
+      candidate.regions.some((region) => constraints.deniedRegions.includes(region)))
+  ) {
     violated.push('deniedRegions');
   }
 
@@ -1600,10 +1604,9 @@ export interface EdgeRoute {
   readonly modelReference: string;
   readonly provider: string;
   /**
-   * Every region this deployment MAY serve from, plural because
-   * `modelDeploymentSchema.regions` is. Oxy checked the whole set against the
-   * customer's residency controls as a SUBSET, so choosing among them cannot
-   * escape the policy and the choice stays routing execution (ADR 0006).
+   * Regional attestations supplied by the upstream. Empty means no attestation
+   * and is eligible only when the customer's allowed and denied region lists
+   * are both empty. For a non-empty set, Oxy applies the policy as a subset.
    */
   readonly regions: readonly string[];
   readonly availabilityScope: AvailabilityScope;
@@ -1645,7 +1648,7 @@ export interface EdgeRoute {
  * returns indices with relevance scores, which is none of the five. So rerank
  * constrains its INPUT and leaves its output unconstrained, rather than claiming
  * a modality that would be false. A `ranking` member would be a `@oxyhq/contracts`
- * enum change, and therefore a two-repo release (Relay derives its own contract
+ * enum change, and therefore a two-repo release (Kaana derives its own contract
  * from the published package and gates on drift) — not something to smuggle in
  * behind an endpoint.
  *

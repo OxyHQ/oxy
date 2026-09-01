@@ -28,16 +28,16 @@
  * second reading is the one a dashboard takes.
  *
  * **The reason is NOT that the edge cannot produce them.** It once was, and that
- * changed: since the signed relay hop landed the edge streams both public dialects
+ * changed: since the signed Kaana hop landed the edge streams both public dialects
  * and forwards the data plane's own `timeToFirstTokenMs` and `routeSwitches` when
  * the usage report carries them (`inferenceEdge.service.ts`). What is absent is a
- * data plane: `resolveRelayDataPlane()` answers `absent` unless `RELAY_BASE_URL`
+ * data plane: `resolveKaanaDataPlane()` answers `absent` unless `KAANA_BASE_URL`
  * and the two signing variables are all set, and no deployment sets them, so
  * nothing has ever streamed and no route has ever switched.
  *
  * That distinction is worth a field rather than a comment, because it is the one
- * that will matter the day Relay is deployed: `dataPlane` on the payload reports
- * what `resolveRelayDataPlane()` says, so "no data because nothing is deployed"
+ * that will matter the day Kaana is deployed: `dataPlane` on the payload reports
+ * what `resolveKaanaDataPlane()` says, so "no data because nothing is deployed"
  * and "deployed, and STILL not reporting a first token" are different readings of
  * the same `pending`. The second is a bug in the data plane; the first is a
  * Tuesday.
@@ -101,7 +101,7 @@
 import { sql } from 'drizzle-orm';
 import { executeRows } from '@oxyhq/db';
 import { getDb } from '../config/postgres';
-import { resolveRelayDataPlane } from '../config/relayDataPlane';
+import { resolveKaanaDataPlane } from '../config/kaanaDataPlane';
 import {
   billingReconciliationDiscrepancies,
   billingReconciliationRuns,
@@ -347,7 +347,7 @@ export type ReconciliationDriftMetric =
 
 /**
  * Whether this deployment has a data plane at all, from
- * `resolveRelayDataPlane()`.
+ * `resolveKaanaDataPlane()`.
  *
  * On the payload because it is what makes a `pending` metric readable: with
  * `absent`, no request can ever have streamed and no route can have switched, so
@@ -366,7 +366,7 @@ export type DataPlanePresence = 'configured' | 'absent' | 'unreadable';
 export interface InferenceOperationalMetrics {
   readonly schemaVersion: 1;
   readonly window: MetricsWindow;
-  /** What `resolveRelayDataPlane()` says — see {@link DataPlanePresence}. */
+  /** What `resolveKaanaDataPlane()` says — see {@link DataPlanePresence}. */
   readonly dataPlane: DataPlanePresence;
   /**
    * Telemetry is written outside the ledger transaction, so every count and
@@ -785,7 +785,7 @@ export async function readInferenceOperationalMetrics(
   return {
     schemaVersion: 1,
     window: scope.window,
-    dataPlane: resolveRelayDataPlane().status,
+    dataPlane: resolveKaanaDataPlane().status,
     consistency: 'eventually-consistent',
     requests: await readRates(scope),
     totalLatencyMs: await readEventDistribution(scope, 'latency_ms', 'no_requests_recorded'),

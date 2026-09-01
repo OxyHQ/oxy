@@ -349,8 +349,8 @@ describe('authorizedRouteSchema', () => {
     ).toBe(false);
   });
 
-  it('requires at least one region, matching the deployment descriptor', () => {
-    expect(authorizedRouteSchema.safeParse({ ...primaryRoute, regions: [] }).success).toBe(false);
+  it('accepts an explicit empty region set as no regional attestation', () => {
+    expect(authorizedRouteSchema.safeParse({ ...primaryRoute, regions: [] }).success).toBe(true);
   });
 });
 

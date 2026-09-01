@@ -651,7 +651,7 @@ describe('the payload', () => {
 
     expect(metrics.schemaVersion).toBe(1);
     expect(metrics.window).toEqual(window);
-    // Derived from `resolveRelayDataPlane()`, not asserted: it is what tells a
+    // Derived from `resolveKaanaDataPlane()`, not asserted: it is what tells a
     // reader whether a pending metric is expected or a fault.
     expect(metrics.dataPlane).toBe('absent');
     // A required literal rather than prose: telemetry is written outside the

@@ -563,7 +563,7 @@ function everyStringIn(value: unknown): string[] {
 
 describe('the customer view cannot carry an internal route id or a wholesale cost', () => {
   it('serializes neither, from a row that holds both', async () => {
-    const internalRouteId = `relay-route-${suffix()}`;
+    const internalRouteId = `kaana-route-${suffix()}`;
     const wholesaleAmount = '3.140000000000';
 
     const route = await insertRoute({

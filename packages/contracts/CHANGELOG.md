@@ -1,5 +1,21 @@
 # Changelog: `@oxyhq/contracts`
 
+## 0.35.0
+
+### Unattested inference regions fail closed instead of being invented
+
+`modelDeploymentSchema.regions` and `authorizedRouteSchema.regions` now accept
+an explicit empty array. Empty means that neither Oxy nor Kaana has an upstream
+regional attestation for that deployment; it does not mean `global`, the AWS
+region in which Kaana runs, or a region inferred from network geography.
+
+Oxy may select such a deployment only when the effective routing policy has no
+`allowedRegions` and no `deniedRegions`. Either regional control excludes it.
+Kaana still requires the signed array to match its deployment inventory exactly,
+including empty matching empty. `INFERENCE_CONTRACT_VERSION` is `1.4.0` because
+this loosens a refinement and a newer producer can now emit bytes an older data
+plane refuses.
+
 ## 0.29.0
 
 ### `safeErrorTextSchema`: redacting against the old pattern could make a leak worse
@@ -11,7 +27,7 @@ nothing about the value beside them. An upstream echoing a request header sends
 the SPAN it matched emitted `{x-[redacted] <the key>}`, which no longer matched
 and was therefore **accepted**. The unredacted string was refused and the
 redacted one was not, and both carried the key. Measured by the second outside
-implementation of this contract (OxyHQ/Relay#3), not theorised.
+implementation of this contract (OxyHQ/Kaana#3), not theorised.
 
 The refinement now checks four independent signals, so removing one does not
 clear a string: a credential-bearing name (the whole `x-…`/`…-api-key` family,

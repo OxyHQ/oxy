@@ -122,31 +122,31 @@ export interface RequiredEnvVars {
 
   // The inference DATA PLANE this deployment forwards to, and the key it signs
   // envelopes with (issue #972 workstream 4, ADR 0015). Resolved once, at router
-  // construction, in `config/relayDataPlane.ts`.
+  // construction, in `config/kaanaDataPlane.ts`.
   //
   // ALL THREE OR NONE. Unset, this deployment has no data plane: every invoke
   // answers a typed `service_unavailable` and `stream: true` is refused, which is
-  // exactly the behaviour of every deployment before Relay existed. A PARTIAL
+  // exactly the behaviour of every deployment before Kaana existed. A PARTIAL
   // configuration resolves to the same state and is reported at `error` level,
   // because forwarding unsigned envelopes would look like a data-plane outage.
   //
-  //  - the data plane's base URL, e.g. `https://relay.internal`. Names a
+  //  - the data plane's base URL, e.g. `https://kaana.internal`. Names a
   //    DEPLOYMENT, not a credential, so it belongs in the ECS task definition's
   //    plain environment and never in SSM.
-  RELAY_BASE_URL?: string;
+  KAANA_BASE_URL?: string;
   //  - the id the data plane knows this signing key by (its `kid`). Not a secret
   //    either; it appears in every request header. No colon, comma or whitespace —
   //    the data plane parses its key set as `kid:base64,kid:base64`.
-  RELAY_EDGE_SIGNING_KEY_ID?: string;
+  KAANA_EDGE_SIGNING_KEY_ID?: string;
   //  - the Ed25519 PRIVATE key, as PEM or that PEM base64-encoded. THIS ONE IS A
-  //    SECRET: it belongs in SSM at `/oxy/oxy-api/RELAY_EDGE_SIGNING_PRIVATE_KEY`,
+  //    SECRET: it belongs in SSM at `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`,
   //    which means adding it to BOTH allowlists in `deploy-aws.yml` (the
   //    `SYNC_<NAME>` env block and `API_SECRETS`) when a data plane is first
   //    deployed — `scripts/check-deploy-secrets-sync.mjs` guards that the two
   //    agree. Absent from the `required` list below on purpose: unset means no
   //    data plane, not a broken boot. The data plane holds only the matching
   //    PUBLIC key and so cannot construct an envelope it would itself accept.
-  RELAY_EDGE_SIGNING_PRIVATE_KEY?: string;
+  KAANA_EDGE_SIGNING_PRIVATE_KEY?: string;
 
   // Follow-graph outbox worker (`follow_events`). OFF by default — acknowledging
   // an event asserts its delivery happened; read by `followOutbox.worker.ts`.

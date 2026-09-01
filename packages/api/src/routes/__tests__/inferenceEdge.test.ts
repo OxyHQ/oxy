@@ -28,44 +28,61 @@
  * so a sibling suite seeding the shared database cannot change an answer here.
  */
 
-import express from 'express';
-import http from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import express from "express";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import { randomUUID } from "node:crypto";
 
-jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+jest.mock("../../utils/logger", () => ({
+  logger: {
+    warn: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  },
 }));
 
-import { and, eq } from 'drizzle-orm';
-import type { InferenceRequest } from '@oxyhq/contracts';
-import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { accountBalances } from '../../db/schema/accountBalances';
-import { applicationCredentials } from '../../db/schema/applicationCredentials';
-import { applications } from '../../db/schema/applications';
+import { and, eq } from "drizzle-orm";
+import type { InferenceRequest } from "@oxyhq/contracts";
+import { closePostgres, connectPostgres, getDb } from "../../config/postgres";
+import { accountBalances } from "../../db/schema/accountBalances";
+import { applicationCredentials } from "../../db/schema/applicationCredentials";
+import { applications } from "../../db/schema/applications";
 import {
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
-} from '../../db/schema';
-import { inferenceUsageDailyRollups } from '../../db/schema/inferenceUsageDailyRollups';
-import { inferenceUsageEvents } from '../../db/schema/inferenceUsageEvents';
-import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
-import { usageReceipts } from '../../db/schema/usageReceipts';
-import { usageReservations } from '../../db/schema/usageReservations';
-import { users } from '../../db/schema/users';
-import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
+  inferenceRoutingProfileCandidates,
+  inferenceRoutingProfiles,
+} from "../../db/schema";
+import { inferenceUsageDailyRollups } from "../../db/schema/inferenceUsageDailyRollups";
+import { inferenceUsageEvents } from "../../db/schema/inferenceUsageEvents";
+import {
+  priceVersions,
+  priceVersionUnitPrices,
+} from "../../db/schema/priceVersions";
+import { usageReceipts } from "../../db/schema/usageReceipts";
+import { usageReservations } from "../../db/schema/usageReservations";
+import { users } from "../../db/schema/users";
+import {
+  provisionBillingProfile,
+  recordTopUp,
+} from "../../services/inferenceLedger.service";
 import {
   createRoutingPolicy,
   resolveEffectiveRoutingPolicy,
   type RoutingPolicyControls,
-} from '../../services/inferenceRoutingPolicy.service';
-import type { RelayClient, RelayCompletion } from '../../services/relayClient';
-import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
-import { logger } from '../../utils/logger';
-import { createInferenceEdgeRouter } from '../inferenceEdge';
+} from "../../services/inferenceRoutingPolicy.service";
+import {
+  type KaanaClient,
+  type KaanaCompletion,
+  KaanaIncompleteError,
+} from "../../services/kaanaClient";
+import { generateMachineCredentialToken } from "../../utils/machineCredentialToken";
+import { logger } from "../../utils/logger";
+import { createInferenceEdgeRouter } from "../inferenceEdge";
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -87,32 +104,32 @@ function json(response: RawResponse): Record<string, unknown> {
 
 /** A server per test, so each can be given its own (or no) data plane. */
 async function withServer(
-  relayClient: RelayClient | undefined,
+  kaanaClient: KaanaClient | undefined,
   run: (
     request: (
-      method: 'GET' | 'POST',
+      method: "GET" | "POST",
       path: string,
       body: unknown,
-      headers?: Record<string, string>
-    ) => Promise<RawResponse>
-  ) => Promise<void>
+      headers?: Record<string, string>,
+    ) => Promise<RawResponse>,
+  ) => Promise<void>,
 ): Promise<void> {
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: "1mb" }));
   app.use(
-    '/v1',
-    createInferenceEdgeRouter(relayClient === undefined ? {} : { relayClient })
+    "/v1",
+    createInferenceEdgeRouter(kaanaClient === undefined ? {} : { kaanaClient }),
   );
 
   const server = await new Promise<http.Server>((resolve) => {
-    const created = app.listen(0, '127.0.0.1', () => resolve(created));
+    const created = app.listen(0, "127.0.0.1", () => resolve(created));
   });
 
   const request = (
-    method: 'GET' | 'POST',
+    method: "GET" | "POST",
     path: string,
     body: unknown,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
   ): Promise<RawResponse> => {
     const { port } = server.address() as AddressInfo;
     const payload = body === undefined ? undefined : JSON.stringify(body);
@@ -120,31 +137,31 @@ async function withServer(
     return new Promise<RawResponse>((resolve, reject) => {
       const req = http.request(
         {
-          hostname: '127.0.0.1',
+          hostname: "127.0.0.1",
           port,
           path,
           method,
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             ...(payload === undefined
               ? {}
-              : { 'Content-Length': Buffer.byteLength(payload) }),
+              : { "Content-Length": Buffer.byteLength(payload) }),
             ...headers,
           },
         },
         (res) => {
           const chunks: Buffer[] = [];
-          res.on('data', (chunk: Buffer) => chunks.push(chunk));
-          res.on('end', () =>
+          res.on("data", (chunk: Buffer) => chunks.push(chunk));
+          res.on("end", () =>
             resolve({
               status: res.statusCode ?? 0,
               headers: res.headers,
-              body: Buffer.concat(chunks).toString('utf8'),
-            })
+              body: Buffer.concat(chunks).toString("utf8"),
+            }),
           );
-        }
+        },
       );
-      req.on('error', reject);
+      req.on("error", reject);
       if (payload !== undefined) req.write(payload);
       req.end();
     });
@@ -168,6 +185,8 @@ interface Fixture {
   readonly token: string;
   readonly clientId: string;
   readonly modelReference: string;
+  /** Database identity used by routing-profile candidate foreign keys. */
+  readonly modelRowId: string;
   readonly modelId: string;
   readonly priceVersionId: string;
   readonly provider: string;
@@ -177,7 +196,7 @@ interface Fixture {
   readonly revisionId: string;
 }
 
-const suffix = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
+const suffix = (): string => randomUUID().replace(/-/g, "").slice(0, 10);
 
 interface FixtureOptions {
   readonly scopes?: string[];
@@ -203,7 +222,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     .values({ username: `edge-${tag}`, email: `edge-${tag}@example.test` })
     .returning({ id: users.id });
 
-  const scopes = options.scopes ?? ['inference:invoke', 'inference:usage:read'];
+  const scopes = options.scopes ?? ["inference:invoke", "inference:usage:read"];
 
   const [application] = await db
     .insert(applications)
@@ -220,10 +239,10 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       publicKey: clientId,
       tokenPrefix: minted.tokenPrefix,
       tokenHash: minted.tokenHash,
-      type: 'machine',
-      environment: 'development',
+      type: "machine",
+      environment: "development",
       scopes,
-      status: 'active',
+      status: "active",
     })
     .returning({ id: applicationCredentials.id });
 
@@ -244,8 +263,8 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       publisherSlug,
       slug: modelSlug,
       displayName: `Model ${tag}`,
-      inputModalities: ['text'],
-      outputModalities: ['text'],
+      inputModalities: ["text"],
+      outputModalities: ["text"],
       supportsTools: true,
       supportsParallelToolCalls: false,
       supportsStructuredOutput: true,
@@ -255,24 +274,29 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       supportsPromptCaching: false,
       maxContextTokens: options.maxContextTokens ?? 200_000,
       maxOutputTokens: options.maxOutputTokens ?? 8192,
-      licenseId: 'apache-2.0',
-      licenseDisplayName: 'Apache 2.0',
+      licenseId: "apache-2.0",
+      licenseDisplayName: "Apache 2.0",
       commercialUseAllowed: true,
       requiresAttribution: false,
-      releaseKind: 'open_weight',
+      releaseKind: "open_weight",
     })
     .returning({ id: inferenceModels.id, modelId: inferenceModels.modelId });
 
-  const revision = '2026-01-01';
+  const revision = "2026-01-01";
   const [revisionRow] = await db
     .insert(inferenceModelRevisions)
-    .values({ modelId: model.id, revision, releasedAt: new Date(), isCurrent: true })
+    .values({
+      modelId: model.id,
+      revision,
+      releasedAt: new Date(),
+      isCurrent: true,
+    })
     .returning({ id: inferenceModelRevisions.id });
 
   await db.insert(inferenceProviders).values({
     slug: providerSlug,
     displayName: `Provider ${tag}`,
-    kind: 'third_party',
+    kind: "third_party",
     retainsPayloads: false,
     retentionDays: 0,
     trainsOnCustomerData: false,
@@ -285,14 +309,24 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     .values({
       modelReference: `${publisherSlug}/${modelSlug}@${revision}`,
       provider: providerSlug,
-      status: 'active',
+      status: "active",
       effectiveFrom: new Date(Date.now() - 60_000),
     })
     .returning({ id: priceVersions.id });
 
   await db.insert(priceVersionUnitPrices).values([
-    { priceVersionId: priceVersion.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
-    { priceVersionId: priceVersion.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+    {
+      priceVersionId: priceVersion.id,
+      unit: "input_tokens",
+      amount: "3.000000000000",
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: "output_tokens",
+      amount: "15.000000000000",
+      per: 1_000_000,
+    },
   ]);
 
   const [deployment] = await db
@@ -300,18 +334,18 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     .values({
       modelRevisionId: revisionRow.id,
       providerSlug,
-      regions: ['us-west-2'],
+      regions: ["us-west-2"],
       retainsPayloads: options.retainsAndTrains === true,
       retentionDays: options.retainsAndTrains === true ? 30 : 0,
       trainsOnCustomerData: options.retainsAndTrains === true,
       zeroDataRetentionAvailable: options.retainsAndTrains !== true,
-      availabilityScope: 'public_payg',
-      commercialPermission: 'public_resale_approved',
-      status: 'active',
-      legalReviewStatus: 'approved',
+      availabilityScope: "public_payg",
+      commercialPermission: "public_resale_approved",
+      status: "active",
+      legalReviewStatus: "approved",
       legalReviewedAt: new Date(),
       legalReviewEvidenceRef: `contract-register/${tag}`,
-      permissionState: 'approved',
+      permissionState: "approved",
       ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
     })
     .returning({ id: inferenceDeployments.id });
@@ -321,9 +355,9 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     await recordTopUp({
       idempotencyKey: `edge-top-up-${tag}`,
       accountId: account.id,
-      currency: 'USD',
+      currency: "USD",
       amount: options.fund,
-      actor: { kind: 'machine' },
+      actor: { kind: "machine" },
     });
   }
 
@@ -334,7 +368,8 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     token: minted.token,
     clientId,
     modelReference: `${publisherSlug}/${modelSlug}`,
-    modelId: model.modelId ?? '',
+    modelRowId: model.id,
+    modelId: model.modelId ?? "",
     priceVersionId: priceVersion.id,
     provider: providerSlug,
     deploymentId: deployment.id,
@@ -364,8 +399,12 @@ async function addDeployment(
     readonly currency?: string;
     readonly trainsOnCustomerData?: boolean;
     readonly regions?: string[];
-  }
-): Promise<{ providerSlug: string; deploymentId: string; priceVersionId: string }> {
+  },
+): Promise<{
+  providerSlug: string;
+  deploymentId: string;
+  priceVersionId: string;
+}> {
   const db = getDb();
   const tag = suffix();
   const providerSlug = `${options.rank}prv${tag}`;
@@ -373,7 +412,7 @@ async function addDeployment(
   await db.insert(inferenceProviders).values({
     slug: providerSlug,
     displayName: `Provider ${tag}`,
-    kind: 'third_party',
+    kind: "third_party",
     retainsPayloads: false,
     retentionDays: 0,
     trainsOnCustomerData: false,
@@ -385,8 +424,8 @@ async function addDeployment(
     .values({
       modelReference: `${fixture.modelReference}@2026-01-01`,
       provider: providerSlug,
-      status: 'active',
-      currency: options.currency ?? 'USD',
+      status: "active",
+      currency: options.currency ?? "USD",
       effectiveFrom: new Date(Date.now() - 60_000),
     })
     .returning({ id: priceVersions.id });
@@ -394,14 +433,14 @@ async function addDeployment(
   await db.insert(priceVersionUnitPrices).values([
     {
       priceVersionId: priceVersion.id,
-      unit: 'input_tokens',
-      amount: '3.000000000000',
+      unit: "input_tokens",
+      amount: "3.000000000000",
       per: 1_000_000,
     },
     {
       priceVersionId: priceVersion.id,
-      unit: 'output_tokens',
-      amount: options.outputPricePerMillion ?? '15.000000000000',
+      unit: "output_tokens",
+      amount: options.outputPricePerMillion ?? "15.000000000000",
       per: 1_000_000,
     },
   ]);
@@ -411,23 +450,27 @@ async function addDeployment(
     .values({
       modelRevisionId: fixture.revisionId,
       providerSlug,
-      regions: options.regions ?? ['eu-central-1'],
+      regions: options.regions ?? ["eu-central-1"],
       retainsPayloads: options.trainsOnCustomerData === true,
       retentionDays: options.trainsOnCustomerData === true ? 30 : 0,
       trainsOnCustomerData: options.trainsOnCustomerData === true,
       zeroDataRetentionAvailable: options.trainsOnCustomerData !== true,
-      availabilityScope: 'public_payg',
-      commercialPermission: 'public_resale_approved',
-      status: 'active',
-      legalReviewStatus: 'approved',
+      availabilityScope: "public_payg",
+      commercialPermission: "public_resale_approved",
+      status: "active",
+      legalReviewStatus: "approved",
       legalReviewedAt: new Date(),
       legalReviewEvidenceRef: `contract-register/${tag}`,
-      permissionState: 'approved',
+      permissionState: "approved",
       priceVersionId: priceVersion.id,
     })
     .returning({ id: inferenceDeployments.id });
 
-  return { providerSlug, deploymentId: deployment.id, priceVersionId: priceVersion.id };
+  return {
+    providerSlug,
+    deploymentId: deployment.id,
+    priceVersionId: priceVersion.id,
+  };
 }
 
 async function balanceOf(accountId: string): Promise<{
@@ -437,7 +480,12 @@ async function balanceOf(accountId: string): Promise<{
   const [row] = await getDb()
     .select()
     .from(accountBalances)
-    .where(and(eq(accountBalances.accountId, accountId), eq(accountBalances.currency, 'USD')))
+    .where(
+      and(
+        eq(accountBalances.accountId, accountId),
+        eq(accountBalances.currency, "USD"),
+      ),
+    )
     .limit(1);
   return { purchased: row.purchasedBalance, reserved: row.reservedBalance };
 }
@@ -447,9 +495,12 @@ const bearer = (token: string): Record<string, string> => ({
 });
 
 /** A minimal, well-formed chat request against a fixture's model. */
-const chatBody = (fixture: Fixture, overrides: Record<string, unknown> = {}) => ({
+const chatBody = (
+  fixture: Fixture,
+  overrides: Record<string, unknown> = {},
+) => ({
   model: fixture.modelReference,
-  messages: [{ role: 'user', content: 'Say hello.' }],
+  messages: [{ role: "user", content: "Say hello." }],
   max_tokens: 100,
   ...overrides,
 });
@@ -459,7 +510,7 @@ const chatBody = (fixture: Fixture, overrides: Record<string, unknown> = {}) => 
  * it is about and nothing else can be the reason a test passes.
  */
 function policyControls(
-  overrides: Partial<RoutingPolicyControls> = {}
+  overrides: Partial<RoutingPolicyControls> = {},
 ): RoutingPolicyControls {
   return {
     providerAllowlist: [],
@@ -469,13 +520,17 @@ function policyControls(
     requireZeroDataRetention: false,
     prohibitTrainingOnCustomerData: false,
     maxPricePerUnit: [],
-    optimiseFor: 'balanced',
+    optimiseFor: "balanced",
     oxyHostedOnly: false,
     allowedLicenseIds: [],
     requireCommercialUseRights: false,
-    fallback: { disabled: false, sameModelDeployment: true, authorizedCrossModel: [] },
-    byokPreference: 'disabled',
-    dedicatedCapacity: 'disabled',
+    fallback: {
+      disabled: false,
+      sameModelDeployment: true,
+      authorizedCrossModel: [],
+    },
+    byokPreference: "disabled",
+    dedicatedCapacity: "disabled",
     ...overrides,
   };
 }
@@ -487,50 +542,65 @@ function policyControls(
  * `stream: true`, so an implementation would be untested code satisfying a type,
  * and a throw is what makes a future case that DOES stream through this fake fail
  * loudly instead of silently taking a path nobody wrote. The streaming and
- * cancellation paths are covered end to end, against a stub Relay that verifies
- * the Ed25519 signature, in `__tests__/relayStreaming.test.ts`.
+ * cancellation paths are covered end to end, against a stub Kaana that verifies
+ * the Ed25519 signature, in `__tests__/kaanaStreaming.test.ts`.
  */
-function fakeRelay(
+function fakeKaana(
   // A promise is accepted as well as a value so a case can make the data plane
   // take REAL time — which is the only way to test a clock without asserting
   // something a stopped clock would also satisfy.
-  build: (envelope: InferenceRequest) => RelayCompletion | Promise<RelayCompletion>,
-  seen?: InferenceRequest[]
-): RelayClient {
+  build: (
+    envelope: InferenceRequest,
+  ) => KaanaCompletion | Promise<KaanaCompletion>,
+  seen?: InferenceRequest[],
+): KaanaClient {
   return {
     execute: async (envelope) => {
       seen?.push(envelope);
       return build(envelope);
     },
     stream: () => {
-      throw new Error('this fake serves only non-streaming requests');
+      throw new Error("this fake serves only non-streaming requests");
     },
   };
 }
 
 function completionFor(
   envelope: InferenceRequest,
-  units: { input: number; output: number; provider: string }
-): RelayCompletion {
+  units: {
+    input: number;
+    output: number;
+    provider: string;
+    deploymentId?: string;
+  },
+): KaanaCompletion {
   const modelReference =
-    envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
+    envelope.authorizedRoutes?.[0]?.modelReference ??
+    (envelope.target.kind === "model"
+      ? envelope.target.modelReference
+      : "unknown/unknown");
   const now = new Date().toISOString();
   return {
     generationId: `gen-${randomUUID()}`,
-    output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
-    finishReason: 'stop',
+    output: [
+      { role: "assistant", content: [{ type: "text", text: "Hello." }] },
+    ],
+    finishReason: "stop",
     usage: {
       schemaVersion: 1,
       requestId: envelope.attribution.requestId,
       attribution: envelope.attribution,
-      outcome: 'completed',
+      outcome: "completed",
       units: [
-        { unit: 'input_tokens', quantity: units.input },
-        { unit: 'output_tokens', quantity: units.output },
+        { unit: "input_tokens", quantity: units.input },
+        { unit: "output_tokens", quantity: units.output },
       ],
-      usageSource: 'provider_reported',
+      usageSource: "provider_reported",
       resolvedModelReference: modelReference,
       servingProvider: units.provider,
+      ...(units.deploymentId === undefined
+        ? {}
+        : { deploymentId: units.deploymentId }),
       routeSwitches: 0,
       startedAt: now,
       completedAt: now,
@@ -540,6 +610,23 @@ function completionFor(
     // (`__tests__/inferenceEdgeServingProvider.test.ts`).
     routeSwitchEvents: [],
   };
+}
+
+function incompleteReportFor(
+  envelope: InferenceRequest,
+  route: { readonly provider: string; readonly deploymentId: string },
+): KaanaIncompleteError {
+  const completion = completionFor(envelope, {
+    input: 12,
+    output: 20,
+    provider: route.provider,
+    deploymentId: route.deploymentId,
+  });
+  return new KaanaIncompleteError(
+    "stream_truncated",
+    "The data plane stopped after reporting usage.",
+    { usage: { kind: "report", report: completion.usage } },
+  );
 }
 
 /**
@@ -564,14 +651,14 @@ function completionFor(
  * `config/rolloutFlags.ts` — so these fixtures do not rot.
  */
 const ROLLOUT_ENVIRONMENT = {
-  INFERENCE_EDGE_AUDIENCE: 'public',
-  INFERENCE_MACHINE_CREDENTIAL_AUTH: 'enabled',
-  INFERENCE_CHARGING_AUTHORIZED: 'edge-suite-fixture:2026-08-01',
-  INFERENCE_PRIVACY_REVIEW: 'edge-suite-fixture:2026-08-01',
+  INFERENCE_EDGE_AUDIENCE: "public",
+  INFERENCE_MACHINE_CREDENTIAL_AUTH: "enabled",
+  INFERENCE_CHARGING_AUTHORIZED: "edge-suite-fixture:2026-08-01",
+  INFERENCE_PRIVACY_REVIEW: "edge-suite-fixture:2026-08-01",
 } as const;
 
 const ORIGINAL_ROLLOUT_ENVIRONMENT = Object.fromEntries(
-  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]])
+  Object.keys(ROLLOUT_ENVIRONMENT).map((key) => [key, process.env[key]]),
 );
 
 beforeAll(async () => {
@@ -595,37 +682,37 @@ beforeEach(() => {
 /*  Authentication                                                            */
 /* -------------------------------------------------------------------------- */
 
-describe('authentication', () => {
-  it('refuses a request with no bearer, with a traceable request id', async () => {
+describe("authentication", () => {
+  it("refuses a request with no bearer, with a traceable request id", async () => {
     await withServer(undefined, async (request) => {
-      const response = await request('POST', '/v1/chat/completions', {
-        model: 'a/b',
-        messages: [{ role: 'user', content: 'hi' }],
+      const response = await request("POST", "/v1/chat/completions", {
+        model: "a/b",
+        messages: [{ role: "user", content: "hi" }],
       });
 
       expect(response.status).toBe(401);
-      expect(response.headers['x-oxy-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+      expect(response.headers["x-oxy-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
       // The compatibility surface speaks the OpenAI error shape.
       expect(json(response)).toEqual({
         error: {
           message: expect.any(String),
-          type: 'authentication_error',
+          type: "authentication_error",
           param: null,
-          code: 'authentication_failed',
+          code: "authentication_failed",
         },
       });
     });
   });
 
-  it('refuses a bare oxy_dk_ public identifier presented as a bearer', async () => {
+  it("refuses a bare oxy_dk_ public identifier presented as a bearer", async () => {
     const fixture = await makeFixture();
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/chat/completions',
+        "POST",
+        "/v1/chat/completions",
         chatBody(fixture),
-        bearer(fixture.clientId)
+        bearer(fixture.clientId),
       );
 
       expect(response.status).toBe(401);
@@ -633,31 +720,31 @@ describe('authentication', () => {
       // machine token is accepted past authentication, so this 401 is about the
       // credential shape and not about a broken fixture.
       const accepted = await request(
-        'POST',
-        '/v1/chat/completions',
+        "POST",
+        "/v1/chat/completions",
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(accepted.status).not.toBe(401);
     });
   });
 
-  it('refuses a machine token whose credential has been revoked', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses a machine token whose credential has been revoked", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     await getDb()
       .update(applicationCredentials)
-      .set({ status: 'revoked' })
+      .set({ status: "revoked" })
       .where(eq(applicationCredentials.id, fixture.credentialId));
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'hi' },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        { model: fixture.modelReference, input: "hi" },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(401);
-      expect(json(response)).toMatchObject({ code: 'authentication_failed' });
+      expect(json(response)).toMatchObject({ code: "authentication_failed" });
     });
   });
 });
@@ -666,32 +753,33 @@ describe('authentication', () => {
 /*  Authorization                                                             */
 /* -------------------------------------------------------------------------- */
 
-describe('scope authorization', () => {
-  it('refuses a credential without inference:invoke before anything is resolved', async () => {
-    const fixture = await makeFixture({ scopes: ['inference:models:read'] });
+describe("scope authorization", () => {
+  it("refuses a credential without inference:invoke before anything is resolved", async () => {
+    const fixture = await makeFixture({ scopes: ["inference:models:read"] });
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 1, output: 1, provider: 'unused' }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, { input: 1, output: 1, provider: "unused" }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi' },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi" },
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(403);
         expect(json(response)).toMatchObject({
-          code: 'insufficient_scope',
+          code: "insufficient_scope",
           retryable: false,
         });
         // Refused BEFORE the data plane, not after.
         expect(seen).toHaveLength(0);
-      }
+      },
     );
   });
 });
@@ -700,41 +788,51 @@ describe('scope authorization', () => {
 /*  The no-data-plane refusal — the point of this PR                          */
 /* -------------------------------------------------------------------------- */
 
-describe('no data plane configured', () => {
-  it('refuses with a typed, non-retryable service_unavailable', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("no data plane configured", () => {
+  it("refuses with a typed, non-retryable service_unavailable", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        {
+          model: fixture.modelReference,
+          input: "Say hello.",
+          maxOutputTokens: 100,
+        },
+        bearer(fixture.token),
       );
 
       expect(response.status).toBe(503);
       expect(json(response)).toMatchObject({
         schemaVersion: 1,
-        code: 'service_unavailable',
+        code: "service_unavailable",
         // Retrying does not configure a data plane. A `true` here is what turns
         // one misconfiguration into a retry storm across every SDK.
         retryable: false,
       });
-      expect(json(response).requestId).toBe(response.headers['x-oxy-request-id']);
-      expect(response.headers['retry-after']).toBeUndefined();
+      expect(json(response).requestId).toBe(
+        response.headers["x-oxy-request-id"],
+      );
+      expect(response.headers["retry-after"]).toBeUndefined();
     });
   });
 
-  it('releases the hold it took, rather than leaving the balance frozen', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("releases the hold it took, rather than leaving the balance frozen", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const before = await balanceOf(fixture.accountId);
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        {
+          model: fixture.modelReference,
+          input: "Say hello.",
+          maxOutputTokens: 100,
+        },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(503);
     });
@@ -750,127 +848,217 @@ describe('no data plane configured', () => {
       .from(usageReservations)
       .where(eq(usageReservations.accountId, fixture.accountId));
     expect(holds).toHaveLength(1);
-    expect(holds[0].status).toBe('settled');
+    expect(holds[0].status).toBe("settled");
 
     // The zero receipt the release wrote, which is what a customer reads back.
     const receipts = await getDb()
-      .select({ billed: usageReceipts.billedAmount, outcome: usageReceipts.outcome })
+      .select({
+        billed: usageReceipts.billedAmount,
+        outcome: usageReceipts.outcome,
+      })
       .from(usageReceipts)
       .where(eq(usageReceipts.accountId, fixture.accountId));
     expect(receipts).toHaveLength(1);
     expect(Number(receipts[0].billed)).toBe(0);
-    expect(receipts[0].outcome).toBe('failed');
+    expect(receipts[0].outcome).toBe("failed");
   });
 
-  it('never falls through to the Alia proxy', async () => {
+  it("never falls through to the Alia proxy", async () => {
     // The edge router is mounted alone here, so a fall-through would 404 rather
     // than proxy. The assertion that matters is the shape of the answer: a
     // typed inference refusal, never an `ALIA_PROXY_ERROR` or a 404.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/chat/completions',
+        "POST",
+        "/v1/chat/completions",
         chatBody(fixture),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
 
       expect(response.status).toBe(503);
       const body = json(response) as { error: { code: string } };
-      expect(body.error.code).toBe('service_unavailable');
-      expect(response.headers['x-oxy-error-retryable']).toBe('false');
+      expect(body.error.code).toBe("service_unavailable");
+      expect(response.headers["x-oxy-error-retryable"]).toBe("false");
     });
   });
+});
+
+describe("an incomplete response carrying an unsigned usage report", () => {
+  it.each(["deployment", "provider"] as const)(
+    "discards an untrusted %s, charges zero and keeps the receipt on the admitted route",
+    async (untrustedField) => {
+      const fixture = await makeFixture({ fund: "10.000000000000" });
+      const before = await balanceOf(fixture.accountId);
+
+      await withServer(
+        fakeKaana((envelope) => {
+          throw incompleteReportFor(envelope, {
+            provider:
+              untrustedField === "provider"
+                ? `untrusted-provider-${suffix()}`
+                : fixture.provider,
+            deploymentId:
+              untrustedField === "deployment"
+                ? `untrusted-deployment-${suffix()}`
+                : fixture.deploymentId,
+          });
+        }),
+        async (request) => {
+          const response = await request(
+            "POST",
+            "/v1/responses",
+            {
+              model: fixture.modelReference,
+              input: "Say hello.",
+              maxOutputTokens: 100,
+            },
+            bearer(fixture.token),
+          );
+
+          expect(response.status).toBe(502);
+          expect(json(response)).toMatchObject({ code: "provider_error" });
+        },
+      );
+
+      expect(await balanceOf(fixture.accountId)).toEqual(before);
+      const receipts = await getDb()
+        .select({
+          billedAmount: usageReceipts.billedAmount,
+          outcome: usageReceipts.outcome,
+          usageSource: usageReceipts.usageSource,
+          inputTokens: usageReceipts.inputTokens,
+          outputTokens: usageReceipts.outputTokens,
+          servingProvider: usageReceipts.servingProvider,
+          resolvedModelReference: usageReceipts.resolvedModelReference,
+          priceVersionId: usageReceipts.priceVersionId,
+        })
+        .from(usageReceipts)
+        .where(eq(usageReceipts.accountId, fixture.accountId));
+      expect(receipts).toHaveLength(1);
+      expect(receipts[0]).toMatchObject({
+        outcome: "failed",
+        usageSource: "estimated",
+        inputTokens: 0,
+        outputTokens: 0,
+        servingProvider: fixture.provider,
+        resolvedModelReference: `${fixture.modelReference}@2026-01-01`,
+        priceVersionId: fixture.priceVersionId,
+      });
+      expect(Number(receipts[0].billedAmount)).toBe(0);
+      expect(mockedLogger.error).toHaveBeenCalledWith(
+        "inference.edge.incomplete_usage_report_rejected",
+        expect.any(Error),
+        expect.objectContaining({
+          accountId: fixture.accountId,
+          reason: "route_not_authorized",
+        }),
+      );
+    },
+  );
 });
 
 /* -------------------------------------------------------------------------- */
 /*  Admission limits                                                          */
 /* -------------------------------------------------------------------------- */
 
-describe('admission', () => {
-  it('answers model_not_found for a model that does not exist', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("admission", () => {
+  it("answers model_not_found for a model that does not exist", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: 'nobody/nothing', input: 'hi' },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        { model: "nobody/nothing", input: "hi" },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(404);
-      expect(json(response)).toMatchObject({ code: 'model_not_found', retryable: false });
+      expect(json(response)).toMatchObject({
+        code: "model_not_found",
+        retryable: false,
+      });
     });
   });
 
-  it('refuses a route published with no price rather than serving it unpriced', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000', unpriced: true });
+  it("refuses a route published with no price rather than serving it unpriced", async () => {
+    const fixture = await makeFixture({
+      fund: "10.000000000000",
+      unpriced: true,
+    });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'hi' },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        { model: fixture.modelReference, input: "hi" },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(503);
-      expect(json(response)).toMatchObject({ code: 'no_route_available' });
+      expect(json(response)).toMatchObject({ code: "no_route_available" });
     });
   });
 
-  it('refuses an output ceiling above the model’s own', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000', maxOutputTokens: 256 });
+  it("refuses an output ceiling above the model’s own", async () => {
+    const fixture = await makeFixture({
+      fund: "10.000000000000",
+      maxOutputTokens: 256,
+    });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'hi', maxOutputTokens: 1000 },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        { model: fixture.modelReference, input: "hi", maxOutputTokens: 1000 },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(400);
-      expect(json(response)).toMatchObject({ code: 'output_limit_exceeded' });
+      expect(json(response)).toMatchObject({ code: "output_limit_exceeded" });
     });
   });
 
-  it('refuses a request whose input plus maximum output exceeds the context', async () => {
+  it("refuses a request whose input plus maximum output exceeds the context", async () => {
     const fixture = await makeFixture({
-      fund: '10.000000000000',
+      fund: "10.000000000000",
       maxContextTokens: 200,
       maxOutputTokens: 100,
     });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'x'.repeat(500), maxOutputTokens: 50 },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        {
+          model: fixture.modelReference,
+          input: "x".repeat(500),
+          maxOutputTokens: 50,
+        },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(400);
-      expect(json(response)).toMatchObject({ code: 'context_length_exceeded' });
+      expect(json(response)).toMatchObject({ code: "context_length_exceeded" });
     });
   });
 
-  it('refuses streaming with a typed error rather than silently answering non-streamed', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses streaming with a typed error rather than silently answering non-streamed", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/chat/completions',
+        "POST",
+        "/v1/chat/completions",
         chatBody(fixture, { stream: true }),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(400);
       const body = json(response) as { error: { code: string } };
-      expect(body.error.code).toBe('invalid_request');
+      expect(body.error.code).toBe("invalid_request");
     });
   });
 
-  it('refuses a body over the edge limit with a typed 413, not the parser’s bare one', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses a body over the edge limit with a typed 413, not the parser’s bare one", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       // ~800 KB: above the edge's 768 KiB ceiling and BELOW the global
@@ -878,39 +1066,42 @@ describe('admission', () => {
       // own typed refusal is the one a customer receives. Above 1 MiB the
       // parser answers first, with its own untyped 413.
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'x'.repeat(800_000) },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        { model: fixture.modelReference, input: "x".repeat(800_000) },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(413);
-      expect(json(response)).toMatchObject({ code: 'request_too_large' });
-      expect(response.headers['x-oxy-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+      expect(json(response)).toMatchObject({ code: "request_too_large" });
+      expect(response.headers["x-oxy-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
     });
   });
 
-  it('refuses a non-text input part, so the input ceiling stays a real bound', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses a non-text input part, so the input ceiling stays a real bound", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/chat/completions',
+        "POST",
+        "/v1/chat/completions",
         chatBody(fixture, {
           messages: [
             {
-              role: 'user',
+              role: "user",
               content: [
-                { type: 'image', source: { kind: 'url', url: 'https://example.test/a.png' } },
+                {
+                  type: "image",
+                  source: { kind: "url", url: "https://example.test/a.png" },
+                },
               ],
             },
           ],
         }),
-        bearer(fixture.token)
+        bearer(fixture.token),
       );
       expect(response.status).toBe(400);
       const body = json(response) as { error: { code: string } };
-      expect(body.error.code).toBe('unsupported_modality');
+      expect(body.error.code).toBe("unsupported_modality");
     });
   });
 });
@@ -919,34 +1110,39 @@ describe('admission', () => {
 /*  Reservation                                                               */
 /* -------------------------------------------------------------------------- */
 
-describe('spend reservation', () => {
-  it('rejects an unfundable request BEFORE it reaches the data plane', async () => {
+describe("spend reservation", () => {
+  it("rejects an unfundable request BEFORE it reaches the data plane", async () => {
     // Provisioned, funded with nothing. The hold for 100 output tokens at $15/M
     // cannot be covered.
     const fixture = await makeFixture();
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 10, output: 10, provider: 'unused' }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 10,
+            output: 10,
+            provider: "unused",
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 100 },
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(402);
         expect(json(response)).toMatchObject({
-          code: 'insufficient_balance',
+          code: "insufficient_balance",
           retryable: false,
         });
         // The whole point: nothing was forwarded.
         expect(seen).toHaveLength(0);
-      }
+      },
     );
   });
 });
@@ -955,27 +1151,35 @@ describe('spend reservation', () => {
 /*  The served path, driven by a fake data plane                              */
 /* -------------------------------------------------------------------------- */
 
-describe('a served request', () => {
-  it('forwards a versioned, attributed envelope and settles the exact usage', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("a served request", () => {
+  it("forwards a versioned, attributed envelope and settles the exact usage", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const before = await balanceOf(fixture.accountId);
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      fakeRelay(
+      fakeKaana(
         (envelope) =>
-          completionFor(envelope, { input: 12, output: 2000, provider: fixture.provider }),
-        seen
+          completionFor(envelope, {
+            input: 12,
+            output: 2000,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
+          "POST",
+          "/v1/responses",
           // `maxOutputTokens` is what the hold is sized on, so the reported
           // usage below sits inside it. A report ABOVE the hold is a different
           // case with its own test — the ledger refuses it rather than charging.
-          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 3000 },
-          { ...bearer(fixture.token), 'X-Oxy-User-Id': 'end-user-42' }
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 3000,
+          },
+          { ...bearer(fixture.token), "X-Oxy-User-Id": "end-user-42" },
         );
 
         expect(response.status).toBe(200);
@@ -984,33 +1188,47 @@ describe('a served request', () => {
           schemaVersion: 1,
           // Always revision-pinned, even though the request named only the model.
           model: `${fixture.modelReference}@2026-01-01`,
-          finishReason: 'stop',
-          routingPolicy: { routingPolicyId: 'platform-default', policyVersion: 1 },
+          finishReason: "stop",
+          routingPolicy: {
+            routingPolicyId: "platform-default",
+            policyVersion: 1,
+          },
         });
-        expect(response.headers['x-oxy-usage-input-tokens']).toBe('12');
-        expect(response.headers['x-oxy-usage-output-tokens']).toBe('2000');
+        expect(response.headers["x-oxy-usage-input-tokens"]).toBe("12");
+        expect(response.headers["x-oxy-usage-output-tokens"]).toBe("2000");
 
         // The envelope: versioned, attributed, and the delegated user is NOT the
         // billing principal.
         expect(seen).toHaveLength(1);
         const envelope = seen[0];
         expect(envelope.schemaVersion).toBe(1);
-        expect(envelope.attribution.principal.billing.accountId).toBe(fixture.accountId);
-        expect(envelope.attribution.principal.applicationId).toBe(fixture.applicationId);
-        expect(envelope.attribution.principal.credentialId).toBe(fixture.credentialId);
-        expect(envelope.attribution.userId).toBe('end-user-42');
-        expect(envelope.attribution.principal.billing).not.toHaveProperty('userId');
+        expect(envelope.attribution.principal.billing.accountId).toBe(
+          fixture.accountId,
+        );
+        expect(envelope.attribution.principal.applicationId).toBe(
+          fixture.applicationId,
+        );
+        expect(envelope.attribution.principal.credentialId).toBe(
+          fixture.credentialId,
+        );
+        expect(envelope.attribution.userId).toBe("end-user-42");
+        expect(envelope.attribution.principal.billing).not.toHaveProperty(
+          "userId",
+        );
         expect(envelope.routingPolicy).toEqual({
-          routingPolicyId: 'platform-default',
+          routingPolicyId: "platform-default",
           policyVersion: 1,
         });
         expect(envelope.stream).toBe(false);
-      }
+      },
     );
 
     // $3/M × 12 + $15/M × 2000 = 0.000036 + 0.030000 = 0.030036, exactly.
     const after = await balanceOf(fixture.accountId);
-    expect(Number(before.purchased) - Number(after.purchased)).toBeCloseTo(0.030036, 9);
+    expect(Number(before.purchased) - Number(after.purchased)).toBeCloseTo(
+      0.030036,
+      9,
+    );
     expect(Number(after.reserved)).toBe(0);
 
     const [receipt] = await getDb()
@@ -1020,28 +1238,32 @@ describe('a served request', () => {
     expect(Number(receipt.billedAmount)).toBeCloseTo(0.030036, 9);
     expect(receipt.inputTokens).toBe(12);
     expect(receipt.outputTokens).toBe(2000);
-    expect(receipt.delegatedUserId).toBe('end-user-42');
+    expect(receipt.delegatedUserId).toBe("end-user-42");
   });
 
-  it('reports its own latency on the body, on the header and on the usage row — ONE reading', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("reports its own latency on the body, on the header and on the usage row — ONE reading", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     // The data plane takes real, measurable time. Against an instantaneous fake
     // every assertion below is also satisfied by an edge that returns a hardcoded
     // `0` and never reads a clock, which is the failure this case exists to
     // exclude.
-    const RELAY_DELAY_MS = 60;
+    const KAANA_DELAY_MS = 60;
 
     await withServer(
-      fakeRelay(async (envelope) => {
-        await new Promise((resolve) => setTimeout(resolve, RELAY_DELAY_MS));
-        return completionFor(envelope, { input: 5, output: 5, provider: fixture.provider });
+      fakeKaana(async (envelope) => {
+        await new Promise((resolve) => setTimeout(resolve, KAANA_DELAY_MS));
+        return completionFor(envelope, {
+          input: 5,
+          output: 5,
+          provider: fixture.provider,
+        });
       }),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 100 },
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
@@ -1049,7 +1271,7 @@ describe('a served request', () => {
 
         // The clock RAN: the delay the fake data plane took is inside the
         // interval, because the interval spans the forward to it.
-        expect(body.latencyMs).toBeGreaterThanOrEqual(RELAY_DELAY_MS);
+        expect(body.latencyMs).toBeGreaterThanOrEqual(KAANA_DELAY_MS);
         // An UPPER bound as well, because the realistic way this field goes wrong
         // is not a small error but a wrong quantity: a `Date.now()` epoch reading
         // where an elapsed interval belongs reads as ~1.7e12 and satisfies every
@@ -1061,7 +1283,9 @@ describe('a served request', () => {
 
         // The header states the same number, so the compatibility surface — whose
         // body carries no Oxy field at all — is not reporting something else.
-        expect(response.headers['x-oxy-latency-ms']).toBe(String(body.latencyMs));
+        expect(response.headers["x-oxy-latency-ms"]).toBe(
+          String(body.latencyMs),
+        );
 
         // And it is ONE reading, not two clocks a few hundred microseconds apart:
         // the row the usage dashboard reads and the number the customer was
@@ -1073,47 +1297,53 @@ describe('a served request', () => {
           .from(inferenceUsageEvents)
           .where(eq(inferenceUsageEvents.requestId, String(body.requestId)));
         expect(event.latencyMs).toBe(body.latencyMs);
-      }
+      },
     );
   });
 
-  it('renders the OpenAI shape on the compatibility surface', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("renders the OpenAI shape on the compatibility surface", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 12, output: 7, provider: fixture.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 12,
+          output: 7,
+          provider: fixture.provider,
+        }),
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/chat/completions',
+          "POST",
+          "/v1/chat/completions",
           chatBody(fixture),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
         expect(json(response)).toMatchObject({
-          object: 'chat.completion',
+          object: "chat.completion",
           model: `${fixture.modelReference}@2026-01-01`,
           choices: [
             {
               index: 0,
-              message: { role: 'assistant', content: 'Hello.' },
-              finish_reason: 'stop',
+              message: { role: "assistant", content: "Hello." },
+              finish_reason: "stop",
             },
           ],
           usage: { prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 },
         });
         // Oxy metadata rides in headers so the body stays stock-parseable.
-        expect(json(response)).not.toHaveProperty('routingPolicy');
-        expect(response.headers['x-oxy-model']).toBe(`${fixture.modelReference}@2026-01-01`);
-      }
+        expect(json(response)).not.toHaveProperty("routingPolicy");
+        expect(response.headers["x-oxy-model"]).toBe(
+          `${fixture.modelReference}@2026-01-01`,
+        );
+      },
     );
   });
 
-  it('re-nests the partitioned units for the OpenAI dialect, and still prices them once', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("re-nests the partitioned units for the OpenAI dialect, and still prices them once", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     // The fixture prices only input and output, and a metered unit with no price
     // is refused rather than dropped — so the two child lines have to be priced
     // before they can be reported at all. A tenth of the input price for a cache
@@ -1126,20 +1356,20 @@ describe('a served request', () => {
       .values([
         {
           priceVersionId: fixture.priceVersionId,
-          unit: 'cached_input_tokens',
-          amount: '0.300000000000',
+          unit: "cached_input_tokens",
+          amount: "0.300000000000",
           per: 1_000_000,
         },
         {
           priceVersionId: fixture.priceVersionId,
-          unit: 'reasoning_tokens',
-          amount: '15.000000000000',
+          unit: "reasoning_tokens",
+          amount: "15.000000000000",
           per: 1_000_000,
         },
       ]);
 
     await withServer(
-      fakeRelay((envelope) => {
+      fakeKaana((envelope) => {
         const completion = completionFor(envelope, {
           input: 1000,
           output: 200,
@@ -1153,27 +1383,27 @@ describe('a served request', () => {
           usage: {
             ...completion.usage,
             units: [
-              { unit: 'input_tokens' as const, quantity: 1_000 },
-              { unit: 'cached_input_tokens' as const, quantity: 9_000 },
-              { unit: 'output_tokens' as const, quantity: 200 },
-              { unit: 'reasoning_tokens' as const, quantity: 800 },
+              { unit: "input_tokens" as const, quantity: 1_000 },
+              { unit: "cached_input_tokens" as const, quantity: 9_000 },
+              { unit: "output_tokens" as const, quantity: 200 },
+              { unit: "reasoning_tokens" as const, quantity: 800 },
             ],
           },
         };
       }),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/chat/completions',
+          "POST",
+          "/v1/chat/completions",
           // A prompt long enough that the edge's own character-count ceiling
           // covers the 10 000 tokens reported against it, and an output ceiling
           // covering the 1 000 generated: the hold has to be able to cover the
           // whole partition, or this would be testing the reservation instead.
           chatBody(fixture, {
-            messages: [{ role: 'user', content: 'word '.repeat(2_000) }],
+            messages: [{ role: "user", content: "word ".repeat(2_000) }],
             max_tokens: 1_000,
           }),
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
@@ -1190,11 +1420,13 @@ describe('a served request', () => {
         });
         // Oxy's own headers keep the partition, so either view can be
         // reconstructed from the other.
-        expect(response.headers['x-oxy-usage-input-tokens']).toBe('1000');
-        expect(response.headers['x-oxy-usage-cached-input-tokens']).toBe('9000');
-        expect(response.headers['x-oxy-usage-output-tokens']).toBe('200');
-        expect(response.headers['x-oxy-usage-reasoning-tokens']).toBe('800');
-      }
+        expect(response.headers["x-oxy-usage-input-tokens"]).toBe("1000");
+        expect(response.headers["x-oxy-usage-cached-input-tokens"]).toBe(
+          "9000",
+        );
+        expect(response.headers["x-oxy-usage-output-tokens"]).toBe("200");
+        expect(response.headers["x-oxy-usage-reasoning-tokens"]).toBe("800");
+      },
     );
 
     // 1000·3/1e6 + 9000·0.3/1e6 + 200·15/1e6 + 800·15/1e6 = 0.0207 — the
@@ -1211,8 +1443,8 @@ describe('a served request', () => {
     expect(receipt.reasoningTokens).toBe(800);
   });
 
-  it('refuses to charge past the hold when the data plane reports more than was reserved', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses to charge past the hold when the data plane reports more than was reserved", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const before = await balanceOf(fixture.accountId);
 
     await withServer(
@@ -1220,19 +1452,23 @@ describe('a served request', () => {
       // charge at the hold would make the receipt's own arithmetic disagree with
       // its price snapshot, and charging past it is the unreserved execution the
       // reservation exists to prevent — so the ledger writes nothing.
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 5, output: 8000, provider: fixture.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 5,
+          output: 8000,
+          provider: fixture.provider,
+        }),
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(500);
-        expect(json(response)).toMatchObject({ code: 'internal_error' });
-      }
+        expect(json(response)).toMatchObject({ code: "internal_error" });
+      },
     );
 
     // No receipt: the customer was not billed for the over-report.
@@ -1250,16 +1486,16 @@ describe('a served request', () => {
       .select({ status: usageReservations.status })
       .from(usageReservations)
       .where(eq(usageReservations.accountId, fixture.accountId));
-    expect(hold.status).toBe('held');
+    expect(hold.status).toBe("held");
     const after = await balanceOf(fixture.accountId);
     expect(Number(after.reserved)).toBeGreaterThan(Number(before.reserved));
   });
 
-  it('refuses a completion that names a model the edge did not admit', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses a completion that names a model the edge did not admit", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(
-      fakeRelay((envelope) => {
+      fakeKaana((envelope) => {
         const completion = completionFor(envelope, {
           input: 5,
           output: 5,
@@ -1270,20 +1506,20 @@ describe('a served request', () => {
           usage: {
             ...completion.usage,
             // A substitution no routing policy authorized.
-            resolvedModelReference: 'someone/else@2026-01-01',
+            resolvedModelReference: "someone/else@2026-01-01",
           },
         };
       }),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(403);
-        expect(json(response)).toMatchObject({ code: 'policy_violation' });
-      }
+        expect(json(response)).toMatchObject({ code: "policy_violation" });
+      },
     );
 
     // And the customer was not charged for it.
@@ -1299,7 +1535,7 @@ describe('a served request', () => {
 /*  Correlation and timings — issue #972 workstream 16, observability         */
 /* -------------------------------------------------------------------------- */
 
-describe('requestId correlation', () => {
+describe("requestId correlation", () => {
   /**
    * The epic asks for one id across the edge, the data plane, the ledger and the
    * customer's receipt. Four of those five legs are assertable here; the fifth —
@@ -1308,36 +1544,44 @@ describe('requestId correlation', () => {
    * edge sends the id and refuses a report that answers a different one, which
    * is the case below this.
    */
-  it('carries one id from the response to the envelope, the reservation, the telemetry event and the receipt', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("carries one id from the response to the envelope, the reservation, the telemetry event and the receipt", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const seen: InferenceRequest[] = [];
-    let requestId = '';
+    let requestId = "";
 
     await withServer(
-      fakeRelay(
+      fakeKaana(
         (envelope) =>
-          completionFor(envelope, { input: 12, output: 20, provider: fixture.provider }),
-        seen
+          completionFor(envelope, {
+            input: 12,
+            output: 20,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
-        const header = response.headers['x-oxy-request-id'];
+        const header = response.headers["x-oxy-request-id"];
         // The header is the id a customer quotes in a support request, so it is
         // the one every other leg is compared against. Typed first: an absent
         // header would otherwise make every comparison below compare `undefined`
         // to `undefined` and pass.
-        expect(typeof header).toBe('string');
+        expect(typeof header).toBe("string");
         requestId = header as string;
         expect(requestId.length).toBeGreaterThan(0);
         expect(json(response).requestId).toBe(requestId);
-      }
+      },
     );
 
     // Leg 1 — what the data plane was told.
@@ -1372,12 +1616,12 @@ describe('requestId correlation', () => {
     expect(receipts[0].requestId).toBe(requestId);
   });
 
-  it('refuses a usage report that answers a different request id, and keeps the money whole', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses a usage report that answers a different request id, and keeps the money whole", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const before = await balanceOf(fixture.accountId);
 
     await withServer(
-      fakeRelay((envelope) => {
+      fakeKaana((envelope) => {
         const completion = completionFor(envelope, {
           input: 5,
           output: 5,
@@ -1394,14 +1638,14 @@ describe('requestId correlation', () => {
       }),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(500);
-        expect(json(response)).toMatchObject({ code: 'internal_error' });
-      }
+        expect(json(response)).toMatchObject({ code: "internal_error" });
+      },
     );
 
     const after = await balanceOf(fixture.accountId);
@@ -1410,12 +1654,12 @@ describe('requestId correlation', () => {
   });
 });
 
-describe('edge timings', () => {
-  it('records its own latency, and forwards the data plane’s route switches and time to first token', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("edge timings", () => {
+  it("records its own latency, and forwards the data plane’s route switches and time to first token", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(
-      fakeRelay((envelope) => {
+      fakeKaana((envelope) => {
         const completion = completionFor(envelope, {
           input: 12,
           output: 20,
@@ -1426,18 +1670,26 @@ describe('edge timings', () => {
         // the report's figures would still produce a row.
         return {
           ...completion,
-          usage: { ...completion.usage, routeSwitches: 2, timeToFirstTokenMs: 137 },
+          usage: {
+            ...completion.usage,
+            routeSwitches: 2,
+            timeToFirstTokenMs: 137,
+          },
         };
       }),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     const [event] = await getDb()
@@ -1457,22 +1709,30 @@ describe('edge timings', () => {
     expect(event.timeToFirstTokenMs).toBe(137);
   });
 
-  it('leaves time to first token NULL when the data plane reported none', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("leaves time to first token NULL when the data plane reported none", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 12, output: 20, provider: fixture.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 12,
+          output: 20,
+          provider: fixture.provider,
+        }),
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     const [event] = await getDb()
@@ -1514,22 +1774,37 @@ describe('edge timings', () => {
  * an edge that recorded the count without moving the provider is the exact bug
  * this describes.
  */
-describe('the serving provider, when the data plane failed over', () => {
+describe("the serving provider, when the data plane failed over", () => {
   /** The provider the data plane reports. Never the one the fixture published. */
-  const FAILOVER_PROVIDER = 'failover-provider';
+  const FAILOVER_PROVIDER = "failover-provider";
 
-  it('names the REPORTED provider on the receipt, the event, the rollup and the response', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
-    expect(FAILOVER_PROVIDER).not.toBe(fixture.provider);
+  it("names the REPORTED provider on the receipt, the event, the rollup and the response", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    const failover = await addDeployment(fixture, {
+      rank: "z",
+      outputPricePerMillion: "30.000000000000",
+    });
+    expect(failover.providerSlug).not.toBe(fixture.provider);
+    const policy = await createRoutingPolicy({
+      target: {
+        kind: "application",
+        accountId: fixture.accountId,
+        applicationId: fixture.applicationId,
+      },
+      controls: policyControls(),
+      createdByUserId: fixture.accountId,
+    });
+    expect(policy.status).toBe("written");
 
     await withServer(
-      fakeRelay((envelope) => {
+      fakeKaana((envelope) => {
         const completion = completionFor(envelope, {
           input: 12,
           output: 20,
           // The SAME resolved model — this is a deployment failover, not a
           // substitution, so `validateCompletion` must let it through.
-          provider: FAILOVER_PROVIDER,
+          provider: failover.providerSlug,
+          deploymentId: failover.deploymentId,
         });
         return {
           ...completion,
@@ -1538,18 +1813,24 @@ describe('the serving provider, when the data plane failed over', () => {
       }),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token),
         );
 
         expect(response.status).toBe(200);
         // The customer's own body and header. A customer debugging a latency
         // spike reads these to know which provider to ask about.
-        expect(json(response).servingProvider).toBe(FAILOVER_PROVIDER);
-        expect(response.headers['x-oxy-provider']).toBe(FAILOVER_PROVIDER);
-      }
+        expect(json(response).servingProvider).toBe(failover.providerSlug);
+        expect(response.headers["x-oxy-provider"]).toBe(
+          failover.providerSlug,
+        );
+      },
     );
 
     const db = getDb();
@@ -1561,13 +1842,22 @@ describe('the serving provider, when the data plane failed over', () => {
       .select({
         servingProvider: usageReceipts.servingProvider,
         resolvedModelReference: usageReceipts.resolvedModelReference,
+        priceVersionId: usageReceipts.priceVersionId,
+        billedAmount: usageReceipts.billedAmount,
       })
       .from(usageReceipts)
       .where(eq(usageReceipts.accountId, fixture.accountId));
-    expect(receipt.servingProvider).toBe(FAILOVER_PROVIDER);
+    expect(receipt.servingProvider).toBe(failover.providerSlug);
+    expect(receipt.priceVersionId).toBe(failover.priceVersionId);
+    // 12 input tokens at $3/M plus 20 output tokens at this route's $30/M.
+    // The primary costs only $15/M output, so this proves settlement did not
+    // merely relabel a charge that was still priced from the admitted route.
+    expect(receipt.billedAmount).toBe("0.000636000000");
     // …while the MODEL is unchanged, which is what makes this a deployment
     // failover rather than the substitution the epic forbids.
-    expect(receipt.resolvedModelReference).toBe(`${fixture.modelReference}@2026-01-01`);
+    expect(receipt.resolvedModelReference).toBe(
+      `${fixture.modelReference}@2026-01-01`,
+    );
 
     const [event] = await db
       .select({
@@ -1576,7 +1866,7 @@ describe('the serving provider, when the data plane failed over', () => {
       })
       .from(inferenceUsageEvents)
       .where(eq(inferenceUsageEvents.accountId, fixture.accountId));
-    expect(event.servingProvider).toBe(FAILOVER_PROVIDER);
+    expect(event.servingProvider).toBe(failover.providerSlug);
     expect(event.routeSwitches).toBe(2);
 
     // The rollup's PRIMARY KEY includes `serving_provider`, so a wrong value here
@@ -1592,11 +1882,61 @@ describe('the serving provider, when the data plane failed over', () => {
       .from(inferenceUsageDailyRollups)
       .where(eq(inferenceUsageDailyRollups.accountId, fixture.accountId));
     expect(rollups).toEqual([
-      { servingProvider: FAILOVER_PROVIDER, requestCount: 1 },
+      { servingProvider: failover.providerSlug, requestCount: 1 },
     ]);
   });
 
-  it('names the ADMITTED provider when nothing served the request', async () => {
+  it("refuses a report whose deployment id was not in the signed route list", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    const before = await balanceOf(fixture.accountId);
+
+    await withServer(
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 12,
+          output: 20,
+          provider: fixture.provider,
+          deploymentId: `untrusted-${suffix()}`,
+        }),
+      ),
+      async (request) => {
+        const response = await request(
+          "POST",
+          "/v1/responses",
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token),
+        );
+        expect(response.status).toBe(403);
+        expect(json(response)).toMatchObject({
+          code: "policy_violation",
+        });
+      },
+    );
+
+    expect(mockedLogger.warn).toHaveBeenCalledWith(
+      "inference.edge.refused",
+      expect.objectContaining({ reason: "route_not_authorized" }),
+    );
+
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
+    const receipts = await getDb()
+      .select({ id: usageReceipts.id })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipts).toHaveLength(1);
+    expect(
+      await getDb()
+        .select({ outcome: usageReceipts.outcome })
+        .from(usageReceipts)
+        .where(eq(usageReceipts.accountId, fixture.accountId)),
+    ).toEqual([{ outcome: "failed" }]);
+  });
+
+  it("names the ADMITTED provider when nothing served the request", async () => {
     // No funding, so `reserve` refuses before anything is forwarded. There is no
     // reported provider in existence on this path, and the telemetry row must
     // still say which route the request would have taken — so this is the control
@@ -1604,19 +1944,27 @@ describe('the serving provider, when the data plane failed over', () => {
     const fixture = await makeFixture();
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 12, output: 20, provider: FAILOVER_PROVIDER })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 12,
+          output: 20,
+          provider: FAILOVER_PROVIDER,
+        }),
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(402);
-        expect(json(response)).toMatchObject({ code: 'insufficient_balance' });
-      }
+        expect(json(response)).toMatchObject({ code: "insufficient_balance" });
+      },
     );
 
     const [event] = await getDb()
@@ -1626,11 +1974,11 @@ describe('the serving provider, when the data plane failed over', () => {
     expect(event.servingProvider).toBe(fixture.provider);
   });
 
-  it('names the ADMITTED provider when the completion is repudiated as a substitution', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("names the ADMITTED provider when the completion is repudiated as a substitution", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(
-      fakeRelay((envelope) => {
+      fakeKaana((envelope) => {
         const completion = completionFor(envelope, {
           input: 12,
           output: 20,
@@ -1644,20 +1992,24 @@ describe('the serving provider, when the data plane failed over', () => {
             // provider it names is refused with it — reading a field out of a
             // document the edge just declined to believe would attribute a
             // refused request to a provider on that document's own authority.
-            resolvedModelReference: 'someone/else@2026-01-01',
+            resolvedModelReference: "someone/else@2026-01-01",
           },
         };
       }),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'Say hello.', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          {
+            model: fixture.modelReference,
+            input: "Say hello.",
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(403);
-        expect(json(response)).toMatchObject({ code: 'policy_violation' });
-      }
+        expect(json(response)).toMatchObject({ code: "policy_violation" });
+      },
     );
 
     const [event] = await getDb()
@@ -1672,29 +2024,34 @@ describe('the serving provider, when the data plane failed over', () => {
 /*  The routing policy a request is admitted under                            */
 /* -------------------------------------------------------------------------- */
 
-describe('routing policy', () => {
-  it('records the platform default when the application has configured none', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("routing policy", () => {
+  it("records the platform default when the application has configured none", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
         expect(seen[0].routingPolicy).toEqual({
-          routingPolicyId: 'platform-default',
+          routingPolicyId: "platform-default",
           policyVersion: 1,
         });
-      }
+      },
     );
 
     // No version ROW to point at, which is how a reader tells "served under the
@@ -1706,39 +2063,46 @@ describe('routing policy', () => {
     expect(receipt.versionId).toBeNull();
   });
 
-  it('pins the application’s own policy version on the envelope and the receipt', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("pins the application’s own policy version on the envelope and the receipt", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
       controls: policyControls(),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
-    if (created.status !== 'written') return;
+    expect(created.status).toBe("written");
+    if (created.status !== "written") return;
 
     // The version ROW id comes from the same resolver the edge reads, so the
     // assertion below is about what the edge pinned rather than about a second
     // lookup that could disagree with it.
-    const effective = await resolveEffectiveRoutingPolicy(fixture.applicationId);
-    expect(effective.status).toBe('resolved');
-    if (effective.status !== 'resolved') return;
+    const effective = await resolveEffectiveRoutingPolicy(
+      fixture.applicationId,
+    );
+    expect(effective.status).toBe("resolved");
+    if (effective.status !== "resolved") return;
 
     const seen: InferenceRequest[] = [];
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
         expect(seen[0].routingPolicy).toEqual({
@@ -1748,7 +2112,7 @@ describe('routing policy', () => {
         // The response echoes the same reference, so a customer can explain
         // their own charge without reading the ledger.
         expect(json(response).routingPolicy).toEqual(seen[0].routingPolicy);
-      }
+      },
     );
 
     const [receipt] = await getDb()
@@ -1760,55 +2124,66 @@ describe('routing policy', () => {
     expect(receipt.versionId).toBe(effective.stored.versionId);
   });
 
-  it('serves a request that names no model from the policy’s default target', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("serves a request that names no model from the policy’s default target", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
       controls: policyControls({
-        defaultTarget: { kind: 'model', modelReference: fixture.modelReference },
+        defaultTarget: {
+          kind: "model",
+          modelReference: fixture.modelReference,
+        },
       }),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
+    expect(created.status).toBe("written");
 
     const seen: InferenceRequest[] = [];
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
         expect(seen[0].target).toEqual({
-          kind: 'model',
+          kind: "model",
           modelReference: `${fixture.modelReference}@2026-01-01`,
         });
-      }
+      },
     );
   });
 
-  it('refuses a request that names no model when no policy default exists', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses a request that names no model when no policy default exists", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { input: 'hi', maxOutputTokens: 10 },
-        bearer(fixture.token)
+        "POST",
+        "/v1/responses",
+        { input: "hi", maxOutputTokens: 10 },
+        bearer(fixture.token),
       );
       expect(response.status).toBe(400);
-      expect(json(response)).toMatchObject({ code: 'invalid_request', param: 'model' });
+      expect(json(response)).toMatchObject({
+        code: "invalid_request",
+        param: "model",
+      });
     });
   });
 
@@ -1816,14 +2191,17 @@ describe('routing policy', () => {
   /*  The policy is ENFORCED, not merely recorded (issue #1011)               */
   /* ------------------------------------------------------------------------ */
 
-  it('refuses the request when the only route violates the policy, and keeps the money whole', async () => {
+  it("refuses the request when the only route violates the policy, and keeps the money whole", async () => {
     // The route retains payloads and trains on them; the policy forbids both.
     // Before #1011 this request was SERVED and the receipt still named the
     // policy version that forbade it.
-    const fixture = await makeFixture({ fund: '10.000000000000', retainsAndTrains: true });
+    const fixture = await makeFixture({
+      fund: "10.000000000000",
+      retainsAndTrains: true,
+    });
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
@@ -1833,40 +2211,50 @@ describe('routing policy', () => {
       }),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
+    expect(created.status).toBe("written");
 
     const before = await balanceOf(fixture.accountId);
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
 
         // 403, non-retryable, and the message names the controls — a refusal a
         // customer can act on without opening a ticket.
         expect(response.status).toBe(403);
-        expect(json(response)).toMatchObject({ code: 'policy_violation', retryable: false });
-        expect(json(response).message).toContain('requireZeroDataRetention');
-        expect(json(response).message).toContain('prohibitTrainingOnCustomerData');
+        expect(json(response)).toMatchObject({
+          code: "policy_violation",
+          retryable: false,
+        });
+        expect(json(response).message).toContain("requireZeroDataRetention");
+        expect(json(response).message).toContain(
+          "prohibitTrainingOnCustomerData",
+        );
         // And ONLY the controls that actually excluded something — a message
         // that listed every control would satisfy the two lines above while
         // telling the customer nothing.
-        expect(json(response).message).not.toContain('oxyHostedOnly');
+        expect(json(response).message).not.toContain("oxyHostedOnly");
 
         // A refusal, not a downgrade: a working data plane was available and it
         // was never asked. Without this the test would pass against an edge that
         // served the request and then reported an error.
         expect(seen).toHaveLength(0);
-      }
+      },
     );
 
     // Nothing was reserved and nothing was charged, because the refusal happens
@@ -1885,13 +2273,13 @@ describe('routing policy', () => {
     expect(reservations).toHaveLength(0);
   });
 
-  it('serves the same request when the route conforms — the control for the refusal above', async () => {
+  it("serves the same request when the route conforms — the control for the refusal above", async () => {
     // Same policy, a route that satisfies it. Without this case the refusal
     // could be any of the edge's other 403s, or a fixture that never resolved.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
@@ -1901,53 +2289,64 @@ describe('routing policy', () => {
       }),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
+    expect(created.status).toBe("written");
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 5, output: 5, provider: fixture.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 5,
+          output: 5,
+          provider: fixture.provider,
+        }),
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
   });
 
-  it('serves a retaining route to an application whose policy does not forbid it', async () => {
+  it("serves a retaining route to an application whose policy does not forbid it", async () => {
     // The other direction, and the guard against over-enforcement: the same
     // retaining route is perfectly servable when nothing in the policy excludes
     // it. A filter that rejected on the wrong column would fail here.
-    const fixture = await makeFixture({ fund: '10.000000000000', retainsAndTrains: true });
+    const fixture = await makeFixture({
+      fund: "10.000000000000",
+      retainsAndTrains: true,
+    });
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
       controls: policyControls(),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
+    expect(created.status).toBe("written");
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 5, output: 5, provider: fixture.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 5,
+          output: 5,
+          provider: fixture.provider,
+        }),
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
   });
 });
@@ -1956,42 +2355,47 @@ describe('routing policy', () => {
 /*  Idempotency                                                               */
 /* -------------------------------------------------------------------------- */
 
-describe('idempotency', () => {
-  it('charges once for a repeated Idempotency-Key', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("idempotency", () => {
+  it("charges once for a repeated Idempotency-Key", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const key = `idem-${suffix()}`;
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 8, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 8,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const first = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          { ...bearer(fixture.token), 'Idempotency-Key': key }
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          { ...bearer(fixture.token), "Idempotency-Key": key },
         );
         expect(first.status).toBe(200);
 
         const second = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          { ...bearer(fixture.token), 'Idempotency-Key': key }
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          { ...bearer(fixture.token), "Idempotency-Key": key },
         );
         expect(second.status).toBe(409);
         expect(json(second)).toMatchObject({
-          code: 'idempotency_conflict',
+          code: "idempotency_conflict",
           retryable: false,
         });
 
         // The second request never reached the data plane, so it can never have
         // produced a second charge.
         expect(seen).toHaveLength(1);
-      }
+      },
     );
 
     const receipts = await getDb()
@@ -2001,20 +2405,20 @@ describe('idempotency', () => {
     expect(receipts).toHaveLength(1);
   });
 
-  it('refuses an Idempotency-Key too long to key on rather than truncating it', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("refuses an Idempotency-Key too long to key on rather than truncating it", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(undefined, async (request) => {
       const response = await request(
-        'POST',
-        '/v1/responses',
-        { model: fixture.modelReference, input: 'hi' },
-        { ...bearer(fixture.token), 'Idempotency-Key': 'k'.repeat(200) }
+        "POST",
+        "/v1/responses",
+        { model: fixture.modelReference, input: "hi" },
+        { ...bearer(fixture.token), "Idempotency-Key": "k".repeat(200) },
       );
       expect(response.status).toBe(400);
       expect(json(response)).toMatchObject({
-        code: 'invalid_request',
-        param: 'Idempotency-Key',
+        code: "invalid_request",
+        param: "Idempotency-Key",
       });
     });
   });
@@ -2024,29 +2428,33 @@ describe('idempotency', () => {
 /*  GET /v1/generations/:id                                                   */
 /* -------------------------------------------------------------------------- */
 
-describe('GET /v1/generations/:id', () => {
-  it('returns the receipt to the application that spent the money', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("GET /v1/generations/:id", () => {
+  it("returns the receipt to the application that spent the money", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 12, output: 2000, provider: fixture.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 12,
+          output: 2000,
+          provider: fixture.provider,
+        }),
       ),
       async (request) => {
         const served = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 3000 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 3000 },
+          bearer(fixture.token),
         );
         expect(served.status).toBe(200);
         const requestId = json(served).requestId as string;
 
         const receipt = await request(
-          'GET',
+          "GET",
           `/v1/generations/${requestId}`,
           undefined,
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
 
         expect(receipt.status).toBe(200);
@@ -2056,44 +2464,48 @@ describe('GET /v1/generations/:id', () => {
           requestId,
           applicationId: fixture.applicationId,
           credentialId: fixture.credentialId,
-          outcome: 'completed',
-          usageSource: 'provider_reported',
-          currency: 'USD',
+          outcome: "completed",
+          usageSource: "provider_reported",
+          currency: "USD",
           platformFeeOnly: false,
         });
         expect(Number(data.billedAmount)).toBeCloseTo(0.030036, 9);
         // Every unit column, zeros included — see the serializer's comment.
         expect(data.units).toEqual(
           expect.arrayContaining([
-            { unit: 'input_tokens', quantity: 12 },
-            { unit: 'output_tokens', quantity: 2000 },
-            { unit: 'images', quantity: 0 },
-          ])
+            { unit: "input_tokens", quantity: 12 },
+            { unit: "output_tokens", quantity: 2000 },
+            { unit: "images", quantity: 0 },
+          ]),
         );
         // The price snapshot, so the arithmetic is checkable without the price
         // version still existing.
         expect(data.priceSnapshot).toMatchObject({
           priceVersionId: fixture.priceVersionId,
-          currency: 'USD',
+          currency: "USD",
         });
-      }
+      },
     );
   });
 
-  it('tells another application’s credential the receipt does not exist', async () => {
-    const spender = await makeFixture({ fund: '10.000000000000' });
-    const stranger = await makeFixture({ fund: '10.000000000000' });
+  it("tells another application’s credential the receipt does not exist", async () => {
+    const spender = await makeFixture({ fund: "10.000000000000" });
+    const stranger = await makeFixture({ fund: "10.000000000000" });
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 10, output: 10, provider: spender.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 10,
+          output: 10,
+          provider: spender.provider,
+        }),
       ),
       async (request) => {
         const served = await request(
-          'POST',
-          '/v1/responses',
-          { model: spender.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(spender.token)
+          "POST",
+          "/v1/responses",
+          { model: spender.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(spender.token),
         );
         expect(served.status).toBe(200);
         const requestId = json(served).requestId as string;
@@ -2101,48 +2513,55 @@ describe('GET /v1/generations/:id', () => {
         // Positive control: the owner CAN read it, so a 404 below is about
         // entitlement and not about a receipt that was never written.
         const owner = await request(
-          'GET',
+          "GET",
           `/v1/generations/${requestId}`,
           undefined,
-          bearer(spender.token)
+          bearer(spender.token),
         );
         expect(owner.status).toBe(200);
 
         const other = await request(
-          'GET',
+          "GET",
           `/v1/generations/${requestId}`,
           undefined,
-          bearer(stranger.token)
+          bearer(stranger.token),
         );
         expect(other.status).toBe(404);
-      }
+      },
     );
   });
 
-  it('refuses a credential without inference:usage:read', async () => {
-    const fixture = await makeFixture({ scopes: ['inference:invoke'], fund: '10.000000000000' });
+  it("refuses a credential without inference:usage:read", async () => {
+    const fixture = await makeFixture({
+      scopes: ["inference:invoke"],
+      fund: "10.000000000000",
+    });
 
     await withServer(
-      fakeRelay((envelope) =>
-        completionFor(envelope, { input: 10, output: 10, provider: fixture.provider })
+      fakeKaana((envelope) =>
+        completionFor(envelope, {
+          input: 10,
+          output: 10,
+          provider: fixture.provider,
+        }),
       ),
       async (request) => {
         const served = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 10 },
+          bearer(fixture.token),
         );
         expect(served.status).toBe(200);
 
         const receipt = await request(
-          'GET',
+          "GET",
           `/v1/generations/${json(served).requestId as string}`,
           undefined,
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(receipt.status).toBe(404);
-      }
+      },
     );
   });
 });
@@ -2151,56 +2570,63 @@ describe('GET /v1/generations/:id', () => {
 /*  Prompts stay out of the logs                                              */
 /* -------------------------------------------------------------------------- */
 
-describe('logging', () => {
-  it('never writes a prompt, a tool argument or an output into a log line', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+describe("logging", () => {
+  it("never writes a prompt, a tool argument or an output into a log line", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     const promptMarker = `PROMPT-MARKER-${suffix()}`;
     const toolMarker = `TOOL-MARKER-${suffix()}`;
 
     await withServer(
-      fakeRelay((envelope) => ({
-        ...completionFor(envelope, { input: 10, output: 10, provider: fixture.provider }),
+      fakeKaana((envelope) => ({
+        ...completionFor(envelope, {
+          input: 10,
+          output: 10,
+          provider: fixture.provider,
+        }),
         output: [
-          { role: 'assistant', content: [{ type: 'text', text: `OUTPUT-${promptMarker}` }] },
+          {
+            role: "assistant",
+            content: [{ type: "text", text: `OUTPUT-${promptMarker}` }],
+          },
         ],
       })),
       async (request) => {
         // A served request, so the whole pipeline runs...
         const served = await request(
-          'POST',
-          '/v1/responses',
+          "POST",
+          "/v1/responses",
           {
             model: fixture.modelReference,
             input: [
               {
-                role: 'user',
-                content: [{ type: 'text', text: promptMarker }],
+                role: "user",
+                content: [{ type: "text", text: promptMarker }],
               },
             ],
             maxOutputTokens: 10,
             tools: [
               {
-                type: 'function',
-                name: 'lookup',
+                type: "function",
+                name: "lookup",
                 description: toolMarker,
-                parameters: { type: 'object' },
+                parameters: { type: "object" },
               },
             ],
           },
-          bearer(fixture.token)
+          bearer(fixture.token),
         );
         expect(served.status).toBe(200);
 
         // ...and a refused one, because refusals are where a body is most
         // tempting to log "for debugging".
         const refused = await request(
-          'POST',
-          '/v1/responses',
-          { model: 'nobody/nothing', input: promptMarker },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: "nobody/nothing", input: promptMarker },
+          bearer(fixture.token),
         );
         expect(refused.status).toBe(404);
-      }
+      },
     );
 
     const calls = [
@@ -2220,7 +2646,7 @@ describe('logging', () => {
     // POSITIVE CONTROL on the search itself: something that IS logged is found
     // by the same JSON.stringify pass, so a marker's absence is a real absence
     // and not an unreadable haystack.
-    expect(serialized).toContain('inference.edge.refused');
+    expect(serialized).toContain("inference.edge.refused");
   });
 });
 
@@ -2253,26 +2679,31 @@ describe('logging', () => {
  * exactly one control, so the difference between a one-entry and a two-entry list
  * is the control and nothing else.
  */
-describe('the envelope’s authorized routes', () => {
+describe("the envelope’s authorized routes", () => {
   /** The `authorizedRoutes` of the one envelope a served request forwards. */
   async function envelopeRoutesFor(
-    fixture: Fixture
-  ): Promise<InferenceRequest['authorizedRoutes']> {
+    fixture: Fixture,
+  ): Promise<InferenceRequest["authorizedRoutes"]> {
     const seen: InferenceRequest[] = [];
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 100 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
     expect(seen).toHaveLength(1);
     return seen[0].authorizedRoutes;
@@ -2281,25 +2712,133 @@ describe('the envelope’s authorized routes', () => {
   /** A policy on the fixture's application, with exactly these controls. */
   async function givenPolicy(
     fixture: Fixture,
-    overrides: Partial<RoutingPolicyControls>
+    overrides: Partial<RoutingPolicyControls>,
   ): Promise<void> {
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
       controls: policyControls(overrides),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
+    expect(created.status).toBe("written");
   }
 
-  it('carries every surviving deployment, in preference order, when the policy permits same-model failover', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("expands a Kaana routing profile into only its policy-filtered concrete routes", async () => {
+    const primary = await makeFixture({ fund: "10.000000000000" });
+    const alternate = await makeFixture();
+    const slug = `kaana-${suffix()}`;
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug,
+        displayName: "Kaana test profile",
+        optimiseFor: "balanced",
+        isProductPreset: true,
+      })
+      .returning({ id: inferenceRoutingProfiles.id });
+    await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values([
+        {
+          routingProfileId: profile.id,
+          modelId: primary.modelRowId,
+          priority: 0,
+        },
+        {
+          routingProfileId: profile.id,
+          modelId: alternate.modelRowId,
+          priority: 1,
+        },
+      ]);
+    await givenPolicy(primary, {
+      fallback: {
+        disabled: false,
+        sameModelDeployment: false,
+        authorizedCrossModel: [],
+      },
+    });
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: primary.provider,
+          }),
+        seen,
+      ),
+      async (request) => {
+        const response = await request(
+          "POST",
+          "/v1/responses",
+          { routingProfile: slug, input: "hi", maxOutputTokens: 100 },
+          bearer(primary.token),
+        );
+        expect(response.status).toBe(200);
+      },
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].target).toEqual({
+      kind: "routing_profile",
+      routingProfile: slug,
+    });
+    expect(seen[0].authorizedRoutes).toEqual([
+      expect.objectContaining({
+        substitution: "same_model",
+        deploymentId: primary.deploymentId,
+        modelReference: `${primary.modelReference}@2026-01-01`,
+      }),
+      expect.objectContaining({
+        substitution: "cross_model",
+        authorizedByPolicy: true,
+        deploymentId: alternate.deploymentId,
+        modelReference: `${alternate.modelReference}@2026-01-01`,
+      }),
+    ]);
+  });
+
+  it("refuses an unknown Kaana routing profile before anything reaches the data plane", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
+      ),
+      async (request) => {
+        const response = await request(
+          "POST",
+          "/v1/responses",
+          { routingProfile: `kaana-missing-${suffix()}`, input: "hi" },
+          bearer(fixture.token),
+        );
+        expect(json(response)).toEqual(
+          expect.objectContaining({
+            code: "no_route_available",
+            param: "routingProfile",
+          }),
+        );
+      },
+    );
+    expect(seen).toHaveLength(0);
+  });
+
+  it("carries every surviving deployment, in preference order, when the policy permits same-model failover", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     // `z…` sorts after the fixture's `prov…`, so this is the FAILOVER
     // destination and never the primary — the order is the assertion.
-    const failover = await addDeployment(fixture, { rank: 'z' });
+    const failover = await addDeployment(fixture, { rank: "z" });
     await givenPolicy(fixture, {});
 
     const routes = await envelopeRoutesFor(fixture);
@@ -2314,9 +2853,13 @@ describe('the envelope’s authorized routes', () => {
       fixture.provider,
       failover.providerSlug,
     ]);
-    // Every entry is same-model: this edge populates that half only, so a
-    // substitution across model lines is not a sentence its envelopes can say.
-    expect(routes?.map((route) => route.substitution)).toEqual(['same_model', 'same_model']);
+    // Every entry is same-model because this request named one concrete model;
+    // profile candidates and explicit policy fallbacks cover the cross-model
+    // half in separate cases.
+    expect(routes?.map((route) => route.substitution)).toEqual([
+      "same_model",
+      "same_model",
+    ]);
     // Revision-pinned and identical, because both routes serve the same weights —
     // which is exactly why the deployment id above is what distinguishes them.
     expect(routes?.map((route) => route.modelReference)).toEqual([
@@ -2325,7 +2868,10 @@ describe('the envelope’s authorized routes', () => {
     ]);
     // Plural, and the deployment's own set: Oxy checked the WHOLE set against
     // the customer's residency controls, so choosing among them cannot escape.
-    expect(routes?.map((route) => route.regions)).toEqual([['us-west-2'], ['eu-central-1']]);
+    expect(routes?.map((route) => route.regions)).toEqual([
+      ["us-west-2"],
+      ["eu-central-1"],
+    ]);
   });
 
   it('states "no failover" as a one-entry list rather than by omitting the field', async () => {
@@ -2334,10 +2880,14 @@ describe('the envelope’s authorized routes', () => {
     // would be Oxy relying on a reader to interpret absence the narrow way, and
     // absence is precisely the state whose meaning ADR 0017 had to fix in prose
     // because the wire cannot carry it.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
-    const failover = await addDeployment(fixture, { rank: 'z' });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    const failover = await addDeployment(fixture, { rank: "z" });
     await givenPolicy(fixture, {
-      fallback: { disabled: true, sameModelDeployment: false, authorizedCrossModel: [] },
+      fallback: {
+        disabled: true,
+        sameModelDeployment: false,
+        authorizedCrossModel: [],
+      },
     });
 
     const routes = await envelopeRoutesFor(fixture);
@@ -2347,38 +2897,46 @@ describe('the envelope’s authorized routes', () => {
     expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
     // The route exists, is servable and was deliberately not authorized — the
     // case above serves it from the same fixture with one control changed.
-    expect(routes?.map((route) => route.deploymentId)).not.toContain(failover.deploymentId);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(
+      failover.deploymentId,
+    );
   });
 
-  it('does not authorize same-model failover the customer switched off', async () => {
+  it("does not authorize same-model failover the customer switched off", async () => {
     // `fallback.sameModelDeployment: false` with fallback otherwise ENABLED. Until
     // the envelope carried a list this control was enforced nowhere at all:
     // the edge sent one route, and `recordRouteSwitch` reads only
     // `fallbackDisabled` for a deployment-scope switch. Deleting the
     // `sameModelDeployment` term from the edge's authorization test leaves the
     // case above green and turns this one red.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
-    const failover = await addDeployment(fixture, { rank: 'z' });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    const failover = await addDeployment(fixture, { rank: "z" });
     await givenPolicy(fixture, {
-      fallback: { disabled: false, sameModelDeployment: false, authorizedCrossModel: [] },
+      fallback: {
+        disabled: false,
+        sameModelDeployment: false,
+        authorizedCrossModel: [],
+      },
     });
 
     const routes = await envelopeRoutesFor(fixture);
 
     expect(routes).toHaveLength(1);
     expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
-    expect(routes?.map((route) => route.deploymentId)).not.toContain(failover.deploymentId);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(
+      failover.deploymentId,
+    );
   });
 
-  it('authorizes exactly the admitted route for an application with no policy at all', async () => {
+  it("authorizes exactly the admitted route for an application with no policy at all", async () => {
     // `PLATFORM_DEFAULT_AUTHORIZES_SAME_MODEL_FAILOVER`. Nobody set
     // `sameModelDeployment`, and a switch made under the platform default could
     // not be recorded — `routing_policy_version_id` is NOT NULL and there is no
     // version row — so the default authorizes nothing. Seeding a real
     // platform-default policy version is what changes this, and this case is
     // where that change becomes visible.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
-    await addDeployment(fixture, { rank: 'z' });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    await addDeployment(fixture, { rank: "z" });
 
     const routes = await envelopeRoutesFor(fixture);
 
@@ -2387,45 +2945,55 @@ describe('the envelope’s authorized routes', () => {
     expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
   });
 
-  it('never authorizes a route the customer’s own policy excluded', async () => {
+  it("never authorizes a route the customer’s own policy excluded", async () => {
     // The property the whole mechanism exists for: a failover destination that
     // the policy refused would be a policy violation the customer never sees,
     // because the switch happens after Oxy has answered. Same fallback setting as
     // the two-entry case, one differing column on the second route.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
-    const excluded = await addDeployment(fixture, { rank: 'z', trainsOnCustomerData: true });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    const excluded = await addDeployment(fixture, {
+      rank: "z",
+      trainsOnCustomerData: true,
+    });
     await givenPolicy(fixture, { prohibitTrainingOnCustomerData: true });
 
     const routes = await envelopeRoutesFor(fixture);
 
     expect(routes).toHaveLength(1);
     expect(routes?.[0].deploymentId).toBe(fixture.deploymentId);
-    expect(routes?.map((route) => route.deploymentId)).not.toContain(excluded.deploymentId);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(
+      excluded.deploymentId,
+    );
   });
 
-  it('does not authorize a route quoted in another currency', async () => {
+  it("does not authorize a route quoted in another currency", async () => {
     // One hold carries one currency, so a route quoted in another cannot be
     // settled against it. Dropped rather than refused: narrowing an authorization
     // list can only ever reduce what may be served.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
-    const foreign = await addDeployment(fixture, { rank: 'z', currency: 'EUR' });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    const foreign = await addDeployment(fixture, {
+      rank: "z",
+      currency: "EUR",
+    });
     await givenPolicy(fixture, {});
 
     const routes = await envelopeRoutesFor(fixture);
 
     expect(routes).toHaveLength(1);
-    expect(routes?.map((route) => route.deploymentId)).not.toContain(foreign.deploymentId);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(
+      foreign.deploymentId,
+    );
 
     // And it is not dropped SILENTLY. A list that is short because a price is
     // missing and a list that is short because the catalogue holds one
     // deployment look identical from outside, so the gap has to be logged for
     // anyone to find it.
     expect(mockedLogger.warn).toHaveBeenCalledWith(
-      'inference.edge.unauthorizable_alternate',
+      "inference.edge.unauthorizable_alternate",
       expect.objectContaining({
         deploymentId: foreign.deploymentId,
-        reason: 'currency_mismatch',
-      })
+        reason: "currency_mismatch",
+      }),
     );
   });
 });
@@ -2446,7 +3014,7 @@ describe('the envelope’s authorized routes', () => {
  * this is enforced here instead. These two cases are what make that true rather
  * than assumed.
  */
-describe('the hold an authorized list is sized against', () => {
+describe("the hold an authorized list is sized against", () => {
   async function reservationFor(accountId: string): Promise<{
     reservedAmount: string;
     ceilingPriceVersionId: string;
@@ -2461,40 +3029,45 @@ describe('the hold an authorized list is sized against', () => {
     return row;
   }
 
-  it('sizes the hold at the DEAREST authorized route, not at the admitted one', async () => {
-    const fixture = await makeFixture({ fund: '10.000000000000' });
+  it("sizes the hold at the DEAREST authorized route, not at the admitted one", async () => {
+    const fixture = await makeFixture({ fund: "10.000000000000" });
     // Four times the primary's output price, and it sorts second, so it is a
     // failover destination the request will not be served on.
     const dearer = await addDeployment(fixture, {
-      rank: 'z',
-      outputPricePerMillion: '60.000000000000',
+      rank: "z",
+      outputPricePerMillion: "60.000000000000",
     });
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
       controls: policyControls(),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
+    expect(created.status).toBe("written");
 
     const seen: InferenceRequest[] = [];
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 1000 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 1000 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     // Both routes are authorized, so both have to fit under the hold.
@@ -2509,38 +3082,46 @@ describe('the hold an authorized list is sized against', () => {
     expect(Number(reservation.reservedAmount)).toBeGreaterThanOrEqual(0.06);
   });
 
-  it('keeps the admitted route’s price version when every alternate is cheaper', async () => {
+  it("keeps the admitted route’s price version when every alternate is cheaper", async () => {
     // The control for the case above: the ceiling is a MAXIMUM, not "whichever
     // route was looked at last". An implementation that always took the alternate
     // would pass the first case and fail this one.
-    const fixture = await makeFixture({ fund: '10.000000000000' });
-    await addDeployment(fixture, { rank: 'z', outputPricePerMillion: '5.000000000000' });
+    const fixture = await makeFixture({ fund: "10.000000000000" });
+    await addDeployment(fixture, {
+      rank: "z",
+      outputPricePerMillion: "5.000000000000",
+    });
     const created = await createRoutingPolicy({
       target: {
-        kind: 'application',
+        kind: "application",
         accountId: fixture.accountId,
         applicationId: fixture.applicationId,
       },
       controls: policyControls(),
       createdByUserId: fixture.accountId,
     });
-    expect(created.status).toBe('written');
+    expect(created.status).toBe("written");
 
     const seen: InferenceRequest[] = [];
     await withServer(
-      fakeRelay(
-        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
-        seen
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: fixture.provider,
+          }),
+        seen,
       ),
       async (request) => {
         const response = await request(
-          'POST',
-          '/v1/responses',
-          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 1000 },
-          bearer(fixture.token)
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi", maxOutputTokens: 1000 },
+          bearer(fixture.token),
         );
         expect(response.status).toBe(200);
-      }
+      },
     );
 
     expect(seen[0].authorizedRoutes).toHaveLength(2);

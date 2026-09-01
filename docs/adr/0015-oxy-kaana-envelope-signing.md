@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-08-17
 - Issue: #972 (workstream 4, workstream 13)
-- Extends: ADR 0006 (the Oxy/Relay boundary), ADR 0012 (asymmetric service-token
+- Extends: ADR 0006 (the Oxy/Kaana boundary), ADR 0012 (asymmetric service-token
   signing), ADR 0010 (the public edge and its envelope)
 
 ## Context
@@ -22,8 +22,8 @@ is silent on authentication of the sender; ADR 0010 says the edge "forwards a
 signed/versioned internal envelope" and does not say signed how.
 
 The gap became live rather than theoretical when the data plane shipped.
-`OxyHQ/Relay` implements a scheme in one file, `internal/edgeauth/edgeauth.go`,
-and says so in its own header: *"This is Relay's proposal for a decision Oxy has
+`OxyHQ/Kaana` implements a scheme in one file, `internal/edgeauth/edgeauth.go`,
+and says so in its own header: *"This is Kaana's proposal for a decision Oxy has
 not made. It is stated here, in one file, so it is cheap to replace if Oxy decides
 otherwise."* This ADR is Oxy making it.
 
@@ -91,16 +91,16 @@ Three request headers, namespaced rather than generic so that a proxy which
 strips or rewrites `Authorization` cannot affect them:
 
 ```text
-X-Oxy-Relay-Key-Id       the signing key's id
-X-Oxy-Relay-Timestamp    unix milliseconds, when the edge signed
-X-Oxy-Relay-Signature    v1=<base64 Ed25519 signature>
+X-Oxy-Kaana-Key-Id       the signing key's id
+X-Oxy-Kaana-Timestamp    unix milliseconds, when the edge signed
+X-Oxy-Kaana-Signature    v1=<base64 Ed25519 signature>
 ```
 
 signed over exactly these four lines, `\n` separated, with **no trailing
 newline**:
 
 ```text
-oxy-relay-envelope:v1
+oxy-kaana-envelope:v1
 <key id>
 <unix milliseconds>
 <lowercase hex sha256 of the exact request body>
@@ -108,7 +108,7 @@ oxy-relay-envelope:v1
 
 Four properties, each load-bearing:
 
-- **The domain separator** (`oxy-relay-envelope:v1`) means a signature minted for
+- **The domain separator** (`oxy-kaana-envelope:v1`) means a signature minted for
   any other Oxy purpose cannot be replayed as an inference envelope, and vice
   versa. It carries its own version, so the framing can change without a header
   changing.
@@ -131,10 +131,10 @@ signing rather than two.
 ### Key management
 
 - **Oxy holds the private key.** It reaches `oxy-api` as
-  `RELAY_EDGE_SIGNING_PRIVATE_KEY`, an Ed25519 private key in PEM or
-  base64-of-PEM form, alongside `RELAY_EDGE_SIGNING_KEY_ID` and `RELAY_BASE_URL`.
+  `KAANA_EDGE_SIGNING_PRIVATE_KEY`, an Ed25519 private key in PEM or
+  base64-of-PEM form, alongside `KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_BASE_URL`.
   It is a secret and belongs in SSM at
-  `/oxy/oxy-api/RELAY_EDGE_SIGNING_PRIVATE_KEY`, which means adding it to BOTH
+  `/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY`, which means adding it to BOTH
   hand-maintained allowlists in `.github/workflows/deploy-aws.yml` — the
   `SYNC_<NAME>` env block and the `API_SECRETS` list — at the moment a data-plane
   deployment first needs it. `scripts/check-deploy-secrets-sync.mjs` guards that
@@ -271,7 +271,7 @@ configuration code: a bypass that exists is a bypass that ships.
 - **The edge gains a signing key on its hot path.** An Ed25519 signature over a
   32-byte hash is microseconds and needs no network call, so this is not a latency
   concern; but it IS a new failure mode, and an unusable key must fail closed at
-  configuration time rather than per request. `config/relayDataPlane.ts` refuses a
+  configuration time rather than per request. `config/kaanaDataPlane.ts` refuses a
   key of the wrong algorithm at resolution, so an RSA key pasted into the variable
   is caught at startup rather than by the data plane on every request.
 - **A `4xx` from the data plane is never the customer's fault.** Everything it

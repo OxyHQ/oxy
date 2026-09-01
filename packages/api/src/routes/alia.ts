@@ -59,7 +59,7 @@ const isReadableStream = (value: unknown): value is NodeJS.ReadableStream => {
  *    why a body the schema will not look at (over its 2000-character bound) is
  *    not relayed at all rather than shortened until it fits.
  *  - A refused body is replaced WHOLE. Replacing only the matched span would
- *    leave the credential and remove the evidence — measured in OxyHQ/Relay#3
+ *    leave the credential and remove the evidence — measured in OxyHQ/Kaana#3
  *    and written up on `safeErrorTextSchema` itself.
  *
  * A benign upstream error still reaches the caller with its text intact:
