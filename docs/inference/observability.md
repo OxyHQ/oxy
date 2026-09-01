@@ -494,8 +494,8 @@ schema change and a policy decision rather than an observability one:
   own role, because they are the ones with no compensating control: a wrongly
   approved catalogue route is retired again, a wrongly issued grant is money.
 
-Two further workstream-12 items are **out of scope here and unbuilt**: rate limits
-and fraud controls before prepaid public inference (gated on a launch that cannot
-happen — there is no data plane — and on anomaly detection, which is its own body
-of work), and the privacy/security review gate on public launch, which is a
-process decision rather than code.
+Two further workstream-12 items are **out of scope here**: end-to-end rate-limit
+verification and fraud controls before prepaid public inference (Kaana has its
+edge guardrail, while anomaly detection remains its own body of work), and the
+privacy/security review gate on public launch, which is a process decision rather
+than code.

@@ -56,6 +56,7 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
 | [reputation/README.md](reputation/README.md) | Oxy Trust ledger (tiers/influence), crypto-owned reputation, F2 real-life attestation + validator jury, F3 proof-of-personhood, F4 verifiable credentials |
 | [nodes/README.md](nodes/README.md) | The data-node model, `@oxyhq/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |
 | [inference/README.md](inference/README.md) | The inference platform: credentials, attribution, the model catalogue, exact billing, migrations — **and, in one place, what is not built yet and what tracks it** |
+| [inference/request-routing.md](inference/request-routing.md) | The canonical Kaana/Alia/Oxy boundary, product request paths, provider-key custody and cutover gates |
 | [runbooks/README.md](runbooks/README.md) | Rotation and break-glass procedures for every credential Oxy issues — trigger, commands, how to verify the write took, rollback, and what to do when the normal path is unavailable. The AWS half stays in `oxy-infra`. |
 | [architecture/oxy-auth-platform.md](architecture/oxy-auth-platform.md) | The auth platform master plan (phases, decisions, target architecture) |
 | [CHANGELOG.md](CHANGELOG.md) | Chronological "what changed and why" for the whole F0→F5 + Oxy ID rename + Commons/Reputation UI initiative, with commit SHAs |
@@ -71,9 +72,10 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
   [auth/integration-guide.md](auth/integration-guide.md) is the copy-paste
   OAuth + PKCE walkthrough.
 - **Building against Oxy inference?** Start at
-  [inference/README.md](inference/README.md) — it is the status board, and it
-  says plainly that there is no public inference endpoint today. Do not skip it
-  and read the topic pages first.
+  [inference/request-routing.md](inference/request-routing.md), then read
+  [inference/README.md](inference/README.md) for the control-plane mechanisms
+  and rollout gates. Production reachability is live state and must be checked,
+  not inferred from either document.
 - **Working on Oxy ID / Commons / civic features?** Read
   [identity/README.md](identity/README.md) → [reputation/README.md](reputation/README.md)
   → [nodes/README.md](nodes/README.md), in that order — each builds on the prior.

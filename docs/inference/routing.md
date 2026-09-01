@@ -279,10 +279,11 @@ reason. A control that ends up in neither list fails `tsc` by name, so this list
 cannot silently grow.
 
 - **`optimiseFor`** — a RANKING among the routes that already qualify, which is
-  routing execution and therefore the data plane's (ADR 0006). It can never
-  exclude a candidate, and enforcing it in the control plane would mean inventing
-  a routing decision with no way to test the choice. Nothing ranks today, because
-  there is no data plane.
+  routing execution (ADR 0006). It can never exclude a candidate. The remaining
+  integration gap is explicit: Oxy currently orders concrete deployment
+  candidates by provider slug, while Kaana follows the signed order and receives
+  no `optimiseFor` value. Therefore neither side applies this control today.
+  Routing-profile score ordering is a separate mechanism and does not close it.
 
 Enforcement of eleven controls landed in
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
@@ -297,9 +298,9 @@ inert while it filters is the next reader's bug.
 
 `GET /applications/:applicationId/route-switches` is served, and
 `recordRouteSwitch` — which looks an authorisation up rather than trusting a
-claim — has no production caller. Route switches are reported BY the data plane,
-and there is no data plane. An empty list is the correct answer; it is not
-evidence that no switch happened.
+claim — is fed by Kaana reports only after the live signed path is enabled. The
+source mechanism exists; an empty production list before a verified canary is
+not evidence that no switch happened.
 
 ---
 
