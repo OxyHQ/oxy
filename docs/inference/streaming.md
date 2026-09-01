@@ -37,10 +37,11 @@ nothing and reaches nothing.
 That is the only honest answer available. ADR 0010 requires streaming to be
 **unbuffered end to end** — an edge that collected a whole completion and then
 re-emitted it as SSE would have the shape of streaming and none of its point.
-Unbuffered streaming needs something upstream producing tokens, and there is no
-data plane. `@oxyhq/core`'s client therefore has no `stream()` method and no
-`stream` field on a request: a method that could only ever fail is a worse
-artefact than an absent one.
+Unbuffered streaming needs something upstream producing tokens. The
+`@oxyhq/core` client exposes `stream()` so backends use the same bearer and SSE
+decoder rather than hand-writing either; `stream` remains absent from the
+request object because the method selects the transport. A deployment with no
+reachable data plane still refuses before opening a stream.
 
 ### The event union exists, and is worth reading now
 

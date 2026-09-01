@@ -66,10 +66,12 @@ life.
 | `getModel(modelId)` | `GET /v1/models/:publisher/:model` |
 | `listRoutingProfiles()` | `GET /v1/models/routing-profiles` |
 | `respond(request, options?)` | `POST /v1/responses` |
+| `stream(request, options?)` | `POST /v1/responses` as validated SSE |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
 
-That is the whole surface, because that is the whole edge. There is no
-`stream()`, no `embeddings()`, no `images()` — see
+That is the whole surface, because that is the whole edge. `stream()` validates
+and yields the normalized SSE event union; there is still no `embeddings()` or
+`images()` — see
 [streaming.md](./streaming.md) and the workstream-4 list in
 [README.md](./README.md).
 

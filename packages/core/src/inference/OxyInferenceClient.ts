@@ -44,13 +44,13 @@
  * message string. `oxyServices.inference()` binds the session bearer into this
  * client so a session-holding app writes no plumbing of its own.
  *
- * ## Streaming is absent on purpose
+ * ## Streaming
  *
- * There is no `stream()` method and no `stream` field on a request. The stream
- * event union exists in `@oxyhq/contracts` and no endpoint emits one — the edge
- * refuses `stream: true` with `invalid_request`. A method that always failed
- * would be a worse artefact than an absent one. See
- * `docs/inference/streaming.md`.
+ * {@link OxyInferenceClient.stream} requests the normalized SSE dialect and
+ * yields only contract-valid events. `stream` remains absent from
+ * {@link OxyResponsesRequest}: callers choose the transport by choosing
+ * `respond()` or `stream()`, so a request object cannot contradict the method
+ * that sends it.
  *
  * ## Field names, and the one place they could drift
  *
@@ -81,8 +81,12 @@ import type {
     UnitPrice,
     UsageQuantity,
     UsageSource,
+    InferenceStreamEvent,
 } from '@oxyhq/contracts';
-import { INFERENCE_ERROR_CODES, modelIdSchema } from '@oxyhq/contracts';
+import { INFERENCE_ERROR_CODES, inferenceStreamEventSchema, modelIdSchema } from '@oxyhq/contracts';
+
+const MAX_INFERENCE_STREAM_EVENT_CHARACTERS = 1024 * 1024;
+const INVALID_INFERENCE_STREAM_MESSAGE = 'The inference API returned an invalid event stream.';
 
 /** The base URL of the Oxy API, when a caller names none. */
 export const OXY_INFERENCE_BASE_URL = 'https://api.oxy.so';
@@ -405,10 +409,6 @@ export class OxyInferenceClient {
     /**
      * Send one non-streaming inference request — `POST /v1/responses`.
      *
-     * **This refuses in every deployment today** with `service_unavailable`,
-     * because there is no data plane behind the edge. The spend held for the
-     * request is released before the refusal returns, so nothing is charged.
-     *
      * @throws {OxyInferenceError} for every refusal, carrying the server's own
      *   `code`, `retryable` and `requestId`.
      */
@@ -426,6 +426,56 @@ export class OxyInferenceClient {
                 ? {}
                 : { delegatedUserId: options.delegatedUserId }),
         });
+    }
+
+    /**
+     * Send one streaming inference request and validate every normalized event
+     * before exposing it to the caller.
+     *
+     * The transport owns bearer resolution, SSE framing, bounded buffering,
+     * sequence/request identity and terminality. Product backends therefore do
+     * not grow their own fetch/auth retry dialect just because they want tokens
+     * as they arrive.
+     */
+    async *stream(
+        request: OxyResponsesRequest,
+        options: OxyInferenceRequestOptions = {},
+    ): AsyncGenerator<InferenceStreamEvent> {
+        const headers: Record<string, string> = {
+            Authorization: `Bearer ${await this.#bearer()}`,
+            Accept: 'text/event-stream',
+            'Content-Type': 'application/json',
+        };
+        if (options.idempotencyKey !== undefined) {
+            headers['Idempotency-Key'] = options.idempotencyKey;
+        }
+        if (options.delegatedUserId !== undefined) {
+            headers['X-Oxy-User-Id'] = options.delegatedUserId;
+        }
+
+        const response = await this.#fetch(`${this.#baseURL}/v1/responses`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ ...request, stream: true }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+        });
+
+        if (!response.ok) {
+            const payload: unknown = await response.json().catch(() => undefined);
+            throw toInferenceError(
+                payload,
+                response.status,
+                response.headers.get('X-Oxy-Request-Id'),
+            );
+        }
+
+        const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+        const mediaType = contentType.split(';', 1)[0]?.trim();
+        if (mediaType !== 'text/event-stream' || response.body === null) {
+            throw new Error(INVALID_INFERENCE_STREAM_MESSAGE);
+        }
+
+        yield* decodeInferenceEventStream(response.body, options.signal);
     }
 
     /**
@@ -515,6 +565,135 @@ export class OxyInferenceClient {
         }
 
         return payload as T;
+    }
+}
+
+interface RawInferenceStreamFrame {
+    readonly name: string;
+    readonly data: string;
+}
+
+/**
+ * Decode the public edge's normalized SSE dialect with a hard memory bound.
+ * Error messages deliberately contain no frame contents: model output and
+ * upstream failures are untrusted and may contain credentials or private mail.
+ */
+async function* decodeInferenceEventStream(
+    body: ReadableStream<Uint8Array>,
+    signal: AbortSignal | undefined,
+): AsyncGenerator<InferenceStreamEvent> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    const abortReader = () => {
+        void reader.cancel().catch(() => undefined);
+    };
+    if (signal?.aborted === true) abortReader();
+    else signal?.addEventListener('abort', abortReader, { once: true });
+    let pending = '';
+    let name = '';
+    let data: string[] = [];
+    let accumulated = 0;
+    let requestId: string | undefined;
+    let expectedSequence = 0;
+    let terminal = false;
+
+    const dispatch = (): RawInferenceStreamFrame | undefined => {
+        if (name.length === 0 && data.length === 0) return undefined;
+        const frame = { name, data: data.join('\n') };
+        name = '';
+        data = [];
+        accumulated = 0;
+        return frame;
+    };
+
+    const consume = (raw: string): RawInferenceStreamFrame | undefined => {
+        const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+        if (line.length === 0) return dispatch();
+        if (line.startsWith(':')) return undefined;
+        if (line.startsWith('data:')) {
+            const value = line.slice('data:'.length);
+            const text = value.startsWith(' ') ? value.slice(1) : value;
+            accumulated += text.length;
+            if (accumulated > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
+                throw new Error(INVALID_INFERENCE_STREAM_MESSAGE);
+            }
+            data.push(text);
+            return undefined;
+        }
+        if (line.startsWith('event:')) {
+            name = line.slice('event:'.length).trim();
+        }
+        return undefined;
+    };
+
+    const parse = (frame: RawInferenceStreamFrame): InferenceStreamEvent => {
+        let payload: unknown;
+        try {
+            payload = JSON.parse(frame.data);
+        } catch {
+            throw new Error(INVALID_INFERENCE_STREAM_MESSAGE);
+        }
+        const parsed = inferenceStreamEventSchema.safeParse(payload);
+        if (!parsed.success) throw new Error(INVALID_INFERENCE_STREAM_MESSAGE);
+        const event = parsed.data;
+        if (
+            frame.name !== event.type ||
+            event.sequence !== expectedSequence ||
+            (expectedSequence === 0 && event.type !== 'start') ||
+            (requestId !== undefined && event.requestId !== requestId)
+        ) {
+            throw new Error(INVALID_INFERENCE_STREAM_MESSAGE);
+        }
+        requestId = event.requestId;
+        expectedSequence += 1;
+        terminal = event.type === 'done' || event.type === 'error';
+        return event;
+    };
+
+    try {
+        for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            pending += decoder.decode(chunk.value, { stream: true });
+            if (pending.length > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
+                throw new Error(INVALID_INFERENCE_STREAM_MESSAGE);
+            }
+
+            let newline = pending.indexOf('\n');
+            while (newline !== -1) {
+                const frame = consume(pending.slice(0, newline));
+                pending = pending.slice(newline + 1);
+                if (frame !== undefined) {
+                    const event = parse(frame);
+                    yield event;
+                    if (terminal) return;
+                }
+                newline = pending.indexOf('\n');
+            }
+        }
+
+        pending += decoder.decode();
+        if (pending.length > 0) {
+            const frame = consume(pending);
+            if (frame !== undefined) {
+                const event = parse(frame);
+                yield event;
+                if (terminal) return;
+            }
+        }
+        const trailing = dispatch();
+        if (trailing !== undefined) {
+            const event = parse(trailing);
+            yield event;
+            if (terminal) return;
+        }
+        if (!terminal && signal?.aborted !== true) {
+            throw new Error(INVALID_INFERENCE_STREAM_MESSAGE);
+        }
+    } finally {
+        signal?.removeEventListener('abort', abortReader);
+        await reader.cancel().catch(() => undefined);
+        reader.releaseLock();
     }
 }
 

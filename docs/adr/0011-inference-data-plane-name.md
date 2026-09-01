@@ -28,7 +28,7 @@ The former `Relay` identity is retired with a clean cut:
 - data-plane configuration uses `KAANA_*` variables;
 - authenticated internal requests use `X-Oxy-Kaana-*` headers and the
   `oxy-kaana-envelope:v1` signing domain;
-- the private data-plane endpoint is `kaana.oxy.so`;
+- the signed data-plane endpoint is `https://kaana.ai`;
 - product model aliases owned by this routing layer use the `kaana-*` prefix.
 
 There are no compatibility aliases for the old product name. A partially
@@ -41,7 +41,7 @@ that describe forwarding retain their established meaning.
 
 The public API at `api.kaana.ai` remains an Oxy control-plane edge: it
 authenticates customers, resolves models, reserves spend, and signs an authorized
-request for Kaana. `kaana.oxy.so` is the inference data plane and accepts only
+request for Kaana. `https://kaana.ai` is the inference data plane and accepts only
 authorized envelopes. Contract fields remain role-named, such as
 `resolvedModelReference`, `servingProvider`, and `deploymentId`.
 
