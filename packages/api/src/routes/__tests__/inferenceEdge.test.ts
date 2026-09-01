@@ -1827,9 +1827,7 @@ describe("the serving provider, when the data plane failed over", () => {
         // The customer's own body and header. A customer debugging a latency
         // spike reads these to know which provider to ask about.
         expect(json(response).servingProvider).toBe(failover.providerSlug);
-        expect(response.headers["x-oxy-provider"]).toBe(
-          failover.providerSlug,
-        );
+        expect(response.headers["x-oxy-provider"]).toBe(failover.providerSlug);
       },
     );
 
@@ -2801,6 +2799,80 @@ describe("the envelope’s authorized routes", () => {
         modelReference: `${alternate.modelReference}@2026-01-01`,
       }),
     ]);
+  });
+
+  it("skips an earlier routing-profile candidate that cannot fit the requested output", async () => {
+    const tooSmall = await makeFixture({
+      fund: "10.000000000000",
+      maxOutputTokens: 50,
+    });
+    const capable = await makeFixture({ maxOutputTokens: 8192 });
+    const slug = `capacity-${suffix()}`;
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug,
+        displayName: "Capacity-aware profile fixture",
+        optimiseFor: "balanced",
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id });
+    await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values([
+        {
+          routingProfileId: profile.id,
+          modelId: tooSmall.modelRowId,
+          priority: 0,
+        },
+        {
+          routingProfileId: profile.id,
+          modelId: capable.modelRowId,
+          priority: 1,
+        },
+      ]);
+    await givenPolicy(tooSmall, {
+      fallback: {
+        disabled: false,
+        sameModelDeployment: false,
+        authorizedCrossModel: [],
+      },
+    });
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: capable.provider,
+          }),
+        seen,
+      ),
+      async (request) => {
+        const response = await request(
+          "POST",
+          "/v1/responses",
+          { routingProfile: slug, input: "hi", maxOutputTokens: 100 },
+          bearer(tooSmall.token),
+        );
+        expect(response.status).toBe(200);
+      },
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes[0]).toEqual(
+      expect.objectContaining({
+        deploymentId: capable.deploymentId,
+        modelReference: `${capable.modelReference}@2026-01-01`,
+      }),
+    );
+    expect(seen[0].authorizedRoutes).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ deploymentId: tooSmall.deploymentId }),
+      ]),
+    );
   });
 
   it("refuses an unknown Kaana routing profile before anything reaches the data plane", async () => {

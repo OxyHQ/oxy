@@ -675,6 +675,78 @@ describe('routing profiles are a separate collection', () => {
     // Control: the catalogue read is working, so the line above is not vacuous.
     expect(models.map((entry) => entry.modelId)).toContain(route.modelId);
   });
+
+  it('uses the selected optimisation score to break equal-priority ties deterministically', async () => {
+    const qualityRoute = await insertRoute({
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+    });
+    const latencyRoute = await insertRoute({
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+    });
+    const rows = await getDb()
+      .select({ id: inferenceModels.id, modelId: inferenceModels.modelId })
+      .from(inferenceModels);
+    const qualityModelId = rows.find((row) => row.modelId === qualityRoute.modelId)?.id;
+    const latencyModelId = rows.find((row) => row.modelId === latencyRoute.modelId)?.id;
+    if (qualityModelId === undefined || latencyModelId === undefined) {
+      throw new Error('routing-profile optimisation fixture did not resolve its models');
+    }
+
+    const latencySlug = `latency${suffix()}`;
+    const qualitySlug = `quality${suffix()}`;
+    const profiles = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values([
+        {
+          slug: latencySlug,
+          displayName: 'Latency fixture',
+          optimiseFor: 'latency',
+          isProductPreset: false,
+        },
+        {
+          slug: qualitySlug,
+          displayName: 'Quality fixture',
+          optimiseFor: 'quality',
+          isProductPreset: false,
+        },
+      ])
+      .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
+
+    for (const profile of profiles) {
+      await getDb()
+        .insert(inferenceRoutingProfileCandidates)
+        .values([
+          {
+            routingProfileId: profile.id,
+            modelId: qualityModelId,
+            priority: 0,
+            latencyScore: 10,
+            qualityScore: 90,
+          },
+          {
+            routingProfileId: profile.id,
+            modelId: latencyModelId,
+            priority: 0,
+            latencyScore: 90,
+            qualityScore: 10,
+          },
+        ]);
+    }
+
+    const listed = await listRoutingProfiles();
+    const latencyProfile = listed.find((profile) => profile.slug === latencySlug);
+    const qualityProfile = listed.find((profile) => profile.slug === qualitySlug);
+    expect(latencyProfile?.candidates.map((candidate) => candidate.modelReference)).toEqual([
+      latencyRoute.modelId,
+      qualityRoute.modelId,
+    ]);
+    expect(qualityProfile?.candidates.map((candidate) => candidate.modelReference)).toEqual([
+      qualityRoute.modelId,
+      latencyRoute.modelId,
+    ]);
+  });
 });
 
 function eqDeployment(id: string) {

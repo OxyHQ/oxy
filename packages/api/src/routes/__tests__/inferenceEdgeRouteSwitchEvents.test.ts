@@ -63,6 +63,8 @@ import {
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  inferenceRoutingProfileCandidates,
+  inferenceRoutingProfiles,
 } from "../../db/schema";
 import { inferenceRouteSwitchEvents } from "../../db/schema/inferenceRouteSwitchEvents";
 import {
@@ -722,6 +724,8 @@ async function switchesOf(applicationId: string) {
       toProvider: inferenceRouteSwitchEvents.toProvider,
       requestedModelId: inferenceRouteSwitchEvents.requestedModelId,
       authorizationId: inferenceRouteSwitchEvents.authorizationId,
+      routingProfileCandidateId:
+        inferenceRouteSwitchEvents.routingProfileCandidateId,
     })
     .from(inferenceRouteSwitchEvents)
     .where(eq(inferenceRouteSwitchEvents.applicationId, applicationId))
@@ -777,6 +781,7 @@ describe("a same-model deployment failover", () => {
       // name and none is invented.
       requestedModelId: null,
       authorizationId: null,
+      routingProfileCandidateId: null,
     });
     // The destination is the REPORTED provider, not the admitted one — without
     // this the row would say the request never left the route it started on.
@@ -946,6 +951,73 @@ describe("a cross-model substitution", () => {
     // The authorisation is a ROW, looked up rather than asserted by the reporter —
     // the wire's `authorizedByPolicy: true` is deliberately not forwarded.
     expect(rows[0].authorizationId).toEqual(expect.any(String));
+    expect(rows[0].routingProfileCandidateId).toBeNull();
+  });
+
+  it("records a routing-profile substitution against the selected candidate row", async () => {
+    const fixture = await makeFixture();
+    const versionId = await givePolicy(fixture);
+    const slug = `profile-${suffix()}`;
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug,
+        displayName: "Route switch profile fixture",
+        optimiseFor: "balanced",
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id });
+    const [primaryModel] = await getDb()
+      .select({ id: inferenceModels.id })
+      .from(inferenceModels)
+      .where(eq(inferenceModels.modelId, fixture.modelReference))
+      .limit(1);
+    const [alternateModel] = await getDb()
+      .select({ id: inferenceModels.id })
+      .from(inferenceModels)
+      .where(eq(inferenceModels.modelId, fixture.otherModelReference))
+      .limit(1);
+    await getDb().insert(inferenceRoutingProfileCandidates).values({
+      routingProfileId: profile.id,
+      modelId: primaryModel.id,
+      priority: 0,
+    });
+    const [alternateCandidate] = await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values({
+        routingProfileId: profile.id,
+        modelId: alternateModel.id,
+        priority: 1,
+      })
+      .returning({ id: inferenceRoutingProfileCandidates.id });
+
+    await withServer(
+      foldedKaana((envelope) => [
+        modelSwitch(envelope.attribution.requestId, {
+          requestedModelId: fixture.modelReference,
+          fromModelReference: fixture.pinnedModelReference,
+          toModelReference: fixture.otherPinnedModelReference,
+          toProvider: FAILOVER_PROVIDER,
+        }),
+      ]),
+      async (request) => {
+        const response = await request(
+          "/v1/responses",
+          responsesBody(fixture, { model: undefined, routingProfile: slug }),
+          bearer(fixture.token),
+        );
+        expect(response.status).toBe(200);
+      },
+    );
+
+    const rows = await switchesOf(fixture.applicationId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      scope: "model",
+      routingPolicyVersionId: versionId,
+      authorizationId: null,
+      routingProfileCandidateId: alternateCandidate.id,
+    });
   });
 
   it("is NOT recorded when the customer authorised no such destination", async () => {

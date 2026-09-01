@@ -20,6 +20,8 @@ import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { inferenceModelRevisions } from '../../db/schema/inferenceModelRevisions';
 import { inferenceModels } from '../../db/schema/inferenceModels';
+import { inferenceRouteSwitchEvents } from '../../db/schema/inferenceRouteSwitchEvents';
+import { inferenceRoutingProfileCandidates } from '../../db/schema/inferenceRoutingProfileCandidates';
 import { inferenceRoutingPolicyVersions } from '../../db/schema/inferenceRoutingPolicyVersions';
 import { inferencePublishers } from '../../db/schema/inferencePublishers';
 import { inferenceRoutingProfiles } from '../../db/schema/inferenceRoutingProfiles';
@@ -93,6 +95,7 @@ function modelDefaults() {
 }
 
 interface ModelFixture {
+  modelRowId: string;
   reference: string;
   pinnedReference: string;
   secondRevisionReference: string;
@@ -120,6 +123,7 @@ async function insertModel(): Promise<ModelFixture> {
     ]);
 
   return {
+    modelRowId: model.id,
     reference: `${publisherSlug}/${slug}`,
     pinnedReference: `${publisherSlug}/${slug}@${first}`,
     secondRevisionReference: `${publisherSlug}/${slug}@${second}`,
@@ -598,6 +602,7 @@ describe('a concrete model is never silently substituted', () => {
     const f = await switchFixture();
     const result = await recordRouteSwitch({
       ...base(f),
+      authorization: { kind: 'policy_fallback' },
       detail: {
         scope: 'model',
         requestedModelId: f.requested.reference,
@@ -619,6 +624,7 @@ describe('a concrete model is never silently substituted', () => {
     const f = await switchFixture();
     const result = await recordRouteSwitch({
       ...base(f),
+      authorization: { kind: 'policy_fallback' },
       detail: {
         scope: 'model',
         requestedModelId: f.requested.reference,
@@ -648,6 +654,7 @@ describe('a concrete model is never silently substituted', () => {
     const f = await switchFixture();
     const result = await recordRouteSwitch({
       ...base(f),
+      authorization: { kind: 'policy_fallback' },
       detail: {
         scope: 'model',
         requestedModelId: f.requested.pinnedReference,
@@ -708,6 +715,7 @@ describe('a concrete model is never silently substituted', () => {
     const f = await switchFixture();
     const result = await recordRouteSwitch({
       ...base(f),
+      authorization: { kind: 'policy_fallback' },
       detail: {
         scope: 'model',
         requestedModelId: f.requested.reference,
@@ -751,6 +759,7 @@ describe('a concrete model is never silently substituted', () => {
       routingPolicyVersionId: stored.versionId,
       reason: 'capacity',
       occurredAt: new Date(),
+      authorization: { kind: 'policy_fallback' },
       detail: {
         scope: 'model',
         requestedModelId: requested.reference,
@@ -761,6 +770,57 @@ describe('a concrete model is never silently substituted', () => {
       },
     });
     expect(result.status).toBe('unauthorized-substitution');
+  });
+
+  it('records a routing-profile switch against its candidate, not a policy fallback', async () => {
+    const f = await switchFixture();
+    const slug = `prof${suffix()}`;
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug,
+        displayName: 'Profile authorization fixture',
+        optimiseFor: 'balanced',
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id });
+    const [candidate] = await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values({
+        routingProfileId: profile.id,
+        modelId: f.unauthorized.modelRowId,
+        priority: 0,
+      })
+      .returning({ id: inferenceRoutingProfileCandidates.id });
+
+    const result = await recordRouteSwitch({
+      ...base(f),
+      authorization: {
+        kind: 'routing_profile_candidate',
+        routingProfileSlug: slug,
+      },
+      detail: {
+        scope: 'model',
+        requestedModelId: f.requested.reference,
+        fromModelReference: f.requested.reference,
+        toModelReference: f.unauthorized.reference,
+        toProvider: 'oxy-hosted',
+      },
+    });
+    expect(result.status).toBe('recorded');
+
+    const [row] = await getDb()
+      .select({
+        authorizationId: inferenceRouteSwitchEvents.authorizationId,
+        routingProfileCandidateId: inferenceRouteSwitchEvents.routingProfileCandidateId,
+      })
+      .from(inferenceRouteSwitchEvents)
+      .where(eq(inferenceRouteSwitchEvents.applicationId, f.applicationId))
+      .limit(1);
+    expect(row).toEqual({
+      authorizationId: null,
+      routingProfileCandidateId: candidate.id,
+    });
   });
 
   it('refuses a switch citing a policy version that does not exist', async () => {

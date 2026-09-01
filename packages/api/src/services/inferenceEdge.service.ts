@@ -166,7 +166,6 @@ import {
 import {
   recordRouteSwitch,
   resolveEffectiveRoutingPolicy,
-  type RouteSwitchDetail,
 } from "./inferenceRoutingPolicy.service";
 import { recordInferenceUsage } from "./inferenceTelemetry.service";
 import {
@@ -740,6 +739,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
 
   const viewer = viewerForPrincipal(principal);
   const requiredModality = modalityForOperation(request.operation);
+  const requestedOutput = request.maxOutputTokens;
+  const estimatedInputTokens = estimateInputTokens(request);
   let requestedModelReference: string;
   let resolution: Awaited<ReturnType<typeof resolveEdgeRoute>>;
   let crossModelCandidates: readonly {
@@ -777,6 +778,9 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       readonly alternates: readonly EdgeRoute[];
     }[] = [];
     const profileFailures = new Set<string>();
+    const profileCapacityFailures = new Set<
+      "output_limit" | "context_length"
+    >();
     for (const candidate of profile.candidates) {
       const candidateResolution = await resolveEdgeRoute(
         viewer,
@@ -785,7 +789,23 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         requiredModality,
       );
       if (candidateResolution.status === "resolved") {
-        survivors.push(candidateResolution);
+        const candidateOutputTokens = outputTokenBudget(
+          request.operation,
+          requestedOutput ?? candidateResolution.route.maxOutputTokens,
+        );
+        if (
+          requestedOutput !== undefined &&
+          requestedOutput > candidateResolution.route.maxOutputTokens
+        ) {
+          profileCapacityFailures.add("output_limit");
+        } else if (
+          estimatedInputTokens + candidateOutputTokens >
+          candidateResolution.route.maxContextTokens
+        ) {
+          profileCapacityFailures.add("context_length");
+        } else {
+          survivors.push(candidateResolution);
+        }
       } else {
         profileFailures.add(candidateResolution.status);
       }
@@ -793,6 +813,20 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
 
     const primary = survivors[0];
     if (primary === undefined) {
+      if (profileCapacityFailures.has("output_limit")) {
+        return refuse(
+          "output_limit_exceeded",
+          `No route in ${target.routingProfile} supports ${requestedOutput} output tokens.`,
+          { param: "max_output_tokens" },
+        );
+      }
+      if (profileCapacityFailures.has("context_length")) {
+        return refuse(
+          "context_length_exceeded",
+          `No route in ${target.routingProfile} can fit this request and its output ceiling.`,
+          { param: "input" },
+        );
+      }
       const policyExcluded = profileFailures.has("policy-excluded");
       return refuse(
         policyExcluded ? "policy_violation" : "no_route_available",
@@ -914,7 +948,6 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
 
   // 6a. Explicit context and output ceilings, enforced at the edge rather than
   //     inherited from whatever the upstream provider happens to enforce.
-  const requestedOutput = request.maxOutputTokens;
   if (
     requestedOutput !== undefined &&
     requestedOutput > route.maxOutputTokens
@@ -932,7 +965,6 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     request.operation,
     requestedOutput ?? route.maxOutputTokens,
   );
-  const estimatedInputTokens = estimateInputTokens(request);
   if (estimatedInputTokens + maxOutputTokens > route.maxContextTokens) {
     return refuse(
       "context_length_exceeded",
@@ -1797,30 +1829,8 @@ async function recordEdgeRouteSwitch(
     return;
   }
 
-  // `authorizedByPolicy` is deliberately NOT forwarded. On the wire it is a
-  // `z.literal(true)` — a producer asserting its own permission — and
-  // `recordRouteSwitch` LOOKS the authorisation up instead, so there is no field
-  // here for the data plane's claim about itself to travel in.
-  const detail: RouteSwitchDetail =
-    event.detail.scope === "deployment"
-      ? {
-          scope: "deployment",
-          modelReference: event.detail.modelReference,
-          toProvider: event.detail.toProvider,
-          ...(event.detail.toDeploymentId === undefined
-            ? {}
-            : { toDeploymentId: event.detail.toDeploymentId }),
-        }
-      : {
-          scope: "model",
-          requestedModelId: event.detail.requestedModelId,
-          fromModelReference: event.detail.fromModelReference,
-          toModelReference: event.detail.toModelReference,
-          toProvider: event.detail.toProvider,
-        };
-
   try {
-    const result = await recordRouteSwitch({
+    const base = {
       requestId: context.requestId,
       sequence: event.sequence,
       accountId: context.principal.ownerAccountId,
@@ -1828,9 +1838,42 @@ async function recordEdgeRouteSwitch(
       environment: context.principal.environment,
       routingPolicyVersionId,
       reason: event.reason,
-      detail,
       occurredAt: new Date(event.occurredAt),
-    });
+    } as const;
+    // `authorizedByPolicy` is deliberately NOT forwarded. On the wire it is a
+    // producer assertion; the writer instead names and looks up the exact
+    // control-plane row. A profile candidate and a policy fallback are distinct
+    // authorization sources and cannot be confused in the persisted audit.
+    const result =
+      event.detail.scope === "deployment"
+        ? await recordRouteSwitch({
+            ...base,
+            detail: {
+              scope: "deployment",
+              modelReference: event.detail.modelReference,
+              toProvider: event.detail.toProvider,
+              ...(event.detail.toDeploymentId === undefined
+                ? {}
+                : { toDeploymentId: event.detail.toDeploymentId }),
+            },
+          })
+        : await recordRouteSwitch({
+            ...base,
+            detail: {
+              scope: "model",
+              requestedModelId: event.detail.requestedModelId,
+              fromModelReference: event.detail.fromModelReference,
+              toModelReference: event.detail.toModelReference,
+              toProvider: event.detail.toProvider,
+            },
+            authorization:
+              admitted.routingTarget.kind === "routing_profile"
+                ? {
+                    kind: "routing_profile_candidate",
+                    routingProfileSlug: admitted.routingTarget.routingProfile,
+                  }
+                : { kind: "policy_fallback" },
+          });
 
     // `already-recorded` is the idempotent answer, not a failure: the unique
     // `(request_id, sequence)` key makes a retried or redelivered event a no-op,

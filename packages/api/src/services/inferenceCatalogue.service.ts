@@ -1946,6 +1946,11 @@ export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
     .select({
       routingProfileId: inferenceRoutingProfileCandidates.routingProfileId,
       priority: inferenceRoutingProfileCandidates.priority,
+      priceScore: inferenceRoutingProfileCandidates.priceScore,
+      latencyScore: inferenceRoutingProfileCandidates.latencyScore,
+      throughputScore: inferenceRoutingProfileCandidates.throughputScore,
+      qualityScore: inferenceRoutingProfileCandidates.qualityScore,
+      balancedScore: inferenceRoutingProfileCandidates.balancedScore,
       /** Set on the UNPINNED form: follow this model's current revision. */
       unpinnedModelId: inferenceRoutingProfileCandidates.modelId,
       /** Set on the PINNED form, together with the two columns below. */
@@ -2007,9 +2012,17 @@ export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
                 ? canonicalModelId
                 : composeModelReference(canonicalModelId, candidate.pinnedRevision),
             priority: candidate.priority,
+            optimisationScore: profileOptimisationScore(candidate, profile.optimiseFor),
           },
         ];
-      });
+      })
+      .sort(
+        (left, right) =>
+          left.priority - right.priority ||
+          right.optimisationScore - left.optimisationScore ||
+          left.modelReference.localeCompare(right.modelReference)
+      )
+      .map(({ modelReference, priority }) => ({ modelReference, priority }));
 
     // `routingProfileSchema` requires at least one candidate. A profile with
     // none cannot be served and is omitted rather than emitted malformed —
@@ -2029,4 +2042,29 @@ export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
       }),
     ];
   });
+}
+
+/** The one score a profile declared meaningful, never a generic relabelled rank. */
+function profileOptimisationScore(
+  candidate: {
+    readonly priceScore: number;
+    readonly latencyScore: number;
+    readonly throughputScore: number;
+    readonly qualityScore: number;
+    readonly balancedScore: number;
+  },
+  optimiseFor: RoutingProfile['optimiseFor']
+): number {
+  switch (optimiseFor) {
+    case 'price':
+      return candidate.priceScore;
+    case 'latency':
+      return candidate.latencyScore;
+    case 'throughput':
+      return candidate.throughputScore;
+    case 'quality':
+      return candidate.qualityScore;
+    case 'balanced':
+      return candidate.balancedScore;
+  }
 }

@@ -29,6 +29,7 @@ import {
 import { inferenceRoutingPolicies } from '../inferenceRoutingPolicies';
 import { inferenceRoutingPolicyFallbacks } from '../inferenceRoutingPolicyFallbacks';
 import { inferenceRoutingPolicyPriceCaps } from '../inferenceRoutingPolicyPriceCaps';
+import { inferenceRoutingProfileCandidates } from '../inferenceRoutingProfileCandidates';
 import {
   inferenceRoutingPolicyVersions,
   ROUTING_POLICY_OPTIMISATIONS,
@@ -625,6 +626,7 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
   let versionId: string;
   let otherVersionId: string;
   let authorizationId: string;
+  let routingProfileCandidateId: string;
 
   beforeAll(async () => {
     accountId = await insertAccount();
@@ -640,6 +642,25 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
       .values({ versionId, modelId: otherCatalogue.modelRowId, position: 0 })
       .returning({ id: inferenceRoutingPolicyFallbacks.id });
     authorizationId = row.id;
+
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug: `switch-profile-${suffix()}`,
+        displayName: 'Switch authorization profile',
+        optimiseFor: 'balanced',
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id });
+    const [candidate] = await getDb()
+      .insert(inferenceRoutingProfileCandidates)
+      .values({
+        routingProfileId: profile.id,
+        modelId: otherCatalogue.modelRowId,
+        priority: 0,
+      })
+      .returning({ id: inferenceRoutingProfileCandidates.id });
+    routingProfileCandidateId = candidate.id;
   });
 
   function event(overrides: Partial<typeof inferenceRouteSwitchEvents.$inferInsert>) {
@@ -680,6 +701,30 @@ describe('a recorded route switch cannot be an unauthorised substitution', () =>
         authorizationId,
       })
     ).resolves.toBeDefined();
+  });
+
+  it('admits a routing-profile candidate as a distinct authorisation source', async () => {
+    await expect(
+      event({
+        scope: 'model',
+        requestedModelId: catalogue.modelReference,
+        toModelReference: otherCatalogue.modelReference,
+        routingProfileCandidateId,
+      })
+    ).resolves.toBeDefined();
+  });
+
+  it('refuses a model switch that claims both authorisation sources', async () => {
+    const error = await rejection(
+      event({
+        scope: 'model',
+        requestedModelId: catalogue.modelReference,
+        toModelReference: otherCatalogue.modelReference,
+        authorizationId,
+        routingProfileCandidateId,
+      })
+    );
+    expect(pgErrorCode(error)).toBe(CHECK_VIOLATION);
   });
 
   it('refuses a model switch that names no authorisation', async () => {

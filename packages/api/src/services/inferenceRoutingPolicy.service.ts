@@ -66,6 +66,7 @@ import { inferenceRoutingPolicies } from '../db/schema/inferenceRoutingPolicies'
 import { inferenceRoutingPolicyFallbacks } from '../db/schema/inferenceRoutingPolicyFallbacks';
 import { inferenceRoutingPolicyPriceCaps } from '../db/schema/inferenceRoutingPolicyPriceCaps';
 import { inferenceRoutingPolicyVersions } from '../db/schema/inferenceRoutingPolicyVersions';
+import { inferenceRoutingProfileCandidates } from '../db/schema/inferenceRoutingProfileCandidates';
 import { inferenceRoutingProfiles } from '../db/schema/inferenceRoutingProfiles';
 
 /** The database handle a helper runs on — the pool, or an open transaction. */
@@ -1054,7 +1055,7 @@ export type RouteSwitchDetail =
       readonly toDeploymentId?: string;
     };
 
-export interface RecordRouteSwitchInput {
+interface RecordRouteSwitchBaseInput {
   readonly requestId: string;
   readonly sequence: number;
   readonly accountId: string;
@@ -1062,9 +1063,27 @@ export interface RecordRouteSwitchInput {
   readonly environment: 'development' | 'staging' | 'production';
   readonly routingPolicyVersionId: string;
   readonly reason: RouteSwitchReason;
-  readonly detail: RouteSwitchDetail;
   readonly occurredAt: Date;
 }
+
+/** The concrete control-plane row that authorised a cross-model switch. */
+export type ModelSwitchAuthorization =
+  | { readonly kind: 'policy_fallback' }
+  | {
+      readonly kind: 'routing_profile_candidate';
+      readonly routingProfileSlug: string;
+    };
+
+export type RecordRouteSwitchInput = RecordRouteSwitchBaseInput &
+  (
+    | {
+        readonly detail: Extract<RouteSwitchDetail, { readonly scope: 'deployment' }>;
+      }
+    | {
+        readonly detail: Extract<RouteSwitchDetail, { readonly scope: 'model' }>;
+        readonly authorization: ModelSwitchAuthorization;
+      }
+  );
 
 export type RecordRouteSwitchResult =
   | { readonly status: 'recorded'; readonly eventId: string; readonly scope: RouteSwitchScope }
@@ -1098,8 +1117,9 @@ export type RecordRouteSwitchResult =
  *  - **Fallback disabled means fail, not re-route.** A version with no
  *    authorisations cannot produce one, so this is the answer a policy that
  *    turned fallback off gets.
- *  - **A destination must be named in the policy.** The authorisation is looked
- *    up by the model the switch went TO; not finding one is
+ *  - **A destination must be named by its declared source.** A concrete-model
+ *    request is checked against policy fallbacks and a routing-profile request
+ *    against that profile's candidates. Not finding one is
  *    `unauthorized-substitution`, and the event is not written.
  *
  * A deployment switch needs none of this: it serves the same weights from
@@ -1133,6 +1153,7 @@ export async function recordRouteSwitch(
   }
 
   let authorizationId: string | null = null;
+  let routingProfileCandidateId: string | null = null;
   let fromModelReference: string;
   let toModelReference: string;
   let requestedModelId: string | null = null;
@@ -1141,6 +1162,10 @@ export async function recordRouteSwitch(
     fromModelReference = input.detail.modelReference;
     toModelReference = input.detail.modelReference;
   } else {
+    if (!('authorization' in input)) {
+      throw new Error('model route switches must name their authorization source');
+    }
+    const authorizationSource = input.authorization;
     if (input.detail.requestedModelId.includes('@')) {
       return {
         status: 'pinned-revision-not-substitutable',
@@ -1148,11 +1173,14 @@ export async function recordRouteSwitch(
       };
     }
 
-    const authorization = await findAuthorization(
-      db,
-      version.id,
-      input.detail.toModelReference
-    );
+    const authorization =
+      authorizationSource.kind === 'policy_fallback'
+        ? await findAuthorization(db, version.id, input.detail.toModelReference)
+        : await findRoutingProfileCandidate(
+            db,
+            authorizationSource.routingProfileSlug,
+            input.detail.toModelReference
+          );
     if (authorization === undefined) {
       return {
         status: 'unauthorized-substitution',
@@ -1161,7 +1189,11 @@ export async function recordRouteSwitch(
       };
     }
 
-    authorizationId = authorization;
+    if (authorizationSource.kind === 'policy_fallback') {
+      authorizationId = authorization;
+    } else {
+      routingProfileCandidateId = authorization;
+    }
     requestedModelId = input.detail.requestedModelId;
     fromModelReference = input.detail.fromModelReference;
     toModelReference = input.detail.toModelReference;
@@ -1184,6 +1216,7 @@ export async function recordRouteSwitch(
       toDeploymentId: input.detail.toDeploymentId ?? null,
       requestedModelId,
       authorizationId,
+      routingProfileCandidateId,
       occurredAt: input.occurredAt,
     })
     .onConflictDoNothing()
@@ -1260,6 +1293,61 @@ async function findAuthorization(
   return byModel?.id;
 }
 
+/** Resolve a profile candidate authorising a switch to this destination. */
+async function findRoutingProfileCandidate(
+  db: Executor,
+  routingProfileSlug: string,
+  reference: string
+): Promise<string | undefined> {
+  const resolved = await resolveModelReference(db, reference);
+  if (resolved === undefined) return undefined;
+
+  const profileId = await resolveRoutingProfile(db, routingProfileSlug);
+  if (profileId === undefined) return undefined;
+
+  if (resolved.kind === 'revision') {
+    const [exact] = await db
+      .select({ id: inferenceRoutingProfileCandidates.id })
+      .from(inferenceRoutingProfileCandidates)
+      .where(
+        and(
+          eq(inferenceRoutingProfileCandidates.routingProfileId, profileId),
+          eq(inferenceRoutingProfileCandidates.modelRevisionId, resolved.modelRevisionId)
+        )
+      )
+      .limit(1);
+    if (exact) return exact.id;
+
+    const [byModel] = await db
+      .select({ id: inferenceRoutingProfileCandidates.id })
+      .from(inferenceRoutingProfileCandidates)
+      .innerJoin(
+        inferenceModelRevisions,
+        eq(inferenceModelRevisions.modelId, inferenceRoutingProfileCandidates.modelId)
+      )
+      .where(
+        and(
+          eq(inferenceRoutingProfileCandidates.routingProfileId, profileId),
+          eq(inferenceModelRevisions.id, resolved.modelRevisionId)
+        )
+      )
+      .limit(1);
+    return byModel?.id;
+  }
+
+  const [byModel] = await db
+    .select({ id: inferenceRoutingProfileCandidates.id })
+    .from(inferenceRoutingProfileCandidates)
+    .where(
+      and(
+        eq(inferenceRoutingProfileCandidates.routingProfileId, profileId),
+        eq(inferenceRoutingProfileCandidates.modelId, resolved.modelId)
+      )
+    )
+    .limit(1);
+  return byModel?.id;
+}
+
 /** One recorded switch, as a customer is shown it. */
 export interface RouteSwitchEventView {
   readonly eventId: string;
@@ -1310,4 +1398,3 @@ export async function listRouteSwitchEventsForApplication(
 
   return rows;
 }
-

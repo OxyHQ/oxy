@@ -19,17 +19,16 @@
  *
  * ## The three things a model switch cannot be
  *
- * **It cannot be unauthorised.** `authorization_id` is required for
- * `scope = 'model'` and points at the exact
- * `inference_routing_policy_fallbacks` row the customer wrote. There is no
- * "allowed cross-model fallback" boolean anywhere to be true; the authorisation
- * IS a row, and a switch that cannot name one cannot be recorded.
+ * **It cannot be unauthorised.** A model switch names exactly one authorization
+ * row: either a policy fallback for a concrete-model request or the candidate
+ * selected by a routing-profile request. There is no boolean that can assert a
+ * switch was allowed; the authorisation IS a row.
  *
  * **It cannot cite a different policy version than the one in force.**
- * `(authorization_id, routing_policy_version_id)` is a COMPOSITE foreign key
- * into `(id, version_id)` on that table, so the authorisation and the recorded
- * version are checked to belong together. Two separate single-column keys would
- * each be satisfied while naming two different policies.
+ * Policy fallback authorization uses the composite
+ * `(authorization_id, routing_policy_version_id)` foreign key. A profile
+ * candidate has its own direct foreign key and is resolved by service code
+ * against the exact profile slug and destination model before insertion.
  *
  * **It cannot have been asked for by exact revision.** `requested_model_id` is
  * constrained to {@link MODEL_ID_CHECK_PATTERN} — `<publisher>/<model>`, with no
@@ -60,6 +59,7 @@ import { check, foreignKey, index, integer, pgTable, text, unique } from 'drizzl
 import { createdAt, generatedId, inList, timestamptz } from '@oxyhq/db';
 import { inferenceRouteSwitchReasonSchema } from '@oxyhq/contracts';
 import { applications } from './applications';
+import { inferenceRoutingProfileCandidates } from './inferenceRoutingProfileCandidates';
 import { inferenceRoutingPolicyFallbacks } from './inferenceRoutingPolicyFallbacks';
 import { inferenceRoutingPolicyVersions } from './inferenceRoutingPolicyVersions';
 import { MODEL_ID_CHECK_PATTERN, MODEL_REFERENCE_CHECK_PATTERN } from './inferenceSlug';
@@ -136,11 +136,14 @@ export const inferenceRouteSwitchEvents = pgTable(
      */
     requestedModelId: text(),
 
-    /**
-     * The customer's own authorisation for this substitution. NULL on a
-     * deployment switch, required on a model switch.
-     */
+    /** Policy-fallback authorisation; NULL for deployment/profile switches. */
     authorizationId: text(),
+
+    /** Candidate authorisation; exactly one authorization source exists on a model switch. */
+    routingProfileCandidateId: text().references(
+      () => inferenceRoutingProfileCandidates.id,
+      { onDelete: 'restrict' }
+    ),
 
     occurredAt: timestamptz().notNull(),
 
@@ -218,6 +221,7 @@ export const inferenceRouteSwitchEvents = pgTable(
         ${t.fromModelReference} = ${t.toModelReference}
         and ${t.requestedModelId} is null
         and ${t.authorizationId} is null
+        and ${t.routingProfileCandidateId} is null
       )`
     ),
 
@@ -232,7 +236,7 @@ export const inferenceRouteSwitchEvents = pgTable(
       'inference_route_switch_events_model_shape',
       sql`${t.scope} <> 'model' or (
         ${t.requestedModelId} is not null
-        and ${t.authorizationId} is not null
+        and ((${t.authorizationId} is null) <> (${t.routingProfileCandidateId} is null))
         and ${t.fromModelReference} <> ${t.toModelReference}
       )`
     ),

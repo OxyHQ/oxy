@@ -65,6 +65,17 @@ export const inferenceRoutingProfileCandidates = pgTable(
      */
     priority: integer().notNull(),
 
+    /**
+     * Editorial scores, normalised so higher is better within one profile.
+     * Separate columns make changing `optimiseFor` select a different signal
+     * instead of merely relabelling one generic rank.
+     */
+    priceScore: integer().notNull().default(0),
+    latencyScore: integer().notNull().default(0),
+    throughputScore: integer().notNull().default(0),
+    qualityScore: integer().notNull().default(0),
+    balancedScore: integer().notNull().default(0),
+
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -76,6 +87,14 @@ export const inferenceRoutingProfileCandidates = pgTable(
     check(
       'inference_routing_profile_candidates_priority_range',
       sql`${t.priority} between 0 and 1000`
+    ),
+    check(
+      'inference_routing_profile_candidates_score_range',
+      sql`${t.priceScore} between -1000000 and 1000000
+        and ${t.latencyScore} between -1000000 and 1000000
+        and ${t.throughputScore} between -1000000 and 1000000
+        and ${t.qualityScore} between -1000000 and 1000000
+        and ${t.balancedScore} between -1000000 and 1000000`
     ),
 
     /**
