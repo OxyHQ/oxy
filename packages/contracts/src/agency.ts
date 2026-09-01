@@ -178,7 +178,7 @@ export const catalogToolSchema = z.object({
     version: identifierSchema,
     description: nonEmptyStringSchema,
     inputSchema: z.record(z.unknown()),
-    outputSchema: z.record(z.unknown()),
+    outputSchema: z.record(z.unknown()).optional(),
     capabilityPackage: capabilityPackageSchema,
     requiredCapabilities: z.array(identifierSchema).min(1),
     resourceTypes: z.array(identifierSchema).min(1),
@@ -190,7 +190,71 @@ export const catalogToolSchema = z.object({
         method: z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']),
         path: nonEmptyStringSchema,
     }).strict(),
-}).strict();
+}).strict().superRefine((tool, context) => {
+    const requireUnique = (values: readonly string[], path: string): void => {
+        if (new Set(values).size !== values.length) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `${path} must not contain duplicates`,
+                path: [path],
+            });
+        }
+    };
+
+    requireUnique(tool.requiredCapabilities, 'requiredCapabilities');
+    requireUnique(tool.resourceTypes, 'resourceTypes');
+    requireUnique(tool.exposure, 'exposure');
+
+    if (tool.inputSchema.type !== 'object') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'MCP-compatible tool input schemas must have object roots',
+            path: ['inputSchema', 'type'],
+        });
+    }
+    if (tool.outputSchema && tool.outputSchema.type !== 'object') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Tool output schemas must have object roots',
+            path: ['outputSchema', 'type'],
+        });
+    }
+    if (tool.effect !== 'read' && tool.idempotency === 'none') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Effectful tools must declare idempotency support',
+            path: ['idempotency'],
+        });
+    }
+    if (tool.effect === 'financial' && tool.capabilityPackage !== 'finance') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Financial effects require the finance capability package',
+            path: ['capabilityPackage'],
+        });
+    }
+    if (tool.effect === 'security' && tool.capabilityPackage !== 'security') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Security effects require the security capability package',
+            path: ['capabilityPackage'],
+        });
+    }
+    if ((tool.effect === 'financial' || tool.effect === 'security') && tool.idempotency !== 'required') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Financial and security effects require idempotency keys',
+            path: ['idempotency'],
+        });
+    }
+    if (tool.effect !== 'read' && tool.invocation.method === 'GET') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Effectful tools cannot use GET invocations',
+            path: ['invocation', 'method'],
+        });
+    }
+});
 
 export const catalogEventSchema = z.object({
     type: identifierSchema,
@@ -220,6 +284,18 @@ export const appCapabilityCatalogSchema = z.object({
             });
         }
         names.add(tool.name);
+    }
+
+    const eventTypes = new Set<string>();
+    for (const [index, event] of catalog.events.entries()) {
+        if (eventTypes.has(event.type)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `Duplicate event type: ${event.type}`,
+                path: ['events', index, 'type'],
+            });
+        }
+        eventTypes.add(event.type);
     }
 });
 
