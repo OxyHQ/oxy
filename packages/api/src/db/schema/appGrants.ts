@@ -1,5 +1,5 @@
 /**
- * `app_grants` — a user's standing OAuth consent for a third-party application.
+ * `app_grants` — a user's standing OAuth consent for an application.
  *
  * Ported from `models/AppGrant.ts`. The row is upserted on every
  * `POST /auth/oauth/authorize`, unioning scopes and refreshing `last_used_at`,
@@ -8,9 +8,10 @@
  *
  * Keyed on `application_id` rather than the OAuth `client_id` because
  * `client_id` is `application_credentials.public_key`, which ROTATES — keying on
- * the credential would silently drop a user's consent every rotation. TRUSTED
- * applications are auto-approved and never record a grant, so this table is
- * exactly the revocable set the "Connected apps" UI lists.
+ * the credential would silently drop a user's consent every rotation. Ordinary
+ * scopes may still be auto-approved for a trusted application, but privileged,
+ * consent-required scopes such as `acting-as:offline` always record a grant.
+ * This table is exactly the revocable set the "Connected apps" UI lists.
  *
  * `scopes` carries no CHECK: an OAuth request may name a scope this platform
  * does not grant, and the grant records what the USER consented to. Constraining

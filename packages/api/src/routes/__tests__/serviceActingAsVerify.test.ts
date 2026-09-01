@@ -282,10 +282,9 @@ describe('caller trust', () => {
 // ---------------------------------------------------------------------------
 // Who may be acted for
 //
-// Offline delegation is AUTOMATIC for platform-trusted applications — the owner
-// decided the platform does not ask a user to authorize one Oxy app to act for
-// them in another. So the cases that carry weight are the ones that must still
-// refuse: an untrusted application, an inactive one, and a user who said no.
+// Offline delegation is explicit for every application. Platform trust permits
+// a service credential; only the user's `acting-as:offline` grant permits that
+// credential to borrow this user's identity.
 // ---------------------------------------------------------------------------
 
 describe('delegation', () => {
@@ -295,8 +294,8 @@ describe('delegation', () => {
     caller = await seedApp('internal');
   });
 
-  describe('automatic for first-party', () => {
-    it('authorizes a trusted app with NO grant row, carrying the app scopes', async () => {
+  describe('explicit for first-party', () => {
+    it('refuses a trusted app with NO grant row', async () => {
       const subject = await seedApp('internal');
       const subjectUser = await user();
 
@@ -306,15 +305,29 @@ describe('delegation', () => {
       );
 
       expect(res.status).toBe(200);
-      // `seedApp` grants the application `user:read`; the automatic path returns
-      // the application's own ceiling, since no per-user decision exists to
-      // narrow by. `requireScope` still intersects with the token's scopes.
-      expect(res.body.data).toEqual({ authorized: true, scopes: ['user:read'] });
+      expect(res.body.data).toEqual({ authorized: false, scopes: [] });
+    });
+
+    it('authorizes a trusted app only with the scopes the user granted', async () => {
+      const subject = await seedApp('internal');
+      const subjectUser = await user();
+      await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE, 'podcasts:write']);
+
+      const res = await verify(
+        { appId: subject.appId, userId: subjectUser },
+        serviceToken(caller)
+      );
+
+      expect(res.body.data).toEqual({
+        authorized: true,
+        scopes: [SERVICE_ACTING_AS_SCOPE, 'podcasts:write'],
+      });
     });
 
     it('refuses a trusted app that is no longer active', async () => {
       const subject = await seedApp('internal', 'suspended');
       const subjectUser = await user();
+      await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
 
       const res = await verify(
         { appId: subject.appId, userId: subjectUser },
@@ -326,11 +339,8 @@ describe('delegation', () => {
     });
   });
 
-  describe('automatic does NOT extend to third parties', () => {
+  describe('the same explicit rule applies to third parties', () => {
     it('REFUSES an untrusted subject app with no grant', async () => {
-      // The load-bearing negative of the whole rework. "Trusted" is the gate;
-      // if this passes, every self-service application on the platform can act
-      // as every user.
       const subject = await seedApp('third_party');
       const subjectUser = await user();
 
@@ -376,18 +386,19 @@ describe('delegation', () => {
   });
 
   describe('revocation', () => {
-    it('REFUSES a first-party app the user explicitly revoked', async () => {
-      // Automatic by default must not mean unrevocable. There is no grant row
-      // to delete for a trusted app, so this is the only thing standing between
-      // a user who said no and an app that keeps acting for them.
+    it('REFUSES a first-party app even while a stale grant row remains', async () => {
       const subject = await seedApp('internal');
       const subjectUser = await user();
+      await grant(subjectUser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
 
       const before = await verify(
         { appId: subject.appId, userId: subjectUser },
         serviceToken(caller)
       );
-      expect(before.body.data).toEqual({ authorized: true, scopes: ['user:read'] });
+      expect(before.body.data).toEqual({
+        authorized: true,
+        scopes: [SERVICE_ACTING_AS_SCOPE],
+      });
 
       await revoke(subjectUser, subject.appId);
 
@@ -417,6 +428,8 @@ describe('delegation', () => {
       const subject = await seedApp('internal');
       const refuser = await user();
       const bystander = await user();
+      await grant(refuser, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
+      await grant(bystander, subject.appId, [SERVICE_ACTING_AS_SCOPE]);
       await revoke(refuser, subject.appId);
 
       const refused = await verify(
@@ -429,13 +442,18 @@ describe('delegation', () => {
       );
 
       expect(refused.body.data).toEqual({ authorized: false, scopes: [] });
-      expect(allowed.body.data).toEqual({ authorized: true, scopes: ['user:read'] });
+      expect(allowed.body.data).toEqual({
+        authorized: true,
+        scopes: [SERVICE_ACTING_AS_SCOPE],
+      });
     });
 
     it('is per application — revoking one first-party app leaves the others acting', async () => {
       const revoked = await seedApp('internal');
       const other = await seedApp('internal');
       const subjectUser = await user();
+      await grant(subjectUser, revoked.appId, [SERVICE_ACTING_AS_SCOPE]);
+      await grant(subjectUser, other.appId, [SERVICE_ACTING_AS_SCOPE]);
       await revoke(subjectUser, revoked.appId);
 
       expect(
@@ -444,7 +462,7 @@ describe('delegation', () => {
       ).toEqual({ authorized: false, scopes: [] });
       expect(
         (await verify({ appId: other.appId, userId: subjectUser }, serviceToken(caller))).body.data
-      ).toEqual({ authorized: true, scopes: ['user:read'] });
+      ).toEqual({ authorized: true, scopes: [SERVICE_ACTING_AS_SCOPE] });
     });
 
     it('is undone by a grant naming acting-as:offline, and by nothing weaker', async () => {

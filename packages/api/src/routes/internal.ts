@@ -260,7 +260,7 @@ const serviceAccountSwitchOperator = z.string().trim().min(1).max(128);
  *
  *   1. the token carries `accounts:act-as-session`      → else 403
  *   2. the request names an operating human              → else 400
- *   3. that human has not revoked this application       → else 403
+ *   3. that human explicitly granted this application     → else 403
  *   4. the target account exists and is not archived     → else 404
  *   5. the human holds `account:act_as` over it          → else 403
  *   6. the target is an act-as-eligible KIND             → else 403
@@ -293,14 +293,12 @@ const serviceAccountSwitchOperator = z.string().trim().min(1).max(128);
  * That is the deliberate shape (a platform primitive, not an agent feature), and
  * it is written here so nobody has to infer it from a predicate's name.
  *
- * Combined with automatic first-party delegation — a trusted application needs
- * no per-user grant row (`resolveServiceActingAsGrant`), so for the applications
- * that can reach this router step 3 is in practice only the revocation check —
- * the radius of ONE LEAKED first-party service credential holding this scope is
- * every managed account that any non-revoking user can act as. Three things
- * bound it and each is a check rather than an intention: the staff-granted scope,
- * the per-member `account:act_as`, and the user's own revocation. Credential
- * rotation is load-bearing here, not hygiene.
+ * Trust opens the service router; it never supplies the human's decision.
+ * `resolveServiceActingAsGrant` requires a real `app_grants` row naming
+ * `acting-as:offline`, so the radius of one leaked credential is limited to
+ * users who explicitly consented and accounts those users may actually operate.
+ * Three independent checks bound it: the staff-granted token scope, the user's
+ * explicit app grant, and the per-account `account:act_as` permission.
  *
  * ## What is deliberately NOT done
  *
@@ -316,8 +314,8 @@ const serviceAccountSwitchOperator = z.string().trim().min(1).max(128);
  * The session's validity stays bound to the operator's membership, because
  * `operatedByUserId` is recorded on it — the `account:act_as` re-check on
  * validate and refresh reads that column, so withdrawing the membership kills
- * the live session rather than merely refusing the next mint. Revoking the
- * application (`service_acting_as_revocations`, step 3) refuses future mints.
+ * the live session rather than merely refusing the next mint. Removing the app
+ * grant or writing its revocation marker (step 3) refuses future mints.
  */
 router.post(
   '/accounts/:id/service-switch',
