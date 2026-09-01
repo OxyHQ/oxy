@@ -88,4 +88,68 @@ describe('agency contracts', () => {
 
         expect(appCapabilityCatalogSchema.safeParse(catalog).success).toBe(false);
     });
+
+    it('allows tools without structured output schemas', () => {
+        const catalog = {
+            schemaVersion: '1' as const,
+            appId: 'noted',
+            version: '1.0.0',
+            audience: 'noted-api',
+            accountResourceType: 'workspace',
+            tools: [{
+                name: 'reportSyncError',
+                version: '1.0.0',
+                description: 'Return a text-only domain result.',
+                inputSchema: { type: 'object', additionalProperties: false },
+                capabilityPackage: 'read' as const,
+                requiredCapabilities: ['notes.read'],
+                resourceTypes: ['workspace'],
+                effect: 'read' as const,
+                idempotency: 'none' as const,
+                rollback: 'none' as const,
+                exposure: ['mcp' as const],
+                invocation: { method: 'GET' as const, path: '/notes/sync-status' },
+            }],
+            events: [],
+        };
+
+        expect(appCapabilityCatalogSchema.safeParse(catalog).success).toBe(true);
+    });
+
+    it('rejects unsafe or contradictory effect metadata', () => {
+        const tool = {
+            name: 'chargeAccount',
+            version: '1.0.0',
+            description: 'Charge a delegated account.',
+            inputSchema: { type: 'object' },
+            outputSchema: { type: 'object' },
+            capabilityPackage: 'create' as const,
+            requiredCapabilities: ['payments.charge'],
+            resourceTypes: ['billing_account'],
+            effect: 'financial' as const,
+            idempotency: 'none' as const,
+            rollback: 'none' as const,
+            exposure: ['internal' as const, 'internal' as const],
+            invocation: { method: 'POST' as const, path: '/payments' },
+        };
+        const result = appCapabilityCatalogSchema.safeParse({
+            schemaVersion: '1',
+            appId: 'mercaria',
+            version: '1.0.0',
+            audience: 'mercaria-api',
+            accountResourceType: 'billing_account',
+            tools: [tool],
+            events: [],
+        });
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+            expect(result.error.issues.map(({ message }) => message)).toEqual(expect.arrayContaining([
+                'exposure must not contain duplicates',
+                'Effectful tools must declare idempotency support',
+                'Financial effects require the finance capability package',
+                'Financial and security effects require idempotency keys',
+            ]));
+        }
+    });
 });

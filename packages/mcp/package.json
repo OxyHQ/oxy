@@ -39,9 +39,9 @@
     "prepublishOnly": "node ../../scripts/assert-bun-publish.mjs && bun run clean && bun run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@oxyhq/contracts": "workspace:^",
-    "zod": "^3.25.64"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
