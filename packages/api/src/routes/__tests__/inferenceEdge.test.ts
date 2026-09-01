@@ -190,8 +190,10 @@ interface Fixture {
   readonly modelId: string;
   readonly priceVersionId: string;
   readonly provider: string;
-  /** The one deployment `makeFixture` publishes. See {@link addDeployment}. */
+  /** Kaana inventory identity of the deployment `makeFixture` publishes. */
   readonly deploymentId: string;
+  /** Catalogue PK, deliberately different from the Kaana identity above. */
+  readonly databaseDeploymentId: string;
   /** For {@link addDeployment}: a second route serves the SAME weights. */
   readonly revisionId: string;
 }
@@ -211,11 +213,14 @@ interface FixtureOptions {
    * default is the zero-retention posture every other case relies on.
    */
   readonly retainsAndTrains?: boolean;
+  /** Leave the catalogue row without a Kaana inventory identity. */
+  readonly missingInternalRouteId?: boolean;
 }
 
 async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
   const db = getDb();
   const tag = suffix();
+  const internalRouteId = `dep_primary_${tag}`;
 
   const [account] = await db
     .insert(users)
@@ -346,6 +351,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       legalReviewedAt: new Date(),
       legalReviewEvidenceRef: `contract-register/${tag}`,
       permissionState: "approved",
+      ...(options.missingInternalRouteId ? {} : { internalRouteId }),
       ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
     })
     .returning({ id: inferenceDeployments.id });
@@ -372,7 +378,8 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     modelId: model.modelId ?? "",
     priceVersionId: priceVersion.id,
     provider: providerSlug,
-    deploymentId: deployment.id,
+    deploymentId: internalRouteId,
+    databaseDeploymentId: deployment.id,
     revisionId: revisionRow.id,
   };
 }
@@ -403,11 +410,13 @@ async function addDeployment(
 ): Promise<{
   providerSlug: string;
   deploymentId: string;
+  databaseDeploymentId: string;
   priceVersionId: string;
 }> {
   const db = getDb();
   const tag = suffix();
   const providerSlug = `${options.rank}prv${tag}`;
+  const internalRouteId = `dep_alternate_${tag}`;
 
   await db.insert(inferenceProviders).values({
     slug: providerSlug,
@@ -463,12 +472,14 @@ async function addDeployment(
       legalReviewEvidenceRef: `contract-register/${tag}`,
       permissionState: "approved",
       priceVersionId: priceVersion.id,
+      internalRouteId,
     })
     .returning({ id: inferenceDeployments.id });
 
   return {
     providerSlug,
-    deploymentId: deployment.id,
+    deploymentId: internalRouteId,
+    databaseDeploymentId: deployment.id,
     priceVersionId: priceVersion.id,
   };
 }
@@ -781,6 +792,48 @@ describe("scope authorization", () => {
         expect(seen).toHaveLength(0);
       },
     );
+  });
+});
+
+describe("Kaana route identity admission", () => {
+  it("refuses an unmapped catalogue row before reservation or forwarding", async () => {
+    const fixture = await makeFixture({
+      fund: "10.000000000000",
+      missingInternalRouteId: true,
+    });
+    const before = await balanceOf(fixture.accountId);
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 1,
+            output: 1,
+            provider: fixture.provider,
+          }),
+        seen,
+      ),
+      async (request) => {
+        const response = await request(
+          "POST",
+          "/v1/responses",
+          { model: fixture.modelReference, input: "hi" },
+          bearer(fixture.token),
+        );
+        expect(response.status).toBe(503);
+        expect(json(response)).toMatchObject({ code: "no_route_available" });
+      },
+    );
+
+    expect(fixture.databaseDeploymentId).not.toBe(fixture.deploymentId);
+    expect(seen).toHaveLength(0);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
+    const reservations = await getDb()
+      .select({ id: usageReservations.id })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(0);
   });
 });
 
@@ -2921,6 +2974,14 @@ describe("the envelope’s authorized routes", () => {
       fixture.deploymentId,
       failover.deploymentId,
     ]);
+    expect(fixture.databaseDeploymentId).not.toBe(fixture.deploymentId);
+    expect(failover.databaseDeploymentId).not.toBe(failover.deploymentId);
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(
+      fixture.databaseDeploymentId,
+    );
+    expect(routes?.map((route) => route.deploymentId)).not.toContain(
+      failover.databaseDeploymentId,
+    );
     expect(routes?.map((route) => route.provider)).toEqual([
       fixture.provider,
       failover.providerSlug,

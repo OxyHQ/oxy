@@ -305,6 +305,7 @@ async function makeFixture(): Promise<Fixture> {
     legalReviewEvidenceRef: `contract-register/${tag}`,
     permissionState: 'approved',
     priceVersionId: priceVersion.id,
+    internalRouteId: `dep_zero_usage_${tag}`,
   });
 
   await provisionBillingProfile({ accountId: account.id });

@@ -195,6 +195,8 @@ interface DeploymentOptions {
   readonly trainsOnCustomerData?: boolean;
   readonly zeroDataRetentionAvailable?: boolean;
   readonly regions?: string[];
+  /** `null` deliberately leaves the catalogue route unmapped from Kaana. */
+  readonly internalRouteId?: string | null;
   readonly availabilityScope?: 'public_payg' | 'oxy_hosted' | 'internal_alia';
   readonly dedicatedCapacity?: boolean;
   /** Publish the route with no price version, so nothing can be quoted. */
@@ -239,9 +241,15 @@ const PERMISSION_FOR_SCOPE = {
 async function insertDeployment(
   model: ModelFixture,
   options: DeploymentOptions
-): Promise<{ providerSlug: string; deploymentId: string }> {
+): Promise<{
+  providerSlug: string;
+  databaseDeploymentId: string;
+  internalRouteId: string | null;
+}> {
   const db = getDb();
   const providerSlug = `${options.rank}prv${suffix()}`;
+  const internalRouteId =
+    options.internalRouteId === undefined ? `dep_${providerSlug}_${suffix()}` : options.internalRouteId;
   const scope = options.availabilityScope ?? 'public_payg';
 
   // The provider ORGANISATION's own posture is deliberately the OPPOSITE of the
@@ -294,11 +302,12 @@ async function insertDeployment(
       legalReviewedAt: new Date(),
       legalReviewEvidenceRef: `contract-register/${suffix()}`,
       permissionState: 'approved',
+      internalRouteId,
       ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
     })
     .returning({ id: inferenceDeployments.id });
 
-  return { providerSlug, deploymentId: deployment.id };
+  return { providerSlug, databaseDeploymentId: deployment.id, internalRouteId };
 }
 
 /** The constraints a policy with exactly these controls set would impose. */
@@ -1127,10 +1136,52 @@ describe('a request that cannot be served under its own policy is refused', () =
     // An entry carries what EXECUTING the route needs, and the deployment id is
     // the half `target` alone cannot express: two deployments of one model share
     // a revision-pinned reference and differ only here.
-    expect(resolution.alternates[0].deploymentId).toBe(second.deploymentId);
+    expect(first.internalRouteId).not.toBeNull();
+    expect(second.internalRouteId).not.toBeNull();
+    expect(first.databaseDeploymentId).not.toBe(first.internalRouteId);
+    expect(second.databaseDeploymentId).not.toBe(second.internalRouteId);
+    expect(resolution.route.deploymentId).toBe(first.internalRouteId);
+    expect(resolution.alternates[0].deploymentId).toBe(second.internalRouteId);
     expect(resolution.alternates[0].deploymentId).not.toBe(resolution.route.deploymentId);
     expect(resolution.alternates[0].modelReference).toBe(model.modelReference);
     expect(resolution.alternates[0].regions).toEqual(['us-west-2']);
+  });
+
+  it('excludes unmapped rows and refuses when no exact Kaana route remains', async () => {
+    const model = await insertModel();
+    const unmapped = await insertDeployment(model, { rank: 'a', internalRouteId: null });
+    const mapped = await insertDeployment(model, {
+      rank: 'z',
+      internalRouteId: `dep_exact_${suffix()}`,
+      regions: ['eu-west-1', 'us-west-2'],
+    });
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+    expect(resolution).toEqual({
+      status: 'resolved',
+      route: expect.objectContaining({
+        deploymentId: mapped.internalRouteId,
+        regions: ['eu-west-1', 'us-west-2'],
+      }),
+      alternates: [],
+    });
+    expect(unmapped.databaseDeploymentId).not.toBe(mapped.internalRouteId);
+
+    const onlyUnmapped = await insertModel();
+    await insertDeployment(onlyUnmapped, { rank: 'a', internalRouteId: null });
+    await expect(
+      resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        onlyUnmapped.modelId,
+        UNCONSTRAINED_ROUTING,
+        TEXT_COMPLETION_MODALITY
+      )
+    ).resolves.toEqual({ status: 'unmapped-route', modelReference: onlyUnmapped.modelId });
   });
 
   it('does not authorize a survivor Oxy publishes no price for', async () => {

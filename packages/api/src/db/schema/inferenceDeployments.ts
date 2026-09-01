@@ -147,9 +147,11 @@ export const inferenceDeployments = pgTable(
       .references(() => inferenceProviders.slug, { onDelete: 'restrict' }),
 
     /**
-     * Regional attestations supplied by the upstream. Empty means no regional
-     * attestation, never "global" or an inferred infrastructure region. The
-     * selector excludes this route from every explicit regional policy.
+     * The exact regional set in Kaana's inventory for `internalRouteId`. Empty
+     * means no regional attestation, never "global" or an inferred
+     * infrastructure region. Values are copied without aliases or normalization:
+     * Kaana refuses a signed set that differs from its inventory. The selector
+     * excludes this route from every explicit regional policy.
      */
     regions: text().array().notNull(),
 
@@ -229,11 +231,12 @@ export const inferenceDeployments = pgTable(
     /**
      * PROTECTED. The data plane's own identifier for this route.
      *
-     * Stored so operations can correlate a catalogue row with what Kaana is
-     * running. It is exactly the kind of internal topology the serving boundary
-     * says must never reach a customer, even when attribution is permitted:
-     * naming the serving PROVIDER is attribution, naming the internal route is
-     * a map of the infrastructure.
+     * Stored so the edge can name exactly what Kaana is running. A selectable
+     * row with no mapping is refused before reservation; the catalogue PK is
+     * never a compatibility fallback. It is exactly the kind of internal
+     * topology the serving boundary says must never reach a customer, even when
+     * attribution is permitted: naming the serving PROVIDER is attribution,
+     * naming the internal route is a map of the infrastructure.
      */
     internalRouteId: text(),
 

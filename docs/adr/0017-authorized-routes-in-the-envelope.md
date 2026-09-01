@@ -211,7 +211,9 @@ means.
   `deploymentIdSchema` already documents the id as opaque to CUSTOMERS, and it is
   the data plane's own key rather than Oxy's, so this direction of exchange is the
   one ADR 0006 item 8 asks to have stated: Oxy names the deployment, the data
-  plane resolves it against its inventory.
+  plane resolves it against its inventory. Concretely Oxy sends
+  `inference_deployments.internal_route_id`, never the catalogue row's `id`; an
+  unmapped row is not executable and is refused before reservation.
 - **The data plane may now be told which deployment to use.** That answers half
   of the "who picks the current revision of an unpinned reference" question in the
   same report: when a list is present, Oxy picked, and the entry is

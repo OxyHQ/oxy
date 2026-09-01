@@ -41,7 +41,9 @@ import {
   listRoutingProfiles,
   PUBLIC_CATALOGUE_VIEWER,
   resolveCatalogueViewer,
+  resolveEdgeRoute,
   selectRouteForViewer,
+  TEXT_COMPLETION_MODALITY,
   UNCONSTRAINED_ROUTING,
   UNGRANTABLE_SCOPES,
 } from '../inferenceCatalogue.service';
@@ -607,6 +609,37 @@ describe('the customer view cannot carry an internal route id or a wholesale cos
     const serialized = JSON.stringify(entry);
     expect(serialized).not.toContain(internalRouteId);
     expect(serialized).not.toContain(wholesaleAmount);
+  });
+
+  it('uses the protected Kaana deployment id internally without publishing it', async () => {
+    const internalRouteId = `dep_exact_${suffix()}`;
+    const route = await insertRoute({
+      availabilityScope: 'public_payg',
+      commercialPermission: 'public_resale_approved',
+      internalRouteId,
+      price: {
+        currency: 'USD',
+        unitPrices: [
+          { unit: 'input_tokens', amount: '1.000000000000', per: 1_000_000 },
+        ],
+      },
+    });
+
+    const entry = await getCatalogueEntryForViewer(PUBLIC_CATALOGUE_VIEWER, route.modelId);
+    expect(entry).toBeDefined();
+    expect(JSON.stringify(entry)).not.toContain(internalRouteId);
+    expect(route.deploymentId).not.toBe(internalRouteId);
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      route.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+    expect(resolution).toMatchObject({
+      status: 'resolved',
+      route: { deploymentId: internalRouteId },
+    });
   });
 
   it('withholds the legal-review evidence reference too', async () => {

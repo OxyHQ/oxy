@@ -223,6 +223,12 @@ Two readings worth stating outright, because the alternatives look reasonable:
   requirement and does not qualify. An empty deployment set means no regional
   attestation, not “everywhere”; it fails both an allow-list and a deny-list and
   is eligible only when neither regional control is present.
+- **The signed route descriptor is an exact Kaana inventory identity.** Oxy
+  copies `internal_route_id` into `deploymentId` and the deployment's complete
+  `regions` set without aliases, inferred infrastructure regions or
+  normalization. A row with no internal route id is refused before reservation;
+  Kaana independently refuses any provider, model-reference or region-set drift
+  against that inventory id.
 - **`requireZeroDataRetention` needs the route to actually not retain**, not
   merely to be capable of it. `zeroDataRetentionAvailable` is a capability; a
   route carrying it while still retaining payloads by default is excluded.

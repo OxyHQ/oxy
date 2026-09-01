@@ -927,7 +927,7 @@ export const CUSTOMER_SAFE_DEPLOYMENT_COLUMNS = {
  * customer should start depending on.
  */
 export const INTERNAL_DEPLOYMENT_COLUMNS: Readonly<Record<string, string>> = {
-  id: 'The route’s own row id. `deploymentIdSchema` calls it opaque to customers: which concrete endpoint served a request is operational detail, and only the customer-safe subset of it is ever attributed back.',
+  id: 'The catalogue row’s database identity. It is never a serving-route identifier and never crosses the Kaana boundary.',
   modelRevisionId:
     'An internal row id. The customer sees the revision LABEL (`2026-05-01`), which is the thing they pin; the id would be a second, private name for it.',
   permissionState:
@@ -1595,18 +1595,20 @@ export async function selectRouteForViewer(
  */
 export interface EdgeRoute {
   /**
-   * `inference_deployments.id` — which concrete endpoint. Opaque to customers
-   * and never in a customer projection; it crosses only to the data plane, which
-   * resolves it against its own inventory.
+   * `inference_deployments.internal_route_id` — Kaana's exact `dep_*` inventory
+   * key. Opaque to customers and never in a customer projection. The catalogue
+   * row's own `id` is a different identity and must never be substituted here.
    */
   readonly deploymentId: string;
   /** `<publisher>/<model>@<revision>` — always revision-pinned. */
   readonly modelReference: string;
   readonly provider: string;
   /**
-   * Regional attestations supplied by the upstream. Empty means no attestation
-   * and is eligible only when the customer's allowed and denied region lists
-   * are both empty. For a non-empty set, Oxy applies the policy as a subset.
+   * Kaana inventory's exact regional attestations for `deploymentId`, copied
+   * without aliases or normalization. Empty means no attestation and is eligible
+   * only when the customer's allowed and denied region lists are both empty. For
+   * a non-empty set, Oxy applies the policy as a subset. Kaana independently
+   * refuses an envelope whose set differs from the same inventory deployment.
    */
   readonly regions: readonly string[];
   readonly availabilityScope: AvailabilityScope;
@@ -1718,6 +1720,7 @@ export type EdgeRouteResolution =
       readonly alternates: readonly EdgeRoute[];
     }
   | { readonly status: 'unknown-model'; readonly modelReference: string }
+  | { readonly status: 'unmapped-route'; readonly modelReference: string }
   | { readonly status: 'unpriced-route'; readonly modelReference: string }
   | {
       readonly status: 'policy-excluded';
@@ -1794,9 +1797,10 @@ export async function resolveEdgeRoute(
   const rows = await getDb()
     .select({
       ...CONSTRAINT_COLUMNS,
-      // Not a constraint input: the id is what an `authorizedRoutes` entry names
-      // so the data plane can execute the route without resolving it again.
-      deploymentId: inferenceDeployments.id,
+      // Not a constraint input: this is Kaana's exact inventory key. The
+      // catalogue PK is intentionally not selected, so it cannot accidentally
+      // become an `authorizedRoutes[].deploymentId` fallback.
+      internalRouteId: inferenceDeployments.internalRouteId,
       revision: inferenceModelRevisions.revision,
       isCurrent: inferenceModelRevisions.isCurrent,
       retiredAt: inferenceModelRevisions.retiredAt,
@@ -1865,9 +1869,10 @@ export async function resolveEdgeRoute(
   const edgeRouteOf = (
     row: (typeof capable)[number],
     resolvedModelId: string,
+    internalRouteId: string,
     priceVersionId: string
   ): EdgeRoute => ({
-    deploymentId: row.deploymentId,
+    deploymentId: internalRouteId,
     modelReference: composeModelReference(resolvedModelId, row.revision),
     provider: row.providerSlug,
     regions: row.regions,
@@ -1879,7 +1884,16 @@ export async function resolveEdgeRoute(
     outputModalities: row.outputModalities,
   });
 
-  const chosen = permitted.kept[0];
+  // A catalogue route not yet reconciled to one exact Kaana inventory entry is
+  // not executable. Exclude it before choosing a primary, sizing a reservation
+  // or forwarding, and never fall back to the catalogue PK as a compatibility
+  // identity. A mapped survivor may still be served in its declared order.
+  const routable = permitted.kept.filter((candidate) => candidate.internalRouteId !== null);
+  const chosen = routable[0];
+  if (chosen === undefined || chosen.internalRouteId === null) {
+    return { status: 'unmapped-route', modelReference };
+  }
+
   if (chosen.resolvedModelId === null) {
     return { status: 'unknown-model', modelReference };
   }
@@ -1890,14 +1904,21 @@ export async function resolveEdgeRoute(
 
   return {
     status: 'resolved',
-    route: edgeRouteOf(chosen, chosen.resolvedModelId, chosen.priceVersionId),
+    route: edgeRouteOf(
+      chosen,
+      chosen.resolvedModelId,
+      chosen.internalRouteId,
+      chosen.priceVersionId
+    ),
     // The survivors this resolver used to compute and discard. Order is already
     // preference order — the same `orderBy` the primary was taken from — so the
     // list needs no ranking of its own.
-    alternates: permitted.kept.slice(1).flatMap((survivor) => {
-      const { resolvedModelId, priceVersionId } = survivor;
-      if (resolvedModelId === null || priceVersionId === null) return [];
-      return [edgeRouteOf(survivor, resolvedModelId, priceVersionId)];
+    alternates: routable.slice(1).flatMap((survivor) => {
+      const { resolvedModelId, internalRouteId, priceVersionId } = survivor;
+      if (resolvedModelId === null || internalRouteId === null || priceVersionId === null) {
+        return [];
+      }
+      return [edgeRouteOf(survivor, resolvedModelId, internalRouteId, priceVersionId)];
     }),
   };
 }

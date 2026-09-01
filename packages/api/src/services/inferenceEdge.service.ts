@@ -904,6 +904,22 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       { param: "model" },
     );
   }
+  if (resolution.status === "unmapped-route") {
+    // `internal_route_id` is the identity Kaana resolves. A selectable catalogue
+    // row with no exact inventory mapping is a platform configuration gap, and
+    // must be refused before a hold is reserved or any data-plane call is made.
+    // Never substitute the catalogue PK: Kaana has no such identity.
+    await recordEdgeTelemetry(context, {
+      requestedModelReference,
+      statusCode: inferenceErrorStatus("no_route_available"),
+      units: {},
+    });
+    return refuse(
+      "no_route_available",
+      `No Kaana route is mapped for ${requestedModelReference}.`,
+      { reason: "missing_internal_route_id" },
+    );
+  }
   if (resolution.status === "unpriced-route") {
     await recordEdgeTelemetry(context, {
       requestedModelReference,

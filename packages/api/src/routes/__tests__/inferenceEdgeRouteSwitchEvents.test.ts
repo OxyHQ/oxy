@@ -335,6 +335,7 @@ async function makeFixture(): Promise<Fixture> {
         legalReviewEvidenceRef: `contract-register/${tag}`,
         permissionState: "approved",
         priceVersionId: priceVersion.id,
+        internalRouteId: `dep_${deploymentProvider}_${slug}_${tag}`,
       });
     }
   };
