@@ -11295,6 +11295,744 @@
         "operationId": "deleteDevicesDeviceId"
       }
     },
+    "/email/ai": {
+      "post": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "`POST /email/ai` — one authenticated, stateless Inbox point action.",
+        "description": "The server owns identity, prompts, labels, token ceilings and routing. This\nendpoint is not an Alia conversation surface.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The completed point action.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "required": [
+                        "text",
+                        "requestId"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-draft"
+                        ]
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "prompt",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-polish"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "text"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-change-tone"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "text",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-adjust-length"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "shorter",
+                          "longer"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "text",
+                      "direction"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-subject"
+                        ]
+                      },
+                      "body": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "body"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "daily-brief"
+                        ]
+                      },
+                      "counts": {
+                        "type": "object",
+                        "properties": {
+                          "total": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "unread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "starred": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "withAttachments": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          }
+                        },
+                        "required": [
+                          "total",
+                          "unread",
+                          "starred",
+                          "withAttachments"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "counts"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "natural-language-search"
+                        ]
+                      },
+                      "query": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "query"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "smart-replies"
+                        ]
+                      },
+                      "message": {
+                        "type": "object",
+                        "properties": {
+                          "sender": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 512
+                          },
+                          "subject": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "body": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100000
+                          }
+                        },
+                        "required": [
+                          "sender",
+                          "subject",
+                          "body"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "message"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "thread-summary"
+                        ]
+                      },
+                      "messages": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "sender": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 512
+                            },
+                            "sentAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "body": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100000
+                            }
+                          },
+                          "required": [
+                            "sender",
+                            "body"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 50
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "messages"
+                    ]
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "feature"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAi"
+      }
+    },
+    "/email/ai/stream": {
+      "post": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "`POST /email/ai/stream` — stream a supported Inbox point action as validated",
+        "description": "normalized inference events. A failure after headers emits a terminal,\nuser-safe `error` event rather than a successful-looking truncation.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Normalized SSE events ending in `done` or `error`.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-draft"
+                        ]
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "prompt",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-polish"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "text"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-change-tone"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "text",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-adjust-length"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "shorter",
+                          "longer"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "text",
+                      "direction"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "compose-subject"
+                        ]
+                      },
+                      "body": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100000
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "body"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "daily-brief"
+                        ]
+                      },
+                      "counts": {
+                        "type": "object",
+                        "properties": {
+                          "total": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "unread": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "starred": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          },
+                          "withAttachments": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1000000
+                          }
+                        },
+                        "required": [
+                          "total",
+                          "unread",
+                          "starred",
+                          "withAttachments"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "counts"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "natural-language-search"
+                        ]
+                      },
+                      "query": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "query"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "smart-replies"
+                        ]
+                      },
+                      "message": {
+                        "type": "object",
+                        "properties": {
+                          "sender": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 512
+                          },
+                          "subject": {
+                            "type": "string",
+                            "maxLength": 2000
+                          },
+                          "body": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100000
+                          }
+                        },
+                        "required": [
+                          "sender",
+                          "subject",
+                          "body"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "message"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "feature": {
+                        "type": "string",
+                        "enum": [
+                          "thread-summary"
+                        ]
+                      },
+                      "messages": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "sender": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 512
+                            },
+                            "sentAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "body": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 100000
+                            }
+                          },
+                          "required": [
+                            "sender",
+                            "body"
+                          ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 50
+                      }
+                    },
+                    "required": [
+                      "feature",
+                      "messages"
+                    ]
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "feature"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAiStream"
+      }
+    },
     "/email/bundles": {
       "get": {
         "tags": [

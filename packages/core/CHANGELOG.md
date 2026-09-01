@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- `OxyInferenceClient.stream(request, options?)` owns the normalized inference
+  SSE transport. It resolves the configured bearer for each request, forwards
+  delegation and idempotency headers, bounds frame buffering, validates every
+  event plus its request identity and sequence, requires a terminal event, and
+  propagates cancellation. Product backends no longer need their own raw fetch,
+  bearer or SSE parser to stream inference safely.
+
 ### Security: `oxy.auth()` authenticated forged tokens as any account
 
 **Every backend mounting `oxy.auth()` could be authenticated as any user by an

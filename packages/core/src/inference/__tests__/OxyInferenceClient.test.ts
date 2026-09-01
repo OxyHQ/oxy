@@ -259,6 +259,206 @@ describe('OxyInferenceClient', () => {
         });
     });
 
+    describe('stream', () => {
+        const start = {
+            schemaVersion: 1,
+            type: 'start',
+            requestId: 'req_1',
+            sequence: 0,
+            resolvedModelReference: 'openai/gpt-5@2026-06-01',
+            servingProvider: 'openai',
+            startedAt: '2026-08-15T09:41:00.000Z',
+        };
+        const done = {
+            schemaVersion: 1,
+            type: 'done',
+            requestId: 'req_1',
+            sequence: 1,
+            finishReason: 'stop',
+            completedAt: '2026-08-15T09:41:02.000Z',
+        };
+
+        function streamFetch(events: readonly Record<string, unknown>[]) {
+            const calls: Array<{ url: string; init: RequestInit }> = [];
+            const impl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
+                calls.push({ url: String(url), init: init ?? {} });
+                const body = events
+                    .map(
+                        (event) =>
+                            `event: ${String(event.type)}\ndata: ${JSON.stringify(event)}\n\n`,
+                    )
+                    .join('');
+                return new Response(body, {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/event-stream; charset=utf-8' },
+                });
+            });
+            return { impl: impl as unknown as typeof fetch, calls };
+        }
+
+        function rawStreamFetch(body: BodyInit, contentType = 'text/event-stream; charset=utf-8') {
+            return jest.fn(
+                async () =>
+                    new Response(body, {
+                        status: 200,
+                        headers: { 'Content-Type': contentType },
+                    }),
+            ) as unknown as typeof fetch;
+        }
+
+        it('owns the streaming transport and yields only validated normalized events', async () => {
+            const { impl, calls } = streamFetch([start, done]);
+            const client = new OxyInferenceClient({
+                credential: 'service-token',
+                baseURL: 'http://test.invalid',
+                fetch: impl,
+            });
+
+            const events = [];
+            for await (const event of client.stream(
+                { input: 'hello' },
+                { delegatedUserId: 'user-1' },
+            )) {
+                events.push(event);
+            }
+
+            expect(events.map((event) => event.type)).toEqual(['start', 'done']);
+            expect(headerOf(calls[0].init, 'Authorization')).toBe('Bearer service-token');
+            expect(headerOf(calls[0].init, 'X-Oxy-User-Id')).toBe('user-1');
+            expect(JSON.parse(String(calls[0].init.body))).toEqual({
+                input: 'hello',
+                stream: true,
+            });
+        });
+
+        it.each([
+            ['a non-start first event', [{ ...done, sequence: 0 }]],
+            ['a sequence gap', [start, { ...done, sequence: 2 }]],
+            ['a changed request id', [start, { ...done, requestId: 'req_other' }]],
+        ])('rejects %s with a user-safe message', async (_label, events) => {
+            const secret = 'credential-sensitive-value';
+            const poisoned = events.map((event) => ({ ...event, ignored: secret }));
+            const { impl } = streamFetch(poisoned);
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: impl,
+            });
+
+            const error = await (async () => {
+                try {
+                    for await (const _event of client.stream({ input: 'hello' })) {
+                        // Consume until validation rejects the stream.
+                    }
+                    return undefined;
+                } catch (thrown) {
+                    return thrown;
+                }
+            })();
+
+            expect(error).toBeInstanceOf(Error);
+            expect(String(error)).toContain('invalid event stream');
+            expect(String(error)).not.toContain(secret);
+        });
+
+        it.each([
+            [
+                'an event-name mismatch',
+                `event: done\ndata: ${JSON.stringify(start)}\n\n`,
+            ],
+            ['malformed JSON', 'event: start\ndata: {"credential":"sensitive-value"\n\n'],
+            [
+                'a stream without a terminal event',
+                `event: start\ndata: ${JSON.stringify(start)}\n\n`,
+            ],
+            [
+                'an oversized frame',
+                `event: start\ndata: ${'x'.repeat(1024 * 1024 + 1)}\n\n`,
+            ],
+        ])('rejects %s without reflecting the upstream frame', async (_label, body) => {
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: rawStreamFetch(body),
+            });
+
+            const error = await (async () => {
+                try {
+                    for await (const _event of client.stream({ input: 'hello' })) {
+                        // Consume until validation rejects the stream.
+                    }
+                    return undefined;
+                } catch (thrown) {
+                    return thrown;
+                }
+            })();
+
+            expect(error).toBeInstanceOf(Error);
+            expect(String(error)).toBe('Error: The inference API returned an invalid event stream.');
+            expect(String(error)).not.toContain('sensitive-value');
+        });
+
+        it('rejects lookalike content types instead of treating them as SSE', async () => {
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: rawStreamFetch('', 'text/event-stream-not-really'),
+            });
+
+            await expect(async () => {
+                for await (const _event of client.stream({ input: 'hello' })) {
+                    // The response is rejected before decoding.
+                }
+            }).rejects.toThrow('invalid event stream');
+        });
+
+        it('actively cancels the response reader when the caller aborts', async () => {
+            const cancel = jest.fn();
+            const encoder = new TextEncoder();
+            const body = new ReadableStream<Uint8Array>({
+                start(controller) {
+                    controller.enqueue(
+                        encoder.encode(`event: start\ndata: ${JSON.stringify(start)}\n\n`),
+                    );
+                },
+                cancel,
+            });
+            const controller = new AbortController();
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: rawStreamFetch(body),
+            });
+            const iterator = client
+                .stream({ input: 'hello' }, { signal: controller.signal })
+                [Symbol.asyncIterator]();
+
+            await expect(iterator.next()).resolves.toEqual({ value: start, done: false });
+            controller.abort();
+            await expect(iterator.next()).resolves.toEqual({ value: undefined, done: true });
+            expect(cancel).toHaveBeenCalledTimes(1);
+        });
+
+        it('passes cancellation to the owned fetch', async () => {
+            const { impl, calls } = streamFetch([start, done]);
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: impl,
+            });
+            const controller = new AbortController();
+
+            for await (const _event of client.stream(
+                { input: 'hello' },
+                { signal: controller.signal },
+            )) {
+                // Exhaust the response.
+            }
+
+            expect(calls[0].init.signal).toBe(controller.signal);
+        });
+    });
+
     describe('refusals', () => {
         it('maps the edge error body onto OxyInferenceError, keeping the server verdict', async () => {
             // This IS what a developer observes today: the edge authenticates,
