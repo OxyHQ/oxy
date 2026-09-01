@@ -42,7 +42,7 @@
     "expo-symbols": "catalog:",
     "expo-system-ui": "catalog:",
     "expo-web-browser": "catalog:",
-    "lottie-react-native": "^7.3.8",
+    "lottie-react-native": "^7.5.0",
     "nativewind": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
