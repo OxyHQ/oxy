@@ -463,6 +463,19 @@ date                Date header from message
 receivedAt          when our server received it
 ```
 
+### Search and conversation identity
+
+`GET /email/search` accepts Gmail-style read-state operators in its `q` query
+parameter: `is:unread` maps to `flags.seen=false` and `is:read` maps to
+`flags.seen=true`. The operators are removed before the remaining text is sent
+to MongoDB full-text search; combining both operators is rejected.
+
+Messages do not currently persist a canonical `threadId`. `messageId`,
+`inReplyTo`, and `references` are RFC headers and can be absent or incomplete,
+so the API's existing `getThread` relation is only a best-effort lookup. The
+API must not expose a synthetic thread ID or ask clients to group conversations
+by subject until a reliable server-side conversation identity is persisted.
+
 ## Encryption
 
 For users with a `publicKey` in their Oxy profile:

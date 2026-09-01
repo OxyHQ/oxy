@@ -17,6 +17,7 @@
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Platform } from 'react-native';
+import { toast } from '@oxyhq/bloom/toast';
 import { logger } from '@oxyhq/core';
 import type { PublicApplication } from '@oxyhq/core';
 import { redirectToAuthorize, openAuthorizeUrlNative } from '../../src/ui/components/oauthNavigation';
@@ -155,6 +156,9 @@ describe('OxySignInButton', () => {
     expect(redirectToAuthorizeMock).not.toHaveBeenCalled();
     expect(openAccountDialog).not.toHaveBeenCalled();
     expect(window.sessionStorage.getItem(OXY_OAUTH_STATE_STORAGE_KEY)).toBeNull();
+    // The abort must be VISIBLE, not just logged — a console line alone left the
+    // button reading as dead to the user.
+    expect(toast.error).toHaveBeenCalledTimes(1);
 
     errorSpy.mockRestore();
   });
@@ -228,6 +232,7 @@ describe('OxySignInButton', () => {
     await waitFor(() => expect(openAuthorizeUrlNativeMock).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(warnSpy).toHaveBeenCalled());
     expect(redirectToAuthorizeMock).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledTimes(1);
 
     warnSpy.mockRestore();
   });
@@ -258,8 +263,26 @@ describe('OxySignInButton', () => {
     await waitFor(() => expect(warnSpy).toHaveBeenCalled());
     expect(warnSpy.mock.calls[0][0]).toContain('handshake-storage');
     expect(openAccountDialog).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledTimes(1);
 
     warnSpy.mockRestore();
+  });
+
+  // `handlePress` fires routing without awaiting it, so before this an
+  // unexpected throw became an unhandled rejection and the button just sat there.
+  it('toasts instead of swallowing an unexpected throw while routing', async () => {
+    Platform.OS = 'ios';
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => undefined);
+    getPublicApplication.mockResolvedValue(makeApp({ type: 'third_party', isOfficial: false }));
+    openAuthorizeUrlNativeMock.mockRejectedValue(new Error('auth session dismissed'));
+
+    render(<OxySignInButton oauthRedirectUri="myapp://cb" onOAuthResult={jest.fn()} />);
+    fireEvent.click(screen.getByRole('button'));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(errorSpy).toHaveBeenCalled();
+
+    errorSpy.mockRestore();
   });
 
   // ── Popup mode ────────────────────────────────────────────────────────────

@@ -43,16 +43,12 @@ const ko: LocaleDict = {
   },
 
   tabs: {
-    home: '홈',
     inbox: '받은편지함',
     search: '검색',
     settings: '설정',
-    forYou: '추천',
   },
 
   drawer: {
-    home: '홈',
-    forYou: '추천',
     starred: '별표',
     snoozed: '다시 알림',
     subscriptions: '구독',
@@ -133,25 +129,6 @@ const ko: LocaleDict = {
     },
   },
 
-  forYou: {
-    title: '추천',
-    starred: '별표',
-    unread: '읽지 않음',
-    attachments: '첨부 파일',
-    empty: {
-      title: '모두 처리됨',
-      subtitle: '지금은 추천할 내용이 없어요.',
-    },
-    summary: {
-      fromOne: '{{a}}에게서',
-      fromTwo: '{{a}}, {{b}}에게서',
-      fromManyOne: '{{a}}, {{b}} 외 {{count}}명에게서',
-      fromManyOther: '{{a}}, {{b}} 외 {{count}}명에게서',
-      aboutOne: ' — {{topic}}에 관한',
-      aboutTwo: ' — {{a}}, {{b}}에 관한',
-      aboutMore: ' 외',
-    },
-  },
 
   inbox: {
     title: '받은편지함',

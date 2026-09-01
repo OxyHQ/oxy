@@ -147,7 +147,9 @@ Carried forward from [`CONTINUATION.md`](../CONTINUATION.md) §8 and the roadmap
   external app needs the new civic types. Commons consumes them as `workspace:*`
   and the API Docker build builds contracts from source, so no publish is needed
   for current deploys.
-- **Infra (needs AWS):** run `scripts/migrate-karma-to-reputation.ts` as a
-  one-shot ECS task (all balances read 0 until then); seed `isSeedVerifier=true`
-  on a few trusted users to bootstrap the personhood web-of-trust; set
-  `REC_SCORING_V2=true` in `terraform-uswest2/app-services.tf`.
+- **Infra (needs AWS):** set `REC_SCORING_V2=true` in
+  `terraform-uswest2/app-services.tf`.
+  (Two other items formerly listed here are resolved, verified against
+  production: the karma→reputation migration is a no-op — every karma
+  collection is empty cluster-wide, there is nothing to migrate; and
+  `isSeedVerifier=true` is already seeded on the bootstrap trust accounts.)

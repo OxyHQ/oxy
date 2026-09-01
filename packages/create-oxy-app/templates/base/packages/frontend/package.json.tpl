@@ -51,8 +51,6 @@
     "react-native-svg": "{{v.svg}}",
     "react-native-web": "{{v.reactNativeWeb}}",
     "react-native-worklets": "{{v.worklets}}",
-    "sonner": "{{v.sonner}}",
-    "sonner-native": "{{v.sonnerNative}}",
     "tailwindcss": "{{v.tailwindcss}}"
   },
   "devDependencies": {

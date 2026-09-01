@@ -1,9 +1,10 @@
 /**
- * Index route - redirects to /inbox by default.
+ * `/` — the inbox itself. The inbox is the app's root view, so it is served
+ * here rather than at `/inbox`.
  */
 
-import { Redirect } from 'expo-router';
+import { MailboxView } from '@/components/MailboxView';
 
 export default function InboxIndex() {
-  return <Redirect href="/inbox" />;
+  return <MailboxView view="inbox" />;
 }

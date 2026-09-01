@@ -273,9 +273,9 @@ export const useAuthOperations = ({
     async (targetSessionId?: string): Promise<void> => {
       if (!activeSessionId) return;
 
-      try {
-        const sessionToLogout = targetSessionId || activeSessionId;
+      const sessionToLogout = targetSessionId || activeSessionId;
 
+      try {
         // Resolve the device account backing this session from the
         // server-authoritative `SessionClient` state — SERVER revocation now
         // goes through `sessionClient.signOut(...)` instead of the
@@ -306,7 +306,11 @@ export const useAuthOperations = ({
       } catch (error) {
         const isInvalid = isInvalidSessionError(error);
 
-        if (isInvalid && targetSessionId === activeSessionId) {
+        // Compare the RESOLVED target, not the raw optional parameter: every
+        // in-app sign-out affordance calls `logout()` with no argument, which
+        // would otherwise never match `activeSessionId` and would leave the UI
+        // "signed in" against a bearer the 401 lane has already cleared.
+        if (isInvalid && sessionToLogout === activeSessionId) {
           // The active session is invalid → full sign-out; clear persisted state.
           clearPersistedAuthSafe(store, logger);
           await clearSessionState();
@@ -358,14 +362,33 @@ export const useAuthOperations = ({
       clearPersistedAuthSafe(store, logger);
       await clearSessionState();
     } catch (error) {
-      handleAuthError(error, {
+      if (isInvalidSessionError(error)) {
+        // An already-invalid bearer means the sessions this call would have
+        // revoked are ALREADY gone — the sign-out happened, it just happened
+        // before we asked. This is the normal tail of an account deletion
+        // (`DELETE /users/me` revokes every session and detaches the account
+        // from every device before returning) and of any remote revocation.
+        // `HttpService` has cleared the tokens and emitted
+        // `onTokensChanged(null)` by now, so rejecting here would contradict
+        // the SDK's own authoritative 401 lane and hand the caller a failure
+        // for work that is complete. Finish the local teardown and resolve.
+        clearPersistedAuthSafe(store, logger);
+        await clearSessionState();
+        return;
+      }
+
+      const message = handleAuthError(error, {
         defaultMessage: 'Logout all failed',
         code: LOGOUT_ALL_ERROR_CODE,
         onError,
         setAuthError: (msg: string) => setAuthState({ error: msg }),
         logger,
       });
-      throw error instanceof Error ? error : new Error('Logout all failed');
+      // `HttpService` rejects with the plain `ApiError` object `handleHttpError`
+      // builds, never an `Error` instance — so rethrow the message
+      // `handleAuthError` already resolved instead of a generic placeholder that
+      // would erase the server's reason from every caller's toast.
+      throw error instanceof Error ? error : new Error(message);
     }
   }, [activeSessionId, clearSessionState, store, logger, onError, sessionClient, setAuthState]);
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { KeyManager, IdentityUnavailableError } from '@oxyhq/core';
 import { Screen, StackHeader, Section, Button, Callout, CenteredState } from '@/components/ui';
 import { ThemedText } from '@/components/themed-text';

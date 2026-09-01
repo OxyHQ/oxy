@@ -15,9 +15,6 @@
  * settings subpage), and only a tab navigator keeps those stacks alive across a
  * tab switch.
  *
- * `for-you` and `today` are declared with `href: null`: they live under the
- * tabs and stay navigable — the drawer pushes `/for-you` — but they are not tab
- * destinations, which is exactly what `<NativeTabs.Trigger name="for-you"
  * hidden />` said before.
  *
  * Theming is no longer wired here: Bloom resolves all five of the bar's color
@@ -49,8 +46,7 @@ export default function TabsLayout() {
           <Tabs.Screen name="(inbox)" />
           <Tabs.Screen name="search" />
           <Tabs.Screen name="settings" />
-          <Tabs.Screen name="for-you" options={{ href: null }} />
-          <Tabs.Screen name="today" options={{ href: null }} />
+          <Tabs.Screen name="subscriptions" options={{ href: null }} />
         </Tabs>
       </SearchFocusProvider>
     </TabBarMinimizeProvider>

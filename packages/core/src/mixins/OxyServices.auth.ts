@@ -4,7 +4,12 @@
  * Supports password-based login (email/username) and public key challenge-response.
  */
 import type { User } from '../models/interfaces';
-import type { UserNameResponse, LoginResult, LoginSessionResult } from '@oxyhq/contracts';
+import type {
+  UserNameResponse,
+  LoginResult,
+  LoginSessionResult,
+  CommonsDenyReason,
+} from '@oxyhq/contracts';
 import { loginResultSchema, safeParseContract } from '@oxyhq/contracts';
 import type { SessionLoginResponse } from '../models/session';
 import type { OxyServicesBase } from '../OxyServices.base';
@@ -330,18 +335,6 @@ function parseCommonsProgressTimestamp(value: unknown): string | null {
 export interface CommonsSignInActionResult {
   success: boolean;
 }
-
-/**
- * Why the approver denied a "Sign in with Oxy" request. A CLOSED set — the deny
- * endpoint is unauthenticated, so it accepts no free-form text:
- *
- *  - `'declined'` the approver rejected a request they recognised ("Not now").
- *  - `'not_me'`   the approver did not start the request ("This wasn't me").
- *                 The only value that records the denial as suspicious rather
- *                 than an ordinary cancel, so a UI may only offer it where the
- *                 user genuinely said so.
- */
-export type CommonsDenyReason = 'declined' | 'not_me';
 
 /**
  * Result of finalizing an approved, OAuth-bound "Sign in with Oxy" request.

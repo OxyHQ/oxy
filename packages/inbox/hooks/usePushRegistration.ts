@@ -1,92 +1,103 @@
 /**
  * Push-notification token registration.
  *
- * Wires the `pushNotifications` inbox preference to the backend push-token
- * endpoints (`registerPushToken` / `unregisterPushToken` on the email API).
+ * Wires the `pushNotifications` inbox preference to the SDK's push registry
+ * (`oxyServices.registerPushToken` / `unregisterPushToken` from `@oxyhq/core`).
+ * The registry is the ONE implementation for the whole ecosystem — an app-local
+ * copy is how this app ended up registering raw APNs/FCM device tokens that the
+ * server, which delivers through Expo, could never push to.
  *
- * Native only: Expo device push tokens (APNs / FCM) require a real device.
- * Web push needs a VAPID + service-worker flow that isn't wired yet, so this
- * hook is a documented no-op on web (see `NotificationsSection`). The single
- * effect below opens the "connection" (permission + token → register) and
- * tears it down (unregister) when the pref is turned off or the user signs
- * out — mirroring the socket lifecycle pattern.
+ * Native only: `pushTokenPlatform()` reports no platform on web, so the whole
+ * flow resolves to a skip there (browser push needs a VAPID + service-worker
+ * subscription that isn't wired — see `NotificationsSection`). The single effect
+ * below opens the "connection" (permission + token → register) and tears it down
+ * (unregister) when the pref is turned off or the user signs out, mirroring the
+ * socket lifecycle pattern.
  */
 
 import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
 import { useOxy } from '@oxyhq/services';
+import { logger } from '@oxyhq/core';
 
 import { useInboxPrefs } from '@/contexts/inbox-prefs-context';
-import { useEmailStore } from '@/hooks/useEmail';
+import { registerInboxPushToken } from '@/lib/notifications/push-registration';
 
-type NativePlatform = 'ios' | 'android';
+const LOG_CONTEXT = { component: 'usePushRegistration' } as const;
 
-export function usePushRegistration() {
+export function usePushRegistration(): void {
   const { prefs } = useInboxPrefs();
-  const { user } = useOxy();
-  const api = useEmailStore((s) => s._api);
+  const { canUsePrivateApi, user, oxyServices, sessionClient } = useOxy();
 
   const enabled = prefs.pushNotifications;
   const userId = user?.id ?? null;
 
-  // The token currently registered with the backend, so cleanup can
-  // unregister exactly what was registered even after the pref flips.
+  /**
+   * The token currently registered with the backend, so teardown can retire
+   * exactly what was registered even after the pref has already flipped.
+   */
   const registeredTokenRef = useRef<string | null>(null);
-  const inFlightTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Web + signed-out + no API + pref off → nothing to register.
-    if (Platform.OS === 'web' || !enabled || !userId || !api) {
+    // `canUsePrivateApi` is the SDK's own "a usable bearer is planted" verdict.
+    // Waiting for it avoids racing the device-first cold boot with a doomed 401.
+    if (!enabled || !canUsePrivateApi || !userId) {
       return;
     }
 
     let cancelled = false;
 
-    (async () => {
+    const retire = (expoPushToken: string): void => {
+      // Retirement is scoped server-side to the identity holding the bearer, so
+      // it can only succeed while that session is live. After a sign-out there
+      // is nothing left to authorise it — the row is then retired with the
+      // device session, or pruned when a delivery to it first fails.
+      if (!oxyServices.getAccessToken()) {
+        return;
+      }
+      void oxyServices.unregisterPushToken(expoPushToken).catch((error: unknown) => {
+        logger.warn('[inbox] could not retire the push token', LOG_CONTEXT, error);
+      });
+    };
+
+    void (async () => {
       try {
-        const Notifications = await import('expo-notifications');
+        const outcome = await registerInboxPushToken(
+          oxyServices,
+          sessionClient?.getState()?.deviceId,
+        );
 
-        const settings = await Notifications.getPermissionsAsync();
-        let granted = settings.granted;
-        if (!granted && settings.canAskAgain) {
-          const request = await Notifications.requestPermissionsAsync();
-          granted = request.granted;
-        }
-        if (!granted || cancelled) return;
-
-        const tokenResult = await Notifications.getDevicePushTokenAsync();
-        const token = typeof tokenResult.data === 'string' ? tokenResult.data : String(tokenResult.data);
-        if (cancelled || !token) return;
-
-        inFlightTokenRef.current = token;
-        await api.registerPushToken(token, Platform.OS as NativePlatform);
-        if (cancelled) {
-          await api.unregisterPushToken(token).catch(() => undefined);
-          inFlightTokenRef.current = null;
+        if (outcome.status === 'skipped') {
+          // An expected steady state (web, permission declined, no token). The
+          // adapter has already logged the operational reasons at warn level.
+          logger.debug('[inbox] push registration skipped', {
+            ...LOG_CONTEXT,
+            reason: outcome.reason,
+          });
           return;
         }
 
-        registeredTokenRef.current = token;
-        inFlightTokenRef.current = null;
-      } catch {
-        inFlightTokenRef.current = null;
-        // Permission denial, simulator with no push support, or a transient
-        // network error — non-fatal. The pref stays on; registration retries
-        // on the next mount / pref toggle.
+        if (cancelled) {
+          // The pref flipped off (or the session ended) mid-flight: retire what
+          // was just registered rather than leaving an orphaned row behind.
+          retire(outcome.expoPushToken);
+          return;
+        }
+
+        registeredTokenRef.current = outcome.expoPushToken;
+      } catch (error) {
+        // Best-effort by design: mail still arrives, it just doesn't buzz.
+        // Registration retries on the next mount / pref toggle / sign-in.
+        logger.warn('[inbox] push token registration failed', LOG_CONTEXT, error);
       }
     })();
 
     return () => {
       cancelled = true;
-      const token = registeredTokenRef.current ?? inFlightTokenRef.current;
+      const expoPushToken = registeredTokenRef.current;
       registeredTokenRef.current = null;
-      inFlightTokenRef.current = null;
-      if (token && api) {
-        api.unregisterPushToken(token).catch(() => {
-          // Best-effort unregister; a stale token is pruned server-side when
-          // a push delivery fails.
-        });
+      if (expoPushToken) {
+        retire(expoPushToken);
       }
     };
-  }, [enabled, userId, api]);
+  }, [enabled, canUsePrivateApi, userId, oxyServices, sessionClient]);
 }

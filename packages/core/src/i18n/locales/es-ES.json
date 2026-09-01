@@ -54,6 +54,12 @@
     "status": {
       "accountSwitched": "Ahora usando {{name}}",
       "signingIn": "Iniciando sesión…"
+    },
+    "errors": {
+      "notConfigured": "El inicio de sesión no está disponible",
+      "notConfiguredDescription": "{{app}} todavía no está configurada para iniciar sesión. Contacta con quien desarrolla la app.",
+      "failed": "No se pudo iniciar sesión",
+      "failedDescription": "Algo ha ido mal. Inténtalo de nuevo."
     }
   },
   "signup": {

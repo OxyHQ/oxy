@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { OxyProvider } from "@oxyhq/services"
 import { BloomThemeProvider } from "@oxyhq/bloom/theme"
-import { Toaster } from "@/components/ui/sonner"
 
 import "./index.css"
 import App from "./App.tsx"
@@ -40,7 +39,6 @@ createRoot(rootElement).render(
     <BloomThemeProvider mode="system" colorPreset="oxy">
       <OxyProvider baseURL={oxyBaseUrl} queryClient={queryClient}>
         <App />
-        <Toaster />
       </OxyProvider>
     </BloomThemeProvider>
   </QueryClientProvider>

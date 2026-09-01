@@ -14,15 +14,21 @@
  * Registration additionally requires a SESSION — `registerPushToken` is
  * bearer-authed — which is the caller's precondition (`usePushRegistration`
  * gates on `canUsePrivateApi`).
+ *
+ * The device half — OS permission, platform tag, and the Expo push token itself
+ * — is the shared `@oxyhq/services` adapter, the one place in the ecosystem that
+ * touches `expo-notifications`. What stays here is Commons policy: the ORDER the
+ * preconditions are checked in, and the Commons `clientId` the registration is
+ * scoped to.
  */
 
 import type { PushTokenPlatform, RegisterPushTokenInput } from '@oxyhq/core';
-import { OXY_CLIENT_ID } from '@/constants/oxy';
 import {
   getExpoPushToken,
   hasNotificationPermission,
   pushTokenPlatform,
-} from './device-notifications';
+} from '@oxyhq/services';
+import { OXY_CLIENT_ID } from '@/constants/oxy';
 
 /** The `@oxyhq/core` surface this module drives (satisfied by `OxyServices`). */
 export interface PushTokenRegistry {
@@ -36,12 +42,27 @@ export interface PushTokenEnvironment {
   hasNotificationPermission: () => Promise<boolean>;
   /** This installation's Expo push token, or null when one cannot be minted. */
   getExpoPushToken: () => Promise<string | null>;
-  /** Platform tag for the registry, or null on an unsupported platform. */
+  /**
+   * Platform tag for the registry, or null on a platform Oxy does not deliver
+   * push to — which the shared adapter defines as everything except iOS and
+   * Android. Web is null there on purpose: browser push would need a VAPID key
+   * and a service-worker subscription no Oxy app has wired, so there is no token
+   * to register.
+   */
   pushTokenPlatform: () => PushTokenPlatform | null;
 }
 
 export type PushRegistrationOutcome =
   | { status: 'registered'; expoPushToken: string }
+  /**
+   * Every reason is an expected steady state, not an error:
+   * - `unsupported-platform` — no push transport exists here at all (see
+   *   {@link PushTokenEnvironment.pushTokenPlatform}). Checked FIRST, so this
+   *   short-circuits before anything asks the OS about permission.
+   * - `permission-not-granted` — the user has not (yet) agreed.
+   * - `no-token` — permission is granted but no Expo push token could be minted
+   *   (no EAS project id in the build, or the Expo push service was unreachable).
+   */
   | { status: 'skipped'; reason: 'unsupported-platform' | 'permission-not-granted' | 'no-token' };
 
 export type PushRetirementOutcome =
@@ -123,7 +144,7 @@ export async function retireInstallationPushToken(
   return { status: 'retired', expoPushToken };
 }
 
-/** The real device environment, bound once so call sites stay declarative. */
+/** The shared SDK adapter, bound once so call sites stay declarative. */
 const deviceEnvironment: PushTokenEnvironment = {
   hasNotificationPermission,
   getExpoPushToken,

@@ -44,16 +44,12 @@ const de: LocaleDict = {
   },
 
   tabs: {
-    home: 'Start',
     inbox: 'Posteingang',
     search: 'Suchen',
     settings: 'Einstellungen',
-    forYou: 'Für dich',
   },
 
   drawer: {
-    home: 'Start',
-    forYou: 'Für dich',
     starred: 'Markiert',
     snoozed: 'Erinnerung später',
     subscriptions: 'Abonnements',
@@ -134,25 +130,6 @@ const de: LocaleDict = {
     },
   },
 
-  forYou: {
-    title: 'Für dich',
-    starred: 'Markiert',
-    unread: 'Ungelesen',
-    attachments: 'Anhänge',
-    empty: {
-      title: 'Alles erledigt',
-      subtitle: 'Aktuell ist nichts für dich hervorgehoben.',
-    },
-    summary: {
-      fromOne: 'Von {{a}}',
-      fromTwo: 'Von {{a}} und {{b}}',
-      fromManyOne: 'Von {{a}}, {{b}} und {{count}} weiterer Person',
-      fromManyOther: 'Von {{a}}, {{b}} und {{count}} weiteren Personen',
-      aboutOne: ' — zu {{topic}}',
-      aboutTwo: ' — zu {{a}}, {{b}}',
-      aboutMore: ' und mehr',
-    },
-  },
 
   inbox: {
     title: 'Posteingang',

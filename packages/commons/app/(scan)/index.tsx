@@ -1,15 +1,13 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Linking,
-  Platform,
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
 import { parseScan, type ScanResult } from '@/lib/commons-signin/parse-scan';
@@ -35,7 +33,7 @@ export default function ScanSignInScreen() {
   const router = useRouter();
   const colors = useColors();
   const { t } = useTranslation();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [scanError, setScanError] = useState<'invalid' | 'expired' | null>(null);
@@ -152,15 +150,15 @@ export default function ScanSignInScreen() {
     }
   }, [attest.reset, router]);
 
-  const toggleFlash = useCallback(() => setFlashOn((prev) => !prev), []);
+  // The in-app entry point owns the detached permission sheet and only pushes
+  // this full-screen route after access is granted. If a stale/direct route
+  // reaches the scanner without permission, bounce back instead of presenting
+  // another permission surface over an empty scanner modal.
+  useEffect(() => {
+    if (permission && !permission.granted) handleClose();
+  }, [handleClose, permission]);
 
-  const openSettings = useCallback(() => {
-    if (Platform.OS === 'ios') {
-      Linking.openURL('app-settings:').catch(() => undefined);
-    } else {
-      Linking.openSettings().catch(() => undefined);
-    }
-  }, []);
+  const toggleFlash = useCallback(() => setFlashOn((prev) => !prev), []);
 
   // Permission not determined yet
   if (!permission) {
@@ -177,35 +175,9 @@ export default function ScanSignInScreen() {
   if (!permission.granted) {
     return (
       <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <MaterialCommunityIcons name="camera-off" size={64} color={colors.textSecondary} style={styles.icon} />
-        <Text style={[styles.title, { color: colors.text }]}>{t('signInApproval.scan.permissionTitle')}</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          {t('signInApproval.scan.permissionBody')}
+        <Text style={[styles.text, { color: colors.text }]}>
+          {t('signInApproval.scan.requestingPermission')}
         </Text>
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: colors.tint }]}
-          onPress={requestPermission}
-          accessibilityRole="button"
-          accessibilityLabel={t('signInApproval.scan.a11y.grantPermission')}
-        >
-          <Text style={styles.buttonText}>{t('signInApproval.scan.grantPermission')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={openSettings}
-          accessibilityRole="button"
-          accessibilityLabel={t('signInApproval.scan.a11y.openSettings')}
-        >
-          <Text style={[styles.linkText, { color: colors.tint }]}>{t('signInApproval.scan.openSettings')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.linkButton}
-          onPress={handleClose}
-          accessibilityRole="button"
-          accessibilityLabel={t('signInApproval.scan.a11y.cancel')}
-        >
-          <Text style={[styles.linkText, { color: colors.textSecondary }]}>{t('signInApproval.scan.cancel')}</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -281,18 +253,19 @@ export default function ScanSignInScreen() {
         </TouchableOpacity>
       </CameraView>
 
-      <AttestReviewSheet
-        open={attest.status !== 'idle'}
-        status={attest.status as AttestReviewStatus}
-        card={attest.subject?.card ?? null}
-        verified={attest.subject?.verified ?? false}
-        subjectFailed={attest.subjectFailed}
-        result={attest.result}
-        errorCode={attest.errorCode}
-        onConfirm={handleConfirmAttest}
-        confirming={confirming}
-        onClose={handleSheetClose}
-      />
+      {attest.status !== 'idle' ? (
+        <AttestReviewSheet
+          status={attest.status as AttestReviewStatus}
+          card={attest.subject?.card ?? null}
+          verified={attest.subject?.verified ?? false}
+          subjectFailed={attest.subjectFailed}
+          result={attest.result}
+          errorCode={attest.errorCode}
+          onConfirm={handleConfirmAttest}
+          confirming={confirming}
+          onClose={handleSheetClose}
+        />
+      ) : null}
     </View>
   );
 }
@@ -378,41 +351,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  icon: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    marginBottom: 32,
-    lineHeight: 22,
-  },
   text: {
-    fontSize: 16,
-  },
-  button: {
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    borderCurve: 'continuous',
-    marginBottom: 16,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  linkButton: {
-    padding: 12,
-  },
-  linkText: {
     fontSize: 16,
   },
 });

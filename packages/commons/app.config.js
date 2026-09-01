@@ -50,6 +50,17 @@ module.exports = {
       },
     },
     plugins: [
+      // Re-encodes the generated bitmap resources into real lossless WebP —
+      // Expo emits PNG bytes whatever extension it writes. See the plugin
+      // header for the @expo/image-utils bug behind it.
+      //
+      // Registered FIRST so that it RUNS LAST: `withMod`'s `interceptingMod`
+      // awaits its own action and only then calls `nextMod` (the previously
+      // registered mod), so the mod chain executes in reverse registration
+      // order. It has to run after every image generator — `oxySplashScreenPlugin`
+      // and `@oxyhq/expo-splash` both write splash bitmaps, and running before
+      // them leaves a `.png` and a `.webp` claiming the same resource name.
+      '@oxyhq/app-preset/plugin/withOxyAndroidWebp',
       'expo-router',
       // Native OS splash (Oxy family "Instagram, from Meta" pattern): Commons'
       // own logo (the Oxy mark as a white silhouette on transparent) centered on
@@ -77,10 +88,29 @@ module.exports = {
             enableProguardInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
             useLegacyPackaging: true,
-            // expo-contacts is referenced by the autolinked ExpoModulesPackageList
-            // but is not a dependency here; suppress R8's missing-class error for
-            // that dead optional reference (it is never loaded at runtime).
-            extraProguardRules: '-dontwarn expo.modules.contacts.**',
+            // x86/x86_64 only serve emulators and Chromebooks, and Chromebooks
+            // translate arm64 anyway. Every configured ABI is compiled and ships
+            // in the AAB, so 4 -> 2 ABIs halves that work and payload. Build
+            // another ABI without editing this:
+            // `./gradlew <task> -PreactNativeArchitectures=x86_64`.
+            buildArchs: ['armeabi-v7a', 'arm64-v8a'],
+            // Appended to android/app/proguard-rules.pro. Kept deliberately
+            // small: react-native, expo-modules-core, reanimated and skia
+            // already ship their own rules as consumerProguardFiles inside
+            // their AARs, and over-keeping would cancel the R8 optimization
+            // that withOxyAndroidRelease turns on.
+            extraProguardRules: [
+              '# expo-contacts is referenced by the autolinked ExpoModulesPackageList',
+              '# but is not a dependency here; suppress R8\'s missing-class error for',
+              '# that dead optional reference (it is never loaded at runtime).',
+              '-dontwarn expo.modules.contacts.**',
+              '',
+              '# Readable production stack traces: R8 optimize rewrites line numbers',
+              '# when inlining, so without these the traces reaching the Play',
+              '# Console point at the wrong code.',
+              '-keepattributes SourceFile,LineNumberTable',
+              '-renamesourcefileattribute SourceFile',
+            ].join('\n'),
           },
         },
       ],
@@ -94,12 +124,26 @@ module.exports = {
       // must be in the same shared-keychain UID as the other Oxy apps so
       // "Sign in with Oxy" shares the session across apps (requires all Oxy apps
       // to be signed with the same key — the oxy-ecosystem release keystore).
-      './plugins/withSharedUserId',
+      // The dev variant is a CLEAN ROOM: a distinct applicationId AND no
+      // sharedUserId, so a debug-signed build can install beside the
+      // release-signed production app (a shared UID requires one identical
+      // certificate) and can never orphan the production identity's keys.
+      ...(IS_DEV_VARIANT ? [] : ['./plugins/withSharedUserId']),
+      // Release buildType bits expo-build-properties cannot express: the R8
+      // -optimize proguard file, and the real release signing config
+      // (credentials come from Gradle properties, never the repo). Commons
+      // shares the so.oxy.shared UID, so the artefact MUST carry the shared Oxy
+      // ecosystem certificate — verify it, never assume it.
+      '@oxyhq/app-preset/plugin/withOxyAndroidRelease',
       // Hosts the signature-protected OxyIdentityProvider (the native module
       // now ships inside @oxyhq/services) that lets same-key Oxy apps read the
       // shared identity keypair Commons writes. Commons is the ONLY app that
       // hosts it.
-      '@oxyhq/services/plugins/withSharedIdentityProvider',
+      // Skipped in the clean-room dev variant: a debug-signed build cannot share
+      // the signature-level so.oxy.shared.permission.READ_IDENTITY the installed
+      // release app already owns (INSTALL_FAILED_DUPLICATE_PERMISSION), and with a
+      // different certificate it could never read that provider anyway.
+      ...(IS_DEV_VARIANT ? [] : ['@oxyhq/services/plugins/withSharedIdentityProvider']),
       'expo-secure-store',
       'expo-font',
       'expo-image',

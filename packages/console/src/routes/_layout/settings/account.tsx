@@ -13,7 +13,7 @@ import {
   Mail01Icon,
   UserMultiple02Icon,
 } from '@hugeicons/core-free-icons';
-import { toast } from 'sonner';
+import { toast } from '@oxyhq/bloom';
 import type {AccountMember, AccountRole, AssignableAccountRole} from '@/hooks/use-account';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

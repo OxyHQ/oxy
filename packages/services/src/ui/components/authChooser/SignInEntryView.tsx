@@ -20,10 +20,16 @@ import type React from 'react';
 import { View } from 'react-native';
 import { Button } from '@oxyhq/bloom/button';
 import type { AccountDialogSnapshot } from '@oxyhq/core';
-import TroubleDisclosure, { type TroubleAction } from './TroubleDisclosure';
+import TroubleDisclosure from './TroubleDisclosure';
 import { AccountRow, Dividerish, SubtleLink } from './primitives';
 import { authChooserStyles as styles } from './styles';
-import type { OxyAuthChooserHandlers, SignInAlternatives, Theme, Translate } from './types';
+import type {
+  OxyAuthChooserHandlers,
+  OxySignInSurfaceAction,
+  SignInAlternatives,
+  Theme,
+  Translate,
+} from './types';
 
 interface SignInEntryViewProps {
   snapshot: AccountDialogSnapshot;
@@ -45,7 +51,7 @@ const SignInEntryView: React.FC<SignInEntryViewProps> = ({
 }) => {
   // The entry has no chosen route yet, so nothing here can have failed: the
   // alternatives stay behind the disclosure unconditionally.
-  const troubleActions: TroubleAction[] = [
+  const troubleActions: OxySignInSurfaceAction[] = [
     {
       key: 'scan-qr-link',
       label: t('accountSwitcher.scanQr'),

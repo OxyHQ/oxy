@@ -1,14 +1,11 @@
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { logger } from '@oxyhq/core';
+import { subscribeToNotificationResponses, takeLaunchNotificationData } from '@oxyhq/services';
 import {
   authRequestCodeFromPush,
   claimAuthRequestCode,
 } from '@/lib/notifications/auth-request-push';
-import {
-  subscribeToNotificationResponses,
-  takeLaunchNotificationData,
-} from '@/lib/notifications/device-notifications';
 
 const LOG_CONTEXT = { component: 'useAuthRequestNotifications' } as const;
 

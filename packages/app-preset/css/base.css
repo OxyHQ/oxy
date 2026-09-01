@@ -46,6 +46,32 @@
 @import "nativewind/theme";
 @import "@oxyhq/bloom/design-tokens/theme.css";
 
+/* NativeWind's `theme.css` ships an UNLAYERED `:root { @media ios { --font-sans: System } }`.
+   Anything an app declares in `@theme` compiles into `@layer theme`, and unlayered
+   beats layered — so WITHOUT this block `className="font-sans"` silently resolves to
+   the SYSTEM face on native, whatever Bloom or the app says. Restating the family
+   here, unlayered and AFTER that import, is the only thing that wins.
+
+   Native gets the BARE family name on purpose: React Native's `fontFamily` takes ONE
+   family, not a CSS stack, so a comma-separated fallback list is invalid there. The
+   `var()` fallback is for the web static export's first paint, before Bloom's
+   `applyFontFaces()` has injected `--bloom-font-sans` at runtime.
+
+   This is a deliberate exception to "never restate a token Bloom defines": the
+   restatement is not a re-skin, it is what stops NativeWind's own unlayered default
+   from overriding Bloom. Do not "tidy" it away. */
+:root {
+  --font-sans: var(--bloom-font-sans, BlomusModernus, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+
+  @media ios {
+    --font-sans: BlomusModernus;
+  }
+
+  @media android {
+    --font-sans: BlomusModernus;
+  }
+}
+
 @source "../../services/lib/**/*.{js,jsx}";
 @source "../../bloom/lib/**/*.{js,jsx}";
 @source "../../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";

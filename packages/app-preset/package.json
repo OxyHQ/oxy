@@ -13,6 +13,8 @@
     "./plugin/withSharedUserId": "./plugin/withSharedUserId.js",
     "./plugin/withOxyKeychain": "./plugin/withOxyKeychain.js",
     "./plugin/withOxyBuildProperties": "./plugin/withOxyBuildProperties.js",
+    "./plugin/withOxyAndroidRelease": "./plugin/withOxyAndroidRelease.js",
+    "./plugin/withOxyAndroidWebp": "./plugin/withOxyAndroidWebp.js",
     "./metro": "./metro/index.js",
     "./babel": "./babel/index.js",
     "./eslint": "./eslint/index.js",
@@ -69,6 +71,7 @@
     "expo-build-properties": "*",
     "nativewind": ">=5.0.0-preview.0",
     "react-native-worklets": "*",
+    "sharp": ">=0.33.0",
     "tailwindcss": ">=4.0.0"
   },
   "peerDependenciesMeta": {
@@ -81,6 +84,7 @@
     "expo-build-properties": { "optional": true },
     "nativewind": { "optional": true },
     "react-native-worklets": { "optional": true },
+    "sharp": { "optional": true },
     "tailwindcss": { "optional": true }
   }
 }

@@ -143,10 +143,13 @@ export const MailboxSchema = z.object({
 
 export const LabelSchema = z.object({
   _id: z.string(),
-  userId: z.string(),
+  /** Absent on system labels, which are constants rather than stored rows. */
+  userId: z.string().optional(),
   name: z.string(),
   color: z.string(),
   order: z.number(),
+  /** Part of the product; cannot be renamed, recoloured or deleted. */
+  system: z.boolean().default(false),
 });
 
 export const PaginationSchema = z.object({
@@ -180,6 +183,8 @@ export const SubscriptionSchema = z.object({
   _id: z.string(),
   name: z.string(),
   messageCount: z.number(),
+  /** How many of those messages were opened. Defaults to 0 on older APIs. */
+  readCount: z.number().default(0),
   latestDate: z.string(),
   oldestDate: z.string(),
   latestMessageId: z.string(),

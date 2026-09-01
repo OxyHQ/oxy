@@ -44,16 +44,12 @@ const ar: LocaleDict = {
   },
 
   tabs: {
-    home: 'الرئيسية',
     inbox: 'البريد الوارد',
     search: 'بحث',
     settings: 'الإعدادات',
-    forYou: 'لك',
   },
 
   drawer: {
-    home: 'الرئيسية',
-    forYou: 'لك',
     starred: 'المميّزة',
     snoozed: 'مؤجَّلة',
     subscriptions: 'الاشتراكات',
@@ -134,25 +130,6 @@ const ar: LocaleDict = {
     },
   },
 
-  forYou: {
-    title: 'لك',
-    starred: 'المميّزة',
-    unread: 'غير المقروءة',
-    attachments: 'المرفقات',
-    empty: {
-      title: 'تم تحديث كل شيء',
-      subtitle: 'لا يوجد شيء مميّز لك الآن.',
-    },
-    summary: {
-      fromOne: 'من {{a}}',
-      fromTwo: 'من {{a}} و{{b}}',
-      fromManyOne: 'من {{a}} و{{b}} و{{count}} آخر',
-      fromManyOther: 'من {{a}} و{{b}} و{{count}} آخرين',
-      aboutOne: ' — حول {{topic}}',
-      aboutTwo: ' — حول {{a}} و{{b}}',
-      aboutMore: ' والمزيد',
-    },
-  },
 
   inbox: {
     title: 'البريد الوارد',

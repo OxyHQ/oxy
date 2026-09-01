@@ -22,6 +22,8 @@ jest.mock('../../utils/logger', () => ({
 type MockResponse = {
   setHeader: jest.Mock;
   send: jest.Mock;
+  status: jest.Mock;
+  end: jest.Mock;
 };
 
 function makeReq(url: string): Request {
@@ -30,10 +32,14 @@ function makeReq(url: string): Request {
 }
 
 function makeRes(): MockResponse {
-  return {
+  const res = {
     setHeader: jest.fn(),
     send: jest.fn(),
+    status: jest.fn(),
+    end: jest.fn(),
   };
+  res.status.mockReturnValue(res);
+  return res;
 }
 
 function makeSafeFetchResult(
@@ -121,5 +127,24 @@ describe('email proxy SSRF protections', () => {
     );
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'image/png');
     expect(res.send).toHaveBeenCalledWith(expect.any(Buffer));
+  });
+
+  it('reports an upstream 404 as 404, never as a transparent GIF', async () => {
+    // A sender avatar falls back to `https://<domain>/favicon.ico`, which is
+    // emitted without probing. When that 404s, answering with the transparent
+    // GIF is a *successful* image response: the client's onError never fires
+    // and an invisible pixel is painted over the initials placeholder, leaving
+    // an empty avatar. The GIF is only for a tracking pixel we blocked.
+    mockSafeFetch.mockResolvedValue(
+      makeSafeFetchResult(404, Buffer.alloc(0), { 'content-type': 'text/html' }, 'https://sender.example/favicon.ico'),
+    );
+    const res = makeRes();
+
+    await proxyResource(makeReq('https://sender.example/favicon.ico'), res as unknown as ExpressResponse);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.end).toHaveBeenCalled();
+    expect(res.send).not.toHaveBeenCalled();
+    expect(res.setHeader).not.toHaveBeenCalledWith('Content-Type', 'image/gif');
   });
 });

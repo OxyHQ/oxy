@@ -1,9 +1,12 @@
 import { resolve } from "path";
+import { createRequire } from "node:module";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import reactNativeWeb from "vite-plugin-react-native-web";
 
 const emptyModule = resolve(__dirname, "src/empty-module.js");
+const require = createRequire(import.meta.url);
+const reactNativeCssBabel = require("react-native-css/babel");
 
 // The IdP runs on rolldown-vite (`"vite": "npm:rolldown-vite@^7"`) so the
 // `@oxyhq/services` React Native graph bundles through the maintained
@@ -14,7 +17,14 @@ const emptyModule = resolve(__dirname, "src/empty-module.js");
 // side-effectful web polyfill (`globalThis.expo`) from being tree-shaken, and
 // defines the RN globals.
 export default defineConfig(({ mode }) => ({
-  plugins: [reactNativeWeb(), react()],
+  plugins: [
+    reactNativeWeb(),
+    react({
+      babel: {
+        presets: [reactNativeCssBabel],
+      },
+    }),
+  ],
   resolve: {
     alias: [
       // Auth's `@/*` maps to the package ROOT (see tsconfig `paths`), not src.
@@ -22,7 +32,7 @@ export default defineConfig(({ mode }) => ({
       // Deep native-only internals that monorepo hoisting can pull in
       // transitively and that have no web implementation.
       { find: /^react-native\/Libraries\/.*/, replacement: emptyModule },
-      // Native-only navigation primitives; `sonner-native` named-imports
+      // Native-only navigation primitives used by Bloom's overlay
       // FullWindowOverlay, which on web renders straight through (see shim).
       {
         find: "react-native-screens",

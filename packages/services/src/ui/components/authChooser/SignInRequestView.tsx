@@ -1,40 +1,33 @@
 /**
- * The ACTIVE REQUEST surface (`qr` view) — the route Oxy chose, plus honest
- * progress (issue #691, Phase 5).
+ * The ACTIVE REQUEST surface (`qr` view) as the account dialog drives it —
+ * `AccountDialogController`'s device flow bound to the shared, presentational
+ * {@link OxySignInRequestSurface} (issue #691, Phase 5).
  *
- * The user already performed their one action. From here the surface only
- * REPORTS: the route-appropriate primary visual (`RequestPrimarySurface`), the
- * status line derived from the controller's real signals
- * (`signInProgressLabel`), and nothing else at the same weight. Alternatives
- * stay behind "Having trouble?" until `signIn.routeFailed` says the chosen route
- * could not be carried out — the controller never silently cascades, so
- * revealing them is this view's decision and this view's alone.
+ * This module owns WIRING only. Every pixel comes from the shared surface, which
+ * the auth.oxy.so IdP mounts from its own OAuth-bound request; there is one
+ * implementation of the request presentation, not two. What lives here is what
+ * only the account dialog knows:
  *
- * Two surfaces take over when there is no working primary route to report on:
- *  - a FAILED request, whose reason is toasted by the container (never inline),
- *    leaves "Try again" as the primary action with the alternatives revealed;
- *  - a native device with NO Commons installed, where a same-device QR would be
- *    a dead end. There, "Get Commons" is the genuine primary route — not a
- *    fallback — so it renders as the one primary action and the QR handoff moves
- *    behind the disclosure ("I have Commons on another device").
+ *  - which of the controller's facts map onto the surface's props;
+ *  - which alternatives are genuine ones for the CURRENT presentation (the
+ *    passkey ceremony is pointless once the request is already being confirmed,
+ *    and a QR link is redundant while the QR itself is the primary visual);
+ *  - the one piece of local intent the controller has no opinion on: leaving the
+ *    acquisition surface via "I have Commons on another device".
+ *
+ * Failures are NOT rendered here. The container toasts them at the point they
+ * arrive (owner mandate: no error renders inline inside the dialog); this view
+ * only reports that the request failed, so the surface can offer "Try again".
  */
 
 import type React from 'react';
 import { useState } from 'react';
-import { View } from 'react-native';
-import { Button } from '@oxyhq/bloom/button';
-import { Text } from '@oxyhq/bloom/typography';
 import type { AccountDialogSnapshot } from '@oxyhq/core';
-import TroubleDisclosure, { type TroubleAction } from './TroubleDisclosure';
-import { SubtleLink } from './primitives';
-import { GetCommonsPrompt, RequestPrimarySurface } from './requestSurfaces';
-import { signInProgressLabel } from './signInProgress';
-import { authChooserStyles as styles } from './styles';
-import type { SignInAlternatives, Theme, Translate } from './types';
+import OxySignInRequestSurface from '../OxySignInRequestSurface';
+import type { OxySignInSurfaceAction, SignInAlternatives, Translate } from './types';
 
 interface SignInRequestViewProps {
   snapshot: AccountDialogSnapshot;
-  theme: Theme;
   t: Translate;
   /** Restart the request after a failure. */
   onRetry: () => void;
@@ -43,7 +36,6 @@ interface SignInRequestViewProps {
 
 const SignInRequestView: React.FC<SignInRequestViewProps> = ({
   snapshot,
-  theme,
   t,
   onRetry,
   alternatives,
@@ -53,10 +45,15 @@ const SignInRequestView: React.FC<SignInRequestViewProps> = ({
   // an explicit user choice to leave the acquisition surface, never inferred.
   const [qrRequested, setQrRequested] = useState(false);
 
+  const failed = signIn.phase === 'error';
+  // A same-device QR is a dead end without Commons, so the acquisition surface
+  // leads — until the user explicitly asks for the QR anyway.
+  const acquiring = !failed && commonsAvailability === 'unavailable' && !qrRequested;
+
   // A ceremony is pointless once the request is already being confirmed, and a
   // ceremony FAILURE is toasted by the container — this link never renders an
   // error of its own (owner mandate).
-  const passkeyAction: TroubleAction[] =
+  const passkeyAction: OxySignInSurfaceAction[] =
     alternatives.passkeyAvailable && signIn.phase !== 'authorized' && signIn.phase !== 'completed'
       ? [
           {
@@ -70,93 +67,63 @@ const SignInRequestView: React.FC<SignInRequestViewProps> = ({
         ]
       : [];
 
-  const signUpLink = (
-    // Account CREATION is not an authentication method, and on web this surface
-    // is the FIRST one a signed-out user sees (the entry auto-starts straight
-    // through it) — so the way in for someone with no Oxy ID stays visible as a
-    // subordinate link rather than hiding behind a troubleshooting affordance.
-    <SubtleLink
-      label={t('signin.createAccountLink')}
-      theme={theme}
-      onPress={alternatives.onCreateAccount}
-      testID="create-account-link"
-    />
-  );
-
-  if (signIn.phase === 'error') {
-    return (
-      <View style={styles.centeredBlock}>
-        <Button variant="primary" onPress={onRetry} style={styles.primaryButton}>
-          {t('common.actions.tryAgain')}
-        </Button>
-        {signUpLink}
-        <TroubleDisclosure actions={passkeyAction} revealed theme={theme} t={t} />
-      </View>
-    );
-  }
-
-  if (commonsAvailability === 'unavailable' && !qrRequested) {
-    return (
-      <View style={styles.centeredBlock}>
-        <GetCommonsPrompt theme={theme} t={t} onGetCommons={alternatives.onGetCommons} />
-        {signUpLink}
-        <TroubleDisclosure
-          actions={[
+  const troubleActions = ((): OxySignInSurfaceAction[] => {
+    // Nothing about the chosen route is actionable any more — only the
+    // authentication alternatives are.
+    if (failed) return passkeyAction;
+    if (acquiring) {
+      return [
+        {
+          key: 'show-qr-anyway-link',
+          label: t('accountSwitcher.showQrAnyway'),
+          onPress: () => setQrRequested(true),
+        },
+        ...passkeyAction,
+      ];
+    }
+    return [
+      // Redundant while the QR already IS the primary surface.
+      ...(signIn.route === 'qr'
+        ? []
+        : [
             {
-              key: 'show-qr-anyway-link',
-              label: t('accountSwitcher.showQrAnyway'),
-              onPress: () => setQrRequested(true),
+              key: 'scan-qr-link',
+              label: t('accountSwitcher.scanQr'),
+              onPress: alternatives.onShowQr,
             },
-            ...passkeyAction,
-          ]}
-          revealed={false}
-          theme={theme}
-          t={t}
-        />
-      </View>
-    );
-  }
-
-  const status = signInProgressLabel(signIn.progress, signIn.route, t);
-  const troubleActions: TroubleAction[] = [
-    // Redundant while the QR already IS the primary surface.
-    ...(signIn.route === 'qr'
-      ? []
-      : [
-          {
-            key: 'scan-qr-link',
-            label: t('accountSwitcher.scanQr'),
-            onPress: alternatives.onShowQr,
-          },
-        ]),
-    ...passkeyAction,
-    {
-      key: 'get-commons-link',
-      label: t('accountSwitcher.getCommons'),
-      onPress: alternatives.onGetCommons,
-    },
-  ];
+          ]),
+      ...passkeyAction,
+      {
+        key: 'get-commons-link',
+        label: t('accountSwitcher.getCommons'),
+        onPress: alternatives.onGetCommons,
+      },
+    ];
+  })();
 
   return (
-    <View style={styles.centeredBlock}>
-      <RequestPrimarySurface signIn={signIn} theme={theme} t={t} />
-      {status ? (
-        <Text
-          style={[styles.mutedText, { color: theme.colors.textSecondary }]}
-          accessibilityLiveRegion="polite"
-          testID="signin-progress"
-        >
-          {status}
-        </Text>
-      ) : null}
-      {signUpLink}
-      <TroubleDisclosure
-        actions={troubleActions}
-        revealed={signIn.routeFailed}
-        theme={theme}
-        t={t}
-      />
-    </View>
+    <OxySignInRequestSurface
+      route={signIn.route}
+      progress={signIn.progress}
+      qrPayload={signIn.qrPayload}
+      routeFailed={signIn.routeFailed}
+      failed={failed}
+      onRetry={onRetry}
+      onAcquireCommons={acquiring ? alternatives.onGetCommons : undefined}
+      subordinate={[
+        // Account CREATION is not an authentication method, and on web this
+        // surface is the FIRST one a signed-out user sees (the entry auto-starts
+        // straight through it) — so the way in for someone with no Oxy ID stays
+        // visible as a subordinate link rather than hiding behind a
+        // troubleshooting affordance.
+        {
+          key: 'create-account-link',
+          label: t('signin.createAccountLink'),
+          onPress: alternatives.onCreateAccount,
+        },
+      ]}
+      alternatives={troubleActions}
+    />
   );
 };
 

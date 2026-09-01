@@ -43,6 +43,49 @@ function buildRequestBody(options: AliaRequestOptions, stream: boolean) {
 }
 
 /**
+ * Extract the text deltas from a run of complete SSE lines.
+ *
+ * Shared by the incremental reader and the buffered fallback below, so a
+ * runtime without `ReadableStream` decodes exactly the same wire format
+ * instead of mis-parsing an `text/event-stream` body as a JSON envelope.
+ *
+ * `data:` is matched with or without the conventional trailing space — the SSE
+ * spec makes that space optional, and silently yielding nothing for a compliant
+ * `data:{…}` frame is indistinguishable from "the model returned nothing".
+ */
+function scanSseLines(lines: string[]): { deltas: string[]; done: boolean } {
+  const deltas: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+
+    const data = trimmed.slice(5).trim();
+    if (data === '[DONE]') return { deltas, done: true };
+
+    let json: unknown;
+    try {
+      json = JSON.parse(data);
+    } catch {
+      // A frame that is not valid JSON is a keep-alive or a truncated chunk,
+      // never a delta. Skipping it is the documented SSE behaviour.
+      continue;
+    }
+
+    const parsed = AliaChatResponseSchema.safeParse(json);
+    if (!parsed.success) continue;
+
+    const choice = parsed.data.choices?.[0];
+    // Streaming frames carry `delta.content`; a non-streaming envelope that
+    // arrives on this channel carries `message.content`.
+    const delta = choice?.delta?.content ?? choice?.message?.content;
+    if (delta) deltas.push(delta);
+  }
+
+  return { deltas, done: false };
+}
+
+/**
  * Non-streaming chat completion. Returns the full response text.
  *
  * Routes through the SDK `HttpService`, which owns the bearer token
@@ -76,12 +119,15 @@ export async function aliaChatCompletion(
 export async function* streamAliaChatCompletion(
   http: HttpService,
   options: AliaRequestOptions,
+  signal?: AbortSignal,
 ): AsyncGenerator<string> {
   const token = http.getAccessToken();
   if (!token) {
     throw new Error('Not authenticated');
   }
 
+  // Handing the signal to `fetch` cancels the request itself. Abandoning the
+  // generator without it leaves the response downloading in the background.
   const response = await fetch(`${API_URL}${ALIA_COMPLETIONS_PATH}`, {
     method: 'POST',
     headers: {
@@ -89,6 +135,7 @@ export async function* streamAliaChatCompletion(
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(buildRequestBody(options, true)),
+    signal,
   });
 
   if (!response.ok) {
@@ -96,11 +143,13 @@ export async function* streamAliaChatCompletion(
     throw new Error(`Alia API error ${response.status}: ${text}`);
   }
 
-  // Fall back to non-streaming if ReadableStream is unavailable
+  // Runtimes without `ReadableStream` (the React Native fetch polyfill) buffer
+  // the whole body. It is still the `text/event-stream` we asked for, so decode
+  // it as SSE — `response.json()` would throw a parse error on those frames and
+  // surface as a mystery failure on native only.
   if (!response.body || typeof response.body.getReader !== 'function') {
-    const json = AliaChatResponseSchema.safeParse(await response.json());
-    const content = json.success ? json.data.choices?.[0]?.message?.content ?? '' : '';
-    if (content) yield content;
+    const { deltas } = scanSseLines((await response.text()).split('\n'));
+    for (const delta of deltas) yield delta;
     return;
   }
 
@@ -115,22 +164,13 @@ export async function* streamAliaChatCompletion(
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
+      // The trailing element is whatever arrived after the last newline — an
+      // incomplete frame that must wait for the next chunk.
       buffer = lines.pop() ?? '';
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') return;
-
-        try {
-          const parsed = AliaChatResponseSchema.safeParse(JSON.parse(data));
-          const delta = parsed.success ? parsed.data.choices?.[0]?.delta?.content : undefined;
-          if (delta) yield delta;
-        } catch {
-          // skip malformed chunks
-        }
-      }
+      const scan = scanSseLines(lines);
+      for (const delta of scan.deltas) yield delta;
+      if (scan.done) return;
     }
   } finally {
     reader.releaseLock();

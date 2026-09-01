@@ -26,6 +26,7 @@ import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
 import accountRoutes from './routes/accounts';
+import capabilityRoutes from './routes/capabilities';
 import devicesRouter from './routes/devices';
 import securityRoutes from './routes/security';
 import subscriptionRoutes from './routes/subscription.routes';
@@ -57,12 +58,17 @@ import { sweepNodeLiveness } from './services/nodeRegistry.service';
 import { VALIDATION_SWEEP_INTERVAL_MS, PERSONHOOD_AUDIT_SWEEP_INTERVAL_MS } from './utils/civic.constants';
 import { NODE_LIVENESS_SWEEP_INTERVAL_MS } from './utils/nodes.constants';
 import didRoutes from './routes/did';
+import transparencyRoutes from './routes/transparency';
 import updatesManifestRoutes from './routes/updates';
 import updatesAdminRoutes from './routes/updatesAdmin';
 import { startSmtpInbound, stopSmtpInbound } from './services/smtp.inbound';
 import { smtpOutbound } from './services/smtp.outbound';
 import { startBackgroundJobs, stopBackgroundJobs } from './queue/backgroundJobs';
 import { startNodeIngestJobs, stopNodeIngestJobs } from './queue/nodeIngest.queue';
+import {
+  startTransparencyCheckpointJobs,
+  stopTransparencyCheckpointJobs,
+} from './queue/transparencyCheckpoint.queue';
 import { startLinkPreviewWarmJobs, stopLinkPreviewWarmJobs } from './queue/linkPreviewWarm.queue';
 import { getEnvBoolean, validateRequiredEnvVars, getSanitizedConfig, getEnvNumber } from './config/env';
 import { getDbName } from './config/db';
@@ -436,6 +442,7 @@ async function gracefulShutdown(signal: string) {
 
   await stopBackgroundJobs();
   await stopNodeIngestJobs();
+  await stopTransparencyCheckpointJobs();
   await stopLinkPreviewWarmJobs();
   await stopSmtpInbound();
   smtpOutbound.shutdown();
@@ -582,6 +589,7 @@ app.use('/applications', csrfProtection, applicationRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
 app.use('/accounts', csrfProtection, accountRoutes);
+app.use('/capabilities', userRateLimiter, csrfProtection, capabilityRoutes);
 app.use('/devices', userRateLimiter, csrfProtection, devicesRouter);
 app.use('/security', userRateLimiter, csrfProtection, securityRoutes);
 app.use('/subscription', userRateLimiter, csrfProtection, subscriptionRoutes);
@@ -764,6 +772,12 @@ app.use('/federation', federationServiceLimiter, federationRoutes);
 // (the apex proxy must forward `/u/*/did.json` + `/.well-known/did.json`).
 app.use('/', didRoutes);
 
+// Transparency log — signed checkpoints over every subject's chain head, plus
+// the inclusion proofs that let anyone audit their own history WITHOUT trusting
+// this server. Public, cacheable, CORS-open, no auth/CSRF (an audit trail nobody
+// can read is not an audit trail); own rate-limit prefix inside the router.
+app.use('/transparency', transparencyRoutes);
+
 // Swagger API documentation (non-production only)
 if (process.env.NODE_ENV !== 'production') {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -854,6 +868,12 @@ if (require.main === module) {
       // is set else an in-process interval. All node I/O is background-only —
       // never in a request's read path. Never throws.
       await startNodeIngestJobs();
+
+      // Publish the periodic transparency checkpoint: one signed Merkle
+      // commitment to every subject's chain head, so anyone can prove their own
+      // history was not rewritten or suppressed without trusting this server.
+      // Never throws; a failed publish retries on the next tick.
+      await startTransparencyCheckpointJobs();
 
       // Start the ecosystem link-preview warm subsystem: per-URL background
       // resolves (BullMQ when REDIS_URL is set, else an in-process pending set).

@@ -13,7 +13,7 @@ import { useTheme } from '@oxyhq/bloom/theme';
 import { H6, Text } from '@oxyhq/bloom/typography';
 import { Chip } from '@oxyhq/bloom/chip';
 import { Button } from '@oxyhq/bloom/button';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { BaseScreenProps } from '../../types/navigation';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { useI18n } from '../../hooks/useI18n';

@@ -11,13 +11,17 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSearchFocus } from '@/contexts/search-focus-context';
+import { useFloatingHeader } from '@/hooks/useFloatingHeader';
+import { useGoBack } from '@/hooks/useGoBack';
+import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 
 import { useColors } from '@/constants/theme';
+import { CONTENT_MAX_WIDTH } from '@/constants/layout';
 import { SPECIAL_USE } from '@/constants/mailbox';
 import type { Message } from '@/services/emailApi';
 import { MessageRow } from '@/components/MessageRow';
@@ -25,7 +29,6 @@ import { SearchHeader } from '@/components/SearchHeader';
 import { EmptyIllustration } from '@/components/EmptyIllustration';
 import { useEmailStore } from '@/hooks/useEmail';
 import { useSearchMessages } from '@/hooks/queries/useSearchMessages';
-import { useToggleStar } from '@/hooks/mutations/useMessageMutations';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { useMailboxes } from '@/hooks/queries/useMailboxes';
 import {
@@ -112,10 +115,22 @@ interface SearchListProps {
 export function SearchList({ replaceNavigation }: SearchListProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const tabBarClearance = useTabBarClearance();
   const colors = useColors();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<TextInput | null>(null);
+  const { registerInput } = useSearchFocus();
+  // Fans the input node out to BOTH the local ref (used by `handleClear` to
+  // put the caret back) and the shared context the tab bar focuses through.
+  // A callback ref rather than an effect: it runs during commit and is called
+  // with null on unmount, so registration cannot outlive the input.
+  const setInputRef = useCallback(
+    (node: TextInput | null) => {
+      inputRef.current = node;
+      registerInput(node);
+    },
+    [registerInput],
+  );
   const selectedMessageId = useEmailStore((s) => s.selectedMessageId);
-  const toggleStar = useToggleStar();
   const messageActions = useMessageActions();
   const { data: mailboxes = [] } = useMailboxes();
 
@@ -123,6 +138,9 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterHasAttachment, setFilterHasAttachment] = useState(false);
+  // Measured height of the floating header stack, reused as the list's top
+  // padding so the first result starts just below it.
+  const { headerHeight, onHeaderLayout, floatingHeaderStyle } = useFloatingHeader();
   const [editingFilter, setEditingFilter] = useState<string | null>(null);
   const [filterInput, setFilterInput] = useState('');
   const [nlInterpretation, setNlInterpretation] = useState('');
@@ -279,18 +297,13 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
     runSearch(query, { allowAI: true });
   }, [runSearch, query]);
 
-  const handleStar = useCallback(
-    (messageId: string) => {
-      const msg = results.find((m) => m._id === messageId);
-      if (msg) toggleStar.mutate({ messageId, starred: !msg.flags.starred });
-    },
-    [results, toggleStar],
-  );
-
   const handleMessagePress = useCallback(
     (messageId: string) => {
       messageActions.prepareOpenMessage(messageId);
-      const path = `/search/conversation/${messageId}`;
+      const path = {
+        pathname: '/search/conversation/[id]',
+        params: { id: messageId },
+      } as const;
       if (replaceNavigation) {
         router.replace(path);
       } else {
@@ -300,9 +313,7 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
     [router, replaceNavigation, messageActions],
   );
 
-  const handleBack = useCallback(() => {
-    router.back();
-  }, [router]);
+  const handleBack = useGoBack();
 
   const handleClear = useCallback(() => {
     if (debounceRef.current) {
@@ -339,13 +350,11 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
     ({ item }: { item: Message }) => (
       <MessageRow
         message={item}
-        onStar={handleStar}
         onSelect={handleMessagePress}
         isSelected={item._id === selectedMessageId}
-        isStarPending={toggleStar.isPending && toggleStar.variables?.messageId === item._id}
       />
     ),
-    [handleStar, handleMessagePress, selectedMessageId, toggleStar.isPending, toggleStar.variables?.messageId],
+    [handleMessagePress, selectedMessageId],
   );
 
   const renderEmpty = useCallback(() => {
@@ -370,8 +379,13 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Same scroll treatment as the inbox: the header (and the filter chips
+          under it) float over the results, which scroll behind the header's
+          gradient. The measured height becomes the list's top padding. */}
+      <View style={floatingHeaderStyle} onLayout={onHeaderLayout}
+      >
       <SearchHeader
-        ref={inputRef}
+        ref={setInputRef}
         onLeftIcon={handleBack}
         leftIcon="arrow-left"
         placeholder="Search mail"
@@ -502,6 +516,7 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
           </Text>
         </View>
       )}
+      </View>
 
       {searching ? (
         <View style={styles.loadingContainer}>
@@ -515,9 +530,12 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={{
             ...(results.length === 0 ? styles.emptyListContent : null),
-            // NativeTabs adds the bottom safe-area inset on Android already; iOS / web
-            // get it here so the final result row never sits under the home indicator.
-            paddingBottom: Platform.OS === 'android' ? 0 : insets.bottom,
+            ...styles.listContent,
+            paddingTop: headerHeight,
+            // The floating tab bar's footprint, which already folds in the
+            // bottom safe-area inset — so the last result row clears both the
+            // bar and the home indicator, on every platform.
+            paddingBottom: tabBarClearance,
           }}
           showsVerticalScrollIndicator={false}
           ItemSeparatorComponent={() => (
@@ -532,6 +550,11 @@ export function SearchList({ replaceNavigation }: SearchListProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  listContent: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
   },
   // `paddingLeft` / `paddingRight` are applied inline so they can include
   // landscape `insets.left` / `insets.right`.

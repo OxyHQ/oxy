@@ -41,6 +41,7 @@ import {
   coldLaunchApprovalCode,
   useAuthRequestNotifications,
 } from '@/hooks/notifications/useAuthRequestNotifications';
+import { useForegroundNotificationHandler } from '@/hooks/notifications/useForegroundNotificationHandler';
 import {
   preventNativeSplashAutoHide,
   useHideNativeSplashWhenReady,
@@ -396,6 +397,13 @@ function AppStackContent() {
   // so "Continue with Oxy" on a desktop can wake the phone instead of falling
   // back to a QR. No-ops until a session + the OS permission both exist.
   usePushRegistration();
+
+  // Make an approval request visible even while Commons is the foregrounded
+  // app — otherwise the OS silently swallows it at exactly the moment the user
+  // is demonstrably holding the phone. Ungated on purpose: presentation must
+  // not wait for the routing gate (an arriving request should be seen), and it
+  // is a one-shot, process-wide install, not per-mount state.
+  useForegroundNotificationHandler();
 
   // Warm auth-request pushes. Gated on the SAME settled signal the replay uses:
   // before that, `/approve` would be bounced by the `needsAuth` guard, and the

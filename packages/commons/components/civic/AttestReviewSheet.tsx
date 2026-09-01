@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Image, StyleSheet, ActivityIndicator } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Dialog } from '@oxyhq/bloom/dialog';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
 import type { PublicCard, CardTrustTier, RealLifeAttestationResult } from '@oxyhq/contracts';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { PrimaryButton, SecondaryButton, CenteredState } from '@/components/ui';
+import { CenteredState } from '@/components/ui/centered-state';
 import { CivicBadge } from '@/components/civic/CivicBadge';
 import { getTrustTierMeta } from '@/lib/civic/card-presentation';
 import type { AttestErrorCode } from '@/lib/civic/civic-errors';
@@ -16,7 +16,6 @@ import { useTranslation } from '@/lib/i18n';
 export type AttestReviewStatus = 'reviewing' | 'submitting' | 'done' | 'error';
 
 interface AttestReviewSheetProps {
-  open: boolean;
   status: AttestReviewStatus;
   /** A's resolved public card (name/avatar/tier); null while resolving. */
   card: PublicCard | null;
@@ -53,7 +52,6 @@ const TIER_ICON: Record<CardTrustTier, MaterialCommunityIconName> = {
  * parent) then signs + submits; any dismissal cancels and returns to the camera.
  */
 export function AttestReviewSheet({
-  open,
   status,
   card,
   verified,
@@ -66,6 +64,11 @@ export function AttestReviewSheet({
 }: AttestReviewSheetProps) {
   const colors = useColors();
   const { t } = useTranslation();
+  const control = useDialogControl();
+
+  useEffect(() => {
+    control.open();
+  }, [control]);
 
   const initial = useMemo(() => (card?.name?.trim()?.[0] ?? '?').toUpperCase(), [card?.name]);
 
@@ -91,7 +94,6 @@ export function AttestReviewSheet({
           <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t('civic.attest.confirm.done.body', { name: card?.name ?? '', points: result.points })}
           </ThemedText>
-          <PrimaryButton label={t('common.done')} onPress={onClose} />
         </View>
       );
     }
@@ -106,7 +108,6 @@ export function AttestReviewSheet({
           <ThemedText style={[styles.stateBody, { color: colors.textSecondary }]}>
             {t(`civic.attest.error.${errorCode ?? 'generic'}`)}
           </ThemedText>
-          <PrimaryButton label={t('common.close')} onPress={onClose} />
         </View>
       );
     }
@@ -118,7 +119,6 @@ export function AttestReviewSheet({
           icon="account-alert-outline"
           title={t('civic.attest.review.unresolvedTitle')}
           body={t('civic.attest.review.unresolvedBody')}
-          action={<SecondaryButton label={t('common.close')} onPress={onClose} />}
         />
       );
     }
@@ -175,26 +175,38 @@ export function AttestReviewSheet({
           {t('civic.attest.review.caution')}
         </ThemedText>
 
-        <View style={styles.actions}>
-          <PrimaryButton
-            icon="handshake"
-            label={t('civic.attest.review.confirm')}
-            onPress={onConfirm}
-            loading={confirming}
-            disabled={confirming}
-          />
-          <SecondaryButton label={t('common.cancel')} onPress={onClose} disabled={confirming} />
-        </View>
       </View>
     );
   };
 
+  let actions: DialogAction[] | undefined;
+  if (status === 'done' && result) {
+    actions = [{ label: t('common.done') }];
+  } else if (status === 'error' || subjectFailed) {
+    actions = [{ label: t('common.close'), color: 'cancel' }];
+  } else if (status === 'reviewing' && card) {
+    actions = [
+      {
+        label: t('civic.attest.review.confirm'),
+        onPress: onConfirm,
+        shouldCloseOnPress: false,
+        loading: confirming,
+      },
+      {
+        label: t('common.cancel'),
+        color: 'cancel',
+        disabled: confirming,
+      },
+    ];
+  }
+
   return (
     <Dialog
-      open={open}
+      control={control}
       onClose={onClose}
       placement="bottom"
       label={t('civic.attest.review.title')}
+      actions={actions}
     >
       {body()}
     </Dialog>
@@ -273,8 +285,5 @@ const styles = StyleSheet.create({
   caution: {
     fontSize: 13,
     lineHeight: 19,
-  },
-  actions: {
-    gap: 10,
   },
 });

@@ -61,6 +61,16 @@ export type {
 } from './sessionStatus';
 
 export {
+    // Closed set of denial reasons for POST /auth/session/deny/:authorizeCode —
+    // shared by the API request schema, the persisted `AuthSession.deniedReason`
+    // enum, and the SDK's `denyCommonsSignIn`.
+    COMMONS_DENY_REASONS,
+    commonsDenyReasonSchema,
+} from './commonsSignIn';
+
+export type { CommonsDenyReason } from './commonsSignIn';
+
+export {
     // Schemas
     recommendationExcludeTypeSchema,
     recommendationBoostSchema,
@@ -374,3 +384,79 @@ export type {
     DeviceTransferApproveResponse,
     DeviceTransferDenyResponse,
 } from './devicePairing';
+
+export {
+    // Schemas — transparency log (checkpoints + inclusion proofs)
+    transparencyCheckpointSignatureSchema,
+    transparencyAnchorSchema,
+    transparencyCheckpointSchema,
+    transparencyInclusionProofSchema,
+    transparencyCheckpointListSchema,
+} from './transparency';
+
+export type {
+    TransparencyCheckpointSignature,
+    TransparencyAnchor,
+    TransparencyCheckpoint,
+    TransparencyInclusionProof,
+    TransparencyCheckpointList,
+} from './transparency';
+
+export {
+    AUTONOMY_LEVELS,
+    CAPABILITY_PACKAGES,
+    autonomyLevelSchema,
+    capabilityPackageSchema,
+    actorRefSchema,
+    resourceRefSchema,
+    toolGrantOverrideSchema,
+    grantLimitSchema,
+    delegationGrantSchema,
+    automationTriggerSchema,
+    automationActorSelectionSchema,
+    automationDataFlowSchema,
+    automationDefinitionSchema,
+    capabilityTicketClaimsSchema,
+    policyDecisionSchema,
+    auditResultSchema,
+    auditEventSchema,
+    catalogToolSchema,
+    catalogEventSchema,
+    appCapabilityCatalogSchema,
+    catalogRegistrationSchema,
+    normalizedAppEventSchema,
+} from './agency';
+
+export {
+    emailContextAddressSchema,
+    emailContextMailboxSchema,
+    emailContextMessageSchema,
+    emailAgentContextSchema,
+} from './emailAgentContext';
+export type {
+    EmailContextAddress,
+    EmailContextMailbox,
+    EmailContextMessage,
+    EmailAgentContext,
+} from './emailAgentContext';
+
+export type {
+    AutonomyLevel,
+    CapabilityPackage,
+    ActorRef,
+    ResourceRef,
+    ToolGrantOverride,
+    GrantLimit,
+    DelegationGrant,
+    AutomationTrigger,
+    AutomationActorSelection,
+    AutomationDefinition,
+    CapabilityTicketClaims,
+    PolicyDecision,
+    AuditEvent,
+    CatalogTool,
+    CatalogEvent,
+    AppCapabilityCatalog,
+    CatalogRegistration,
+    NormalizedAppEvent,
+} from './agency';

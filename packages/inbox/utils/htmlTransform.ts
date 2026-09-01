@@ -69,6 +69,12 @@ export function sanitizeEmailHtml(html: string): string {
     (match, _quote, url: string) => (isSafeEmailUrl(url) ? match : 'url(about:blank)'),
   );
 
+  // Drop remote webfonts. Each one is a request to the sender's server the
+  // moment the mail is opened — the same read receipt a tracking pixel gives
+  // them, dressed as typography. The message renders in the reader's own font
+  // instead. (`@font-face` never nests, so a flat block match is exact.)
+  sanitized = sanitized.replace(/@font-face\s*\{[^}]*\}/gi, '');
+
   return sanitized;
 }
 

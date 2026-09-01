@@ -42,6 +42,11 @@ export const APPLICATION_SCOPES = [
   'signals:write',
   'reputation:write',
   'notifications:write',
+  'capabilities:read',
+  'catalogs:write',
+  'capability-tickets:issue',
+  'capability-audit:write',
+  'capability-events:publish',
   'payments:read',
   'payments:write',
 ] as const;
@@ -81,6 +86,11 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'reputation:write',
   'signals:write',
   'notifications:write',
+  'capabilities:read',
+  'catalogs:write',
+  'capability-tickets:issue',
+  'capability-audit:write',
+  'capability-events:publish',
 ] as const satisfies readonly ApplicationScope[];
 
 const PRIVILEGED_APPLICATION_SCOPE_SET: ReadonlySet<ApplicationScope> = new Set<ApplicationScope>(

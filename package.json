@@ -9,6 +9,7 @@
   ],
   "workspaces": [
     "packages/contracts",
+    "packages/mcp",
     "packages/protocol",
     "packages/federation",
     "packages/core",
@@ -86,14 +87,13 @@
     "send": "0.19.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "@radix-ui/react-slot": "1.2.3",
-    "@oxyhq/bloom": "^0.59.0",
+    "@oxyhq/bloom": "^0.59.3",
     "markdown-it": "12.3.2",
     "lightningcss": "1.30.1"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.5",
-    "@oxyhq/bloom": "^0.59.0",
+    "@oxyhq/bloom": "^0.59.3",
     "expo-contacts": "~57.0.1",
     "expo-splash-screen": "~57.0.4",
     "is-arrayish": "^0.3.4",

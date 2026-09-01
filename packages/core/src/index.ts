@@ -59,10 +59,15 @@ export type {
     CommonsApprovalInfo,
     CommonsApprovalSubjectAccount,
     CommonsSignInActionResult,
-    CommonsDenyReason,
     CommonsOAuthFinalizeResult,
     CommonsDeliveryResult,
 } from './mixins/OxyServices.auth';
+// `denyCommonsSignIn`'s reason parameter is typed by `CommonsDenyReason`, which
+// is a WIRE contract shared with the API (the request schema of
+// `POST /auth/session/deny/:authorizeCode` and the persisted
+// `AuthSession.deniedReason` enum read the same declaration). It lives in
+// `@oxyhq/contracts` and is NOT re-exported here: consumers import API contract
+// types directly from `@oxyhq/contracts`, per the package boundary rule.
 // Push-token registration (Expo push tokens — never raw APNs/FCM device tokens).
 export type {
     PushTokenPlatform,

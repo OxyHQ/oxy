@@ -50,10 +50,10 @@ jest.mock('../../src/ui/context/OxyContext', () => ({
 }));
 
 // The error state renders vector icons, which don't parse under ts-jest.
-jest.mock('@expo/vector-icons', () => ({
+jest.mock('@expo/vector-icons/Ionicons', () => ({ __esModule: true, default: () => null }));
+jest.mock('@expo/vector-icons/MaterialCommunityIcons', () => ({
   __esModule: true,
-  Ionicons: () => null,
-  MaterialCommunityIcons: () => null,
+  default: () => null,
 }));
 
 import { useFileUploadState } from '../../src/ui/screens/fileManagement/hooks/useFileUploadState';

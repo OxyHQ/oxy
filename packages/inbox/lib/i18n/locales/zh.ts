@@ -41,16 +41,12 @@ const zh: LocaleDict = {
   },
 
   tabs: {
-    home: '首页',
     inbox: '收件箱',
     search: '搜索',
     settings: '设置',
-    forYou: '为你推荐',
   },
 
   drawer: {
-    home: '首页',
-    forYou: '为你推荐',
     starred: '星标',
     snoozed: '已暂停',
     subscriptions: '订阅',
@@ -131,25 +127,6 @@ const zh: LocaleDict = {
     },
   },
 
-  forYou: {
-    title: '为你推荐',
-    starred: '星标',
-    unread: '未读',
-    attachments: '附件',
-    empty: {
-      title: '一切都已处理',
-      subtitle: '目前没有为你推荐的内容。',
-    },
-    summary: {
-      fromOne: '来自 {{a}}',
-      fromTwo: '来自 {{a}} 和 {{b}}',
-      fromManyOne: '来自 {{a}}、{{b}} 等 {{count}} 人',
-      fromManyOther: '来自 {{a}}、{{b}} 等 {{count}} 人',
-      aboutOne: ' — 关于 {{topic}}',
-      aboutTwo: ' — 关于 {{a}}、{{b}}',
-      aboutMore: ' 等',
-    },
-  },
 
   inbox: {
     title: '收件箱',

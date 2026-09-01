@@ -2,11 +2,9 @@ import React, { useCallback, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Linking, Platform, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
-import type { CommonsDenyReason } from '@oxyhq/core';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
 import { CenteredState } from '@/components/ui/centered-state';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/action-button';
 import { useTranslation } from '@/lib/i18n';
 import { useCommonsApproval } from '@/hooks/commons-signin/useCommonsApproval';
 import { ApprovalRequest } from '@/components/commons-signin/approval-request';
@@ -30,8 +28,8 @@ const APPROVED_RETURN_DELAY_MS = 1000;
  *   - the in-app QR scanner (`/(scan)`) replaces into `/approve` (threads `source=scanner`)
  *   - a same-device deep link `oxycommons://approve?...` / `commons://approve?...`
  *
- * Rendered as a Bloom bottom sheet (`<Dialog placement="bottom">`) — the same
- * Bloom surface `@oxyhq/services`' `OxyAccountDialog` uses. The screen owns only
+ * Rendered with Bloom Dialog's default detached bottom-sheet presentation —
+ * the same floating, rounded surface used by the other Commons prompts. The screen owns only
  * the sheet, the request lifecycle, and the terminal states; the request itself
  * is rendered by `ApprovalRequest`, which is the concise one-primary-action
  * surface issue #691 Phase 5 asks for: `Confirm identity` opens the device
@@ -96,14 +94,11 @@ export default function ApproveSignInScreen() {
     void approve();
   }, [approve]);
 
-  // The sheet reports WHICH answer was given; this only forwards it. A
-  // dismissal never reaches here — it is a cancel, and denies nothing.
-  const reject = useCallback(
-    (reason: CommonsDenyReason) => {
-      void deny(reason);
-    },
-    [deny],
-  );
+  // Only the explicit destructive action records a suspicious denial. A
+  // regular sheet dismissal remains a cancel and answers nothing.
+  const reject = useCallback(() => {
+    void deny('not_me');
+  }, [deny]);
 
   // After a successful approve: briefly show the confirmation, then return to
   // the caller (deep-link handoff on Android) or close the sheet (scanner / iOS).
@@ -127,7 +122,12 @@ export default function ApproveSignInScreen() {
   // matter which account the requesting app ends up acting as.
   const identityName = user?.name?.displayName?.trim() || user?.username?.trim() || null;
 
+  const confirming = state === 'confirming' || state === 'approving';
+  const rejecting = state === 'denying';
+  const busy = confirming || rejecting;
+
   let content: React.ReactNode;
+  let actions: DialogAction[] | undefined;
   if (state === 'approved' || state === 'denied') {
     // --- Terminal states. Approved auto-advances (return/close); denied waits. ---
     const approved = state === 'approved';
@@ -153,20 +153,10 @@ export default function ApproveSignInScreen() {
                     : 'signInApproval.approve.deniedBody',
                 )
           }
-          action={
-            approved ? undefined : (
-              <View className="mt-1 items-center">
-                <PrimaryButton
-                  label={t('signInApproval.approve.done')}
-                  onPress={dismiss}
-                  fullWidth={false}
-                />
-              </View>
-            )
-          }
         />
       </View>
     );
+    actions = approved ? undefined : [{ label: t('signInApproval.approve.done') }];
   } else if (state === 'error') {
     // --- Error state ---
     content = (
@@ -180,25 +170,21 @@ export default function ApproveSignInScreen() {
               ? (errorMessage ?? t('signInApproval.approve.errorBody'))
               : t('signInApproval.approve.noCode')
           }
-          action={
-            <View className="mt-1 flex-row gap-3">
-              {code ? (
-                <SecondaryButton
-                  label={t('signInApproval.approve.tryAgain')}
-                  onPress={reload}
-                  fullWidth={false}
-                />
-              ) : null}
-              <PrimaryButton
-                label={t('signInApproval.approve.done')}
-                onPress={dismiss}
-                fullWidth={false}
-              />
-            </View>
-          }
         />
       </View>
     );
+    actions = [
+      ...(code
+        ? [
+            {
+              label: t('signInApproval.approve.tryAgain'),
+              onPress: reload,
+              shouldCloseOnPress: false,
+            } satisfies DialogAction,
+          ]
+        : []),
+      { label: t('signInApproval.approve.done'), color: 'cancel' },
+    ];
   } else if (state === 'loading' || !info?.application) {
     // --- Loading ---
     content = (
@@ -214,24 +200,39 @@ export default function ApproveSignInScreen() {
         application={info.application}
         identityName={identityName}
         confirmationIssue={confirmationIssue}
-        confirming={state === 'confirming' || state === 'approving'}
-        rejecting={state === 'denying'}
-        onConfirm={confirm}
-        onReject={reject}
-        onClose={dismiss}
         onOpenLink={openLink}
       />
     );
+    actions = [
+      {
+        label: t('signInApproval.approve.confirm'),
+        onPress: confirm,
+        shouldCloseOnPress: false,
+        loading: confirming,
+        disabled: busy,
+      },
+      {
+        label: t('signInApproval.approve.reject'),
+        onPress: reject,
+        shouldCloseOnPress: false,
+        color: 'destructive',
+        loading: rejecting,
+        disabled: busy,
+      },
+      {
+        label: t('common.cancel'),
+        color: 'cancel',
+        disabled: busy,
+      },
+    ];
   }
 
   return (
     <Dialog
       control={control}
       onClose={navigateAway}
-      placement="bottom"
-      contentPadding={0}
-      showHandle={false}
       label={t('signInApproval.approve.heading')}
+      actions={actions}
     >
       <ScrollView
         className="w-full"

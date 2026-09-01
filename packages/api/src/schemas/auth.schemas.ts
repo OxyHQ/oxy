@@ -1,3 +1,4 @@
+import { commonsDenyReasonSchema } from '@oxyhq/contracts';
 import { z } from 'zod';
 import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN } from '../utils/username';
 
@@ -136,31 +137,13 @@ export const authSessionAuthorizeSignedSchema = z.object({
   deviceFingerprint: z.string().trim().optional(),
 });
 
-/**
- * Closed set of reasons the approver may attach to a denial.
- *
- * `POST /auth/session/deny/:authorizeCode` is UNAUTHENTICATED (the public
- * approval handle is the only credential), so a free-form string from it is
- * never stored — it would be an unauthenticated write of arbitrary text onto a
- * record other surfaces read. The set stays deliberately tiny:
- *
- *   - `declined` the approver rejected an expected request ("Not now").
- *   - `not_me`   the approver did not start this request ("This wasn't me").
- *                The ONE value that marks the denial as suspicious rather than
- *                an ordinary cancel.
- *
- * Declared here (a pure contract module with no model imports) so BOTH the
- * request schema and the persisted `AuthSession.deniedReason` enum read from one
- * source without the model↔schema import cycle going the other way.
- */
-export const AUTH_SESSION_DENY_REASONS = ['declined', 'not_me'] as const;
-export type AuthSessionDenyReason = (typeof AUTH_SESSION_DENY_REASONS)[number];
-
 // POST /auth/session/deny/:authorizeCode
-// Optional reason. Anything outside the closed set (including a free-form
-// string) is rejected with 400 before the handler runs.
+// Optional reason from the closed `COMMONS_DENY_REASONS` set, whose single
+// declaration lives in `@oxyhq/contracts` — the same one the persisted
+// `AuthSession.deniedReason` enum and the client SDK read. Anything outside it
+// (including a free-form string) is rejected with 400 before the handler runs.
 export const authSessionDenySchema = z.object({
-  reason: z.enum(AUTH_SESSION_DENY_REASONS).optional(),
+  reason: commonsDenyReasonSchema.optional(),
 });
 
 // POST /auth/session/claim

@@ -44,6 +44,15 @@
  *     aborts with a clear error if either is missing or mismatched (guards
  *     against pointing at the wrong database/environment).
  *
+ * DRY RUN == REAL RUN (by construction). The reconciliation decision lives in
+ * `src/scripts/registerCommonsClientsPlan.ts` and is computed UNCONDITIONALLY,
+ * on both paths; `DRY_RUN` gates only whether the plan is written. The plan is
+ * reported field by field (`changes: [{ field, from, to }]`), so an operator
+ * sees WHICH field would change, not just a count. This is not a nicety: a dry
+ * run that reported `appsUpdated: 0` immediately before a real run that granted
+ * `identity:approval` and reported `appsUpdated: 2` is exactly the failure this
+ * structure makes impossible.
+ *
  * Run (inside the oxy-api image, working dir /app):
  *   bun run packages/api/scripts/register-commons-clients.ts
  * Or via the npm script (from packages/api):
@@ -71,6 +80,12 @@ import {
   IDENTITY_APPROVAL_CAPABILITY,
   type ApplicationCapability,
 } from '../src/utils/applicationCapabilities';
+import {
+  applyApplicationPlan,
+  computeApplicationPlan,
+  readApplicationState,
+  type PlannedFieldChange,
+} from '../src/scripts/registerCommonsClientsPlan';
 
 // ── Mirror routes/applications.ts credential generation EXACTLY ──────────────
 const CREDENTIAL_PUBLIC_KEY_PREFIX = 'oxy_dk_';
@@ -141,17 +156,37 @@ const CLIENTS: ClientSpec[] = [
   },
 ];
 
+/**
+ * What this run does (or, under DRY_RUN, WOULD do) to one client. Identical on
+ * both paths — the only difference is whether the writes were executed.
+ */
+type RecordAction = 'create' | 'update' | 'unchanged';
+
 interface MappingRow {
   key: ClientKey;
   app: string;
   type: IApplication['type'];
   applicationId: string;
   clientId: string;
+  /** Effective AFTER this run (the union), not the pre-run value. */
   redirectUris: string[];
-  createdApplication: boolean;
-  updatedApplication: boolean;
-  createdCredential: boolean;
-  reusedCredential: boolean;
+  applicationAction: RecordAction;
+  /** Field-level diff — which fields change, from what, to what. */
+  changes: PlannedFieldChange[];
+  credentialAction: 'create' | 'reuse';
+}
+
+interface ResolvedTargets {
+  oxyId: mongoose.Types.ObjectId;
+  /**
+   * `null` ONLY under DRY_RUN when the Oxy organization account does not exist
+   * yet — a dry run cannot know the id a real run would mint, and inventing a
+   * placeholder id (as this script used to) makes the plan report a change to a
+   * value that will never exist. A real run always resolves a concrete id.
+   */
+  ownerAccountId: mongoose.Types.ObjectId | null;
+  ownerAccountAction: RecordAction;
+  ownerMembershipAction: RecordAction;
 }
 
 /**
@@ -159,11 +194,11 @@ interface MappingRow {
  * absent) the Oxy `kind:'organization'` account that owns the official apps.
  * Aborts (throws) if the owner is missing/inconsistent, so the script never
  * writes into the wrong database.
+ *
+ * Under DRY_RUN the same reads run and the same actions are reported; only the
+ * two writes (the organization account and its owner membership) are skipped.
  */
-async function resolveTargets(dryRun: boolean): Promise<{
-  oxyId: mongoose.Types.ObjectId;
-  ownerAccountId: mongoose.Types.ObjectId;
-}> {
+async function resolveTargets(dryRun: boolean): Promise<ResolvedTargets> {
   const owner = await User.findById(OXY_OWNER_USER_ID).select('_id username').lean();
   if (!owner?._id) {
     throw new Error(
@@ -188,6 +223,8 @@ async function resolveTargets(dryRun: boolean): Promise<{
     kind: 'organization',
     'name.first': oxyAccountName,
   });
+  const ownerAccountAction: RecordAction = oxyOrg ? 'unchanged' : 'create';
+
   if (!oxyOrg && !dryRun) {
     const baseUsername = `${OXY_OWNER_USERNAME}-org`;
     let username = baseUsername;
@@ -209,15 +246,18 @@ async function resolveTargets(dryRun: boolean): Promise<{
       accountStatus: 'active',
     });
   }
-  const ownerAccountId = oxyOrg?._id ?? new mongoose.Types.ObjectId('000000000000000000000000');
+  const ownerAccountId = oxyOrg?._id ?? null;
 
-  // Owner AccountMember for oxy on the org (idempotent).
-  if (oxyOrg && !dryRun) {
+  // Owner AccountMember for oxy on the org (idempotent). When the org itself
+  // does not exist yet (dry run), the membership cannot exist either.
+  let ownerMembershipAction: RecordAction = 'create';
+  if (oxyOrg) {
     const existingOwner = await AccountMember.findOne({
       accountId: oxyOrg._id,
       memberUserId: oxyId,
     });
-    if (!existingOwner) {
+    ownerMembershipAction = existingOwner ? 'unchanged' : 'create';
+    if (!existingOwner && !dryRun) {
       await AccountMember.create({
         accountId: oxyOrg._id,
         memberUserId: oxyId,
@@ -231,12 +271,15 @@ async function resolveTargets(dryRun: boolean): Promise<{
   }
 
   logger.info('Resolved production targets', {
+    dryRun,
     oxyId: oxyId.toString(),
     ownerUsername: OXY_OWNER_USERNAME,
-    ownerAccountId: ownerAccountId.toString(),
+    ownerAccountId: ownerAccountId?.toString() ?? '(would be minted by this run)',
+    ownerAccountAction,
+    ownerMembershipAction,
   });
 
-  return { oxyId, ownerAccountId };
+  return { oxyId, ownerAccountId, ownerAccountAction, ownerMembershipAction };
 }
 
 async function register(): Promise<void> {
@@ -245,135 +288,144 @@ async function register(): Promise<void> {
     logger.info('DRY RUN — no writes will be performed');
   }
 
-  const { oxyId, ownerAccountId } = await resolveTargets(dryRun);
+  const { oxyId, ownerAccountId, ownerAccountAction, ownerMembershipAction } =
+    await resolveTargets(dryRun);
   const mapping: MappingRow[] = [];
 
-  for (const spec of CLIENTS) {
-    let createdApplication = false;
-    let updatedApplication = false;
-    let createdCredential = false;
-    let reusedCredential = false;
+  /**
+   * The owning account id, for a path that is about to WRITE it. `null` is only
+   * reachable under DRY_RUN (a real run mints the account first), so reaching
+   * here without one is a bug, not an operational condition.
+   */
+  const requireOwnerAccountId = (): mongoose.Types.ObjectId => {
+    if (!ownerAccountId) {
+      throw new Error('Owner organization account was not resolved — refusing to write');
+    }
+    return ownerAccountId;
+  };
 
+  for (const spec of CLIENTS) {
     // ── Application: upsert keyed by (name, createdByUserId) ──
     let application = await Application.findOne({ name: spec.name, createdByUserId: oxyId });
 
-    if (!application) {
-      createdApplication = true;
-      if (!dryRun) {
+    // ONE plan, computed on both paths. Non-destructive by construction: array
+    // fields are UNIONed with what the record already has.
+    const plan = computeApplicationPlan(
+      application ? readApplicationState(application) : null,
+      {
+        type: spec.type,
+        redirectUris: spec.redirectUris,
+        scopes: spec.scopes,
+        capabilities: spec.capabilities,
+        ownerAccountId: ownerAccountId?.toString() ?? null,
+      }
+    );
+
+    const applicationAction: RecordAction = plan.creates
+      ? 'create'
+      : plan.changes.length > 0
+        ? 'update'
+        : 'unchanged';
+
+    if (!dryRun) {
+      if (plan.creates) {
         application = await Application.create({
           name: spec.name,
           description: spec.description,
           websiteUrl: spec.websiteUrl,
-          type: spec.type,
-          status: 'active',
-          isOfficial: true,
-          isInternal: spec.type === 'internal',
-          capabilities: spec.capabilities,
-          redirectUris: spec.redirectUris,
-          scopes: spec.scopes,
-          ownerAccountId,
           createdByUserId: oxyId,
+          ownerAccountId: requireOwnerAccountId(),
+          status: plan.desired.status,
+          type: plan.desired.type,
+          isOfficial: plan.desired.isOfficial,
+          isInternal: plan.desired.isInternal,
+          capabilities: plan.desired.capabilities,
+          redirectUris: plan.desired.redirectUris,
+          scopes: plan.desired.scopes,
         });
-      }
-    } else if (!dryRun) {
-      // Reconcile non-destructively: ensure trusted-official flags + status, and
-      // UNION the required redirect origins / scopes (never strip existing ones).
-      if (application.status !== 'active') application.status = 'active';
-      if (!application.isOfficial) application.isOfficial = true;
-      if (application.type !== spec.type) application.type = spec.type;
-      if (application.isInternal !== (spec.type === 'internal')) {
-        application.isInternal = spec.type === 'internal';
-      }
-      if (!application.ownerAccountId || !application.ownerAccountId.equals(ownerAccountId)) {
-        application.ownerAccountId = ownerAccountId;
-      }
-
-      const mergedRedirects = Array.from(
-        new Set([...(application.redirectUris ?? []), ...spec.redirectUris])
-      );
-      if (mergedRedirects.length !== (application.redirectUris ?? []).length) {
-        application.redirectUris = mergedRedirects;
-      }
-
-      const mergedScopes = Array.from(
-        new Set<ApplicationScope>([...(application.scopes ?? []), ...spec.scopes])
-      );
-      if (mergedScopes.length !== (application.scopes ?? []).length) {
-        application.scopes = mergedScopes;
-      }
-
-      const mergedCapabilities = Array.from(
-        new Set<string>([...(application.capabilities ?? []), ...spec.capabilities])
-      );
-      if (mergedCapabilities.length !== (application.capabilities ?? []).length) {
-        application.capabilities = mergedCapabilities;
-      }
-
-      if (application.isModified()) {
+      } else if (application && plan.changes.length > 0) {
+        applyApplicationPlan(application, plan, requireOwnerAccountId());
         await application.save();
-        updatedApplication = true;
       }
     }
 
-    // In dry-run with a not-yet-existing app, synthesize a placeholder id.
-    const applicationId =
-      application?._id ?? new mongoose.Types.ObjectId('000000000000000000000000');
-
-    // Ownership/membership is handled ONCE at the org-account level in
-    // resolveTargets — app access for `oxy` derives from the Oxy org
-    // AccountMember (no per-app member row).
+    logger.info(
+      dryRun ? 'Application registration plan (dry run — not written)' : 'Application registration applied',
+      {
+        dryRun,
+        app: spec.name,
+        action: applicationAction,
+        // WHICH fields, from what, to what — not just how many.
+        changes: plan.changes,
+      }
+    );
 
     // ── ApplicationCredential: reuse an existing active public prod cred ──
-    let credential = await ApplicationCredential.findOne({
-      applicationId,
-      type: 'public',
-      environment: 'production',
-      status: 'active',
-    });
-
-    if (credential) {
-      reusedCredential = true;
-    } else {
-      createdCredential = true;
-      if (!dryRun && application) {
-        credential = await ApplicationCredential.create({
-          applicationId,
-          name: 'Production',
-          publicKey: generatePublicKey(),
-          // public client → NO secret / secretHash (mirrors routes/applications.ts)
+    // A not-yet-created application has no credential to look up, so the plan is
+    // "create" without querying for a document that cannot exist.
+    let credential = application
+      ? await ApplicationCredential.findOne({
+          applicationId: application._id,
           type: 'public',
           environment: 'production',
-          scopes: spec.scopes,
           status: 'active',
-          createdByUserId: oxyId,
-        });
-      }
+        })
+      : null;
+
+    const credentialAction: 'create' | 'reuse' = credential ? 'reuse' : 'create';
+
+    if (!credential && !dryRun && application) {
+      credential = await ApplicationCredential.create({
+        applicationId: application._id,
+        name: 'Production',
+        publicKey: generatePublicKey(),
+        // public client → NO secret / secretHash (mirrors routes/applications.ts)
+        type: 'public',
+        environment: 'production',
+        // The SPEC's scopes, deliberately — a credential is minted with exactly
+        // the scopes this registration asks for, never widened to whatever the
+        // application happens to carry.
+        scopes: spec.scopes,
+        status: 'active',
+        createdByUserId: oxyId,
+      });
     }
 
-    const clientId =
-      credential?.publicKey ?? (dryRun ? '(dry-run-would-mint)' : 'ERROR-no-credential');
+    if (!dryRun && !credential) {
+      throw new Error(`No production credential resolved for "${spec.name}"`);
+    }
 
     mapping.push({
       key: spec.key,
       app: spec.name,
       type: spec.type,
-      applicationId: applicationId.toString(),
-      clientId,
-      redirectUris: application?.redirectUris ?? spec.redirectUris,
-      createdApplication,
-      updatedApplication,
-      createdCredential,
-      reusedCredential,
+      // Both fallbacks are reachable ONLY under DRY_RUN: a real run has either
+      // found or just created the document by this point (and throws otherwise).
+      applicationId: application?._id.toString() ?? '(dry-run-would-create)',
+      clientId: credential?.publicKey ?? '(dry-run-would-mint)',
+      // The EFFECTIVE post-run value (the union), not the pre-run one — a dry
+      // run reports the list the record will actually end up with.
+      redirectUris: plan.desired.redirectUris,
+      applicationAction,
+      changes: plan.changes,
+      credentialAction,
     });
   }
+
+  const countAction = (action: RecordAction): number =>
+    mapping.filter((row) => row.applicationAction === action).length;
 
   logger.info('Registration summary', {
     dryRun,
     clients: CLIENTS.length,
-    appsCreated: mapping.filter((m) => m.createdApplication).length,
-    appsUpdated: mapping.filter((m) => m.updatedApplication).length,
-    credentialsCreated: mapping.filter((m) => m.createdCredential).length,
-    credentialsReused: mapping.filter((m) => m.reusedCredential).length,
+    appsCreated: countAction('create'),
+    appsUpdated: countAction('update'),
+    appsUnchanged: countAction('unchanged'),
+    fieldChanges: mapping.reduce((total, row) => total + row.changes.length, 0),
+    credentialsCreated: mapping.filter((row) => row.credentialAction === 'create').length,
+    credentialsReused: mapping.filter((row) => row.credentialAction === 'reuse').length,
+    ownerAccountAction,
+    ownerMembershipAction,
   });
 
   // ── Emit the two non-secret client ids in a stable, parseable format ──
@@ -383,7 +435,9 @@ async function register(): Promise<void> {
   /* eslint-disable no-console */
   console.log(`COMMONS_CLIENT_ID=${byKey('COMMONS_CLIENT_ID')}`);
   console.log(`AUTH_IDP_CLIENT_ID=${byKey('AUTH_IDP_CLIENT_ID')}`);
-  console.log('OXY_SIGNIN_CLIENTS_JSON=' + JSON.stringify(mapping));
+  // Self-describing: the parsed artifact carries whether it was a plan or a
+  // performed run, so it can never be mistaken for the other.
+  console.log('OXY_SIGNIN_CLIENTS_JSON=' + JSON.stringify({ dryRun, clients: mapping }));
   /* eslint-enable no-console */
 }
 

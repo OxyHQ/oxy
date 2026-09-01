@@ -175,14 +175,15 @@ Designed but not committed: export records as EAS-compatible off-chain attestati
 
 ## Rollout order
 
-1. ✅ **Done** — `@oxyhq/protocol` transparency tree, proof verifier, and co-signable checkpoint primitives, with tests (unpublished; `@oxyhq/protocol` still needs a version bump + publish before oxy-api can consume it from `dist/`). Next: `@oxyhq/contracts` checkpoint/proof schemas, published **first** per the standing rule.
-2. oxy-api: `Checkpoint` model, leader-elected checkpoint job, public read endpoints, rate-limit prefix. Done when a third party can recompute the root from a snapshot and verify an inclusion proof independently.
-3. FairCoin `data`-output support + testnet smoke test. Done when a 40-byte `OP_RETURN` is broadcast and read back by RPC on testnet, then mainnet.
-4. Anchoring job + `anchor` reconciliation + Commons/node continuous verification UI. Done when a user can see their own head anchored in a FairCoin transaction and the client detects a tampered proof.
-5. Witnesses.
-6. Payout records + payments (independent of 5).
+1. ✅ **Done** — `@oxyhq/protocol` transparency tree, proof verifier, and co-signable checkpoint primitives (`src/transparency/`, 30 tests).
+2. ✅ **Done** — `@oxyhq/contracts` `src/transparency.ts` (checkpoint / signature / anchor / inclusion-proof schemas, 15 tests) and oxy-api: `TransparencyCheckpoint` model, `transparency.service.ts`, the four public read endpoints (`routes/transparency.ts`, 15 tests), and the 6-hourly publish job (`queue/transparencyCheckpoint.queue.ts`, BullMQ + unref'd interval fallback), mounted in `server.ts` outside the CSRF group. **Both packages are unpublished** — `@oxyhq/contracts` and `@oxyhq/protocol` need a version bump + publish (contracts FIRST) before an external consumer (Commons, `@oxyhq/node`) can import these from `dist/`; oxy-api builds them from the workspace.
+3. Client-side continuous verification: Commons and `@oxyhq/node` persist their own latest proof and re-verify against each new checkpoint. This is what turns "auditable in principle" into "audited by every device".
+4. FairCoin `data`-output support + testnet smoke test. Done when a 40-byte `OP_RETURN` is broadcast and read back by RPC on testnet, then mainnet.
+5. Anchoring job + `anchor` reconciliation + the "anchored on FairCoin" surface in Commons. Done when a user can see their own head anchored in a FairCoin transaction and the client detects a tampered proof.
+6. Witnesses — user-run `@oxyhq/node` deployments co-signing checkpoints.
+7. Payout records + payments (independent of 6, and gated on the anti-sybil review above).
 
-Phases 1–2 are additive and reversible: removing the checkpoint job and endpoints leaves the record chains untouched. Phase 3 is not reversible in the sense that published payments are permanent — which is why the disclosure and opt-in are part of the design, not follow-ups.
+Steps 1–5 are additive and reversible: removing the checkpoint job and endpoints leaves the record chains untouched. Step 7 is not reversible in the sense that published payments are permanent — which is why the disclosure and opt-in are part of the design, not follow-ups.
 
 ## Open questions
 

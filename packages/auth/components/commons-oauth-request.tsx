@@ -1,56 +1,51 @@
 /**
- * The ACTIVE REQUEST surface for the authorize page's Commons lane (issue #691,
- * Phase 5 shape).
+ * The authorize page's Commons lane (issue #691) — the IdP's HOST for the
+ * shared "Sign in with Oxy" request surface.
  *
- * The user already performed their one action — pressing "Sign in with Oxy" in
- * the relying party. From here this surface only REPORTS: the route-appropriate
- * primary visual, the status line derived from the lane's real signals, and
- * nothing else at the same weight. Every alternative stays behind "Having
- * trouble?" until the request FAILS, at which point the alternatives are all
- * that is left and render plainly — the same progressive-disclosure contract
- * `@oxyhq/services`' own `SignInRequestView` uses.
+ * What this file owns is the lane's LIFECYCLE: exactly one
+ * {@link CommonsOAuthRequest}, started on mount, abandoned on unmount, with its
+ * single terminal outcome handed to the page's delivery funnel.
  *
- * Copy is shared, not re-invented: the headline, the progress ladder, and the
- * disclosure trigger all resolve through the auth app's `t()` fallback into
- * `@oxyhq/core`'s `accountSwitcher.*` dictionary — the exact strings every other
- * Oxy sign-in surface renders, in all 11 locales.
+ * What the in-flight request LOOKS like is not owned here at all. That is
+ * `@oxyhq/services`' `OxySignInRequestSurface` — the same presentational
+ * component the in-app account dialog renders — so the two hosts of a Commons
+ * approval cannot drift apart. It resolves the shared `accountSwitcher.*` copy
+ * (headline, progress ladder, "Having trouble?", "Try again") in all 11 locales
+ * from the SDK's own dictionary, which is exactly the copy this lane used to
+ * reach for through `t()`.
  *
- * ANTI-PHISHING: the QR encodes `snapshot.qrPayload` and renders NOTHING derived
- * from it. The requesting application's identity comes from the server-resolved
- * `appName` the page already looked up via `GET /auth/oauth/client/:clientId`,
- * never from the payload. And the payload itself carries only the PUBLIC
- * `authorizeCode` — the secret finalize credential never reaches this component.
+ * What stays here is genuinely IdP page chrome, i.e. the parts a full-page
+ * OAuth authorize screen owes the visitor and an in-app dialog does not:
+ *
+ *  - the auth card (`AuthFormLayout` + `AuthFormHeader`), titled with the
+ *    SERVER-RESOLVED application name the page looked up via
+ *    `GET /auth/oauth/client/:clientId`;
+ *  - the failure BANNER. The surface reports only THAT the request failed and
+ *    offers the way forward; wording the reason is the host's job, and on a full
+ *    page that means an inline banner rather than the dialog's toast;
+ *  - WHICH alternatives exist, and whether a fresh attempt can help at all
+ *    (see {@link UNRECOVERABLE_FAILURES}).
+ *
+ * ANTI-PHISHING: the QR encodes `snapshot.qrPayload` and nothing is rendered
+ * that derives from it — the requesting application's identity comes from the
+ * server-resolved `appName`, never from the payload. And the payload itself
+ * carries only the PUBLIC `authorizeCode`; the secret finalize credential is a
+ * private field of the request and reaches neither this component nor any prop
+ * of the surface.
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react"
-import QRCode from "react-native-qrcode-svg"
-import { Button } from "@oxyhq/bloom/button"
-import { AuthFormLayout, AuthFormHeader, LoadingSpinner } from "@/components/auth-form-layout"
+import { OxySignInRequestSurface } from "@oxyhq/services"
+import type { OxySignInSurfaceAction } from "@oxyhq/services"
+import { AuthFormLayout, AuthFormHeader } from "@/components/auth-form-layout"
 import { useTranslation } from "@/lib/i18n/use-translation"
-import type { TranslateFn } from "@/lib/i18n/types"
 import { CommonsOAuthRequest } from "@/lib/commons-oauth-request"
 import type {
     CommonsOAuthBinding,
     CommonsOAuthClient,
     CommonsOAuthFailure,
     CommonsOAuthOutcome,
-    CommonsOAuthProgress,
-    CommonsOAuthSnapshot,
 } from "@/lib/commons-oauth-request"
-
-/** High-contrast QR colors — intentionally fixed (NOT themed) for scan reliability. */
-const QR_PLATE_BG = "#FFFFFF"
-const QR_FOREGROUND = "#000000"
-const QR_SIZE = 196
-
-/** Status-line copy, one key per derived progress step. */
-const PROGRESS_KEYS: Record<CommonsOAuthProgress, string> = {
-    preparing: "accountSwitcher.progress.preparing",
-    "awaiting-approval": "accountSwitcher.progress.scanWithCommons",
-    "opened-in-commons": "accountSwitcher.progress.openedInCommons",
-    "confirming-identity": "accountSwitcher.progress.confirming",
-    "identity-confirmed": "accountSwitcher.progress.confirmed",
-}
 
 /** Failure copy, one key per terminal reason the lane can report. */
 const FAILURE_KEYS: Record<CommonsOAuthFailure, string> = {
@@ -64,166 +59,10 @@ const FAILURE_KEYS: Record<CommonsOAuthFailure, string> = {
 /**
  * Failures a fresh request cannot fix. A mismatched redirect binding would come
  * back identical on every attempt, so offering "Try again" would only loop the
- * user through the same dead end — the surface leaves cancelling as the way out.
+ * user through the same dead end — the lane withholds `onRetry` there, leaving
+ * the alternatives as the only way forward.
  */
 const UNRECOVERABLE_FAILURES: readonly CommonsOAuthFailure[] = ["redirect_mismatch"]
-
-type CommonsOAuthRequestViewProps = {
-    snapshot: CommonsOAuthSnapshot
-    /** Server-resolved application name, or null when the page has none to show. */
-    appName?: string | null
-    t: TranslateFn
-    /** Start a BRAND-NEW request. Never a retry of a spent one. */
-    onRetry: () => void
-    /** Withdraw the request and report the standard OAuth denial. */
-    onCancel: () => void
-    /** Hand the public deep link to the Commons app on this very device. */
-    onOpenInCommons: (qrPayload: string) => void
-    /** Fall back to signing in on this origin (passkey / security key). */
-    onSignInHere: () => void
-}
-
-/** A subordinate, non-competing action. Never styled as a primary button. */
-function SubtleLink({
-    label,
-    onClick,
-    testId,
-}: {
-    label: string
-    onClick: () => void
-    testId: string
-}) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            data-testid={testId}
-            className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
-        >
-            {label}
-        </button>
-    )
-}
-
-function CommonsOAuthRequestView({
-    snapshot,
-    appName,
-    t,
-    onRetry,
-    onCancel,
-    onOpenInCommons,
-    onSignInHere,
-}: CommonsOAuthRequestViewProps) {
-    // The disclosure's own open state. Not derived from the snapshot: revealing
-    // the alternatives is the USER asking for them, and a failure reveals them
-    // unconditionally below without touching this.
-    const [troubleOpen, setTroubleOpen] = useState(false)
-
-    const failed = snapshot.phase === "failed"
-    const failure = snapshot.failure
-    const qrPayload = snapshot.qrPayload
-    const canRetry = failed && failure !== null && !UNRECOVERABLE_FAILURES.includes(failure)
-
-    const alternatives = (
-        <div className="flex flex-col items-start gap-2">
-            {qrPayload && !failed && (
-                <SubtleLink
-                    label={t("authorize.commons.openOnThisDevice")}
-                    onClick={() => onOpenInCommons(qrPayload)}
-                    testId="commons-open-on-this-device"
-                />
-            )}
-            <SubtleLink
-                label={t("authorize.commons.signInHere")}
-                onClick={onSignInHere}
-                testId="commons-sign-in-here"
-            />
-        </div>
-    )
-
-    return (
-        <AuthFormLayout>
-            <AuthFormHeader
-                title={
-                    appName
-                        ? t("authorize.title", { app: appName })
-                        : t("authorize.requestTitle")
-                }
-                description={t("authorize.commons.description")}
-            />
-
-            <div className="flex flex-col items-center gap-4">
-                {failed && failure ? (
-                    <>
-                        <p
-                            className="rounded-radius-12 border border-destructive/50 bg-destructive/10 p-space-12 font-bodySmall text-bodySmall text-destructive"
-                            data-testid="commons-failure"
-                        >
-                            {t(FAILURE_KEYS[failure])}
-                        </p>
-                        {canRetry && (
-                            <Button size="lg" className="w-full" onClick={onRetry}>
-                                {t("common.actions.tryAgain")}
-                            </Button>
-                        )}
-                    </>
-                ) : snapshot.phase === "waiting" && snapshot.route === "qr" && qrPayload ? (
-                    <>
-                        <p className="text-center font-medium">
-                            {t("accountSwitcher.qrHeadline")}
-                        </p>
-                        <div
-                            className="rounded-radius-12 p-4"
-                            style={{ backgroundColor: QR_PLATE_BG }}
-                            data-testid="commons-qr-plate"
-                        >
-                            <QRCode
-                                value={qrPayload}
-                                size={QR_SIZE}
-                                backgroundColor={QR_PLATE_BG}
-                                color={QR_FOREGROUND}
-                            />
-                        </div>
-                    </>
-                ) : (
-                    <LoadingSpinner />
-                )}
-
-                {snapshot.progress && (
-                    <p
-                        className="text-sm text-muted-foreground"
-                        aria-live="polite"
-                        data-testid="commons-progress"
-                    >
-                        {t(PROGRESS_KEYS[snapshot.progress])}
-                    </p>
-                )}
-            </div>
-
-            <div className="flex flex-col items-start gap-3">
-                {/* A failed request has no working primary route left, so the
-                    alternatives ARE the content now and render without asking. */}
-                {failed ? (
-                    alternatives
-                ) : (
-                    <>
-                        <SubtleLink
-                            label={t("accountSwitcher.havingTrouble")}
-                            onClick={() => setTroubleOpen((open) => !open)}
-                            testId="commons-trouble-disclosure"
-                        />
-                        {troubleOpen && alternatives}
-                    </>
-                )}
-                <SubtleLink
-                    label={t("authorize.cancel")}
-                    onClick={onCancel}
-                    testId="commons-cancel"
-                />
-            </div>
-        </AuthFormLayout>
-    )
-}
 
 type CommonsOAuthLaneProps = {
     /** The OAuth binding built from the authorize URL's validated parameters. */
@@ -285,21 +124,76 @@ export function CommonsOAuthLane({
 
     const snapshot = useSyncExternalStore(request.subscribe, request.getSnapshot, request.getSnapshot)
 
-    return (
-        <CommonsOAuthRequestView
-            snapshot={snapshot}
-            appName={appName}
-            t={t}
-            onRetry={request.start}
-            onCancel={request.cancel}
-            onOpenInCommons={(qrPayload) => {
-                // The PUBLIC deep link only — it carries the `authorizeCode`, never
-                // the secret finalize credential. An explicit user choice from the
-                // disclosure, never an automatic route (a browser cannot verify
-                // that a Commons app link resolves on this device).
+    const failed = snapshot.phase === "failed"
+    const failure = snapshot.failure
+    const qrPayload = snapshot.qrPayload
+
+    const alternatives: OxySignInSurfaceAction[] = []
+    if (qrPayload && !failed) {
+        alternatives.push({
+            key: "commons-open-on-this-device",
+            label: t("authorize.commons.openOnThisDevice"),
+            // The PUBLIC deep link only — it carries the `authorizeCode`, never
+            // the secret finalize credential. An explicit user choice from the
+            // disclosure, never an automatic route (a browser cannot verify that
+            // a Commons app link resolves on this device). Withheld once the
+            // request has failed: its handle is spent, so the link is a dead end.
+            onPress: () => {
                 window.location.href = qrPayload
-            }}
-            onSignInHere={onSignInHere}
-        />
+            },
+        })
+    }
+    alternatives.push({
+        key: "commons-sign-in-here",
+        label: t("authorize.commons.signInHere"),
+        onPress: onSignInHere,
+    })
+
+    return (
+        <AuthFormLayout>
+            <AuthFormHeader
+                title={
+                    appName
+                        ? t("authorize.title", { app: appName })
+                        : t("authorize.requestTitle")
+                }
+                description={t("authorize.commons.description")}
+            />
+
+            {failed && failure !== null && (
+                <p
+                    className="rounded-radius-12 border border-destructive/50 bg-destructive/10 p-space-12 font-bodySmall text-bodySmall text-destructive"
+                    data-testid="commons-failure"
+                >
+                    {t(FAILURE_KEYS[failure])}
+                </p>
+            )}
+
+            <OxySignInRequestSurface
+                route={snapshot.route}
+                // `CommonsOAuthProgress` is a strict subset of the SDK's
+                // `SignInProgress`; "nothing honest to report" is `'idle'`, which
+                // renders no status line.
+                progress={snapshot.progress ?? "idle"}
+                qrPayload={qrPayload}
+                failed={failed}
+                // "Try again" means a BRAND-NEW request (`start` is a no-op on a
+                // live one, and never re-finalizes a spent one), and is offered
+                // only where a fresh attempt could actually land differently.
+                onRetry={
+                    failed && failure !== null && !UNRECOVERABLE_FAILURES.includes(failure)
+                        ? request.start
+                        : undefined
+                }
+                subordinate={[
+                    {
+                        key: "commons-cancel",
+                        label: t("authorize.cancel"),
+                        onPress: request.cancel,
+                    },
+                ]}
+                alternatives={alternatives}
+            />
+        </AuthFormLayout>
     )
 }

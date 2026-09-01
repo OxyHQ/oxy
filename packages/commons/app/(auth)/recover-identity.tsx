@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyManager, readIdentityMarker, type IdentityMarker, type IdentityRecoveryResult } from '@oxyhq/core';
-import { alert } from '@oxyhq/bloom';
+import { alert, toast } from '@oxyhq/bloom';
 import { useColors } from '@/hooks/useColors';
 import { Button } from '@/components/ui';
 import { CenteredState } from '@/components/ui/centered-state';
@@ -12,10 +12,13 @@ import {
   useOnboardingStatus,
   ONBOARDING_IDENTITY_QUERY_KEY,
   ONBOARDING_COMPLETE_QUERY_KEY,
+  ONBOARDING_FLOW_QUERY_KEY,
   getOnboardingResumeHref,
 } from '@/hooks/useOnboardingStatus';
 import { persistOnboardingComplete, persistOnboardingFlow } from '@/hooks/identity/identityStore';
 import { shortenKey } from '@/utils/shorten-key';
+
+const RECOVERY_MARKER_QUERY_KEY = ['recover-identity', 'marker'] as const;
 
 /**
  * Recover Identity screen.
@@ -43,15 +46,18 @@ export default function RecoverIdentityScreen() {
   // can recognize which account is being recovered. Read once; never changes
   // while this screen is mounted.
   const markerQuery = useQuery<IdentityMarker | null>({
-    queryKey: ['recover-identity', 'marker'],
+    queryKey: RECOVERY_MARKER_QUERY_KEY,
     queryFn: readIdentityMarker,
     staleTime: Infinity,
     retry: false,
   });
 
-  const invalidateOnboarding = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ONBOARDING_IDENTITY_QUERY_KEY });
-    queryClient.invalidateQueries({ queryKey: ONBOARDING_COMPLETE_QUERY_KEY });
+  const invalidateOnboarding = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ONBOARDING_IDENTITY_QUERY_KEY }),
+      queryClient.invalidateQueries({ queryKey: ONBOARDING_COMPLETE_QUERY_KEY }),
+      queryClient.invalidateQueries({ queryKey: ONBOARDING_FLOW_QUERY_KEY }),
+    ]);
   }, [queryClient]);
 
   const recovery = useMutation<IdentityRecoveryResult, Error>({
@@ -60,7 +66,7 @@ export default function RecoverIdentityScreen() {
       if (result.recovered) {
         // Keys are back → let the shared probes re-read and the root Stack take
         // over routing (present → complete/in_progress).
-        invalidateOnboarding();
+        void invalidateOnboarding();
       }
     },
   });
@@ -92,19 +98,33 @@ export default function RecoverIdentityScreen() {
         style: 'destructive',
         onPress: () => {
           void (async () => {
-            // Destructive: clears keys (both generations) AND the marker
-            // (userConfirmed=true). After this the device is genuinely blank →
-            // status resolves to `none` → the welcome/create flow.
-            await KeyManager.deleteIdentity(false, false, true);
-            await persistOnboardingComplete(false);
-            await persistOnboardingFlow(null);
-            invalidateOnboarding();
-            router.replace('/(auth)');
+            try {
+              // This screen only exists when the primary pair is ALREADY gone
+              // but the independent marker still exists. A non-force delete
+              // calls `hasIdentity()`, sees no pair and returns before clearing
+              // that marker, trapping the device on this screen forever.
+              // The user just confirmed the destructive reset, so skip backup
+              // and force-purge every generation, recovery slot and marker.
+              await KeyManager.deleteIdentity(true, true, true);
+              await Promise.all([
+                persistOnboardingComplete(false),
+                persistOnboardingFlow(null),
+              ]);
+
+              // Do not retain the lost marker or the old wizard choice in the
+              // screen/query caches after storage has become genuinely blank.
+              queryClient.removeQueries({ queryKey: RECOVERY_MARKER_QUERY_KEY });
+              await invalidateOnboarding();
+              router.replace('/(auth)');
+            } catch (error) {
+              console.error('[RecoverIdentity] Failed to erase local identity state', error);
+              toast.error(t('recovery.startOverFailed'));
+            }
           })();
         },
       },
     ]);
-  }, [t, invalidateOnboarding, router]);
+  }, [t, invalidateOnboarding, queryClient, router]);
 
   // Routing has moved on — leave this screen for the correct destination.
   // Recovery succeeded (present → complete): the root Stack swaps to (tabs);

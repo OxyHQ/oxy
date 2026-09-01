@@ -1,8 +1,5 @@
+import { COMMONS_DENY_REASONS, type CommonsDenyReason } from "@oxyhq/contracts";
 import mongoose, { type Document, Schema } from "mongoose";
-import {
-  AUTH_SESSION_DENY_REASONS,
-  type AuthSessionDenyReason,
-} from "../schemas/auth.schemas";
 
 /**
  * AuthSession Model
@@ -135,12 +132,12 @@ export interface IAuthSession extends Document {
   finalizedAuthCodeId?: mongoose.Types.ObjectId;
   /**
    * Why a PENDING request was denied, from the closed
-   * {@link AUTH_SESSION_DENY_REASONS} set. `null` when the request was never
+   * {@link COMMONS_DENY_REASONS} set. `null` when the request was never
    * denied, or when it was denied without a reason (an older approver). The
    * distinction that matters: `'not_me'` marks a denial the approver reported as
    * one they never started — an ordinary cancel is `'declined'` / absent.
    */
-  deniedReason?: AuthSessionDenyReason | null;
+  deniedReason?: CommonsDenyReason | null;
   authorizedBy?: string;     // Public key of the user who authorized
   authorizedUserId?: mongoose.Types.ObjectId; // MongoDB user ID of the authorizing IDENTITY
   authorizedSessionId?: string; // The actual session ID after authorization (device sign-in only)
@@ -250,7 +247,7 @@ const AuthSessionSchema: Schema = new Schema(
     // already rejects anything outside the set at the edge.
     deniedReason: {
       type: String,
-      enum: [...AUTH_SESSION_DENY_REASONS, null],
+      enum: [...COMMONS_DENY_REASONS, null],
       default: null,
     },
     authorizedBy: {

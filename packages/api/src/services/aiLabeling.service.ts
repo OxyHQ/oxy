@@ -7,6 +7,7 @@
 
 import axios from 'axios';
 import { Label } from '../models/Label';
+import { SYSTEM_LABELS, isSystemLabel } from '../constants/systemLabels';
 import { Message } from '../models/Message';
 import { AI_LABELING_CONFIG } from '../config/email.config';
 import { logger } from '../utils/logger';
@@ -88,11 +89,16 @@ class AiLabelingService {
         return;
       }
 
-      // Fetch user's labels
-      const labels = await Label.find({ userId }).select('name').lean();
-      if (labels.length === 0) return;
-
-      const labelNames = labels.map((l) => l.name);
+      // The classifier chooses among the system labels plus whatever the user
+      // has added. The system ones have no rows behind them, so querying the
+      // collection alone would leave a user who never made a label with
+      // nothing to classify into.
+      const custom = await Label.find({ userId }).select('name').lean();
+      const labelNames = [
+        ...SYSTEM_LABELS.map((l) => l.name),
+        ...custom.map((l) => l.name).filter((name) => !isSystemLabel(name)),
+      ];
+      if (labelNames.length === 0) return;
 
       // Fetch message content for classification
       const message = await Message.findOne({ _id: messageId, userId })

@@ -21,10 +21,14 @@ import { useRouter, useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy, OxySignInButton } from '@oxyhq/services';
 import { toast } from '@oxyhq/bloom';
+import { useTabBarFootprint } from '@oxyhq/bloom/tab-bar';
 
+import { useFloatingHeader } from '@/hooks/useFloatingHeader';
 import { useColors } from '@/constants/theme';
+import { SPACING, RADIUS, CONTENT_MAX_WIDTH } from '@/constants/layout';
 import { SPECIAL_USE } from '@/constants/mailbox';
 import { useEmailStore } from '@/hooks/useEmail';
+import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 import { useInboxPrefs, type SwipeAction } from '@/contexts/inbox-prefs-context';
 import { useInboxDisplayPrefs } from '@/hooks/useInboxDisplayPrefs';
 import { useMessageActions } from '@/hooks/useMessageActions';
@@ -40,7 +44,8 @@ import {
   useBulkUpdateFlags,
   useBulkMoveMessages,
 } from '@/hooks/mutations/useMessageMutations';
-import { MessageRow } from '@/components/MessageRow';
+import { MessageRow, MessageRowExtras } from '@/components/MessageRow';
+import { InboxGreeting } from '@/components/InboxGreeting';
 import { SearchHeader } from '@/components/SearchHeader';
 import { SelectionToolbar } from '@/components/SelectionToolbar';
 import { SwipeableRow } from '@/components/SwipeableRow';
@@ -58,24 +63,59 @@ import { useCreateReminder, useUpdateReminder, useDeleteReminder } from '@/hooks
 import type { Message, Bundle, Reminder } from '@/services/emailApi';
 
 type ListItem =
-  | { type: 'header'; title: string; key: string }
+  | { type: 'header'; title: string; key: string; count?: number }
   | { type: 'message'; data: Message }
   | { type: 'bundle'; bundle: Bundle; messages: Message[]; unreadCount: number }
   | { type: 'reminder'; data: Reminder };
 
+/** Section title for a message: one card per calendar bucket. */
 function getDateCategory(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffMs = today.getTime() - msgDay.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffDays = Math.floor((today.getTime() - msgDay.getTime()) / (1000 * 60 * 60 * 24));
 
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return 'This Week';
   if (diffDays < 30) return 'This Month';
   return 'Earlier';
+}
+
+/**
+ * Pushes a titled section: one list item holding the whole group, rendered as
+ * a Bloom `SettingsListGroup` card with its title above it.
+ *
+ * The group is a single FlashList item, so its rows are not individually
+ * virtualized — acceptable because a group spans one date bucket of one page,
+ * and it is the price of framing each section with a shared card component
+ * instead of hand-rolling per-row borders.
+ */
+function pushGroup(items: ListItem[], title: string, key: string, messages: Message[]): void {
+  if (messages.length === 0) return;
+  // One list item per message, not one per bucket. FlashList mounts an item
+  // whole, so a bucket-sized item would mount every message in it — the
+  // "Earlier" bucket spans page boundaries and reaches hundreds of rows. The
+  // section reads as a group through its heading and the per-row spacing; it
+  // never had a surface of its own to hold it together.
+  if (title) items.push({ type: 'header', title, key, count: messages.length });
+  for (const msg of messages) items.push({ type: 'message', data: msg });
+}
+
+/** Splits messages into consecutive date buckets, preserving list order. */
+function groupByDate(messages: Message[]): { title: string; messages: Message[] }[] {
+  const groups: { title: string; messages: Message[] }[] = [];
+  for (const msg of messages) {
+    const title = getDateCategory(msg.date);
+    const current = groups[groups.length - 1];
+    if (current && current.title === title) {
+      current.messages.push(msg);
+      continue;
+    }
+    groups.push({ title, messages: [msg] });
+  }
+  return groups;
 }
 
 interface InboxListProps {
@@ -89,9 +129,9 @@ interface DrawerNavigation {
 }
 
 /**
- * Vertical offset (in dp) from the safe-area bottom for the Alia FAB.
- * Stacked above the Compose FAB with at least 24pt of separation:
- *   Compose bottom = insets.bottom + 16, Compose height ≈ 52, plus 24 gap.
+ * Vertical offset (in dp) above the Compose FAB's own anchor for the Alia FAB,
+ * so the two stack with at least 24pt of separation:
+ *   Compose bottom = tab-bar footprint + 16, Compose height ≈ 52, plus 24 gap.
  */
 const ALIA_FAB_BOTTOM_OFFSET = 16 + 52 + 24;
 const ALIA_PROXY_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.oxy.so';
@@ -100,6 +140,8 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
   const router = useRouter();
   const navigation = useNavigation<DrawerNavigation>();
   const insets = useSafeAreaInsets();
+  const tabBarFootprint = useTabBarFootprint();
+  const tabBarClearance = useTabBarClearance();
   const colors = useColors();
   const aliaChatRef = useRef<AliaChatSheetRef>(null);
   const { isAuthenticated } = useOxy();
@@ -116,8 +158,24 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
   const enterSelectionMode = useEmailStore((s) => s.enterSelectionMode);
   const clearSelection = useEmailStore((s) => s.clearSelection);
 
+  const { data: mailboxes = [] } = useMailboxes();
+
+  /**
+   * Falls back to the Inbox when nothing has been selected yet.
+   *
+   * The route→store sync lives in `MailboxView`, which renders inside the
+   * detail `<Slot/>`. On desktop that Slot is only mounted when a message is
+   * open, so without this fallback the list would sit empty on first load —
+   * `useMessages` is gated on `enabled: hasFilter`, and no mailbox id means no
+   * request at all.
+   */
+  const inboxMailboxId = useMemo(
+    () => mailboxes.find((m) => m.specialUse === SPECIAL_USE.INBOX)?._id,
+    [mailboxes],
+  );
+
   const messagesOptions = useMemo(() => {
-    if (!viewMode) return { mailboxId: currentMailbox?._id };
+    if (!viewMode) return { mailboxId: currentMailbox?._id ?? inboxMailboxId };
     switch (viewMode.type) {
       case 'mailbox':
         return { mailboxId: viewMode.mailbox._id };
@@ -126,7 +184,7 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
       case 'label':
         return { label: viewMode.labelName };
     }
-  }, [viewMode, currentMailbox]);
+  }, [viewMode, currentMailbox, inboxMailboxId]);
 
   const {
     data,
@@ -137,8 +195,6 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
     fetchNextPage,
     hasNextPage,
   } = useMessages(messagesOptions);
-
-  const { data: mailboxes = [] } = useMailboxes();
   const { data: labels = [] } = useLabels();
   const labelColorMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -157,6 +213,7 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
   const bulkMove = useBulkMoveMessages();
   const { data: bundles = [] } = useBundles();
 
+  const { headerHeight, onHeaderLayout, floatingHeaderStyle } = useFloatingHeader();
   const [snoozeTargetId, setSnoozeTargetId] = useState<string | null>(null);
   const [createReminderVisible, setCreateReminderVisible] = useState(false);
   const [editReminderTarget, setEditReminderTarget] = useState<Reminder | null>(null);
@@ -216,12 +273,7 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
     const pinned = !isSnoozedView ? displayMessages.filter((m) => m.flags.pinned) : [];
     const unpinned = !isSnoozedView ? displayMessages.filter((m) => !m.flags.pinned) : displayMessages;
 
-    if (pinned.length > 0) {
-      items.push({ type: 'header', title: 'Pinned', key: 'header-Pinned' });
-      for (const msg of pinned) {
-        items.push({ type: 'message', data: msg });
-      }
-    }
+    pushGroup(items, 'Pinned', 'header-Pinned', pinned);
 
     // Bundle view: group by bundle labels
     if (showBundles) {
@@ -250,15 +302,8 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
         if (!matched) primaryMsgs.push(msg);
       }
 
-      // Primary messages with date headers
-      let lastCategory = '';
-      for (const msg of primaryMsgs) {
-        const category = getDateCategory(msg.date);
-        if (category !== lastCategory) {
-          items.push({ type: 'header', title: category, key: `header-${category}` });
-          lastCategory = category;
-        }
-        items.push({ type: 'message', data: msg });
+      for (const group of groupByDate(primaryMsgs)) {
+        pushGroup(items, group.title, `header-${group.title}`, group.messages);
       }
 
       // Bundle rows (collapsed or expanded)
@@ -269,21 +314,12 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
         items.push({ type: 'bundle', bundle: b, messages: msgs, unreadCount });
 
         if (expandedBundles.has(b._id)) {
-          for (const msg of msgs) {
-            items.push({ type: 'message', data: msg });
-          }
+          for (const msg of msgs) items.push({ type: 'message', data: msg });
         }
       }
     } else {
-      // Normal flat view with date headers
-      let lastCategory = '';
-      for (const msg of unpinned) {
-        const category = getDateCategory(msg.date);
-        if (category !== lastCategory) {
-          items.push({ type: 'header', title: category, key: `header-${category}` });
-          lastCategory = category;
-        }
-        items.push({ type: 'message', data: msg });
+      for (const group of groupByDate(unpinned)) {
+        pushGroup(items, group.title, `header-${group.title}`, group.messages);
       }
     }
 
@@ -320,6 +356,13 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
       if (msg) togglePin.mutate({ messageId, pinned: !msg.flags.pinned });
     },
     [messages, togglePin],
+  );
+
+  const handleToggleRead = useCallback(
+    (messageId: string, seen: boolean) => {
+      toggleRead.mutate({ messageId, seen });
+    },
+    [toggleRead],
   );
 
   const handleSnooze = useCallback(
@@ -493,14 +536,50 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
     [messageActions],
   );
 
+  /** One message row, shared by the flat items and the grouped panels. */
+  const renderMessageRow = useCallback(
+    (msg: Message) => (
+      <SwipeableRow
+        key={msg._id}
+        messageId={msg._id}
+        leftAction={prefs.leftSwipeAction}
+        rightAction={prefs.rightSwipeAction}
+        onAction={handleSwipeAction}
+      >
+        <MessageRow
+          message={msg}
+          onPin={handlePin}
+          onSelect={handleMessagePress}
+          onArchive={messageActions.archive}
+          onDelete={messageActions.deleteMessage}
+          onToggleRead={handleToggleRead}
+          isSelected={msg._id === selectedMessageId}
+          isSelectionMode={isSelectionMode}
+          isMultiSelected={selectedMessageIds.has(msg._id)}
+          onToggleSelect={toggleMessageSelection}
+          onLongPress={handleLongPress}
+          isPinPending={togglePin.isPending && togglePin.variables?.messageId === msg._id}
+          showSnoozeTime={isSnoozedView}
+        />
+        <MessageRowExtras message={msg} sentiment={sentimentMap.get(msg._id)} />
+      </SwipeableRow>
+    ),
+    [prefs.leftSwipeAction, prefs.rightSwipeAction, handleSwipeAction, handlePin, handleMessagePress, messageActions, handleToggleRead, selectedMessageId, isSelectionMode, selectedMessageIds, toggleMessageSelection, handleLongPress, togglePin.isPending, togglePin.variables?.messageId, isSnoozedView, sentimentMap],
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
       if (item.type === 'header') {
         return (
-          <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
+          <View style={styles.sectionHeader}>
             <Text style={[styles.sectionHeaderText, { color: colors.secondaryText }]}>
               {item.title}
             </Text>
+            {item.count !== undefined ? (
+              <Text style={[styles.sectionHeaderCount, { color: colors.secondaryText }]}>
+                {item.count}
+              </Text>
+            ) : null}
           </View>
         );
       }
@@ -525,34 +604,14 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
           />
         );
       }
-      const msg = item.data;
-      return (
-        <SwipeableRow
-          messageId={msg._id}
-          leftAction={prefs.leftSwipeAction}
-          rightAction={prefs.rightSwipeAction}
-          onAction={handleSwipeAction}
-        >
-          <MessageRow
-            message={msg}
-            onStar={handleStar}
-            onPin={handlePin}
-            onSelect={handleMessagePress}
-            isSelected={msg._id === selectedMessageId}
-            isSelectionMode={isSelectionMode}
-            isMultiSelected={selectedMessageIds.has(msg._id)}
-            onToggleSelect={toggleMessageSelection}
-            onLongPress={handleLongPress}
-            isStarPending={toggleStar.isPending && toggleStar.variables?.messageId === msg._id}
-            isPinPending={togglePin.isPending && togglePin.variables?.messageId === msg._id}
-            showSnoozeTime={isSnoozedView}
-            labelColorMap={labelColorMap}
-            sentiment={sentimentMap.get(msg._id)}
-          />
-        </SwipeableRow>
-      );
+      return <View style={styles.messageItem}>{renderMessageRow(item.data)}</View>;
     },
-    [handleStar, handlePin, handleMessagePress, selectedMessageId, isSelectionMode, selectedMessageIds, toggleMessageSelection, handleLongPress, handleSwipeAction, prefs.leftSwipeAction, prefs.rightSwipeAction, toggleStar.isPending, toggleStar.variables?.messageId, togglePin.isPending, togglePin.variables?.messageId, isSnoozedView, expandedBundles, toggleBundle, labelColorMap, handleToggleReminderComplete, handleDeleteReminder, handleReminderPress, colors.border, colors.secondaryText, sentimentMap],
+    // Only what this function itself reads. It used to re-list
+    // `renderMessageRow`'s own dependencies by hand while omitting
+    // `renderMessageRow` — so the copy had to be kept in sync manually, and
+    // every row kept whichever callbacks it closed over when the copy last
+    // happened to change.
+    [renderMessageRow, expandedBundles, toggleBundle, handleToggleReminderComplete, handleDeleteReminder, handleReminderPress, colors.secondaryText],
   );
 
   const getItemType = useCallback((item: ListItem) => item.type, []);
@@ -563,11 +622,6 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
     if (item.type === 'reminder') return `reminder-${item.data._id}`;
     return item.data._id;
   }, []);
-
-  const renderSeparator = useCallback(
-    () => <View style={[styles.separator, { backgroundColor: colors.border }]} />,
-    [colors.border],
-  );
 
   const renderEmpty = useCallback(() => {
     if (isLoading) return null;
@@ -608,47 +662,17 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
           onMarkRead={handleBulkMarkRead}
         />
       ) : (
-        <SearchHeader
-          onLeftIcon={handleOpenDrawer}
-          leftIcon="menu"
-          placeholder={`Search in ${mailboxTitle.toLowerCase()}`}
-          onPress={handleSearch}
-        />
-      )}
-
-      {/* Pagination info + bundle toggle */}
-      {messages.length > 0 && data?.pages?.[0]?.pagination && (
-        <View style={styles.paginationBar}>
-          {isInboxView && (
-            <TouchableOpacity
-              style={[styles.bundleToggle, { borderColor: colors.border }]}
-              onPress={() => setCreateReminderVisible(true)}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons name="bell-plus-outline" size={14} color={colors.secondaryText} />
-              <Text style={[styles.bundleToggleText, { color: colors.secondaryText }]}>Remind</Text>
-            </TouchableOpacity>
-          )}
-          {isInboxView && bundles.length > 0 && (
-            <TouchableOpacity
-              style={[styles.bundleToggle, { borderColor: colors.border }]}
-              onPress={useEmailStore.getState().toggleBundleView}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons
-                name={bundleView ? 'view-list' : 'view-dashboard-outline'}
-                size={14}
-                color={colors.secondaryText}
-              />
-              <Text style={[styles.bundleToggleText, { color: colors.secondaryText }]}>
-                {bundleView ? 'Flat' : 'Bundled'}
-              </Text>
-            </TouchableOpacity>
-          )}
-          <View style={{ flex: 1 }} />
-          <Text style={[styles.paginationText, { color: colors.secondaryText }]}>
-            1–{messages.length} of {data.pages[0].pagination.total}
-          </Text>
+        // Floats above the list so rows scroll behind its gradient. Its
+        // measured height becomes the list's top padding, so the first row
+        // still starts below it instead of under it.
+        <View style={floatingHeaderStyle} onLayout={onHeaderLayout}
+        >
+          <SearchHeader
+            onLeftIcon={handleOpenDrawer}
+            leftIcon="menu"
+            placeholder={`Search in ${mailboxTitle.toLowerCase()}`}
+            onPress={handleSearch}
+          />
         </View>
       )}
 
@@ -663,7 +687,7 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
             renderItem={renderItem}
             keyExtractor={keyExtractor}
             getItemType={getItemType}
-            ItemSeparatorComponent={renderSeparator}
+            ListHeaderComponent={<InboxGreeting messages={messages} />}
             ListEmptyComponent={renderEmpty}
             ListFooterComponent={renderFooter}
             onEndReached={handleLoadMore}
@@ -677,7 +701,12 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
                 colors={[colors.primary]}
               />
             }
-            contentContainerStyle={listItems.length === 0 ? styles.emptyListContent : undefined}
+            contentContainerStyle={{
+              ...(listItems.length === 0 ? styles.emptyListContent : null),
+              ...styles.listContent,
+              paddingTop: headerHeight,
+              paddingBottom: tabBarClearance,
+            }}
             showsVerticalScrollIndicator={false}
           />
         </View>
@@ -691,11 +720,12 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
             styles.fab,
             {
               backgroundColor: colors.composeFab,
-              // NativeTabs wraps the tab content in a SafeAreaView with
-              // bottom edge enabled on Android, which already adds the
-              // bottom inset. Adding insets.bottom again would double-pad
-              // the FAB. On iOS the inset is applied here.
-              bottom: Platform.OS === 'android' ? 16 : insets.bottom + 16,
+              // Anchored on the floating bar's own footprint, which already has
+              // the bottom safe-area inset folded into it — so this is uniform
+              // across platforms, where the old NativeTabs anchor had to special-
+              // case Android (its tab content sat in a bottom-edge SafeAreaView
+              // that applied the inset a second time).
+              bottom: tabBarFootprint + 16,
               right: insets.right + 16,
             },
             Platform.select({
@@ -730,13 +760,8 @@ export function InboxList({ replaceNavigation }: InboxListProps) {
             style={[
               styles.aliaFab,
               {
-                // Mirror the Compose FAB: NativeTabs already adds the bottom
-                // inset on Android, so applying insets.bottom there would
-                // push the FAB above the system bar by the inset twice.
-                bottom:
-                  Platform.OS === 'android'
-                    ? ALIA_FAB_BOTTOM_OFFSET
-                    : insets.bottom + ALIA_FAB_BOTTOM_OFFSET,
+                // Mirrors the Compose FAB's anchor, one stack step higher.
+                bottom: tabBarFootprint + ALIA_FAB_BOTTOM_OFFSET,
                 right: insets.right + 16,
               },
             ]}
@@ -797,6 +822,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  listContent: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+  },
   listContainer: {
     flex: 1,
     minHeight: 0,
@@ -806,10 +836,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 80,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 68,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -849,33 +875,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  paginationBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    alignItems: 'center',
-  },
-  bundleToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  bundleToggleText: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  paginationText: {
-    fontSize: 11,
-    fontWeight: '500',
+  messageItem: {
+    marginHorizontal: SPACING.md,
+    // Small gap between messages instead of divider lines. A margin rather
+    // than a parent `gap`, now that each row is its own list item.
+    marginBottom: SPACING.xs,
   },
   sectionHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    // Sits above its rows, outside them — hence no border of its own. The count
+    // rides here rather than in a global toolbar, so it describes the section
+    // it labels. `marginHorizontal` matches `messageItem` so the heading keeps
+    // the same left edge as the rows it labels, which it used to inherit from
+    // the group wrapper.
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: SPACING.xs,
+    marginHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.xs,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.sm,
+  },
+  sectionHeaderCount: {
+    fontSize: 11,
+    fontWeight: '500',
+    opacity: 0.7,
   },
   sectionHeaderText: {
     fontSize: 12,

@@ -131,10 +131,14 @@
     "expo-crypto": "*",
     "expo-secure-store": "*",
     "express": "^4.0.0",
-    "express-rate-limit": "^7.0.0"
+    "express-rate-limit": "^7.0.0",
+    "helmet": "^8.0.0"
   },
   "peerDependenciesMeta": {
     "@react-native-async-storage/async-storage": {
+      "optional": true
+    },
+    "helmet": {
       "optional": true
     },
     "expo-crypto": {
@@ -158,6 +162,7 @@
     "expo-secure-store": "~56.0.4",
     "express": "^4.22.2",
     "express-rate-limit": "^7.5.0",
+    "helmet": "^8.3.0",
     "regexpu-core": "^6.4.0",
     "release-it": "^19.0.6",
     "typescript": "^5.9.2"

@@ -1,7 +1,7 @@
 import type React from 'react';
 import { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { darkenColor } from '../utils/colorUtils';
 
 interface SettingsIconProps {

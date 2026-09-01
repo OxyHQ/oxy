@@ -36,6 +36,7 @@ export function createServicesMock(
         useSwitchableAccounts: typeof defaultSwitchableAccounts
         OxyAuthChooser: React.ComponentType<{ onComplete?: () => void }>
         OxyConsentScreen: React.ComponentType<Record<string, unknown>>
+        OxySignInRequestSurface: React.ComponentType<Record<string, unknown>>
     }> = {},
 ) {
     return {
@@ -50,6 +51,11 @@ export function createServicesMock(
         // (react-native-importing) module.
         OxyConsentScreen:
             overrides.OxyConsentScreen ??
+            (() => null as React.ReactElement | null),
+        // Same constraint: the authorize page's Commons lane renders the shared
+        // sign-in request surface, imported statically from this specifier.
+        OxySignInRequestSurface:
+            overrides.OxySignInRequestSurface ??
             (() => null as React.ReactElement | null),
     }
 }

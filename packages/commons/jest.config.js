@@ -44,7 +44,9 @@ module.exports = {
       '<rootDir>/__mocks__/react-native-keyboard-controller.ts',
     '^react-native-safe-area-context$':
       '<rootDir>/__mocks__/react-native-safe-area-context.ts',
-    '^@expo/vector-icons$': '<rootDir>/__mocks__/expo-vector-icons.tsx',
+    // App code imports one family per subpath so Metro bundles one font instead
+    // of all 19; the barrel entry stays mapped for anything that still uses it.
+    '^@expo/vector-icons(/.*)?$': '<rootDir>/__mocks__/expo-vector-icons.tsx',
     '^@shopify/react-native-skia$': '<rootDir>/__mocks__/react-native-skia.tsx',
     '^expo-router$': '<rootDir>/__mocks__/expo-router.tsx',
     '^expo-secure-store$': '<rootDir>/__mocks__/expo-secure-store.ts',

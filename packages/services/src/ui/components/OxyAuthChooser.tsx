@@ -20,9 +20,11 @@
  *    auto-starts the instant the view is reached, because the request surface
  *    (a QR on an unknown desktop, "Check Commons on your phone" where Oxy could
  *    deliver) IS the primary route there, never something behind a second tap.
- *  - `qr` → `SignInRequestView` — the ACTIVE REQUEST: the route Oxy chose plus
- *    honest progress derived only from `snapshot.signIn`. Alternatives stay
- *    behind "Having trouble?" until the chosen route reports `routeFailed`.
+ *  - `qr` → `SignInRequestView` — the ACTIVE REQUEST: the controller-bound
+ *    wiring over the shared, presentational `OxySignInRequestSurface` (the same
+ *    component the auth.oxy.so IdP mounts from its OAuth-bound request). It maps
+ *    `snapshot.signIn` onto that surface's props; alternatives stay behind
+ *    "Having trouble?" until the chosen route reports `routeFailed`.
  *  - `signup` → `SignUpView` — account creation, Commons-first.
  *
  * Per-account color re-theming uses Bloom's `APP_COLOR_PRESETS` + `BloomColorScope`
@@ -366,7 +368,6 @@ const OxyAuthChooser: React.FC<OxyAuthChooserProps> = ({ onComplete }) => {
     return (
       <SignInRequestView
         snapshot={snapshot}
-        theme={theme}
         t={t}
         onRetry={() => void controller.showQr()}
         alternatives={alternatives}

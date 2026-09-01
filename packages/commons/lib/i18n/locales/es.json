@@ -1110,7 +1110,7 @@
       "yourIdentitySubtitle": "Tú tienes la clave privada. Nadie puede bloquearte.",
       "manageKeys": "Claves y copia de seguridad",
       "account": "Cuenta",
-      "accountSubtitle": "Gestiona tu perfil, dispositivos y privacidad en la app de Accounts.",
+      "accountSubtitle": "Gestiona tu perfil, dispositivos y privacidad sin salir de Commons.",
       "actions": {
         "backupRecovery": "Copia y recuperación",
         "backupRecoverySubtitle": "Frase de recuperación y copia cifrada",
@@ -1154,7 +1154,6 @@
       "heading": "Solicitud de inicio de sesión",
       "title": "Inicia sesión en {{app}}",
       "requestedFrom": "Solicitado desde {{client}}",
-      "officialBadge": "App oficial de Oxy",
       "developerBy": "de {{developer}}",
       "receivesTitle": "{{app}} recibirá",
       "receivesBasic": "Tu identidad, tu nombre y tu foto de perfil",
@@ -1861,6 +1860,7 @@
     "startOver": "Empezar de nuevo",
     "startOverConfirmTitle": "¿Empezar de nuevo?",
     "startOverConfirmBody": "Esto borra permanentemente la identidad protegida de este dispositivo. Sin tu frase de recuperación de 12 palabras, tu cuenta será irrecuperable.",
-    "startOverConfirmCta": "Borrar y empezar de nuevo"
+    "startOverConfirmCta": "Borrar y empezar de nuevo",
+    "startOverFailed": "No pudimos borrar la identidad de este dispositivo. Desbloquéalo e inténtalo de nuevo."
   }
 }

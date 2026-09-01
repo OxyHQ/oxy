@@ -76,7 +76,7 @@ export function verifyCsrfToken(req: Request, res: Response, next: NextFunction)
   // cross-site on behalf of an attacker. Auth middleware still validates the
   // token and rejects invalid or expired user/service tokens.
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
+  if (authHeader?.startsWith('Bearer ') || authHeader?.startsWith('Capability ')) {
     return next();
   }
 

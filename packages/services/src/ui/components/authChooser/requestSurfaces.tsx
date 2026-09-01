@@ -14,12 +14,12 @@
 
 import type React from 'react';
 import { View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@oxyhq/bloom/button';
 import { Loading } from '@oxyhq/bloom/loading';
 import { Text } from '@oxyhq/bloom/typography';
-import type { SignInFlowState } from '@oxyhq/core';
+import type { CommonsDeliveryRoute, SignInProgress } from '@oxyhq/core';
 import { authChooserStyles as styles } from './styles';
 import type { Theme, Translate } from './types';
 
@@ -88,26 +88,30 @@ export const GetCommonsPrompt: React.FC<{
  *
  * Ordered most-terminal-first, so a late-arriving route can never pull the
  * surface back from "confirming" to a QR the user has already scanned. Every
- * branch reads only controller facts — there is no local timeline.
+ * branch reads only the facts it is handed — there is no local timeline, and no
+ * dependency on WHICH kind of request produced them (the account dialog's device
+ * flow and the IdP's OAuth-bound lane both resolve the same three).
  */
 export const RequestPrimarySurface: React.FC<{
-  signIn: SignInFlowState;
+  route: CommonsDeliveryRoute | null;
+  progress: SignInProgress;
+  qrPayload: string | null;
   theme: Theme;
   t: Translate;
-}> = ({ signIn, theme, t }) => {
-  if (signIn.progress === 'identity-confirmed') {
+}> = ({ route, progress, qrPayload, theme, t }) => {
+  if (progress === 'identity-confirmed') {
     return <RouteGlyph name="check-circle" color={theme.colors.success} />;
   }
-  if (signIn.progress === 'confirming-identity') {
+  if (progress === 'confirming-identity') {
     return <PreparingSurface />;
   }
-  if (signIn.route === 'qr' && signIn.qrPayload) {
-    return <QrPlate payload={signIn.qrPayload} theme={theme} t={t} />;
+  if (route === 'qr' && qrPayload) {
+    return <QrPlate payload={qrPayload} theme={theme} t={t} />;
   }
-  if (signIn.route === 'await-push') {
+  if (route === 'await-push') {
     return <RouteGlyph name="cellphone-message" color={theme.colors.primary} />;
   }
-  if (signIn.route === 'open-commons') {
+  if (route === 'open-commons') {
     return <RouteGlyph name="open-in-app" color={theme.colors.primary} />;
   }
   // No route resolved yet (or a route with no payload to render): the request is

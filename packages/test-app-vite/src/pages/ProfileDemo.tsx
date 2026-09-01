@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
+import { toast } from "@oxyhq/bloom"
 
 export function ProfileDemo() {
   const { isAuthenticated, oxyServices } = useAuth()

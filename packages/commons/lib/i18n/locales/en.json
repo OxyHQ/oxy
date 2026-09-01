@@ -1110,7 +1110,7 @@
       "yourIdentitySubtitle": "You hold the private key. No one can lock you out.",
       "manageKeys": "Keys & backup",
       "account": "Account",
-      "accountSubtitle": "Manage your profile, devices and privacy in the Accounts app.",
+      "accountSubtitle": "Manage your profile, devices and privacy without leaving Commons.",
       "actions": {
         "backupRecovery": "Backup & recovery",
         "backupRecoverySubtitle": "Recovery phrase and encrypted backup",
@@ -1154,7 +1154,6 @@
       "heading": "Sign-in request",
       "title": "Sign in to {{app}}",
       "requestedFrom": "Requested from {{client}}",
-      "officialBadge": "Official Oxy app",
       "developerBy": "by {{developer}}",
       "receivesTitle": "{{app}} will receive",
       "receivesBasic": "Your identity, name, and profile picture",
@@ -1861,6 +1860,7 @@
     "startOver": "Start over",
     "startOverConfirmTitle": "Start over?",
     "startOverConfirmBody": "This permanently erases the protected identity on this device. Without your 12-word recovery phrase, your account will be unrecoverable.",
-    "startOverConfirmCta": "Erase and start over"
+    "startOverConfirmCta": "Erase and start over",
+    "startOverFailed": "We couldn't clear the identity from this device. Unlock it and try again."
   }
 }

@@ -21,14 +21,14 @@ bun add @oxyhq/core
 - **Device management**
 - **Linked clients** for app backends that need the active Oxy bearer token
 - **User identity contracts and handle normalization** so apps render display names and build local/federated profile handles consistently
-- **Server middleware** for Express request identity and per-user rate limiting
+- **Server middleware** for Express request identity, per-user rate limiting, and shared security headers / CSP baseline
 
 ## Exports
 
 The package exposes two public entry points:
 
 - `@oxyhq/core` — main entry (API client, session, crypto, models, shared utilities, i18n, platform, device)
-- `@oxyhq/core/server` — Express-only helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `safeFetch`, `verifySecret`, and request types)
+- `@oxyhq/core/server` — Express-only helpers (`createOxyRateLimit`, `createOxyAuthMiddleware`, `requireOxyAuth`, `getOxyUserId`, `getRequiredOxyUserId`, `createOxyCors`, `createOxySecurityHeaders`, `buildOxyCspDirectives`, `safeFetch`, `verifySecret`, and request types)
 
 All client/runtime symbols (including `SessionClient`, `KeyManager`, `SignatureService`, `RecoveryPhraseService`, and the shared color / theme / error / network / debug helpers) are re-exported from the package root. Server-only Express helpers live under `@oxyhq/core/server` so React Native and browser bundles never import Express.
 
@@ -158,6 +158,40 @@ router.get('/me', (req: OxyAuthRequest, res) => {
 For routers that are not mounted after `createOxyRateLimit`, use
 `createOxyAuthMiddleware(oxy)` to resolve the bearer session and require a user
 in one middleware.
+
+## Security Headers And CSP
+
+`createOxySecurityHeaders` is Helmet plus the Oxy-wide Content-Security-Policy
+baseline: the Cloudflare Web Analytics beacon (which Cloudflare injects into
+proxied HTML, and which needs `static.cloudflareinsights.com` in `script-src`
+AND `cloudflareinsights.com` in `connect-src`), the Oxy API and CDN origins the
+SDK talks to, and the standard hardening floor. Apps never name those hosts
+themselves.
+
+Mount it on backends that SERVE HTML. A JSON-only API gains nothing from a
+source-list CSP — it governs no browsing context — so harden those with the
+non-CSP headers (`hsts`, `noSniff`, `frameguard`, CORP) instead.
+
+```ts
+import { createOxySecurityHeaders } from '@oxyhq/core/server';
+
+app.use(createOxySecurityHeaders({
+  csp: {
+    connectSrc: ['https://api.example.com', 'wss://api.example.com'],
+    frameSrc: ['https://player.vimeo.com'],
+  },
+  helmet: { crossOriginResourcePolicy: { policy: 'cross-origin' } },
+}));
+```
+
+`csp` entries are ADDED to the baseline and deduped — a directive can never be
+replaced, so `'self'` (and the beacon hosts) cannot be dropped; extending a
+directive the baseline does not define seeds it with `'self'` first. The
+`helmet` passthrough covers every non-CSP header (`hsts`, `frameguard`,
+`referrerPolicy`, CORP/COOP, …) and rejects `contentSecurityPolicy` at compile
+time so the baseline cannot be bypassed. Surfaces that set the header
+themselves (a Next.js `headers()`, an edge worker) can call
+`buildOxyCspDirectives(extensions)` for the resolved directive map.
 
 ## User Identity Normalization
 

@@ -12,6 +12,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Button, type ButtonVariant } from '@oxyhq/bloom/button';
+import { toast } from '@oxyhq/bloom/toast';
 import { useOxy } from '../context/OxyContext';
 import { useI18n } from '../hooks/useI18n';
 import { LogoIcon } from './logo/LogoIcon';
@@ -200,6 +201,24 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
         return promise;
     }, [clientId, oxyServices]);
 
+    // A press that cannot reach a sign-in surface must SAY so. Without this the
+    // only trace of an aborted sign-in was a console line, so the button read as
+    // simply dead — the SDK owns this, so no relying party has to wire it up.
+    // `ToastOutlet` is already mounted by `OxyProvider`.
+    const notifyNotConfigured = useCallback(
+        (appName: string) => {
+            toast.error(t('signin.errors.notConfigured'), {
+                description: t('signin.errors.notConfiguredDescription', { app: appName }),
+            });
+        },
+        [t],
+    );
+    const notifyFailed = useCallback(() => {
+        toast.error(t('signin.errors.failed'), {
+            description: t('signin.errors.failedDescription'),
+        });
+    }, [t]);
+
     // Official / first-party surface: the in-app account + sign-in dialog.
     const startOfficialSignIn = useCallback(() => {
         openAccountDialog('signin');
@@ -226,6 +245,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                     undefined,
                     { component: 'OxySignInButton', clientId, application: app.name },
                 );
+                notifyNotConfigured(app.name);
                 return;
             }
 
@@ -244,6 +264,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                         { component: 'OxySignInButton', application: app.name },
                         result.description,
                     );
+                    notifyFailed();
                 }
                 return;
             }
@@ -266,6 +287,7 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                 'OxySignInButton: native third-party sign-in cannot complete without an `onOAuthResult` handler; the code exchange is the RP\'s responsibility (state + code_verifier were not surfaced)',
                 { component: 'OxySignInButton', application: app.name },
             );
+            notifyNotConfigured(app.name);
         },
         [
             clientId,
@@ -274,6 +296,8 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
             startOfficialSignIn,
             startWebOAuthSignIn,
             shouldPreOpenPopup,
+            notifyNotConfigured,
+            notifyFailed,
         ],
     );
 
@@ -315,11 +339,29 @@ export const OxySignInButton: React.FC<OxySignInButtonProps> = ({
                 }
                 closeOAuthPopup(popup);
                 startOfficialSignIn();
+            } catch (error) {
+                // `handlePress` fires this without awaiting, so an unexpected
+                // throw (a rejected native auth session, a crypto failure) would
+                // otherwise vanish into an unhandled rejection with the button
+                // left looking inert.
+                closeOAuthPopup(popup);
+                logger.error(
+                    'OxySignInButton: sign-in routing threw; sign-in aborted',
+                    error instanceof Error ? error : new Error(String(error)),
+                    { component: 'OxySignInButton', clientId },
+                );
+                notifyFailed();
             } finally {
                 routingRef.current = false;
             }
         },
-        [resolvePublicApplication, startOfficialSignIn, startThirdPartyOAuth, clientId],
+        [
+            resolvePublicApplication,
+            startOfficialSignIn,
+            startThirdPartyOAuth,
+            clientId,
+            notifyFailed,
+        ],
     );
 
     // Defer to a caller-supplied handler, otherwise route by application type.

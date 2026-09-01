@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { AccountKind, CreateAccountInput, OrganizationCategory } from '@oxyhq/core';
 import { ORGANIZATION_CATEGORIES } from '@oxyhq/core';
 import type { BaseScreenProps } from '../types/navigation';

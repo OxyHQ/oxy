@@ -6,6 +6,7 @@
  * and social OAuth sign-in were removed ecosystem-wide.
  */
 
+import type { CommonsDenyReason } from '@oxyhq/contracts';
 import express from 'express';
 import type mongoose from 'mongoose';
 import crypto from 'crypto';
@@ -62,7 +63,6 @@ import {
   authorizeCodeParams,
   authSessionAuthorizeSignedSchema,
   authSessionDenySchema,
-  type AuthSessionDenyReason,
   authSessionClaimSchema,
   serviceTokenSchema,
   oauthAuthorizeSchema,
@@ -1640,7 +1640,7 @@ const authSessionDenyLimiter = rateLimit({
  * by the public `authorizeCode` instead. Only a PENDING session can be denied
  * (so a knower of the code cannot cancel an already-authorized session).
  *
- * The OPTIONAL `reason` comes from the closed `AUTH_SESSION_DENY_REASONS` set —
+ * The OPTIONAL `reason` comes from the closed `COMMONS_DENY_REASONS` set —
  * this endpoint is unauthenticated, so free-form text is rejected at the edge
  * rather than persisted. Recording it makes "This wasn't me" (`not_me`) a
  * distinguishable, honest record instead of an ordinary cancel.
@@ -1653,7 +1653,7 @@ router.post(
     const { authorizeCode } = req.params;
     // Whitelisted single field off the VALIDATED body — never a spread of
     // `req.body` onto the document.
-    const { reason } = req.body as { reason?: AuthSessionDenyReason };
+    const { reason } = req.body as { reason?: CommonsDenyReason };
 
     const authSession = await AuthSession.findOne({ authorizeCode });
     if (!authSession) {

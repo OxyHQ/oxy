@@ -153,7 +153,6 @@ function stageHappyPath(): void {
   );
 
   jest.spyOn(svc, 'ensureMailboxes').mockResolvedValue(undefined);
-  jest.spyOn(svc, 'ensureDefaultLabels').mockResolvedValue(undefined);
   jest.spyOn(svc, 'enforceQuota').mockResolvedValue(undefined);
   jest.spyOn(svc, 'getMailboxBySpecialUse').mockResolvedValue({
     _id: { toString: () => MAILBOX_ID },

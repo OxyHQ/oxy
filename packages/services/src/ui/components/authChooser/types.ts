@@ -13,6 +13,25 @@ import type { useI18n } from '../../hooks/useI18n';
 export type Theme = ReturnType<typeof useTheme>;
 export type Translate = ReturnType<typeof useI18n>['t'];
 
+/**
+ * One SUBORDINATE action on a sign-in surface — an alternative revealed behind
+ * "Having trouble?", or a non-competing link under the primary.
+ *
+ * Never a primary button: a sign-in surface presents exactly ONE of those (issue
+ * #691), and keeping every other affordance on this single shape is what stops
+ * one of them quietly growing into a co-equal button again.
+ *
+ * Part of the public SDK surface — `OxySignInRequestSurface` takes these.
+ */
+export interface OxySignInSurfaceAction {
+  /** Stable identity for the list, and the action's `testID`. */
+  key: string;
+  /** Already-localized label. The host resolves its own copy. */
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}
+
 /** The account-row actions the container wires for the switcher + menu views. */
 export interface OxyAuthChooserHandlers {
   onSwitch: (accountId: string) => void;

@@ -2,9 +2,7 @@ import { Outlet, createRootRoute } from '@tanstack/react-router';
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OxyProvider } from '@oxyhq/services';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { Toaster } from '@/components/ui/sonner';
 import { AccountProvider } from '@/hooks/use-account';
 import { LocaleProvider } from '@/lib/i18n';
 
@@ -39,16 +37,13 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <LocaleProvider>
-        <BloomThemeProvider mode="system" colorPreset="oxy">
-          <OxyProvider baseURL={config.oxyUrl} clientId={config.clientId} authRedirectUri={config.authRedirectUri} queryClient={queryClient}>
-            <AccountProvider>
-              <TooltipProvider delayDuration={300}>
-                <Outlet />
-                <Toaster position="bottom-right" richColors closeButton />
-              </TooltipProvider>
-            </AccountProvider>
-          </OxyProvider>
-        </BloomThemeProvider>
+        <OxyProvider baseURL={config.oxyUrl} clientId={config.clientId} authRedirectUri={config.authRedirectUri} queryClient={queryClient}>
+          <AccountProvider>
+            <TooltipProvider delayDuration={300}>
+              <Outlet />
+            </TooltipProvider>
+          </AccountProvider>
+        </OxyProvider>
       </LocaleProvider>
       {import.meta.env.DEV && (
         <Suspense fallback={null}>

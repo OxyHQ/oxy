@@ -4,8 +4,8 @@ import {
   getCommonsApprovalBlockingReason,
   logger,
   type CommonsApprovalInfo,
-  type CommonsDenyReason,
 } from '@oxyhq/core';
+import type { CommonsDenyReason } from '@oxyhq/contracts';
 import {
   requestLocalConfirmation,
   type LocalConfirmationUnavailableReason,

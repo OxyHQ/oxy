@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import type { CommonsApprovalInfo, PublicApplication } from '@oxyhq/core';
 import { __resetOxyState } from '@/__mocks__/oxyhq-services';
 import { LocaleProvider } from '@/lib/i18n/locale-context';
@@ -44,22 +44,10 @@ function renderRequest(overrides: Partial<ApprovalRequestProps> = {}) {
     application: APPLICATION,
     identityName: 'Nate',
     confirmationIssue: null,
-    confirming: false,
-    rejecting: false,
-    onConfirm: jest.fn(),
-    onReject: jest.fn(),
-    onClose: jest.fn(),
     onOpenLink: jest.fn(),
     ...overrides,
   };
   return { props, ...render(<LocaleProvider><ApprovalRequest {...props} /></LocaleProvider>) };
-}
-
-/** Every tappable answer on the sheet, excluding the labelled close affordance. */
-function answerActions(container: HTMLElement): (string | undefined)[] {
-  return Array.from(container.querySelectorAll('button[role="button"]'))
-    .filter((element) => !element.getAttribute('aria-label'))
-    .map((element) => element.textContent?.trim());
 }
 
 describe('ApprovalRequest', () => {
@@ -76,6 +64,7 @@ describe('ApprovalRequest', () => {
     // Scope sentences come from the shared consent dictionary.
     expect(container.textContent).toContain('Read your basic profile');
     expect(container.textContent).toContain('Read your email address');
+    expect(container.textContent).not.toContain('Official Oxy app');
     // The logo is the server-resolved record's, not a payload-supplied URL.
     expect(container.querySelector('img')?.getAttribute('src')).toBe(APPLICATION.icon);
   });
@@ -124,45 +113,6 @@ describe('ApprovalRequest', () => {
     const { getByTestId } = renderRequest({ info: makeInfo({ originVerified: false }) });
 
     expect(getByTestId('approval-requester').textContent).toBe('Chrome on Windows');
-  });
-
-  it('offers ONE primary action and one alternative — no intermediate step', () => {
-    const { container } = renderRequest();
-
-    expect(answerActions(container)).toEqual(['Confirm identity', "This wasn't me"]);
-  });
-
-  it('invokes the confirmation directly from the primary action', () => {
-    const { props, getByText } = renderRequest();
-
-    fireEvent.click(getByText('Confirm identity'));
-
-    // One press, one call — the press IS the biometric/passcode invocation
-    // (the hook opens the device prompt); nothing else is triggered.
-    expect(props.onConfirm).toHaveBeenCalledTimes(1);
-    expect(props.onReject).not.toHaveBeenCalled();
-    expect(props.onClose).not.toHaveBeenCalled();
-  });
-
-  it('denies through "This wasn\'t me" — reported as not_me, not an ordinary cancel', () => {
-    const { props, getByText } = renderRequest();
-
-    fireEvent.click(getByText("This wasn't me"));
-
-    expect(props.onReject).toHaveBeenCalledTimes(1);
-    expect(props.onReject).toHaveBeenCalledWith('not_me');
-    expect(props.onConfirm).not.toHaveBeenCalled();
-  });
-
-  it('treats dismissal as a cancel, never a denial', () => {
-    const { props, getByLabelText } = renderRequest();
-
-    fireEvent.click(getByLabelText('Close'));
-
-    expect(props.onClose).toHaveBeenCalledTimes(1);
-    // Nothing is denied, and no reason is reported — a dismissal answers nothing.
-    expect(props.onReject).not.toHaveBeenCalled();
-    expect(props.onConfirm).not.toHaveBeenCalled();
   });
 
   it('shows NO delegation chrome for an ordinary personal sign-in', () => {
@@ -267,16 +217,14 @@ describe('ApprovalRequest', () => {
   });
 
   it('explains a device that cannot confirm, and still approves nothing', () => {
-    const { props, container } = renderRequest({
+    const { container } = renderRequest({
       confirmationIssue: { kind: 'unavailable', reason: 'no_enrollment' },
     });
 
     expect(container.textContent).toContain('no biometrics or screen lock');
     expect(container.textContent).toContain('device settings');
-    // The explanation is not an approval, and it does not offer a way around
-    // the gate — the same single action is still the only way forward.
-    expect(props.onConfirm).not.toHaveBeenCalled();
-    expect(answerActions(container)).toEqual(['Confirm identity', "This wasn't me"]);
+    // The explanation is content only; the enclosing Dialog owns the actions.
+    expect(container.textContent).not.toContain('Continue');
   });
 
   it('distinguishes a cancelled prompt from a device that cannot ask', () => {
@@ -292,10 +240,4 @@ describe('ApprovalRequest', () => {
     expect(container.textContent).toContain('locked biometrics');
   });
 
-  it('locks both answers while a confirmation is in flight', () => {
-    const { container, getByText } = renderRequest({ confirming: true });
-
-    expect((getByText("This wasn't me").closest('button') as HTMLButtonElement).disabled).toBe(true);
-    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
-  });
 });

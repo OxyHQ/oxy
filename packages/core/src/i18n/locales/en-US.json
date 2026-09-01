@@ -54,6 +54,12 @@
     "status": {
       "accountSwitched": "Now using {{name}}",
       "signingIn": "Signing in…"
+    },
+    "errors": {
+      "notConfigured": "Sign-in isn't available",
+      "notConfiguredDescription": "{{app}} isn't set up for sign-in yet. Contact the app's developer.",
+      "failed": "Couldn't start sign-in",
+      "failedDescription": "Something went wrong. Please try again."
     }
   },
   "signup": {

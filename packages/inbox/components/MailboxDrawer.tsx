@@ -26,7 +26,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import { Badge } from '@oxyhq/bloom/badge';
 import {
-  Home01Icon,
   FavouriteIcon,
   InboxIcon,
   SentIcon,
@@ -220,11 +219,9 @@ export function MailboxDrawer({ onClose, onToggle, collapsed }: { onClose?: () =
 
   // Determine active state from URL pathname.
   // Path shapes we care about here:
-  //   /home, /for-you  → top-level
-  //   /<view>          → system mailbox (inbox, sent, drafts, etc.)
+  //   /                → inbox (the app's root view)
+  //   /<view>          → system mailbox (sent, drafts, etc.)
   //   /label/<name>    → label view (owned by app/.../label/[name].tsx)
-  const isHomeActive = pathname === '/home';
-  const isForYouActive = pathname === '/for-you';
   const pathSegments = useMemo(() => pathname.split('/').filter(Boolean), [pathname]);
   const isLabelRoute = pathSegments[0]?.toLowerCase() === 'label';
   const activeLabelName = isLabelRoute ? pathSegments[1]?.toLowerCase() ?? null : null;
@@ -293,8 +290,13 @@ export function MailboxDrawer({ onClose, onToggle, collapsed }: { onClose?: () =
 
   const handleSelect = useCallback(
     (mailbox: Mailbox & { specialUse: string }) => {
-      const viewMap: Record<string, 'inbox' | 'sent' | 'drafts' | 'trash' | 'spam' | 'archive' | 'snoozed'> = {
-        [SPECIAL_USE.INBOX]: 'inbox',
+      // The inbox is the root view, so it is addressed as `/`, not `/inbox`.
+      if (mailbox.specialUse === SPECIAL_USE.INBOX) {
+        router.push('/');
+        onClose?.();
+        return;
+      }
+      const viewMap: Record<string, 'sent' | 'drafts' | 'trash' | 'spam' | 'archive' | 'snoozed'> = {
         [SPECIAL_USE.SENT]: 'sent',
         [SPECIAL_USE.DRAFTS]: 'drafts',
         [SPECIAL_USE.TRASH]: 'trash',
@@ -325,16 +327,6 @@ export function MailboxDrawer({ onClose, onToggle, collapsed }: { onClose?: () =
     },
     [router, onClose],
   );
-
-  const handleHome = useCallback(() => {
-    router.push('/home');
-    onClose?.();
-  }, [router, onClose]);
-
-  const handleForYou = useCallback(() => {
-    router.push('/for-you');
-    onClose?.();
-  }, [router, onClose]);
 
   const handleCompose = useCallback(() => {
     router.push('/compose');
@@ -476,8 +468,6 @@ export function MailboxDrawer({ onClose, onToggle, collapsed }: { onClose?: () =
 
       {isAuthenticated ? (
         <ScrollView style={[styles.list, collapsed && styles.listCollapsed]} showsVerticalScrollIndicator={false}>
-          <NavItem icon="home-outline" hugeIcon={Home01Icon as unknown as IconSvgElement} label="Home" isActive={isHomeActive} colors={colors} collapsed={collapsed} onPress={handleHome} />
-          <NavItem icon="cards-heart-outline" hugeIcon={FavouriteIcon as unknown as IconSvgElement} label="For You" isActive={isForYouActive} colors={colors} collapsed={collapsed} onPress={handleForYou} />
 
           {/* Primary Mailboxes (Inbox, Sent, Drafts) */}
           {primaryMailboxes.map((mailbox) => {

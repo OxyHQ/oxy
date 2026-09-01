@@ -28,10 +28,11 @@ mock.module("@oxyhq/services", () => ({
     // No-op stubs — this suite never renders them, but `mock.module` is
     // process-global (last writer wins across files), so every export a
     // sibling suite's page imports statically must be defined here too:
-    // `OxyAuthChooser` for hub-passkey.test.tsx, `OxyConsentScreen` for
-    // authorize-commons-lane.test.tsx.
+    // `OxyAuthChooser` for hub-passkey.test.tsx, `OxyConsentScreen` and
+    // `OxySignInRequestSurface` for authorize-commons-lane.test.tsx.
     OxyAuthChooser: () => null,
     OxyConsentScreen: () => null,
+    OxySignInRequestSurface: () => null,
 }))
 
 const { LoginForm } = await import("@/components/login-form")

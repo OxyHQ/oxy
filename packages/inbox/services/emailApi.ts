@@ -557,16 +557,6 @@ export function createEmailApi(http: HttpService) {
       const res = await http.post('/email/import', formData);
       return z.object({ imported: z.number(), total: z.number() }).parse(res);
     },
-
-    // ─── Push Notifications ─────────────────────────────────────────
-
-    async registerPushToken(token: string, platform: 'ios' | 'android' | 'web'): Promise<void> {
-      await http.post('/notifications/push-token', { token, platform });
-    },
-
-    async unregisterPushToken(token: string): Promise<void> {
-      await http.delete('/notifications/push-token', { data: { token } });
-    },
   };
 }
 

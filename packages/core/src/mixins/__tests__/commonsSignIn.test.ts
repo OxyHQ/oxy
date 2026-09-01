@@ -12,6 +12,8 @@
  * degrade-to-QR behaviour every ambiguous input must produce.
  */
 
+import type { CommonsDenyReason } from '@oxyhq/contracts';
+import { COMMONS_DENY_REASONS } from '@oxyhq/contracts';
 import type { SessionLoginResponse } from '../../models/session';
 import type { ChallengeResponse } from '../OxyServices.auth';
 import type { CommonsDeliveryPlatform } from '../../utils/commonsDelivery';
@@ -741,12 +743,17 @@ describe('OxyServices — "Sign in with Oxy" handoff', () => {
       );
     });
 
-    it.each([['declined'], ['not_me']] as const)(
+    // Iterating the CONTRACT set (rather than a local literal) is the point: the
+    // SDK, the API request schema and the persisted `AuthSession.deniedReason`
+    // enum all read this one declaration, so a value added on the server side
+    // without an SDK release — or the reverse — cannot go unnoticed here.
+    it.each([...COMMONS_DENY_REASONS])(
       'sends the closed-set reason %s in the body',
       async (reason) => {
         makeRequestSpy.mockResolvedValue({ success: true });
 
-        await oxy.denyCommonsSignIn('code-1', reason);
+        const typedReason: CommonsDenyReason = reason;
+        await oxy.denyCommonsSignIn('code-1', typedReason);
 
         expect(makeRequestSpy).toHaveBeenCalledWith(
           'POST',

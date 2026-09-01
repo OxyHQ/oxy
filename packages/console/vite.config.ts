@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import {  defineConfig } from 'vite'
 import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
@@ -9,6 +10,8 @@ import reactNativeWeb from 'vite-plugin-react-native-web'
 import type {Plugin} from 'vite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const require = createRequire(import.meta.url)
+const reactNativeCssBabel = require('react-native-css/babel')
 
 const emptyModule = resolve(__dirname, './src/empty-module.js')
 
@@ -40,7 +43,11 @@ const config = defineConfig(({ mode }) => ({
     reactNativeWeb(),
     TanStackRouterVite(),
     tailwindcss(),
-    viteReact(),
+    viteReact({
+      babel: {
+        presets: [reactNativeCssBabel],
+      },
+    }),
   ],
   resolve: {
     alias: [
@@ -48,7 +55,7 @@ const config = defineConfig(({ mode }) => ({
       // Deep native-only internals that monorepo hoisting can pull in
       // transitively and that have no web implementation.
       { find: /^react-native\/Libraries\/.*/, replacement: emptyModule },
-      // Native-only navigation primitives; `sonner-native` named-imports
+      // Native-only navigation primitives used by Bloom's overlay
       // FullWindowOverlay, which on web renders straight through (see shim).
       {
         find: 'react-native-screens',

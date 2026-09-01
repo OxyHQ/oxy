@@ -94,4 +94,63 @@ describe('email.controller searchMessages', () => {
     ).rejects.toThrow(BadRequestError);
     expect(mockSearchMessages).not.toHaveBeenCalled();
   });
+
+  it('maps is:unread in q to a seen=false filter without sending the operator to text search', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: 'is:unread' },
+    };
+
+    await searchMessages(req as never, res as Response);
+
+    expect(mockSearchMessages).toHaveBeenCalledWith(userId, '', {
+      limit: 50,
+      offset: 0,
+      mailboxId: undefined,
+      from: undefined,
+      to: undefined,
+      subject: undefined,
+      hasAttachment: undefined,
+      dateAfter: undefined,
+      dateBefore: undefined,
+      starred: undefined,
+      label: undefined,
+      seen: false,
+    });
+  });
+
+  it('maps is:read while preserving ordinary text terms', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: 'invoice is:read' },
+    };
+
+    await searchMessages(req as never, res as Response);
+
+    expect(mockSearchMessages).toHaveBeenCalledWith(userId, 'invoice', expect.objectContaining({ seen: true }));
+  });
+
+  it('rejects conflicting read-state operators', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: 'is:unread is:read' },
+    };
+
+    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(
+      'is:read and is:unread cannot be used together',
+    );
+    expect(mockSearchMessages).not.toHaveBeenCalled();
+  });
+
+  it('rejects repeated q parameters instead of accepting an ambiguous value', async () => {
+    const req = {
+      user: { id: userId },
+      query: { q: ['is:unread', 'is:read'] },
+    };
+
+    await expect(searchMessages(req as never, res as Response)).rejects.toThrow(
+      'q must be a single string value',
+    );
+    expect(mockSearchMessages).not.toHaveBeenCalled();
+  });
 });

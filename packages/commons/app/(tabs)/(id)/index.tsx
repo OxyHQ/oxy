@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Platform, AccessibilityInfo } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
+import { useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import {
   useReducedMotion,
@@ -23,6 +24,7 @@ import { FrontSide } from '@/components/OxyID/front-side';
 import { BackSide } from '@/components/OxyID/back-side';
 import { IdQrBack } from '@/components/civic/IdQrBack';
 import { AttestQrSheet } from '@/components/civic/AttestQrSheet';
+import { CameraPermissionSheet } from '@/components/civic/CameraPermissionSheet';
 import { useIdentity } from '@/hooks/useIdentity';
 import { useAvatarUrl } from '@/hooks/useAvatarUrl';
 import { useCivicProfileState } from '@/hooks/useCivicProfileState';
@@ -46,8 +48,9 @@ const CARD_HEIGHT = 380;
  *   - Below the card: the self-custody identity actions (deep-linking into the
  *     Settings "about your identity" detail), the real-life attestation entry,
  *     and the raw DID.
- *   - A Bloom FAB (bottom-right) opens the QR scanner, which lives at the root as
- *     a full-screen modal (`app/(scan)`) so its camera covers the tab bar.
+ *   - A Bloom FAB (bottom-right) checks camera access in a detached permission
+ *     sheet over this screen, then opens the root full-screen scanner only after
+ *     access is granted.
  *
  * No in-screen title/subtitle/status chip: the tab bar already labels this "ID"
  * and the card stands on its own. The single accent moment is the card itself;
@@ -63,6 +66,7 @@ export default function IdScreen() {
   const tabBarFootprint = useTabBarFootprint();
   const { t } = useTranslation();
   const { user, oxyServices } = useOxy();
+  const [cameraPermission, requestCameraPermission, refreshCameraPermission] = useCameraPermissions();
   // Hydrate the user record (createdAt + fields missing from a cached signIn).
   useCurrentUser();
   const { getPublicKey, identitySyncState } = useIdentity();
@@ -151,9 +155,24 @@ export default function IdScreen() {
     return `${publicKey.substring(0, 8)}...${publicKey.substring(publicKey.length - 8)}`;
   }, [publicKey]);
 
-  const handleScan = useCallback(() => {
+  const [cameraPermissionSheetOpen, setCameraPermissionSheetOpen] = useState(false);
+
+  const openScanner = useCallback(() => {
     router.push('/(scan)');
   }, [router]);
+
+  const handleScan = useCallback(() => {
+    if (cameraPermission?.granted) {
+      openScanner();
+      return;
+    }
+    setCameraPermissionSheetOpen(true);
+  }, [cameraPermission?.granted, openScanner]);
+
+  const handleCameraPermissionGranted = useCallback(() => {
+    setCameraPermissionSheetOpen(false);
+    openScanner();
+  }, [openScanner]);
 
   // Show A's fresh attestation QR as a bottom sheet (over the ID tab) instead of
   // pushing a dedicated screen — a counterparty scans it to confirm they met A.
@@ -267,7 +286,8 @@ export default function IdScreen() {
       </Screen>
 
       {/*
-        QR scanner is an action, not a tab — opens the root full-screen modal.
+        QR scanner is an action, not a tab. Camera permission is resolved in a
+        detached sheet over this ID screen before the root scanner modal opens.
 
         `offset` lifts the FAB clear of the floating tab bar. It is the bar's RAW
         footprint: `Fab` supplies its own gap from that anchor, and the bottom
@@ -284,6 +304,14 @@ export default function IdScreen() {
       />
 
       {qrSheetOpen && <AttestQrSheet onClose={() => setQrSheetOpen(false)} />}
+      {cameraPermissionSheetOpen && (
+        <CameraPermissionSheet
+          requestPermission={requestCameraPermission}
+          refreshPermission={refreshCameraPermission}
+          onGranted={handleCameraPermissionGranted}
+          onClose={() => setCameraPermissionSheetOpen(false)}
+        />
+      )}
     </View>
   );
 }

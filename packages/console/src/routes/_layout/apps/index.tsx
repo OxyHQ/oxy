@@ -9,7 +9,7 @@ import {
   Package01Icon,
   Settings01Icon,
 } from '@hugeicons/core-free-icons';
-import { toast } from 'sonner';
+import { toast } from '@oxyhq/bloom';
 import { useAuth } from '@oxyhq/services';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -6,11 +6,14 @@
  */
 
 import React, { useMemo, useCallback } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
-import { Slot, Stack, useRouter } from 'expo-router';
+import { View, TouchableOpacity, StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Slot, Stack, useRouter, usePathname } from 'expo-router';
 import { useDialogControl } from '@oxyhq/bloom';
+import { ContentPanel } from '@oxyhq/bloom/content-panel';
 
 import { useColors } from '@/constants/theme';
+import { SPACING, RADIUS } from '@/constants/layout';
 import { SPECIAL_USE } from '@/constants/mailbox';
 import { InboxList } from '@/components/InboxList';
 import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
@@ -23,8 +26,20 @@ import { useToggleStar, useToggleRead, useArchiveMessage, useDeleteMessage } fro
 export default function InboxLayout() {
   const { width } = useWindowDimensions();
   const router = useRouter();
+  const pathname = usePathname();
   const colors = useColors();
   const isDesktop = Platform.OS === 'web' && width >= 900;
+  /**
+   * Every child of this group is either a mailbox list (`/`, `/sent`,
+   * `/label/x` — they render an empty state into the Slot) or a detail ABOUT a
+   * message (`conversation`, `compose`), which sits beside the list.
+   *
+   * Screens that are neither do not belong in this navigator at all: they get
+   * their own route outside the group, so they are never squeezed into the
+   * detail slot. `subscriptions` used to live here and rendered invisible on
+   * desktop for exactly that reason.
+   */
+  const hasOpenDetail = pathname.startsWith('/conversation/') || pathname.startsWith('/compose');
 
   const currentMailbox = useEmailStore((s) => s.currentMailbox);
   const selectedMessageId = useEmailStore((s) => s.selectedMessageId);
@@ -160,6 +175,17 @@ export default function InboxLayout() {
     }
   }, [selectedMessageId, toggleRead]);
 
+  /**
+   * Closing returns to the plain list route. The list pane keeps its own view
+   * state in the store, so this does not reset which mailbox is shown — and
+   * with the pane closed the mailbox route's `MailboxView` never mounts to
+   * override it either.
+   */
+  const handleCloseDetail = useCallback(() => {
+    useEmailStore.setState({ selectedMessageId: null });
+    router.replace('/');
+  }, [router]);
+
   const helpControl = useDialogControl();
   const handleShowHelp = useCallback(() => {
     helpControl.open();
@@ -184,11 +210,47 @@ export default function InboxLayout() {
   if (isDesktop) {
     return (
       <View style={[styles.splitContainer, { backgroundColor: colors.background }]}>
-        <View style={[styles.listPane, { borderRightColor: colors.border }]}>
+        {/* Both panes transition in CSS via NativeWind: the list narrows and
+            the detail pane takes the width it frees, on the same duration and
+            curve, so the split reads as one movement. No JS animation driver —
+            on web these compile to real CSS transitions. */}
+        <View
+          className={`min-h-0 transition-[width] duration-300 ease-out ${hasOpenDetail ? 'w-[380px]' : 'w-full'}`}
+        >
           <InboxList replaceNavigation />
         </View>
-        <View style={styles.detailPane}>
-          <Slot />
+        {/*
+          * The detail pane is framed with Bloom's shared `ContentPanel`, the
+          * same component Mention's layout uses for its centre column.
+          *
+          * `<Slot />` renders UNCONDITIONALLY: it is where this layout's child
+          * routes mount, and tearing it out of the tree in the same commit that
+          * navigates away from a child route leaves that route with nowhere to
+          * go. Visibility is a matter of the pane's width and opacity, and
+          * `pointerEvents` keeps the hidden pane from swallowing clicks.
+          */}
+        <View
+          className={`min-h-0 overflow-hidden transition-all duration-300 ease-out ${hasOpenDetail ? 'flex-1 opacity-100' : 'w-0 opacity-0'}`}
+          style={styles.detailPane}
+          pointerEvents={hasOpenDetail ? 'auto' : 'none'}
+        >
+            <ContentPanel framed maskColor={colors.background}>
+              <Slot />
+            </ContentPanel>
+            {/* Floats over the panel so it works for every child route
+                (conversation, compose) without each one wiring its own. */}
+            {hasOpenDetail && (
+            <TouchableOpacity
+              onPress={handleCloseDetail}
+              hitSlop={SPACING.sm}
+              className="absolute right-5 top-5 h-8 w-8 items-center justify-center rounded-[10px] border"
+              style={{ backgroundColor: colors.background, borderColor: colors.border }}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+            >
+              <MaterialCommunityIcons name="close" size={18} color={colors.icon} />
+            </TouchableOpacity>
+            )}
         </View>
         <KeyboardShortcutsHelp control={helpControl} />
       </View>
@@ -202,7 +264,6 @@ export default function InboxLayout() {
       <Stack.Screen name="label/[name]" />
       <Stack.Screen name="conversation/[id]" />
       <Stack.Screen name="compose" />
-      <Stack.Screen name="subscriptions" />
     </Stack>
   );
 }
@@ -213,14 +274,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     minHeight: 0,
   },
-  listPane: {
-    flex: 1,
-    maxWidth: 380,
-    minHeight: 0,
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
   detailPane: {
     flex: 1,
     minHeight: 0,
+    padding: 8,
+    paddingLeft: 0,
   },
 });

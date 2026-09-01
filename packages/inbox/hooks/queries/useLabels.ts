@@ -51,6 +51,8 @@ export function useCreateLabel() {
         name,
         color,
         order: Number.MAX_SAFE_INTEGER,
+        // A user-created label is never a system one.
+        system: false,
       };
       const { prev } = await optimisticLabels(queryClient, (labels) => [...labels, optimistic]);
       return { prev };

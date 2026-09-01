@@ -42,11 +42,6 @@ export type { AuthState, AuthActions, UseAuthReturn } from './ui/hooks/useAuth';
 export { IdentityBoundSessionError } from './ui/session/identityBinding';
 
 // ---------------------------------------------------------------------------
-// Font loading
-// ---------------------------------------------------------------------------
-export { FontLoader, setupFonts } from './ui/components/FontLoader';
-
-// ---------------------------------------------------------------------------
 // Zustand stores
 // ---------------------------------------------------------------------------
 export { useAuthStore } from './ui/stores/authStore';
@@ -206,6 +201,25 @@ export { useFileFiltering } from './ui/hooks/useFileFiltering';
 export type { ViewMode, SortBy, SortOrder } from './ui/hooks/useFileFiltering';
 
 // ---------------------------------------------------------------------------
+// Device notifications (the ONE `expo-notifications` adapter)
+// ---------------------------------------------------------------------------
+// The Expo-side half of push: permission, platform tag, and the EXPO push token
+// `@oxyhq/core`'s `registerPushToken` accepts (never a raw APNs/FCM token).
+// Native-only by construction — every entry point resolves its null/no-op result
+// from `Platform.OS` before `expo-notifications` is ever imported, and both
+// `expo-notifications` and `expo-constants` are OPTIONAL peers.
+export {
+    pushTokenPlatform,
+    hasNotificationPermission,
+    requestNotificationPermission,
+    getExpoPushToken,
+    takeLaunchNotificationData,
+    installForegroundNotificationHandler,
+    subscribeToNotificationResponses,
+} from './notifications/deviceNotifications';
+export type { ForegroundPresentation } from './notifications/deviceNotifications';
+
+// ---------------------------------------------------------------------------
 // UI components
 // ---------------------------------------------------------------------------
 export {
@@ -267,6 +281,18 @@ export type { ProfileButtonProps } from './ui/components/ProfileButton';
 // with its own completion strategy.
 export { default as OxyAuthChooser } from './ui/components/OxyAuthChooser';
 export type { OxyAuthChooserProps } from './ui/components/OxyAuthChooser';
+
+// The in-flight "Sign in with Oxy" REQUEST surface — the route's primary visual,
+// the progress line, and the "Having trouble?" alternatives — as a purely
+// presentational component driven by plain facts. `OxyAuthChooser` renders it
+// from `AccountDialogController`'s device flow; a host with a request of its own
+// (the auth.oxy.so IdP's OAuth-bound lane) renders the SAME component from its
+// own facts, so there is one implementation of this surface, not two. It needs
+// no controller: `route` + `progress` + `qrPayload` + the failure flags are the
+// whole contract, and none of them is a secret credential.
+export { OxySignInRequestSurface } from './ui/components/OxySignInRequestSurface';
+export type { OxySignInRequestSurfaceProps } from './ui/components/OxySignInRequestSurface';
+export type { OxySignInSurfaceAction } from './ui/components/authChooser/types';
 
 // Unified switchable-accounts hook — the single source of everything the user
 // can switch into: device sign-ins AND linked graph accounts (owned orgs +

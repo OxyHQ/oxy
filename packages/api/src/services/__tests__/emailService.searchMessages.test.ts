@@ -100,4 +100,17 @@ describe('emailService.searchMessages structured filters', () => {
     expect(mockMessageFind).not.toHaveBeenCalled();
     expect(mockCountDocuments).not.toHaveBeenCalled();
   });
+
+  it.each([
+    [false, 'unread'],
+    [true, 'read'],
+  ])('adds flags.seen=%s for the %s read-state filter', async (seen) => {
+    mockFindChain();
+    mockCountChain();
+
+    await emailService.searchMessages('64b000000000000000000001', '', { seen });
+
+    expect(mockMessageFind.mock.calls[0][0]).toMatchObject({ 'flags.seen': seen });
+    expect(mockCountDocuments.mock.calls[0][0]).toMatchObject({ 'flags.seen': seen });
+  });
 });

@@ -63,6 +63,34 @@ export type {
 export { createOxyCors } from './cors';
 export type { OxyCorsOptions } from './cors';
 
+// Shared Helmet + Content-Security-Policy baseline (Cloudflare Insights beacon,
+// Oxy API/CDN origins) with additive, per-app extensions.
+export {
+  buildOxyCspDirectives,
+  createOxySecurityHeaders,
+  OXY_CSP_BASELINE,
+} from './securityHeaders';
+export type {
+  OxyCspDirective,
+  OxyCspExtensions,
+  OxySecurityHeadersOptions,
+} from './securityHeaders';
+
+export {
+  CapabilityTicketError,
+  createCapabilityTicketMiddleware,
+  inputSatisfiesCapabilityLimits,
+  issueCapabilityTicket,
+  readCapabilityAuthorization,
+  verifyCapabilityTicket,
+} from './capabilityTicket';
+export type {
+  CapabilityTicketMiddlewareOptions,
+  CapabilityTicketRequest,
+  CapabilityTicketSigningOptions,
+  CapabilityTicketVerificationOptions,
+} from './capabilityTicket';
+
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
 

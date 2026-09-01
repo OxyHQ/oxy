@@ -82,9 +82,9 @@ jest.mock('../../models/AppGrant', () => ({
   default: { findOne: jest.fn(), find: jest.fn(), findOneAndUpdate: jest.fn(), deleteOne: jest.fn() },
 }));
 
+import { COMMONS_DENY_REASONS } from '@oxyhq/contracts';
 import authRouter from '../auth';
 import { errorHandler } from '../../middleware/errorHandler';
-import { AUTH_SESSION_DENY_REASONS } from '../../schemas/auth.schemas';
 
 const DENY_LIMITER_PREFIX = 'rl:auth:session-deny:';
 
@@ -223,9 +223,13 @@ describe('POST /auth/session/deny/:authorizeCode — closed-set reason', () => {
   });
 
   it('accepts exactly the closed set and nothing else', async () => {
-    expect([...AUTH_SESSION_DENY_REASONS]).toEqual(['declined', 'not_me']);
+    // The route validates against the SHARED declaration in `@oxyhq/contracts` —
+    // the same one the `AuthSession.deniedReason` enum and the SDK read. Pinning
+    // the literal values here is what makes an accidental widening of the set
+    // (on any of the three sides) fail loudly instead of silently.
+    expect([...COMMONS_DENY_REASONS]).toEqual(['declined', 'not_me']);
 
-    for (const reason of AUTH_SESSION_DENY_REASONS) {
+    for (const reason of COMMONS_DENY_REASONS) {
       const session = pendingSession();
       mockAuthSessionFindOne.mockResolvedValueOnce(session);
       const res = await post('/auth/session/deny/code-1', { reason });

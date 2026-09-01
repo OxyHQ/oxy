@@ -171,10 +171,10 @@ jest.mock('react-native-qrcode-svg', () => ({
     require('react').createElement('span', { 'data-testid': 'qrcode' }, value),
 }));
 
-jest.mock('@expo/vector-icons', () => ({
+jest.mock('@expo/vector-icons/Ionicons', () => ({ __esModule: true, default: () => null }));
+jest.mock('@expo/vector-icons/MaterialCommunityIcons', () => ({
   __esModule: true,
-  MaterialCommunityIcons: () => null,
-  Ionicons: () => null,
+  default: () => null,
 }));
 
 // The two environment gate probes, toggled per test.

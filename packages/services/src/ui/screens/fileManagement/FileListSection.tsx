@@ -7,7 +7,7 @@ import {
     RefreshControl,
     ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { FileMetadata } from '@oxyhq/core';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import type { useTheme } from '@oxyhq/bloom/theme';

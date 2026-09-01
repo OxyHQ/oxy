@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
+import { toast } from "@oxyhq/bloom"
 
 // `useUserDevices()` is typed loosely (`any[]`) by the SDK; this describes the
 // device fields this demo renders so the map callback is fully typed.

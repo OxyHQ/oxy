@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { toast } from 'sonner';
+import { toast } from '@oxyhq/bloom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';

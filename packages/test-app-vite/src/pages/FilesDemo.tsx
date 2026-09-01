@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { toast } from "sonner"
+import { toast } from "@oxyhq/bloom"
 
 const VIEW_MODES: ViewMode[] = ["all", "photos", "videos", "documents", "audio"]
 const SORT_BYS: SortBy[] = ["date", "name", "size", "type"]

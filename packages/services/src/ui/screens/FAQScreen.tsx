@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { toast } from '@oxyhq/bloom';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Search } from '@oxyhq/bloom/search';
@@ -166,7 +166,7 @@ const FAQScreen: React.FC<BaseScreenProps> = ({
                                     {faq.question}
                                 </AccordionTrigger>
                                 <AccordionContent>
-                                    <Text className="font-sans text-bodyMedium text-text-secondary">
+                                    <Text className="font-sans text-body text-text-secondary">
                                         {faq.answer}
                                     </Text>
                                     <View className="flex-row items-center mt-space-12 gap-space-4">

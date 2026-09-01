@@ -12,6 +12,7 @@ import { safeFetch, SsrfRejection } from '@oxyhq/core/server';
 import { Mailbox, type IMailbox } from '../models/Mailbox';
 import { Message, type IMessage, type IEmailAddress, type IAttachment } from '../models/Message';
 import { Label } from '../models/Label';
+import { SYSTEM_LABELS, isSystemLabel, isSystemLabelId } from '../constants/systemLabels';
 import { Bundle } from '../models/Bundle';
 import User, { type IUser } from '../models/User';
 import { getAvatarPathsBatch } from './senderAvatar.service';
@@ -25,6 +26,7 @@ import {
   type SubscriptionTier,
 } from '../config/email.config';
 import { logger } from '../utils/logger';
+import { publishInboxMessageEvents } from '../capabilities/inbox.events';
 import { NotFoundError, BadRequestError } from '../utils/error';
 import userCache from '../utils/userCache';
 import { v4 as uuidv4 } from 'uuid';
@@ -133,43 +135,6 @@ class EmailService {
     { name: 'Updates', icon: 'bell-outline', color: '#607D8B', matchLabels: ['Updates'], order: 2 },
     { name: 'Forums', icon: 'forum-outline', color: '#795548', matchLabels: ['Forums'], order: 3 },
   ];
-
-  private static readonly DEFAULT_LABELS = [
-    { name: 'Personal', color: '#1A73E8', order: 0 },
-    { name: 'Work', color: '#34A853', order: 1 },
-    { name: 'Finance', color: '#FBBC04', order: 2 },
-    { name: 'Shopping', color: '#EA4335', order: 3 },
-    { name: 'Travel', color: '#9334E6', order: 4 },
-    { name: 'Social', color: '#E8710A', order: 5 },
-    { name: 'Updates', color: '#607D8B', order: 6 },
-    { name: 'Forums', color: '#795548', order: 7 },
-  ];
-
-  /**
-   * Seed default labels for a user if they have none.
-   * Uses the same lazy-provisioning pattern as ensureMailboxes().
-   */
-  async ensureDefaultLabels(userId: string): Promise<void> {
-    const count = await Label.countDocuments({ userId });
-    if (count > 0) return;
-
-    const docs = EmailService.DEFAULT_LABELS.map((l) => ({
-      userId: new mongoose.Types.ObjectId(userId),
-      name: l.name,
-      color: l.color,
-      order: l.order,
-    }));
-
-    try {
-      await Label.insertMany(docs, { ordered: false });
-      logger.info('Default labels seeded', { userId });
-    } catch (err: any) {
-      // Ignore duplicate key errors (race condition safe)
-      if (err.code !== 11000 && !err.message?.includes('E11000')) {
-        throw err;
-      }
-    }
-  }
 
   async ensureMailboxes(userId: string): Promise<void> {
     const existing = await Mailbox.find({ userId });
@@ -817,7 +782,6 @@ class EmailService {
 
     const userId = user._id.toString();
     await this.ensureMailboxes(userId);
-    await this.ensureDefaultLabels(userId);
 
     // Check quota
     await this.enforceQuota(userId, params.rawSize);
@@ -859,6 +823,7 @@ class EmailService {
       params.rawSize +
       storedAttachments.reduce((sum, a) => sum + a.size, 0);
 
+    const receivedAt = new Date();
     const message = await Message.create({
       userId: user._id,
       mailboxId: mailbox._id,
@@ -882,7 +847,7 @@ class EmailService {
       aliasTag: params.aliasTag,
       readReceiptRequested: !!params.headers['disposition-notification-to'],
       date: params.date,
-      receivedAt: new Date(),
+      receivedAt,
     });
 
     // Update mailbox counters
@@ -919,6 +884,23 @@ class EmailService {
       from: params.from.address,
       subject: params.subject,
       mailbox: mailbox.name,
+    });
+
+    // Capability events carry identifiers and routing metadata only; agents
+    // fetch message content later with a live, mailbox-scoped ticket.
+    publishInboxMessageEvents({
+      ownerAccountId: userId,
+      mailboxId: mailbox._id.toString(),
+      messageId: message._id.toString(),
+      senderAddress: params.from.address,
+      subject: params.subject,
+      headers: params.headers,
+      receivedAt,
+    }).catch((err) => {
+      logger.warn('Inbox capability event fan-out failed', {
+        messageId: message._id.toString(),
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
 
     // Fire-and-forget AI processing (non-blocking, only for non-spam)
@@ -1436,10 +1418,18 @@ class EmailService {
   // ─── Labels ──────────────────────────────────────────────────────────
 
   async listLabels(userId: string): Promise<any[]> {
-    return Label.find({ userId }).sort({ order: 1, name: 1 }).lean({ virtuals: true });
+    const custom = await Label.find({ userId }).sort({ order: 1, name: 1 }).lean({ virtuals: true });
+    // A row left over from when the system labels were seeded per user is
+    // shadowed by its constant, so the list never shows the same name twice.
+    const own = custom
+      .filter((l: any) => !isSystemLabel(l.name))
+      .map((l: any) => ({ ...l, system: false }));
+    return [...SYSTEM_LABELS, ...own];
   }
 
   async createLabel(userId: string, name: string, color: string): Promise<any> {
+    if (isSystemLabel(name)) throw new BadRequestError(`Label "${name.trim()}" already exists`);
+
     const existing = await Label.findOne({ userId, name }).collation({ locale: 'en', strength: 2 });
     if (existing) throw new BadRequestError(`Label "${name}" already exists`);
 
@@ -1454,6 +1444,11 @@ class EmailService {
   }
 
   async updateLabel(userId: string, labelId: string, updates: { name?: string; color?: string }): Promise<any> {
+    if (isSystemLabelId(labelId)) throw new BadRequestError('System labels cannot be edited');
+    if (updates.name && isSystemLabel(updates.name)) {
+      throw new BadRequestError(`Label "${updates.name.trim()}" already exists`);
+    }
+
     const label = await Label.findOneAndUpdate(
       { _id: labelId, userId },
       { $set: updates },
@@ -1464,6 +1459,8 @@ class EmailService {
   }
 
   async deleteLabel(userId: string, labelId: string): Promise<void> {
+    if (isSystemLabelId(labelId)) throw new BadRequestError('System labels cannot be deleted');
+
     const label = await Label.findOne({ _id: labelId, userId });
     if (!label) throw new NotFoundError('Label not found');
 
@@ -1476,11 +1473,14 @@ class EmailService {
   }
 
   async updateMessageLabels(userId: string, messageId: string, add: string[], remove: string[]): Promise<any> {
-    // Validate that labels being added actually exist for this user
-    if (add.length > 0) {
-      const existingLabels = await Label.find({ userId, name: { $in: add } }).select('name').lean();
+    // Validate that labels being added actually exist for this user. A system
+    // label is valid without a row behind it — that is the whole point of it
+    // being a constant — so only the rest are looked up.
+    const unknown = add.filter((name) => !isSystemLabel(name));
+    if (unknown.length > 0) {
+      const existingLabels = await Label.find({ userId, name: { $in: unknown } }).select('name').lean();
       const existingNames = new Set(existingLabels.map((l) => l.name));
-      const missing = add.filter((name) => !existingNames.has(name));
+      const missing = unknown.filter((name) => !existingNames.has(name));
       if (missing.length > 0) {
         throw new BadRequestError(`Labels not found: ${missing.join(', ')}`);
       }
@@ -1913,7 +1913,6 @@ class EmailService {
     if (!user || !user.username) throw new BadRequestError('User must have a username');
 
     await this.ensureMailboxes(userId);
-    await this.ensureDefaultLabels(userId);
     await this.enforceQuota(
       userId,
       files.reduce((total, file) => total + file.buffer.length, 0),
@@ -2080,9 +2079,10 @@ class EmailService {
       dateBefore?: string;
       starred?: boolean;
       label?: string;
+      seen?: boolean;
     } = {}
   ): Promise<{ data: any[]; total: number; limit: number; offset: number }> {
-    const { limit = 50, offset = 0, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label } = options;
+    const { limit = 50, offset = 0, mailboxId, from, to, subject, hasAttachment, dateAfter, dateBefore, starred, label, seen } = options;
 
     const filter: Record<string, unknown> = {
       userId: new mongoose.Types.ObjectId(userId),
@@ -2112,6 +2112,9 @@ class EmailService {
     }
     if (starred) {
       filter['flags.starred'] = true;
+    }
+    if (seen !== undefined) {
+      filter['flags.seen'] = seen;
     }
     if (label) {
       filter.labels = label;
@@ -2339,13 +2342,20 @@ class EmailService {
           _id: '$from.address',
           name: { $last: '$from.name' },
           messageCount: { $sum: 1 },
+          // Same pass as the count: how many of this sender's messages were
+          // ever opened. A sender you never read is the one worth dropping.
+          readCount: { $sum: { $cond: [{ $eq: ['$flags.seen', true] }, 1, 0] } },
           latestDate: { $max: '$date' },
           oldestDate: { $min: '$date' },
           latestMessageId: { $last: '$_id' },
         },
       },
       { $match: { messageCount: { $gte: 3 } } },
-      { $sort: { messageCount: -1 } },
+      // `_id` (the sender address) breaks ties. Sorting on `messageCount`
+      // alone leaves equal-count senders in an arbitrary order that can
+      // differ between two offset pages, so the same sender comes back twice
+      // while another is skipped entirely.
+      { $sort: { messageCount: -1, _id: 1 } },
       {
         $facet: {
           data: [{ $skip: offset }, { $limit: limit }],
@@ -2402,6 +2412,7 @@ class EmailService {
         _id: sender._id,
         name: sender.name || sender._id.split('@')[0],
         messageCount: sender.messageCount,
+        readCount: sender.readCount ?? 0,
         latestDate: sender.latestDate,
         oldestDate: sender.oldestDate,
         latestMessageId: sender.latestMessageId,

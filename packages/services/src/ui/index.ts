@@ -26,7 +26,6 @@ export { RequireOxyAuth } from './components/RequireOxyAuth';
 export type { RequireOxyAuthProps, RequireOxyAuthPrompt } from './components/RequireOxyAuth';
 export { default as FollowButton } from './components/FollowButton';
 export { default as OxyPayButton } from './components/OxyPayButton';
-export { FontLoader, setupFonts } from './components/FontLoader';
 export { default as ProfileButton } from './components/ProfileButton';
 
 // Context + hooks

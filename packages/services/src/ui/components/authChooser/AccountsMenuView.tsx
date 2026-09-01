@@ -25,7 +25,7 @@
 
 import type React from 'react';
 import { Fragment, useCallback, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native-css/components';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -33,7 +33,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Avatar } from '@oxyhq/bloom/avatar';
 import { AvatarGroup, type AvatarGroupItem } from '@oxyhq/bloom/avatar-group';
 import { Button } from '@oxyhq/bloom/button';
@@ -98,6 +98,7 @@ const FACEPILE_AVATAR_SIZE = 32;
  * label under the avatar before it.
  */
 const FACEPILE_OVERLAP = 4;
+
 
 /**
  * The hero's address line, shown under the "Hi, <name>!" greeting: the account's

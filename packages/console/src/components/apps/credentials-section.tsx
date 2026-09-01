@@ -9,7 +9,7 @@ import {
   Key01Icon,
   RefreshIcon,
 } from '@hugeicons/core-free-icons';
-import { toast } from 'sonner';
+import { toast } from '@oxyhq/bloom';
 import type {Application, ApplicationCredential, ApplicationCredentialType, ApplicationEnvironment, CallerAccess} from '@/hooks/use-applications';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

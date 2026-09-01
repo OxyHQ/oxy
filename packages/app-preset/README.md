@@ -15,6 +15,8 @@ and JSON.
 | Piece | Import | Replaces |
 | --- | --- | --- |
 | Config plugin | `['@oxyhq/app-preset', {}]` | `withSharedUserId` + iOS keychain entitlement + `expo-build-properties` + `@oxyhq/services/plugins/withSharedIdentityReader` |
+| Android release build | `@oxyhq/app-preset/plugin/withOxyAndroidRelease` | R8 `-optimize` ProGuard file + shared-keystore release signing (opt-in, see below) |
+| Android WebP resources | `@oxyhq/app-preset/plugin/withOxyAndroidWebp` | re-encoding generated mipmaps/splash bitmaps to real lossless WebP (opt-in, needs `sharp`) |
 | Metro | `@oxyhq/app-preset/metro` | monorepo watch folders, block list, symlink + package-exports resolution, web-font/wasm asset exts, release minifier, NativeWind wrapper |
 | Babel | `@oxyhq/app-preset/babel` | `babel-preset-expo` + `module-resolver` + `react-native-worklets/plugin` |
 | ESLint | `@oxyhq/app-preset/eslint` | `eslint-config-expo/flat` + `dist/*` ignore |
@@ -50,6 +52,31 @@ Each piece is individually disableable and overridable:
   sharedIdentityReader: true,           // false → skip @oxyhq/services reader plugin
 }]
 ```
+
+#### Android release-build plugins (opt-in)
+
+These two are deliberately NOT part of `['@oxyhq/app-preset', {}]`: one writes a
+signing config and the other needs `sharp` installed, so both are registered
+explicitly by apps that ship to Play.
+
+```js
+plugins: [
+  // FIRST in the array so it RUNS LAST — mods execute in reverse registration
+  // order, and this has to run after every image generator (splash included).
+  '@oxyhq/app-preset/plugin/withOxyAndroidWebp',
+  // …app-specific plugins…
+  '@oxyhq/app-preset/plugin/withOxyAndroidRelease',
+]
+```
+
+`withOxyAndroidRelease` reads the release keystore from four Gradle properties
+(`OXY_UPLOAD_STORE_FILE`, `OXY_UPLOAD_STORE_PASSWORD`, `OXY_UPLOAD_KEY_ALIAS`,
+`OXY_UPLOAD_KEY_PASSWORD`) in `~/.gradle/gradle.properties` or CI secrets — never
+from the repo. When they are absent the release buildType falls back to the debug
+keystore, so **always verify the artefact's certificate** (`keytool -printcert
+-jarfile <aab>`, `apksigner verify --print-certs <apk>`) instead of assuming.
+
+`withOxyAndroidWebp` requires `sharp` as a devDependency of the app.
 
 ### 2. Metro (`metro.config.js`)
 

@@ -95,7 +95,10 @@ export const aiKeys = {
   threadSummary: (messageIdsSignature: string | undefined) =>
     ['threadSummary', messageIdsSignature] as const,
   smartReplies: (messageId: string | undefined) => ['smartReplies', messageId] as const,
-  dailyBrief: (day: string) => ['alia', 'daily-brief', day] as const,
+  // Its own root, not under 'alia': the brief is one LLM call per day and is
+  // worth persisting, while the rest of the `alia` keys are per-interaction
+  // scratch space that should not survive a restart.
+  dailyBrief: (day: string) => ['daily-brief', day] as const,
   /** Mutation key for the unified AI compose operations. */
   compose: ['alia', 'compose'] as const,
   /** Mutation key for the natural-language search parser. */
@@ -121,4 +124,7 @@ export const PERSISTED_QUERY_ROOTS: ReadonlySet<string> = new Set([
   'contacts',
   'reminders',
   'subscriptions',
+  // Without this the brief is in-memory only, so a cold start re-runs the LLM
+  // call the comment above it claims happens once a day.
+  'daily-brief',
 ]);

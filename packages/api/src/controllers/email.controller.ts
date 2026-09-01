@@ -20,6 +20,7 @@ import {
 } from '../utils/error';
 import { logger } from '../utils/logger';
 import type { RecipientInput, AttachmentInput } from '../schemas/email.schemas';
+import type { CapabilityTicketClaims } from '@oxyhq/contracts';
 
 /**
  * Read an optional query-string param that MUST be a single string.
@@ -30,6 +31,40 @@ function getOptionalQueryString(value: unknown, name: string): string | undefine
   if (value === undefined) return undefined;
   if (typeof value === 'string') return value;
   throw new BadRequestError(`${name} must be a single string value`);
+}
+
+interface ParsedEmailSearchQuery {
+  text: string;
+  seen?: boolean;
+}
+
+/**
+ * Extract the two supported read-state operators from the free-text `q`
+ * parameter. Unknown `is:*` terms remain text so existing searches keep their
+ * meaning; only the exact operators owned by this API are interpreted.
+ */
+function parseEmailSearchQuery(query: string | undefined): ParsedEmailSearchQuery {
+  if (!query) return { text: '' };
+
+  const textTokens: string[] = [];
+  let seen: boolean | undefined;
+
+  for (const token of query.trim().split(/\s+/)) {
+    const normalized = token.toLowerCase();
+    const tokenSeen = normalized === 'is:read' ? true : normalized === 'is:unread' ? false : undefined;
+
+    if (tokenSeen !== undefined) {
+      if (seen !== undefined && seen !== tokenSeen) {
+        throw new BadRequestError('is:read and is:unread cannot be used together');
+      }
+      seen = tokenSeen;
+      continue;
+    }
+
+    if (token) textTokens.push(token);
+  }
+
+  return { text: textTokens.join(' '), ...(seen === undefined ? {} : { seen }) };
 }
 
 /**
@@ -118,6 +153,7 @@ async function linkAttachmentsToMessage(
 
 interface AuthRequest extends Request {
   user?: { id: string };
+  capabilityTicket?: CapabilityTicketClaims;
 }
 
 // ─── Mailboxes ────────────────────────────────────────────────────
@@ -202,7 +238,11 @@ export async function getThread(req: AuthRequest, res: Response): Promise<void> 
   const { messageId } = req.params;
 
   const thread = await emailService.getThread(userId, messageId);
-  res.json({ data: thread });
+  const resource = req.capabilityTicket?.resource;
+  const scopedThread = resource?.resourceType === 'mailbox'
+    ? thread.filter((message) => String(message.mailboxId) === resource.resourceId)
+    : thread;
+  res.json({ data: scopedThread });
 }
 
 export async function updateMessageFlags(req: AuthRequest, res: Response): Promise<void> {
@@ -539,7 +579,7 @@ export async function saveDraft(req: AuthRequest, res: Response): Promise<void> 
 
 export async function searchMessages(req: AuthRequest, res: Response): Promise<void> {
   const userId = req.user!.id;
-  const q = getOptionalQueryString(req.query.q, 'q');
+  const parsedQuery = parseEmailSearchQuery(getOptionalQueryString(req.query.q, 'q'));
   const mailboxId = getOptionalQueryString(req.query.mailbox, 'mailbox');
   const from = getOptionalQueryString(req.query.from, 'from');
   const to = getOptionalQueryString(req.query.to, 'to');
@@ -554,7 +594,7 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
 
   // At least one search criterion required
   if (
-    !q &&
+    !parsedQuery.text &&
     !mailboxId &&
     !from &&
     !to &&
@@ -563,17 +603,19 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
     !dateAfter &&
     !dateBefore &&
     !starred &&
-    !label
+    !label &&
+    parsedQuery.seen === undefined
   ) {
     throw new BadRequestError('At least one search parameter is required');
   }
 
-  const result = await emailService.searchMessages(userId, q || '', {
+  const result = await emailService.searchMessages(userId, parsedQuery.text, {
     limit, offset, mailboxId, from, to, subject,
     hasAttachment: hasAttachment || undefined,
     dateAfter, dateBefore,
     starred: starred || undefined,
     label,
+    ...(parsedQuery.seen === undefined ? {} : { seen: parsedQuery.seen }),
   });
   res.json({
     data: result.data,

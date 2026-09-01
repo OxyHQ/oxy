@@ -44,16 +44,12 @@ const it: LocaleDict = {
   },
 
   tabs: {
-    home: 'Home',
     inbox: 'Posta',
     search: 'Cerca',
     settings: 'Impostazioni',
-    forYou: 'Per te',
   },
 
   drawer: {
-    home: 'Home',
-    forYou: 'Per te',
     starred: 'Speciali',
     snoozed: 'Posticipati',
     subscriptions: 'Iscrizioni',
@@ -134,25 +130,6 @@ const it: LocaleDict = {
     },
   },
 
-  forYou: {
-    title: 'Per te',
-    starred: 'Speciali',
-    unread: 'Non lette',
-    attachments: 'Allegati',
-    empty: {
-      title: 'Tutto in pari',
-      subtitle: 'Al momento non c\'è nulla in evidenza per te.',
-    },
-    summary: {
-      fromOne: 'Da {{a}}',
-      fromTwo: 'Da {{a}} e {{b}}',
-      fromManyOne: 'Da {{a}}, {{b}} e {{count}} altro',
-      fromManyOther: 'Da {{a}}, {{b}} e altri {{count}}',
-      aboutOne: ' — su {{topic}}',
-      aboutTwo: ' — su {{a}}, {{b}}',
-      aboutMore: ' e altro',
-    },
-  },
 
   inbox: {
     title: 'Posta',

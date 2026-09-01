@@ -12,7 +12,6 @@ import { logger as loggerUtil } from '@oxyhq/core';
 import { RequireOxyAuth } from './RequireOxyAuth';
 import { attachQueryPersistence, createQueryClient } from '../hooks/queryClient';
 import { createPlatformStorage, type StorageInterface } from '../utils/storageHelpers';
-import { setupFonts } from './FontLoader';
 
 /**
  * Background color shown for the brief window between mount and the
@@ -39,9 +38,6 @@ const bootStyles = StyleSheet.create({
         backgroundColor: BOOT_BG_COLOR,
     },
 });
-
-// Initialize fonts automatically
-setupFonts();
 
 // Detect if running on web
 const isWeb = Platform.OS === 'web';

@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { Animated } from 'react-native';
-import type { Ionicons } from '@expo/vector-icons';
+import type Ionicons from '@expo/vector-icons/Ionicons';
 import type { ThemeColors } from '@oxyhq/bloom/theme';
 
 export type PaymentItem = {

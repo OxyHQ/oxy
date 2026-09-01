@@ -22,12 +22,12 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { H3, Text } from '@oxyhq/bloom/typography';
 import { IconButton } from '@oxyhq/bloom/button';
 import { ChevronLeft_Stroke2_Corner0_Rounded } from '@oxyhq/bloom/icons';
 
+import { useGoBack } from '@/hooks/useGoBack';
 import { useColors } from '@/constants/theme';
 
 interface SettingsScreenShellProps {
@@ -51,24 +51,16 @@ export function SettingsScreenShell({
   children,
 }: SettingsScreenShellProps) {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { width } = useWindowDimensions();
   const colors = useColors();
   const isDesktop = Platform.OS === 'web' && width >= DESKTOP_BREAKPOINT;
 
   // On desktop the sidebar is permanent and provides the back affordance, so
   // we hide the back chevron there. On mobile we always show it for browsers
-  // and native alike (router.back() is a no-op if no entry, but the chevron
-  // matches user expectation).
+  // and native alike.
   const showBack = !isDesktop;
 
-  const handleBack = React.useCallback(() => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/settings');
-    }
-  }, [router]);
+  const handleBack = useGoBack('/settings');
 
   const headerTopPad = isDesktop ? 0 : insets.top;
   const contentBottomPad = insets.bottom + 32;

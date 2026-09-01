@@ -5,7 +5,7 @@
  * similar to Gmail's "Manage subscriptions" feature.
  */
 
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,17 +16,23 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { FlashList } from '@shopify/flash-list';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import { LinearGradient } from 'expo-linear-gradient';
+
+import { useFloatingHeader } from '@/hooks/useFloatingHeader';
+import { SubscriptionStacks } from '@/components/SubscriptionStacks';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import {
   ArrowLeft01Icon,
   News01Icon,
 } from '@hugeicons/core-free-icons';
-import { useRouter, useNavigation } from 'expo-router';
+import { useNavigation } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useGoBack } from '@/hooks/useGoBack';
 import { useColors } from '@/constants/theme';
+import { fadeOut } from '@/utils/fadeOut';
 import { useSubscriptions } from '@/hooks/queries/useSubscriptions';
 import { useUnsubscribe } from '@/hooks/mutations/useUnsubscribe';
 import { SubscriptionRow } from '@/components/SubscriptionRow';
@@ -38,7 +44,6 @@ interface DrawerNavigation {
 }
 
 export function SubscriptionsScreen() {
-  const router = useRouter();
   const navigation = useNavigation<DrawerNavigation>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -58,10 +63,23 @@ export function SubscriptionsScreen() {
   const unsubscribeMutation = useUnsubscribe();
   const [unsubscribingAddress, setUnsubscribingAddress] = useState<string | null>(null);
 
-  const subscriptions = useMemo(
-    () => data?.pages.flatMap((p) => p.data) ?? [],
-    [data],
-  );
+  // Offset pagination over a live aggregate: a message arriving between two
+  // page fetches shifts every sender's rank, so a sender already on screen can
+  // come back in the next page. Keeping the first occurrence preserves the
+  // server's order — the row is identified by its sender address, so the
+  // duplicate carries nothing new.
+  const subscriptions = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: Subscription[] = [];
+    for (const page of data?.pages ?? []) {
+      for (const sub of page.data) {
+        if (seen.has(sub._id)) continue;
+        seen.add(sub._id);
+        merged.push(sub);
+      }
+    }
+    return merged;
+  }, [data]);
 
   const handleOpenDrawer = useCallback(() => {
     // Synthesize the DrawerActions.openDrawer payload inline — expo-router v56
@@ -73,7 +91,7 @@ export function SubscriptionsScreen() {
     navigation.dispatch?.({ type: 'OPEN_DRAWER' });
   }, [navigation]);
 
-  const handleBack = useCallback(() => router.back(), [router]);
+  const handleBack = useGoBack();
 
   const handleUnsubscribe = useCallback(
     (senderAddress: string, method?: 'list-unsubscribe' | 'block') => {
@@ -91,6 +109,21 @@ export function SubscriptionsScreen() {
       fetchNextPage();
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  /**
+   * Tapping a pile scrolls the list to that sender — the pile is a jump target,
+   * matching the header's "Scroll to <sender>" affordance.
+   */
+  const { headerHeight, onHeaderLayout, floatingHeaderStyle } = useFloatingHeader();
+  const listRef = useRef<FlashListRef<Subscription>>(null);
+  const handleSelectSubscription = useCallback(
+    (subscriptionId: string) => {
+      const index = subscriptions.findIndex((s) => s._id === subscriptionId);
+      if (index < 0) return;
+      listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0 });
+    },
+    [subscriptions],
+  );
 
   const renderItem = useCallback(
     ({ item }: { item: Subscription }) => (
@@ -158,12 +191,18 @@ export function SubscriptionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View
+      {/* The header floats over the list, exactly like the inbox: the
+          content scrolls behind a gradient that fades out downwards, and the
+          measured height becomes the list's top padding. Before this the header
+          was a solid bar with a border that pushed the list down — a second,
+          unrelated scroll treatment in the same app. */}
+      <View style={floatingHeaderStyle} onLayout={onHeaderLayout}
+      >
+      <LinearGradient
+        colors={[colors.background, fadeOut(colors.background)]}
         style={[
           styles.header,
           {
-            borderBottomColor: colors.border,
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
@@ -193,17 +232,8 @@ export function SubscriptionsScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           Subscriptions
         </Text>
+      </LinearGradient>
       </View>
-
-      {/* Subtitle — only shown when there are actual subscriptions to manage,
-          otherwise the empty state explains things by itself. */}
-      {subscriptions.length > 0 && (
-        <View style={[styles.subtitle, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.subtitleText, { color: colors.secondaryText }]}>
-            When you unsubscribe, it can take a few days to stop receiving messages
-          </Text>
-        </View>
-      )}
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -211,9 +241,24 @@ export function SubscriptionsScreen() {
         </View>
       ) : (
         <FlashList
+          ref={listRef}
           data={subscriptions}
           renderItem={renderItem}
           ItemSeparatorComponent={renderSeparator}
+          ListHeaderComponent={
+            <>
+              <SubscriptionStacks subscriptions={subscriptions} onSelect={handleSelectSubscription} />
+              {/* Scrolls with the list rather than sitting in a fixed band:
+                  only the floating header stays put, same as the inbox. */}
+              {subscriptions.length > 0 && (
+                <View style={styles.subtitle}>
+                  <Text style={[styles.subtitleText, { color: colors.secondaryText }]}>
+                    When you unsubscribe, it can take a few days to stop receiving messages
+                  </Text>
+                </View>
+              )}
+            </>
+          }
           ListEmptyComponent={renderEmpty}
           ListFooterComponent={renderFooter}
           onEndReached={handleEndReached}
@@ -227,6 +272,7 @@ export function SubscriptionsScreen() {
           }
           contentContainerStyle={{
             ...(subscriptions.length === 0 ? styles.emptyListContent : null),
+            paddingTop: headerHeight,
             // NativeTabs already adds bottom safe-area inset on Android, so
             // pad iOS / web explicitly to keep the last row above the home
             // indicator.
@@ -248,7 +294,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 24,
     gap: 8,
   },
   headerTitle: {
@@ -265,7 +311,6 @@ const styles = StyleSheet.create({
   subtitle: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   subtitleText: {
     fontSize: 13,

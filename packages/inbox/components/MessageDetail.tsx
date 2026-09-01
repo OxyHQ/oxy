@@ -42,10 +42,10 @@ import {
   LabelIcon,
   PrinterIcon,
 } from '@hugeicons/core-free-icons';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxyhq/services';
 
+import { useGoBack } from '@/hooks/useGoBack';
 import { useColors } from '@/constants/theme';
 import { SPECIAL_USE } from '@/constants/mailbox';
 import { useEmailStore } from '@/hooks/useEmail';
@@ -119,7 +119,6 @@ export function MessageDetail(props: MessageDetailProps) {
 }
 
 function MessageDetailInner({ mode, messageId }: MessageDetailProps) {
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const colors = useColors();
@@ -160,9 +159,7 @@ function MessageDetailInner({ mode, messageId }: MessageDetailProps) {
   // driven by the markReadOnOpen preference. The detail view intentionally does
   // not mark read on open — a single, predictable path avoids double writes.
 
-  const handleBack = useCallback(() => {
-    router.back();
-  }, [router]);
+  const handleBack = useGoBack();
 
   const handleStar = useCallback(() => {
     if (!messageId || !currentMessage || toggleStar.isPending) return;
@@ -179,9 +176,9 @@ function MessageDetailInner({ mode, messageId }: MessageDetailProps) {
       if (!messageId) return;
       snoozeMutation.mutate({ messageId, until: until.toISOString() });
       setSnoozeVisible(false);
-      if (mode === 'standalone') router.back();
+      if (mode === 'standalone') handleBack();
     },
-    [messageId, snoozeMutation, router, mode],
+    [messageId, snoozeMutation, handleBack, mode],
   );
 
   const handleArchive = useCallback(() => {
@@ -192,23 +189,23 @@ function MessageDetailInner({ mode, messageId }: MessageDetailProps) {
       return;
     }
     archiveMutation.mutate({ messageId, archiveMailboxId: archiveBox._id });
-    if (mode === 'standalone') router.back();
-  }, [messageId, mailboxes, archiveMutation, router, mode]);
+    if (mode === 'standalone') handleBack();
+  }, [messageId, mailboxes, archiveMutation, handleBack, mode]);
 
   const handleDelete = useCallback(() => {
     if (!messageId) return;
     const trashBox = mailboxes.find((m) => m.specialUse === SPECIAL_USE.TRASH);
     const isInTrash = currentMailbox?.specialUse === SPECIAL_USE.TRASH;
     deleteMutation.mutate({ messageId, trashMailboxId: trashBox?._id, isInTrash });
-    if (mode === 'standalone') router.back();
-  }, [messageId, mailboxes, currentMailbox, deleteMutation, router, mode]);
+    if (mode === 'standalone') handleBack();
+  }, [messageId, mailboxes, currentMailbox, deleteMutation, handleBack, mode]);
 
   const handleMarkUnread = useCallback(() => {
     if (!messageId) return;
     toggleRead.mutate({ messageId, seen: false });
     moreMenuControl.close();
-    if (mode === 'standalone') router.back();
-  }, [messageId, toggleRead, router, mode, moreMenuControl]);
+    if (mode === 'standalone') handleBack();
+  }, [messageId, toggleRead, handleBack, mode, moreMenuControl]);
 
   const handleMarkSpam = useCallback(() => {
     if (!messageId) return;
@@ -217,8 +214,8 @@ function MessageDetailInner({ mode, messageId }: MessageDetailProps) {
       archiveMutation.mutate({ messageId, archiveMailboxId: spamBox._id });
     }
     moreMenuControl.close();
-    if (mode === 'standalone') router.back();
-  }, [messageId, mailboxes, archiveMutation, router, mode, moreMenuControl]);
+    if (mode === 'standalone') handleBack();
+  }, [messageId, mailboxes, archiveMutation, handleBack, mode, moreMenuControl]);
 
   const handleReply = useCallback((targetMsgId?: string) => {
     if (!currentMessage) return;

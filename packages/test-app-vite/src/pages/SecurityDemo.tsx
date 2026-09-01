@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "sonner"
+import { toast } from "@oxyhq/bloom"
 
 export function SecurityDemo() {
   const { isAuthenticated } = useAuth()

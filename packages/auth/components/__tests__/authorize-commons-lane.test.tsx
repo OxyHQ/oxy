@@ -32,7 +32,14 @@ const CODE_CHALLENGE = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
 const STATE = "rp-owned-state"
 const SESSION_TOKEN = "secret-session-token-never-leaves-this-page"
 const AUTHORIZE_CODE = "public-authorize-code"
-const QR_PAYLOAD = `oxycommons://approve?v=1&code=${AUTHORIZE_CODE}&app=abc&origin=&nonce=n&exp=1`
+/**
+ * The `app` / `origin` values are deliberately distinctive: the anti-phishing
+ * assertions below require that NOTHING the visitor reads is derived from the
+ * payload — the application identity on screen is the server-resolved one.
+ */
+const PAYLOAD_APP = "payload-derived-app-name"
+const PAYLOAD_ORIGIN = "https://payload-derived-origin.example"
+const QR_PAYLOAD = `oxycommons://approve?v=1&code=${AUTHORIZE_CODE}&app=${PAYLOAD_APP}&origin=${encodeURIComponent(PAYLOAD_ORIGIN)}&nonce=n&exp=1`
 const MINTED_CODE = "minted-authorization-code"
 
 // ---------------------------------------------------------------------------
@@ -73,6 +80,94 @@ const deliverOAuthResult = mock((input: DeliverInput) =>
     input.window === globalThis.window ? { ...input, window: harness } : input,
   ),
 )
+
+// ---------------------------------------------------------------------------
+// The shared request surface
+// ---------------------------------------------------------------------------
+
+/**
+ * The in-flight request is drawn by `@oxyhq/services`' `OxySignInRequestSurface`
+ * — one implementation shared with the in-app account dialog, and a React Native
+ * component this environment cannot load (the whole specifier is mocked; see
+ * `lib/__tests__/setup-services-mock.ts`).
+ *
+ * What the IdP lane owns is therefore not the pixels but the FACTS it hands that
+ * surface, so this double records every prop AND renders the DOM equivalent of
+ * the real component's documented contract: the QR plate for a `qr` route, the
+ * retry primary a failed request gets only when `onRetry` was supplied, the
+ * always-visible `subordinate` links, and `alternatives` — which stay off the
+ * surface (behind "Having trouble?" upstream) until the route could not deliver.
+ */
+interface SurfaceAction {
+  key: string
+  label: string
+  onPress: () => void
+  disabled?: boolean
+}
+
+interface SurfaceProps {
+  route: string | null
+  progress: string
+  qrPayload?: string | null
+  routeFailed?: boolean
+  failed?: boolean
+  onRetry?: () => void
+  onAcquireCommons?: () => void
+  subordinate?: readonly SurfaceAction[]
+  alternatives?: readonly SurfaceAction[]
+}
+
+let surfaceProps: SurfaceProps | null = null
+
+function renderAction(action: SurfaceAction) {
+  return React.createElement(
+    "button",
+    {
+      key: action.key,
+      type: "button",
+      "data-testid": action.key,
+      disabled: action.disabled,
+      onClick: action.onPress,
+    },
+    action.label,
+  )
+}
+
+function SignInRequestSurfaceDouble(props: SurfaceProps) {
+  surfaceProps = props
+  const failed = props.failed === true
+  const revealed = failed || props.routeFailed === true
+  return React.createElement(
+    "div",
+    { "data-testid": "signin-request-surface" },
+    !failed && props.route === "qr" && props.qrPayload
+      ? React.createElement("div", {
+          key: "qr",
+          "data-testid": "qr-code",
+          "data-qr-value": props.qrPayload,
+        })
+      : null,
+    failed && props.onRetry
+      ? React.createElement(
+          "button",
+          {
+            key: "retry",
+            type: "button",
+            "data-testid": "signin-retry",
+            onClick: props.onRetry,
+          },
+          "Try again",
+        )
+      : null,
+    (props.subordinate ?? []).map(renderAction),
+    revealed ? (props.alternatives ?? []).map(renderAction) : null,
+  )
+}
+
+/** The action keys the lane put in a given band, in order. */
+function keysOf(actions: readonly SurfaceAction[] | undefined): string[] {
+  return (actions ?? []).map((action) => action.key)
+}
 
 // ---------------------------------------------------------------------------
 // SDK surface
@@ -132,10 +227,6 @@ function installMocks(): void {
     ...realExports,
     deliverOAuthResult,
   }))
-  mock.module("react-native-qrcode-svg", () => ({
-    default: ({ value }: { value: string }) =>
-      React.createElement("div", { "data-testid": "qr-code", "data-qr-value": value }),
-  }))
   mock.module("@oxyhq/services", () => ({
     useOxy: () => ({
       user: null,
@@ -159,6 +250,7 @@ function installMocks(): void {
     OxyConsentScreen: () =>
       React.createElement("div", { "data-testid": "consent-screen" }),
     OxyAuthChooser: () => null,
+    OxySignInRequestSurface: SignInRequestSurfaceDouble,
   }))
 }
 
@@ -276,6 +368,7 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
       accounts: [],
       accessToken: null,
     }
+    surfaceProps = null
     harness.opener = null
     harness.location = { href: "" }
     harness.closed = false
@@ -304,8 +397,14 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
       },
     })
 
-    // The single-action surface: the request's own QR, carrying the PUBLIC
-    // approval handle and nothing else.
+    // The lane drives the shared surface down its QR route, carrying the PUBLIC
+    // approval payload and nothing else.
+    expect(surfaceProps?.route).toBe("qr")
+    expect(surfaceProps?.qrPayload).toBe(QR_PAYLOAD)
+    expect(surfaceProps?.failed).toBe(false)
+    // Progress is DERIVED from what the lane observed — the request exists and
+    // nobody has approved it yet.
+    expect(surfaceProps?.progress).toBe("awaiting-approval")
     const qr = container.querySelector("[data-testid='qr-code']")
     expect(qr?.getAttribute("data-qr-value")).toBe(QR_PAYLOAD)
     expect(container.querySelector("[data-testid='login-page']")).toBeNull()
@@ -314,12 +413,35 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     unmount()
   })
 
-  test("keeps the alternatives behind the progressive disclosure", async () => {
+  test("renders the server-resolved application, never anything read out of the payload", async () => {
     const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
 
+    // The identity on screen is the one `GET /auth/oauth/client/:clientId`
+    // resolved. The payload's own `app` / `origin` are encoded into the QR and
+    // are never read back out of it.
+    const text = container.textContent ?? ""
+    expect(text).toContain("Example App")
+    expect(text).not.toContain(PAYLOAD_APP)
+    expect(text).not.toContain(PAYLOAD_ORIGIN)
+    expect(text).not.toContain(AUTHORIZE_CODE)
+    expect(text).not.toContain(SESSION_TOKEN)
+
+    unmount()
+  })
+
+  test("keeps the alternatives out of the always-visible band", async () => {
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+
+    // Cancelling is the one subordinate way out and is always on screen; every
+    // alternative WAY TO AUTHENTICATE is handed to the surface's "Having
+    // trouble?" disclosure, so none of them competes with the QR.
+    expect(keysOf(surfaceProps?.subordinate)).toEqual(["commons-cancel"])
+    expect(keysOf(surfaceProps?.alternatives)).toEqual([
+      "commons-open-on-this-device",
+      "commons-sign-in-here",
+    ])
+    expect(container.querySelector("[data-testid='commons-cancel']")).not.toBeNull()
     expect(container.querySelector("[data-testid='commons-sign-in-here']")).toBeNull()
-    click(container.querySelector("[data-testid='commons-trouble-disclosure']"))
-    expect(container.querySelector("[data-testid='commons-sign-in-here']")).not.toBeNull()
 
     unmount()
   })
@@ -412,7 +534,13 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
     expect(deliverOAuthResult).not.toHaveBeenCalled()
     expect(harness.location.href).toBe("")
+    // The reason is the page's own banner (the shared surface reports only THAT
+    // the request failed); the way forward is the surface's retry primary.
     expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull()
+    expect(surfaceProps?.failed).toBe(true)
+    expect(surfaceProps?.onRetry).toBeDefined()
+    // A dead request has nothing honest left to report on, so no status line.
+    expect(surfaceProps?.progress).toBe("idle")
 
     // Letting time pass does not resurrect the spent request.
     await act(async () => {
@@ -421,6 +549,52 @@ describe("AuthorizePage — Commons lane for a visitor with no session here", ()
     })
     expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
     expect(deliverOAuthResult).not.toHaveBeenCalled()
+
+    // "Try again" is a BRAND-NEW request, never a second finalize of the spent
+    // one — the credential for that one is gone and the server already spent it.
+    expect(oxyServices.startCommonsSignIn).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      click(container.querySelector("[data-testid='signin-retry']"))
+      await flush()
+    })
+    expect(oxyServices.startCommonsSignIn).toHaveBeenCalledTimes(2)
+    expect(oxyServices.finalizeCommonsOAuth).toHaveBeenCalledTimes(1)
+    expect(deliverOAuthResult).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  test("a redirect mismatch offers no retry — a fresh request would fail identically", async () => {
+    pollResult = {
+      authorized: true,
+      sessionId: "sess-1",
+      status: "authorized",
+      pushSentAt: null,
+      openedAt: null,
+    }
+    oxyServices.finalizeCommonsOAuth.mockImplementationOnce(async () => ({
+      code: MINTED_CODE,
+      redirectUri: "https://not-the-bound-target.example/callback",
+      expiresIn: 600,
+    }))
+
+    const { container, unmount } = await renderAuthorize(OAUTH_PARAMS)
+    await advancePoll()
+
+    // Fails closed: the code is bound to a target this request never asked for,
+    // so it is dropped rather than delivered anywhere.
+    expect(deliverOAuthResult).not.toHaveBeenCalled()
+    expect(harness.location.href).toBe("")
+    expect(container.querySelector("[data-testid='commons-failure']")).not.toBeNull()
+    expect(surfaceProps?.failed).toBe(true)
+    expect(surfaceProps?.onRetry).toBeUndefined()
+    expect(container.querySelector("[data-testid='signin-retry']")).toBeNull()
+
+    // Only the alternatives are left, and they are on screen without asking —
+    // minus the same-device deep link, whose approval handle is now spent.
+    expect(keysOf(surfaceProps?.alternatives)).toEqual(["commons-sign-in-here"])
+    expect(container.querySelector("[data-testid='commons-sign-in-here']")).not.toBeNull()
+    expect(container.querySelector("[data-testid='commons-open-on-this-device']")).toBeNull()
 
     unmount()
   })

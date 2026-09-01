@@ -163,6 +163,12 @@ setInterval(() => {
 
 // ─── Response Helpers ─────────────────────────────────────────────
 
+/** Empty 404 for a resource the upstream does not have. */
+function sendNotFound(res: ExpressResponse, cacheTime = 86400): void {
+  res.setHeader('Cache-Control', `public, max-age=${cacheTime}`);
+  res.status(404).end();
+}
+
 function sendTransparentGif(res: ExpressResponse, cacheTime = 86400): void {
   res.setHeader('Content-Type', 'image/gif');
   res.setHeader('Cache-Control', `public, max-age=${cacheTime}`);
@@ -205,10 +211,21 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
   const normalizedUrl = parseProxyUrl(decodedUrl);
   const url = new URL(normalizedUrl);
 
+  // What to answer when the resource is deliberately withheld — a blocked
+  // tracker, or a fetch that never completed. An image gets the transparent
+  // GIF so the mail's layout survives; a font must get nothing at all, because
+  // a browser handed a GIF for a `@font-face` src decodes it as a font and
+  // reports `OTS parsing error: invalid sfntVersion` (0x47494638 — the literal
+  // bytes "GIF8"). With no body it drops that @font-face and falls back to the
+  // next family.
+  const wantsFont = FONT_EXTENSIONS.test(url.pathname);
+  const sendWithheld = (cacheTime?: number): void =>
+    wantsFont ? sendNotFound(res, cacheTime) : sendTransparentGif(res, cacheTime);
+
   // Block tracking URLs
   if (isTrackingUrl(url)) {
     logger.debug('Blocked tracking URL', { url: decodedUrl });
-    return sendTransparentGif(res);
+    return sendWithheld();
   }
 
   // Check cache
@@ -233,7 +250,13 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
 
     try {
       if (status < 200 || status >= 300) {
-        return sendTransparentGif(res, 3600);
+        // The upstream does not have this resource. Answering with the
+        // transparent GIF would be a successful-looking image, which is how a
+        // sender avatar whose /favicon.ico 404s ends up as an invisible pixel
+        // painted over the initials placeholder — the caller never learns the
+        // fetch failed. The GIF stays reserved for what it is for: a tracking
+        // pixel we deliberately blocked.
+        return sendNotFound(res, 3600);
       }
 
       const contentTypeHeader = headers['content-type'];
@@ -259,7 +282,7 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
       // Block tracking pixels (very small images)
       if (buffer.length < TRACKING_PIXEL_THRESHOLD) {
         logger.debug('Blocked tracking pixel', { url: decodedUrl, size: buffer.length });
-        return sendTransparentGif(res);
+        return sendWithheld();
       }
 
       // Use correct MIME when upstream sends generic octet-stream for fonts
@@ -287,6 +310,6 @@ export async function proxyResource(req: Request, res: ExpressResponse): Promise
       logger.error('Proxy request failed', { url: decodedUrl, error });
     }
 
-    sendTransparentGif(res);
+    sendWithheld();
   }
 }

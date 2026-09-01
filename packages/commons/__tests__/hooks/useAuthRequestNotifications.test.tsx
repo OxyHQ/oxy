@@ -1,17 +1,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { __getMockRouter } from '@/__mocks__/expo-router';
+import {
+  __emitNotificationResponse,
+  __hasNotificationResponseListener,
+  __notificationUnsubscribe,
+  __resetNotificationAdapter,
+  subscribeToNotificationResponses,
+  takeLaunchNotificationData,
+} from '@/__mocks__/oxyhq-services';
 import { COMMONS_AUTH_REQUEST_PUSH_TYPE } from '@/lib/notifications/auth-request-push';
-
-const mockSubscribe = jest.fn<Promise<() => void>, [(data: unknown) => void]>();
-const mockTakeLaunchNotificationData = jest.fn<Promise<unknown>, []>();
-
-jest.mock('@/lib/notifications/device-notifications', () => ({
-  subscribeToNotificationResponses: (listener: (data: unknown) => void) => mockSubscribe(listener),
-  takeLaunchNotificationData: () => mockTakeLaunchNotificationData(),
-}));
-
-// Imported AFTER jest.mock so the hook sees the patched adapter.
-// eslint-disable-next-line import/first
 import {
   coldLaunchApprovalCode,
   useAuthRequestNotifications,
@@ -30,21 +27,16 @@ function pushPayload(approvalUrl: string): Record<string, unknown> {
  *
  * NOTE: the module-level claim ledger is per app session, so each test uses its
  * own authorize code — the same way two real notifications carry two codes.
+ *
+ * The subscription itself is the shared `@oxyhq/services` adapter (stubbed here,
+ * tested in that package); what is asserted below is Commons' handling of what
+ * the adapter delivers.
  */
 describe('useAuthRequestNotifications', () => {
-  let emit: ((data: unknown) => void) | null = null;
-  let unsubscribe: jest.Mock;
-
   beforeEach(() => {
     router.push.mockClear();
     router.replace.mockClear();
-    emit = null;
-    unsubscribe = jest.fn();
-    mockSubscribe.mockReset().mockImplementation(async (listener) => {
-      emit = listener;
-      return unsubscribe;
-    });
-    mockTakeLaunchNotificationData.mockReset().mockResolvedValue(null);
+    __resetNotificationAdapter();
   });
 
   it('does not listen while the router gate is unresolved', async () => {
@@ -53,15 +45,15 @@ describe('useAuthRequestNotifications', () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(mockSubscribe).not.toHaveBeenCalled();
+    expect(subscribeToNotificationResponses).not.toHaveBeenCalled();
   });
 
   it('opens the approval route with ONLY the authorize code', async () => {
     renderHook(() => useAuthRequestNotifications(true));
-    await waitFor(() => expect(emit).not.toBeNull());
+    await waitFor(() => expect(__hasNotificationResponseListener()).toBe(true));
 
     act(() => {
-      emit?.({
+      __emitNotificationResponse({
         ...pushPayload('oxycommons://approve?v=1&code=warm-1&app=Evil%20Bank'),
         appName: 'Evil Bank',
         body: 'Approve now',
@@ -82,10 +74,10 @@ describe('useAuthRequestNotifications', () => {
     ['a non-approval route', 'oxycommons://attest?subject=did:web:oxy.so:u:1'],
   ])('drops %s and navigates nowhere', async (_label, approvalUrl) => {
     renderHook(() => useAuthRequestNotifications(true));
-    await waitFor(() => expect(emit).not.toBeNull());
+    await waitFor(() => expect(__hasNotificationResponseListener()).toBe(true));
 
     act(() => {
-      emit?.(pushPayload(approvalUrl));
+      __emitNotificationResponse(pushPayload(approvalUrl));
     });
 
     expect(router.push).not.toHaveBeenCalled();
@@ -94,12 +86,15 @@ describe('useAuthRequestNotifications', () => {
 
   it('drops a push that is not a Commons auth request', async () => {
     renderHook(() => useAuthRequestNotifications(true));
-    await waitFor(() => expect(emit).not.toBeNull());
+    await waitFor(() => expect(__hasNotificationResponseListener()).toBe(true));
 
     act(() => {
-      emit?.({ type: 'marketing', approvalUrl: 'oxycommons://approve?code=drop-2' });
-      emit?.(null);
-      emit?.('oxycommons://approve?code=drop-3');
+      __emitNotificationResponse({
+        type: 'marketing',
+        approvalUrl: 'oxycommons://approve?code=drop-2',
+      });
+      __emitNotificationResponse(null);
+      __emitNotificationResponse('oxycommons://approve?code=drop-3');
     });
 
     expect(router.push).not.toHaveBeenCalled();
@@ -107,21 +102,21 @@ describe('useAuthRequestNotifications', () => {
 
   it('unsubscribes on unmount', async () => {
     const { unmount } = renderHook(() => useAuthRequestNotifications(true));
-    await waitFor(() => expect(emit).not.toBeNull());
+    await waitFor(() => expect(__hasNotificationResponseListener()).toBe(true));
 
     unmount();
 
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(__notificationUnsubscribe).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('coldLaunchApprovalCode', () => {
   beforeEach(() => {
-    mockTakeLaunchNotificationData.mockReset().mockResolvedValue(null);
+    __resetNotificationAdapter();
   });
 
   it('resolves the code carried by the launching notification', async () => {
-    mockTakeLaunchNotificationData.mockResolvedValue(
+    takeLaunchNotificationData.mockResolvedValue(
       pushPayload('oxycommons://approve?v=1&code=cold-1'),
     );
 
@@ -129,9 +124,7 @@ describe('coldLaunchApprovalCode', () => {
   });
 
   it('claims the code so the warm listener cannot route the same tap twice', async () => {
-    mockTakeLaunchNotificationData.mockResolvedValue(
-      pushPayload('oxycommons://approve?code=cold-2'),
-    );
+    takeLaunchNotificationData.mockResolvedValue(pushPayload('oxycommons://approve?code=cold-2'));
 
     await expect(coldLaunchApprovalCode()).resolves.toBe('cold-2');
     // A second reader of the SAME launching tap gets nothing.
@@ -143,7 +136,7 @@ describe('coldLaunchApprovalCode', () => {
   });
 
   it('resolves null for an unparseable launching payload', async () => {
-    mockTakeLaunchNotificationData.mockResolvedValue(pushPayload('evil://approve?code=cold-3'));
+    takeLaunchNotificationData.mockResolvedValue(pushPayload('evil://approve?code=cold-3'));
 
     await expect(coldLaunchApprovalCode()).resolves.toBeNull();
   });

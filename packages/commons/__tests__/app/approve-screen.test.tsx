@@ -14,7 +14,7 @@ jest.mock('@/lib/biometricAuth', () => ({
 /**
  * Bloom's bottom sheet, reduced to its contract with this screen: an imperative
  * control that is STABLE across renders (the screen opens from a mount effect
- * keyed on it) and a surface that renders whatever the screen puts in it.
+ * keyed on it) and a surface that renders both body and declarative actions.
  *
  * `close()` is deliberately inert. That is the point of the dismissal test: the
  * screen must answer the request with nothing at all when the sheet is
@@ -35,8 +35,38 @@ jest.mock('@oxyhq/bloom/dialog', () => {
       }
       return ref.current;
     },
-    Dialog: ({ children }: { children: React.ReactNode }) =>
-      R.createElement('div', null, children),
+    Dialog: ({
+      children,
+      actions = [],
+      onClose,
+      placement,
+    }: {
+      children: React.ReactNode;
+      actions?: {
+        label: string;
+        onPress?: () => void;
+        shouldCloseOnPress?: boolean;
+        disabled?: boolean;
+      }[];
+      onClose?: () => void;
+      placement?: string;
+    }) => R.createElement(
+      'div',
+      { 'data-testid': 'approval-dialog', 'data-placement': placement ?? 'detached' },
+      children,
+      ...actions.map((action) => R.createElement(
+        'button',
+        {
+          key: action.label,
+          disabled: action.disabled,
+          onClick: () => {
+            if (action.shouldCloseOnPress !== false) onClose?.();
+            action.onPress?.();
+          },
+        },
+        action.label,
+      )),
+    ),
   };
 });
 
@@ -125,11 +155,40 @@ describe('ApproveSignInScreen', () => {
     expect(container.textContent).toContain("It can't be approved now");
   });
 
+  it('puts every answer in Bloom Dialog actions', async () => {
+    installServices();
+    const { container, findByText } = renderScreen();
+
+    await findByText('Sign in to Mention');
+    expect(Array.from(container.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      'Confirm identity',
+      "This wasn't me",
+      'Cancel',
+    ]);
+  });
+
+  it('uses Bloom Dialog\'s detached presentation', async () => {
+    installServices();
+    const { findByTestId, findByText } = renderScreen();
+
+    await findByText('Sign in to Mention');
+    expect((await findByTestId('approval-dialog')).getAttribute('data-placement')).toBe('detached');
+  });
+
+  it('approves directly from the Dialog primary action', async () => {
+    const services = installServices();
+    const { findByText } = renderScreen();
+
+    fireEvent.click(await findByText('Confirm identity'));
+
+    await waitFor(() => expect(services.approveCommonsSignIn).toHaveBeenCalledTimes(1));
+  });
+
   it('answers nothing when the sheet is dismissed', async () => {
     const services = installServices();
-    const { container, findByLabelText } = renderScreen();
+    const { container, findByText } = renderScreen();
 
-    fireEvent.click(await findByLabelText('Close'));
+    fireEvent.click(await findByText('Cancel'));
 
     // A dismissal is a CANCEL: no denial is sent, with or without a reason, and
     // no approval either. The request is simply left pending.

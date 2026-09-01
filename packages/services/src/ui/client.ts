@@ -17,7 +17,6 @@ export { LogoIcon } from './components/logo/LogoIcon';
 export { LogoText } from './components/logo/LogoText';
 export { default as FollowButton } from './components/FollowButton';
 export { default as OxyPayButton } from './components/OxyPayButton';
-export { FontLoader, setupFonts } from './components/FontLoader';
 
 // Context
 export { useOxy } from './context/OxyContext';

@@ -3,7 +3,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Platform, Animated } from 'react-native';
 import type { BaseScreenProps } from '../types/navigation';
 import { Avatar } from '@oxyhq/bloom/avatar';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { toast } from '@oxyhq/bloom';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { Button } from '@oxyhq/bloom/button';

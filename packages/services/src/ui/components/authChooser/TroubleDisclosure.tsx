@@ -23,19 +23,11 @@ import { View } from 'react-native';
 import { Collapsible } from '@oxyhq/bloom/collapsible';
 import { SubtleLink } from './primitives';
 import { authChooserStyles as styles } from './styles';
-import type { Theme, Translate } from './types';
-
-/** One alternative route out of the current surface. Always a subordinate link. */
-export interface TroubleAction {
-  /** Stable identity for the list, and the action's `testID`. */
-  key: string;
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}
+import type { OxySignInSurfaceAction, Theme, Translate } from './types';
 
 interface TroubleDisclosureProps {
-  actions: TroubleAction[];
+  /** The alternative routes out of the current surface. Always subordinate links. */
+  actions: readonly OxySignInSurfaceAction[];
   /**
    * `true` when the primary route could not be carried out (`signIn.routeFailed`)
    * or the surface has no working primary at all (a failed request). The

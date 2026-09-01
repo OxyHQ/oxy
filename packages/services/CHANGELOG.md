@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+- **BREAKING**: Dropped the bundled Inter font family and the font-loading API.
+  - Deleted the 7 static Inter TTFs (`src/assets/fonts/Inter/`, 2.41 MB) that shipped
+    inside every consumer APK/AAB. No component in this package ever referenced the
+    `Inter-*` families they registered.
+  - Removed the `FontLoader` component and `setupFonts()` function from all entry
+    points (`@oxyhq/services`, `/ui`, `/ui/client`, `/ui/server`), and the implicit
+    `setupFonts()` call in `OxyProvider`.
+  - Dropped the now-unused `expo-font` peer dependency.
+  - Typography is owned by `@oxyhq/bloom`: `BloomThemeProvider` already ships a
+    variable Inter (plus BlomusModernus and Geist Mono) and loads it on both native
+    and web. Apps that mount `BloomThemeProvider` need no changes.
+
 ## [10.2.3] - 2026-06-18
 
 ### Fixed

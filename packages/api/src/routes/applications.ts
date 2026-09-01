@@ -458,13 +458,16 @@ router.get(
       if (!access) {
         throw new ForbiddenError('You do not have access to this account');
       }
+      if (!appPermissionsForAccountRole(access.role).includes('app:read')) {
+        throw new ForbiddenError('Missing required permission: app:read');
+      }
       roleByAccountId.set(ownerAccountIdFilter, access.role);
     } else {
       const nodes = await accountService.listAccessibleAccounts(userId);
       for (const node of nodes) {
         const role: AccountRole | undefined =
           node.relationship === 'self' ? 'owner' : node.callerMembership?.role;
-        if (role) {
+        if (role && appPermissionsForAccountRole(role).includes('app:read')) {
           roleByAccountId.set(node.accountId, role);
         }
       }

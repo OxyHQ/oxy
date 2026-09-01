@@ -26,11 +26,11 @@ import {
   Attachment01Icon,
   Clock01Icon,
 } from '@hugeicons/core-free-icons';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOxy } from '@oxyhq/services';
 import type { FileMetadata } from '@oxyhq/core';
 
+import { useGoBack } from '@/hooks/useGoBack';
 import { useColors } from '@/constants/theme';
 import { useEmailStore } from '@/hooks/useEmail';
 import { useSendMessageWithUndo, useSendMessage, useSaveDraft } from '@/hooks/mutations/useMessageMutations';
@@ -76,7 +76,8 @@ interface ComposeFormProps {
 }
 
 export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initialCc, subject: initialSubject, body: initialBody }: ComposeFormProps) {
-  const router = useRouter();
+  // Compose can be opened from a deep link, where there is no history to pop.
+  const closeCompose = useGoBack();
   const insets = useSafeAreaInsets();
   const colors = useColors();
 
@@ -260,7 +261,7 @@ export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initial
         attachments: attachments.length > 0 ? attachments.map((a) => ({ fileId: a.fileId })) : undefined,
       },
       {
-        onSuccess: () => router.back(),
+        onSuccess: () => closeCompose(),
         onError: (err: unknown) => {
           sentRef.current = false;
           const message = err instanceof Error ? err.message : 'Unable to send email. Please try again.';
@@ -268,7 +269,7 @@ export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initial
         },
       },
     );
-  }, [to, cc, bcc, subject, body, replyTo, attachments, sendWithUndo, router]);
+  }, [to, cc, bcc, subject, body, replyTo, attachments, sendWithUndo, closeCompose]);
 
   const handleSaveDraft = useCallback(() => {
     saveDraftMutation.mutate(
@@ -286,10 +287,10 @@ export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initial
         onSuccess: (draft) => {
           draftIdRef.current = draft._id;
         },
-        onSettled: () => router.back(),
+        onSettled: () => closeCompose(),
       },
     );
-  }, [to, cc, bcc, subject, body, replyTo, saveDraftMutation, router]);
+  }, [to, cc, bcc, subject, body, replyTo, saveDraftMutation, closeCompose]);
 
   const saveDraftDialog = useDialogControl();
 
@@ -297,9 +298,9 @@ export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initial
     if (hasContent) {
       saveDraftDialog.open();
     } else {
-      router.back();
+      closeCompose();
     }
-  }, [hasContent, saveDraftDialog, router]);
+  }, [hasContent, saveDraftDialog, closeCompose]);
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -382,7 +383,7 @@ export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initial
             minute: '2-digit',
           });
           toast.success(`Email scheduled for ${timeStr}`);
-          router.back();
+          closeCompose();
         },
         onError: (err: Error) => {
           sentRef.current = false;
@@ -390,7 +391,7 @@ export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initial
         },
       },
     );
-  }, [to, cc, bcc, subject, body, replyTo, attachments, sendMessageMutation, router]);
+  }, [to, cc, bcc, subject, body, replyTo, attachments, sendMessageMutation, closeCompose]);
 
   return (
     <KeyboardAvoidingView
@@ -679,12 +680,12 @@ export function ComposeForm({ mode, replyTo, forward, to: initialTo, cc: initial
       {/* Save as draft confirmation */}
       <Dialog
         control={saveDraftDialog}
-        onClose={() => router.back()}
+        onClose={() => closeCompose()}
         title="Save draft?"
         description="Do you want to save this message as a draft?"
         actions={[
           { label: 'Save', onPress: handleSaveDraft },
-          { label: 'Discard', color: 'destructive', onPress: () => router.back() },
+          { label: 'Discard', color: 'destructive', onPress: () => closeCompose() },
           { label: 'Cancel', color: 'cancel' },
         ]}
       />
