@@ -10,6 +10,15 @@ function readWorkspaceVersion(pkg: string): string {
 }
 
 describe('VERSIONS drift guard', () => {
+  test('the published CLI has no workspace runtime dependencies', () => {
+    const manifestPath = path.join(__dirname, '..', '..', 'package.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      dependencies?: Record<string, string>;
+    };
+
+    expect(Object.values(manifest.dependencies ?? {}).filter((range) => range.startsWith('workspace:'))).toEqual([]);
+  });
+
   test('oxyServices matches packages/services major', () => {
     const workspaceVersion = readWorkspaceVersion('services');
     const major = workspaceVersion.split('.')[0];
