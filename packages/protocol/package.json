@@ -100,7 +100,7 @@
   "dependencies": {
     "@oxyhq/contracts": "workspace:^",
     "elliptic": "catalog:",
-    "zod": "^3.25.64"
+    "zod": "^4.4.3"
   },
   "peerDependencies": {
     "@react-native-async-storage/async-storage": "*",
