@@ -91,7 +91,7 @@ async function auditResult(
   claims: CapabilityTicketClaims,
   decision: PolicyDecision,
   statusCode: number,
-  idempotencyKey?: string,
+  idempotencyKeyHash?: string,
 ): Promise<void> {
   const tool = INBOX_CAPABILITY_CATALOG.tools.find((entry) => entry.name === claims.tool);
   await persistCapabilityAuditEvent({
@@ -115,7 +115,7 @@ async function auditResult(
       runId: claims.runId,
       ...(claims.stepId ? { stepId: claims.stepId } : {}),
       ...(claims.automationId ? { automationId: claims.automationId } : {}),
-      ...(idempotencyKey ? { idempotencyKey } : {}),
+      ...(idempotencyKeyHash ? { idempotencyKeyHash } : {}),
       capabilityTicketId: claims.jti,
     },
   });

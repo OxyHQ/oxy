@@ -30,9 +30,9 @@ describe('openapi.base.yaml parses completely', () => {
   it('declares the short-lived capability ticket security scheme', () => {
     expect(base.components.securitySchemes?.capabilityTicketAuth).toMatchObject({
       type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'Capability <signed-ticket>',
+      scheme: 'Capability',
     });
+    expect(base.components.securitySchemes?.capabilityTicketAuth).not.toHaveProperty('bearerFormat');
   });
 
   it('folds a `>-` block scalar into text rather than the header string', () => {

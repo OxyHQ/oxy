@@ -234,11 +234,12 @@ jobs:
       # without this build the job dies in global setup with
       # `Cannot find module '@oxyhq/db/migrate'` before a single test file
       # loads. Verified by deleting `packages/db/dist` and running the suite.
-      - name: Build core SDK + db (for resolution in api tests)
+      - name: Build core SDK, MCP + db (for resolution in api tests)
         run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
           bun run --filter @oxyhq/core build
+          bun run --filter @oxyhq/mcp build
           bun run --filter @oxyhq/db build
 
       - name: Run linter
@@ -885,6 +886,7 @@ jobs:
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
           bun run --filter @oxyhq/core build
+          bun run --filter @oxyhq/mcp build
           bun run --filter @oxyhq/db build
 
       # The gate's own fixture tests, including the positive control: an entry
