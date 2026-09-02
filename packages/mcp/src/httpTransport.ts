@@ -294,14 +294,21 @@ export function createCatalogMcpHttpService(
     response: ServerResponse,
   ): Promise<void> => {
     const request = incoming as McpHttpRequest;
-    if (!configureCors(request, response, allowedOrigins)) return;
+    if (!configureCors(request, response, allowedOrigins)) {
+      request.resume();
+      return;
+    }
     if (request.method === 'OPTIONS') {
       response.statusCode = 204;
       response.end();
       return;
     }
-    if (!await authenticate(request, response)) return;
+    if (!await authenticate(request, response)) {
+      request.resume();
+      return;
+    }
     if (request.method !== 'POST') {
+      request.resume();
       response.setHeader('Allow', 'GET, POST, DELETE, OPTIONS');
       sendJsonRpcError(response, 405, -32000, 'Method not allowed.');
       return;
