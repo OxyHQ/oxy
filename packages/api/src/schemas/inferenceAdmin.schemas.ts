@@ -10,10 +10,24 @@
  */
 
 import { z } from 'zod';
+import {
+  BALANCED_ROUTING_SCORE_SOURCES,
+  MEASURED_ROUTING_SCORE_SOURCES,
+  PRICE_ROUTING_SCORE_SOURCES,
+} from '../db/schema/inferenceDeploymentRoutingScores';
 import { DEPLOYMENT_LEGAL_REVIEW_STATUSES } from '../db/schema';
 import { DEPLOYMENT_PERMISSION_ACTIONS } from '../services/inferenceCatalogueAdmin.service';
 
 export const deploymentParams = z.object({ deploymentId: z.string().min(1).max(128) });
+
+/** Exact Kaana identity, deliberately not named like an Oxy catalogue row id. */
+export const kaanaDeploymentParams = z.object({
+  kaanaDeploymentId: z
+    .string()
+    .min(1)
+    .max(128)
+    .refine((value) => value === value.trim(), 'Kaana deployment identity must be exact'),
+});
 
 export const revisionParams = z.object({ revisionId: z.string().min(1).max(128) });
 
@@ -82,6 +96,84 @@ export const permissionActionParams = deploymentParams.extend({
 });
 
 export const permissionActionBody = z.object({ note: z.string().max(500).optional() }).strict();
+
+const routingScore = z.number().int().min(-1_000_000).max(1_000_000).nullable();
+const evidenceRef = z.string().trim().min(1).max(500);
+const instant = z.string().datetime({ offset: true });
+
+const measuredRoutingScore = z
+  .object({
+    score: routingScore,
+    source: z.enum(MEASURED_ROUTING_SCORE_SOURCES),
+    evidenceRef,
+    measurementWindowStart: instant,
+    measurementWindowEnd: instant,
+    validUntil: instant,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const start = Date.parse(value.measurementWindowStart);
+    const end = Date.parse(value.measurementWindowEnd);
+    const validUntil = Date.parse(value.validUntil);
+    if (end < start) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['measurementWindowEnd'],
+        message: 'measurementWindowEnd must not precede measurementWindowStart',
+      });
+    }
+    if (validUntil < end) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['validUntil'],
+        message: 'validUntil must not precede measurementWindowEnd',
+      });
+    }
+  });
+
+/**
+ * The complete internal ranking input for one exact Kaana deployment.
+ *
+ * Every key is required so a write cannot accidentally preserve a stale mode.
+ * NULL is an explicit "not measured/authored" value and makes multi-route
+ * resolution fail closed for that mode; it is never coerced to zero.
+ */
+export const routingScoresBody = z
+  .object({
+    price: z
+      .object({
+        score: routingScore,
+        source: z.enum(PRICE_ROUTING_SCORE_SOURCES),
+        evidenceRef,
+        priceVersionId: z.string().trim().min(1).max(128),
+      })
+      .strict(),
+    latency: measuredRoutingScore,
+    throughput: measuredRoutingScore,
+    balanced: z
+      .object({
+        score: routingScore,
+        source: z.enum(BALANCED_ROUTING_SCORE_SOURCES),
+        evidenceRef,
+        formulaRef: z.string().trim().min(1).max(500),
+        validUntil: instant,
+      })
+      .strict(),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+/** Operator-facing result of replacing one exact Kaana deployment scorecard. */
+export const routingScorecardResponse = z
+  .object({
+    data: z
+      .object({
+        deploymentId: z.string().min(1).max(128),
+        scorecard: routingScoresBody,
+      })
+      .strict(),
+  })
+  .strict();
 
 /**
  * The spend-anomaly page size.

@@ -17184,6 +17184,16 @@
               }
             }
           },
+          "409": {
+            "description": "The permission transition conflicts with catalogue state, routing evidence or an already approved Kaana identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded",
             "content": {
@@ -17229,13 +17239,518 @@
         "operationId": "postInferenceAdminDeploymentsDeploymentIdAction"
       }
     },
+    "/inference/admin/kaana-deployments/{kaanaDeploymentId}/routing-scorecard": {
+      "put": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Replace the routing scorecard for one exact Kaana deployment identity.",
+        "description": "This is a complete scorecard PUT with provenance per dimension: omitted keys are\ninvalid, while NULL deliberately withdraws a signal rather than inventing a\nvalue. The Kaana id in this path is not an Oxy catalogue row id or provider\nslug.",
+        "parameters": [
+          {
+            "name": "kaanaDeploymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The complete scorecard stored for this exact Kaana deployment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deploymentId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "scorecard": {
+                          "type": "object",
+                          "properties": {
+                            "price": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "provider_contract",
+                                    "cost_model",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "priceVersionId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 128
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "priceVersionId"
+                              ]
+                            },
+                            "latency": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "kaana_measurement",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "measurementWindowStart": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "measurementWindowEnd": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "validUntil": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "measurementWindowStart",
+                                "measurementWindowEnd",
+                                "validUntil"
+                              ]
+                            },
+                            "throughput": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "kaana_measurement",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "measurementWindowStart": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "measurementWindowEnd": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "validUntil": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "measurementWindowStart",
+                                "measurementWindowEnd",
+                                "validUntil"
+                              ]
+                            },
+                            "balanced": {
+                              "type": "object",
+                              "properties": {
+                                "score": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ],
+                                  "minimum": -1000000,
+                                  "maximum": 1000000
+                                },
+                                "source": {
+                                  "type": "string",
+                                  "enum": [
+                                    "cost_model",
+                                    "reviewed_scorecard"
+                                  ]
+                                },
+                                "evidenceRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "formulaRef": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 500
+                                },
+                                "validUntil": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                }
+                              },
+                              "required": [
+                                "score",
+                                "source",
+                                "evidenceRef",
+                                "formulaRef",
+                                "validUntil"
+                              ]
+                            },
+                            "reason": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 500
+                            }
+                          },
+                          "required": [
+                            "price",
+                            "latency",
+                            "throughput",
+                            "balanced",
+                            "reason"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "deploymentId",
+                        "scorecard"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The scorecard conflicts with the exact Kaana deployment state or would make an approved serving route unsafe.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "price": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "provider_contract",
+                          "cost_model",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "priceVersionId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "priceVersionId"
+                    ]
+                  },
+                  "latency": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "kaana_measurement",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "measurementWindowStart": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "measurementWindowEnd": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "validUntil": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "measurementWindowStart",
+                      "measurementWindowEnd",
+                      "validUntil"
+                    ]
+                  },
+                  "throughput": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "kaana_measurement",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "measurementWindowStart": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "measurementWindowEnd": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "validUntil": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "measurementWindowStart",
+                      "measurementWindowEnd",
+                      "validUntil"
+                    ]
+                  },
+                  "balanced": {
+                    "type": "object",
+                    "properties": {
+                      "score": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": -1000000,
+                        "maximum": 1000000
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "cost_model",
+                          "reviewed_scorecard"
+                        ]
+                      },
+                      "evidenceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "formulaRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500
+                      },
+                      "validUntil": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "score",
+                      "source",
+                      "evidenceRef",
+                      "formulaRef",
+                      "validUntil"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "price",
+                  "latency",
+                  "throughput",
+                  "balanced",
+                  "reason"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putInferenceAdminKaanaDeploymentsKaanaDeploymentIdRoutingScorecard"
+      }
+    },
     "/inference/admin/metrics": {
       "get": {
         "tags": [
           "Inference"
         ],
         "summary": "`GET /inference/admin/metrics?from=&to=[&accountId=][&applicationId=]`",
-        "description": "The workstream-16 operational metrics: request rate, error rate, cancellation,\ntotal latency, time to first token, fallback, reserve failures, settlement lag\nand reconciliation drift.\n\n## Not `GET /metrics`, and the difference is the reason it is here\n\n`server.ts`'s `GET /metrics` is a PROCESS-LOCAL registry — an in-memory ring\nbuffer keyed by `METHOD /path`, one instance's view, discarded on every deploy.\nEverything on this route is a QUERY over the durable record, so the answer is\nidentical from any instance and survives a deploy. Overloading the older\nendpoint would put two different kinds of number under one key and invite a\nreader to compare them.\n\n## Two of the metrics report a PENDING state rather than a zero\n\n`timeToFirstTokenMs` and `fallback` come back as\n`{ state: 'pending', reason, observedRows, rowsCarryingValue }` while no row\ncarries a value. A `0` there would be indistinguishable from a correctly-zero\nmeasurement, and the second reading is the one a dashboard takes. The state is\nderived from the rows, so it flips to `measured` on its own the moment one\narrives.\n\nThe reason names the MEASURED absence, not a cause — the edge streams both\ndialects and forwards both figures when a report carries them. `dataPlane` on the\npayload is what supplies the cause: `absent` means nothing can have streamed, so\nthe pending needs no investigation, while the same pending with `configured`\nmeans the data plane is not reporting what it should.\n\nStaff-only, like everything on this router: request counts per application are\ncustomer data, and a settlement-lag distribution is Oxy's own operational\nfigure. No wholesale cost or price column is read by any query behind it.",
+        "description": "The workstream-16 operational metrics: request rate, error rate, cancellation,\ntotal latency, time to first token, fallback, reserve failures, settlement lag\nand reconciliation drift.\n\n## Not `GET /metrics`, and the difference is the reason it is here\n\n`server.ts`'s `GET /metrics` is a PROCESS-LOCAL registry — an in-memory ring\nbuffer keyed by `METHOD /path`, one instance's view, discarded on every deploy.\nEverything on this route is a QUERY over the durable record, so the answer is\nidentical from any instance and survives a deploy. Overloading the older\nendpoint would put two different kinds of number under one key and invite a\nreader to compare them.\n\n## Two of the metrics report a PENDING state rather than a zero\n\n`timeToFirstTokenMs` and `fallback` come back as\n`{ state: 'pending', reason, observedRows, rowsCarryingValue }` while no row\ncarries a value. A `0` there would be indistinguishable from a correctly-zero\nmeasurement, and the second reading is the one a dashboard takes. The state is\nderived from the rows, so it flips to `measured` on its own the moment one\narrives.\n\nThe reason names the MEASURED absence, not a cause — the edge streams both\ndialects and forwards both figures when a report carries them. `dataPlane` and\n`dataPlaneExecution` supply the cause: absent configuration or disabled\nexecution means nothing can have streamed; configured plus enabled makes the\nsame pending a reporting fault.\n\nStaff-only, like everything on this router: request counts per application are\ncustomer data, and a settlement-lag distribution is Oxy's own operational\nfigure. No wholesale cost or price column is read by any query behind it.",
         "parameters": [
           {
             "name": "from",
@@ -23693,7 +24208,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -24224,8 +24739,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -24428,7 +24941,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -24959,8 +25472,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -25049,7 +25560,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            1
+                            2
                           ]
                         },
                         "modelId": {
@@ -25580,8 +26091,6 @@
                         "license",
                         "provenance",
                         "dataPolicy",
-                        "availabilityScope",
-                        "commercialPermission",
                         "deprecation"
                       ]
                     }
@@ -32170,7 +32679,7 @@
           "Inference"
         ],
         "summary": "`POST /v1/audio/speech` — text to audio (#972, the later modalities).",
-        "description": "Ceiling: `characters` = `input.length`. EXACT, declared, and the unit every\nreal TTS provider bills. Deliberately no `audio_output_milliseconds` — see\n`speechRequestSchema`. A duration-priced route fails to quote and is refused\nthrough the existing `no_route_available` path rather than a new branch.\n\nNothing serves this today: the catalogue is empty and no data plane is\nconfigured, so every call answers `service_unavailable`. The point of landing\nit now is that the CEILING is sound before the route exists — the alternative\nis somebody adding this endpoint later under delivery pressure and reaching\nfor a duration guess.\n\nThe success body is BYTES, and the `Content-Type` is the media type the data\nplane reported — which follows `response_format` and is therefore not fixed at\none value. It is published as `application/octet-stream` with a binary schema\nrather than as an enumeration of concrete audio types, because the enumeration\nwould be a claim about what a provider returns, while the bytes are the part\nthis endpoint actually promises.",
+        "description": "Ceiling: `characters` = `input.length`. EXACT, declared, and the unit every\nreal TTS provider bills. Deliberately no `audio_output_milliseconds` — see\n`speechRequestSchema`. A duration-priced route fails to quote and is refused\nthrough the existing `no_route_available` path rather than a new branch.\n\nServing requires an eligible speech route in the catalogue and an enabled\nKaana binding; otherwise the edge returns the ordinary typed refusal. The\nceiling is sound independently of live inventory, avoiding a duration guess\nwhen a route is added.\n\nThe success body is BYTES, and the `Content-Type` is the media type the data\nplane reported — which follows `response_format` and is therefore not fixed at\none value. It is published as `application/octet-stream` with a binary schema\nrather than as an enumeration of concrete audio types, because the enumeration\nwould be a claim about what a provider returns, while the bytes are the part\nthis endpoint actually promises.",
         "parameters": [],
         "responses": {
           "200": {
@@ -33342,7 +33851,7 @@
           "Inference"
         ],
         "summary": "`POST /v1/images/generations` — text to image (#972, the later modalities).",
-        "description": "Ceiling: `images` = `n ?? 1`. EXACT and declared; the prompt adds\n`input_tokens` on the usual character bound. `size` and `quality` are\nforwarded and do NOT widen the hold, which rests on one route per\nsize/quality class in the catalogue — see `imageGenerationsRequestSchema` for\nwhy that is a catalogue decision rather than a contracts one.\n\nAs with speech, nothing serves this today; the value is a sound ceiling\nbefore the endpoint exists.",
+        "description": "Ceiling: `images` = `n ?? 1`. EXACT and declared; the prompt adds\n`input_tokens` on the usual character bound. `size` and `quality` are\nforwarded and do NOT widen the hold, which rests on one route per\nsize/quality class in the catalogue — see `imageGenerationsRequestSchema` for\nwhy that is a catalogue decision rather than a contracts one.\n\nAs with speech, serving is conditional on eligible catalogue inventory and\nan enabled Kaana binding; the value remains a sound ceiling when no route is\navailable.",
         "parameters": [],
         "responses": {
           "200": {
@@ -33530,7 +34039,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -34061,8 +34570,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -34265,7 +34772,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              1
+                              2
                             ]
                           },
                           "modelId": {
@@ -34796,8 +35303,6 @@
                           "license",
                           "provenance",
                           "dataPolicy",
-                          "availabilityScope",
-                          "commercialPermission",
                           "deprecation"
                         ]
                       }
@@ -34886,7 +35391,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            1
+                            2
                           ]
                         },
                         "modelId": {
@@ -35417,8 +35922,6 @@
                         "license",
                         "provenance",
                         "dataPolicy",
-                        "availabilityScope",
-                        "commercialPermission",
                         "deprecation"
                       ]
                     }

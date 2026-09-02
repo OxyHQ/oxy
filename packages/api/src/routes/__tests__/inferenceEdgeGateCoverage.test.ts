@@ -144,7 +144,7 @@ interface RawResponse {
 /**
  * The router with NO data plane, mounted at `/v1` on a bare app.
  *
- * No relay client, because nothing here reaches the forward step: every case is
+ * No kaana client, because nothing here reaches the forward step: every case is
  * refused at the gate, which is the point.
  */
 async function withServer(

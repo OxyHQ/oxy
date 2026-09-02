@@ -349,8 +349,9 @@ describe('authorizedRouteSchema', () => {
     ).toBe(false);
   });
 
-  it('requires at least one region, matching the deployment descriptor', () => {
-    expect(authorizedRouteSchema.safeParse({ ...primaryRoute, regions: [] }).success).toBe(false);
+  it('preserves an empty unattested region set without inventing a location', () => {
+    const parsed = authorizedRouteSchema.parse({ ...primaryRoute, regions: [] });
+    expect(parsed.regions).toEqual([]);
   });
 });
 
@@ -380,6 +381,14 @@ describe('inferenceRequestSchema authorizedRoutes', () => {
       'dep_azure_use1_gpt5',
       'dep_anthropic_usw2_opus5',
     ]);
+  });
+
+  it('accepts an authorized primary whose location is unattested', () => {
+    const parsed = inferenceRequestSchema.parse({
+      ...request,
+      authorizedRoutes: [{ ...primaryRoute, regions: [] }],
+    });
+    expect(parsed.authorizedRoutes?.[0].regions).toEqual([]);
   });
 
   it('refuses a list whose first entry claims to be a substitution', () => {

@@ -139,7 +139,7 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   inferenceStreamStartEventSchema: 1,
   inferenceStreamDeltaEventSchema: 1,
   inferenceStreamToolCallEventSchema: 1,
-  inferenceStreamUsageEventSchema: 1,
+  inferenceStreamUsageEventSchema: 2,
   inferenceStreamRouteSwitchEventSchema: 1,
   inferenceStreamErrorEventSchema: 1,
   inferenceStreamDoneEventSchema: 1,
@@ -150,14 +150,14 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   inferenceProviderSchema: 1,
   modelDeploymentSchema: 1,
   routingProfileSchema: 1,
-  modelCatalogueEntrySchema: 1,
+  modelCatalogueEntrySchema: 2,
   // Routing policy
   routingPolicySchema: 1,
   // Ledger
   priceVersionSchema: 1,
   usageReservationRequestSchema: 1,
   usageReservationSchema: 1,
-  normalizedUsageReportSchema: 1,
+  normalizedUsageReportSchema: 2,
   usageReceiptSchema: 1,
   usageRefundSchema: 1,
   // BYOK
@@ -520,10 +520,11 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   inferenceStreamUsageEventSchema: {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: 'usage',
     requestId: 'req_01H8Z9T6NB',
     sequence: 3,
+    deploymentId: 'dep_anthropic_usw2_opus5',
     units: [
       { unit: 'input_tokens', quantity: 812 },
       { unit: 'output_tokens', quantity: 204 },
@@ -658,7 +659,7 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   modelCatalogueEntrySchema: {
-    schemaVersion: 1,
+    schemaVersion: 2,
     modelId: 'anthropic/claude-opus-5',
     publisher: {
       slug: 'anthropic',
@@ -764,7 +765,7 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   normalizedUsageReportSchema: {
-    schemaVersion: 1,
+    schemaVersion: 2,
     requestId: 'req_01H8Z9T6NB',
     generationId: 'gen_01H8Z9T6NC',
     attribution: ATTRIBUTION,
@@ -1098,11 +1099,10 @@ const FIXTURES: Record<string, unknown> = {
 
 describe('inference contract versioning', () => {
   it('exposes the contract-set version the two planes handshake on', () => {
-    // MINOR since 1.2.0: three shapes added (the release-ingestion request and
-    // result, and the revision-scoped documentation view) plus the two embedded
-    // documentation records they carry. No existing shape's `schemaVersion`
-    // moved and no existing field changed, so this is not MAJOR.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe('1.3.0');
+    // MAJOR: terminal reports and partial usage events now require the exact
+    // deployment identity and each message moved to schemaVersion 2. A v1
+    // producer cannot provide evidence safe enough to settle after failover.
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe('2.0.0');
   });
 
   it('matches the frozen schema version map exactly', () => {
@@ -1288,7 +1288,7 @@ describe('inference contract negative cases', () => {
     const entry = FIXTURES.modelCatalogueEntrySchema as Record<string, unknown>;
     const { schemaVersion, ...withoutVersion } = entry;
 
-    expect(schemaVersion).toBe(1);
+    expect(schemaVersion).toBe(2);
     expect(catalogue.modelCatalogueEntrySchema.safeParse(withoutVersion).success).toBe(false);
   });
 
