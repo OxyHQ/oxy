@@ -1,0 +1,11 @@
+{
+  "$schema": "./coverage-floors.schema.json",
+  "schemaVersion": 1,
+  "description": "Minimum global coverage percentages for the merged output of all three API test shards.",
+  "floors": {
+    "statements": 77.15,
+    "branches": 63.09,
+    "functions": 78.04,
+    "lines": 78.08
+  }
+}
