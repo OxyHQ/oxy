@@ -105,6 +105,7 @@ describe('agency contracts', () => {
             appId: 'inbox',
             version: '1.0.0',
             audience: 'inbox-api',
+            internalBaseUrl: 'https://api.oxy.so',
             accountResourceType: 'email_account',
             tools: [tool, tool],
             events: [],
@@ -119,6 +120,7 @@ describe('agency contracts', () => {
             appId: 'noted',
             version: '1.0.0',
             audience: 'noted-api',
+            internalBaseUrl: 'https://api.noted.oxy.so',
             accountResourceType: 'workspace',
             tools: [{
                 name: 'reportSyncError',
@@ -138,6 +140,14 @@ describe('agency contracts', () => {
         };
 
         expect(appCapabilityCatalogSchema.safeParse(catalog).success).toBe(true);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            internalBaseUrl: 'http://api.noted.oxy.so',
+        }).success).toBe(false);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            internalBaseUrl: 'https://api.noted.oxy.so/private',
+        }).success).toBe(false);
     });
 
     it('rejects unsafe or contradictory effect metadata', () => {
@@ -161,6 +171,7 @@ describe('agency contracts', () => {
             appId: 'mercaria',
             version: '1.0.0',
             audience: 'mercaria-api',
+            internalBaseUrl: 'https://api.mercaria.oxy.so',
             accountResourceType: 'billing_account',
             tools: [tool],
             events: [],
