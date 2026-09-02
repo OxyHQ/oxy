@@ -1,274 +1,164 @@
-# BYOK — bring your own provider credential
+# BYOK — customer provider credentials in Kaana
 
-You register your own upstream provider credential; Oxy holds a **reference** to
-it and the metadata around it, and hands the reference to the data plane at
-serving time. The upstream provider bills your account directly; Oxy charges
-only its platform fee.
+A BYOK connection lets a customer use their own upstream provider account. The
+provider bills that customer directly; Oxy charges only its platform fee and
+records that fact on the receipt.
 
-**No deployment can accept a credential today.** Creating or rotating a
-connection answers `503 provider_secret_store_unavailable`, and that refusal is
-the design rather than an outage —
-[ADR 0013](../adr/0013-byok-secret-custody.md) is the decision record.
+The custody contract is simple: **all provider credentials live as KMS
+ciphertext in Kaana PostgreSQL, including BYOK.** Oxy owns connection metadata,
+permissions, policy, validation and billing, but retains only an opaque Kaana
+handle and its exact revision. See
+[ADR 0019](../adr/0019-kaana-byok-custody.md).
 
-Status of the whole platform: [README.md](./README.md).
+## Status: architecture accepted, rollout pending
 
----
+[Kaana #48](https://github.com/OxyHQ/Kaana/pull/48) and the coordinated Oxy cut
+implement this boundary in draft source. They are not merged, published or
+production-verified. The currently merged Oxy path still refuses create and
+rotate with `503 provider_secret_store_unavailable`; that historical refusal is
+safer than reading a credential into a process with no approved custody path and
+is recorded by [ADR 0013](../adr/0013-byok-secret-custody.md).
 
-## The refusal, and the order that makes it safe
+Do not infer availability from either draft. A live BYOK request remains blocked
+until the contracts, migrations, database roles, inverse KMS permissions,
+authorized-route binding and end-to-end settlement gate all pass.
 
-```http
-POST /inference/provider-connections/accounts/:accountId
-→ 503  provider_secret_store_unavailable
+## One owner for each part
+
+| Concern | Owner |
+|---|---|
+| account, application, scope, environment and provider metadata | Oxy |
+| terms acknowledgement, lifecycle, validation and customer audit | Oxy |
+| opaque `credentialHandle` allocation and exact revision | Kaana |
+| provider plaintext and KMS ciphertext | Kaana only |
+| route eligibility and platform-fee-only settlement | Oxy |
+| exact credential resolution during execution | Kaana only |
+
+Oxy never stores plaintext, ciphertext or a Vault, SSM, Secrets Manager or
+other independently resolvable locator. Kaana never turns Oxy account or
+connection ids into a customer model of its own.
+
+## Exact identity, never a name lookup
+
+One customer ciphertext is bound to:
+
+```text
+provider + ownerAccountId + connectionId + environment
++ credentialHandle + revision
 ```
 
-A write runs three steps, in this order:
+`credentialHandle` is an opaque `kcred_…` identifier minted by Kaana. Oxy may
+compare and sign it but cannot dereference it. Rotation keeps the handle and
+advances the positive revision. Kaana's PostgreSQL lookup and KMS encryption
+context both bind the complete tuple, so copying ciphertext to another provider,
+owner, connection, environment, handle or revision cannot produce a usable key.
 
-1. **Authorise.** A caller with no authority gets `403` or `404` — never a `503`
-   that tells them what this deployment is configured with.
-2. **Resolve the secret store.** With none configured, the request is refused
-   HERE.
-3. **Read the credential out of the body.**
+No fallback may resolve a credential by provider display name, account name,
+insertion order, a partial id or an old `secretRef` locator.
 
-Step 2 before step 3 is the whole point: in a deployment with no secret backend,
-**a customer credential is never read out of a request at all**. Not parsed, not
-held in a variable, not passed to a validator, not eligible to appear in a stack
-trace.
+## Mutation and execution are separate authorities
 
-### Why not store it in Postgres "for now"
+Oxy sends create, rotate and revoke to the dedicated strict endpoint at the
+canonical origin:
 
-That is the option that always looks reasonable and is the actual failure. A
-column full of customer provider credentials is the highest-value target in the
-database, the key to decrypt it has to live where the process can read it, and
-"for now" outlives the person who wrote it. The alternative on offer — a runtime
-secret-writing path — needs an IAM policy, a client dependency, a Dockerfile
-change and a rehearsal against a real store, none of which can be validated from
-this repository.
+```text
+POST https://kaana.ai/internal/v1/customer-provider-credentials/mutations
+```
 
-### What would wire it
+The exact body is signed with the dedicated
+`oxy-kaana-credential-control:v1` domain. Credential-control keys do not inherit
+inference authority, and inference keys do not authorize mutations.
 
-Three things, together, per ADR 0013:
+- The credential-control task can execute narrow PostgreSQL mutation functions
+  and use KMS Encrypt. It cannot select table rows or decrypt.
+- The inference task can resolve one exact active row and use KMS Decrypt. It
+  cannot create, rotate or revoke.
+- There is no plaintext read, list, export or support endpoint.
 
-1. a store client (`@aws-sdk/client-secrets-manager`, or a Vault client) in
-   `packages/api`'s dependencies **and** in the Dockerfile's lean workspace
-   install;
-2. an IAM policy on the ECS task role scoped to the partition prefix
-   `oxy/inference/byok/<environment>/<accountId>/<connectionId>` — the account
-   and environment are in the path precisely so that policy is expressible;
-3. `INFERENCE_PROVIDER_SECRET_STORE` set to that backend's name in the task
-   definition. It names a STORE, not a credential, so it is a plain environment
-   variable rather than an SSM parameter.
+The credential travels only inside the signed TLS mutation body, is wrapped in
+a runtime-redacted value, encoded for the strict wire shape, encrypted
+immediately, and never returned.
 
-Setting the variable alone moves the refusal from `not-configured` to
-`backend-missing`; it does not remove it. The metadata side, the routes, the
-audit trail and the scope enforcement are complete and tested without any of
-this.
+## Fail-closed cross-service state
 
----
+Oxy records one of four custody states:
 
-## What Oxy stores, and what it cannot
-
-`providerConnectionSchema` in `@oxyhq/contracts` is `.strict()`, so a producer
-that attaches `apiKey`, `secret`, `token`, `privateKey` or `headers` **fails the
-parse**. Nothing is silently stripped — a stripped field is one that still
-existed upstream of the parse, in a log line or an error report.
-
-| Field | Is |
-|---|---|
-| `secretRef` | `<store>:oxy/inference/byok/<environment>/<accountId>/<connectionId>` — a pointer into managed secret storage, never material. The grammar is closed and the reference must name this connection, so there is no free-form span a credential could be spliced into (migration `0054`) |
-| `keyPrefix` | the leading characters, capped at **12** — long enough to tell two keys apart, far too short to be one |
-| `fingerprint` | SHA-256 of the credential, so a rotation is verifiable without the key |
-| `scope` | `account`, `project` or `application` |
-| `environment` | `development`, `staging` or `production` |
-| `status` | `active`, `disabled` (reversible) or `revoked` (terminal) |
-| `validation` | `unvalidated`, `valid`, `invalid` or `expired`, plus a closed failure code |
-| `upstreamBillsCustomerDirectly` | literally `true` — stated as data so a receipt is readable without a second lookup |
-| `termsAcknowledged…` | set where a provider's terms require a per-customer acknowledgement |
-
-A credential that transits the process at all does so inside a wrapper whose
-`toString`, `toJSON` and `util.inspect` all return `[redacted provider secret]`.
-So a template literal, a `JSON.stringify`, a log field and a REPL dump all print
-the marker; there is one greppable accessor for the bytes, called in exactly two
-places.
-
-### Scope means inheritance, not a separate id space
-
-In the unified account graph a project IS an account, so:
-
-- an **account** connection is inherited by every descendant project and
-  application;
-- a **project** connection applies to that project account alone;
-- an **application** connection applies to one application.
-
-Recording which you chose is what makes "why did this app use that key"
-answerable later.
-
----
-
-## The endpoints
-
-Mounted at `/inference/provider-connections`.
-
-| Endpoint | Today |
-|---|---|
-| `GET /accounts/:accountId`, `GET /applications/:applicationId`, `GET /:connectionId` | work — they return metadata, and there is none until a create succeeds |
-| `POST /accounts/:accountId`, `POST /applications/:applicationId` | **503** — they would read a credential |
-| `POST /:connectionId/rotate` | **503** — same |
-| `POST /:connectionId/disable`, `/enable`, `/revoke` | work — no credential is read |
-| `POST /:connectionId/validation` | works — it RECORDS a verdict, it does not perform one |
-| `GET /:connectionId/audit` | works |
-
----
-
-## BYOK management is a high-privilege operation, and here is where that is enforced
-
-Five independent things hold it, on both lanes. None of them is the whole answer;
-listing them together is the point, because each one alone has a way around it.
-
-### 1. The scope is staff-granted, not self-grantable
-
-`inference:providers:write` is in `PRIVILEGED_APPLICATION_SCOPES`
-(`packages/api/src/utils/applicationScopes.ts`): it is the one scope whose misuse
-redirects other people's requests **and** the secrets used to serve them.
-`inference:providers:read` is deliberately not — describing where a request would
-go is not deciding it.
-
-`authorizeRequestedScopes` in `packages/api/src/routes/applications.ts` enforces
-that on application create and `PATCH /:appId`, and it is SYMMETRIC: a non-staff
-caller can neither add a privileged scope nor silently drop one, because revoking
-a privileged scope is a staff mutation too and an omission is treated as "leave it
-alone".
-
-### 2. A member may not put a privileged scope on a new credential
-
-The filter runs on `POST /applications/:appId/credentials`. Without it, an
-application legitimately holding a staff-granted scope was a scope any member with
-`credentials:create` could mint themselves a credential for — and the `developer`
-role holds `credentials:create` while holding no BYOK write at all.
-
-It used to run on `POST /accounts/:id/credentials` too. That route is **gone**:
-`account_credentials` was retired by #972 workstream 2.3
-(`packages/api/drizzle/0048_retire_account_credentials.sql`) because nothing ever
-authenticated against it. `POST /applications/:appId/credentials` is now the only
-place a customer credential is minted, which is the point of ADR 0005
-invariant 3 — one filter, because there is one lifecycle to filter.
-
-### 3. A credential's scopes can never exceed its application's
-
-Checked as a subset at create, and intersected again at every service-token mint
-(`intersectScopes`). So a credential is bounded by the application, and the
-application is bounded by staff.
-
-### 4. A service credential may not write here AT ALL
-
-This is the load-bearing one, and it is the same answer
-`packages/api/src/routes/accountBilling.ts` gives on the financially equivalent
-surface. Registering, rotating or destroying a provider credential is a decision a
-person makes; a machine credential that could make it would put an account's
-provider configuration behind a key that lives in a deployment environment.
-
-It has to be a refusal of the LANE rather than a stronger check at mint time,
-because the first three are not sufficient on their own:
-`POST /applications/:appId/credentials/:credId/rotate` copies the previous
-credential's scopes forward verbatim and returns a fresh secret exactly once, and
-`credentials:rotate` is a `developer` permission. So one staff-granted credential
-was enough for a member without `inference:providers:write` to obtain a working
-token that carried it. Requiring the *minting* member to hold the permission would
-not have closed it either — a credential outlives the membership.
-
-The reads are untouched: the same credential still lists connections, resolves the
-one in force for its application, and reads the audit trail.
-
-### 5. On the user lane, BYOK is its own permission
-
-`inference:providers:read` / `inference:providers:write` on the account lane and
-`inference:byok:read` / `inference:byok:write` on the application lane
-(`packages/api/src/utils/accountRoles.ts`). These replaced
-`account:read`/`account:update` and `app:read`/`app:update`, and the change is a
-narrowing on purpose:
-
-| Role | Before | Now |
+| State | Meaning | Routable? |
 |---|---|---|
-| `owner`, `admin` | read + write | read + write |
-| `editor` | read + **write** (via `app:update`) | read only |
-| `developer` | read | read |
-| `billing` | read (via `account:read`) | neither |
-| `viewer` | read (via `account:read`) | neither |
+| `pending` | Oxy created metadata but Kaana has not acknowledged a handle | no |
+| `ready` | exact handle and revision are committed on both sides | only if all other policy and validation checks pass |
+| `reconcile` | a cross-service outcome could not be proven | no |
+| `revoked` | Kaana confirmed the terminal revision | no |
 
-`app:update` used to confer "publish an OTA update", "change the webhook URL" AND
-"rotate the provider secret" as one string, so an account that wanted an editor
-who could edit an application but not touch its BYOK had no way to say so. And
-BYOK read was inherited from `account:read`, which **every** role holds — no
-credential material is ever returned, but the provider, the key prefix, the
-fingerprint and the validation failures are, which is security configuration
-rather than an app description.
+Only `ready` with both handle and revision may enter candidate resolution. A
+timeout after Kaana may have committed does not become success or trigger a
+blind second mutation; it becomes `reconcile` for an exact readback workflow.
 
-Every one of those withdrawals is restorable for an individual member through
-`permission_grants`. That is the point of naming the power rather than borrowing
-somebody else's.
+Rotate and revoke carry `expectedRevision`. The first successful mutation
+advances it, so a replay or stale concurrent request conflicts instead of
+modifying a later generation.
 
-### The one thing this forecloses
+## Routing binding
 
-`POST /:connectionId/validation` is inside the refusal, so **the data plane
-cannot report a verdict today**. That is deliberate rather than overlooked: an
-`invalid` verdict also disables the connection, so leaving the lane open for it
-would have left a disable-equivalent open to exactly the credential the refusal
-exists to stop. Nothing calls the route today, and no connection can exist at all
-while create and rotate are hard-`503`. When the data plane does need to report
-one it needs a principal designed for it — an internal lane, not a
-customer-mintable service token.
+`byokPreference` remains an Oxy policy control:
 
----
+- `disabled` excludes customer credentials;
+- `prefer` prefers an eligible BYOK route without making it mandatory;
+- `require` refuses if no eligible BYOK route remains.
 
-**Another account's connection answers 404, never 403.** Distinguishing them
-would make the id space an existence oracle for other tenants' BYOK setup. The
-service-lane write refusal is a 403 for every id alike, existing or not, so it
-adds no oracle of its own.
+An eligible BYOK candidate must carry the exact connection identity,
+`credentialHandle` and revision in its signed `authorizedRoutes` entry. Kaana
+resolves only that binding. Global inventory, provider aliases and Oxy metadata
+cannot grant a different credential.
 
-### Validation is recorded here, never performed here
+`oxyHostedOnly` and `byokPreference: 'require'` remain contradictory and are
+rejected rather than silently choosing one.
 
-`POST /:connectionId/validation` takes a verdict from a closed vocabulary — no
-free-form message, so a verdict can never carry credential material — and writes
-it. Oxy cannot check a credential it does not hold, and the interface to the
-secret store is deliberately **write-and-destroy with no read**: an interface
-that offered a `get` would make "just re-validate it here" a one-line change.
-Whoever holds the secret at use time validates it; Oxy records the answer.
+## Customer-visible metadata
 
-An `invalid` or `expired` verdict also disables the connection.
+The DTO remains strict and may expose only non-secret values needed to manage a
+connection:
 
-### The audit trail
+- connection, owner account, application scope, environment and provider ids;
+- lifecycle, custody and validation state;
+- opaque handle plus revision when custody is committed;
+- a short recognition prefix and SHA-256 fingerprint;
+- terms acknowledgement and audit timestamps.
 
-`created`, `validated`, `rotated`, `used`, `disabled`, `enabled`, `revoked`,
-kept for **two years** and append-only in the database rather than by convention
-(a migration installs the immutability trigger). A `used` event never carries an
-actor user id — nobody was present.
+A producer attaching `apiKey`, `secret`, `token`, `privateKey`, ciphertext or a
+secret locator must fail schema validation. Another account's connection remains
+404, never an existence-revealing 403.
 
----
+## Permissions do not change
 
-## Limits, and the things BYOK does not change
+BYOK management remains a high-privilege human operation:
 
-- **BYOK does not move the billing relationship.** Your provider bills your own
-  upstream account. Oxy settles its platform fee, and the receipt says so:
-  `platformFeeOnly: true`, so `billedAmount` reads as a fee rather than the cost
-  of the tokens. No BYOK request has produced a receipt, because no request
-  reaches a provider at all.
-- **BYOK does not override provider terms**, and registering a connection is not
-  a licence to share credentials. Where a provider requires a per-customer
-  acknowledgement, the connection records that you gave one.
-- **A routing policy may prefer or require BYOK** (`byokPreference`), and that
-  preference IS applied to the candidate routes: a policy requiring BYOK will not
-  be served by a route that is not one, and a request no route satisfies is
-  refused with `policy_violation` rather than served on Oxy's own account. See
-  [routing.md](./routing.md#what-is-enforced-today).
-- **`oxyHostedOnly` and `byokPreference: 'require'` cannot both be set.** A BYOK
-  route runs on your upstream account, which is by definition not Oxy's hosting;
-  the combination is refused at write time rather than resolved by whichever
-  field an executor reads first.
-- **Revocation is terminal, and it never refuses.** `disabled` is the reversible
-  state; a revoked connection can no longer be validated, enabled or rotated.
-  Unlike create and rotate, revoke treats the secret store as OPTIONAL — a
-  deployment whose backend has since been unconfigured must still be able to
-  retire a connection, often because the key leaked. The response and the audit
-  row both state whether the secret was actually destroyed
-  (`secretDestroyed`), which is the true statement; refusing the revoke would
-  leave the connection resolvable. The row is not deleted — it is the audit link
-  between a rotated credential and the one it replaced.
+- `inference:providers:write` is staff-granted and not self-grantable;
+- a credential's scopes cannot exceed its application's scopes;
+- service credentials may read allowed metadata but cannot create, rotate or
+  destroy a customer provider credential;
+- account/application BYOK read and write permissions remain narrower than
+  generic account or application editing.
+
+Kaana custody does not grant Alia or a product app provider-key access. Agents
+and conversations remain Alia workloads; bounded product AI calls Oxy directly.
+Both paths reach provider execution only through Kaana.
+
+## Rollout gates
+
+Before enabling BYOK, prove all of the following in the target environment:
+
+1. strict compatible contracts are merged, published and pinned by Kaana;
+2. the Oxy migration refuses a non-empty legacy inventory unless every old
+   credential is explicitly imported or revoked;
+3. separate database principals and inverse KMS Encrypt/Decrypt roles are live;
+4. create, rotate, revoke, stale-revision and replay tests pass with no plaintext
+   in logs, environment, SSM, task definitions, responses or either database;
+5. `pending` and every uncertain outcome stay unroutable as `reconcile`;
+6. one signed BYOK route resolves the exact handle/revision, reaches the intended
+   provider, and settles one platform-fee-only receipt;
+7. disable and break-glass containment work while the Kaana mutation task is
+   unavailable.
+
+The operational procedure is
+[the BYOK rotation runbook](../runbooks/byok-provider-connection-rotation.md).

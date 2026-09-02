@@ -57,7 +57,7 @@ and in any third-party verifier — using the exact same `@oxyhq/core` code.
 | [nodes/README.md](nodes/README.md) | The data-node model, `@oxyhq/node` server, registration, Oxy→node export, node→Oxy ingest (verify/LWW/fork/counter-sign), managed vault |
 | [inference/README.md](inference/README.md) | The inference platform: credentials, attribution, the model catalogue, exact billing, migrations — **and, in one place, what is not built yet and what tracks it** |
 | [inference/request-routing.md](inference/request-routing.md) | The canonical Kaana/Alia/Oxy boundary, product request paths, provider-key custody and cutover gates |
-| [runbooks/README.md](runbooks/README.md) | Rotation and break-glass procedures for every credential Oxy issues — trigger, commands, how to verify the write took, rollback, and what to do when the normal path is unavailable. The AWS half stays in `oxy-infra`. |
+| [runbooks/README.md](runbooks/README.md) | Rotation and break-glass procedures for credentials Oxy issues or operates — including the pending Kaana-custodied BYOK contract — with trigger, verification, rollback and break-glass. The AWS half stays in `oxy-infra`. |
 | [architecture/oxy-auth-platform.md](architecture/oxy-auth-platform.md) | The auth platform master plan (phases, decisions, target architecture) |
 | [CHANGELOG.md](CHANGELOG.md) | Chronological "what changed and why" for the whole F0→F5 + Oxy ID rename + Commons/Reputation UI initiative, with commit SHAs |
 

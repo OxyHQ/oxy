@@ -82,11 +82,23 @@ agent or chat       -> Alia -> Oxy inference edge -> Kaana
 
 Kaana executes model requests across providers. Alia owns agents,
 conversations, memory, tools and approvals. Provider keys belong only to
-Kaana's KMS-encrypted PostgreSQL store; they are never app or Alia environment
-variables. Oxy selects an exact `deploymentId` from complete, current routing
+Kaana's KMS-encrypted PostgreSQL store, including customer BYOK credentials;
+they are never app, Oxy or Alia environment variables. Oxy retains only BYOK
+metadata plus an opaque Kaana handle and revision. The Kaana and Oxy BYOK cuts
+are still drafts, so this custody contract is not a production-availability
+claim. Oxy selects an exact `deploymentId` from complete, current routing
 evidence: explicit profile priority first, score descending second, and exact
-ID code units only as a deterministic tie-break. Names and database row order
-never select a route. See the [canonical request-routing guide](docs/inference/request-routing.md).
+ID UTF-16 code units only as a deterministic tie-break. Names and database row
+order never select a route. Kaana emits `requests: 1` once per attempted
+request. A flat request fee may therefore be prefiltered from the catalogue,
+but `maxPricePerRequest` is decided at the edge from the complete maximum quote
+for this request. Within each explicit priority, only cap- and currency-matching
+routes survive; score descending and exact ID choose the first survivor. Final
+usage reports and partial streamed usage both name that exact `deploymentId`;
+Oxy never infers it from a provider or model name. Catalogue terms are
+conservative aggregates across visible deployments, not the terms of a route
+chosen by name. See the
+[canonical request-routing guide](docs/inference/request-routing.md).
 
 <table>
 <tr>

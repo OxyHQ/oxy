@@ -69,10 +69,12 @@ life.
 | `respond(request, options?)` | `POST /v1/responses` |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
 
-That is the whole SDK surface. There is no `stream()`, `embeddings()` or
-`images()` method in the current TypeScript client — see
-[streaming.md](./streaming.md) and the workstream-4 list in
-[README.md](./README.md).
+`stream(request, options?)` is implemented in draft
+[#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the draft Kaana
+runtime cut. It sends `stream: true`, propagates cancellation and validates the
+versioned SSE event union. It is not merged, published or production-verified,
+so check the installed `@oxyhq/core` package before using that method. Embeddings
+and images remain outside this client. See [streaming.md](./streaming.md).
 
 ```typescript
 const answer = await inference.respond({
@@ -168,7 +170,7 @@ const client = new OpenAI({
 });
 ```
 
-Four things differ from OpenAI's own service, and all four are deliberate:
+Four compatibility rules matter, and all four are deliberate:
 
 - **`model` is a canonical Oxy id, `<publisher>/<model>`.** A vendor model name
   is not one and does not resolve — accepting a bare name would mean Oxy
@@ -176,7 +178,10 @@ Four things differ from OpenAI's own service, and all four are deliberate:
 - **Unknown request fields are rejected, not ignored.** The schema is strict, so
   a parameter Oxy does not implement gets you a `400` naming it rather than
   silently having no effect on a request you were billed for.
-- **`stream: true` is refused** with `invalid_request`.
+- **`stream: true` uses OpenAI-compatible SSE** when the deployed Kaana path is
+  configured and enabled. An unavailable data plane is refused before opening a
+  stream. The typed `@oxyhq/core` decoder is implemented in draft #1145 but is
+  not yet a published SDK capability.
 - **Oxy-specific response metadata rides in headers**, so the body stays exactly
   what a stock client parses.
 
@@ -189,7 +194,7 @@ On every response, success or refusal:
 | `X-Oxy-Request-Id` | the correlation id, present even on a `401` |
 | `X-Oxy-Inference-Contract-Version` | the contract version this edge speaks |
 
-On a successful invoke, additionally:
+On a successful non-streaming invoke, additionally:
 
 | Header | Carries |
 |---|---|
@@ -199,6 +204,11 @@ On a successful invoke, additionally:
 | `X-Oxy-Routing-Policy`, `X-Oxy-Routing-Policy-Version` | the policy version the request was admitted under |
 | `X-Oxy-Latency-Ms` | Oxy's own handling time in whole milliseconds, as `latencyMs` above — the only place `/v1/chat/completions` can state it, since that body is stock OpenAI |
 | `X-Oxy-Finish-Reason` | `/v1/chat/completions` only — the true reason, including `cancelled`, which OpenAI's `finish_reason` cannot express |
+
+On a stream, the admission-time model, provider and routing-policy headers are
+present before the first frame. Usage, finish state and end-to-end latency are
+known only after headers have been committed: usage is carried by SSE, finish by
+the terminal event/chunk, and no `X-Oxy-Latency-Ms` header is invented afterward.
 
 On a refusal of `/v1/chat/completions`, additionally `X-Oxy-Error-Code` and
 `X-Oxy-Error-Retryable`, because the OpenAI error body has nowhere to put them.
@@ -257,7 +267,9 @@ completion = client.chat.completions.create(
 The four differences from OpenAI's own service listed under "The OpenAI SDK,
 unmodified" apply identically here: `model` is a canonical Oxy
 `<publisher>/<model>` id, unknown request fields are rejected rather than ignored,
-`stream=True` is refused, and Oxy-specific metadata rides in headers.
+`stream=True` uses OpenAI-compatible SSE when Kaana is available, and
+admission-time Oxy metadata rides in headers while terminal usage stays in the
+stream.
 
 ### Reading the Oxy headers
 
@@ -318,7 +330,10 @@ plane does not teach every client to retry forever
 
 - `model` must name a catalogue entry visible to the caller.
 - Missing, stale, mismatched or colliding route identity, price or score evidence
-  refuses before reservation and before Kaana is called.
+  refuses before reservation and before an inference POST. The signed read-only
+  deployment attestation can precede the final hold quote, so a child-unit price
+  gap discovered there may follow that preflight while still producing no hold
+  and no execution.
 - A deployment with Kaana execution disabled returns the typed, non-retryable
   unconfigured-path refusal and keeps no charge.
 - Streaming and cancellation require the same live end-to-end verification as a

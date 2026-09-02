@@ -145,25 +145,28 @@ Console renders the real catalogue now ([#991](https://github.com/OxyHQ/oxy/pull
 so the four names are gone as model identities from every customer-facing screen.
 A count here is a fact about a commit, so re-measure before quoting it.
 
-### `AI_LABELING_MODEL` is not one of these
+### `AI_LABELING_MODEL` is a legacy direct-Alia exception, not the target path
 
-`packages/api/src/config/email.config.ts:100` defaults `AI_LABELING_MODEL` to
-`alia-lite`, and it is **correct as it stands.** It is not a fake catalogue
-entry and never was one.
+`packages/api/src/config/email.config.ts:100` still defaults
+`AI_LABELING_MODEL` to `alia-lite`. That string is not a fake Oxy catalogue
+entry: it is a legacy Alia product-tier input. It is also **not the target
+architecture** for this bounded classification workload.
 
 The value is sent as the `model` field of a request to **Alia's own API**
 (`packages/api/src/services/aiLabeling.service.ts:31` targets
 `https://api.alia.onl/v1`, and `:152` puts the configured string in the body).
 At that boundary `alia-lite` is a real identifier of an Alia product tier — the
-thing Alia's API accepts — so it is an Alia product alias consumed by a product
-feature, not an Oxy model id.
+thing Alia's API accepts — so it remains an Alia product alias consumed by a
+legacy direct caller, not an Oxy model id.
 
 What ADR 0008 retires is the use of those four strings **as Oxy model
-identities**, in the Oxy catalogue and in Oxy's public examples. An Oxy product
-feature naming an Alia tier when calling Alia is a different act, and rewriting
-it to a canonical `<publisher>/<model>` would name something Alia's API does not
-recognise. (The labelling path is also off by default: `AI_LABELING_ENABLED`
-defaults to `false`.)
+identities**, in the Oxy catalogue and in Oxy's public examples. The remaining
+direct call must be cut to the Oxy inference SDK and an exact catalogue model or
+routing profile only when that route is published and the Kaana live gates pass;
+rewriting only the string today would send Alia an identifier it does not
+recognise. Until then the labelling path stays a named, off-by-default legacy
+exception (`AI_LABELING_ENABLED` defaults to `false`), never evidence that Alia
+is a provider runtime.
 
 ---
 

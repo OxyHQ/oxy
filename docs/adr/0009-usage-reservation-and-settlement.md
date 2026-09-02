@@ -44,7 +44,8 @@ history.**
 
 ```text
 1. RESERVE   at the Oxy edge, before the envelope reaches Kaana
-             ceiling = f(input units, max output units, allowed route price ceiling)
+             ceiling = requests:1 + f(input units, max output units,
+                                       every authorized route's price version)
              insufficient balance / credit limit  →  reject; nothing is forwarded
 2. EXECUTE   Kaana runs the request and returns a normalized usage receipt
 3. SETTLE    exact charge derived from the receipt and the pinned price version
@@ -100,6 +101,19 @@ differently. A price change is a new version; it never edits an old one. A
 receipt must remain reproducible after the price it was computed under is
 withdrawn.
 
+Kaana emits `requests: 1` for every attempted request, so every servable price
+version declares an explicit `requests` price. Zero is a valid explicit amount;
+an absent row is incomplete pricing and fails readiness before reserve or
+execution. Every hold scenario includes that unit and uses the ledger's exact
+`NUMERIC` `amount × quantity / per` arithmetic. For completions, the request fee
+is present in each of the four prompt/output partition extrema; the hold is the
+maximum across those extrema and every authorized route. For a completion that
+is exactly the request fee plus `promptCeiling × max(input, cached-input rate)`
+plus `outputCeiling × max(output, reasoning rate)`, with every `amount / per`
+comparison kept exact rather than converted to a JavaScript `Number`. Both child
+rates are required; a missing cached-input or reasoning price fails closed
+before a hold or inference POST even if the corresponding parent rate is larger.
+
 ### Immutable history
 
 Settled receipts and ledger entries are **append-only**. A correction is a
@@ -122,6 +136,7 @@ after the fact.
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
 | Redelivered webhook or Kaana event | Idempotent no-op on the provider event id. |
 | BYOK route | The upstream provider bills the customer directly; Oxy settles only its own platform/service fee, and the receipt says so. |
+| A known Kaana frame is malformed or fails its per-shape schema | Invalidate every terminal and partial measurement for the request. Never reinterpret a v1 or malformed terminal `usage_report` as absent and reuse an earlier partial. |
 
 **No path may charge twice, and no path may execute unreserved.** Those are the
 two properties the tests in workstream 16 must falsify rather than confirm: the

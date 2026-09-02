@@ -122,7 +122,7 @@ metric surface that is correctly zero. The edge now fills them:
 | Cancellation | `outcome = 'cancelled'` on the event and the rollup | Yes |
 | Total latency | `inference_usage_events.latency_ms` | Yes, per event — the rollup carries no latency column, and adding one is a migration |
 | Time to first token | `inference_usage_events.time_to_first_token_ms` | Column ready, edge streams; NULL until a data plane is CONFIGURED and reports one |
-| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready, edge forwards it; `0` until a configured data plane switches a route. **The `serving_provider` column is NOT updated alongside it** — see below |
+| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready, edge forwards it; `0` until a configured data plane switches a route. A serving-provider dimension is valid only from v2 usage evidence whose exact `deploymentId` resolves to one signed route — see below |
 | Reserve failures | `inference_usage_events` rows with `status_code = 402` (`insufficient_balance`, `spending_limit_exceeded`), plus the `inference.edge.reservation_refused` log line | Yes |
 | Settlement lag | `usage_receipts.settled_at − usage_reservations.created_at`, joined on `usage_receipts.reservation_id` | Yes |
 | Reconciliation drift | `billing_reconciliation_runs` / `_discrepancies`, filled by the scheduled pass | Yes — see [Reconciliation drift is a stream](#reconciliation-drift-is-a-stream-not-a-staff-triggered-pass) |
@@ -259,19 +259,23 @@ column would have answered wrongly rather than not at all. The window is bounded
 ninety days for the same reason: a wider one cannot yield more samples, so
 answering it would misstate the range the numbers cover.
 
-### The provider dimension is absent, and that is a known gap
+### Provider metrics use execution identity, not configuration identity
 
-No metric on this route is broken down by serving provider. The edge writes
-`route.provider` — the provider it ADMITTED — at all nine of its telemetry,
-receipt and rollup sites, and never reads `completion.usage.servingProvider`, the
-provider the data plane REPORTS. A same-model failover would therefore be billed
-and recorded against the original provider, so a per-provider error rate served
-here would be confidently wrong for exactly the traffic it exists to explain.
-Because `inference_usage_daily_rollups`' primary key includes `serving_provider`,
-that traffic also folds into the wrong rollup bucket permanently. A follow-up fixes
-the write side; this surface declines to publish the dimension until then rather
-than publish it misattributed. `inferenceReporting.service.ts` still groups the
-customer's own usage by provider and inherits the same gap.
+The v2 terminal usage report and partial streamed `usage` event both require an
+exact `deploymentId`. The edge resolves that ID to exactly one route in the
+signed `authorizedRoutes` before a measured settlement, telemetry event or
+rollup may use its provider. The terminal report must additionally match that
+route's revision-pinned model and provider. Missing, unauthorized, ambiguous or
+contradictory identity is rejected; the edge never substitutes the originally
+admitted provider for measured evidence from a route switch.
+
+Keep admission/configuration metrics and execution metrics distinct. When no
+valid usage evidence arrived, an estimated zero-unit settlement can state only
+the admitted route because no served deployment was measured; it must not be
+presented as a provider execution measurement. Production readiness of a
+provider breakdown still requires a real failover and readback proving the event,
+receipt and `inference_usage_daily_rollups.serving_provider` all name the route
+resolved from the same exact ID.
 
 ### Reconciliation drift is a stream, not a staff-triggered pass
 
@@ -388,9 +392,9 @@ rather than assuming an oversight.
   check plus balance-row serialization — so what is missing is the notification,
   not the guarantee. Shape and owner: above.
 - **Alerts for provider error and cost spikes** — the same, and additionally
-  blocked twice over: on a provider existing to have an error rate, and on the
-  reported-vs-admitted provider gap described above, which would make a
-  per-provider rate wrong before anyone alerted on it.
+  blocked on live v2 failover/readback proof that the exact deployment identity
+  feeds the event, receipt and provider rollup consistently before anyone alerts
+  on that dimension.
 - **Audit dashboards for credential and billing changes** — the tables and their
   read functions exist (`listCredentialAuditEvents`, the provider-connection
   audit read); no Console surface renders them yet, which is workstream 9's

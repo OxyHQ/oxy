@@ -2,6 +2,8 @@
 
 - Status: accepted
 - Date: 2026-08-17
+- Amended by contract v2: Oxy owns the exact priority-score-ID ordering; Kaana
+  executes and fails over only within that signed preference order.
 - Issue: #972 (workstreams 6 and 13)
 - Changes: [ADR 0006](0006-oxy-kaana-boundary.md) (what crosses the boundary, and
   one responsibility-matrix row), [ADR 0010](0010-public-api-compatibility.md)
@@ -19,9 +21,11 @@ from it.
 ADR 0010 originally described a resolved policy SNAPSHOT travelling in the
 envelope. #1018 corrected the ADR to the code rather than the code to the ADR,
 on the reasoning that since #1012 the control plane filters every candidate route
-against every control it can express as a predicate over one candidate, refuses
-`policy_violation` when none qualifies, and therefore leaves the data plane only
-one decision: RANKING among routes that already qualify.
+against every control it can express as a predicate over one candidate and
+refuses `policy_violation` when none qualifies. Contract v2 closes the remaining
+ordering ambiguity: Oxy ranks the qualified routes by explicit profile priority,
+reviewed score descending, then exact deployment ID by ECMAScript UTF-16 code
+units; Kaana executes that signed order.
 
 That correction is right about the primary route and leaves a hole one step
 later. Its own words are that the data plane owns "failover within the
@@ -240,7 +244,7 @@ means.
   already removed that half from ADR 0010 without correcting it here.
 - Everything else in 0006 stands, including its central rule. The data plane
   still owns routing EXECUTION; what changes is that the set it executes over is
-  now enumerated rather than derived.
+  now enumerated and ordered rather than derived or re-ranked.
 
 ## What this changes in ADR 0010
 
@@ -250,10 +254,10 @@ means.
 - The sentence *"The envelope carries a routing-policy REFERENCE, not a snapshot"*
   stands and is now complete: the reference is still provenance and still nothing
   downstream acts on, and the routes the policy authorized travel beside it.
-- *"What the data plane is left to decide is RANKING among routes that already
-  qualify — `optimiseFor`, plus failover within the destinations the policy
-  authorized"* stands, and those destinations are now in the envelope. Before
-  this ADR that clause described a capability the shape did not support.
+- The earlier sentence assigning RANKING to the data plane is superseded by the
+  v2 exact-order contract. Oxy signs explicit routing-profile priority, reviewed
+  score descending and exact deployment-ID UTF-16 code-unit order; Kaana may
+  fail over only by walking that list.
 - Edge step 5, *"resolve the routing policy, pin its version, and SELECT the
   route"*, becomes: resolve the policy, pin its version, and select the ordered
   set of routes it permits — refusing `policy_violation` when none qualifies, as

@@ -83,7 +83,7 @@ secret was stored.
 
 **Do not add it to the deploy on its own.** `resolveKaanaDataPlane` treats all
 three variables as all-or-nothing: with none set it returns `absent` and is
-silent, which is today's behaviour on every deployment. With only the private key
+silent. With only the private key
 injected it returns `unreadable(KAANA_BASE_URL)` and logs
 `inference.kaana.config_unreadable` at **error** level on every boot — a
 production error line asserting the configuration is broken when nothing is

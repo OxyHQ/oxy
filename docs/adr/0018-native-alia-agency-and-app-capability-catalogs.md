@@ -241,8 +241,9 @@ deployment ambiguous.
 - Oxy stores normalized delegations and the catalog registry. Alia stores
   automation definitions, runs and steps.
 - Existing broad or JSON grants are migrated without widening access. Existing
-  credentials remain in their current secret stores; migration moves references
-  and authority, not secrets.
+  non-provider integration credentials remain in their current stores; migration
+  moves references and authority, not secrets. Provider credentials, including
+  BYOK, follow ADR 0019 and live only as KMS ciphertext in Kaana PostgreSQL.
 - `handlesAutonomousEvents` is migrated to explicit automation rules and then
   removed.
 - Rollout is per app and cohort, with observation mode before effects. Inbox,

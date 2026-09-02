@@ -1,6 +1,8 @@
 # ADR 0013 — Oxy holds a REFERENCE to a customer's provider credential, never the credential; with no secret backend wired, BYOK writes are refused rather than degraded
 
-- Status: accepted (the refusal is the decision; the backend is deferred)
+- Status: superseded by [ADR 0019](0019-kaana-byok-custody.md). The historical
+  fail-closed refusal remains the safe behaviour until the coordinated Kaana and
+  Oxy cuts are merged and deployed.
 - Date: 2026-08-16
 - Amended: 2026-08-18 — the reference GRAMMAR was open where this ADR read as
   though it were closed. `providerSecretReferenceSchema` admitted
@@ -11,6 +13,11 @@
   reference to name its own connection. The partition bullet below states both
   halves.
 - Issue: #972 (workstream 10)
+
+This ADR records why the existing Oxy build refuses BYOK writes instead of
+storing plaintext or inventing a backend. It is not the current custody
+architecture: ADR 0019 moves every provider credential, including BYOK, to
+Kaana PostgreSQL encrypted by KMS and leaves Oxy with an opaque handle only.
 
 ## Context
 

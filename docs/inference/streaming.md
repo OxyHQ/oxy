@@ -16,7 +16,7 @@ Status of the whole platform: [README.md](./README.md).
 
 ## Streaming
 
-### The edge streams; the TypeScript SDK does not yet expose a stream method
+### The edge streams; the typed SDK decoder is a draft
 
 ADR 0010 requires streaming to be **unbuffered end to end** — an edge that
 collected a whole completion and then re-emitted it as SSE would have the shape
@@ -24,10 +24,14 @@ of streaming and none of its point. The Oxy route and data-plane client implemen
 the validated SSE path when Kaana execution is configured. An unconfigured path
 refuses before opening a stream and keeps no charge.
 
-`@oxyhq/core` currently exposes no `stream()` method and no `stream` request
-field. A caller using the HTTP surface directly can request streaming; an SDK
-consumer must wait for the typed decoder rather than hand-roll a second event
-contract and call it supported.
+`OxyInferenceClient.stream()` is implemented in draft
+[#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the draft Kaana
+runtime cut. It requests `stream: true`, decodes frames incrementally against
+the shared event contract, forwards `AbortSignal`, and exposes protocol failures
+as typed errors. Neither draft source nor a green PR proves that an installed SDK
+contains the method or that a live audience can reach Kaana. Verify the published
+package and then run the production proof below; do not hand-roll a second event
+contract while the typed implementation is pending release.
 
 ### The event union exists, and is worth reading now
 
@@ -40,7 +44,7 @@ platform. Seven events, discriminated on `type`:
 | `start` | the revision-pinned model that resolved, and the serving provider |
 | `delta` | a chunk of output, on channel `output_text`, `reasoning` or `refusal` |
 | `tool_call` | an accumulating tool call, with `complete` marking it finished |
-| `usage` | metered units so far — **units only, never money** |
+| `usage` | metered units so far plus the exact `deploymentId` — **units only, never money** |
 | `route_switch` | a customer-visible notice that an allowed re-route happened |
 | `error` | terminal; no `done` follows |
 | `done` | terminal; `finishReason`, and `receiptId` once settlement produced one |
@@ -63,12 +67,29 @@ Three properties are decided, not pending:
 A consumer that meets an unknown `type` fails at the parse rather than falling
 into a default branch that treats it as output.
 
+The same fail-closed rule covers the transport's two known frame names,
+`stream_event` and `usage_report`. Invalid JSON, an unsupported per-shape
+`schemaVersion`, or any other schema failure on either known frame invalidates
+**all** measurement evidence collected for that request. In particular, a v2
+partial `usage` event followed by a malformed or v1 terminal `usage_report` is
+not the same as a stream that ended before a report arrived: the earlier partial
+must not be reused for settlement. Output already delivered cannot be retracted,
+but no charge may be derived from the invalidated report or partial.
+
 ### `usage` events are not a bill
 
-A `usage` event reports units. What you are charged is derived from those units
-and the price version pinned at admission, at settlement, by the ledger — a cost
-quoted mid-stream by a data plane would be a second, unauthoritative answer to
-the same question. [billing.md](./billing.md) is the authority.
+A v2 `usage` event reports units and requires the exact `deploymentId` that
+measured them. Oxy accepts it as partial settlement evidence only when its
+`requestId` matches and that ID resolves to exactly one signed authorized route;
+it is never inferred from a provider/model name or from the admitted route. What
+you are charged is derived from those units and the resolved route's pinned price
+version at settlement, by the ledger — a cost quoted mid-stream by a data plane
+would be a second, unauthoritative answer to the same question. A present invalid
+terminal report — including one rejected before its identity can be read —
+cannot be replaced with an earlier partial event. Only a transport truncation or
+client cancellation with no schema-invalid known frame may use the last valid
+partial measurement.
+[billing.md](./billing.md) is the authority.
 
 ---
 

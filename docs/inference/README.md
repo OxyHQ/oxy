@@ -45,12 +45,12 @@ claims, so use the live cutover gates before calling the end-to-end path ready.
 | Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. **The catalogue is EMPTY**, and is withheld from public viewers until published (`INFERENCE_CATALOGUE_AUDIENCE`) |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
 | Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, filtered by the thirteen qualification controls and ranked from reviewed scorecards using the exact deployment identity contract |
-| BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Yes for metadata; create and rotate refuse `503` |
+| BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Merged metadata reads exist; create and rotate still refuse `503`. Kaana PostgreSQL/KMS custody and opaque-handle Oxy control are draft cuts, not live availability |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
 | Inference usage telemetry + daily rollups | `packages/api/src/db/schema/inferenceUsageEvents.ts` | Yes — written by the edge, read by the reporting API |
 | Oxy↔data-plane contracts (Zod) | `packages/contracts/src/inference/` | Published as `@oxyhq/contracts` |
-| The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Yes — [sdk.md](./sdk.md) |
+| The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Catalogue, `respond()` and generation reads exist; typed `stream()` is draft [#1145](https://github.com/OxyHQ/oxy/pull/1145), not yet a published or deployed capability — [sdk.md](./sdk.md) |
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
@@ -98,19 +98,25 @@ model you name with `model_not_found`.
 After the qualification controls filter the set, Oxy ranks every surviving
 exact deployment by the reviewed score for `optimiseFor`. An explicit routing
 profile priority precedes that score; an equal-score tie is broken only by exact
-`deploymentId` code units. Provider/model/display names, insertion order and
-database return order never select a route. Missing, stale, mismatched or
-colliding identity/price/score evidence refuses the complete set before a hold
-or Kaana call. [routing.md](./routing.md#ranking-after-qualification) records
-the complete rule.
+`deploymentId` ECMAScript UTF-16 code units. Provider/model/display names,
+insertion order and database return order never select a route. Missing, stale,
+mismatched or colliding identity/price/score evidence refuses the complete set
+before a hold or inference POST. The live exact-ID attestation may run before a
+later full-quote gap is discovered, but it never reserves or executes anything.
+[routing.md](./routing.md#ranking-after-qualification) records the complete rule.
 
 The two price ceilings, `maxPricePerUnit` and `maxPricePerRequest`, WERE the
 other two and are now compared against the price version each candidate is
-actually charged at. `maxPricePerRequest` is still only half of a spend control:
-it bounds a route's flat per-request fee, while the estimated cost of one
-particular request against the same limit is the edge's check and is not
-implemented. A spending limit and the account balance remain the controls that
-bound spend.
+actually charged at. Kaana emits `requests: 1`, so the catalogue can prefilter a
+flat request fee that already exceeds `maxPricePerRequest`; every servable price
+version must state that fee explicitly, including an explicit zero. The edge
+then enforces the complete control: at each priority it quotes this request's
+maximum input/output partitions plus `requests: 1`, excludes cap or currency
+mismatches, and chooses the first survivor by score descending then exact
+deployment ID. With no explicit output ceiling, that winner fixes the implicit
+output before lower priorities are capacity-checked. No price survivor means a
+403 before reservation or Kaana. Spending limits and the account balance remain
+separate aggregate and funding controls.
 
 Every other routing control IS enforced against the candidate routes as of
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), which closed
@@ -120,19 +126,24 @@ is refused with `policy_violation` rather than downgraded.
 is also held in code by a `tsc` gate that fails naming any control in neither
 list.
 
-### A secret backend for BYOK — workstream 10, [ADR 0013](../adr/0013-byok-secret-custody.md)
+### BYOK custody — workstream 10, [ADR 0019](../adr/0019-kaana-byok-custody.md)
 
-The metadata side, the routes, the audit trail and the scope enforcement are
-complete. No secret store is wired, so create and rotate refuse with
-`503 provider_secret_store_unavailable` **before reading the credential out of
-the request**. [byok.md](./byok.md) has what would wire one.
+The accepted architecture puts every provider credential, including BYOK, in
+Kaana PostgreSQL encrypted by KMS. Oxy keeps only metadata plus an opaque handle
+and revision. Kaana #48 and the coordinated Oxy cut implement that boundary in
+draft; they are not merged or production-verified. The merged path therefore
+still refuses create and rotate with `503 provider_secret_store_unavailable`
+before reading the credential. [byok.md](./byok.md) separates the target
+contract, current refusal and live rollout gates.
 
 ### Streaming and observable cancellation — workstream 4
 
 The stream-event union, Oxy forwarding client and Kaana emitter exist in source.
-Production readiness still requires a real streamed request plus an explicit
-client-disconnect test proving cancellation reaches the provider and settlement
-occurs exactly once. [streaming.md](./streaming.md) documents the contract.
+Typed `OxyInferenceClient.stream()` is implemented in draft #1145 but is not
+merged or published. Production readiness still requires a real streamed request
+plus an explicit client-disconnect test proving cancellation reaches the
+provider and settlement occurs exactly once.
+[streaming.md](./streaming.md) documents the contract.
 
 ### Later modalities — workstream 4
 
@@ -212,9 +223,10 @@ audit surface. The first two belong to `~/Oxy/oxy-infra`, which today holds 58
 Terraform files with zero alarms, zero SNS topics and zero dashboards; the third is
 workstream 9's. [observability.md](./observability.md) has the derivation for each
 metric, the concrete shape the export half would take, why no alarm is being added
-before a destination exists, the reported-vs-admitted provider gap that would make
-a per-provider rate wrong, the two places the audit trail's actor is thinner than it
-looks, and why `isStaff` is still one undifferentiated tier.
+before a destination exists, why provider execution metrics require exact v2
+deployment identity plus a live failover/readback proof, the two places the audit
+trail's actor is thinner than it looks, and why `isStaff` is still one
+undifferentiated tier.
 
 ### Alia integration — workstream 14
 
@@ -237,7 +249,7 @@ execution. See [request-routing.md](./request-routing.md) and
 
 ### A Python SDK — workstream 15
 
-Not started, deliberately. [sdk.md](./sdk.md#there-is-no-python-sdk-and-this-is-not-the-moment-to-start-one)
+Not started, deliberately. [sdk.md](./sdk.md#there-is-no-official-python-sdk)
 gives the two reasons.
 
 ---
@@ -251,7 +263,7 @@ gives the two reasons.
 | [attribution.md](./attribution.md) | `accountId`, `applicationId`, `credentialId`, delegated `userId`, `requestId` — and why the delegated user never pays |
 | [catalogue.md](./catalogue.md) | Model vs. revision vs. provider vs. deployment vs. routing profile, the canonical id forms, and the SDK's read methods |
 | [routing.md](./routing.md) | Routing controls, fallback semantics, and exactly which controls are enforced |
-| [byok.md](./byok.md) | Provider connections, the `503`, and what would wire a secret store |
+| [byok.md](./byok.md) | Kaana PostgreSQL/KMS custody, Oxy opaque-handle metadata, the current `503`, and coordinated rollout gates |
 | [billing.md](./billing.md) | Reserve → settle → refund, exact amounts, price snapshots, and why dashboard usage is eventually consistent while a bill is not |
 | [streaming.md](./streaming.md) | Streaming, cancellation, retries and idempotency |
 | [data-policy.md](./data-policy.md) | What is retained, for how long, and where — plus what a route does with your payload |
@@ -259,7 +271,7 @@ gives the two reasons.
 | [migration.md](./migration.md) | The scope migration, `oxy_dk_*`, `alia_sk_*`, and the retired `alia-*` model names |
 | [request-routing.md](./request-routing.md) | The canonical Kaana/Alia/Oxy boundary, product paths, provider-key custody and cutover gates |
 | [alia.md](./alia.md) | Alia as a consumer: its registration, its scopes and the ones withheld, the internal cost centres, and the runbook for the operational steps |
-| [rollout.md](./rollout.md) | The four rollout flags, shadow metering, the stage table, and the rollback plan an append-only ledger forces |
+| [rollout.md](./rollout.md) | The rollout flags, shadow metering, the stage table, and the rollback plan an append-only ledger forces |
 | [observability.md](./observability.md) | The `requestId` correlation column, why there is no metrics library, what each named metric is derivable from, and how staff actions are told apart from customer ones |
 
 Ownership of every table, event and API across Oxy, the data plane and Alia is

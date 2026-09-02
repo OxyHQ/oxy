@@ -63,23 +63,80 @@ Oxy orders policy-qualified deployments with one explicit rule:
 
 1. for a routing profile, lower explicit candidate `priority` comes first;
 2. within the same priority, the reviewed score for `optimiseFor` is descending;
-3. if scores are equal, exact `deploymentId` code-unit comparison is the sole
-   deterministic tie-break.
+3. if scores are equal, lexicographic comparison of the exact `deploymentId` by
+   ECMAScript UTF-16 code units is the sole deterministic tie-break.
 
 Provider name, model name, display name, locale collation, insertion order and
 database return order never participate. Kaana receives the already ordered
 signed list, attempts it in that order and never re-ranks it by health or name.
 
-Selection fails closed before a reservation is created or Kaana is called when
+`maxPricePerRequest` qualifies routes within each explicit priority before the
+score/ID winner is admitted. The catalogue may prefilter the unavoidable flat
+fee because Kaana emits `requests: 1` once per attempted request, but the edge
+authoritatively quotes the complete maximum for this request from each pinned
+price version. A different currency or a total above the cap excludes that
+candidate. If the caller omitted `maxOutputTokens`, the first priority that has
+a price survivor chooses it by score descending then exact ID; that survivor's
+model maximum fixes the implicit output ceiling before lower priorities are
+resolved for capacity. A priority with no price survivor fixes nothing. If no
+candidate survives, the edge returns `policy_violation` (403) before reservation
+and before Kaana.
+
+Selection fails closed before a reservation is created or an inference request is sent when
 any otherwise eligible deployment lacks an exact ID, price version or required
 score; when score evidence is stale or names a different price version; or when
 an exact deployment ID is duplicated or collides with more than one approved
 mapping. One incomplete survivor invalidates the complete authorized set; it is
-not silently dropped to make another route selectable.
+not silently dropped to make another route selectable. A price version attached
+to a servable deployment is complete only when it explicitly prices the
+`requests` unit Kaana reports once per attempt; zero is allowed, absence is not.
+
+After Oxy has selected and ordered the complete authorized set, but before it
+creates a hold, it sends one signed, non-cacheable
+`POST /internal/v1/deployments/query` containing 1–64 unique exact
+`deploymentId` values. Kaana answers from one inventory snapshot. The response
+must contain exactly the same IDs once each, and every ID must still bind to the
+same revision-pinned `modelReference`, provider and complete region set that Oxy
+is about to sign. Missing, extra, duplicate, ambiguous or mismatched evidence;
+an unreadable response; or a transport failure returns `service_unavailable`
+with zero reservation, zero receipt and zero inference POST.
+
+That query is an attestation, never a selector: it cannot replace an ID with a
+provider or model name, and response order has no meaning. The later inference
+executor validates the exact route again because the inventory can change
+between the preflight snapshot and execution; the preflight is not described as
+a lease that Kaana does not actually provide.
 
 `regions: []` means that no upstream execution or residency region is attested.
 It does not mean global or unrestricted. Such a deployment is excluded whenever
 the effective policy has either an allowed-region or denied-region control.
+
+The v2 metering contract carries the same exact identity in both forms of usage
+evidence: a terminal normalized usage report requires `deploymentId`, and every
+partial streamed `usage` event requires `deploymentId` as well. The ID must
+resolve to exactly one entry in the signed `authorizedRoutes`; a terminal report
+must also match that entry's revision-pinned model and provider. Missing,
+unauthorized, ambiguous or contradictory identity is rejected rather than
+attributed to the admitted route. A present but invalid terminal report is not
+replaced by earlier partial evidence. Any known Kaana frame that is malformed or
+fails its per-shape schema invalidates the whole measurement record, so a v1 or
+malformed terminal `usage_report` is never reinterpreted as an absent report.
+
+## Conservative catalogue projection
+
+A model catalogue entry summarizes every deployment visible to that viewer; it
+does not select a representative route. Data-policy fields are aggregated in
+the conservative direction: any retention or training applies, the longest
+retention applies, zero-data-retention availability requires every visible
+route, and subprocessors are the union. A policy URL is published only when all
+routes agree.
+
+Regions and serving providers are unions. Singular pricing, availability scope
+and commercial permission are published only when every visible deployment
+agrees; otherwise that singular field is absent. No provider name, display name,
+locale comparison, insertion order or database order may invent a catalogue
+"primary" route. Runtime selection remains exclusively the explicit
+priority-score-ID rule above.
 
 ## Provider-key custody
 
@@ -93,12 +150,20 @@ key.
 Legacy SSM values are migration inputs, not supported steady state. The
 allow-listed `kaana-credentials import-ssm` command reads a `SecureString`
 directly through the AWS SDK, emits no value and writes KMS ciphertext to
-PostgreSQL. The historical Cerebras value follows this path. Remove the legacy
-parameter, old deployment reference and old service only after non-secret row
-metadata, authenticated discovery and a real signed Kaana request all pass.
+PostgreSQL. The historical Cerebras value must use this path; do not describe
+that migration as complete until non-secret row metadata, authenticated
+discovery and a real signed Kaana request all pass. Only then remove the legacy
+parameter, old deployment reference and old service.
 
-BYOK customer secrets remain an Oxy control-plane concern governed by ADR 0013;
-they are not the platform's own upstream provider-key pool.
+The same custody boundary includes customer BYOK credentials. Oxy owns the
+connection metadata and policy but stores only the opaque Kaana
+`credentialHandle` and exact revision. Kaana stores the ciphertext in
+PostgreSQL/KMS, bound to provider, owner account, connection, environment,
+handle and revision. The signed authorized route must carry that exact binding;
+no component may resolve BYOK by provider name or an Oxy/Vault locator. This is
+the accepted architecture in [ADR 0019](../adr/0019-kaana-byok-custody.md), while
+the Kaana and coordinated Oxy implementations remain draft and unverified in
+production.
 
 ## Provider and model discovery
 
@@ -125,7 +190,8 @@ verify all of the following against live state:
 2. Kaana serving tasks are running and healthy behind `https://kaana.ai`;
 3. a real Oxy-signed request streams successfully, cancellation reaches the
    provider, and settlement records the same `requestId` exactly once;
-4. a disallowed route/region and an invalid signature fail closed;
+4. a mismatched batch attestation, a disallowed route/region and an invalid
+   signature all fail closed, with no hold and no inference POST;
 5. provider credentials load from PostgreSQL/KMS and no provider key appears in
    any live task definition;
 6. Sindi and Clarity bot/agent provisioning is verified before those product
