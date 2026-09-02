@@ -16,22 +16,9 @@
  * captures once. There is no third lane, and no method behaves differently
  * depending on which one you used.
  *
- * ## What you will observe today
- *
- * **Every invoke refuses.** `respond()` reaches the public edge, which
- * authenticates the credential, resolves attribution, authorizes scopes, pins a
- * routing policy and reserves spend — and then has no data plane to forward to,
- * so it releases the hold and answers `service_unavailable`. That surfaces here
- * as an {@link OxyInferenceError} with `code: 'service_unavailable'`,
- * `retryable: false` and a `requestId`. It is the correct answer, not a
- * misconfiguration of yours, and no balance is spent.
- *
- * **The catalogue is empty**, so {@link OxyInferenceClient.listModels} answers
- * `[]` and {@link OxyInferenceClient.getModel} throws for every id. `[]` is a
- * normal answer to render, not an error to retry.
- *
- * `docs/inference/README.md` is the status board; `docs/inference/sdk.md` is
- * this client's page.
+ * `respond()` returns one completed response. `stream()` reads the same
+ * `/v1/responses` endpoint without buffering and validates every SSE event
+ * against `inferenceStreamEventSchema` before exposing it to the caller.
  *
  * ## Why this is a client and not more methods on `OxyServices`
  *
@@ -44,13 +31,12 @@
  * message string. `oxyServices.inference()` binds the session bearer into this
  * client so a session-holding app writes no plumbing of its own.
  *
- * ## Streaming is absent on purpose
+ * ## Streaming is an explicit method
  *
- * There is no `stream()` method and no `stream` field on a request. The stream
- * event union exists in `@oxyhq/contracts` and no endpoint emits one — the edge
- * refuses `stream: true` with `invalid_request`. A method that always failed
- * would be a worse artefact than an absent one. See
- * `docs/inference/streaming.md`.
+ * `stream()` injects `stream: true` on the wire. The request type deliberately
+ * has no `stream` field, so `respond({ stream: true })` cannot promise a JSON
+ * response while the server sends SSE, and `stream({ stream: false })` cannot
+ * silently buffer. The method is the transport choice.
  *
  * ## Field names, and the one place they could drift
  *
@@ -72,6 +58,7 @@ import type {
     InferenceFinishReason,
     InferenceMessage,
     InferenceRequestOutcome,
+    InferenceStreamEvent,
     ModelCatalogueEntry,
     ResponseFormat,
     RoutingPolicyReference,
@@ -82,7 +69,7 @@ import type {
     UsageQuantity,
     UsageSource,
 } from '@oxyhq/contracts';
-import { INFERENCE_ERROR_CODES, modelIdSchema } from '@oxyhq/contracts';
+import { INFERENCE_ERROR_CODES, inferenceStreamEventSchema, modelIdSchema } from '@oxyhq/contracts';
 
 /** The base URL of the Oxy API, when a caller names none. */
 export const OXY_INFERENCE_BASE_URL = 'https://api.oxy.so';
@@ -278,6 +265,25 @@ export class OxyInferenceError extends Error {
     }
 }
 
+/**
+ * The edge opened an SSE response but its framing or one of its events violated
+ * the published inference stream contract.
+ *
+ * This is distinct from {@link OxyInferenceError}: the latter is a refusal the
+ * server deliberately returned, while this error means the client could not
+ * safely interpret a nominally successful stream.
+ */
+export class OxyInferenceProtocolError extends Error {
+    /** The request id from the response header, when the edge supplied one. */
+    readonly requestId?: string;
+
+    constructor(message: string, requestId?: string) {
+        super(message);
+        this.name = 'OxyInferenceProtocolError';
+        if (requestId !== undefined) this.requestId = requestId;
+    }
+}
+
 /** `{ data, count }` — the catalogue's collection envelope. */
 interface CatalogueCollection<T> {
     data: T[];
@@ -302,12 +308,13 @@ interface WireInferenceError {
  * is cached, because the two things worth caching here are a catalogue that is
  * audience-scoped and a receipt that is immutable but rarely re-read.
  *
- * Successful responses are TYPED, not re-parsed. The server validates every one
- * against its own schema before serving it, and a second client-side parse of a
- * non-strict shape would silently DROP fields a newer API added — turning
- * forward compatibility into data loss. Refusals are read defensively, because
- * two routers answer under `/v1` and an unreadable failure must still reach the
- * caller as one.
+ * Completed JSON responses are TYPED, not re-parsed. The server validates every
+ * one against its own schema before serving it, and a second client-side parse
+ * of a non-strict shape would silently DROP fields a newer API added — turning
+ * forward compatibility into data loss. Stream events are different: each is a
+ * versioned wire message and is parsed against the shared contract before it is
+ * yielded. Refusals are read defensively, because two routers answer under `/v1`
+ * and an unreadable failure must still reach the caller as one.
  */
 export class OxyInferenceClient {
     readonly #baseURL: string;
@@ -405,10 +412,6 @@ export class OxyInferenceClient {
     /**
      * Send one non-streaming inference request — `POST /v1/responses`.
      *
-     * **This refuses in every deployment today** with `service_unavailable`,
-     * because there is no data plane behind the edge. The spend held for the
-     * request is released before the refusal returns, so nothing is charged.
-     *
      * @throws {OxyInferenceError} for every refusal, carrying the server's own
      *   `code`, `retryable` and `requestId`.
      */
@@ -426,6 +429,141 @@ export class OxyInferenceClient {
                 ? {}
                 : { delegatedUserId: options.delegatedUserId }),
         });
+    }
+
+    /**
+     * Stream one inference request from `POST /v1/responses`.
+     *
+     * The transport choice is method-level: this method adds `stream: true` and
+     * requests SSE, while {@link respond} never does. Every yielded value has
+     * already passed `inferenceStreamEventSchema`, belongs to the request id in
+     * the response header and advances the stream sequence. A terminal `error`
+     * event is yielded as part of the published union; an HTTP refusal before
+     * the stream opens throws {@link OxyInferenceError}.
+     *
+     * Breaking out of the iterator cancels the response body. Passing an abort
+     * signal additionally lets the caller cancel while waiting for the first or
+     * any later event.
+     *
+     * @throws {OxyInferenceError} when the edge refuses before opening SSE.
+     * @throws {OxyInferenceProtocolError} when a successful SSE response cannot
+     *   be interpreted under the published stream contract.
+     */
+    async *stream(
+        request: OxyResponsesRequest,
+        options: OxyInferenceRequestOptions = {},
+    ): AsyncGenerator<InferenceStreamEvent> {
+        const response = await this.#fetch(`${this.#baseURL}/v1/responses`, {
+            method: 'POST',
+            headers: await this.#headers('text/event-stream', {
+                hasBody: true,
+                ...(options.idempotencyKey === undefined
+                    ? {}
+                    : { idempotencyKey: options.idempotencyKey }),
+                ...(options.delegatedUserId === undefined
+                    ? {}
+                    : { delegatedUserId: options.delegatedUserId }),
+            }),
+            body: JSON.stringify({ ...request, stream: true }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+        });
+
+        if (!response.ok) {
+            const payload: unknown = await response.json().catch(() => undefined);
+            throw toInferenceError(
+                payload,
+                response.status,
+                response.headers.get('X-Oxy-Request-Id'),
+            );
+        }
+
+        const requestId = response.headers.get('X-Oxy-Request-Id') ?? undefined;
+        const mediaType = response.headers
+            .get('Content-Type')
+            ?.split(';', 1)[0]
+            ?.trim()
+            .toLowerCase();
+        if (mediaType !== 'text/event-stream') {
+            await cancelUnreadResponse(response);
+            throw protocolError(
+                `The inference API answered a streaming request with ${mediaType ?? 'no Content-Type'} instead of text/event-stream.`,
+                requestId,
+            );
+        }
+        if (requestId === undefined || requestId.length === 0) {
+            await cancelUnreadResponse(response);
+            throw protocolError(
+                'The inference API opened a stream without X-Oxy-Request-Id.',
+                requestId,
+            );
+        }
+        if (response.body === null) {
+            throw protocolError(
+                'The inference API opened a stream with no response body.',
+                requestId,
+            );
+        }
+
+        let lastSequence = -1;
+        let terminal = false;
+        for await (const frame of decodeEventStream(response.body, requestId)) {
+            if (terminal) {
+                throw protocolError(
+                    'The inference API sent an event after a terminal event.',
+                    requestId,
+                );
+            }
+
+            let payload: unknown;
+            try {
+                payload = JSON.parse(frame.data);
+            } catch (_error) {
+                throw protocolError(
+                    `The inference API sent a ${frame.name || 'unnamed'} SSE event that is not JSON.`,
+                    requestId,
+                );
+            }
+
+            const parsed = inferenceStreamEventSchema.safeParse(payload);
+            if (!parsed.success) {
+                const path = parsed.error.issues[0]?.path;
+                throw protocolError(
+                    `The inference API sent an event outside the published stream contract at ${path === undefined || path.length === 0 ? 'an unknown field' : path.join('.')}.`,
+                    requestId,
+                );
+            }
+
+            const event = parsed.data;
+            if (frame.name !== event.type) {
+                throw protocolError(
+                    `The inference API framed a ${event.type} event as ${frame.name || 'unnamed'}.`,
+                    requestId,
+                );
+            }
+            if (event.requestId !== requestId) {
+                throw protocolError(
+                    'The inference API sent an event for a different request id.',
+                    requestId,
+                );
+            }
+            if (event.sequence <= lastSequence) {
+                throw protocolError(
+                    'The inference API sent a stream sequence that did not advance.',
+                    requestId,
+                );
+            }
+
+            lastSequence = event.sequence;
+            terminal = event.type === 'done' || event.type === 'error';
+            yield event;
+        }
+
+        if (!terminal) {
+            throw protocolError(
+                'The inference API closed the stream before a terminal done or error event.',
+                requestId,
+            );
+        }
     }
 
     /**
@@ -464,6 +602,29 @@ export class OxyInferenceClient {
         return value;
     }
 
+    /** Build the authenticated headers for one request, re-reading its bearer. */
+    async #headers(
+        accept: 'application/json' | 'text/event-stream',
+        options: {
+            hasBody: boolean;
+            idempotencyKey?: string;
+            delegatedUserId?: string;
+        },
+    ): Promise<Record<string, string>> {
+        const headers: Record<string, string> = {
+            Authorization: `Bearer ${await this.#bearer()}`,
+            Accept: accept,
+        };
+        if (options.hasBody) headers['Content-Type'] = 'application/json';
+        if (options.idempotencyKey !== undefined) {
+            headers['Idempotency-Key'] = options.idempotencyKey;
+        }
+        if (options.delegatedUserId !== undefined) {
+            headers['X-Oxy-User-Id'] = options.delegatedUserId;
+        }
+        return headers;
+    }
+
     /**
      * One request, and the one place a refusal becomes an
      * {@link OxyInferenceError}.
@@ -485,21 +646,17 @@ export class OxyInferenceClient {
             delegatedUserId?: string;
         },
     ): Promise<T> {
-        const headers: Record<string, string> = {
-            Authorization: `Bearer ${await this.#bearer()}`,
-            Accept: 'application/json',
-        };
-        if (options.body !== undefined) headers['Content-Type'] = 'application/json';
-        if (options.idempotencyKey !== undefined) {
-            headers['Idempotency-Key'] = options.idempotencyKey;
-        }
-        if (options.delegatedUserId !== undefined) {
-            headers['X-Oxy-User-Id'] = options.delegatedUserId;
-        }
-
         const response = await this.#fetch(`${this.#baseURL}${path}`, {
             method,
-            headers,
+            headers: await this.#headers('application/json', {
+                hasBody: options.body !== undefined,
+                ...(options.idempotencyKey === undefined
+                    ? {}
+                    : { idempotencyKey: options.idempotencyKey }),
+                ...(options.delegatedUserId === undefined
+                    ? {}
+                    : { delegatedUserId: options.delegatedUserId }),
+            }),
             ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
         });
@@ -515,6 +672,121 @@ export class OxyInferenceClient {
         }
 
         return payload as T;
+    }
+}
+
+/** Bound one public SSE event before parsing it as JSON. */
+const MAX_INFERENCE_STREAM_EVENT_CHARACTERS = 8 * 1024 * 1024;
+
+/** One SSE frame after transport decoding and before contract validation. */
+interface RawInferenceStreamFrame {
+    readonly name: string;
+    readonly data: string;
+}
+
+function protocolError(message: string, requestId?: string): OxyInferenceProtocolError {
+    return new OxyInferenceProtocolError(message, requestId);
+}
+
+/** Cancel a nominally successful response whose stream contract is unreadable. */
+async function cancelUnreadResponse(response: Response): Promise<void> {
+    await response.body?.cancel().catch(() => undefined);
+}
+
+/**
+ * Decode SSE incrementally, preserving chunk boundaries only until a complete
+ * line is available.
+ *
+ * Multiple `data:` lines join with a newline, comments are ignored and a final
+ * frame does not need a trailing blank line. Cancelling the iterator cancels the
+ * body reader, which is how breaking out of `for await` closes the HTTP request
+ * instead of leaving generation running upstream.
+ */
+async function* decodeEventStream(
+    body: ReadableStream<Uint8Array>,
+    requestId: string,
+): AsyncGenerator<RawInferenceStreamFrame> {
+    const reader = body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let pending = '';
+    let name = '';
+    let data: string[] = [];
+    let accumulated = 0;
+    let reachedEnd = false;
+
+    const dispatch = (): RawInferenceStreamFrame | undefined => {
+        if (data.length === 0 && name.length === 0) return undefined;
+        const frame = { name, data: data.join('\n') };
+        name = '';
+        data = [];
+        accumulated = 0;
+        return frame;
+    };
+
+    const consume = (raw: string): RawInferenceStreamFrame | undefined => {
+        const line = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
+        if (line.length === 0) return dispatch();
+        if (line.startsWith(':')) return undefined;
+
+        const separator = line.indexOf(':');
+        const field = separator === -1 ? line : line.slice(0, separator);
+        const rawValue = separator === -1 ? '' : line.slice(separator + 1);
+        const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue;
+
+        if (field === 'data') {
+            accumulated += value.length;
+            if (accumulated > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
+                throw protocolError(
+                    `The inference API sent an SSE event over ${MAX_INFERENCE_STREAM_EVENT_CHARACTERS} characters.`,
+                    requestId,
+                );
+            }
+            data.push(value);
+        } else if (field === 'event') {
+            name = value.trim();
+        }
+        return undefined;
+    };
+
+    try {
+        for (;;) {
+            const chunk = await reader.read();
+            if (chunk.done) {
+                reachedEnd = true;
+                break;
+            }
+
+            pending += decoder.decode(chunk.value, { stream: true });
+            if (pending.length > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
+                throw protocolError(
+                    `The inference API sent an SSE line over ${MAX_INFERENCE_STREAM_EVENT_CHARACTERS} characters with no boundary.`,
+                    requestId,
+                );
+            }
+
+            let newline = pending.indexOf('\n');
+            while (newline !== -1) {
+                const frame = consume(pending.slice(0, newline));
+                pending = pending.slice(newline + 1);
+                if (frame !== undefined) yield frame;
+                newline = pending.indexOf('\n');
+            }
+        }
+
+        pending += decoder.decode();
+        if (pending.length > 0) {
+            const frame = consume(pending);
+            if (frame !== undefined) yield frame;
+        }
+        const trailing = dispatch();
+        if (trailing !== undefined) yield trailing;
+    } finally {
+        if (!reachedEnd) {
+            // Preserve the original parse/abort error if transport cancellation
+            // itself also refuses: cancellation is cleanup, never the diagnosis.
+            await reader.cancel().catch(() => undefined);
+        }
+        reader.releaseLock();
     }
 }
 
