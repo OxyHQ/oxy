@@ -1,5 +1,9 @@
 import type { AppCapabilityCatalog } from '@oxyhq/contracts';
-import { createServer, type Server } from 'node:http';
+import {
+  createServer,
+  request as createHttpRequest,
+  type Server,
+} from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createCatalogMcpHttpService } from '../httpTransport';
 
@@ -185,6 +189,31 @@ describe('catalog MCP HTTP service', () => {
     });
 
     expect(response.status).toBe(403);
+    expect(introspectionFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects the MCP route on a host other than the bound resource', async () => {
+    const status = await new Promise<number>((resolve, reject) => {
+      const target = new URL(baseUrl);
+      const request = createHttpRequest({
+        hostname: target.hostname,
+        port: target.port,
+        path: '/mcp',
+        method: 'POST',
+        headers: {
+          ...authorizedHeaders(),
+          host: 'api.noted.test',
+          'content-length': '2',
+        },
+      }, (response) => {
+        response.resume();
+        response.once('end', () => resolve(response.statusCode ?? 0));
+      });
+      request.once('error', reject);
+      request.end('{}');
+    });
+
+    expect(status).toBe(421);
     expect(introspectionFetch).not.toHaveBeenCalled();
   });
 

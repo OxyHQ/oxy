@@ -147,6 +147,17 @@ function configureCors(
   return true;
 }
 
+function requireResourceHost(
+  request: IncomingMessage,
+  response: ServerResponse,
+  expectedHost: string,
+): boolean {
+  const host = singleHeader(request.headers.host)?.toLowerCase();
+  if (host === expectedHost) return true;
+  sendJsonRpcError(response, 421, -32000, 'Request was sent to the wrong resource host.');
+  return false;
+}
+
 function readJsonBody(request: IncomingMessage, maxBodyBytes: number): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const contentLength = Number(singleHeader(request.headers['content-length']));
@@ -227,6 +238,7 @@ export function createCatalogMcpHttpService(
   }
 
   const protectedResourceMetadataPath = metadataPath(resource);
+  const resourceHost = new URL(resource).host.toLowerCase();
   const protectedResourceMetadataUrl = new URL(
     protectedResourceMetadataPath,
     resource,
@@ -294,6 +306,10 @@ export function createCatalogMcpHttpService(
     response: ServerResponse,
   ): Promise<void> => {
     const request = incoming as McpHttpRequest;
+    if (!requireResourceHost(request, response, resourceHost)) {
+      request.resume();
+      return;
+    }
     if (!configureCors(request, response, allowedOrigins)) {
       request.resume();
       return;
@@ -366,6 +382,10 @@ export function createCatalogMcpHttpService(
       request: IncomingMessage,
       response: ServerResponse,
     ): void {
+      if (!requireResourceHost(request, response, resourceHost)) {
+        request.resume();
+        return;
+      }
       if (!configureCors(request, response, allowedOrigins)) return;
       if (request.method === 'OPTIONS') {
         response.statusCode = 204;
