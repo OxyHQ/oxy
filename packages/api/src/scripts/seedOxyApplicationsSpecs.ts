@@ -232,6 +232,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://inbox.oxy.so',
     type: 'first_party',
     redirectUris: ['https://inbox.oxy.so'],
+    scopes: [
+      'user:read',
+      'catalogs:write',
+      'capability-events:publish',
+    ],
+    capabilities: [catalogApplicationCapability('inbox')],
   },
   {
     name: 'Oxy Auth',
