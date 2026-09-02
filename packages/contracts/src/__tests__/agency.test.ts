@@ -256,4 +256,32 @@ describe('agency contracts', () => {
             ]));
         }
     });
+
+    it('binds external MCP catalogs to a canonical secure resource URI', () => {
+        const catalog = {
+            schemaVersion: '1' as const,
+            appId: 'mention',
+            version: '1.0.0',
+            audience: 'mention-api',
+            internalBaseUrl: 'https://api.mention.earth',
+            accountResourceType: 'mention_account',
+            externalMcp: { resource: 'https://mcp.mention.earth' },
+            tools: [],
+            events: [],
+        };
+
+        expect(appCapabilityCatalogSchema.safeParse(catalog).success).toBe(true);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            externalMcp: { resource: 'http://mcp.mention.earth' },
+        }).success).toBe(false);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            externalMcp: { resource: 'https://user:secret@mcp.mention.earth' },
+        }).success).toBe(false);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            externalMcp: { resource: 'https://mcp.mention.earth?account=other' },
+        }).success).toBe(false);
+    });
 });

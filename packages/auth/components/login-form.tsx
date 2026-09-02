@@ -25,6 +25,8 @@ type LoginFormProps = React.ComponentProps<"div"> & {
     codeChallenge?: string
     codeChallengeMethod?: string
     scope?: string
+    resource?: string
+    responseType?: string
     /**
      * `response_mode=web_message` (popup sign-in), carried through to
      * `/authorize` so the result is posted to the opener rather than navigating
@@ -61,6 +63,8 @@ export function LoginForm({
     codeChallenge,
     codeChallengeMethod,
     scope,
+    resource,
+    responseType,
     responseMode,
     loginHint,
     ...props
@@ -75,6 +79,8 @@ export function LoginForm({
         if (codeChallenge) params.set("code_challenge", codeChallenge)
         if (codeChallengeMethod) params.set("code_challenge_method", codeChallengeMethod)
         if (scope) params.set("scope", scope)
+        if (resource) params.set("resource", resource)
+        if (responseType) params.set("response_type", responseType)
         if (responseMode) params.set("response_mode", responseMode)
         const qs = params.toString()
         return qs ? `/signup?${qs}` : "/signup"
@@ -194,6 +200,8 @@ export function LoginForm({
             codeChallenge,
             codeChallengeMethod,
             scope,
+            resource,
+            responseType,
             responseMode,
         }))
     }

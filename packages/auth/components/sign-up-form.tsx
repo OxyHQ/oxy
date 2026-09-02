@@ -21,6 +21,8 @@ type SignUpFormProps = React.ComponentProps<"div"> & {
     codeChallenge?: string
     codeChallengeMethod?: string
     scope?: string
+    resource?: string
+    responseType?: string
     /**
      * `response_mode=web_message` (popup sign-in), carried through to
      * `/authorize` so the result is posted to the opener rather than navigating
@@ -98,10 +100,27 @@ export function SignUpForm({
     codeChallenge,
     codeChallengeMethod,
     scope,
+    resource,
+    responseType,
     responseMode,
     ...props
 }: SignUpFormProps) {
     const navigate = useNavigate()
+    const loginPath = (() => {
+        const params = new URLSearchParams()
+        if (sessionToken) params.set("token", sessionToken)
+        if (redirectUri) params.set("redirect_uri", redirectUri)
+        if (state) params.set("state", state)
+        if (clientId) params.set("client_id", clientId)
+        if (codeChallenge) params.set("code_challenge", codeChallenge)
+        if (codeChallengeMethod) params.set("code_challenge_method", codeChallengeMethod)
+        if (scope) params.set("scope", scope)
+        if (resource) params.set("resource", resource)
+        if (responseType) params.set("response_type", responseType)
+        if (responseMode) params.set("response_mode", responseMode)
+        const query = params.toString()
+        return query ? `/login?${query}` : "/login"
+    })()
     // Sign-up commits its session through the SAME device-first SDK funnel every
     // Oxy app uses (`registerWithPasskey`): it runs the WebAuthn creation
     // ceremony, plants the access token, persists the zero-cookie
@@ -150,6 +169,8 @@ export function SignUpForm({
                 codeChallenge,
                 codeChallengeMethod,
                 scope,
+                resource,
+                responseType,
                 responseMode,
             }))
         } catch (err) {
@@ -203,7 +224,7 @@ export function SignUpForm({
                         </Button>
                     </Field>
                     <FieldDescription>
-                        Already have an account? <Link to="/login">Sign in</Link>
+                        Already have an account? <Link to={loginPath}>Sign in</Link>
                     </FieldDescription>
                 </FieldGroup>
             </form>

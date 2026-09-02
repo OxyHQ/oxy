@@ -1,8 +1,11 @@
+import { generateKeyPairSync } from 'node:crypto';
 import {
   createMcpAuthInfo,
+  issueMcpAccessToken,
   mcpPrincipalFromAuthInfo,
   validateMcpAccessTokenClaims,
   verifyMcpAccessToken,
+  verifyMcpAccessTokenSignature,
 } from '../oauth';
 
 const claims = {
@@ -30,6 +33,39 @@ const options = {
 };
 
 describe('MCP OAuth validation', () => {
+  it('issues and verifies a distinct Ed25519 access-token profile', () => {
+    const keyPair = generateKeyPairSync('ed25519');
+    const issued = issueMcpAccessToken({
+      sub: claims.sub,
+      aud: claims.aud,
+      resource: claims.resource,
+      client_id: claims.client_id,
+      scope: claims.scope,
+      account_id: claims.account_id,
+    }, {
+      privateKey: keyPair.privateKey,
+      keyId: 'mcp-test-key',
+      issuer: claims.iss,
+      ttlSeconds: 300,
+      now: options.now,
+      jti: claims.jti,
+    });
+
+    expect(issued.claims).toMatchObject(claims);
+    expect(verifyMcpAccessTokenSignature(issued.token, {
+      resolvePublicKey: (keyId) => keyId === 'mcp-test-key' ? keyPair.publicKey : undefined,
+    })).toEqual(issued.claims);
+    const [header, payload, encodedSignature] = issued.token.split('.');
+    const invalidSignature = Buffer.from(encodedSignature, 'base64url');
+    invalidSignature[0] ^= 0x01;
+    expect(() => verifyMcpAccessTokenSignature(`${header}.${payload}.${invalidSignature.toString('base64url')}`, {
+      resolvePublicKey: () => keyPair.publicKey,
+    })).toThrow('signature is invalid');
+    expect(() => verifyMcpAccessTokenSignature(`${header}.${payload}.invalid+base64`, {
+      resolvePublicKey: () => keyPair.publicKey,
+    })).toThrow('invalid base64url');
+  });
+
   it('accepts only the exact issuer, audience, resource, account and scope', () => {
     expect(validateMcpAccessTokenClaims(claims, options).jti).toBe('token-1');
     expect(() => validateMcpAccessTokenClaims(claims, {
