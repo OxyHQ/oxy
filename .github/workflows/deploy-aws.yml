@@ -215,6 +215,12 @@ jobs:
           # deploy AFTER the one that stranded 0013 and left production broken.
           RUN_MIGRATIONS: "true"
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.post_migrations.outputs.command }}
+          # Plain operational configuration, not a provider key or secret. A
+          # scorecard must outlive at least the next hour before staff may
+          # approve its route. Phase A ships this without a PRE gate so real
+          # scorecards can be authored before serving enforcement is enabled.
+          TASK_ENV_OVERRIDES_JSON: >-
+            {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600"}
           # The deploy script renders from the task definition the service is
           # currently running, not from Terraform's latest registered revision.
           # Re-assert new bindings here so capability authority cannot disappear

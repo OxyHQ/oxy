@@ -612,6 +612,19 @@ if grep -F 'do-not-print' "$case_directory/output.log" >/dev/null; then
   exit 1
 fi
 
+# Phase A must publish the non-secret score validity horizon before operators
+# can approve serving routes, but it must not activate the readiness gate in
+# the same release. That separation leaves a safe authoring window between the
+# additive schema/API rollout and serving enforcement.
+workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
+grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
+grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600"}' \
+  "$workflow_file" >/dev/null
+if grep -F 'PRE_DEPLOY_TASK_COMMAND_JSON:' "$workflow_file" >/dev/null; then
+  echo "Phase A must not activate the inference routing readiness gate." >&2
+  exit 1
+fi
+
 run_release reconciliation-failure false false false 1
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
