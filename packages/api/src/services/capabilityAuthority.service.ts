@@ -88,9 +88,6 @@ function mergeLimits(primary: readonly GrantLimit[], narrowing: readonly GrantLi
       merged.set(mapKey, limit);
     } else if (typeof current.value === 'number' && typeof limit.value === 'number') {
       merged.set(mapKey, { ...limit, value: Math.min(current.value, limit.value) });
-    } else if (Array.isArray(current.value) && Array.isArray(limit.value)) {
-      const allowedValues = limit.value;
-      merged.set(mapKey, { ...limit, value: current.value.filter((value) => allowedValues.includes(value)) });
     } else if (current.value !== limit.value) {
       throw new Error(`Execution limit ${limit.tool}.${limit.key} conflicts with the delegation`);
     }

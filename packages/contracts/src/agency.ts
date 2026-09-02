@@ -2,6 +2,12 @@ import { z } from 'zod';
 
 const nonEmptyStringSchema = z.string().trim().min(1);
 const identifierSchema = z.string().trim().min(1).max(255);
+const limitKeySchema = z.string().regex(
+    /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*$/,
+    'limit keys must be dot-separated input property names',
+).max(255);
+const auditCodeSchema = z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/);
+const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
 
 /** Autonomy is ordered from least to most permissive. */
 export const AUTONOMY_LEVELS = [
@@ -51,8 +57,11 @@ export const toolGrantOverrideSchema = z.object({
 
 export const grantLimitSchema = z.object({
     tool: identifierSchema,
-    key: identifierSchema,
-    value: z.union([z.string(), z.number().finite(), z.boolean(), z.array(z.string())]),
+    key: limitKeySchema,
+    // Persisted limits are deliberately closed scalar bounds. Strings and
+    // arrays are tool arguments in disguise (recipient lists, prompts, search
+    // queries) and ADR 0016 forbids persisting those in Oxy.
+    value: z.union([z.number().finite(), z.boolean()]),
 }).strict();
 
 export const executionAuthorizationRefSchema = z.discriminatedUnion('kind', [
@@ -211,8 +220,7 @@ export const policyDecisionSchema = z.object({
 
 export const auditResultSchema = z.object({
     status: z.enum(['planned', 'allowed', 'denied', 'succeeded', 'failed', 'rolled_back']),
-    code: identifierSchema.optional(),
-    message: z.string().max(2_000).optional(),
+    code: auditCodeSchema.optional(),
 }).strict();
 
 export const auditEventSchema = z.object({
@@ -237,7 +245,7 @@ export const auditEventSchema = z.object({
         runId: identifierSchema,
         stepId: identifierSchema.optional(),
         automationId: identifierSchema.optional(),
-        idempotencyKey: identifierSchema.optional(),
+        idempotencyKeyHash: sha256HexSchema.optional(),
         capabilityTicketId: identifierSchema.optional(),
     }).strict(),
 }).strict();
@@ -255,6 +263,10 @@ export const catalogToolSchema = z.object({
     idempotency: z.enum(['none', 'supported', 'required']),
     rollback: z.enum(['none', 'manual', 'supported']),
     exposure: z.array(z.enum(['internal', 'mcp'])).min(1),
+    limitKeys: z.array(z.object({
+        key: limitKeySchema,
+        kind: z.enum(['maximum_number', 'exact_boolean']),
+    }).strict()).default([]),
     invocation: z.object({
         method: z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']),
         path: nonEmptyStringSchema,
@@ -273,6 +285,34 @@ export const catalogToolSchema = z.object({
     requireUnique(tool.requiredCapabilities, 'requiredCapabilities');
     requireUnique(tool.resourceTypes, 'resourceTypes');
     requireUnique(tool.exposure, 'exposure');
+    requireUnique(tool.limitKeys.map((limit) => limit.key), 'limitKeys');
+
+    const inputSchemaAt = (key: string): Record<string, unknown> | null => {
+        let schema: unknown = tool.inputSchema;
+        for (const segment of key.split('.')) {
+            if (typeof schema !== 'object' || schema === null || Array.isArray(schema)) return null;
+            const properties = (schema as Record<string, unknown>).properties;
+            if (typeof properties !== 'object' || properties === null || Array.isArray(properties)) return null;
+            schema = (properties as Record<string, unknown>)[segment];
+        }
+        return typeof schema === 'object' && schema !== null && !Array.isArray(schema)
+            ? schema as Record<string, unknown>
+            : null;
+    };
+    for (const [index, limit] of tool.limitKeys.entries()) {
+        const input = inputSchemaAt(limit.key);
+        const inputType = input?.type;
+        const compatible = limit.kind === 'maximum_number'
+            ? inputType === 'number' || inputType === 'integer'
+            : inputType === 'boolean';
+        if (!compatible) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: `${limit.kind} must name a compatible input property`,
+                path: ['limitKeys', index, 'key'],
+            });
+        }
+    }
 
     if (tool.inputSchema.type !== 'object') {
         context.addIssue({

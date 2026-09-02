@@ -1,17 +1,21 @@
 import { and, eq } from 'drizzle-orm';
-import type { AuditEvent, CapabilityTicketClaims } from '@oxyhq/contracts';
+import { auditEventSchema, type AuditEvent, type CapabilityTicketClaims } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { capabilityAuditEvents, capabilityIdempotencyKeys } from '../db/schema/agency';
 import { mailboxes } from '../db/schema/mailboxes';
 import { messages } from '../db/schema/messages';
 
 export async function persistCapabilityAuditEvent(event: AuditEvent): Promise<void> {
+  // Runtime callers and direct route handlers share this write edge. Parse the
+  // exact strict contract here so a cast or future caller cannot smuggle an
+  // invocation body into the JSON audit envelope.
+  const boundedEvent = auditEventSchema.parse(event);
   await getDb().insert(capabilityAuditEvents).values({
-    eventKey: event.eventId,
-    effectiveAccountKey: event.effectiveAccountId,
-    executorAccountKey: event.executor.type === 'agent' ? event.executor.accountId : null,
-    runKey: event.correlation.runId,
-    event,
+    eventKey: boundedEvent.eventId,
+    effectiveAccountKey: boundedEvent.effectiveAccountId,
+    executorAccountKey: boundedEvent.executor.type === 'agent' ? boundedEvent.executor.accountId : null,
+    runKey: boundedEvent.correlation.runId,
+    event: boundedEvent,
   }).onConflictDoNothing({ target: capabilityAuditEvents.eventKey });
 }
 
