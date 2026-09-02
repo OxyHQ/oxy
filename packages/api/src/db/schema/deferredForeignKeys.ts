@@ -29,6 +29,7 @@
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { DeferredForeignKey } from '@oxyhq/db/assert';
+import { capabilityExecutionAuthorizations } from './agency';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
 import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';
@@ -94,6 +95,30 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.runId,
+    reason:
+      'The Alia runtime owns runs in its own database. Oxy preserves the opaque ' +
+      'run identifier for capability authorization and audit correlation, but has ' +
+      'no local run row to reference.',
+  },
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.stepId,
+    reason:
+      'The Alia runtime owns steps in its own database. Oxy preserves the opaque ' +
+      'step identifier for capability authorization and audit correlation, but has ' +
+      'no local step row to reference.',
+  },
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.automationId,
+    reason:
+      'The Alia runtime owns automation definitions in its own database. Oxy ' +
+      'preserves the opaque automation identifier for capability authorization and ' +
+      'audit correlation, but has no local automation row to reference.',
+  },
   {
     table: followEvents,
     column: followEvents.relationshipId,
