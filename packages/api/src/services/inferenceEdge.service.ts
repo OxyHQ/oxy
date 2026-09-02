@@ -780,10 +780,17 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   let implicitOutputCeiling: number | undefined;
   let sawOutputLimit = false;
   let sawContextLimit = false;
+  let sawRequestPriceExclusion = false;
   let concreteFailure: Exclude<
     Awaited<ReturnType<typeof resolveEdgeRoute>>,
     { readonly status: 'resolved' }
   > | undefined;
+  const maxPricePerRequest = routingConstraints.maxPricePerRequest;
+  const priceEligibleDeploymentIds = new Set<string>();
+  const quotedCandidateCeilings = new Map<
+    string,
+    { readonly amount: string; readonly currency: string }
+  >();
 
   const capacityForNextPriority = (): typeof requiredCapacity =>
     request.operation.kind === 'completion' &&
@@ -792,22 +799,96 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
       ? { inputTokens: estimatedInputTokens, outputTokens: implicitOutputCeiling }
       : requiredCapacity;
 
-  const fixImplicitCeilingFrom = (resolutions: readonly ResolvedRoutes[]): void => {
-    if (
-      request.operation.kind !== 'completion' ||
-      requestedOutput !== undefined ||
-      implicitOutputCeiling !== undefined
-    ) {
-      return;
-    }
-    const primary = resolutions
+  const qualifyPriority = async (
+    resolutions: readonly ResolvedRoutes[]
+  ): Promise<Admission | undefined> => {
+    const rankedAtPriority = resolutions
       .flatMap((resolution) => [resolution.route, ...resolution.alternates])
       .sort((left, right) => {
         const byScore = right.routingScore - left.routingScore;
         if (byScore !== 0) return byScore;
         return compareExactDeploymentIds(left.deploymentId, right.deploymentId);
-      })[0];
-    if (primary !== undefined) implicitOutputCeiling = primary.maxOutputTokens;
+      });
+
+    // Without a request ceiling there is no price qualification to perform at
+    // this stage. Preserve the original rule: the first resolvable priority's
+    // score/ID winner fixes an omitted output ceiling before lower priorities
+    // are resolved, so a smaller fallback is rejected on capacity before its
+    // route evidence can affect this request.
+    if (maxPricePerRequest === undefined) {
+      if (
+        request.operation.kind === 'completion' &&
+        requestedOutput === undefined &&
+        implicitOutputCeiling === undefined
+      ) {
+        implicitOutputCeiling = rankedAtPriority[0]?.maxOutputTokens;
+      }
+      return undefined;
+    }
+
+    const priceSurvivors: EdgeRoute[] = [];
+    for (const route of rankedAtPriority) {
+      const candidateMaxOutputTokens = outputTokenBudget(
+        request.operation,
+        requestedOutput ?? route.maxOutputTokens
+      );
+      let candidateQuote: { readonly amount: string; readonly currency: string } | undefined;
+      for (const units of ceilingQuoteScenarios(
+        request.operation,
+        estimatedInputTokens,
+        candidateMaxOutputTokens
+      )) {
+        const scenarioQuote = await quoteUnits(route.priceVersionId, units);
+        if (scenarioQuote.status !== 'quoted') {
+          logger.error(
+            'inference.edge.routing_evidence_unavailable',
+            new Error(`route ${route.deploymentId} could not be quoted: ${scenarioQuote.status}`),
+            { requestId, deploymentId: route.deploymentId, reason: scenarioQuote.status }
+          );
+          return routingEvidenceRefusal(
+            requestedModelReference || route.modelReference,
+            'missing-price'
+          );
+        }
+        if (
+          candidateQuote === undefined ||
+          exceedsAmount(scenarioQuote.amount, candidateQuote.amount)
+        ) {
+          candidateQuote = { amount: scenarioQuote.amount, currency: scenarioQuote.currency };
+        }
+      }
+      if (candidateQuote === undefined) {
+        return routingEvidenceRefusal(
+          requestedModelReference || route.modelReference,
+          'missing-price'
+        );
+      }
+      quotedCandidateCeilings.set(route.deploymentId, candidateQuote);
+      if (
+        candidateQuote.currency === maxPricePerRequest.currency &&
+        !exceedsAmount(candidateQuote.amount, maxPricePerRequest.amount)
+      ) {
+        priceEligibleDeploymentIds.add(route.deploymentId);
+        priceSurvivors.push(route);
+      } else {
+        sawRequestPriceExclusion = true;
+      }
+    }
+
+    // Price is a qualification control. Only a survivor at this priority may
+    // fix an omitted output ceiling; if every route is over the cap, resolve the
+    // next priority against its own model maximum instead. Once fixed, lower
+    // priorities are capacity-filtered by resolveEdgeRoute BEFORE their exact
+    // ID/price/score evidence is evaluated.
+    if (
+      request.operation.kind === 'completion' &&
+      requestedOutput === undefined &&
+      implicitOutputCeiling === undefined &&
+      priceSurvivors[0] !== undefined
+    ) {
+      implicitOutputCeiling = priceSurvivors[0].maxOutputTokens;
+    }
+    return undefined;
   };
 
   if (target.kind === 'model') {
@@ -828,7 +909,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     }
     if (primary.status === 'resolved') {
       routeGroups.push({ priority: 0, resolution: primary });
-      fixImplicitCeilingFrom([primary]);
+      const qualification = await qualifyPriority([primary]);
+      if (qualification !== undefined) return qualification;
     } else {
       concreteFailure = primary;
       if (primary.status === 'capacity-unavailable') {
@@ -856,7 +938,8 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
         }
         if (fallback.status === 'resolved') {
           routeGroups.push({ priority: index + 1, resolution: fallback });
-          fixImplicitCeilingFrom([fallback]);
+          const qualification = await qualifyPriority([fallback]);
+          if (qualification !== undefined) return qualification;
         } else if (fallback.status === 'capacity-unavailable') {
           sawOutputLimit ||= fallback.outputLimitExceeded;
           sawContextLimit ||= fallback.contextLimitExceeded;
@@ -901,13 +984,20 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
           sawContextLimit ||= resolution.contextLimitExceeded;
         }
       }
-      fixImplicitCeilingFrom(resolvedAtPriority);
+      const qualification = await qualifyPriority(resolvedAtPriority);
+      if (qualification !== undefined) return qualification;
     }
   }
 
   const rankedCandidates: RankedCandidate[] = [];
   for (const group of routeGroups) {
     for (const route of [group.resolution.route, ...group.resolution.alternates]) {
+      if (
+        maxPricePerRequest !== undefined &&
+        !priceEligibleDeploymentIds.has(route.deploymentId)
+      ) {
+        continue;
+      }
       if (requestedOutput !== undefined && requestedOutput > route.maxOutputTokens) {
         sawOutputLimit = true;
         continue;
@@ -947,6 +1037,22 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
 
   const primaryCandidate = uniqueCandidates[0];
   if (primaryCandidate === undefined) {
+    if (maxPricePerRequest !== undefined && sawRequestPriceExclusion) {
+      const refusedReference =
+        requestedModelReference ||
+        routeGroups[0]?.resolution.route.modelReference ||
+        (target.kind === 'routing_profile' ? target.routingProfile : target.modelReference);
+      await recordEdgeTelemetry(context, {
+        requestedModelReference: refusedReference,
+        statusCode: inferenceErrorStatus('policy_violation'),
+        units: {},
+      });
+      return refuse(
+        'policy_violation',
+        `Every route for ${refusedReference} is excluded by this application’s routing policy: maxPricePerRequest.`,
+        { reason: 'policy_excluded:maxPricePerRequest' }
+      );
+    }
     if (target.kind === 'model' && concreteFailure?.status === 'unknown-model') {
       await recordEdgeTelemetry(context, {
         requestedModelReference,
@@ -1042,19 +1148,24 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
   const quotes = new Map<string, { readonly amount: string; readonly currency: string }>();
   let quoteCurrency: string | undefined;
   for (const authorized of authorizedRoutes) {
-    let routeQuote: { readonly amount: string; readonly currency: string } | undefined;
-    for (const units of quoteScenarios) {
-      const scenarioQuote = await quoteUnits(authorized.priceVersionId, units);
-      if (scenarioQuote.status !== 'quoted') {
-        logger.error(
-          'inference.edge.routing_evidence_unavailable',
-          new Error(`route ${authorized.deploymentId} could not be quoted: ${scenarioQuote.status}`),
-          { requestId, deploymentId: authorized.deploymentId, reason: scenarioQuote.status }
-        );
-        return routingEvidenceRefusal(requestedModelReference, 'missing-price');
-      }
-      if (routeQuote === undefined || exceedsAmount(scenarioQuote.amount, routeQuote.amount)) {
-        routeQuote = { amount: scenarioQuote.amount, currency: scenarioQuote.currency };
+    let routeQuote = quotedCandidateCeilings.get(authorized.deploymentId);
+    if (routeQuote === undefined || requestedOutput === undefined) {
+      routeQuote = undefined;
+      for (const units of quoteScenarios) {
+        const scenarioQuote = await quoteUnits(authorized.priceVersionId, units);
+        if (scenarioQuote.status !== 'quoted') {
+          logger.error(
+            'inference.edge.routing_evidence_unavailable',
+            new Error(
+              `route ${authorized.deploymentId} could not be quoted: ${scenarioQuote.status}`
+            ),
+            { requestId, deploymentId: authorized.deploymentId, reason: scenarioQuote.status }
+          );
+          return routingEvidenceRefusal(requestedModelReference, 'missing-price');
+        }
+        if (routeQuote === undefined || exceedsAmount(scenarioQuote.amount, routeQuote.amount)) {
+          routeQuote = { amount: scenarioQuote.amount, currency: scenarioQuote.currency };
+        }
       }
     }
     if (routeQuote === undefined) {

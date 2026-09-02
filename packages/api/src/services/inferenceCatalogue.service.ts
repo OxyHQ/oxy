@@ -637,14 +637,11 @@ function exceedsUnitCeiling(ceiling: UnitPrice, price: CandidatePrice | undefine
  * within it, for any request. That is a sound exclusion and it is the half
  * enforced here.
  *
- * The other half — comparing the ESTIMATED cost of this request, sized from its
- * own input and its output ceiling, against the same limit — belongs at the edge
- * beside the quote (`inferenceEdge.service.ts`), because that is where a request's
- * quantities are known. **It is not implemented.** So a per-request ceiling is not
- * yet a complete spend control, and what bounds spend remains the reservation, the
- * balance and the spending limits. Saying which half is live is the point: the
- * alternative is a control that looks total and is partial, which is the failure
- * this whole change is a correction of.
+ * The other half — comparing the maximum quoted cost of THIS request, sized from
+ * its own input and output ceiling — is enforced at the edge beside the exact
+ * quote (`inferenceEdge.service.ts`). This early predicate is intentionally only
+ * the cheap, request-independent exclusion: the edge remains the authority for
+ * the complete `maxPricePerRequest` decision before reservation or forwarding.
  *
  * Otherwise the same three answers, in the same order and for the same reasons,
  * as {@link exceedsUnitCeiling} — including "no published price at all" excluding

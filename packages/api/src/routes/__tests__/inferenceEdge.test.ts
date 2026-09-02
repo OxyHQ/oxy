@@ -2797,6 +2797,218 @@ describe('the envelope’s authorized routes', () => {
     expect(reservations).toHaveLength(0);
   });
 
+  it('applies maxPricePerRequest to the full exact quote before selecting a deployment', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const affordable = await addDeployment(fixture, {
+      rank: 'z',
+      outputPricePerMillion: '5.000000000000',
+      routingScore: 100,
+    });
+    await givenPolicy(fixture, {
+      maxPricePerRequest: { amount: '0.010000000000', currency: 'USD' },
+    });
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, { input: 5, output: 5, provider: affordable.providerSlug }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 1000 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      affordable.deploymentId,
+    ]);
+    expect(seen[0].authorizedRoutes.map((route) => route.deploymentId)).not.toContain(
+      fixture.deploymentId
+    );
+  });
+
+  it('fails maxPricePerRequest before reservation and Kaana when every exact quote is over it', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    await addDeployment(fixture, {
+      rank: 'z',
+      outputPricePerMillion: '5.000000000000',
+      routingScore: 100,
+    });
+    await givenPolicy(fixture, {
+      maxPricePerRequest: { amount: '0.001000000000', currency: 'USD' },
+    });
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: fixture.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 1000 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(403);
+        expect(json(response)).toMatchObject({
+          code: 'policy_violation',
+          message: expect.stringContaining('maxPricePerRequest'),
+        });
+      }
+    );
+
+    expect(seen).toHaveLength(0);
+    const reservations = await getDb()
+      .select({ id: usageReservations.id })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(0);
+  });
+
+  it('chooses a smaller cross-model fallback under maxPricePerRequest when output is implicit', async () => {
+    const primary = await makeFixture({
+      fund: '10.000000000000',
+      maxOutputTokens: 1000,
+    });
+    const affordableFallback = await makeFixture({
+      maxOutputTokens: 500,
+      routingPolicy: false,
+    });
+    await givenPolicy(primary, {
+      maxPricePerRequest: { amount: '0.010000000000', currency: 'USD' },
+      fallback: {
+        disabled: false,
+        sameModelDeployment: false,
+        authorizedCrossModel: [affordableFallback.modelReference],
+      },
+    });
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 5,
+            output: 5,
+            provider: affordableFallback.provider,
+          }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: primary.modelReference, input: 'hi' },
+          bearer(primary.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].maxOutputTokens).toBe(500);
+    expect(seen[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      affordableFallback.deploymentId,
+    ]);
+  });
+
+  it('keeps a smaller fallback out after an affordable primary fixes a larger implicit ceiling', async () => {
+    const primary = await makeFixture({
+      fund: '10.000000000000',
+      maxOutputTokens: 1000,
+    });
+    const smallerFallback = await makeFixture({
+      maxOutputTokens: 500,
+      routingPolicy: false,
+    });
+    await givenPolicy(primary, {
+      maxPricePerRequest: { amount: '0.020000000000', currency: 'USD' },
+      fallback: {
+        disabled: false,
+        sameModelDeployment: false,
+        authorizedCrossModel: [smallerFallback.modelReference],
+      },
+    });
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: primary.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: primary.modelReference, input: 'hi' },
+          bearer(primary.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].maxOutputTokens).toBe(1000);
+    expect(seen[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      primary.deploymentId,
+    ]);
+  });
+
+  it('capacity-excludes a smaller lower-priority route before its incomplete evidence can refuse the primary', async () => {
+    const primary = await makeFixture({
+      fund: '10.000000000000',
+      maxOutputTokens: 1000,
+    });
+    const smallerFallback = await makeFixture({
+      maxOutputTokens: 500,
+      routingPolicy: false,
+    });
+    await getDb()
+      .delete(inferenceDeploymentRoutingScores)
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, smallerFallback.deploymentId));
+    await givenPolicy(primary, {
+      maxPricePerRequest: { amount: '0.020000000000', currency: 'USD' },
+      fallback: {
+        disabled: false,
+        sameModelDeployment: false,
+        authorizedCrossModel: [smallerFallback.modelReference],
+      },
+    });
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) => completionFor(envelope, { input: 5, output: 5, provider: primary.provider }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: primary.modelReference, input: 'hi' },
+          bearer(primary.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].maxOutputTokens).toBe(1000);
+    expect(seen[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      primary.deploymentId,
+    ]);
+  });
+
   it('prices partial usage against the exact authorized deployment that produced it', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
     const failover = await addDeployment(fixture, {
