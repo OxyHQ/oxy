@@ -20,6 +20,7 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-smoke-inbox-mcp.sh
           node scripts/test-check-kaana-dns-boundary.mjs
           node scripts/check-kaana-dns-boundary.mjs
 
