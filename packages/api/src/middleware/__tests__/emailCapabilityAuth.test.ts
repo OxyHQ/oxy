@@ -1,4 +1,5 @@
 import type { NextFunction, Response } from 'express';
+import { generateKeyPairSync } from 'node:crypto';
 import type { CapabilityTicketClaims, PolicyDecision } from '@oxyhq/contracts';
 import { issueCapabilityTicket } from '@oxyhq/core/server';
 
@@ -8,14 +9,22 @@ const mockMessageExists = jest.fn();
 const mockAuditWrite = jest.fn();
 const mockIdempotencyReserve = jest.fn();
 const mockIdempotencyFinalize = jest.fn();
+const mockKeyPair = generateKeyPairSync('ed25519');
 
 jest.mock('../../services/capabilityAuthority.service', () => ({
-  capabilityTicketSecret: () => Buffer.from('capability-test-secret-that-is-long-enough'),
   reauthorizeCapabilityTicket: (...args: [CapabilityTicketClaims]) => mockReauthorize(...args),
+}));
+jest.mock('../../config/capabilityTicketSigning', () => ({
+  capabilityTicketSigningConfig: () => ({
+    keyId: 'test-key',
+    privateKey: mockKeyPair.privateKey,
+    publicKey: mockKeyPair.publicKey,
+  }),
 }));
 jest.mock('../../services/capabilityRuntimeStore.service', () => ({
   mailboxBelongsToAccount: (...args: unknown[]) => mockMailboxExists(...args),
   messageBelongsToMailbox: (...args: unknown[]) => mockMessageExists(...args),
+  messageBelongsToAccount: (...args: unknown[]) => mockMessageExists(...args),
   persistCapabilityAuditEvent: (...args: unknown[]) => mockAuditWrite(...args),
   reserveCapabilityEffect: (...args: unknown[]) => mockIdempotencyReserve(...args),
   finalizeCapabilityEffect: (...args: unknown[]) => mockIdempotencyFinalize(...args),
@@ -30,7 +39,6 @@ import {
   type EmailCapabilityRequest,
 } from '../emailCapabilityAuth';
 
-const SECRET = Buffer.from('capability-test-secret-that-is-long-enough');
 const ACCOUNT_ID = 'account_test_1';
 const OWNER_ID = 'owner_test_1';
 const AGENT_ID = 'agent_test_1';
@@ -45,6 +53,8 @@ function ticket(
     aud: 'oxy-inbox-api',
     sub: AGENT_ID,
     runId: 'run-1',
+    executionAuthorization: { kind: 'direct_request', id: 'authorization-1' },
+    coordinator: { applicationId: 'alia-app', credentialId: 'alia-credential' },
     requesterAccountId: OWNER_ID,
     ownerAccountId: OWNER_ID,
     actor: { type: 'agent', accountId: AGENT_ID },
@@ -61,7 +71,8 @@ function ticket(
   };
   return issueCapabilityTicket(claims, {
     issuer: 'https://api.oxy.so',
-    secret: SECRET,
+    privateKey: mockKeyPair.privateKey,
+    keyId: 'test-key',
     ttlSeconds: 60,
   });
 }
@@ -134,6 +145,35 @@ beforeEach(() => {
 });
 
 describe('emailCapabilityAuth', () => {
+  it('validates the catalog input before authority and effect reservation', async () => {
+    const result = await run(request({
+      method: 'POST',
+      path: `/messages/${MESSAGE_ID}/move`,
+      token: ticket('moveEmail'),
+      body: {},
+      idempotencyKey: 'run-1:invalid-move',
+    }));
+
+    expect(result.res.statusCode).toBe(400);
+    expect(result.res.body).toEqual({ error: 'capability_input_schema_mismatch' });
+    expect(result.next).not.toHaveBeenCalled();
+    expect(mockReauthorize).not.toHaveBeenCalled();
+    expect(mockIdempotencyReserve).not.toHaveBeenCalled();
+  });
+
+  it('requires the catalog method and path to identify the signed tool', async () => {
+    const result = await run(request({
+      method: 'POST',
+      path: `/messages/${MESSAGE_ID}`,
+      token: ticket('readEmail'),
+    }));
+
+    expect(result.res.statusCode).toBe(403);
+    expect(result.res.body).toEqual({ error: 'capability_tool_mismatch' });
+    expect(result.next).not.toHaveBeenCalled();
+    expect(mockReauthorize).not.toHaveBeenCalled();
+  });
+
   it('blocks a ticket revoked after planning and before the handler runs', async () => {
     mockReauthorize.mockResolvedValueOnce({ allowed: false, reason: 'grant_revoked' });
     const result = await run(request({

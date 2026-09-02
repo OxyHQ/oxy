@@ -46,6 +46,8 @@ describe('agency contracts', () => {
             iat: 1_788_256_800,
             exp: 1_788_256_860,
             runId: 'run-1',
+            executionAuthorization: { kind: 'direct_request' as const, id: 'authorization-1' },
+            coordinator: { applicationId: 'alia-app', credentialId: 'alia-credential' },
             requesterAccountId: 'owner-1',
             ownerAccountId: 'owner-1',
             actor: { type: 'agent' as const, accountId: 'agent-1' },
@@ -58,6 +60,28 @@ describe('agency contracts', () => {
 
         expect(capabilityTicketClaimsSchema.safeParse(ticket).success).toBe(true);
         expect(capabilityTicketClaimsSchema.safeParse({ ...ticket, capabilities: [] }).success).toBe(false);
+        expect(capabilityTicketClaimsSchema.safeParse({ ...ticket, sub: 'different-agent' }).success).toBe(false);
+        expect(capabilityTicketClaimsSchema.safeParse({
+            ...ticket,
+            autonomy: 'autonomous',
+        }).success).toBe(false);
+        expect(capabilityTicketClaimsSchema.safeParse({
+            ...ticket,
+            exp: ticket.iat,
+        }).success).toBe(false);
+        expect(capabilityTicketClaimsSchema.safeParse({
+            ...ticket,
+            limits: [{ tool: 'sendEmail', key: 'to.address', value: ['allowed@example.com'] }],
+        }).success).toBe(false);
+        expect(capabilityTicketClaimsSchema.safeParse({
+            ...ticket,
+            automationId: 'automation-1',
+            executionAuthorization: {
+                kind: 'automation',
+                id: 'authorization-1',
+                automationId: 'automation-2',
+            },
+        }).success).toBe(false);
     });
 
     it('rejects duplicate tool definitions in a catalog', () => {

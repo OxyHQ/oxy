@@ -277,6 +277,11 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'inference:providers:write',
   'acting-as:offline',
   'accounts:act-as-session',
+  'capabilities:read',
+  'catalogs:write',
+  'capability-tickets:issue',
+  'capability-audit:write',
+  'capability-events:publish',
 ] as const satisfies readonly ApplicationScope[];
 
 /**

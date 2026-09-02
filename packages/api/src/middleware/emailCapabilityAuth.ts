@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
+import Ajv, { type ValidateFunction } from 'ajv';
+import addFormats from 'ajv-formats';
 import type { NextFunction, Request, Response } from 'express';
-import type { CapabilityTicketClaims, PolicyDecision } from '@oxyhq/contracts';
+import type { CapabilityTicketClaims, CatalogTool, PolicyDecision } from '@oxyhq/contracts';
 import {
   CapabilityTicketError,
   inputSatisfiesCapabilityLimits,
@@ -8,13 +10,12 @@ import {
   verifyCapabilityTicket,
 } from '@oxyhq/core/server';
 import { INBOX_CAPABILITY_CATALOG } from '../capabilities/inbox.catalog';
-import {
-  capabilityTicketSecret,
-  reauthorizeCapabilityTicket,
-} from '../services/capabilityAuthority.service';
+import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
+import { reauthorizeCapabilityTicket } from '../services/capabilityAuthority.service';
 import {
   finalizeCapabilityEffect,
   mailboxBelongsToAccount,
+  messageBelongsToAccount,
   messageBelongsToMailbox,
   persistCapabilityAuditEvent,
   reserveCapabilityEffect,
@@ -27,33 +28,63 @@ export interface EmailCapabilityRequest extends Request {
   capabilityTicket?: CapabilityTicketClaims;
 }
 
-function expectedTool(request: Request): string | null {
-  const path = request.path;
-  if (request.method === 'GET' && path === '/search') return 'searchEmails';
-  if (request.method === 'GET' && path === '/messages') return 'getUnreadEmails';
-  if (request.method === 'GET' && /^\/messages\/[^/]+$/.test(path)) return 'readEmail';
-  if (request.method === 'GET' && /^\/messages\/[^/]+\/thread$/.test(path)) return 'getEmailThread';
-  if (request.method === 'POST' && path === '/messages') return 'sendEmail';
-  if (request.method === 'GET' && path === '/mailboxes') return 'listMailboxes';
-  if (request.method === 'GET' && path === '/labels') return 'listLabels';
-  if (request.method === 'POST' && /^\/messages\/[^/]+\/move$/.test(path)) return 'moveEmail';
-  if (request.method === 'PUT' && /^\/messages\/[^/]+\/flags$/.test(path)) return 'updateEmailFlags';
-  if (request.method === 'GET' && path === '/quota') return 'getEmailQuota';
-  if (request.method === 'GET' && path === '/ai-context') return 'getEmailContext';
+interface CatalogInvocationMatch {
+  readonly tool: CatalogTool;
+  readonly params: Record<string, string>;
+}
+
+const schemaValidator = addFormats(new Ajv({ allErrors: true, coerceTypes: true, strict: true }));
+const inputValidators = new Map<string, ValidateFunction>(
+  INBOX_CAPABILITY_CATALOG.tools.map((tool) => [tool.name, schemaValidator.compile(tool.inputSchema)]),
+);
+
+function matchCatalogInvocation(request: Request): CatalogInvocationMatch | null {
+  for (const tool of INBOX_CAPABILITY_CATALOG.tools) {
+    if (tool.invocation.method !== request.method) continue;
+    const catalogSegments = tool.invocation.path.replace(/^\/email/, '').split('/').filter(Boolean);
+    const requestSegments = request.path.split('/').filter(Boolean);
+    if (catalogSegments.length !== requestSegments.length) continue;
+    const params: Record<string, string> = {};
+    let matches = true;
+    for (let index = 0; index < catalogSegments.length; index += 1) {
+      const catalogSegment = catalogSegments[index];
+      const requestSegment = requestSegments[index];
+      if (!catalogSegment || !requestSegment) {
+        matches = false;
+        break;
+      }
+      const parameter = catalogSegment.match(/^\{([A-Za-z][A-Za-z0-9_]*)\}$/)?.[1];
+      if (parameter) {
+        try {
+          params[parameter] = decodeURIComponent(requestSegment);
+        } catch {
+          matches = false;
+          break;
+        }
+      } else if (catalogSegment !== requestSegment) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return { tool, params };
+  }
   return null;
 }
 
-function messageIdFromPath(path: string): string | null {
-  const match = path.match(/^\/messages\/([^/]+)(?:\/(?:thread|move|flags))?$/);
-  return match?.[1] ? decodeURIComponent(match[1]) : null;
-}
-
-function inputOf(request: Request): Record<string, unknown> {
-  return request.method === 'GET'
-    ? { ...request.query }
-    : typeof request.body === 'object' && request.body !== null
-      ? request.body as Record<string, unknown>
-      : {};
+function validatedCanonicalInput(
+  request: Request,
+  invocation: CatalogInvocationMatch,
+): Record<string, unknown> | null {
+  const body = typeof request.body === 'object' && request.body !== null && !Array.isArray(request.body)
+    ? request.body as Record<string, unknown>
+    : {};
+  const input: Record<string, unknown> = {
+    ...(request.method === 'GET' ? request.query : {}),
+    ...body,
+    ...invocation.params,
+  };
+  const validateInput = inputValidators.get(invocation.tool.name);
+  return validateInput?.(input) ? input : null;
 }
 
 async function auditResult(
@@ -63,11 +94,11 @@ async function auditResult(
   idempotencyKey?: string,
 ): Promise<void> {
   const tool = INBOX_CAPABILITY_CATALOG.tools.find((entry) => entry.name === claims.tool);
-  const event = {
+  await persistCapabilityAuditEvent({
     eventId: randomUUID(),
     occurredAt: new Date().toISOString(),
     requesterAccountId: claims.requesterAccountId,
-    coordinator: { type: 'alia' as const, ownerAccountId: claims.ownerAccountId },
+    coordinator: claims.coordinator,
     executor: claims.actor,
     effectiveAccountId: claims.resource.effectiveAccountId,
     resource: claims.resource,
@@ -76,7 +107,7 @@ async function auditResult(
     capabilities: claims.capabilities,
     policyDecision: decision,
     result: {
-      status: statusCode >= 200 && statusCode < 400 ? 'succeeded' as const : 'failed' as const,
+      status: statusCode >= 200 && statusCode < 400 ? 'succeeded' : 'failed',
       code: String(statusCode),
     },
     rollback: { supported: tool?.rollback === 'supported', attempted: false },
@@ -87,23 +118,20 @@ async function auditResult(
       ...(idempotencyKey ? { idempotencyKey } : {}),
       capabilityTicketId: claims.jti,
     },
-  };
-  await persistCapabilityAuditEvent(event);
+  });
 }
 
-async function reserveIdempotency(
+async function resourceMatches(
+  request: EmailCapabilityRequest,
   claims: CapabilityTicketClaims,
-  rawKey: string,
-): Promise<{ allowed: boolean; keyHash: string }> {
-  const keyHash = createHash('sha256').update(rawKey).digest('hex');
-  return { allowed: await reserveCapabilityEffect(claims, keyHash), keyHash };
-}
-
-async function resourceMatches(request: EmailCapabilityRequest, claims: CapabilityTicketClaims): Promise<boolean> {
-  if (claims.resource.appId !== 'inbox') return false;
+  input: Record<string, unknown>,
+): Promise<boolean> {
+  if (claims.resource.appId !== INBOX_CAPABILITY_CATALOG.appId) return false;
   const accountId = claims.resource.effectiveAccountId;
+  const messageId = typeof input.messageId === 'string' ? input.messageId : null;
   if (claims.resource.resourceType === 'email_account') {
-    return claims.resource.resourceId === accountId;
+    if (claims.resource.resourceId !== accountId) return false;
+    return !messageId || messageBelongsToAccount(messageId, accountId);
   }
   if (claims.resource.resourceType !== 'mailbox') return false;
   if (!await mailboxBelongsToAccount(claims.resource.resourceId, accountId)) return false;
@@ -111,19 +139,7 @@ async function resourceMatches(request: EmailCapabilityRequest, claims: Capabili
     request.query.mailbox = claims.resource.resourceId;
     if (request.path === '/messages') request.query.unseen = 'true';
   }
-  const messageId = messageIdFromPath(request.path);
-  if (messageId) {
-    if (!await messageBelongsToMailbox(messageId, accountId, claims.resource.resourceId)) return false;
-  }
-  return true;
-}
-
-async function finalizeIdempotency(
-  claims: CapabilityTicketClaims,
-  keyHash: string,
-  statusCode: number,
-): Promise<void> {
-  await finalizeCapabilityEffect(claims, keyHash, statusCode);
+  return !messageId || messageBelongsToMailbox(messageId, accountId, claims.resource.resourceId);
 }
 
 export async function emailCapabilityAuth(
@@ -138,19 +154,25 @@ export async function emailCapabilityAuth(
   }
   let claims: CapabilityTicketClaims;
   try {
+    const signing = capabilityTicketSigningConfig();
     claims = verifyCapabilityTicket(token, {
       audience: INBOX_CAPABILITY_CATALOG.audience,
       issuer: process.env.OXY_API_URL ?? 'https://api.oxy.so',
-      secret: capabilityTicketSecret(),
+      resolvePublicKey: (keyId) => keyId === signing.keyId ? signing.publicKey : undefined,
     });
   } catch (error) {
     const code = error instanceof CapabilityTicketError ? error.code : 'invalid_claims';
     response.status(401).json({ error: 'invalid_capability_ticket', code });
     return;
   }
-  const expected = expectedTool(request);
-  if (!expected || expected !== claims.tool) {
+  const invocation = matchCatalogInvocation(request);
+  if (!invocation || invocation.tool.name !== claims.tool) {
     response.status(403).json({ error: 'capability_tool_mismatch' });
+    return;
+  }
+  const input = validatedCanonicalInput(request, invocation);
+  if (!input) {
+    response.status(400).json({ error: 'capability_input_schema_mismatch' });
     return;
   }
   const decision = await reauthorizeCapabilityTicket(claims);
@@ -159,30 +181,28 @@ export async function emailCapabilityAuth(
     response.status(403).json({ error: 'capability_revoked_or_denied', reason: decision.reason });
     return;
   }
-  if (!await resourceMatches(request, claims)) {
+  if (!await resourceMatches(request, claims, input)) {
     const resourceDecision = { allowed: false, reason: 'capability_resource_mismatch' } as const;
     await auditResult(claims, resourceDecision, 403);
     response.status(403).json({ error: 'capability_resource_mismatch' });
     return;
   }
-  if (!inputSatisfiesCapabilityLimits(inputOf(request), claims.limits)) {
+  if (!inputSatisfiesCapabilityLimits(claims.tool, input, claims.limits)) {
     const limitDecision = { allowed: false, reason: 'capability_limit_exceeded' } as const;
     await auditResult(claims, limitDecision, 403);
     response.status(403).json({ error: 'capability_limit_exceeded' });
     return;
   }
-  const tool = INBOX_CAPABILITY_CATALOG.tools.find((entry) => entry.name === claims.tool);
   let keyHash: string | undefined;
-  if (tool?.idempotency === 'required') {
+  if (invocation.tool.idempotency === 'required') {
     const rawKey = request.header('idempotency-key');
     if (!rawKey) {
       await auditResult(claims, { allowed: false, reason: 'idempotency_key_required' }, 400);
       response.status(400).json({ error: 'idempotency_key_required' });
       return;
     }
-    const reservation = await reserveIdempotency(claims, rawKey);
-    keyHash = reservation.keyHash;
-    if (!reservation.allowed) {
+    keyHash = createHash('sha256').update(rawKey).digest('hex');
+    if (!await reserveCapabilityEffect(claims, keyHash)) {
       await auditResult(claims, { allowed: false, reason: 'duplicate_effect_prevented' }, 409, keyHash);
       response.status(409).json({ error: 'duplicate_effect_prevented' });
       return;
@@ -192,7 +212,7 @@ export async function emailCapabilityAuth(
   request.capabilityTicket = claims;
   response.once('finish', () => {
     if (keyHash) {
-      void finalizeIdempotency(claims, keyHash, response.statusCode)
+      void finalizeCapabilityEffect(claims, keyHash, response.statusCode)
         .catch((error: unknown) => logger.error('Failed to finalize capability idempotency key', error));
     }
     void auditResult(claims, decision, response.statusCode, keyHash)

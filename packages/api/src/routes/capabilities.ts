@@ -3,7 +3,7 @@ import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   actorRefSchema,
-  auditEventSchema,
+  auditResultSchema,
   autonomyLevelSchema,
   capabilityPackageSchema,
   grantLimitSchema,
@@ -12,10 +12,12 @@ import {
   type DelegationGrant as DelegationGrantContract,
 } from '@oxyhq/contracts';
 import { verifyCapabilityTicket } from '@oxyhq/core/server';
+import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import {
   accountCapabilityPolicies,
   capabilityAuditEvents,
+  capabilityExecutionAuthorizations,
   delegationCapabilities,
   delegationGrants,
   delegationLimits,
@@ -31,12 +33,18 @@ import {
 } from '../middleware/auth';
 import accountService from '../services/account.service';
 import {
-  capabilityTicketSecret,
   evaluateCapabilityAuthority,
   grantAllowsTool,
   mostRestrictiveAutonomy,
   reauthorizeCapabilityTicket,
 } from '../services/capabilityAuthority.service';
+import {
+  principalHasCatalogCapability,
+  resolveLiveAgencyCoordinator,
+  resolveLiveAgencyServicePrincipal,
+  type LiveAgencyServicePrincipal,
+} from '../services/agencyServicePrincipal.service';
+import { AGENCY_COORDINATE_CAPABILITY } from '../utils/applicationCapabilities';
 import {
   activeCapabilityCatalog,
   listActiveCapabilityCatalogs,
@@ -58,26 +66,60 @@ const createGrantSchema = z.object({
   expiresAt: z.string().datetime().nullable().default(null),
 }).strict();
 
-const ticketRequestSchema = z.object({
-  requesterAccountId: z.string().min(1),
+const executionAuthorizationSchema = z.object({
+  kind: z.enum(['direct_request', 'automation']),
   ownerAccountId: z.string().min(1),
+  coordinatorApplicationId: z.string().min(1),
+  coordinatorCredentialId: z.string().min(1),
   actor: actorRefSchema,
   resource: resourceRefSchema,
   tool: z.string().min(1),
   runId: z.string().min(1),
   stepId: z.string().min(1).optional(),
   automationId: z.string().min(1).optional(),
-  requestedAutonomy: autonomyLevelSchema,
-  coordinatorMaximumAutonomy: autonomyLevelSchema.optional(),
-  automationLimits: z.array(grantLimitSchema).optional(),
-}).strict();
-
-function serviceHasScope(request: ServiceAuthRequest, response: Response, scope: string): boolean {
-  if (!request.serviceApp?.scopes.includes(scope)) {
-    response.status(403).json({ error: 'insufficient_service_scope', requiredScope: scope });
-    return false;
+  maximumAutonomy: autonomyLevelSchema,
+  limits: z.array(grantLimitSchema).default([]),
+  expiresAt: z.string().datetime(),
+}).strict().superRefine((value, context) => {
+  if ((value.kind === 'automation') !== (value.automationId !== undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['automationId'], message: 'automationId is required only for automation authority' });
   }
-  return true;
+  if (value.kind === 'direct_request' && value.maximumAutonomy === 'autonomous') {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['maximumAutonomy'], message: 'direct requests cannot authorize autonomous execution' });
+  }
+  value.limits.forEach((limit, index) => {
+    if (limit.tool !== value.tool) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['limits', index, 'tool'], message: 'limit must name the authorized tool' });
+    }
+  });
+});
+
+const ticketRequestSchema = z.object({ executionAuthorizationId: z.string().min(1) }).strict();
+
+async function livePrincipal(
+  request: ServiceAuthRequest,
+  response: Response,
+  scope: string,
+  capability?: string,
+): Promise<LiveAgencyServicePrincipal | null> {
+  if (!request.serviceApp) {
+    response.status(401).json({ error: 'service_principal_required' });
+    return null;
+  }
+  const principal = await resolveLiveAgencyServicePrincipal(request.serviceApp);
+  if (!principal) {
+    response.status(401).json({ error: 'service_principal_no_longer_active' });
+    return null;
+  }
+  if (!principal.scopes.includes(scope)) {
+    response.status(403).json({ error: 'insufficient_service_scope', requiredScope: scope });
+    return null;
+  }
+  if (capability && !principal.capabilities.includes(capability)) {
+    response.status(403).json({ error: 'missing_application_capability', requiredCapability: capability });
+    return null;
+  }
+  return principal;
 }
 
 function idOf(request: AuthRequest): string {
@@ -110,7 +152,7 @@ async function grantContract(
     db.select({ tool: delegationToolOverrides.tool, decision: delegationToolOverrides.decision })
       .from(delegationToolOverrides)
       .where(eq(delegationToolOverrides.grantId, grant.id)),
-    db.select({ key: delegationLimits.key, value: delegationLimits.value })
+    db.select({ tool: delegationLimits.tool, key: delegationLimits.key, value: delegationLimits.value })
       .from(delegationLimits)
       .where(eq(delegationLimits.grantId, grant.id)),
   ]);
@@ -138,18 +180,33 @@ async function grantContract(
 }
 
 router.get('/service-identity', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
+  if (!request.serviceApp) {
+    response.status(401).json({ error: 'service_principal_required' });
+    return;
+  }
+  const principal = await resolveLiveAgencyServicePrincipal(request.serviceApp);
+  if (!principal) {
+    response.status(401).json({ error: 'service_principal_no_longer_active' });
+    return;
+  }
   const registrations = await listActiveCapabilityCatalogs();
   const catalogs = registrations
-    .filter((registration) => registration.registeredByApplicationId === request.serviceApp?.appId)
+    .filter((registration) => registration.registeredByApplicationId === principal.applicationId)
     .map((registration) => ({
       appId: registration.appSlug,
       eventTypes: registration.catalog.events.map((event) => event.type),
     }));
   response.json({
-    service: request.serviceApp,
+    service: principal,
     catalogAppIds: catalogs.map((catalog) => catalog.appId),
     catalogs,
   });
+});
+
+router.get('/.well-known/jwks.json', (_request, response) => {
+  const signing = capabilityTicketSigningConfig();
+  response.set('cache-control', 'public, max-age=300, must-revalidate');
+  response.json({ keys: [signing.publicJwk] });
 });
 
 router.post('/grants', authMiddleware, async (request: AuthRequest, response: Response) => {
@@ -243,13 +300,106 @@ router.delete('/grants/:grantId', authMiddleware, async (request: AuthRequest, r
   response.status(204).send();
 });
 
+router.post('/execution-authorizations', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const parsed = executionAuthorizationSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: 'invalid_execution_authorization', details: parsed.error.flatten() });
+    return;
+  }
+  const requesterAccountId = idOf(request);
+  const input = parsed.data;
+  if (!await canOperate(requesterAccountId, input.ownerAccountId)
+    || !await canOperate(requesterAccountId, input.resource.effectiveAccountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  if (input.actor.type === 'alia' && input.actor.ownerAccountId !== input.ownerAccountId) {
+    response.status(400).json({ error: 'alia_owner_mismatch' });
+    return;
+  }
+  if (input.actor.type === 'agent' && !await activeBot(input.actor.accountId)) {
+    response.status(400).json({ error: 'actor_must_be_active_bot_account' });
+    return;
+  }
+  const coordinator = await resolveLiveAgencyCoordinator(
+    input.coordinatorApplicationId,
+    input.coordinatorCredentialId,
+  );
+  if (!coordinator
+    || !coordinator.capabilities.includes(AGENCY_COORDINATE_CAPABILITY)
+    || !coordinator.scopes.includes('capability-tickets:issue')) {
+    response.status(400).json({ error: 'coordinator_not_active_or_authorized' });
+    return;
+  }
+  const catalog = await activeCapabilityCatalog(input.resource.appId);
+  const tool = catalog?.catalog.tools.find((entry) => entry.name === input.tool);
+  if (!tool || !tool.exposure.includes('internal') || !tool.resourceTypes.includes(input.resource.resourceType)) {
+    response.status(400).json({ error: 'tool_not_available_for_resource' });
+    return;
+  }
+  if (tool.effect !== 'read' && (input.maximumAutonomy === 'read_only' || input.maximumAutonomy === 'draft')) {
+    response.status(400).json({ error: 'effect_requires_execution_authority' });
+    return;
+  }
+  const now = new Date();
+  const expiresAt = new Date(input.expiresAt);
+  const maximumLifetimeMs = input.kind === 'direct_request' ? 15 * 60_000 : 366 * 24 * 60 * 60_000;
+  if (expiresAt <= now || expiresAt.getTime() - now.getTime() > maximumLifetimeMs) {
+    response.status(400).json({ error: 'execution_authorization_expiry_out_of_range' });
+    return;
+  }
+  const [authorization] = await getDb().insert(capabilityExecutionAuthorizations).values({
+    kind: input.kind,
+    requesterAccountId,
+    ownerAccountId: input.ownerAccountId,
+    coordinatorApplicationId: coordinator.applicationId,
+    coordinatorCredentialId: coordinator.credentialId,
+    actorType: input.actor.type,
+    actorAccountId: input.actor.type === 'agent' ? input.actor.accountId : null,
+    resourceApp: input.resource.appId,
+    effectiveAccountId: input.resource.effectiveAccountId,
+    resourceType: input.resource.resourceType,
+    resourceKey: input.resource.resourceId,
+    tool: input.tool,
+    runId: input.runId,
+    stepId: input.stepId ?? null,
+    automationId: input.automationId ?? null,
+    maximumAutonomy: input.maximumAutonomy,
+    limits: input.limits,
+    expiresAt,
+  }).returning();
+  response.status(201).json({ authorization });
+});
+
+router.delete('/execution-authorizations/:authorizationId', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const [authorization] = await getDb().select().from(capabilityExecutionAuthorizations)
+    .where(eq(capabilityExecutionAuthorizations.id, request.params.authorizationId)).limit(1);
+  if (!authorization) {
+    response.status(404).json({ error: 'execution_authorization_not_found' });
+    return;
+  }
+  if (!await canOperate(idOf(request), authorization.ownerAccountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  await getDb().update(capabilityExecutionAuthorizations).set({ revokedAt: new Date() })
+    .where(eq(capabilityExecutionAuthorizations.id, authorization.id));
+  response.status(204).send();
+});
+
 router.post('/catalogs/register', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
-  if (!serviceHasScope(request, response, 'catalogs:write')) return;
+  const catalogAppId = typeof request.body?.catalog?.appId === 'string' ? request.body.catalog.appId : '';
+  const principal = await livePrincipal(request, response, 'catalogs:write');
+  if (!principal) return;
+  if (!principalHasCatalogCapability(principal, catalogAppId)) {
+    response.status(403).json({ error: 'catalog_namespace_not_authorized', requiredCapability: `catalog:${catalogAppId}` });
+    return;
+  }
   try {
     const registration = await registerCapabilityCatalog({
       catalog: request.body.catalog,
-      applicationId: request.serviceApp!.appId,
-      credentialId: request.serviceApp!.credentialId,
+      applicationId: principal.applicationId,
+      credentialId: principal.credentialId,
       deployedAt: request.body.deployedAt ? new Date(request.body.deployedAt) : undefined,
     });
     response.status(201).json({ registration });
@@ -262,13 +412,13 @@ router.post('/catalogs/register', serviceAuthMiddleware, async (request: Service
 });
 
 router.get('/catalogs', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
-  if (!serviceHasScope(request, response, 'capabilities:read')) return;
+  if (!await livePrincipal(request, response, 'capabilities:read', AGENCY_COORDINATE_CAPABILITY)) return;
   const appIds = typeof request.query.appId === 'string' ? [request.query.appId] : undefined;
   response.json({ registrations: await listActiveCapabilityCatalogs(appIds) });
 });
 
 router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
-  if (!serviceHasScope(request, response, 'capabilities:read')) return;
+  if (!await livePrincipal(request, response, 'capabilities:read', AGENCY_COORDINATE_CAPABILITY)) return;
   const parsed = z.object({
     requesterAccountId: z.string().min(1),
     ownerAccountId: z.string().min(1),
@@ -307,7 +457,7 @@ router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAut
         .from(delegationCapabilities).where(eq(delegationCapabilities.grantId, grant.id)),
       db.select({ tool: delegationToolOverrides.tool, decision: delegationToolOverrides.decision })
         .from(delegationToolOverrides).where(eq(delegationToolOverrides.grantId, grant.id)),
-      db.select({ key: delegationLimits.key, value: delegationLimits.value })
+      db.select({ tool: delegationLimits.tool, key: delegationLimits.key, value: delegationLimits.value })
         .from(delegationLimits).where(eq(delegationLimits.grantId, grant.id)),
       db.select().from(accountCapabilityPolicies).where(and(
         eq(accountCapabilityPolicies.accountId, grant.effectiveAccountId),
@@ -347,29 +497,52 @@ router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAut
 });
 
 router.post('/tickets', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
-  if (!serviceHasScope(request, response, 'capability-tickets:issue')) return;
+  const principal = await livePrincipal(request, response, 'capability-tickets:issue', AGENCY_COORDINATE_CAPABILITY);
+  if (!principal) return;
   const parsed = ticketRequestSchema.safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({ error: 'invalid_ticket_request', details: parsed.error.flatten() });
     return;
   }
-  const result = await evaluateCapabilityAuthority(parsed.data, { issueTicket: true });
+  const result = await evaluateCapabilityAuthority({
+    executionAuthorizationId: parsed.data.executionAuthorizationId,
+    coordinator: {
+      applicationId: principal.applicationId,
+      credentialId: principal.credentialId,
+    },
+  }, { issueTicket: true });
   response.status(result.decision.allowed ? 201 : 403).json(result);
 });
 
 router.post('/tickets/introspect', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
-  if (!serviceHasScope(request, response, 'capabilities:read')) return;
-  const parsed = z.object({ ticket: z.string().min(1), audience: z.string().min(1) }).strict().safeParse(request.body);
+  const principal = await livePrincipal(request, response, 'capabilities:read');
+  if (!principal) return;
+  const parsed = z.object({ ticket: z.string().min(1) }).strict().safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({ error: 'invalid_introspection_request' });
     return;
   }
   try {
-    const claims = verifyCapabilityTicket(parsed.data.ticket, {
-      audience: parsed.data.audience,
-      issuer: process.env.OXY_API_URL ?? 'https://api.oxy.so',
-      secret: capabilityTicketSecret(),
-    });
+    const registrations = (await listActiveCapabilityCatalogs()).filter((registration) => (
+      registration.registeredByApplicationId === principal.applicationId
+      && principalHasCatalogCapability(principal, registration.appSlug)
+    ));
+    const signing = capabilityTicketSigningConfig();
+    const claims = registrations.map((registration) => {
+      try {
+        return verifyCapabilityTicket(parsed.data.ticket, {
+          audience: registration.audience,
+          issuer: process.env.OXY_API_URL ?? 'https://api.oxy.so',
+          resolvePublicKey: (keyId) => keyId === signing.keyId ? signing.publicKey : undefined,
+        });
+      } catch {
+        return null;
+      }
+    }).find((entry) => entry !== null);
+    if (!claims) {
+      response.json({ active: false, error: 'ticket_not_issued_for_calling_application' });
+      return;
+    }
     const decision = await reauthorizeCapabilityTicket(claims);
     response.json({ active: decision.allowed, claims, decision });
   } catch (error) {
@@ -378,13 +551,65 @@ router.post('/tickets/introspect', serviceAuthMiddleware, async (request: Servic
 });
 
 router.post('/audit', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
-  if (!serviceHasScope(request, response, 'capability-audit:write')) return;
-  const parsed = auditEventSchema.safeParse(request.body);
+  const principal = await livePrincipal(request, response, 'capability-audit:write');
+  if (!principal) return;
+  const parsed = z.object({
+    ticket: z.string().min(1),
+    result: auditResultSchema,
+    rollback: z.object({
+      supported: z.boolean(),
+      attempted: z.boolean(),
+      succeeded: z.boolean().optional(),
+    }).strict(),
+    idempotencyKey: z.string().min(1).optional(),
+  }).strict().safeParse(request.body);
   if (!parsed.success) {
     response.status(400).json({ error: 'invalid_audit_event', details: parsed.error.flatten() });
     return;
   }
-  const event = parsed.data;
+  const registrations = (await listActiveCapabilityCatalogs()).filter((registration) => (
+    registration.registeredByApplicationId === principal.applicationId
+    && principalHasCatalogCapability(principal, registration.appSlug)
+  ));
+  const signing = capabilityTicketSigningConfig();
+  const claims = registrations.map((registration) => {
+    try {
+      return verifyCapabilityTicket(parsed.data.ticket, {
+        audience: registration.audience,
+        issuer: process.env.OXY_API_URL ?? 'https://api.oxy.so',
+        resolvePublicKey: (keyId) => keyId === signing.keyId ? signing.publicKey : undefined,
+      });
+    } catch {
+      return null;
+    }
+  }).find((entry) => entry !== null);
+  if (!claims) {
+    response.status(403).json({ error: 'ticket_not_issued_for_calling_application' });
+    return;
+  }
+  const decision = await reauthorizeCapabilityTicket(claims);
+  const event = {
+    eventId: `${claims.jti}:${parsed.data.result.status}`,
+    occurredAt: new Date().toISOString(),
+    requesterAccountId: claims.requesterAccountId,
+    coordinator: claims.coordinator,
+    executor: claims.actor,
+    effectiveAccountId: claims.resource.effectiveAccountId,
+    resource: claims.resource,
+    appId: claims.resource.appId,
+    tool: claims.tool,
+    capabilities: claims.capabilities,
+    policyDecision: decision,
+    result: parsed.data.result,
+    rollback: parsed.data.rollback,
+    correlation: {
+      runId: claims.runId,
+      ...(claims.stepId ? { stepId: claims.stepId } : {}),
+      ...(claims.automationId ? { automationId: claims.automationId } : {}),
+      ...(parsed.data.idempotencyKey ? { idempotencyKey: parsed.data.idempotencyKey } : {}),
+      capabilityTicketId: claims.jti,
+    },
+  };
   await getDb().insert(capabilityAuditEvents).values({
     eventKey: event.eventId,
     effectiveAccountKey: event.effectiveAccountId,

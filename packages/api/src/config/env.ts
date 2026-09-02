@@ -148,6 +148,11 @@ export interface RequiredEnvVars {
   //    PUBLIC key and so cannot construct an envelope it would itself accept.
   RELAY_EDGE_SIGNING_PRIVATE_KEY?: string;
 
+  // Ed25519 authority for short-lived capability tickets and catalog receipts.
+  // The key id is public and appears in the JWKS; only the private key belongs in SSM.
+  CAPABILITY_TICKET_SIGNING_KEY_ID?: string;
+  CAPABILITY_TICKET_SIGNING_PRIVATE_KEY?: string;
+
   // Follow-graph outbox worker (`follow_events`). OFF by default — acknowledging
   // an event asserts its delivery happened; read by `followOutbox.worker.ts`.
   FOLLOW_OUTBOX_WORKER_ENABLED?: string;

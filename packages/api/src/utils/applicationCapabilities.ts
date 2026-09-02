@@ -22,12 +22,15 @@ export const APPLICATION_CAPABILITIES = [
    * this capability.
    */
   'identity:approval',
+  /** The application may coordinate delegated agents and request capability tickets. */
+  'agency:coordinate',
 ] as const;
 
 export type ApplicationCapability = (typeof APPLICATION_CAPABILITIES)[number];
 
 /** See the vocabulary entry above. */
 export const IDENTITY_APPROVAL_CAPABILITY: ApplicationCapability = 'identity:approval';
+export const AGENCY_COORDINATE_CAPABILITY: ApplicationCapability = 'agency:coordinate';
 
 /**
  * Predicate: does this application carry `capability`?
