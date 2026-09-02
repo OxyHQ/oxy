@@ -314,8 +314,9 @@ jobs:
       # `dist/` mirrors `src/`, which leaves those files with zero type
       # coverage. `tsconfig.scripts.json` typechecks them (noEmit) against the
       # same settings. It runs here, after `bun run build`, because that script
-      # already builds all four workspace deps the program needs — @oxyhq/contracts,
-      # @oxyhq/protocol, @oxyhq/core AND @oxyhq/federation (src/services/
+      # already builds every workspace dep the program needs — @oxyhq/contracts,
+      # @oxyhq/protocol, @oxyhq/core, @oxyhq/federation, @oxyhq/db and @oxyhq/mcp
+      # (src/services/
       # federation.service.ts imports it; without its dist this fails TS2307).
       - name: Typecheck one-shot scripts
         run: bun run typecheck:scripts

@@ -13,7 +13,10 @@
  */
 
 import type { ApplicationCapability } from '../utils/applicationCapabilities';
-import { IDENTITY_APPROVAL_CAPABILITY } from '../utils/applicationCapabilities';
+import {
+  catalogApplicationCapability,
+  IDENTITY_APPROVAL_CAPABILITY,
+} from '../utils/applicationCapabilities';
 import type { ApplicationScope } from '../utils/applicationScopes';
 
 export type SeedAppType = 'first_party' | 'internal';
@@ -342,6 +345,14 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://noted.oxy.so',
     type: 'first_party',
     redirectUris: ['https://noted.oxy.so'],
+    scopes: [
+      'user:read',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+      'capability-events:publish',
+    ],
+    capabilities: [catalogApplicationCapability('noted')],
   },
   {
     name: 'Commons by Oxy',

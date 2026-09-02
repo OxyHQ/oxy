@@ -67,8 +67,8 @@
  *   - REQUIRED_TABLES: the census must have REACHED the tables this policy is
  *     about — the two an inference request writes, the BYOK audit trail, and the
  *     email table that proves the traversal sees free-shaped content at all.
- *   - The allow-list's exactness: 31 declared columns must each still exist, so a
- *     traversal that stopped seeing columns fails on all 31 at once.
+ *   - The allow-list's exactness: 36 declared columns must each still exist, so a
+ *     traversal that stopped seeing columns fails on all 36 at once.
  *
  * `scripts/test-check-no-payload-persistence.mjs` plants a payload column in a
  * fixture schema and requires this to flag it — the positive control that a
@@ -174,6 +174,28 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
   },
   { table: 'security_activities', column: 'metadata', holds: 'per-event security detail; carries no IP in any form, per the platform invariant' },
   { table: 'reputation_transactions', column: 'metadata', holds: 'the reason and source of a reputation award or correction' },
+
+  // ---- delegated agency -------------------------------------------------------
+  {
+    table: 'app_capability_catalog_registrations',
+    column: 'catalog',
+    holds: 'a schema-validated app capability catalog: tool metadata and JSON Schemas, never an invocation or its data',
+  },
+  {
+    table: 'capability_audit_events',
+    column: 'event',
+    holds: 'a schema-validated authority decision and bounded result status; the contract has no tool input or output field',
+  },
+  {
+    table: 'capability_execution_authorizations',
+    column: 'limits',
+    holds: 'schema-validated scalar grant limits for one authorized tool, never tool arguments',
+  },
+  {
+    table: 'delegation_limits',
+    column: 'value',
+    holds: 'one schema-validated scalar or string-list grant limit, never tool arguments',
+  },
 
   // ---- email: the customer's own mailbox --------------------------------------
   { table: 'email_outbox', column: 'payload', holds: "a queued outbound email the USER composed — their mail, not an inference payload" },

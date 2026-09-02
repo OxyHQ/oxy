@@ -24,6 +24,7 @@ import {
   resolveCatalogueViewer,
   type CatalogueApplicationPrincipal,
 } from '../../services/inferenceCatalogue.service';
+import { catalogApplicationCapability } from '../../utils/applicationCapabilities';
 import {
   APPLICATION_SCOPES,
   isPrivilegedScope,
@@ -246,6 +247,31 @@ describe('the canonical official-application registry', () => {
         (spec.scopes ?? []).includes('federation:write')
       );
       expect(holders.map((spec) => spec.name)).toEqual(['Mention']);
+    });
+  });
+
+  describe('Noted owns only its catalog service authority', () => {
+    const NOTED_SERVICE_SCOPES = [
+      'user:read',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+      'capability-events:publish',
+    ];
+
+    it('declares the scopes used by catalog registration, introspection, audit and events', () => {
+      expect(specNamed('Noted').scopes).toEqual(NOTED_SERVICE_SCOPES);
+    });
+
+    it('is bound to the Noted catalog namespace and no other platform capability', () => {
+      expect(specNamed('Noted').capabilities).toEqual([
+        catalogApplicationCapability('noted'),
+      ]);
+    });
+
+    it('refuses malformed catalog namespace identifiers', () => {
+      expect(() => catalogApplicationCapability('Noted')).toThrow('Catalog app id');
+      expect(() => catalogApplicationCapability('')).toThrow('Catalog app id');
     });
   });
 

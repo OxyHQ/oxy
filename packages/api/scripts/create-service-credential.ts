@@ -11,11 +11,11 @@
  * into an AES-256-GCM cipher; ONLY the encrypted form is emitted (so it can be
  * exfiltrated safely via task logs and decrypted out-of-band with the key).
  *
- * Idempotency: if a usable (`isCredentialUsable`) service credential already
- * exists for the app IN THE REQUESTED ENVIRONMENT, it is REUSED — no new
- * credential is minted. The existing secret is NOT recoverable (only its hash is
- * stored), so `secretEnc` is `null` on reuse; rotate the credential if a fresh
- * secret is required.
+ * Idempotency: a usable (`isCredentialUsable`) service credential is reused only
+ * when its scope set EXACTLY matches the requested set. A usable credential with
+ * broader, narrower or ambiguous authority makes the run fail closed; operators
+ * must rotate/revoke it explicitly. The existing secret is NOT recoverable (only
+ * its hash is stored), so `secretEnc` is `null` on reuse.
  *
  * ## One environment per invocation, on purpose
  *
@@ -127,6 +127,12 @@ function parseAndValidateScopes(raw: string | undefined): string[] {
   return Array.from(new Set(scopes));
 }
 
+function hasExactScopeSet(actual: readonly string[], requested: readonly string[]): boolean {
+  if (actual.length !== requested.length) return false;
+  const requestedScopes = new Set(requested);
+  return actual.every((scope) => requestedScopes.has(scope));
+}
+
 /**
  * Narrow `ENVIRONMENT` against the column's own closed set.
  *
@@ -187,11 +193,13 @@ async function run(): Promise<void> {
   }
 
   // Validate the encryption key up-front (only required when we may emit a secret).
-  if (!encryptionKeyHex || !/^[0-9a-fA-F]{64}$/.test(encryptionKeyHex)) {
-    throw new Error(
-      'OUTPUT_ENCRYPTION_KEY is required and must be exactly ' +
-        `${ENCRYPTION_KEY_HEX_LENGTH} hex characters (32 bytes for AES-256-GCM).`,
-    );
+  if (!dryRun) {
+    if (!encryptionKeyHex || !/^[0-9a-fA-F]{64}$/.test(encryptionKeyHex)) {
+      throw new Error(
+        'OUTPUT_ENCRYPTION_KEY is required and must be exactly ' +
+          `${ENCRYPTION_KEY_HEX_LENGTH} hex characters (32 bytes for AES-256-GCM).`,
+      );
+    }
   }
 
   const scopes = parseAndValidateScopes(process.env.SCOPES);
@@ -250,7 +258,7 @@ async function run(): Promise<void> {
     applicationId: application.id,
   });
 
-  // ── 3. Idempotency: reuse an existing usable service production credential ──
+  // ── 3. Idempotency: reuse one exact-scope usable service credential ──
   const existingRows = await db
     .select({
       id: applicationCredentials.id,
@@ -267,11 +275,21 @@ async function run(): Promise<void> {
         eq(applicationCredentials.environment, environment),
         ne(applicationCredentials.status, 'revoked'),
       ),
-    )
-    .limit(1);
+    );
 
-  const existing = existingRows[0];
-  if (existing && isCredentialUsable(existing)) {
+  const usableCredentials = existingRows.filter(isCredentialUsable);
+  const exactScopeCredentials = usableCredentials.filter((credential) =>
+    hasExactScopeSet(credential.scopes, scopes),
+  );
+  if (exactScopeCredentials.length > 1) {
+    throw new Error(
+      `Application "${appName}" has multiple usable ${environment} service credentials ` +
+        `with the requested scopes (${exactScopeCredentials.map((credential) => credential.id).join(', ')}). ` +
+        'Refusing an ambiguous reuse; revoke or rotate them explicitly.',
+    );
+  }
+  const existing = exactScopeCredentials[0];
+  if (existing) {
     logger.info('Reusing existing usable service credential — NOT minting a new one', {
       applicationId: application.id,
       credentialId: existing.id,
@@ -301,6 +319,14 @@ async function run(): Promise<void> {
     return;
   }
 
+  if (usableCredentials.length > 0) {
+    throw new Error(
+      `Application "${appName}" already has a usable ${environment} service credential, ` +
+        'but its scopes do not exactly match the requested set. Refusing to reuse broader or ' +
+        'narrower authority and refusing to mint a parallel credential; rotate it explicitly.',
+    );
+  }
+
   // ── 4. No usable service credential — plan (dry-run) or mint ──
   if (dryRun) {
     logger.info('DRY RUN — would mint a new service credential', {
@@ -327,6 +353,10 @@ async function run(): Promise<void> {
 
     writeResult(planResult);
     return;
+  }
+
+  if (!encryptionKeyHex) {
+    throw new Error('OUTPUT_ENCRYPTION_KEY passed validation but is unavailable');
   }
 
   const { publicKey, secret, secretHash } = generateCredentialMaterial();

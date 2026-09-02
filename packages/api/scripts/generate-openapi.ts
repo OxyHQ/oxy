@@ -37,6 +37,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { z, ZodTypeAny } from 'zod';
+import { INBOX_CAPABILITY_CATALOG } from '../src/capabilities/inbox.catalog';
 
 interface OpenApiInfo {
   title: string;
@@ -846,7 +847,7 @@ function findLeadingComment(source: string, position: number): string | undefine
  * hand-maintained list of them was already drifting.
  */
 const MIDDLEWARE_TOKEN_RE =
-  /\b(authMiddleware|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
+  /\b(authMiddleware|emailCapabilityAuth|serviceAuthMiddleware|requireFirstPartyInferenceCaller|optionalAuthMiddleware|csrfProtection|requireOwnership|rejectServiceTokens|requireStaff|edgeGate|reportingPrincipal|providerConnectionPrincipal|routingPolicyPrincipal|mediaHeadersMiddleware|rateLimit|[A-Za-z0-9_]*(?:Limiter|RateLimit))\b/g;
 
 function middlewareTokens(args: string): string[] {
   const found: string[] = [];
@@ -1579,6 +1580,16 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
       m === 'providerConnectionPrincipal' ||
       m === 'routingPolicyPrincipal'
   );
+  // Inbox accepts either the user's normal bearer session or a short-lived,
+  // audience-bound capability ticket. `emailCapabilityAuth` selects the lane
+  // from the Authorization scheme and never treats a Capability ticket as a
+  // general user session.
+  const isEmailCapability = middlewares.includes('emailCapabilityAuth');
+  const acceptsCapabilityTicket =
+    isEmailCapability &&
+    INBOX_CAPABILITY_CATALOG.tools.some(
+      (tool) => tool.invocation.method === verb.toUpperCase() && tool.invocation.path === openApiPath,
+    );
   const isAuth = middlewares.includes('authMiddleware');
   const isOptionalAuth = middlewares.includes('optionalAuthMiddleware');
   if (isEdgeCredential) {
@@ -1589,6 +1600,11 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
     security.push({ bearerAuth: [] });
   } else if (isServiceOnly) {
     security.push({ serviceTokenAuth: [] });
+  } else if (acceptsCapabilityTicket) {
+    security.push({ capabilityTicketAuth: [] });
+    security.push({ bearerAuth: [] });
+  } else if (isEmailCapability) {
+    security.push({ bearerAuth: [] });
   } else if (isAuth) {
     security.push({ bearerAuth: [] });
   } else if (isOptionalAuth) {
@@ -1597,7 +1613,8 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
   } else {
     security.push({});
   }
-  const requiresCredential = isEdgeCredential || isDualPrincipal || isServiceOnly || isAuth;
+  const requiresCredential =
+    isEdgeCredential || isDualPrincipal || isServiceOnly || isEmailCapability || isAuth;
 
   // CSRF — if the route file is mounted with csrfProtection at the server
   // level we don't add it again per-op. The base spec documents the header
@@ -1651,7 +1668,8 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
     middlewares.includes('requireOwnership') ||
     middlewares.includes('requireStaff') ||
     isServiceOnly ||
-    isDualPrincipal
+    isDualPrincipal ||
+    acceptsCapabilityTicket
   ) {
     responses['403'] = {
       description: 'Insufficient privileges',

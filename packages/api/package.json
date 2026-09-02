@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "dev": "bun --watch src/server.ts",
-    "build": "bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/protocol build && bun run --filter @oxyhq/core build && bun run --filter @oxyhq/federation build && bun run --filter @oxyhq/db build && tsc",
+    "build": "bun run --filter @oxyhq/contracts build && bun run --filter @oxyhq/protocol build && bun run --filter @oxyhq/core build && bun run --filter @oxyhq/federation build && bun run --filter @oxyhq/db build && bun run --filter @oxyhq/mcp build && tsc",
     "clean": "rm -rf dist",
     "migrate:locations": "bun run src/utils/migrateLocations.ts",
     "register:commons-clients": "bun run scripts/register-commons-clients.ts",
