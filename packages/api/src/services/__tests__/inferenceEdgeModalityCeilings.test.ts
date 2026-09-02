@@ -171,16 +171,20 @@ describe('the arms with no route yet', () => {
    */
   it('bounds embeddings by the declared input count and the character total', () => {
     expect(ceilingForOperation({ kind: 'embeddings', embeddings: 3 }, 120, 0)).toEqual({
+      requests: 1,
       input_tokens: 120,
       embeddings: 3,
     });
   });
 
-  it('bounds rerank by characters alone, with no `requests` unit', () => {
-    // `requests` is omitted on purpose: a route priced only on tokens is the common
-    // case, and adding a unit the route does not price would make `quoteUnits`
-    // refuse it — turning a pricing convention into an outage.
-    expect(ceilingForOperation({ kind: 'rerank' }, 400, 0)).toEqual({ input_tokens: 400 });
+  it('bounds rerank by characters and exactly one provider request', () => {
+    // One admitted envelope always becomes one provider request. Carrying the
+    // exact unit is what lets admission enforce maxPricePerRequest before a hold
+    // or inference; a route may price that unit at zero.
+    expect(ceilingForOperation({ kind: 'rerank' }, 400, 0)).toEqual({
+      requests: 1,
+      input_tokens: 400,
+    });
   });
 
   it('constrains rerank on INPUT only, because no modality expresses a ranking', () => {
@@ -196,11 +200,13 @@ describe('the arms with no route yet', () => {
 });
 
 describe('completions are unchanged by the modality work', () => {
-  it('still holds input and output tokens, and nothing else', () => {
+  it('still holds one request plus the input and output token budgets', () => {
     // The regression guard. Every arm above is additive, and a change to the
-    // completion ceiling would move the number for the endpoint that actually
-    // serves traffic.
+    // completion token budgets would move the number for the endpoint that
+    // actually serves traffic. The exact request unit also proves the fixed
+    // per-request price can be checked before execution.
     expect(ceilingForOperation({ kind: 'completion' }, 1_000, 4_096)).toEqual({
+      requests: 1,
       input_tokens: 1_000,
       output_tokens: 4_096,
     });
