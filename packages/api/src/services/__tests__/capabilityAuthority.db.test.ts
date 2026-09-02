@@ -35,7 +35,10 @@ afterAll(async () => {
   await closePostgres();
 });
 
-async function fixture(maximumAutonomy: AutonomyLevel) {
+async function fixture(
+  maximumAutonomy: AutonomyLevel,
+  kind: 'direct_request' | 'automation' = 'direct_request',
+) {
   const [owner] = await getDb().insert(users).values({ color: 'teal' }).returning({ id: users.id });
   const appSlug = `authority-${randomUUID()}`;
   const [application] = await getDb().insert(applications).values({
@@ -93,8 +96,9 @@ async function fixture(maximumAutonomy: AutonomyLevel) {
     deployedAt: new Date(),
     active: true,
   });
+  const automationId = kind === 'automation' ? `automation-${randomUUID()}` : null;
   const [authorization] = await getDb().insert(capabilityExecutionAuthorizations).values({
-    kind: 'direct_request',
+    kind,
     requesterAccountId: owner.id,
     ownerAccountId: owner.id,
     coordinatorApplicationId: application.id,
@@ -106,7 +110,8 @@ async function fixture(maximumAutonomy: AutonomyLevel) {
     resourceType: 'account',
     resourceKey: owner.id,
     tool: 'publishEffect',
-    runId: randomUUID(),
+    runId: kind === 'direct_request' ? randomUUID() : null,
+    automationId,
     maximumAutonomy,
     limits: [],
     expiresAt: new Date(Date.now() + 60_000),
@@ -114,6 +119,7 @@ async function fixture(maximumAutonomy: AutonomyLevel) {
   return {
     authorizationId: authorization.id,
     coordinator: { applicationId: application.id, credentialId: credential.id },
+    automationId,
   };
 }
 
@@ -147,6 +153,60 @@ describe('capability authority over live database state', () => {
     await expect(reauthorizeCapabilityTicket(issued.claims)).resolves.toEqual({
       allowed: false,
       reason: 'ticket_execution_authorization_mismatch',
+    });
+  });
+
+  it('materializes durable automation authority into a ticket for one exact run', async () => {
+    const input = await fixture('autonomous', 'automation');
+
+    // The expand release must keep accepting rows written by the previous image.
+    // The contract release removes these persisted run fields after rollout.
+    await getDb().update(capabilityExecutionAuthorizations).set({
+      runId: 'legacy-automation-run',
+      stepId: 'legacy-automation-step',
+    }).where(eq(capabilityExecutionAuthorizations.id, input.authorizationId));
+
+    await expect(evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+    }, { issueTicket: true })).resolves.toEqual({
+      decision: { allowed: false, reason: 'automation_run_identity_missing' },
+    });
+
+    const issued = await evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+      runId: 'automation-run-1',
+      stepId: 'automation-step-1',
+    }, { issueTicket: true });
+
+    expect(issued.decision.allowed).toBe(true);
+    expect(issued.claims).toMatchObject({
+      runId: 'automation-run-1',
+      stepId: 'automation-step-1',
+      automationId: input.automationId,
+      executionAuthorization: {
+        kind: 'automation',
+        id: input.authorizationId,
+        automationId: input.automationId,
+      },
+    });
+    if (!issued.claims) throw new Error('Expected an issued automation ticket');
+    await expect(reauthorizeCapabilityTicket(issued.claims)).resolves.toMatchObject({
+      allowed: true,
+      effectiveAutonomy: 'autonomous',
+    });
+  });
+
+  it('does not let a coordinator replace the run bound to direct authority', async () => {
+    const input = await fixture('execute_on_request');
+
+    await expect(evaluateCapabilityAuthority({
+      executionAuthorizationId: input.authorizationId,
+      coordinator: input.coordinator,
+      runId: 'different-run',
+    }, { issueTicket: true })).resolves.toEqual({
+      decision: { allowed: false, reason: 'direct_request_runtime_scope_override' },
     });
   });
 });

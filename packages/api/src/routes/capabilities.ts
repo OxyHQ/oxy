@@ -77,7 +77,7 @@ const executionAuthorizationSchema = z.object({
   actor: actorRefSchema,
   resource: resourceRefSchema,
   tool: z.string().min(1),
-  runId: z.string().min(1),
+  runId: z.string().min(1).optional(),
   stepId: z.string().min(1).optional(),
   automationId: z.string().min(1).optional(),
   maximumAutonomy: autonomyLevelSchema,
@@ -86,6 +86,16 @@ const executionAuthorizationSchema = z.object({
 }).strict().superRefine((value, context) => {
   if ((value.kind === 'automation') !== (value.automationId !== undefined)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['automationId'], message: 'automationId is required only for automation authority' });
+  }
+  if (value.kind === 'direct_request' && !value.runId) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['runId'], message: 'runId is required for direct request authority' });
+  }
+  if (value.kind === 'automation' && (value.runId !== undefined || value.stepId !== undefined)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['runId'],
+      message: 'automation run and step identity are supplied when a ticket is issued',
+    });
   }
   if (value.kind === 'direct_request' && value.maximumAutonomy === 'autonomous') {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['maximumAutonomy'], message: 'direct requests cannot authorize autonomous execution' });
@@ -97,7 +107,11 @@ const executionAuthorizationSchema = z.object({
   });
 });
 
-const ticketRequestSchema = z.object({ executionAuthorizationId: z.string().min(1) }).strict();
+const ticketRequestSchema = z.object({
+  executionAuthorizationId: z.string().min(1),
+  runId: z.string().min(1).optional(),
+  stepId: z.string().min(1).optional(),
+}).strict();
 
 async function livePrincipal(
   request: ServiceAuthRequest,
@@ -381,7 +395,7 @@ router.post('/execution-authorizations', authMiddleware, async (request: AuthReq
     resourceType: input.resource.resourceType,
     resourceKey: input.resource.resourceId,
     tool: input.tool,
-    runId: input.runId,
+    runId: input.runId ?? null,
     stepId: input.stepId ?? null,
     automationId: input.automationId ?? null,
     maximumAutonomy: input.maximumAutonomy,
@@ -530,6 +544,8 @@ router.post('/tickets', serviceAuthMiddleware, async (request: ServiceAuthReques
       applicationId: principal.applicationId,
       credentialId: principal.credentialId,
     },
+    ...(parsed.data.runId ? { runId: parsed.data.runId } : {}),
+    ...(parsed.data.stepId ? { stepId: parsed.data.stepId } : {}),
   }, { issueTicket: true });
   response.status(result.decision.allowed ? 201 : 403).json(result);
 });
