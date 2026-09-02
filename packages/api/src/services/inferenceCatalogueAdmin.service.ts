@@ -25,7 +25,7 @@
  * row, and an existing row is never edited.
  */
 
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
 import { routingScoreValidityThreshold } from '../config/inferenceRoutingScoreValidity';
 import {
@@ -34,10 +34,12 @@ import {
   type BalancedRoutingScoreSource,
   type MeasuredRoutingScoreSource,
   type PriceRoutingScoreSource,
+  APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX,
   inferenceDeploymentRoutingScoreEvents,
   inferenceDeploymentRoutingScores,
   inferenceDeployments,
 } from '../db/schema';
+import { violatesUniqueIndex } from '../utils/postgresErrors';
 
 /** The four transitions this workflow offers, as the route layer names them. */
 export const DEPLOYMENT_PERMISSION_ACTIONS = [
@@ -138,6 +140,21 @@ export interface DeploymentRoutingScorecard {
 }
 
 const SERVING_AVAILABILITY_SCOPES = ['public_payg', 'oxy_hosted', 'internal_alia'] as const;
+const APPROVED_IDENTITY_CONFLICT =
+  'This Kaana deploymentId already backs another approved catalogue row.';
+
+/**
+ * Convert only the approved-Kaana-identity unique race into the public 409.
+ * Other database failures must retain their original identity and surface as
+ * server errors rather than being mislabeled as an operator conflict.
+ */
+export function classifyDeploymentPermissionWriteError(
+  error: unknown
+): DeploymentPermissionRefused | undefined {
+  return violatesUniqueIndex(error, APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
+    ? new DeploymentPermissionRefused(APPROVED_IDENTITY_CONFLICT)
+    : undefined;
+}
 
 function unavailableScorecardReason(
   scorecard: DeploymentRoutingScorecard,
@@ -513,9 +530,7 @@ export async function applyPermissionAction(
           )
           .limit(1);
         if (duplicate !== undefined) {
-          throw new DeploymentPermissionRefused(
-            'This Kaana deploymentId already backs another approved catalogue row.'
-          );
+          throw new DeploymentPermissionRefused(APPROVED_IDENTITY_CONFLICT);
         }
       }
     }
@@ -553,5 +568,9 @@ export async function applyPermissionAction(
       legalReviewStatus: row.legalReviewStatus,
       changedAt,
     };
+  }).catch((error: unknown) => {
+    const conflict = classifyDeploymentPermissionWriteError(error);
+    if (conflict !== undefined) throw conflict;
+    throw error;
   });
 }

@@ -10,10 +10,11 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { routingScoreValidityThreshold } from '../../config/inferenceRoutingScoreValidity';
 import {
+  APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX,
   inferenceDeployments,
   inferenceDeploymentRoutingScoreEvents,
   inferenceDeploymentRoutingScores,
@@ -33,6 +34,7 @@ import {
 import {
   ACTION_TARGET_STATE,
   applyPermissionAction,
+  classifyDeploymentPermissionWriteError,
   DEPLOYMENT_PERMISSION_ACTIONS,
   DeploymentNotFoundError,
   DeploymentPermissionRefused,
@@ -434,6 +436,83 @@ describe('review comes before approval', () => {
     }
     expect(code).toBe(UNIQUE_VIOLATION);
   });
+
+  it('classifies only the exact approved-identity unique index as a permission conflict', () => {
+    const driverError = new Error('duplicate key');
+    Reflect.set(driverError, 'code', UNIQUE_VIOLATION);
+    Reflect.set(driverError, 'constraint_name', APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX);
+    const wrapped = new Error('Drizzle query failed');
+    Reflect.set(wrapped, 'cause', driverError);
+
+    const conflict = classifyDeploymentPermissionWriteError(wrapped);
+    expect(conflict).toBeInstanceOf(DeploymentPermissionRefused);
+    expect(conflict).toHaveProperty(
+      'message',
+      'This Kaana deploymentId already backs another approved catalogue row.'
+    );
+
+    Reflect.set(driverError, 'constraint_name', 'some_other_unique_index');
+    expect(classifyDeploymentPermissionWriteError(wrapped)).toBeUndefined();
+  });
+
+  it('classifies a concurrent duplicate-approval race as the same permission conflict', async () => {
+    const staffUserId = await insertStaffUser();
+    const first = await insertProposedRoute();
+    const second = await insertProposedRoute();
+
+    // Enterprise rows do not require routing scorecards, which keeps this test
+    // focused on the global approved-identity invariant. Both transactions can
+    // pass their courtesy probe before the unique index chooses one winner.
+    await getDb()
+      .update(inferenceDeployments)
+      .set({ availabilityScope: 'enterprise' })
+      .where(eq(inferenceDeployments.id, first.deploymentId));
+    await getDb()
+      .update(inferenceDeployments)
+      .set({
+        availabilityScope: 'enterprise',
+        internalRouteId: first.internalRouteId,
+      })
+      .where(eq(inferenceDeployments.id, second.deploymentId));
+    await Promise.all([
+      approveLegalReview(first.deploymentId, staffUserId),
+      approveLegalReview(second.deploymentId, staffUserId),
+    ]);
+
+    const outcomes = await Promise.allSettled([
+      applyPermissionAction({
+        deploymentId: first.deploymentId,
+        action: 'approve',
+        staffUserId,
+      }),
+      applyPermissionAction({
+        deploymentId: second.deploymentId,
+        action: 'approve',
+        staffUserId,
+      }),
+    ]);
+
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    const rejected = outcomes.find(
+      (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected'
+    );
+    expect(rejected?.reason).toBeInstanceOf(DeploymentPermissionRefused);
+    expect(rejected?.reason).toHaveProperty(
+      'message',
+      'This Kaana deploymentId already backs another approved catalogue row.'
+    );
+
+    const approved = await getDb()
+      .select({ id: inferenceDeployments.id })
+      .from(inferenceDeployments)
+      .where(
+        and(
+          eq(inferenceDeployments.internalRouteId, first.internalRouteId),
+          eq(inferenceDeployments.permissionState, 'approved')
+        )
+      );
+    expect(approved).toHaveLength(1);
+  });
 });
 
 describe('routing-score authoring', () => {
@@ -632,67 +711,67 @@ describe('routing-score authoring', () => {
   it.each(['disabled', 'retired'] as const)(
     'will not degrade evidence for an approved serving-scope route whose status is %s',
     async (status) => {
-    const staffUserId = await insertStaffUser();
-    const deployment = await insertProposedRoute();
-    const other = await insertProposedRoute();
-    await setDeploymentRoutingScores({
-      deploymentId: deployment.internalRouteId,
-      staffUserId,
-      scorecard: scorecardFor(deployment.priceVersionId),
-    });
-    await approveLegalReview(deployment.deploymentId, staffUserId);
-    await applyPermissionAction({
-      deploymentId: deployment.deploymentId,
-      action: 'approve',
-      staffUserId,
-    });
-
-    await getDb()
-      .update(inferenceDeployments)
-      .set({ status })
-      .where(eq(inferenceDeployments.id, deployment.deploymentId));
-
-    await expect(
-      setDeploymentRoutingScores({
+      const staffUserId = await insertStaffUser();
+      const deployment = await insertProposedRoute();
+      const other = await insertProposedRoute();
+      await setDeploymentRoutingScores({
         deploymentId: deployment.internalRouteId,
         staffUserId,
-        scorecard: scorecardFor(deployment.priceVersionId, { balancedScore: null }),
-      })
-    ).rejects.toThrow('approved serving-scope route');
-
-    const shortLived = scorecardFor(deployment.priceVersionId);
-    const shortValidUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    shortLived.latency.validUntil = shortValidUntil;
-    shortLived.throughput.validUntil = shortValidUntil;
-    shortLived.balanced.validUntil = shortValidUntil;
-    await expect(
-      setDeploymentRoutingScores({
-        deploymentId: deployment.internalRouteId,
+        scorecard: scorecardFor(deployment.priceVersionId),
+      });
+      await approveLegalReview(deployment.deploymentId, staffUserId);
+      await applyPermissionAction({
+        deploymentId: deployment.deploymentId,
+        action: 'approve',
         staffUserId,
-        scorecard: shortLived,
-      })
-    ).rejects.toThrow('configured minimum validity horizon');
+      });
 
-    await expect(
-      setDeploymentRoutingScores({
-        deploymentId: deployment.internalRouteId,
-        staffUserId,
-        scorecard: scorecardFor(other.priceVersionId),
-      })
-    ).rejects.toThrow('not assigned to this exact Kaana deployment');
+      await getDb()
+        .update(inferenceDeployments)
+        .set({ status })
+        .where(eq(inferenceDeployments.id, deployment.deploymentId));
 
-    await applyPermissionAction({
-      deploymentId: deployment.deploymentId,
-      action: 'suspend',
-      staffUserId,
-    });
-    await expect(
-      setDeploymentRoutingScores({
-        deploymentId: deployment.internalRouteId,
+      await expect(
+        setDeploymentRoutingScores({
+          deploymentId: deployment.internalRouteId,
+          staffUserId,
+          scorecard: scorecardFor(deployment.priceVersionId, { balancedScore: null }),
+        })
+      ).rejects.toThrow('approved serving-scope route');
+
+      const shortLived = scorecardFor(deployment.priceVersionId);
+      const shortValidUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      shortLived.latency.validUntil = shortValidUntil;
+      shortLived.throughput.validUntil = shortValidUntil;
+      shortLived.balanced.validUntil = shortValidUntil;
+      await expect(
+        setDeploymentRoutingScores({
+          deploymentId: deployment.internalRouteId,
+          staffUserId,
+          scorecard: shortLived,
+        })
+      ).rejects.toThrow('configured minimum validity horizon');
+
+      await expect(
+        setDeploymentRoutingScores({
+          deploymentId: deployment.internalRouteId,
+          staffUserId,
+          scorecard: scorecardFor(other.priceVersionId),
+        })
+      ).rejects.toThrow('not assigned to this exact Kaana deployment');
+
+      await applyPermissionAction({
+        deploymentId: deployment.deploymentId,
+        action: 'suspend',
         staffUserId,
-        scorecard: scorecardFor(deployment.priceVersionId, { balancedScore: null }),
-      })
-    ).resolves.toBeDefined();
+      });
+      await expect(
+        setDeploymentRoutingScores({
+          deploymentId: deployment.internalRouteId,
+          staffUserId,
+          scorecard: scorecardFor(deployment.priceVersionId, { balancedScore: null }),
+        })
+      ).resolves.toBeDefined();
     }
   );
 });

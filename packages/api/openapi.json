@@ -17234,8 +17234,8 @@
         "tags": [
           "Inference"
         ],
-        "summary": "Replace every explicit routing score and its per-dimension provenance for one exact",
-        "description": "Kaana deployment identity. This is a complete scorecard PUT: omitted keys are\ninvalid, while NULL deliberately withdraws a signal rather than inventing a\nvalue. The Kaana id in this path is not an Oxy catalogue row id or provider\nslug.",
+        "summary": "Replace the routing scorecard for one exact Kaana deployment identity.",
+        "description": "This is a complete scorecard PUT with provenance per dimension: omitted keys are\ninvalid, while NULL deliberately withdraws a signal rather than inventing a\nvalue. The Kaana id in this path is not an Oxy catalogue row id or provider\nslug.",
         "parameters": [
           {
             "name": "kaanaDeploymentId",

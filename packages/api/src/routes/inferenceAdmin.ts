@@ -394,8 +394,8 @@ router.post(
 );
 
 /**
- * Replace every explicit routing score and its per-dimension provenance for one exact
- * Kaana deployment identity. This is a complete scorecard PUT: omitted keys are
+ * Replace the routing scorecard for one exact Kaana deployment identity.
+ * This is a complete scorecard PUT with provenance per dimension: omitted keys are
  * invalid, while NULL deliberately withdraws a signal rather than inventing a
  * value. The Kaana id in this path is not an Oxy catalogue row id or provider
  * slug.

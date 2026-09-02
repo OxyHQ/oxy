@@ -90,6 +90,9 @@ export const DEPLOYMENT_STATUSES = ['active', 'degraded', 'disabled', 'retired']
 
 export type DeploymentStatus = (typeof DEPLOYMENT_STATUSES)[number];
 
+export const APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX =
+  'inference_deployments_approved_internal_route_id_key';
+
 /**
  * The approval lifecycle a route moves through (workstream 11's admin workflow).
  *
@@ -296,7 +299,7 @@ export const inferenceDeployments = pgTable(
     // Drafts may model audience-specific offers independently. Publication may
     // not: until serving has a viewer-aware cross-scope commercial contract,
     // one exact Kaana deployment identity can back at most one approved row.
-    uniqueIndex('inference_deployments_approved_internal_route_id_key')
+    uniqueIndex(APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
       .on(t.internalRouteId)
       .where(sql`${t.permissionState} = 'approved' and ${t.internalRouteId} is not null`),
 
