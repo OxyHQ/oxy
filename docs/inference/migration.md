@@ -186,10 +186,10 @@ proxy itself is unchanged and still reachable at `POST /alia/chat/completions`**
 caller it served kept a working path, one base URL apart.
 `POST /v1/voice/token` and `POST /v1/voice/transcribe` still fall through to it.
 
-The visible consequence is intended: a trusted caller posting to
-`/v1/chat/completions` now reaches an edge with no data plane behind it and gets
-a typed `service_unavailable`, instead of being silently proxied to Alia on one
-shared upstream key with no reservation and no attribution.
+The visible consequence is intended: `/v1/chat/completions` is the Oxy inference
+edge and never silently falls through to Alia on one shared upstream key with no
+reservation or attribution. Whether that edge is open and Kaana execution is
+enabled is live rollout state, not a migration-document fact.
 
 **What you need to do:** if you were calling `/v1/chat/completions` as the Alia
 proxy, move to `/alia/chat/completions`. If you were calling it expecting the

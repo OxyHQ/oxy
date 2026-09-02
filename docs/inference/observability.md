@@ -108,7 +108,7 @@ metric surface that is correctly zero. The edge now fills them:
   token is produced upstream, and a fabricated number here would enter every
   dashboard as a fact. It is NULL on every row today because **no deployment
   configures a data plane**, not because the edge cannot stream — it can, on both
-  public dialects, since the signed relay hop landed.
+  public dialects, since the signed Kaana hop landed.
 - **`route_switches`** — forwarded from the same report, and surfaced as a
   `route_switch` frame on both dialects. This is the fallback metric; it is `0` on
   every row today for the same reason.
@@ -186,17 +186,17 @@ that is correctly zero, and the second reading is the one a dashboard takes.
   `route_switches > 0` and not `is not null`.
 
 **The reason is not that the edge cannot produce them, and this page used to say it
-was.** That claim was true and stopped being true: since the signed relay hop
+was.** That claim was true and stopped being true: since the signed Kaana hop
 landed the edge streams both public dialects, forwards the data plane's own
 `timeToFirstTokenMs` and `routeSwitches` when a usage report carries them, and
 surfaces `route_switch` frames on both dialects. What is absent is a **data
-plane**. `resolveRelayDataPlane()` answers `absent` unless `RELAY_BASE_URL`,
-`RELAY_EDGE_SIGNING_KEY_ID` and `RELAY_EDGE_SIGNING_PRIVATE_KEY` are all set, and
+plane**. `resolveKaanaDataPlane()` answers `absent` unless `KAANA_BASE_URL`,
+`KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` are all set, and
 no deployment sets them — so nothing has ever streamed and no route has ever
 switched.
 
 That distinction gets a **field, not a comment**, because it is the one that will
-matter the day Relay is deployed: `dataPlane` on the payload reports
+matter the day Kaana is deployed: `dataPlane` on the payload reports
 `configured | absent | unreadable` straight from the resolver. With `absent`, a
 pending first-token time needs no investigation. With `configured`, the same
 pending means the data plane is not reporting what it should — a bug, and one that
@@ -494,8 +494,8 @@ schema change and a policy decision rather than an observability one:
   own role, because they are the ones with no compensating control: a wrongly
   approved catalogue route is retired again, a wrongly issued grant is money.
 
-Two further workstream-12 items are **out of scope here and unbuilt**: rate limits
-and fraud controls before prepaid public inference (gated on a launch that cannot
-happen — there is no data plane — and on anomaly detection, which is its own body
-of work), and the privacy/security review gate on public launch, which is a
-process decision rather than code.
+Two further workstream-12 items are **out of scope here**: end-to-end rate-limit
+verification and fraud controls before prepaid public inference (Kaana has its
+edge guardrail, while anomaly detection remains its own body of work), and the
+privacy/security review gate on public launch, which is a process decision rather
+than code.

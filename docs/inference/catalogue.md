@@ -216,7 +216,9 @@ reasonable:
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it may serve from, and which one it picks is the data plane's
   decision — so a route that may run outside your allowed set cannot honour a
-  residency requirement and does not qualify.
+  residency requirement and does not qualify. Empty means no regional
+  attestation, so the route fails closed under either an allow-list or a
+  deny-list and is eligible only when neither is configured.
 - **`requireZeroDataRetention` needs the route to actually not retain**, not
   merely to be capable of zero retention. `zeroDataRetentionAvailable` is a
   capability; a route carrying it while still retaining payloads by default is

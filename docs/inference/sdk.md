@@ -1,9 +1,10 @@
 # The TypeScript SDK, and the OpenAI SDK in TypeScript and Python
 
-Two ways to authenticate, one set of endpoints. Both reach
-`https://api.oxy.so/v1`, and **every invoke refuses today** — see
-[What you will actually observe](#what-you-will-actually-observe) before you
-plan around anything on this page.
+Two ways to authenticate, one set of endpoints at `https://api.oxy.so/v1`.
+Authentication alone does not establish that the live audience, catalogue and
+Kaana execution gates are open; see
+[Verify the deployed path](#verify-the-deployed-path) before planning around
+anything on this page.
 
 Status of the whole platform: [README.md](./README.md).
 
@@ -68,8 +69,8 @@ life.
 | `respond(request, options?)` | `POST /v1/responses` |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
 
-That is the whole surface, because that is the whole edge. There is no
-`stream()`, no `embeddings()`, no `images()` — see
+That is the whole SDK surface. There is no `stream()`, `embeddings()` or
+`images()` method in the current TypeScript client — see
 [streaming.md](./streaming.md) and the workstream-4 list in
 [README.md](./README.md).
 
@@ -207,38 +208,19 @@ Rate-limit budgets are reported through the standard `RateLimit-*` headers.
 
 ---
 
-## What you will actually observe
+## Verify the deployed path
 
-Send a request today, with a valid `oxy_sk_…` credential holding
-`inference:invoke`, and the edge will:
+This document defines the client contract, not current availability. A live
+check must read the deployed rollout gates and catalogue, then send a real
+request through Oxy to `https://kaana.ai`. Depending on that state, a request may
+be refused because the audience is closed, the model is absent, routing evidence
+is incomplete or Kaana execution is disabled. Do not infer any of those facts
+from this page.
 
-1. authenticate the credential,
-2. resolve `accountId` / `applicationId` / `credentialId`,
-3. check the scope,
-4. resolve and pin your routing policy version,
-5. resolve the model — **which fails, because the catalogue is empty**.
-
-Give it a model that exists and it would continue: reserve the maximum this
-request could cost, find no data plane to forward to, release the hold, and
-answer:
-
-```json
-{
-  "schemaVersion": 1,
-  "code": "service_unavailable",
-  "message": "No inference data plane is configured for this deployment.",
-  "retryable": false,
-  "requestId": "…"
-}
-```
-
-`retryable: false` is the important part. An unconfigured deployment is fixed by
-an operator, not waited out, and marking it retryable would turn one
-misconfiguration into a retry storm from every SDK at once.
-
-**Nothing is charged.** The hold is released before the refusal returns, and the
-test that asserts the refusal asserts the balance is whole afterwards — a
-refusal that silently kept the money is the failure that looks like it worked.
+Every refusal still settles safely: if a hold was created, the edge releases or
+settles it before returning. An unconfigured execution path is non-retryable
+because only an operator can change it; marking it retryable would turn one
+misconfiguration into a client-wide retry storm.
 
 ---
 
@@ -251,10 +233,9 @@ edge was built to be reachable from the client a Python developer already has.
 OpenAI client parses, in both directions. Everything Oxy-specific … rides in
 headers, which is the rule that keeps it compatible rather than merely similar").
 
-**Nobody has run any of this.** No data plane is configured, so every invoke
-refuses before it reaches a provider — see the constraints below. What follows is
-a documented claim derived from the route code and the published contract, not a
-verified transcript. Treat the first real call as the verification.
+The example is a contract illustration, not a production transcript. Verify the
+live catalogue, rollout gates and a real response before treating a deployment
+as available.
 
 ```python
 import os
@@ -333,26 +314,17 @@ plane does not teach every client to retry forever
 (`packages/api/src/utils/inferenceEdgeErrors.ts`). Retry on
 `X-Oxy-Error-Retryable`, and honour `Retry-After`.
 
-### What refuses today, and why
+### Runtime gates and refusals
 
-- **`stream=True` is refused** with `invalid_request` and HTTP 400 — verified by
-  `routes/__tests__/inferenceEdge.test.ts`, "refuses streaming with a typed error
-  rather than silently answering non-streamed". Note the reason: the edge *has*
-  streaming for both dialects, and it is unreachable because this deployment
-  configures no data plane, not because it was never built. A stock `openai`
-  client defaults to non-streaming, so ordinary calls are unaffected.
-- **Every invoke returns `service_unavailable` (HTTP 503).** The request is
-  refused after authentication and admission and before any provider is
-  contacted. Nothing is charged: the hold is released before the refusal returns.
-- **"Built" and "configured" are different facts here**, and the refusal is the
-  second one. `services/relayClient.ts` says it plainly: the data plane exists as
-  a repository with a build and a test suite, no deployment of it is configured,
-  and that is why every invoke refuses. The fix is three environment variables,
-  not a project.
-- **`model` must name a catalogue entry**, and the catalogue is empty by design
-  until a real model is published, so there is no id that resolves today either.
+- `model` must name a catalogue entry visible to the caller.
+- Missing, stale, mismatched or colliding route identity, price or score evidence
+  refuses before reservation and before Kaana is called.
+- A deployment with Kaana execution disabled returns the typed, non-retryable
+  unconfigured-path refusal and keeps no charge.
+- Streaming and cancellation require the same live end-to-end verification as a
+  non-streamed request; source support alone is not production evidence.
 
-None of the three is a Python-specific limitation; they are the state of the edge.
+These are platform boundaries, not Python-specific limitations.
 
 ### The machine-readable contract
 
@@ -363,30 +335,11 @@ artifact any generated client — Python or otherwise — would be generated fro
 and `scripts/check-openapi-fresh.mjs` is what keeps it describing the routes that
 exist.
 
-## There is no Python SDK, and this is not the moment to start one
+## There is no official Python SDK
 
-#972 lists a Python SDK "after the HTTP contract stabilizes". It has not
-stabilised, on the two measures that matter:
-
-- **No endpoint serves a request.** Every invoke resolves to
-  `service_unavailable`, so a Python client could be written but never exercised
-  against a real completion — and an SDK whose happy path has never run once is
-  a set of assumptions, not a client.
-- **The parts most likely to move are the parts a second SDK would have to
-  re-implement.** Streaming has no wire format at the edge yet, cancellation has
-  no end-to-end path, and the catalogue that decides what `model` may say is
-  empty. Each of those is a Python rewrite the day it lands.
-
-The TypeScript client above exists anyway because it is the reference the HTTP
-contract is checked against, and because `packages/api`'s
-`sdkRequestCompatibility.test.ts` fails the build if the two drift. A second
-language doubles that surface without doubling the coverage.
-
-What HAS changed is the cost of the alternative. `packages/api/openapi.json` now
-describes the `/v1` edge, so a *generated* Python client is cheap in a way a
-hand-written one is not: it costs a generator invocation rather than a second
-implementation of streaming, cancellation and the catalogue, and it cannot drift
-from the contract by hand. It is still not worth publishing while every invoke
-refuses — a generated client whose happy path has never run is the same set of
-assumptions in a different language — but the decision is now "generate it when
-the edge serves a request", not "write one".
+The TypeScript client is the reference checked against the HTTP contract by
+`sdkRequestCompatibility.test.ts`. `packages/api/openapi.json` describes the
+`/v1` edge, so a future Python client should be generated from that artifact
+after the public contract and live end-to-end behavior are release-gated. Do not
+hand-maintain a second implementation of streaming, cancellation or catalogue
+semantics.

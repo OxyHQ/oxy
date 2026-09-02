@@ -46,7 +46,7 @@ also report. Flipping any default in the module turns that file red.
 never opens anything, and the readout reports `unreadable` rather than echoing an
 operator's text back over HTTP.
 
-Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
+Kaana's `KAANA_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
 dangerous switch — makes a malformed value a hard boot failure instead. That is
 proportionate for a data plane whose whole job is the thing being gated; it is
 not proportionate for `oxy-api`, which also serves authentication, email, storage
@@ -61,7 +61,7 @@ picks up, and what somebody types to see whether a flag does anything.
 `commercial-launch:2026-08-16` is not typed by accident, and it records the two
 things an auditor asks about a charge — who accepted it, and when.
 
-It does not expire, and Relay's does not either. Expiry would be wrong in both
+It does not expire, and Kaana's does not either. Expiry would be wrong in both
 directions here: at public scale an expired authorization either serves the world
 for free or refuses every request, and both are expensive. What the date buys
 instead is an age reported beside the flag in the readout, which is the question

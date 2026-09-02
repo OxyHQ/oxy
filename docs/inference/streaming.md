@@ -1,15 +1,14 @@
 # Streaming, cancellation and retries
 
-Three behaviours a customer needs to reason about before they build. **One of
-the three is fully defined and enforced today; the other two are defined and not
-yet reachable**, and this page keeps them apart rather than describing all three
-in the present tense.
+Three behaviours a customer needs to reason about before they build. This page
+describes the source contract; whether a deployed audience can exercise it is
+live rollout state and must be verified separately.
 
-| | Contract | Enforced at the edge | Observable end to end |
+| | Contract | Source path | Production proof required |
 |---|---|---|---|
-| Streaming | yes | refuses `stream: true` | **no** — nothing streams |
-| Cancellation | yes | wired, and pre-empted (see below) | **no** — there is nothing to cancel |
-| Retries and idempotency | yes | yes | **yes** |
+| Streaming | yes | validated SSE through the data-plane client | real provider stream through Oxy and Kaana |
+| Cancellation | yes | client abort reaches the data-plane request context | upstream cancellation plus one exact settlement |
+| Retries and idempotency | yes | enforced by the edge and ledger | deployed retry with no duplicate charge |
 
 Status of the whole platform: [README.md](./README.md).
 
@@ -17,35 +16,23 @@ Status of the whole platform: [README.md](./README.md).
 
 ## Streaming
 
-### No endpoint streams. `stream: true` is refused.
+### The edge streams; the TypeScript SDK does not yet expose a stream method
 
-```json
-{
-  "schemaVersion": 1,
-  "code": "invalid_request",
-  "message": "Streaming responses are not served by this edge yet. Send stream: false.",
-  "retryable": false,
-  "param": "stream",
-  "requestId": "…"
-}
-```
+ADR 0010 requires streaming to be **unbuffered end to end** — an edge that
+collected a whole completion and then re-emitted it as SSE would have the shape
+of streaming and none of its point. The Oxy route and data-plane client implement
+the validated SSE path when Kaana execution is configured. An unconfigured path
+refuses before opening a stream and keeps no charge.
 
-The refusal is at the top of the edge's execution path, before a routing policy
-is resolved and long before spend is reserved, so a streaming request costs
-nothing and reaches nothing.
-
-That is the only honest answer available. ADR 0010 requires streaming to be
-**unbuffered end to end** — an edge that collected a whole completion and then
-re-emitted it as SSE would have the shape of streaming and none of its point.
-Unbuffered streaming needs something upstream producing tokens, and there is no
-data plane. `@oxyhq/core`'s client therefore has no `stream()` method and no
-`stream` field on a request: a method that could only ever fail is a worse
-artefact than an absent one.
+`@oxyhq/core` currently exposes no `stream()` method and no `stream` request
+field. A caller using the HTTP surface directly can request streaming; an SDK
+consumer must wait for the typed decoder rather than hand-roll a second event
+contract and call it supported.
 
 ### The event union exists, and is worth reading now
 
-`packages/contracts/src/inference/streamEvents.ts` defines what a stream WILL
-carry, and the shapes are already load-bearing for the invariants on this
+`packages/contracts/src/inference/streamEvents.ts` defines what a stream carries,
+and the shapes are already load-bearing for the invariants on this
 platform. Seven events, discriminated on `type`:
 
 | Event | Carries |
@@ -101,15 +88,14 @@ a normal terminal state, not an error** — `outcome: 'cancelled'`,
 `finishReason: 'cancelled'`, HTTP `499`, and a receipt you can read back with
 `GET /v1/generations/:id`.
 
-### What you cannot observe, and the one thing that would mislead you
+### Production verification
 
-**Disconnecting today does not produce `cancelled`.** With no data plane
-configured, the forward throws `DataPlaneNotConfiguredError` immediately, and
-that classification is checked *before* the aborted signal — so a request you
-abandoned still answers `service_unavailable`. Both are refusals that release the
-hold, so nothing is charged either way, but do not read a `service_unavailable`
-as evidence that cancellation is unimplemented, and do not build a test that
-expects `cancelled` from an abandoned request.
+Source tests prove the Oxy abort signal reaches the Kaana client and Kaana passes
+its request context to the provider adapter. They do not prove the deployed
+network path. A release gate must stream from a real provider, disconnect after
+partial output, observe upstream cancellation and verify exactly one settlement
+for the measured units. An unconfigured-path `service_unavailable` is not
+evidence about cancellation in either direction.
 
 On the OpenAI compatibility surface a cancelled generation reports
 `finish_reason: "stop"` in the body, because OpenAI's vocabulary has no
@@ -148,9 +134,9 @@ Five codes are retryable:
 Everything else is not, and three of those are worth naming because the status
 alone would suggest otherwise:
 
-- **`service_unavailable` (503) is NOT retryable.** It is what you get today: an
-  unconfigured data plane is an operator's to fix, and a retrying client would
-  turn one misconfiguration into a storm.
+- **`service_unavailable` (503) is NOT retryable.** An unconfigured execution
+  path is an operator's to fix, and a retrying client would turn one
+  misconfiguration into a storm.
 - **`quota_exceeded` (429) is NOT retryable, while `rate_limited` (429) is.** A
   rate limit clears within the window the response names; a quota is an
   account-level ceiling only a human raises. Branching on the status would get
@@ -210,7 +196,7 @@ no compensating call to make.
 
 The backstop for a hold that outlives its request — `expireReservations`, which
 releases it as a refund with a reason rather than silently — runs every minute
-on the server. It is not load-bearing today, because every path out of the edge
-settles its own hold; it becomes so the moment a request can fail somewhere the
-edge does not see. [billing.md](./billing.md#the-cases-that-decide-the-behaviour-you-will-see)
+on the server. It does not replace explicit settlement on each known exit path;
+it covers failures the edge process cannot observe.
+[billing.md](./billing.md#the-cases-that-decide-the-behaviour-you-will-see)
 records it in the same terms.

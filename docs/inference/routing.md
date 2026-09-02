@@ -183,10 +183,11 @@ This is the part to read twice.
   switches" above. A hold is sized against the most expensive route in that list,
   so failing over to a dearer deployment can never cost more than the request was
   admitted for.
-- **A routing-profile target is refused** at the edge, with `no_route_available`
-  and `param: routingProfile`. Choosing among a profile's candidates is routing
-  EXECUTION, which belongs to the data plane; the control plane picking one
-  would be inventing a routing decision it has no way to test.
+- **Routing-profile targets.** Oxy expands the profile's ordered candidates,
+  applies the same viewer, modality, policy and pricing checks to each, and sends
+  only the surviving revision-pinned deployments in `authorizedRoutes`. Kaana
+  executes within that signed list and cannot invent a destination. With
+  fallback disabled the list contains only the admitted primary.
 
 ### Enforced against the candidate routes
 
@@ -219,7 +220,15 @@ Two readings worth stating outright, because the alternatives look reasonable:
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it may serve from, and which one it picks is the data plane's — so
   a route that MAY run outside your allowed set cannot honour a residency
-  requirement and does not qualify.
+  requirement and does not qualify. An empty deployment set means no regional
+  attestation, not “everywhere”; it fails both an allow-list and a deny-list and
+  is eligible only when neither regional control is present.
+- **The signed route descriptor is an exact Kaana inventory identity.** Oxy
+  copies `internal_route_id` into `deploymentId` and the deployment's complete
+  `regions` set without aliases, inferred infrastructure regions or
+  normalization. A row with no internal route id is refused before reservation;
+  Kaana independently refuses any provider, model-reference or region-set drift
+  against that inventory id.
 - **`requireZeroDataRetention` needs the route to actually not retain**, not
   merely to be capable of it. `zeroDataRetentionAvailable` is a capability; a
   route carrying it while still retaining payloads by default is excluded.
@@ -263,17 +272,29 @@ request against the same limit belongs at the edge, beside the quote, and is not
 implemented. What bounds spend is the reservation, the account balance and the
 spending limits — see [billing.md](./billing.md#spending-limits).
 
-### Not enforced
+### Ranking after qualification
 
-One, named in code beside the filter, in `UNFILTERED_ROUTING_CONTROLS`, with its
-reason. A control that ends up in neither list fails `tsc` by name, so this list
-cannot silently grow.
+`optimiseFor` ranks only routes that already passed every qualification control.
+Oxy applies it from complete reviewed scorecards before it signs
+`authorizedRoutes`; Kaana executes that signed preference order and receives no
+policy value to reinterpret.
 
-- **`optimiseFor`** — a RANKING among the routes that already qualify, which is
-  routing execution and therefore the data plane's (ADR 0006). It can never
-  exclude a candidate, and enforcing it in the control plane would mean inventing
-  a routing decision with no way to test the choice. Nothing ranks today, because
-  there is no data plane.
+The order is exact and deliberately independent of names:
+
+1. an explicit routing-profile candidate `priority` comes first;
+2. within one priority, the selected score is descending;
+3. exact `deploymentId` code-unit comparison is the only equal-score tie-break.
+
+Provider slug, provider display name, model name, insertion order, locale
+collation and database return order never participate. The ID is an identity and
+the last-resort deterministic tie-break, not a proxy for quality.
+
+Every otherwise eligible route must have one exact deployment ID, one price
+version and a current scorecard for that same ID and price version. A missing ID,
+price or score; stale score; price-version mismatch; duplicate ID; or colliding
+approved mapping refuses the complete route set before reservation and before a
+Kaana call. The resolver never hides incomplete evidence by dropping only the
+bad survivor.
 
 Enforcement of eleven controls landed in
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
@@ -288,9 +309,9 @@ inert while it filters is the next reader's bug.
 
 `GET /applications/:applicationId/route-switches` is served, and
 `recordRouteSwitch` — which looks an authorisation up rather than trusting a
-claim — has no production caller. Route switches are reported BY the data plane,
-and there is no data plane. An empty list is the correct answer; it is not
-evidence that no switch happened.
+claim — is fed by Kaana reports only after the live signed path is enabled. The
+source mechanism exists; an empty production list before a verified canary is
+not evidence that no switch happened.
 
 ---
 

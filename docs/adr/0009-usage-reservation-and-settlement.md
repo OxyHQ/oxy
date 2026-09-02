@@ -43,10 +43,10 @@ history.**
 ### The protocol
 
 ```text
-1. RESERVE   at the Oxy edge, before the envelope reaches Relay
+1. RESERVE   at the Oxy edge, before the envelope reaches Kaana
              ceiling = f(input units, max output units, allowed route price ceiling)
              insufficient balance / credit limit  →  reject; nothing is forwarded
-2. EXECUTE   Relay runs the request and returns a normalized usage receipt
+2. EXECUTE   Kaana runs the request and returns a normalized usage receipt
 3. SETTLE    exact charge derived from the receipt and the pinned price version
 4. REFUND    release (reservation − settled) atomically with the settlement
 ```
@@ -82,9 +82,9 @@ Every reserve, settle and refund call is idempotent on a **stable id supplied by
 the caller**, not on a generated one:
 
 - reservation → `requestId` (ADR 0007), allocated at edge admission
-- settlement → `(requestId, generationId?)` from the Relay receipt
+- settlement → `(requestId, generationId?)` from the Kaana receipt
 - refund → the settlement's own id
-- external events (Stripe webhooks, Relay redeliveries) → the provider's event id
+- external events (Stripe webhooks, Kaana redeliveries) → the provider's event id
 
 A repeated call returns the original outcome and writes nothing new. The
 implementation shape is `ON CONFLICT … DO NOTHING RETURNING` rather than
@@ -120,7 +120,7 @@ after the fact.
 | Provider omits usage on a report that claims `completed` | **REFUSE the settlement** (`zero-usage`) and write nothing. See "Refuse, never estimate" below. |
 | Reservation exists with no settlement after its deadline | Expire and refund it. An expiry is a refund with a reason, and it is emitted as an event; it is never a silent release. |
 | Retry of a settled request | Idempotent no-op returning the original receipt. |
-| Redelivered webhook or Relay event | Idempotent no-op on the provider event id. |
+| Redelivered webhook or Kaana event | Idempotent no-op on the provider event id. |
 | BYOK route | The upstream provider bills the customer directly; Oxy settles only its own platform/service fee, and the receipt says so. |
 
 **No path may charge twice, and no path may execute unreserved.** Those are the

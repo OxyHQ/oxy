@@ -71,6 +71,23 @@ graph TD
     style S fill:#5B0A6B,stroke:#D26AE7,color:#fff
 ```
 
+### Inference and agents
+
+Kaana and Alia are complementary, not interchangeable:
+
+```text
+one-shot product AI -> Oxy inference edge -> Kaana (https://kaana.ai)
+agent or chat       -> Alia -> Oxy inference edge -> Kaana
+```
+
+Kaana executes model requests across providers. Alia owns agents,
+conversations, memory, tools and approvals. Provider keys belong only to
+Kaana's KMS-encrypted PostgreSQL store; they are never app or Alia environment
+variables. Oxy selects an exact `deploymentId` from complete, current routing
+evidence: explicit profile priority first, score descending second, and exact
+ID code units only as a deterministic tie-break. Names and database row order
+never select a route. See the [canonical request-routing guide](docs/inference/request-routing.md).
+
 <table>
 <tr>
 <td valign="top" width="50%">

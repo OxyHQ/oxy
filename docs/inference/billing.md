@@ -9,10 +9,10 @@ decision record.
 **The edge calls this on every request.** It reserves before anything is
 forwarded and settles on every path out, including the path where there is
 nothing to forward to: a request that cannot be served releases its hold before
-the refusal returns, so a refused request costs nothing. What has never happened
-is a settlement against a REAL usage report, because no data plane has ever
-produced one — every settlement so far is the zero-unit kind that records a
-failure.
+the refusal returns, so a refused request costs nothing. A successful Kaana path
+settles against the normalized usage report and pinned price version; proving
+that this happened in production requires a live request and ledger readback,
+not this source contract.
 
 Your own numbers are readable at `/inference/reporting` — balance, usage, spend,
 pending reservations, settled charges, an export, and budgets. See

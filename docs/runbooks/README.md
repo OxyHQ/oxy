@@ -26,7 +26,7 @@ because the fifth is the one nobody writes down:
 | Machine API key (`oxy_sk_…`) | Oxy | [machine-credential-rotation.md](./machine-credential-rotation.md) |
 | A customer's BYOK provider credential | the customer, held in managed secret storage | [byok-provider-connection-rotation.md](./byok-provider-connection-rotation.md) |
 | Service-token signing key, and `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` | Oxy | [service-token-signing-key-rotation.md](./service-token-signing-key-rotation.md) |
-| The Oxy→Relay edge signing key | Oxy | [relay-edge-signing-key-rotation.md](./relay-edge-signing-key-rotation.md) |
+| The Oxy→Kaana edge signing key | Oxy | [kaana-edge-signing-key-rotation.md](./kaana-edge-signing-key-rotation.md) |
 | AWS access keys, RDS credentials, the ECS task role, the ALB certificate, KMS keys | infra | **`~/Oxy/oxy-infra`**, `docs/runbooks/` there |
 | `ALIA_API_KEY` — the shared upstream key the Alia proxy forwards on | **Alia**, not Oxy | no runbook here, deliberately — see below |
 
@@ -89,7 +89,7 @@ the tokens signed under the retired key cannot be re-signed.
   `packages/api/src/services/inferenceProviderConnection.service.ts`,
   `packages/api/src/services/providerSecretStore.ts`.
 - Service tokens: [ADR 0012](../adr/0012-service-token-signing-key-model.md).
-- The Oxy→Relay boundary: [ADR 0006](../adr/0006-oxy-relay-boundary.md) and
+- The Oxy→Kaana boundary: [ADR 0006](../adr/0006-oxy-kaana-boundary.md) and
   ADR 0015.
 - Platform secret delivery: `.github/workflows/deploy-aws.yml` and
   `scripts/check-deploy-secrets-sync.mjs`.

@@ -191,9 +191,10 @@ plane.
 
 ### Where a request would run
 
-A deployment declares its `regions`, and a catalogue entry reports them to you.
-That is the serving side, and it is the data plane's — Oxy publishes the fact,
-the data plane owns the placement.
+A deployment declares its attested `regions`, and a catalogue entry reports
+them to you. An empty list is an explicit absence of regional attestation, not
+an invented global region. That is the serving side, and it is the data plane's
+— Oxy publishes the fact, the data plane owns the placement.
 
 ### The residency and retention controls are enforced
 
@@ -208,7 +209,9 @@ Two readings decided in the implementation, both the stricter one:
 
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it MAY serve from, and which it picks is the data plane's — so a
-  route that may run outside your allowed set does not qualify.
+  route that may run outside your allowed set does not qualify. A deployment
+  with no attested regions fails both an allow-list and a deny-list; it can be
+  selected only when neither regional control is configured.
 - **`requireZeroDataRetention` needs the route to actually not retain.**
   `zeroDataRetentionAvailable` is a capability; a route that has it and still
   retains by default is excluded.

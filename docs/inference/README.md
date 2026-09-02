@@ -1,20 +1,16 @@
-# Oxy inference platform — what exists, and what does not
+# Oxy inference platform
 
-**This page is the status board.** Everything else under `docs/inference/`
-documents a mechanism that is already in the repository; this page is where the
-gaps live, so a reader who finds a topic missing elsewhere finds the reason here
-rather than assuming it was overlooked.
-
-Read this first. **The public Oxy inference endpoint exists and refuses every
-invoke**, for two independent reasons: no deployment has opened it to any
-audience, and there is no data plane behind it. Nothing you send it will produce
-a completion, and nothing you send it will cost you money — charging is off by
-default too. [rollout.md](./rollout.md) has the four flags, what each one gates,
-and the rollback plan.
+Read [request-routing.md](./request-routing.md) first for the canonical
+Oxy/Kaana/Alia boundary and product paths. This page describes the Oxy
+control-plane mechanisms and their rollout gates. Whether a public or internal
+invoke succeeds is live deployment state; verify the deployed Oxy configuration,
+Kaana tasks and a real signed request instead of treating a dated prose status as
+an availability check. [rollout.md](./rollout.md) defines the gates and rollback
+plan.
 
 Tracking issue: [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
 Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
-[0006](../adr/0006-oxy-relay-boundary.md) ·
+[0006](../adr/0006-oxy-kaana-boundary.md) ·
 [0007](../adr/0007-canonical-request-attribution.md) ·
 [0008](../adr/0008-catalogue-concept-separation.md) ·
 [0009](../adr/0009-usage-reservation-and-settlement.md) ·
@@ -28,14 +24,12 @@ Design decisions: [ADR 0005](../adr/0005-oxy-is-the-single-control-plane.md) ·
 
 Oxy is the **control plane**: accounts, applications, credentials, scopes,
 attribution, the model catalogue, routing policy, BYOK metadata, the financial
-ledger, the usage API and the Console. A separate data plane, **Relay** — the
+ledger, the usage API and the Console. The data plane, **Kaana** — the
 production name, settled by [ADR 0011](../adr/0011-inference-data-plane-name.md) —
-will own provider adapters, routing execution, streaming and upstream cost
-measurement. **The
-control-plane half is now largely built and reachable. The data plane does not
-exist**, so the edge that joins them authenticates you, prices your request,
-reserves the money, finds nothing to forward to, releases the hold and answers
-`service_unavailable`.
+owns provider adapters, routing execution, streaming and upstream cost
+measurement. Alia remains the agent runtime and consumes this path; it is not a
+provider proxy. Source implementation and production reachability are separate
+claims, so use the live cutover gates before calling the end-to-end path ready.
 
 ---
 
@@ -43,14 +37,14 @@ reserves the money, finds nothing to forward to, releases the hold and answers
 
 | Capability | Where | Reachable by a caller? |
 |---|---|---|
-| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id`. **Closed to every audience by default** (`INFERENCE_EDGE_AUDIENCE`), and every invoke refuses even when opened (below) |
+| The public inference edge | `packages/api/src/routes/inferenceEdge.ts` | Mounted — `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id`. Reachability is controlled independently by `INFERENCE_EDGE_AUDIENCE` and the Kaana execution gate; verify both live |
 | `oxy_sk_*` machine credentials — create, rotate, revoke, audit | `packages/api/src/routes/applications.ts`, `.../utils/machineCredentialToken.ts` | Yes |
 | The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
 | Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
 | Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. **The catalogue is EMPTY**, and is withheld from public viewers until published (`INFERENCE_CATALOGUE_AUDIENCE`) |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
-| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, and **enforced against the candidate routes** (thirteen controls, the two price ceilings included; only `optimiseFor` is not) |
+| Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, filtered by the thirteen qualification controls and ranked from reviewed scorecards using the exact deployment identity contract |
 | BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Yes for metadata; create and rotate refuse `503` |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
@@ -77,28 +71,20 @@ control planes.
 
 ---
 
-## What is NOT built
+## Cutover-dependent status
 
-Each line names the workstream of #972 that owns it. Nothing here has a date, for
-the reason given in [deprecation.md](./deprecation.md).
+The sections below identify rollout dependencies. They are not a substitute for
+the live checks in [request-routing.md](./request-routing.md#a-cutover-is-complete-only-when-measured).
 
 ### The data plane — workstream 13
 
-The repository exists — `OxyHQ/Relay`, public, Go, created 2026-08-16, verified
-2026-08-17 — and what it contains is a question for that repository, not this one.
-What matters here is unchanged: **nothing Oxy can reach.** No deployment, no
-endpoint, no routing execution Oxy invokes, no streaming, no health scoring, no
-usage receipt from a real provider. Every `Oxy → data plane` statement in the
-contracts package is still a contract waiting for a counterparty.
-
-**This is one of the two facts that make every invoke refuse**; the other is
-that no deployment has opened `INFERENCE_EDGE_AUDIENCE`, so a caller is refused
-`permission_denied` before any of this runs. Past that gate the edge is complete:
-it authenticates, attributes, authorizes, resolves the policy, resolves the
-route, reserves the spend if charging is authorized, and then answers a typed
-`service_unavailable` with a `requestId` — having released any hold, so nothing
-is charged. It never falls back to the Alia proxy and never fabricates a
-completion.
+`OxyHQ/Kaana` implements the signed data-plane endpoint, streaming adapters,
+authorized routing, health/circuit breakers, PostgreSQL/KMS provider-key pools,
+inventory publication and technical receipts. That is a source-code fact, not a
+production claim. The production gate is a healthy serving deployment at
+`https://kaana.ai`, complete Oxy signing configuration and a real signed request
+with settlement and negative-policy checks. The edge never falls back to Alia
+as an infrastructure provider and never fabricates a completion.
 
 ### The catalogue's contents — workstream 5
 
@@ -107,11 +93,16 @@ publicly exposed, and default-deny is the starting state. So `GET /models`
 answers `[]`, `getModel(...)` throws for every id, and the edge refuses any
 model you name with `model_not_found`.
 
-### One routing control — workstream 6
+### Route selection — workstream 6
 
-`optimiseFor` is not enforced: it ranks the routes that already qualify, which is
-routing execution and therefore the data plane's (ADR 0006) — and there is no
-data plane.
+After the qualification controls filter the set, Oxy ranks every surviving
+exact deployment by the reviewed score for `optimiseFor`. An explicit routing
+profile priority precedes that score; an equal-score tie is broken only by exact
+`deploymentId` code units. Provider/model/display names, insertion order and
+database return order never select a route. Missing, stale, mismatched or
+colliding identity/price/score evidence refuses the complete set before a hold
+or Kaana call. [routing.md](./routing.md#ranking-after-qualification) records
+the complete rule.
 
 The two price ceilings, `maxPricePerUnit` and `maxPricePerRequest`, WERE the
 other two and are now compared against the price version each candidate is
@@ -138,11 +129,10 @@ the request**. [byok.md](./byok.md) has what would wire one.
 
 ### Streaming and observable cancellation — workstream 4
 
-The stream-event union exists in `@oxyhq/contracts`; nothing emits one, and the
-edge refuses `stream: true`. Cancellation is wired into the forward and settled
-correctly in the ledger, and cannot be exercised end to end because there is
-nothing to cancel. [streaming.md](./streaming.md) documents the contract and
-says plainly which parts you cannot observe.
+The stream-event union, Oxy forwarding client and Kaana emitter exist in source.
+Production readiness still requires a real streamed request plus an explicit
+client-disconnect test proving cancellation reaches the provider and settlement
+occurs exactly once. [streaming.md](./streaming.md) documents the contract.
 
 ### Later modalities — workstream 4
 
@@ -238,13 +228,11 @@ read it back rather than inferring it from this repository.
 [alia.md](./alia.md) is the runbook, the argument for each scope granted and
 withheld, and the list of what remains blocked.
 
-Alia also remains the upstream of the proxy above. That does not change here:
-removing it is conditioned on Relay being LIVE, which is a claim about a
-deployment Oxy can reach and not about a repository — the repository exists, and
-nothing Oxy can reach does. The
-proxy kept a working path when the edge took `/v1/chat/completions` — it is
-still served at `POST /alia/chat/completions`, and `/v1/voice/*` still falls
-through to it. Retiring it needs a dated notice; see
+Alia is the agent runtime and an ordinary Oxy inference consumer. Retire any
+static infrastructure proxy only after the live Oxy→Kaana and Alia→Oxy→Kaana
+paths pass the cutover gates. Alia product endpoints such as voice or assistant
+chat remain Alia surfaces; they must not be confused with generic provider
+execution. See [request-routing.md](./request-routing.md) and
 [deprecation.md](./deprecation.md#the-alia-proxy-now-at-alia).
 
 ### A Python SDK — workstream 15
@@ -269,6 +257,7 @@ gives the two reasons.
 | [data-policy.md](./data-policy.md) | What is retained, for how long, and where — plus what a route does with your payload |
 | [deprecation.md](./deprecation.md) | The deprecation policy, why no date is published, and what will need one |
 | [migration.md](./migration.md) | The scope migration, `oxy_dk_*`, `alia_sk_*`, and the retired `alia-*` model names |
+| [request-routing.md](./request-routing.md) | The canonical Kaana/Alia/Oxy boundary, product paths, provider-key custody and cutover gates |
 | [alia.md](./alia.md) | Alia as a consumer: its registration, its scopes and the ones withheld, the internal cost centres, and the runbook for the operational steps |
 | [rollout.md](./rollout.md) | The four rollout flags, shadow metering, the stage table, and the rollback plan an append-only ledger forces |
 | [observability.md](./observability.md) | The `requestId` correlation column, why there is no metrics library, what each named metric is derivable from, and how staff actions are told apart from customer ones |

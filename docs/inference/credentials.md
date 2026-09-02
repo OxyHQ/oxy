@@ -77,10 +77,10 @@ per-account attribution. The edge reserves the maximum a request could cost
 before anything is forwarded ([billing.md](./billing.md)), which is what makes
 the credential safe to accept at all.
 
-**Every invoke still refuses**, with `service_unavailable`, because there is no
-data plane behind the edge. The credential authenticates, the attribution
-resolves, the scope is checked, the spend is reserved and released. See
-[sdk.md](./sdk.md#what-you-will-actually-observe).
+The credential authenticates only this lane; it does not prove the audience is
+open, the requested model is published or Kaana execution is enabled. Read the
+live rollout state and run the signed end-to-end check in
+[sdk.md](./sdk.md#verify-the-deployed-path) before claiming reachability.
 
 Catalogue reads (`GET /v1/models`) accept the credential too, and resolve to the
 PUBLIC audience — the same one an anonymous caller gets. A machine key is not a
