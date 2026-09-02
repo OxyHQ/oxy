@@ -15,6 +15,12 @@ export { jsonObjectSchemaToZod, jsonSchemaToZod } from './jsonSchema';
 export type { JsonSchema } from './jsonSchema';
 export { extractBearerToken } from './http';
 export type { AuthorizationHeaders } from './http';
+export { createCatalogMcpHttpService } from './httpTransport';
+export type {
+  CatalogMcpHttpLogger,
+  CatalogMcpHttpService,
+  CatalogMcpHttpServiceOptions,
+} from './httpTransport';
 export { introspectOxyMcpAccessToken } from './introspection';
 export type { OxyMcpIntrospectionOptions } from './introspection';
 export {
