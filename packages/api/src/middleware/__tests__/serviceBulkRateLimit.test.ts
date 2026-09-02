@@ -10,6 +10,7 @@
  *   - POST /assets/service/user-media (persist media for a local user; MCP)
  *   - POST /assets/service/by-ids     (resolve asset metadata for a batch of ids)
  *   - POST /assets/service/by-sha256  (reverse-resolve assets by content hash)
+ *   - POST /auth/mcp/oauth/introspect (live MCP resource-token validation)
  *
  * Like `/federation/*` (#604), these must NOT share the per-IP browser budget
  * (`rl:general`, 1000/15min) — a backfill exhausts it and 429s legitimate bulk
@@ -61,8 +62,12 @@ function userSessionToken(): string {
   return jwt.sign({ userId: 'u-1', sessionId: 's-1' }, ACCESS_TOKEN_SECRET, { expiresIn: '5m' });
 }
 
-function makeReq(path: string, authorization?: string): Request {
-  return { path, headers: authorization ? { authorization } : {} } as unknown as Request;
+function makeReq(path: string, authorization?: string, originalUrl?: string): Request {
+  return {
+    path,
+    originalUrl: originalUrl ?? path,
+    headers: authorization ? { authorization } : {},
+  } as unknown as Request;
 }
 
 interface Probe {
@@ -105,9 +110,18 @@ describe('isServiceToServiceBulkRequest', () => {
       // metadata backfill drew 24,423 429s off the browser budget.
       '/assets/service/by-ids',
       '/assets/service/by-sha256',
+      '/auth/mcp/oauth/introspect',
     ]) {
       expect(isServiceToServiceBulkRequest(makeReq(path, `Bearer ${serviceToken()}`))).toBe(true);
     }
+  });
+
+  it('recognizes introspection after Express trims the mounted router path', () => {
+    expect(isServiceToServiceBulkRequest(makeReq(
+      '/introspect',
+      `Bearer ${serviceToken()}`,
+      '/auth/mcp/oauth/introspect?trace=test',
+    ))).toBe(true);
   });
 
   it('does NOT exempt an exempt path WITHOUT a token (unauthenticated flood stays capped)', () => {

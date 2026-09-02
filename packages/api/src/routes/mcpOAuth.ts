@@ -60,6 +60,13 @@ const tokenLimiter = rateLimit({
   windowMs: 60 * 1_000,
   max: process.env.NODE_ENV === 'development' ? 200 : 60,
 });
+const introspectionLimiter = rateLimit({
+  prefix: 'rl:auth:mcp:introspect:',
+  windowMs: 60 * 1_000,
+  max: process.env.NODE_ENV === 'development' ? 12_000 : 6_000,
+  keyGenerator: (request) =>
+    (request as ServiceAuthRequest).serviceApp?.appId ?? 'unknown',
+});
 
 const httpsUrl = z.string().trim().max(2_048).url().refine((value) => new URL(value).protocol === 'https:', {
   message: 'must use HTTPS',
@@ -343,7 +350,7 @@ router.post('/revoke', tokenLimiter, async (request, response) => {
   }
 });
 
-router.post('/introspect', tokenLimiter, serviceAuthMiddleware, async (request: ServiceAuthRequest, response) => {
+router.post('/introspect', serviceAuthMiddleware, introspectionLimiter, async (request: ServiceAuthRequest, response) => {
   try {
     if (!request.serviceApp) throw new McpOAuthError('invalid_client', 'A live Oxy service credential is required', 401);
     const principal = await resolveLiveAgencyServicePrincipal(request.serviceApp);
