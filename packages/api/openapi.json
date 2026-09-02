@@ -19045,6 +19045,7 @@
                   },
                   "secret": {
                     "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
                     "minLength": 1,
                     "maxLength": 4096
                   },
@@ -19303,6 +19304,7 @@
                   },
                   "secret": {
                     "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
                     "minLength": 1,
                     "maxLength": 4096
                   },
@@ -20278,6 +20280,7 @@
                 "properties": {
                   "secret": {
                     "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
                     "minLength": 1,
                     "maxLength": 4096
                   }
