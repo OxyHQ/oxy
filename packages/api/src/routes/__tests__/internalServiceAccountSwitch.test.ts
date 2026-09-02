@@ -517,7 +517,7 @@ describe('the target account', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.status).toBe(200);
     expect(claims(res.body.data?.accessToken ?? '').sub).toBe(bot);
