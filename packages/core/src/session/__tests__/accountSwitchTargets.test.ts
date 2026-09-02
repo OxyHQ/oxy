@@ -38,13 +38,18 @@ describe('isSwitchTargetAccount', () => {
       personal: false,
       organization: true,
       project: true,
-      bot: true,
+      // `bot` USED to be `true` here, and that was the bug. This predicate asks
+      // what a PERSON may become, and a bot is something that operates on their
+      // behalf — the identity that exists to act while nobody is present. It read
+      // the delegation predicate, which admits `bot` for exactly the opposite
+      // reason, and the switcher offered a seat inside one. Somebody took it.
+      bot: false,
       channel: false,
     });
   });
 
   /**
-   * The `self` ground, and the reason this predicate is not `isActAsEligibleKind`.
+   * The `self` ground, and the reason this predicate is not `isOperatorSwitchTargetKind`.
    *
    * `personal` is act-as INELIGIBLE — assuming somebody's human login would be
    * impersonation — so a switcher gated on that predicate alone would drop the

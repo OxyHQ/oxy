@@ -1,4 +1,4 @@
-import type Ionicons from "@expo/vector-icons/Ionicons";
+import type Ionicons from "../icons/Ionicons";
 import type { AssetUploadInput, RNFileDescriptor } from "@oxyhq/core";
 import type { ComponentProps } from "react";
 import { Platform } from "react-native";

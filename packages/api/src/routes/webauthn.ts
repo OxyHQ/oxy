@@ -52,6 +52,8 @@ import {
   webauthnLoginOptionsRequestSchema,
   webauthnRegisterVerifyRequestSchema,
   webauthnLoginVerifyRequestSchema,
+  isValidUsername,
+  USERNAME_INVALID_MESSAGE,
 } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { notifications } from '../db/schema/notifications';
@@ -67,7 +69,7 @@ import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
 import { isOxyApexOrigin } from '../utils/origin';
 import { getWebauthnRpId } from '../config/env';
-import { normalizeUsername, USERNAME_PATTERN, INVALID_USERNAME_MESSAGE } from '../utils/username';
+import { normalizeUsername } from '../utils/username';
 import { buildSessionAuthResponse, sessionCreateOptionsFromBody } from '../controllers/session.controller';
 import sessionService from '../services/session.service';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
@@ -509,8 +511,8 @@ router.post(
         throw new BadRequestError('username is required to register a new account');
       }
       const normalizedUsername = normalizeUsername(requestedUsername);
-      if (!USERNAME_PATTERN.test(normalizedUsername)) {
-        throw new BadRequestError(INVALID_USERNAME_MESSAGE);
+      if (!isValidUsername(normalizedUsername)) {
+        throw new BadRequestError(USERNAME_INVALID_MESSAGE);
       }
       const [taken] = await db
         .select({ id: users.id })
@@ -692,8 +694,8 @@ router.post(
       throw new BadRequestError('username is required to register a new account');
     }
     const normalizedUsername = normalizeUsername(requestedUsername);
-    if (!USERNAME_PATTERN.test(normalizedUsername)) {
-      throw new BadRequestError(INVALID_USERNAME_MESSAGE);
+    if (!isValidUsername(normalizedUsername)) {
+      throw new BadRequestError(USERNAME_INVALID_MESSAGE);
     }
     const [taken] = await db
       .select({ id: users.id })

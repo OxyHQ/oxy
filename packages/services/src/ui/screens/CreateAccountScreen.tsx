@@ -1,9 +1,18 @@
 import type React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../icons/Ionicons';
 import type { AccountCategoryId, AccountKind, CreateAccountInput } from '@oxyhq/core';
 import { accountCategoryLabel, DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, MAX_ACCOUNT_CATEGORIES, MAX_DISPLAY_NAME_LENGTH, SELECTABLE_ACCOUNT_CATEGORY_IDS } from '@oxyhq/core';
+import {
+  applyBotUsernameSuffix,
+  stripDisallowedUsernameCharacters,
+  usernameSchemaForAccountKind,
+  BOT_USERNAME_INVALID_MESSAGE,
+  USERNAME_INVALID_MESSAGE,
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+} from '@oxyhq/contracts';
 import type { BaseScreenProps } from '../types/navigation';
 import { useI18n } from '../hooks/useI18n';
 import { useSurfaceHeader } from '../hooks/useSurfaceHeader';
@@ -22,8 +31,8 @@ type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
  *
  * A strict subset of what `POST /accounts` accepts, not `Exclude<AccountKind,
  * 'personal'>`: this screen CREATES AND ENTERS in one gesture, so it can only
- * offer kinds an operator may act as — `isActAsEligibleKind` is the same
- * predicate the server enforces on `POST /accounts/:id/switch`.
+ * offer kinds an operator may switch into — `isOperatorSwitchTargetKind` is the
+ * same predicate the server enforces on `POST /accounts/:id/switch`.
  *
  * So `channel` is absent here even though `POST /accounts` accepts it from any
  * signed-in caller: a channel is a content identity nobody occupies, and
@@ -36,9 +45,7 @@ type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
  */
 type CreatableAccountKind = Extract<AccountKind, 'organization' | 'project' | 'bot'>;
 
-const USERNAME_REGEX = /^[a-zA-Z0-9_-]{3,30}$/;
 const DEBOUNCE_MS = 400;
-const USERNAME_MAX = 30;
 const DISPLAY_NAME_MAX = MAX_DISPLAY_NAME_LENGTH;
 const BIO_MAX = 160;
 
@@ -139,25 +146,45 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   }, []);
 
   // Debounced username availability check
-  const checkUsername = useCallback((value: string) => {
+  //
+  // The kind is a PARAMETER, not a read of the `kind` state: this runs from the
+  // username field and from the type selector, and the selector's own `setKind`
+  // has not landed yet when it calls. Reading the state here would validate the
+  // previously chosen kind — an off-by-one that shows "available" for a bot
+  // handle `POST /accounts` will refuse.
+  const checkUsername = useCallback((value: string, forKind: CreatableAccountKind) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (!value || value.length < 3) {
+    if (!value || value.length < USERNAME_MIN_LENGTH) {
       setUsernameStatus(value.length > 0 ? 'invalid' : 'idle');
       setUsernameMessage(
         value.length > 0
-          ? (t('accounts.create.username.tooShort') || 'Username must be at least 3 characters')
+          ? (t('accounts.create.username.tooShort')
+            || `Username must be at least ${USERNAME_MIN_LENGTH} characters`)
           : '',
       );
       return;
     }
 
-    if (!USERNAME_REGEX.test(value)) {
+    // The ONE policy, from `@oxyhq/contracts`, for the kind being created. This
+    // screen used to carry a private copy of the rule, and the server it talks to
+    // enforced a LOOSER one — so a name this field refused was a name
+    // `POST /accounts` would happily have stored.
+    //
+    // WHICH half failed decides the copy: for a bot the rule has two, and telling
+    // somebody who typed `a.b` to append `bot` sends them to be refused a second
+    // time. The issue is read to choose between two LOCALIZED strings rather than
+    // shown directly — the schema's message is English, and this screen is not.
+    const parsed = usernameSchemaForAccountKind(forKind).safeParse(value);
+    if (!parsed.success) {
+      const failedTheLabel = parsed.error.issues[0]?.message === BOT_USERNAME_INVALID_MESSAGE;
       setUsernameStatus('invalid');
       setUsernameMessage(
-        t('accounts.create.username.invalidChars') || 'Only letters, numbers, hyphens, and underscores',
+        failedTheLabel
+          ? (t('accounts.create.username.mustEndInBot') || BOT_USERNAME_INVALID_MESSAGE)
+          : (t('accounts.create.username.invalidChars') || USERNAME_INVALID_MESSAGE),
       );
       return;
     }
@@ -186,10 +213,34 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
   }, [oxyServices, t]);
 
   const handleUsernameChange = useCallback((value: string) => {
-    const cleaned = value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    // Filters characters the policy forbids, and nothing else. It no longer
+    // lower-cases: `MyBot` is stored as `MyBot`, and uniqueness is decided
+    // case-insensitively by the database index rather than by rewriting what
+    // somebody typed. It does NOT label a bot handle either — appending `bot` to
+    // every keystroke would fight the person typing `mybot` one letter at a time.
+    const cleaned = stripDisallowedUsernameCharacters(value);
     setUsername(cleaned);
-    checkUsername(cleaned);
-  }, [checkUsername]);
+    checkUsername(cleaned, kind);
+  }, [checkUsername, kind]);
+
+  /**
+   * Choosing the account type re-decides the handle, because the policy differs
+   * by kind: a `bot` handle must end in `bot`.
+   *
+   * Picking "Bot" LABELS what has been typed so far — visibly, in the field,
+   * before anything is submitted, and still editable. That is a proposal, not the
+   * silent rename the policy exists to prevent: the alternative is a field that
+   * says "invalid" and leaves the person to guess the rule from a sentence. It
+   * only ever adds the label, and only when moving to `bot` — moving away leaves
+   * the name alone, since the label is not forbidden to anybody else.
+   */
+  const handleKindChange = useCallback((nextKind: CreatableAccountKind) => {
+    setKind(nextKind);
+    if (!username) return;
+    const proposed = nextKind === 'bot' ? applyBotUsernameSuffix(username) : username;
+    setUsername(proposed);
+    checkUsername(proposed, nextKind);
+  }, [checkUsername, username]);
 
   const handleDisplayNameChange = useCallback((value: string) => {
     setDisplayName(value);
@@ -304,7 +355,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
               )}
               title={kindLabel(t, option.value)}
               description={kindDescription(t, option.value)}
-              onPress={() => setKind(option.value)}
+              onPress={() => handleKindChange(option.value)}
               showChevron={false}
               rightElement={selected ? (
                 <Ionicons name="checkmark-circle" size={20} color={bloomTheme.colors.primary} />
@@ -360,7 +411,7 @@ const CreateAccountScreen: React.FC<BaseScreenProps> = ({
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="off"
-                maxLength={USERNAME_MAX}
+                maxLength={USERNAME_MAX_LENGTH}
               />
             </TextField>
             {(usernameStatus === 'checking' || usernameMessage) ? (

@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/services",
-  "version": "30.0.1",
+  "version": "30.2.0",
   "description": "OxyHQ Expo/React Native SDK \u2014 UI components, screens, and native features",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
@@ -111,9 +111,11 @@
   "scripts": {
     "typescript": "tsc --skipLibCheck --noEmit",
     "lint": "biome lint --error-on-warnings ./src",
-    "build": "bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view",
+    "build": "bun run check:icon-fonts && bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun x react-native-builder-bob build --target typescript && bun run copy-assets && bun run copy-dts && bun run delete-dts.js && bun run delete-debug-view",
     "postbuild": "node scripts/verify-package.mjs",
     "verify:package": "node scripts/verify-package.mjs",
+    "generate:icon-fonts": "node scripts/generate-icon-font-subsets.mjs",
+    "check:icon-fonts": "node scripts/check-icon-font-subsets.mjs",
     "build:js": "bun x react-native-builder-bob build --target commonjs && bun x react-native-builder-bob build --target module && bun run copy-assets",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
@@ -193,7 +195,7 @@
   "peerDependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@oxyhq/bloom": "^1.0.0",
-    "@oxyhq/core": "^21.0.0",
+    "@oxyhq/core": "^21.0.0 || ^22.0.0 || ^23.0.0",
     "@react-native-async-storage/async-storage": "^2.0.0",
     "@react-native-community/netinfo": ">=11.4.1",
     "@tanstack/query-async-storage-persister": "catalog:",

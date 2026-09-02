@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the full Ionicons and Material Community Icons assets reachable from
+  Services UI with exact-shape generated subsets. The consumer payload falls
+  from 1,697,384 bytes to 75,172 bytes for those two families. A build gate now
+  rejects stale subsets, changed source versions, unrecorded glyph names, or
+  reintroduced full-family imports.
+
 ## [28.0.0] - 2026-08-06
 
 ### Licence: AGPL-3.0-only becomes Apache-2.0

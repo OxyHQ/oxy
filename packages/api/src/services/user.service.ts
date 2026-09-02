@@ -41,7 +41,7 @@ import {
   normalizeLocations,
   normalizeProfileName,
 } from '../utils/profileTextNormalization';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { normalizeUsername } from '../utils/username';
 import { BadRequestError } from '../utils/error';
 import { Request } from 'express';
 import {
@@ -63,14 +63,15 @@ import {
   type PublicUserRow,
   type PublicUserView,
 } from '../utils/publicUserProjection';
-import {
-  isPremiumSubscriptionPlan,
-  resolveUserSubscriptionPlan,
-} from '../utils/subscriptionPlan';
+import { assertColorNotReserved, normalizeUserColor } from '../utils/profileColor';
 import { userIdentityFields, deriveIsFederated, toThemePreference } from '../utils/userTransform';
 import { DISPLAY_NAME_INVALID_MESSAGE, isValidDisplayName, normalizeLocale } from '@oxyhq/core';
 import { buildUserDid } from './did.service';
-import { isAccountKind, type UserRelationship } from '@oxyhq/contracts';
+import {
+  isAccountKind,
+  usernameSchemaForAccountKind,
+  type UserRelationship,
+} from '@oxyhq/contracts';
 import type { NameParts } from '../utils/displayName';
 
 // Constants
@@ -320,13 +321,13 @@ export interface UnfollowUserResult {
 
 /**
  * Normalize a profile `color` value with the SAME canonicalization the write
- * below applies (`trim` + `lowercase`). Running the premium-name check against
- * this normalized value closes a bypass where ` oxy ` / `OXY` would skip the
- * premium gate yet still persist as the gated `oxy` preset. Non-string values
+ * below applies. `normalizeUserColor` is shared with the account graph, which
+ * writes this column too, so the two paths cannot canonicalize differently and
+ * disagree about what the reserved-color gate is looking at. Non-string values
  * are passed through untouched for the caller's own handling.
  */
 function normalizeProfileColor(value: unknown): unknown {
-  return typeof value === 'string' ? value.trim().toLowerCase() : value;
+  return typeof value === 'string' ? normalizeUserColor(value) : value;
 }
 
 /**
@@ -898,22 +899,12 @@ export class UserService {
       // before it is validated or compared — see `normalizeProfileField`.
       const normalizedValue = normalizeProfileField(key, value);
 
-      // Validate premium-exclusive colors against the SAME normalized value the
-      // write below persists (trim + lowercase), so ' oxy '/'OXY' can't slip
-      // past the premium gate.
-      if (key === 'color' && normalizedValue === 'oxy') {
-        const [row] = await db
-          .select({ username: users.username })
-          .from(users)
-          .where(eq(users.id, userId))
-          .limit(1);
-        const isOxyUser = row?.username?.toLowerCase() === 'oxy';
-        if (!isOxyUser) {
-          const plan = await resolveUserSubscriptionPlan(userId);
-          if (!isPremiumSubscriptionPlan(plan)) {
-            throw new Error('The oxy color is exclusive to premium subscribers');
-          }
-        }
+      // Reserved colors are checked against the SAME normalized value the write
+      // below persists (trim + lowercase), so ' oxy '/'OXY' cannot slip past the
+      // gate. The rule itself lives in `utils/profileColor` because the account
+      // graph writes this column too — see its header.
+      if (key === 'color' && typeof normalizedValue === 'string') {
+        await assertColorNotReserved(normalizedValue, { accountId: userId, username: null });
       }
 
       // Account locales — the ONLY language field (no singular `language`). Each
@@ -988,17 +979,23 @@ export class UserService {
     }
 
     // A username is a routing key (`/@alice`, `acct:alice@…`), not prose: it must
-    // satisfy the same 3–30 ASCII-alphanumeric policy signup enforces, which in
-    // particular admits no whitespace at all. Only an actual CHANGE is validated:
-    // clients that PUT the whole profile back echo the stored username, and a
-    // value that predates this policy must not make an unrelated bio edit fail.
+    // satisfy the ONE policy every write path enforces, which in particular
+    // admits no whitespace at all. Only an actual CHANGE is validated: clients
+    // that PUT the whole profile back echo the stored username, and a value that
+    // predates this policy must not make an unrelated bio edit fail. That
+    // asymmetry is the write-not-read rule in miniature, and it is deliberate.
+    //
+    // The policy is the one for the row's KIND, so a rename cannot strip the
+    // label off a bot: `PUT /users/:userId` reaches every account, not only a
+    // person's own. Reading the kind from the STORED row rather than the request
+    // is what makes that true — `kind` is not a field this route may set, so a
+    // caller cannot declare itself a person to escape the rule.
     const nextUsername = filteredUpdates.username;
-    if (
-      typeof nextUsername === 'string' &&
-      nextUsername !== existing.username &&
-      !USERNAME_PATTERN.test(nextUsername)
-    ) {
-      throw new BadRequestError(INVALID_USERNAME_MESSAGE, { field: 'username' });
+    if (typeof nextUsername === 'string' && nextUsername !== existing.username) {
+      const parsed = usernameSchemaForAccountKind(existing.kind).safeParse(nextUsername);
+      if (!parsed.success) {
+        throw new BadRequestError(parsed.error.issues[0].message, { field: 'username' });
+      }
     }
 
     // Validate uniqueness constraints

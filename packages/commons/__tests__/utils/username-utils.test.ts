@@ -1,84 +1,22 @@
-import {
-  generateSuggestedUsername,
-  isValidUsername,
-  sanitizeUsernameInput,
-  validateUsernameFormat,
-} from '@/utils/auth/usernameUtils';
+/**
+ * `validateUsernameFormat`, `isValidUsername` and `sanitizeUsernameInput` were
+ * DELETED from this module. They were a third copy of the username policy —
+ * `length >= 4 && /^[a-z0-9]+$/i` plus a coercer that lower-cased and stripped
+ * every separator — and it agreed with neither the server nor the SDK. The rule
+ * lives once, in `@oxyhq/contracts`, with its own suite; this file now covers the
+ * one thing that is genuinely local, the suggestion generator, and asserts what
+ * it generates is storable under that single rule.
+ */
+
+import { generateSuggestedUsername } from '@/utils/auth/usernameUtils';
+import { isValidUsername } from '@oxyhq/contracts';
 
 import {
   USERNAME_ADJECTIVES,
-  USERNAME_MIN_LENGTH,
   USERNAME_NOUNS,
   USERNAME_NUM_SUFFIX_MAX,
   USERNAME_NUM_SUFFIX_MIN,
 } from '@/constants/auth';
-
-describe('validateUsernameFormat', () => {
-  it('accepts a simple lowercase alphanumeric username', () => {
-    expect(validateUsernameFormat('alice42')).toBe(true);
-  });
-
-  it('accepts mixed case (regex is case-insensitive)', () => {
-    expect(validateUsernameFormat('AliceBob')).toBe(true);
-  });
-
-  it('rejects usernames shorter than the minimum length', () => {
-    const short = 'a'.repeat(USERNAME_MIN_LENGTH - 1);
-    expect(validateUsernameFormat(short)).toBe(false);
-  });
-
-  it('rejects usernames containing punctuation', () => {
-    expect(validateUsernameFormat('alice.smith')).toBe(false);
-  });
-
-  it('rejects usernames containing spaces', () => {
-    expect(validateUsernameFormat('alice smith')).toBe(false);
-  });
-
-  it('rejects usernames containing emoji', () => {
-    expect(validateUsernameFormat('alice42!')).toBe(false);
-  });
-
-  it('rejects the empty string', () => {
-    expect(validateUsernameFormat('')).toBe(false);
-  });
-});
-
-describe('isValidUsername', () => {
-  it('matches validateUsernameFormat for valid inputs', () => {
-    expect(isValidUsername('alice42')).toBe(true);
-  });
-
-  it('matches validateUsernameFormat for invalid inputs', () => {
-    expect(isValidUsername('!')).toBe(false);
-  });
-});
-
-describe('sanitizeUsernameInput', () => {
-  it('lowercases mixed-case input', () => {
-    expect(sanitizeUsernameInput('AliceSMITH')).toBe('alicesmith');
-  });
-
-  it('removes punctuation', () => {
-    expect(sanitizeUsernameInput('alice.smith')).toBe('alicesmith');
-  });
-
-  it('removes spaces', () => {
-    expect(sanitizeUsernameInput('alice smith')).toBe('alicesmith');
-  });
-
-  it('keeps digits intact', () => {
-    expect(sanitizeUsernameInput('Alice42')).toBe('alice42');
-  });
-
-  it('returns empty string for input with no allowed characters', () => {
-    expect(sanitizeUsernameInput('!@#$%')).toBe('');
-  });
-
-  it('strips non-ASCII letters', () => {
-    expect(sanitizeUsernameInput('aliçe')).toBe('alie');
-  });
-});
 
 describe('generateSuggestedUsername', () => {
   it('returns a string matching adjective + noun + number pattern', () => {
@@ -105,11 +43,13 @@ describe('generateSuggestedUsername', () => {
     expect(trailingNumber).toBeLessThanOrEqual(USERNAME_NUM_SUFFIX_MAX);
   });
 
-  it('produces output that passes validateUsernameFormat', () => {
+  it('produces output the ONE policy accepts', () => {
     // Generate a batch to defend against statistical flukes from a single sample.
+    // A suggestion the server would refuse is worse than no suggestion: it is
+    // offered, accepted by the field, and 400ed on submit.
     for (let i = 0; i < 25; i++) {
       const suggestion = generateSuggestedUsername();
-      expect(validateUsernameFormat(suggestion)).toBe(true);
+      expect(isValidUsername(suggestion)).toBe(true);
     }
   });
 });

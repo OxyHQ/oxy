@@ -10,12 +10,14 @@ import {
   accountCategoryIdSchema,
   createAccountRequestSchema,
   isAccountKind,
-  isActAsEligibleKind,
+  isDelegatedActAsEligibleKind,
+  isOperatorSwitchTargetKind,
   isSelectableAccountCategoryId,
   kindAcceptsAccountCategories,
   newlyAddedRetiredCategories,
   type AccountCategoryId,
 } from '../accountGraph';
+import { BOT_USERNAME_INVALID_MESSAGE } from '../username';
 import { userResponseSchema } from '../userResponse';
 
 describe('@oxyhq/contracts account kinds', () => {
@@ -58,7 +60,7 @@ describe('@oxyhq/contracts account kinds', () => {
   it('carries isPrivateAccount through the parse, rather than stripping it', () => {
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'unpublished-agent',
+      username: 'unpublished-agentbot',
       isPrivateAccount: true,
     });
     expect(parsed.success).toBe(true);
@@ -71,29 +73,68 @@ describe('@oxyhq/contracts account kinds', () => {
     // discoverable", and a schema defaulting it here would erase that.
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'ordinary-agent',
+      username: 'ordinary-agentbot',
     });
     expect(parsed.success).toBe(true);
     expect(parsed.success && 'isPrivateAccount' in parsed.data).toBe(false);
   });
 
+  /**
+   * Same reasoning as `isPrivateAccount` above, and the same failure it guards:
+   * the API names every create field explicitly, so a `color` this schema strips
+   * reaches the insert as `undefined` and the account is born with a RANDOM
+   * preset — a success, with the wrong face, reported nowhere.
+   */
+  it('carries color through the parse, rather than stripping it', () => {
+    const parsed = createAccountRequestSchema.safeParse({
+      kind: 'bot',
+      username: 'agent-with-a-colourbot',
+      color: 'purple',
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.color).toBe('purple');
+  });
+
+  it('leaves color undefined when it is not supplied', () => {
+    // Undefined, never a fallback picked here: the column's own default is a
+    // random non-reserved preset, and a value invented in this schema would
+    // replace that with whatever one file happened to name.
+    const parsed = createAccountRequestSchema.safeParse({
+      kind: 'bot',
+      username: 'ordinary-agentbot',
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && 'color' in parsed.data).toBe(false);
+  });
+
+  it('rejects a color that is not a string, or is longer than a preset key', () => {
+    for (const color of [{ hex: '#fff' }, 'x'.repeat(33)]) {
+      const parsed = createAccountRequestSchema.safeParse({
+        kind: 'bot',
+        username: 'agentbot',
+        color,
+      });
+      expect(parsed.success).toBe(false);
+    }
+  });
+
   it('rejects a non-boolean isPrivateAccount', () => {
     const parsed = createAccountRequestSchema.safeParse({
       kind: 'bot',
-      username: 'agent',
+      username: 'agentbot',
       isPrivateAccount: 'yes',
     });
     expect(parsed.success).toBe(false);
   });
 
   /**
-   * The act-as partition, stated as a full truth table over EVERY kind rather
+   * The DELEGATION partition, stated as a full truth table over EVERY kind rather
    * than a spot check — the failure this guards is a new kind silently landing
    * on the eligible side of a `kind === 'personal'` test.
    */
-  it('admits only organization/project/bot to act-as', () => {
+  it('admits only organization/project/bot as a delegated subject', () => {
     const verdicts = Object.fromEntries(
-      ACCOUNT_KINDS.map((kind) => [kind, isActAsEligibleKind(kind)])
+      ACCOUNT_KINDS.map((kind) => [kind, isDelegatedActAsEligibleKind(kind)])
     );
     expect(verdicts).toEqual({
       personal: false,
@@ -104,9 +145,30 @@ describe('@oxyhq/contracts account kinds', () => {
     });
   });
 
-  it('treats a missing kind as ineligible', () => {
-    expect(isActAsEligibleKind(undefined)).toBe(false);
-    expect(isActAsEligibleKind(null)).toBe(false);
+  /**
+   * The SWITCHER partition. `bot` is the one row that differs from the table
+   * above, and it is the reason there are two predicates: an application acting
+   * as a bot is the bot's purpose, while a person switching into one seats a
+   * human inside an identity built to run without one.
+   */
+  it('refuses bot as well as channel to a person switching accounts', () => {
+    const verdicts = Object.fromEntries(
+      ACCOUNT_KINDS.map((kind) => [kind, isOperatorSwitchTargetKind(kind)])
+    );
+    expect(verdicts).toEqual({
+      personal: false,
+      organization: true,
+      project: true,
+      bot: false,
+      channel: false,
+    });
+  });
+
+  it('treats a missing kind as ineligible, on both', () => {
+    expect(isDelegatedActAsEligibleKind(undefined)).toBe(false);
+    expect(isDelegatedActAsEligibleKind(null)).toBe(false);
+    expect(isOperatorSwitchTargetKind(undefined)).toBe(false);
+    expect(isOperatorSwitchTargetKind(null)).toBe(false);
   });
 
   it('narrows only real kinds', () => {
@@ -270,12 +332,56 @@ describe('@oxyhq/contracts account categories', () => {
       expect(kindAcceptsAccountCategories(kind)).toBe(true);
       const parsed = createAccountRequestSchema.safeParse({
         kind,
-        username: `acct-${kind}`,
+        // `bot` is the one kind whose handle must carry a label, so the fixture
+        // carries one — the categories question is orthogonal to it.
+        username: kind === 'bot' ? 'acct-bot' : `acct-${kind}`,
         accountCategories: ['news'],
       });
       expect(parsed.success).toBe(true);
     }
     expect([...ACCOUNT_CATEGORY_KINDS].sort()).toEqual([...CHILD_ACCOUNT_KINDS].sort());
+  });
+
+  /**
+   * The refinement it DOES carry: `kind` and `username` arrive together here, so
+   * this is the only wire schema that can hold a bot's handle to the label.
+   *
+   * It matters because this object is exported for CLIENTS. Without it an agent
+   * creation flow validates its own request, submits, and is 400ed by the server
+   * — the "propose, then refuse" defect, one layer up.
+   */
+  describe('a bot handle is held to the label, and only a bot handle', () => {
+    it('refuses a bot whose username carries none, and blames the username', () => {
+      const parsed = createAccountRequestSchema.safeParse({
+        kind: 'bot',
+        username: 'garden-helper',
+      });
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.error?.issues[0]?.path).toEqual(['username']);
+      expect(parsed.error?.issues[0]?.message).toBe(BOT_USERNAME_INVALID_MESSAGE);
+    });
+
+    it('accepts a bot whose username carries it', () => {
+      const parsed = createAccountRequestSchema.safeParse({
+        kind: 'bot',
+        username: 'garden-helperbot',
+      });
+
+      expect(parsed.success).toBe(true);
+    });
+
+    it.each(CHILD_ACCOUNT_KINDS.filter((kind) => kind !== 'bot'))(
+      'leaves a %s account free to use any legal handle',
+      (kind) => {
+        const parsed = createAccountRequestSchema.safeParse({
+          kind,
+          username: 'garden-helper',
+        });
+
+        expect(parsed.success).toBe(true);
+      }
+    );
   });
 
   // ---- withdrawal ----------------------------------------------------------

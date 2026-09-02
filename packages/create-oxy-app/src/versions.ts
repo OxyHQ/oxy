@@ -13,10 +13,10 @@ export const VERSIONS = {
   // installs from npm, not from this workspace. So a pin tracks the PUBLISHED
   // version, never `packages/<pkg>/package.json`: a workspace version that has
   // been bumped but not yet published names a range nothing can resolve.
-  oxyServices: '^29.0.0', // @oxyhq/services
-  oxyCore: '^21.0.0', // @oxyhq/core
+  oxyServices: '^30.0.0', // @oxyhq/services
+  oxyCore: '^23.0.0', // @oxyhq/core
   oxyBloom: '^0.67.0', // @oxyhq/bloom — tracks the workspace catalog, not npm latest
-  oxyContracts: '^0.27.0', // @oxyhq/contracts
+  oxyContracts: '^0.34.0', // @oxyhq/contracts
   oxyAppPreset: '^0.3.0', // @oxyhq/app-preset
 
   // --- Expo SDK 57 core ---

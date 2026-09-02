@@ -341,7 +341,12 @@ router.get(
  *                 type: string
  *                 minLength: 3
  *                 maxLength: 30
- *                 pattern: '^[a-zA-Z0-9]{3,30}$'
+ *                 pattern: '^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$'
+ *                 description: >-
+ *                   An account of kind `bot` carries one further rule the pattern
+ *                   cannot express: its username must END IN `bot`, compared
+ *                   without regard to case, so `aliabot`, `alia-bot` and `AliaBot`
+ *                   all qualify. Every other kind is held to the pattern alone.
  *                 example: alice
  *               email:
  *                 type: string

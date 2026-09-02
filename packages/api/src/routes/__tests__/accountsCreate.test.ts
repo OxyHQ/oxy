@@ -164,6 +164,8 @@ describe('POST /accounts', () => {
   it.each(['organization', 'project', 'bot'])(
     'still creates a %s account, unchanged',
     async (kind) => {
+      // `acct-bot` satisfies the bot half of the policy for the same reason the
+      // other two satisfy the base one: it ends in the label.
       const res = await request(server, { kind, username: `acct-${kind}` });
 
       expect(res.status).toBe(201);
@@ -196,7 +198,7 @@ describe('POST /accounts', () => {
   it('passes isPrivateAccount through to the service', async () => {
     const res = await request(server, {
       kind: 'bot',
-      username: 'unpublished-agent',
+      username: 'unpublished-agentbot',
       isPrivateAccount: true,
     });
 
@@ -212,7 +214,7 @@ describe('POST /accounts', () => {
     // `undefined`, not `false`. The service must be able to tell "the caller did
     // not say" from "the caller said discoverable", because only the first one
     // is allowed to fall through to the column default.
-    await request(server, { kind: 'bot', username: 'ordinary-agent' });
+    await request(server, { kind: 'bot', username: 'ordinary-agentbot' });
 
     const [, , input] = mockCreateChildAccount.mock.calls[0] as [
       string,

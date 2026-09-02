@@ -1829,6 +1829,7 @@
         "taken": "Username is taken",
         "tooShort": "Username must be at least 3 characters",
         "invalidChars": "Only letters, numbers, hyphens, and underscores",
+        "mustEndInBot": "A bot account’s username must end in “bot”",
         "checkFailed": "Could not check availability"
       },
       "accountCategory": {

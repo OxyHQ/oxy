@@ -3,7 +3,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import type { BaseScreenProps } from '../../types/navigation';
 import { useSurfaceHeader } from '../../hooks/useSurfaceHeader';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { H1, H4, H5, Text } from '@oxyhq/bloom/typography';
 import { useI18n } from '../../hooks/useI18n';

@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useMemo } from 'react';
 import { View, Text, Animated, TouchableOpacity, Clipboard, Linking } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Ionicons from '../../icons/Ionicons';
 import { Button } from '@oxyhq/bloom/button';
 import { TextField, TextFieldInput } from '@oxyhq/bloom/text-field';
 import FAIRWalletIcon from '../icon/FAIRWalletIcon';

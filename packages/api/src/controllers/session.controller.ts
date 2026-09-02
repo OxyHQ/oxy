@@ -24,7 +24,8 @@ import { userService } from '../services/user.service';
 import securityActivityService from '../services/securityActivityService';
 import { finalizeDeviceLogin } from '../services/deviceLogin.service';
 import type { AuthRequest } from '../middleware/auth';
-import { INVALID_USERNAME_MESSAGE, USERNAME_PATTERN, normalizeUsername } from '../utils/username';
+import { isValidUsername, USERNAME_INVALID_MESSAGE } from '@oxyhq/contracts';
+import { normalizeUsername } from '../utils/username';
 import type { SessionCreateOptions } from '../types/session.types';
 
 export function sessionCreateOptionsFromBody(body: {
@@ -176,8 +177,8 @@ export class SessionController {
         }
 
         normalizedUsername = normalizeUsername(username);
-        if (!USERNAME_PATTERN.test(normalizedUsername)) {
-          return res.status(400).json({ message: INVALID_USERNAME_MESSAGE });
+        if (!isValidUsername(normalizedUsername)) {
+          return res.status(400).json({ message: USERNAME_INVALID_MESSAGE });
         }
       }
 

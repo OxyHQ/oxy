@@ -35,7 +35,7 @@
 
 import type { Request } from 'express';
 import { and, eq, gt, sql } from 'drizzle-orm';
-import { isActAsEligibleKind } from '@oxyhq/contracts';
+import { isDelegatedActAsEligibleKind } from '@oxyhq/contracts';
 import { v7 as uuidv7 } from 'uuid';
 import { publicColumns } from '@oxyhq/db/assert';
 import { getDb } from '../config/postgres';
@@ -168,11 +168,12 @@ export type DelegatedSubjectOutcome =
  * re-check use. No parallel permission system.
  *
  * Personal and channel accounts are refused as subjects, via the shared
- * `isActAsEligibleKind` predicate — assuming a human login would be
- * impersonation, and a channel is a content identity nobody acts as. Exactly the
- * same rule as the account-switch path, which is why both read one predicate
- * rather than each testing `kind === 'personal'` and silently admitting every
- * kind added afterwards.
+ * `isDelegatedActAsEligibleKind` predicate — assuming a human login would be
+ * impersonation, and a channel is a content identity nobody acts as. A BOT is
+ * admitted here and refused by the account switcher, and that asymmetry is the
+ * point: authorising an application to act as a bot is the bot's whole purpose,
+ * while a person switching INTO one puts a human inside an identity built to run
+ * without one.
  *
  * A malformed `subjectAccountId` simply matches no row and comes back
  * `not_found` — the old `isValidObjectId` guard existed only to keep Mongoose
@@ -195,7 +196,7 @@ export async function verifyDelegatedSubject(
   }
   // `kind` is NOT NULL DEFAULT 'personal' here, so the Mongo-era `!account.kind`
   // branch for documents predating the field does not travel.
-  if (!isActAsEligibleKind(account.kind)) {
+  if (!isDelegatedActAsEligibleKind(account.kind)) {
     return {
       ok: false,
       reason: account.kind === 'channel' ? 'channel_account' : 'personal_account',

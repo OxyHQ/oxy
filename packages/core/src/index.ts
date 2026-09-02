@@ -521,12 +521,10 @@ export { retryAsync } from './utils/asyncUtils';
 // ---------------------------------------------------------------------------
 export {
     EMAIL_REGEX,
-    USERNAME_REGEX,
     PASSWORD_REGEX,
     MAX_DISPLAY_NAME_LENGTH,
     DISPLAY_NAME_INVALID_MESSAGE,
     isValidEmail,
-    isValidUsername,
     isValidPassword,
     isValidDisplayName,
     DISPLAY_NAME_ALLOWED_SCRIPTS,

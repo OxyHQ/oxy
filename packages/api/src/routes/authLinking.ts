@@ -47,6 +47,7 @@ import { linkAuthMethodSchema, unlinkTypeParams, unlinkWebauthnParams } from '..
 import sessionService from '../services/session.service.js';
 import { rateLimit } from '../middleware/rateLimiter.js';
 import { hashedIpKey } from '../utils/ipKey.js';
+import { isUniqueViolation } from '../utils/postgresErrors.js';
 import { extractTokenFromRequest, decodeToken } from '../middleware/authUtils.js';
 import userCache from '../utils/userCache.js';
 import { buildUserDid } from '../services/did.service.js';
@@ -60,9 +61,6 @@ import {
 } from '@oxyhq/contracts';
 
 const router = Router();
-
-/** SQLSTATE for a unique-constraint violation. */
-const UNIQUE_VIOLATION = '23505';
 
 /**
  * Anything that can run a query — the pool handle or an open transaction. Every
@@ -115,28 +113,6 @@ async function readAuthPosture(db: Queryable, userId: string): Promise<AuthPostu
     webauthnCount,
     total: (account.publicKey ? 1 : 0) + webauthnCount,
   };
-}
-
-/**
- * Read a field off a driver error. Drizzle wraps a postgres.js failure in its
- * own error, so `code` and `constraint_name` live on the `cause` — walking the
- * chain is what keeps the check "THIS constraint fired" rather than "something
- * threw".
- *
- * `cause` is read through `Reflect.get` rather than `error.cause`: this package
- * compiles against the `es6` lib, where `Error.cause` is not declared.
- */
-function pgField(error: unknown, field: string): string | undefined {
-  for (let current: unknown = error; current instanceof Error; current = Reflect.get(current, 'cause')) {
-    const value: unknown = Reflect.get(current, field);
-    if (typeof value === 'string') return value;
-  }
-  return undefined;
-}
-
-/** Whether a failure is a unique-constraint violation. */
-function isUniqueViolation(error: unknown): boolean {
-  return pgField(error, 'code') === UNIQUE_VIOLATION;
 }
 
 /**

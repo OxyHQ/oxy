@@ -40,6 +40,7 @@ import { getDb } from '../config/postgres';
 import { applications } from '../db/schema';
 import { accountService } from '../services/account.service';
 import { appPermissionsForAccountAccess } from '../utils/accountRoles';
+import { resolveOperatorId } from '../middleware/operator';
 import * as publishService from '../services/updates/publish.service';
 
 const router = express.Router();
@@ -110,10 +111,12 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
     return;
   }
 
-  const userId = req.user?._id?.toString();
-  if (!userId) {
+  if (!req.user?._id) {
     throw new UnauthorizedError('Authentication required');
   }
+  // The OPERATOR's access over the owning account. A session acting as the
+  // organization that owns the application is not a member of itself.
+  const operatorId = await resolveOperatorId(req);
   const [application] = await getDb()
     .select({ ownerAccountId: applications.ownerAccountId })
     .from(applications)
@@ -122,7 +125,7 @@ async function authorizeForApp(req: UpdatesAdminRequest, applicationId: string):
     throw new NotFoundError('Application not found');
   }
   const access = await accountService.resolveEffectiveAccess(
-    userId,
+    operatorId,
     application.ownerAccountId
   );
   if (!access) {

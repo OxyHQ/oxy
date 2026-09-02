@@ -501,6 +501,28 @@ describe('the target account', () => {
     expect((await grantedServiceSwitch(bot, app, operator)).status).toBe(404);
   });
 
+  /**
+   * The lane that must NOT close when the account switcher does.
+   *
+   * A person can no longer switch into a bot — a bot is something that operates
+   * on your behalf, not a seat you occupy — and this endpoint is the mechanism by
+   * which that operating happens. The two questions were one predicate until
+   * they were split, so this asserts the split kept the delegation half OPEN:
+   * without it, narrowing the switcher would silently take every Alia agent
+   * offline, and the symptom would be an agent that simply stops answering.
+   */
+  it('STILL mints for a BOT — the switcher narrowing must not close this lane', async () => {
+    const app = await seedApp();
+    const bot = await account('bot');
+    const operator = await human();
+    await member(bot, operator, 'admin');
+
+    const res = await serviceSwitch(bot, serviceToken(app), operator);
+
+    expect(res.status).toBe(200);
+    expect(claims(res.body.data?.accessToken ?? '').sub).toBe(bot);
+  });
+
   it('mints for an ORGANIZATION and a PROJECT too, not only a bot', async () => {
     // The eligible set is three kinds. Testing only `bot` would leave an
     // implementation that hardcoded `kind === 'bot'` green.

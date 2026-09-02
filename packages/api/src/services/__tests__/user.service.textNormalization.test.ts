@@ -22,7 +22,7 @@ import { userLinkMetadata } from '../../db/schema/userLinkMetadata';
 import { userLocations } from '../../db/schema/userLocations';
 import { users } from '../../db/schema/users';
 import { BadRequestError } from '../../utils/error';
-import { INVALID_USERNAME_MESSAGE } from '../../utils/username';
+import { USERNAME_INVALID_MESSAGE } from '@oxyhq/contracts';
 import { userService } from '../user.service';
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
@@ -275,7 +275,7 @@ describe('username policy', () => {
 
     await expect(
       userService.updateUserProfile(id, { username: 'al ice' })
-    ).rejects.toMatchObject({ statusCode: 400, message: INVALID_USERNAME_MESSAGE });
+    ).rejects.toMatchObject({ statusCode: 400, message: USERNAME_INVALID_MESSAGE });
   });
 
   it('rejects punctuation with a 400', async () => {

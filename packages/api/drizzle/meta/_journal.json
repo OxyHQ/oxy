@@ -400,6 +400,13 @@
       "when": 1787616672279,
       "tag": "0057_service_account_switch_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1787684497529,
+      "tag": "0058_revoke_person_sessions_on_bots_and_channels",
+      "breakpoints": true
     }
   ]
 }

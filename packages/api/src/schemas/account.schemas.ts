@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { accountCategoriesSchema, createAccountRequestSchema } from '@oxyhq/contracts';
+import { accountCategoriesSchema, createAccountRequestSchema, usernameSchema } from '@oxyhq/contracts';
 import { ACCOUNT_PERMISSIONS, ACCOUNT_ROLES } from '../utils/accountRoles';
 
 /** Route params with :id (the account id). */
@@ -45,7 +45,9 @@ export const createAccountSchema = createAccountRequestSchema;
 /** PATCH /accounts/:id — partial profile update. */
 export const updateAccountSchema = z
   .object({
-    username: z.string().trim().min(1).max(100).optional(),
+    // The ONE policy, same as a person's. `.min(1).max(100)` here is what used to
+    // let a managed account rename itself to something no human could ask for.
+    username: usernameSchema.optional(),
     name: nameSchema,
     // `null` CLEARS, and it has to be accepted here because the SDK's
     // `UpdateAccountInput` types both as `string | null` and documents exactly
@@ -55,6 +57,19 @@ export const updateAccountSchema = z
     bio: z.string().trim().max(500).nullable().optional(),
     avatar: z.string().nullable().optional(),
     description: z.string().trim().max(1000).optional(),
+    /**
+     * A named preset KEY, never a hex value — and NOT nullable, because the
+     * column is `NOT NULL` with a default, so an account always has a colour and
+     * there is no "clear" to spell.
+     *
+     * The VALUE is checked in `account.service`, not here, for the same reason
+     * `accountCategories` below is: whether a colour may be adopted depends on
+     * the account's PREVIOUS value (a preset the catalogue no longer contains
+     * may be kept, not newly taken) and on the account's own entitlements (a
+     * reserved preset). A schema cannot see either, and one that narrowed to the
+     * catalogue here would 400 the whole request for a client that round-tripped
+     * what it was served.
+     */
     color: z.string().trim().max(32).optional(),
     links: z.array(z.string()).optional(),
     /**
@@ -169,7 +184,7 @@ export const provisionChannelSchema = z
      * identity on a service token.
      */
     ownerUserId: z.string().trim().min(1),
-    username: z.string().trim().min(1).max(100),
+    username: usernameSchema,
     name: z
       .object({
         first: z.string().trim().max(100).optional(),

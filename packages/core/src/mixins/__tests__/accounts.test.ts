@@ -255,13 +255,20 @@ describe('OxyServices.accounts', () => {
     it('posts the payload, unwraps `account`, and busts every list', async () => {
       makeRequestSpy.mockResolvedValue({ account: accountNodeFixture });
 
-      const result = await oxy.createAccount({ kind: 'organization', username: 'oxy-org' });
+      const result = await oxy.createAccount({
+        kind: 'organization',
+        username: 'oxy-org',
+        color: 'purple',
+      });
 
       expect(result).toEqual(accountNodeFixture);
+      // `color` rides the CREATE body, not a follow-up patch: an account that is
+      // discoverable without its colour and acquires one on a second request is
+      // a face that changes by itself.
       expect(makeRequestSpy).toHaveBeenCalledWith(
         'POST',
         '/accounts',
-        { kind: 'organization', username: 'oxy-org' },
+        { kind: 'organization', username: 'oxy-org', color: 'purple' },
         expect.objectContaining({ cache: false }),
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts');
@@ -273,13 +280,13 @@ describe('OxyServices.accounts', () => {
     it('patches, unwraps `account`, and busts the detail + lists', async () => {
       makeRequestSpy.mockResolvedValue({ account: accountNodeFixture });
 
-      const result = await oxy.updateAccount('acc1', { bio: 'hello' });
+      const result = await oxy.updateAccount('acc1', { bio: 'hello', color: 'mint' });
 
       expect(result).toEqual(accountNodeFixture);
       expect(makeRequestSpy).toHaveBeenCalledWith(
         'PATCH',
         '/accounts/acc1',
-        { bio: 'hello' },
+        { bio: 'hello', color: 'mint' },
         expect.objectContaining({ cache: false }),
       );
       expect(clearEntrySpy).toHaveBeenCalledWith('GET:/accounts/acc1');

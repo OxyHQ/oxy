@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { OxyServices } from '@oxyhq/core';
-import { USERNAME_MIN_LENGTH, USERNAME_FORMAT_ERROR, USERNAME_DEBOUNCE_MS } from '@/constants/auth';
-import { validateUsernameFormat } from '@/utils/auth/usernameUtils';
+import { isValidUsername, USERNAME_MIN_LENGTH, USERNAME_INVALID_MESSAGE } from '@oxyhq/contracts';
+import { USERNAME_DEBOUNCE_MS } from '@/constants/auth';
 import { isNetworkOrTimeoutError, extractAuthErrorMessage } from '@/utils/auth/errorUtils';
 import type { UsernameValidationResult } from '@/types/auth';
 
@@ -30,8 +30,8 @@ export function useUsernameValidation(
     }
 
     // Validate format
-    if (!validateUsernameFormat(username)) {
-      setError(USERNAME_FORMAT_ERROR);
+    if (!isValidUsername(username)) {
+      setError(USERNAME_INVALID_MESSAGE);
       setIsAvailable(false);
       setIsChecking(false);
       return;
@@ -70,7 +70,7 @@ export function useUsernameValidation(
   }, [username, oxyServices]);
 
   return {
-    isValid: validateUsernameFormat(username),
+    isValid: isValidUsername(username),
     isAvailable,
     error,
     isChecking,

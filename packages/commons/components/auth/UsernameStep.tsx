@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
 import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useUsernameValidation } from '@/hooks/auth/useUsernameValidation';
-import { sanitizeUsernameInput } from '@/utils/auth/usernameUtils';
+import { stripDisallowedUsernameCharacters } from '@oxyhq/contracts';
 import { useOxy } from '@oxyhq/services';
 import type { OxyServices } from '@oxyhq/core';
 import { useTranslation } from '@/lib/i18n';
@@ -94,7 +94,7 @@ export function UsernameStep({
   ) && !validation.isChecking && !isConfirming;
 
   const handleTextChange = (text: string) => {
-    const sanitized = sanitizeUsernameInput(text);
+    const sanitized = stripDisallowedUsernameCharacters(text);
     onUsernameChange(sanitized);
   };
 

@@ -265,6 +265,49 @@ describe('GET /session/device/directory — the server-authoritative read model'
     expect(contextFor(directory, nate, channel)).toBeUndefined();
   });
 
+  /**
+   * The rows this list produces ARE the account switcher: the SDK renders the
+   * device directory and does not filter by kind, so anything admitted here is
+   * offered on screen. Twelve such rows pointed at bots in production, and one
+   * of them was taken — a live session whose subject was `community-maestro`,
+   * sitting on its owner's own device beside their personal login.
+   *
+   * `owner` is deliberately the role: the refusal is about the KIND, not about a
+   * permission the person who built the bot obviously has.
+   */
+  it('never offers a bot: it operates on your behalf, it is not a seat', async () => {
+    const device = newDeviceId();
+    const nate = await account();
+    const bot = await account({ kind: 'bot', username: `bot-${randomUUID().slice(0, 8)}` });
+    await getDb()
+      .insert(accountMembers)
+      .values({ accountId: bot, memberUserId: nate, role: 'owner', status: 'active' });
+    await signIn(device, nate);
+
+    const directory = await deviceSessionService.getDirectory(device);
+
+    expect(contextFor(directory, nate, bot)).toBeUndefined();
+  });
+
+  /**
+   * The positive control for the two exclusions above. An identical setup whose
+   * only difference is the KIND must still be offered — otherwise "no row" would
+   * be proving nothing more than that the fixture never worked.
+   */
+  it('still offers an ORGANIZATION under the identical setup', async () => {
+    const device = newDeviceId();
+    const nate = await account();
+    const org = await account({ kind: 'organization', username: `org-${randomUUID().slice(0, 8)}` });
+    await getDb()
+      .insert(accountMembers)
+      .values({ accountId: org, memberUserId: nate, role: 'owner', status: 'active' });
+    await signIn(device, nate);
+
+    const directory = await deviceSessionService.getDirectory(device);
+
+    expect(contextFor(directory, nate, org)).toBeDefined();
+  });
+
   it('omits an account whose member holds no account:act_as', async () => {
     const device = newDeviceId();
     const nate = await account();
