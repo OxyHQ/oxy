@@ -205,6 +205,18 @@ describe('agency contracts', () => {
             ...catalog,
             internalBaseUrl: 'https://api.noted.oxy.so/private',
         }).success).toBe(false);
+        for (const path of [
+            '//outside.example.test/notes',
+            '/\\outside.example.test/notes',
+            'https://outside.example.test/notes',
+            '/notes?account=other',
+            '/notes#private',
+        ]) {
+            expect(appCapabilityCatalogSchema.safeParse({
+                ...catalog,
+                tools: [{ ...catalog.tools[0], invocation: { method: 'GET', path } }],
+            }).success).toBe(false);
+        }
     });
 
     it('rejects unsafe or contradictory effect metadata', () => {

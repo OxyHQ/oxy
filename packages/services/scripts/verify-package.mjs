@@ -99,6 +99,17 @@ const MIN_EXPORTS_TARGETS = 20;
 const DECLARED_TREES = ['commonjs', 'module'];
 
 /**
+ * Metro consumers resolve the React Native export to `src/`, so declarations
+ * for imported binary assets must live beside those assets. A package-global
+ * wildcard declaration is sufficient while building this repository, but it
+ * is not part of a consumer's transitive source graph.
+ */
+const SOURCE_ASSET_DECLARATIONS = [
+  'src/assets/fonts/icons/OxyServicesIonicons.ttf.d.ts',
+  'src/assets/fonts/icons/OxyServicesMaterialCommunityIcons.ttf.d.ts',
+];
+
+/**
  * Dependency-range protocols bun is expected to have substituted away by the
  * time the tarball exists. A literal one surviving means the tarball was built
  * by something other than `bun pm pack` — `@oxyhq/core@12.10.1` shipped exactly
@@ -248,6 +259,14 @@ function checkFloors(files) {
 
 function checkDeclarations(files) {
   const problems = [];
+
+  const missingSourceAssets = SOURCE_ASSET_DECLARATIONS.filter((path) => !files.has(path));
+  if (missingSourceAssets.length > 0) {
+    problems.push(
+      'React Native source assets are missing colocated declarations:\n' +
+        missingSourceAssets.map((path) => `    - ${path}`).join('\n'),
+    );
+  }
 
   for (const tree of DECLARED_TREES) {
     const prefix = `lib/${tree}/`;
