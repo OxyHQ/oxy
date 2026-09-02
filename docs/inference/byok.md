@@ -71,11 +71,19 @@ inference contract consumes and validates that full binding.
 - A timeout, rejected revision or unknown acknowledgement never guesses success;
   it remains `reconcile`.
 
-Create conflict is idempotently recoverable because Kaana returns the existing
-exact reference for the same immutable identity. Rotate/revoke uncertainty is
-not yet convergent: after a lost acknowledgement, Oxy has no signed metadata
-query that can prove Kaana's current generation/status. That is a launch blocker,
-not an operational instruction to edit the row manually.
+An in-flight create conflict is recognizable because Kaana returns the existing
+exact reference for the same immutable identity. A lost acknowledgement is not
+convergent for any action, including create: Oxy deliberately discards the
+plaintext and therefore cannot resubmit create, while replaying rotate or revoke
+at the old revision yields the same conflict whether the first mutation landed
+or a competing mutation won. Kaana currently exposes no signed metadata query
+or durable operation outcome that can disambiguate those states.
+
+This cannot be repaired inside Oxy without persisting plaintext or guessing.
+Before launch, Kaana must add a signed, identity-bound status/outcome contract
+(or equivalent idempotency ledger), and Oxy must reconcile every pending row
+against it with lost-response, replay and concurrent-revision tests. Manual row
+editing is not reconciliation.
 
 ## Legacy inventory and rolling deploy
 
