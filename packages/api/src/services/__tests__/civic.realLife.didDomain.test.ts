@@ -28,7 +28,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { and, eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -43,10 +43,9 @@ import {
   REAL_LIFE_ATTESTED_POINTS,
 } from '../../utils/reputation.constants';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC = oxyKey.getPublic('hex');
-const OXY_PRIVATE = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC = oxyKey.publicKey;
+const OXY_PRIVATE = oxyKey.privateKey;
 
 /** Captured BEFORE `beforeAll` overwrites it, so it can be put back. */
 const ORIGINAL_DID_WEB_DOMAIN = process.env.DID_WEB_DOMAIN;
@@ -66,13 +65,13 @@ interface Signer {
 }
 
 async function signer(): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const [row] = await getDb()
     .insert(users)
     .values({ username: `u-${unique().slice(0, 18)}`, publicKey })
     .returning({ id: users.id });
-  return { id: row.id, privateKey: keyPair.getPrivate('hex'), publicKey };
+  return { id: row.id, privateKey: keyPair.privateKey, publicKey };
 }
 
 async function account(): Promise<string> {

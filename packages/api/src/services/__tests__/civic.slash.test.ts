@@ -17,7 +17,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { and, eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';
@@ -38,7 +38,6 @@ import {
   VOUCH_SLASHED_POINTS,
 } from '../../utils/reputation.constants';
 
-const ec = new EC('secp256k1');
 const unique = () => randomUUID();
 
 interface Signer {
@@ -49,13 +48,13 @@ interface Signer {
 
 /** An account holding a signing key, so its verdict/vouch envelopes verify. */
 async function signer(): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const [row] = await getDb()
     .insert(users)
     .values({ username: `u-${unique().slice(0, 18)}`, publicKey })
     .returning({ id: users.id });
-  return { id: row.id, privateKey: keyPair.getPrivate('hex'), publicKey };
+  return { id: row.id, privateKey: keyPair.privateKey, publicKey };
 }
 
 /** A plain account with no signing key. */

@@ -20,12 +20,6 @@
  * @type {import('jest').Config}
  */
 module.exports = {
-  // The suites exercise elliptic key generation and better-sqlite3 in the same
-  // process. Node 22.23 reproducibly traps inside V8 when those suites run in
-  // parallel Jest workers; each suite passes alone and the full set is stable
-  // in one worker. Keep this package deterministic until the runtime/native
-  // dependency combination is upgraded and re-measured.
-  maxWorkers: 1,
   preset: 'ts-jest',
   testEnvironment: 'node',
   moduleFileExtensions: ['ts', 'js', 'json'],
@@ -33,6 +27,7 @@ module.exports = {
     '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
     '^@oxyhq/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
     '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxyhq/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     '^@oxyhq/core/server$': '<rootDir>/../core/src/server/index.ts',
     '^@oxyhq/core$': '<rootDir>/../core/src/index.ts',
     // NodeNext ESM source uses `.js` extensions on relative imports of TS files.

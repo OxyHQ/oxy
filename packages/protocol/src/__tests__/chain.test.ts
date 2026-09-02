@@ -6,7 +6,7 @@
  * backstop surfaced from the store.
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '../secp256k1';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import {
   checkContinuity,
@@ -21,16 +21,15 @@ import {
 } from '../index';
 import { signEnvelope } from '../envelope/sign';
 
-const ec = new EC('secp256k1');
-const keyPair = ec.genKeyPair();
-const PUBLIC_KEY = keyPair.getPublic('hex');
-const PRIVATE_KEY = keyPair.getPrivate('hex');
+const keyPair = generateSecp256k1KeyPair();
+const PUBLIC_KEY = keyPair.publicKey;
+const PRIVATE_KEY = keyPair.privateKey;
 
 const SUBJECT = 'did:web:oxy.so:u:u1';
 const CUSTODIAL_ISSUER = 'did:web:oxy.so';
-const custodialKeyPair = ec.genKeyPair();
-const CUSTODIAL_PUBLIC_KEY = custodialKeyPair.getPublic('hex');
-const CUSTODIAL_PRIVATE_KEY = custodialKeyPair.getPrivate('hex');
+const custodialKeyPair = generateSecp256k1KeyPair();
+const CUSTODIAL_PUBLIC_KEY = custodialKeyPair.publicKey;
+const CUSTODIAL_PRIVATE_KEY = custodialKeyPair.privateKey;
 
 type V2Fields = Parameters<typeof signEnvelope>[0];
 

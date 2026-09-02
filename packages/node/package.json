@@ -30,13 +30,11 @@
     "@oxyhq/core": "workspace:*",
     "@oxyhq/protocol": "workspace:*",
     "better-sqlite3": "^12.11.1",
-    "elliptic": "catalog:",
     "express": "catalog:",
     "pino": "catalog:"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
-    "@types/elliptic": "catalog:",
     "@types/express": "catalog:",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.1",

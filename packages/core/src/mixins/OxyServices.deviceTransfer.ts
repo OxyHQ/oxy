@@ -27,8 +27,8 @@
  * requires BOTH a bearer token AND a fresh identity-key signature.
  */
 
-import { ec as EC } from 'elliptic';
 import { bytesToHex, hexToBytes, utf8ToBytes, bytesToUtf8 } from '@noble/hashes/utils';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import type { OxyServicesBase } from '../OxyServices.base';
 import type {
   DeviceTransferInfoResponse,
@@ -44,8 +44,6 @@ import { SignatureService } from '../crypto/signatureService';
 import { getSocketIO } from '../session/socketLoader';
 import type { MinimalSocket } from '../session/socketLoader';
 import { logger } from '../logger';
-
-const ecCurve = new EC('secp256k1');
 
 /**
  * Ephemeral private keys for pairings an instance INITIATED, keyed by pairingId,
@@ -120,9 +118,8 @@ export function OxyServicesDeviceTransferMixin<T extends typeof OxyServicesBase>
      */
     async initDeviceTransfer(label?: string): Promise<InitDeviceTransferResult> {
       try {
-        const ephKeyPair = ecCurve.genKeyPair();
-        const ephPrivateKey = ephKeyPair.getPrivate('hex');
-        const ephPublicKey = ephKeyPair.getPublic('hex');
+        const { privateKey: ephPrivateKey, publicKey: ephPublicKey } =
+          generateSecp256k1KeyPair();
 
         const res = await this.makeRequest<DeviceTransferInitResponse>(
           'POST',
@@ -185,9 +182,8 @@ export function OxyServicesDeviceTransferMixin<T extends typeof OxyServicesBase>
         }
 
         // Ephemeral ECDH → per-pairing transfer key.
-        const oldEphKeyPair = ecCurve.genKeyPair();
-        const oldEphPrivateKey = oldEphKeyPair.getPrivate('hex');
-        const oldEphPublicKey = oldEphKeyPair.getPublic('hex');
+        const { privateKey: oldEphPrivateKey, publicKey: oldEphPublicKey } =
+          generateSecp256k1KeyPair();
 
         const sharedSecret = deriveSharedSecret(oldEphPrivateKey, info.newDeviceEphemeralPublicKey);
         const transferKey = deriveTransferKey(sharedSecret, pairingId);

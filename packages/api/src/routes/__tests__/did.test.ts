@@ -35,11 +35,11 @@
  * JSON shape is what remote resolvers parse.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { ec as EC } from 'elliptic';
 import { eq } from 'drizzle-orm';
 
 const mockGetUserNode = jest.fn();
@@ -61,8 +61,6 @@ import { userAuthMethods } from '../../db/schema/userAuthMethods';
 import { users } from '../../db/schema/users';
 import { userVerifiedDomains } from '../../db/schema/userVerifiedDomains';
 import didRoutes from '../did';
-
-const ec = new EC('secp256k1');
 
 /** The two ids the `text` primary key can hold; only one of them is minted now. */
 const OBJECT_ID_HEX = /^[0-9a-f]{24}$/i;
@@ -147,7 +145,7 @@ describe('the id format must not decide whether a DID resolves', () => {
 
   it('serves the DID document of a post-cutover account', async () => {
     const userId = await account('nate');
-    const publicKey = ec.genKeyPair().getPublic('hex');
+    const publicKey = generateSecp256k1KeyPair().publicKey;
     await linkIdentity(userId, publicKey);
 
     const res = await get(server, `/u/${userId}/did.json`);
@@ -182,7 +180,7 @@ describe('the id format must not decide whether a DID resolves', () => {
 describe('GET /u/:userId/did.json', () => {
   it('serves a self-sovereign document with JSON + CORS + cache headers', async () => {
     const userId = await account();
-    await linkIdentity(userId, ec.genKeyPair().getPublic('hex'));
+    await linkIdentity(userId, generateSecp256k1KeyPair().publicKey);
 
     const res = await get(server, `/u/${userId}/did.json`);
 
@@ -196,7 +194,7 @@ describe('GET /u/:userId/did.json', () => {
     // The reversibility contract: no identity verification method → the account
     // is custodial, `controller` is `[OXY_DID]` alone, and the only verification
     // method is Oxy's own custodial key.
-    const oxyPublicKey = ec.genKeyPair().getPublic('hex');
+    const oxyPublicKey = generateSecp256k1KeyPair().publicKey;
     const original = process.env.OXY_PUBLIC_KEY;
     process.env.OXY_PUBLIC_KEY = oxyPublicKey;
     try {
@@ -228,7 +226,7 @@ describe('GET /u/:userId/did.json', () => {
     // stored rows — so removing the auth method + the account column reverts the
     // document with no separate state to keep in sync.
     const userId = await account();
-    const publicKey = ec.genKeyPair().getPublic('hex');
+    const publicKey = generateSecp256k1KeyPair().publicKey;
     await linkIdentity(userId, publicKey);
     const did = `did:web:oxy.so:u:${userId}`;
 
@@ -250,8 +248,8 @@ describe('GET /u/:userId/did.json', () => {
     // let one account serve two different documents. The primary key is always
     // `#key-1`; linked identity keys follow in `linked_at` order.
     const userId = await account();
-    const primary = ec.genKeyPair().getPublic('hex');
-    const second = ec.genKeyPair().getPublic('hex');
+    const primary = generateSecp256k1KeyPair().publicKey;
+    const second = generateSecp256k1KeyPair().publicKey;
     await linkIdentity(userId, primary);
     await getDb().insert(userAuthMethods).values({
       userId,
@@ -273,7 +271,7 @@ describe('GET /u/:userId/did.json', () => {
 
   it('publishes each verified domain as an alsoKnownAs entry, in insertion order', async () => {
     const userId = await account('domainowner');
-    await linkIdentity(userId, ec.genKeyPair().getPublic('hex'));
+    await linkIdentity(userId, generateSecp256k1KeyPair().publicKey);
     await getDb().insert(userVerifiedDomains).values([
       { userId, domain: 'first.example', verifiedAt: new Date('2026-01-01T00:00:00.000Z'), method: 'dns-txt', createdAt: new Date('2026-01-01T00:00:00.000Z') },
       { userId, domain: 'second.example', verifiedAt: new Date('2026-02-01T00:00:00.000Z'), method: 'well-known', createdAt: new Date('2026-02-01T00:00:00.000Z') },
@@ -291,7 +289,7 @@ describe('GET /u/:userId/did.json', () => {
 
   it('announces an ACTIVE personal data node as a service entry', async () => {
     const userId = await account();
-    await linkIdentity(userId, ec.genKeyPair().getPublic('hex'));
+    await linkIdentity(userId, generateSecp256k1KeyPair().publicKey);
     mockGetUserNode.mockResolvedValue({ status: 'active', endpoint: 'https://node.nate.com' });
 
     const res = await get(server, `/u/${userId}/did.json`);
@@ -389,7 +387,7 @@ describe('DID_WEB_DOMAIN override — anchored at api.oxy.so', () => {
 
   it('serves a user DID anchored at did:web:api.oxy.so with federation URLs on oxy.so', async () => {
     const userId = await account('anchored');
-    const publicKey = ec.genKeyPair().getPublic('hex');
+    const publicKey = generateSecp256k1KeyPair().publicKey;
     await linkIdentity(userId, publicKey);
     const did = `did:web:api.oxy.so:u:${userId}`;
 

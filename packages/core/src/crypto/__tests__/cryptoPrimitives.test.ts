@@ -11,12 +11,13 @@
  *   and compressed/uncompressed public-key parity.
  */
 
-import { ec as EC } from 'elliptic';
+import {
+  generateSecp256k1KeyPair,
+  normalizeSecp256k1PublicKey,
+} from '@oxyhq/protocol/secp256k1';
 import { hkdfSha256 } from '../kdf';
 import { encryptAead, decryptAead, AEAD_KEY_LENGTH, AEAD_NONCE_LENGTH } from '../aead';
 import { deriveSharedSecret } from '../ecdh';
-
-const ec = new EC('secp256k1');
 
 const fromHex = (hex: string): Uint8Array =>
   Uint8Array.from(Buffer.from(hex.replace(/\s/g, ''), 'hex'));
@@ -164,12 +165,12 @@ describe('encryptAead / decryptAead (XChaCha20-Poly1305)', () => {
 });
 
 describe('deriveSharedSecret (secp256k1 ECDH)', () => {
-  const alice = ec.genKeyPair();
-  const bob = ec.genKeyPair();
-  const alicePriv = alice.getPrivate('hex');
-  const bobPriv = bob.getPrivate('hex');
-  const alicePubUncompressed = alice.getPublic('hex');
-  const bobPubUncompressed = bob.getPublic('hex');
+  const alice = generateSecp256k1KeyPair();
+  const bob = generateSecp256k1KeyPair();
+  const alicePriv = alice.privateKey;
+  const bobPriv = bob.privateKey;
+  const alicePubUncompressed = alice.publicKey;
+  const bobPubUncompressed = bob.publicKey;
 
   it('is symmetric: derive(a, pubB) === derive(b, pubA)', () => {
     const ab = deriveSharedSecret(alicePriv, bobPubUncompressed);
@@ -182,16 +183,16 @@ describe('deriveSharedSecret (secp256k1 ECDH)', () => {
   });
 
   it('agrees for compressed and uncompressed public-key encodings', () => {
-    const bobPubCompressed = bob.getPublic(true, 'hex');
+    const bobPubCompressed = normalizeSecp256k1PublicKey(bob.publicKey, true);
     const fromUncompressed = deriveSharedSecret(alicePriv, bobPubUncompressed);
     const fromCompressed = deriveSharedSecret(alicePriv, bobPubCompressed);
     expect(toHex(fromCompressed)).toBe(toHex(fromUncompressed));
   });
 
   it('yields different secrets for different counterparties', () => {
-    const carol = ec.genKeyPair();
+    const carol = generateSecp256k1KeyPair();
     const withBob = deriveSharedSecret(alicePriv, bobPubUncompressed);
-    const withCarol = deriveSharedSecret(alicePriv, carol.getPublic('hex'));
+    const withCarol = deriveSharedSecret(alicePriv, carol.publicKey);
     expect(toHex(withBob)).not.toBe(toHex(withCarol));
   });
 

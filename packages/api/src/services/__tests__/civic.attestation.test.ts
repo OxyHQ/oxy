@@ -21,7 +21,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { and, asc, eq } from 'drizzle-orm';
 import { signedRecordSigningInput } from '@oxyhq/protocol';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -39,10 +39,9 @@ import {
   REAL_LIFE_ATTESTED_ACTION,
 } from '../../utils/reputation.constants';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC = oxyKey.getPublic('hex');
-const OXY_PRIVATE = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC = oxyKey.publicKey;
+const OXY_PRIVATE = oxyKey.privateKey;
 
 const unique = () => randomUUID();
 

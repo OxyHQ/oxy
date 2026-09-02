@@ -38,8 +38,8 @@
  * every assertion is scoped to rows the test wrote.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { Readable } from 'node:stream';
-import { ec as EC } from 'elliptic';
 import { asc, eq } from 'drizzle-orm';
 
 const mockSafeFetch = jest.fn();
@@ -63,8 +63,6 @@ import SignatureService from '../signature.service';
 import { signRecordEnvelope } from '../signedRecord.service';
 import { ingestFromNode } from '../nodeSync.service';
 
-const ec = new EC('secp256k1');
-
 /** A wall-clock base every `issuedAt` is offset from, so ordering is explicit. */
 const T0 = 1_700_000_000_000;
 /** The one collection/key these tests publish under. */
@@ -72,9 +70,9 @@ const NSID = 'app.oxy.identity';
 const RKEY = 'self';
 
 /** Oxy's custodial keypair for the run — the witness ledger's signer. */
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC_KEY = oxyKey.getPublic('hex');
-const OXY_PRIVATE_KEY = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC_KEY = oxyKey.publicKey;
+const OXY_PRIVATE_KEY = oxyKey.privateKey;
 
 interface Signer {
   userId: string;
@@ -116,10 +114,10 @@ afterEach(() => {
 
 /** An account whose primary `users.public_key` authorizes the returned signer. */
 async function signer(): Promise<Signer> {
-  const pair = ec.genKeyPair();
-  const publicKey = pair.getPublic('hex');
+  const pair = generateSecp256k1KeyPair();
+  const publicKey = pair.publicKey;
   const [row] = await getDb().insert(users).values({ publicKey }).returning({ id: users.id });
-  return { userId: row.id, did: buildUserDid(row.id), publicKey, privateKey: pair.getPrivate('hex') };
+  return { userId: row.id, did: buildUserDid(row.id), publicKey, privateKey: pair.privateKey };
 }
 
 /** Register a node for an account. Seeded directly: registration is F5a's job. */
@@ -427,11 +425,11 @@ describe('an envelope that fails verification is never stored', () => {
     // The node holds the user's key, so a stolen-key forger is exactly the
     // threat: a key the DID does not authorize can never inject a record.
     const subject = await signer();
-    const forger = ec.genKeyPair();
+    const forger = generateSecp256k1KeyPair();
     const forged = envelope(
       subject,
-      { publicKey: forger.getPublic('hex') },
-      forger.getPrivate('hex'),
+      { publicKey: forger.publicKey },
+      forger.privateKey,
     );
     await nodeFor(subject, [forged]);
 
@@ -484,11 +482,11 @@ describe('an envelope that fails verification is never stored', () => {
   it('stops at the first rejection — a poisoned entry cannot advance the mirror', async () => {
     const subject = await signer();
     const records = await chain(subject, 3);
-    const forger = ec.genKeyPair();
+    const forger = generateSecp256k1KeyPair();
     const poisoned = envelope(
       subject,
-      { seq: 1, prev: await computeRecordId(records[0]), issuedAt: T0 + 1_000, publicKey: forger.getPublic('hex') },
-      forger.getPrivate('hex'),
+      { seq: 1, prev: await computeRecordId(records[0]), issuedAt: T0 + 1_000, publicKey: forger.publicKey },
+      forger.privateKey,
     );
     await nodeFor(subject, [records[0], poisoned, records[2]]);
 

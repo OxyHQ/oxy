@@ -7,6 +7,9 @@
   "types": "dist/types/index.d.ts",
   "typesVersions": {
     "*": {
+      "secp256k1": [
+        "dist/types/secp256k1.d.ts"
+      ],
       "node": [
         "dist/types/node/index.d.ts"
       ]
@@ -40,6 +43,18 @@
         "default": "./dist/cjs/node/index.js"
       },
       "default": "./dist/esm/node/index.js"
+    },
+    "./secp256k1": {
+      "react-native": "./dist/esm/secp256k1.js",
+      "import": {
+        "types": "./dist/types/secp256k1.d.ts",
+        "default": "./dist/esm/secp256k1.js"
+      },
+      "require": {
+        "types": "./dist/types/secp256k1.d.ts",
+        "default": "./dist/cjs/secp256k1.js"
+      },
+      "default": "./dist/esm/secp256k1.js"
     },
     "./package.json": "./package.json"
   },
@@ -98,8 +113,8 @@
     }
   },
   "dependencies": {
+    "@noble/curves": "catalog:",
     "@oxyhq/contracts": "workspace:^",
-    "elliptic": "catalog:",
     "zod": "^3.25.64"
   },
   "peerDependencies": {
@@ -126,7 +141,6 @@
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@types/elliptic": "catalog:",
     "@types/express": "catalog:",
     "@types/node": "^22.20.1",
     "@types/supertest": "catalog:",

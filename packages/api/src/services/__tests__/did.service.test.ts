@@ -6,14 +6,13 @@
  * composition, and the Oxy organisation document.
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { buildUserDid, buildDidDocument, buildOxyDidDocument, OXY_DID } from '../did.service';
 import { didDocumentSchema } from '@oxyhq/contracts';
 
-const ec = new EC('secp256k1');
 
 function newPublicKey(): string {
-  return ec.genKeyPair().getPublic('hex');
+  return generateSecp256k1KeyPair().publicKey;
 }
 
 const ORIGINAL_OXY_PUBLIC_KEY = process.env.OXY_PUBLIC_KEY;

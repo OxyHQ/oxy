@@ -10,7 +10,11 @@
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { signedRecordSigningInput, type SignedRecordSigningFields } from './signingInput';
 import { sha256 } from './recordId';
-import { signDigest, verifyDigest, derivePublicKeyHex } from './secp256k1';
+import {
+  deriveSecp256k1PublicKey,
+  signSecp256k1Digest,
+  verifySecp256k1Digest,
+} from '../secp256k1';
 
 /** The one signature algorithm identifier the protocol emits. */
 const ALG = 'ES256K-DER-SHA256' as const;
@@ -24,7 +28,7 @@ const ALG = 'ES256K-DER-SHA256' as const;
  */
 export async function signMessage(message: string, privateKeyHex: string): Promise<string> {
   const digest = await sha256(message);
-  return signDigest(privateKeyHex, digest);
+  return signSecp256k1Digest(privateKeyHex, digest);
 }
 
 /**
@@ -40,7 +44,7 @@ export async function verifySignature(
 ): Promise<boolean> {
   try {
     const digest = await sha256(message);
-    return verifyDigest(publicKeyHex, digest, signature);
+    return verifySecp256k1Digest(publicKeyHex, digest, signature);
   } catch {
     // Malformed key / signature / input is not a valid signature.
     return false;
@@ -63,7 +67,7 @@ export async function signEnvelope(
 ): Promise<SignedRecordEnvelope> {
   const signingInput = signedRecordSigningInput(fields);
   const signature = await signMessage(signingInput, privateKeyHex);
-  const publicKey = derivePublicKeyHex(privateKeyHex);
+  const publicKey = deriveSecp256k1PublicKey(privateKeyHex);
   return { ...fields, publicKey, alg: ALG, signature };
 }
 

@@ -27,7 +27,10 @@
  * came back" is never allowed to read as a pass.
  */
 
-import { ec as EC } from 'elliptic';
+import {
+  deriveSecp256k1PublicKey,
+  generateSecp256k1KeyPair,
+} from '@oxyhq/protocol/secp256k1';
 import { and, eq } from 'drizzle-orm';
 import { computeRecordId } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
@@ -45,8 +48,6 @@ import { oxyRecordStore } from '../oxyRecordStore';
 import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
 import { reputationService } from '../reputation.service';
 
-const ec = new EC('secp256k1');
-
 beforeAll(async () => {
   await connectPostgres();
 });
@@ -57,15 +58,15 @@ afterAll(async () => {
 
 /** An account with a primary verification key the resolver will authorize. */
 async function signer(): Promise<{ userId: string; privateKey: string; did: string }> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const [row] = await getDb()
     .insert(users)
     .values({ color: 'teal', publicKey })
     .returning({ id: users.id });
   return {
     userId: row.id,
-    privateKey: keyPair.getPrivate('hex'),
+    privateKey: keyPair.privateKey,
     did: buildUserDid(row.id),
   };
 }
@@ -81,7 +82,7 @@ function v2Envelope(
   subject: { did: string; privateKey: string },
   overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {},
 ): SignedRecordEnvelope {
-  const publicKey = ec.keyFromPrivate(subject.privateKey).getPublic('hex');
+  const publicKey = deriveSecp256k1PublicKey(subject.privateKey);
   return signRecordEnvelope(
     {
       version: 2,
@@ -107,7 +108,7 @@ function v1Envelope(
   subject: { did: string; privateKey: string },
   overrides: Partial<Omit<SignedRecordEnvelope, 'signature'>> = {},
 ): SignedRecordEnvelope {
-  const publicKey = ec.keyFromPrivate(subject.privateKey).getPublic('hex');
+  const publicKey = deriveSecp256k1PublicKey(subject.privateKey);
   return signRecordEnvelope(
     {
       version: 1,
