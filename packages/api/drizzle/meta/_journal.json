@@ -456,6 +456,13 @@
       "when": 1788353451915,
       "tag": "0065_mixed_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1788356821479,
+      "tag": "0066_bright_nekra",
+      "breakpoints": true
     }
   ]
 }

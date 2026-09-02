@@ -1,5 +1,6 @@
 import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
+import { isCheckViolation } from '@oxyhq/db';
 import type { AppCapabilityCatalog, AutonomyLevel } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
@@ -159,12 +160,20 @@ describe('capability authority over live database state', () => {
   it('materializes durable automation authority into a ticket for one exact run', async () => {
     const input = await fixture('autonomous', 'automation');
 
-    // The expand release must keep accepting rows written by the previous image.
-    // The contract release removes these persisted run fields after rollout.
-    await getDb().update(capabilityExecutionAuthorizations).set({
-      runId: 'legacy-automation-run',
-      stepId: 'legacy-automation-step',
-    }).where(eq(capabilityExecutionAuthorizations.id, input.authorizationId));
+    // The contract release has already cleared legacy rows and now refuses any
+    // writer that tries to bind a recurrent authorization to one future run.
+    try {
+      await getDb().update(capabilityExecutionAuthorizations).set({
+        runId: 'legacy-automation-run',
+        stepId: 'legacy-automation-step',
+      }).where(eq(capabilityExecutionAuthorizations.id, input.authorizationId));
+      throw new Error('Expected persisted automation run scope to be refused');
+    } catch (error: unknown) {
+      expect(isCheckViolation(
+        error,
+        'capability_execution_authorizations_run_scope_check',
+      )).toBe(true);
+    }
 
     await expect(evaluateCapabilityAuthority({
       executionAuthorizationId: input.authorizationId,
