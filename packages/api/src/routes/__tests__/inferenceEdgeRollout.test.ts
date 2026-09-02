@@ -69,7 +69,7 @@ import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
-} from './kaanaRuntimeFixtures';
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 

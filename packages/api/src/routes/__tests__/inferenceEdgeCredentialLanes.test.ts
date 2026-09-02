@@ -149,7 +149,7 @@ import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
-} from './kaanaRuntimeFixtures';
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 jest.setTimeout(60_000);
 

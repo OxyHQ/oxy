@@ -1,3 +1,4 @@
+// Keep reusable helpers outside __tests__ so Jest does not collect them as a suite.
 import { getDb } from '../../config/postgres';
 import { inferenceDeploymentRoutingScores } from '../../db/schema';
 import {

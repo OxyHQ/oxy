@@ -81,7 +81,7 @@ import type {
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
-import { insertValidRoutingScorecard } from './kaanaRuntimeFixtures';
+import { insertValidRoutingScorecard } from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
