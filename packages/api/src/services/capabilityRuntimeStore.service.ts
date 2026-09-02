@@ -23,13 +23,29 @@ export async function reserveCapabilityEffect(
   claims: CapabilityTicketClaims,
   keyHash: string,
 ): Promise<boolean> {
-  const db = getDb();
-  const inserted = await db.insert(capabilityIdempotencyKeys).values({
+  return reserveCapabilityEffectFor({
     effectiveAccountId: claims.resource.effectiveAccountId,
     appSlug: claims.resource.appId,
     tool: claims.tool,
     keyHash,
-    ticketJti: claims.jti,
+    authorizationId: claims.jti,
+  });
+}
+
+export async function reserveCapabilityEffectFor(input: {
+  effectiveAccountId: string;
+  appSlug: string;
+  tool: string;
+  keyHash: string;
+  authorizationId: string;
+}): Promise<boolean> {
+  const db = getDb();
+  const inserted = await db.insert(capabilityIdempotencyKeys).values({
+    effectiveAccountId: input.effectiveAccountId,
+    appSlug: input.appSlug,
+    tool: input.tool,
+    keyHash: input.keyHash,
+    ticketJti: input.authorizationId,
     status: 'started',
   }).onConflictDoNothing({
     target: [
@@ -82,13 +98,29 @@ export async function finalizeCapabilityEffect(
   keyHash: string,
   statusCode: number,
 ): Promise<void> {
+  return finalizeCapabilityEffectFor({
+    effectiveAccountId: claims.resource.effectiveAccountId,
+    appSlug: claims.resource.appId,
+    tool: claims.tool,
+    keyHash,
+    statusCode,
+  });
+}
+
+export async function finalizeCapabilityEffectFor(input: {
+  effectiveAccountId: string;
+  appSlug: string;
+  tool: string;
+  keyHash: string;
+  statusCode: number;
+}): Promise<void> {
   await getDb().update(capabilityIdempotencyKeys).set({
-    status: statusCode < 400 ? 'succeeded' : 'failed',
-    responseStatus: statusCode,
+    status: input.statusCode < 400 ? 'succeeded' : 'failed',
+    responseStatus: input.statusCode,
   }).where(and(
-    eq(capabilityIdempotencyKeys.effectiveAccountId, claims.resource.effectiveAccountId),
-    eq(capabilityIdempotencyKeys.appSlug, claims.resource.appId),
-    eq(capabilityIdempotencyKeys.tool, claims.tool),
-    eq(capabilityIdempotencyKeys.keyHash, keyHash),
+    eq(capabilityIdempotencyKeys.effectiveAccountId, input.effectiveAccountId),
+    eq(capabilityIdempotencyKeys.appSlug, input.appSlug),
+    eq(capabilityIdempotencyKeys.tool, input.tool),
+    eq(capabilityIdempotencyKeys.keyHash, input.keyHash),
   ));
 }
