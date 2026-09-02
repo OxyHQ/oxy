@@ -50,6 +50,10 @@ import { federationKeyPairs } from './federationKeyPairs';
 import { fileLinks } from './fileLinks';
 import { identityBindings } from './identityBindings';
 import { inferenceDeployments } from './inferenceDeployments';
+import {
+  inferenceDeploymentRoutingScoreEvents,
+  inferenceDeploymentRoutingScores,
+} from './inferenceDeploymentRoutingScores';
 import { inferenceModelReleaseSignatures } from './inferenceModelReleaseSignatures';
 import { inferenceModelReleases } from './inferenceModelReleases';
 import { inferenceModels } from './inferenceModels';
@@ -526,6 +530,35 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'correlate a catalogue row with what Relay is running. Relay’s id space, ' +
       'not Oxy’s, and deliberately never dereferenced here. PROTECTED: it is ' +
       'operational topology and never reaches a customer.',
+  },
+  {
+    table: inferenceDeploymentRoutingScores,
+    column: inferenceDeploymentRoutingScores.deploymentId,
+    reason:
+      'The exact Kaana deployment identity. Multiple catalogue rows may map the ' +
+      'same external route for different audiences, so no unique local column can ' +
+      'be a foreign-key target; the admin writer proves the mapping before write.',
+  },
+  {
+    table: inferenceDeploymentRoutingScoreEvents,
+    column: inferenceDeploymentRoutingScoreEvents.deploymentId,
+    reason:
+      'An append-only audit copy of the same exact Kaana deployment identity. It ' +
+      'must survive catalogue changes and therefore intentionally has no local FK.',
+  },
+  {
+    table: inferenceDeploymentRoutingScores,
+    column: inferenceDeploymentRoutingScores.changedByUserId,
+    reason:
+      'An immutable attribution snapshot of the staff actor. It deliberately has ' +
+      'no FK so deleting an account cannot rewrite or invalidate routing history.',
+  },
+  {
+    table: inferenceDeploymentRoutingScoreEvents,
+    column: inferenceDeploymentRoutingScoreEvents.changedByUserId,
+    reason:
+      'An immutable attribution snapshot of the staff actor. It deliberately has ' +
+      'no FK so deleting an account cannot rewrite or invalidate routing history.',
   },
   {
     table: appEndorsementEdges,

@@ -46,7 +46,17 @@
  */
 
 import { sql } from 'drizzle-orm';
-import { boolean, check, index, integer, numeric, pgTable, text, unique } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  integer,
+  numeric,
+  pgTable,
+  text,
+  unique,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import {
   availabilityScopeSchema,
   commercialPermissionSchema,
@@ -283,6 +293,12 @@ export const inferenceDeployments = pgTable(
       t.providerSlug,
       t.availabilityScope
     ),
+    // Drafts may model audience-specific offers independently. Publication may
+    // not: until serving has a viewer-aware cross-scope commercial contract,
+    // one exact Kaana deployment identity can back at most one approved row.
+    uniqueIndex('inference_deployments_approved_internal_route_id_key')
+      .on(t.internalRouteId)
+      .where(sql`${t.permissionState} = 'approved' and ${t.internalRouteId} is not null`),
 
     check('inference_deployments_regions_check', sql`cardinality(${t.regions}) >= 1`),
 

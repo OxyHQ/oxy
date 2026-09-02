@@ -37,6 +37,7 @@ import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
 
 process.env.ACCESS_TOKEN_SECRET = 'test-access-token-secret';
+process.env.INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS = '3600';
 
 /**
  * The caller, controlled per test. `isStaff` is the only thing `requireStaff`
@@ -67,11 +68,13 @@ jest.mock('../../utils/logger', () => ({
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
+  inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  priceVersions,
 } from '../../db/schema';
 import { users, type StaffCapability } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
@@ -92,7 +95,7 @@ interface JsonResponse {
 }
 
 function request(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'PUT',
   path: string,
   body?: unknown
 ): Promise<JsonResponse> {
@@ -149,6 +152,8 @@ interface DeploymentFixture {
   readonly deploymentId: string;
   readonly modelId: string;
   readonly internalRouteId: string;
+  readonly providerSlug: string;
+  readonly priceVersionId: string;
   readonly wholesaleAmount: string;
 }
 
@@ -191,9 +196,10 @@ async function insertPendingDeployment(): Promise<DeploymentFixture> {
     })
     .returning({ id: inferenceModels.id, modelId: inferenceModels.modelId });
 
+  const revisionName = `ar${suffix()}`;
   const [revision] = await db
     .insert(inferenceModelRevisions)
-    .values({ modelId: model.id, revision: `ar${suffix()}`, releasedAt: new Date(), isCurrent: true })
+    .values({ modelId: model.id, revision: revisionName, releasedAt: new Date(), isCurrent: true })
     .returning({ id: inferenceModelRevisions.id });
 
   await db.insert(inferenceProviders).values({
@@ -205,6 +211,17 @@ async function insertPendingDeployment(): Promise<DeploymentFixture> {
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
   });
+
+  if (model.modelId === null) throw new Error('the generated model id did not compose');
+  const [priceVersion] = await db
+    .insert(priceVersions)
+    .values({
+      modelReference: `${model.modelId}@${revisionName}`,
+      provider: providerSlug,
+      status: 'active',
+      effectiveFrom: new Date(Date.now() - 60_000),
+    })
+    .returning({ id: priceVersions.id });
 
   const [deployment] = await db
     .insert(inferenceDeployments)
@@ -220,6 +237,7 @@ async function insertPendingDeployment(): Promise<DeploymentFixture> {
       commercialPermission: 'public_resale_approved',
       status: 'active',
       internalRouteId,
+      priceVersionId: priceVersion.id,
       upstreamWholesaleCostAmount: wholesaleAmount,
       upstreamWholesaleCostCurrency: 'USD',
       upstreamWholesaleCostUnit: 'input_tokens',
@@ -227,11 +245,12 @@ async function insertPendingDeployment(): Promise<DeploymentFixture> {
     })
     .returning({ id: inferenceDeployments.id });
 
-  if (model.modelId === null) throw new Error('the generated model id did not compose');
   return {
     deploymentId: deployment.id,
     modelId: model.modelId,
     internalRouteId,
+    providerSlug,
+    priceVersionId: priceVersion.id,
     wholesaleAmount,
   };
 }
@@ -278,6 +297,14 @@ async function readDeployment(deploymentId: string) {
   return row;
 }
 
+async function readRoutingScorecard(kaanaDeploymentId: string) {
+  const [row] = await getDb()
+    .select()
+    .from(inferenceDeploymentRoutingScores)
+    .where(eq(inferenceDeploymentRoutingScores.deploymentId, kaanaDeploymentId));
+  return row;
+}
+
 /** Every admin row this file can see, filtered to the one it owns. */
 function adminRowFor(body: Record<string, unknown>, deploymentId: string) {
   const rows = body.data as { id: string }[];
@@ -288,6 +315,54 @@ const STAFF_REFUSAL = {
   error: 'Forbidden',
   message: 'This operation requires Oxy platform staff privileges',
 };
+
+function completeScorecard(fixture: Pick<DeploymentFixture, 'priceVersionId'>) {
+  const now = Date.now();
+  const windowStart = new Date(now - 60 * 60 * 1000).toISOString();
+  const windowEnd = new Date(now - 30 * 60 * 1000).toISOString();
+  const validUntil = new Date(now + 24 * 60 * 60 * 1000).toISOString();
+  return {
+    price: {
+      score: 91,
+      source: 'provider_contract' as const,
+      evidenceRef: 'routing-review/http-price',
+      priceVersionId: fixture.priceVersionId,
+    },
+    latency: {
+      score: 82,
+      source: 'kaana_measurement' as const,
+      evidenceRef: 'routing-review/http-latency',
+      measurementWindowStart: windowStart,
+      measurementWindowEnd: windowEnd,
+      validUntil,
+    },
+    throughput: {
+      score: 73,
+      source: 'kaana_measurement' as const,
+      evidenceRef: 'routing-review/http-throughput',
+      measurementWindowStart: windowStart,
+      measurementWindowEnd: windowEnd,
+      validUntil,
+    },
+    balanced: {
+      score: 84,
+      source: 'reviewed_scorecard' as const,
+      evidenceRef: 'routing-review/http-balanced',
+      formulaRef: 'routing-formula/balanced-v1',
+      validUntil,
+    },
+    reason: 'Reviewed against the current provider contract and performance report',
+  };
+}
+
+async function authorCompleteScorecard(fixture: DeploymentFixture): Promise<void> {
+  const response = await request(
+    'PUT',
+    `${ADMIN}/kaana-deployments/${fixture.internalRouteId}/routing-scorecard`,
+    completeScorecard(fixture)
+  );
+  expect(response.status).toBe(200);
+}
 
 /**
  * The customer catalogue is mounted here as a control, so it runs PUBLISHED.
@@ -347,12 +422,20 @@ describe('every route on this mount is staff-gated', () => {
     ['GET', `${ADMIN}/metrics?from=2020-01-01&to=2020-01-02`, undefined],
     ['POST', `${ADMIN}/deployments/DEPLOYMENT/legal-review`, { status: 'approved', evidenceRef: 'x' }],
     ['POST', `${ADMIN}/deployments/DEPLOYMENT/approve`, {}],
+    [
+      'PUT',
+      `${ADMIN}/kaana-deployments/KAANA_DEPLOYMENT/routing-scorecard`,
+      undefined,
+    ],
   ] as const)('refuses %s %s to a non-staff user, and serves it to staff', async (method, template, body) => {
     const fixture = await insertPendingDeployment();
-    const path = template.replace('DEPLOYMENT', fixture.deploymentId);
+    const path = template
+      .replace('KAANA_DEPLOYMENT', fixture.internalRouteId)
+      .replace('DEPLOYMENT', fixture.deploymentId);
+    const requestBody = path.includes('/routing-scorecard') ? completeScorecard(fixture) : body;
 
     currentUserIsStaff = false;
-    const refused = await request(method, path, body);
+    const refused = await request(method, path, requestBody);
     expect(refused.status).toBe(403);
     // The guard's OWN body. A 403 from anywhere else — or a 404 from an
     // unmounted route — fails this, which is what stops the test passing for
@@ -369,8 +452,9 @@ describe('every route on this mount is staff-gated', () => {
         evidenceRef: `contract-register/${suffix()}`,
       });
       expect(review.status).toBe(200);
+      await authorCompleteScorecard(fixture);
     }
-    const allowed = await request(method, path, body);
+    const allowed = await request(method, path, requestBody);
     expect(allowed.status).toBe(200);
   });
 
@@ -447,6 +531,7 @@ describe('publishing a catalogue route requires the graded staff capability', ()
       { status: 'approved', evidenceRef: `contract-register/${suffix()}` }
     );
     expect(review.status).toBe(200);
+    await authorCompleteScorecard(fixture);
 
     currentUserId = await seedStaffUser([]);
     const refused = await request(
@@ -521,6 +606,193 @@ describe('publishing a catalogue route requires the graded staff capability', ()
 });
 
 /* -------------------------------------------------------------------------- */
+/*  1c. A routing scorecard uses the exact Kaana identity and full provenance */
+/* -------------------------------------------------------------------------- */
+
+describe('the Kaana routing scorecard endpoint is a full, attributed replacement', () => {
+  const scorecardPath = (kaanaDeploymentId: string) =>
+    `${ADMIN}/kaana-deployments/${kaanaDeploymentId}/routing-scorecard`;
+
+  it('stores all four signals under the exact Kaana deployment id, including explicit null', async () => {
+    const fixture = await insertPendingDeployment();
+    const complete = completeScorecard(fixture);
+    const body = { ...complete, throughput: { ...complete.throughput, score: null } };
+
+    const response = await request('PUT', scorecardPath(fixture.internalRouteId), body);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        deploymentId: fixture.internalRouteId,
+        scorecard: body,
+      },
+    });
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toMatchObject({
+      deploymentId: fixture.internalRouteId,
+      priceScore: body.price.score,
+      priceSource: body.price.source,
+      priceEvidenceRef: body.price.evidenceRef,
+      priceVersionId: body.price.priceVersionId,
+      latencyScore: body.latency.score,
+      latencySource: body.latency.source,
+      throughputScore: null,
+      throughputSource: body.throughput.source,
+      balancedScore: body.balanced.score,
+      balancedSource: body.balanced.source,
+      reason: body.reason,
+      changedByUserId: currentUserId,
+    });
+  });
+
+  it.each([
+    ['the Oxy catalogue row id', (fixture: DeploymentFixture) => fixture.deploymentId],
+    ['the provider slug', (fixture: DeploymentFixture) => fixture.providerSlug],
+  ])('answers 404 when the caller supplies %s instead of the Kaana id', async (_label, wrongId) => {
+    const fixture = await insertPendingDeployment();
+    const response = await request(
+      'PUT',
+      scorecardPath(wrongId(fixture)),
+      completeScorecard(fixture)
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.body).toMatchObject({
+      error: 'NOT_FOUND',
+      message: `No inference deployment with id ${wrongId(fixture)}`,
+    });
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
+  });
+
+  it('answers 400 instead of silently trimming a Kaana deployment identity', async () => {
+    const fixture = await insertPendingDeployment();
+    const response = await request(
+      'PUT',
+      scorecardPath(`%20${fixture.internalRouteId}%20`),
+      completeScorecard(fixture)
+    );
+
+    expect(response.status).toBe(400);
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
+  });
+
+  it.each([
+    ['a partial scorecard', () => ({ price: { score: 1 } })],
+    [
+      'an out-of-range score',
+      (fixture: DeploymentFixture) => {
+        const body = completeScorecard(fixture);
+        return { ...body, price: { ...body.price, score: 1_000_001 } };
+      },
+    ],
+    [
+      'a price source that claims Kaana measured price',
+      (fixture: DeploymentFixture) => {
+        const body = completeScorecard(fixture);
+        return { ...body, price: { ...body.price, source: 'kaana_measurement' } };
+      },
+    ],
+    [
+      'a cost-model source on measured latency',
+      (fixture: DeploymentFixture) => {
+        const body = completeScorecard(fixture);
+        return { ...body, latency: { ...body.latency, source: 'cost_model' } };
+      },
+    ],
+    [
+      'an unrecognised field',
+      (fixture: DeploymentFixture) => ({ ...completeScorecard(fixture), priority: 99 }),
+    ],
+    [
+      'blank evidence after trimming',
+      (fixture: DeploymentFixture) => {
+        const body = completeScorecard(fixture);
+        return { ...body, balanced: { ...body.balanced, evidenceRef: '   ' } };
+      },
+    ],
+  ] as const)('answers 400 for %s and writes nothing', async (_label, buildBody) => {
+    const fixture = await insertPendingDeployment();
+    const response = await request(
+      'PUT',
+      scorecardPath(fixture.internalRouteId),
+      buildBody(fixture)
+    );
+
+    expect(response.status).toBe(400);
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
+  });
+
+  it('answers 409 for a mismatched price version, future measurement, or expired evidence', async () => {
+    const fixture = await insertPendingDeployment();
+    const other = await insertPendingDeployment();
+
+    const wrongPrice = completeScorecard(fixture);
+    wrongPrice.price.priceVersionId = other.priceVersionId;
+    expect(
+      (await request('PUT', scorecardPath(fixture.internalRouteId), wrongPrice)).status
+    ).toBe(409);
+
+    const future = completeScorecard(fixture);
+    future.latency.measurementWindowEnd = new Date(
+      Date.now() + 60 * 60 * 1000
+    ).toISOString();
+    expect((await request('PUT', scorecardPath(fixture.internalRouteId), future)).status).toBe(409);
+
+    const expired = completeScorecard(fixture);
+    expired.balanced.validUntil = new Date(Date.now() - 1000).toISOString();
+    expect((await request('PUT', scorecardPath(fixture.internalRouteId), expired)).status).toBe(409);
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
+  });
+
+  it('answers 409 when one Kaana identity maps to multiple catalogue rows', async () => {
+    const fixture = await insertPendingDeployment();
+    const duplicate = await insertPendingDeployment();
+    await getDb()
+      .update(inferenceDeployments)
+      .set({
+        internalRouteId: fixture.internalRouteId,
+        priceVersionId: fixture.priceVersionId,
+      })
+      .where(eq(inferenceDeployments.id, duplicate.deploymentId));
+
+    const response = await request(
+      'PUT',
+      scorecardPath(fixture.internalRouteId),
+      completeScorecard(fixture)
+    );
+    expect(response.status).toBe(409);
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
+  });
+
+  it('requires the catalogue-publish capability before writing, then accepts the same request', async () => {
+    const fixture = await insertPendingDeployment();
+    currentUserId = await seedStaffUser([]);
+    currentUserIsStaff = true;
+
+    const refused = await request(
+      'PUT',
+      scorecardPath(fixture.internalRouteId),
+      completeScorecard(fixture)
+    );
+    expect(refused.status).toBe(403);
+    expect(refused.body.message).toEqual(
+      expect.stringContaining('requires the inference:catalogue:publish staff capability')
+    );
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toBeUndefined();
+
+    await grantCapability(currentUserId, 'inference:catalogue:publish');
+    const allowed = await request(
+      'PUT',
+      scorecardPath(fixture.internalRouteId),
+      completeScorecard(fixture)
+    );
+    expect(allowed.status).toBe(200);
+    expect(await readRoutingScorecard(fixture.internalRouteId)).toMatchObject({
+      changedByUserId: currentUserId,
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /*  2. The staff view IS the withheld columns                                 */
 /* -------------------------------------------------------------------------- */
 
@@ -534,6 +806,7 @@ describe('the staff listing returns what the customer projection withholds', () 
       status: 'approved',
       evidenceRef: `contract-register/${suffix()}`,
     });
+    await authorCompleteScorecard(fixture);
     await request('POST', `${ADMIN}/deployments/${fixture.deploymentId}/approve`, {});
 
     const admin = await request('GET', `${ADMIN}/deployments`);
@@ -616,6 +889,50 @@ describe('the action is a path segment from a closed set, never a body field', (
 /* -------------------------------------------------------------------------- */
 
 describe('an approval cites a review, and both name the staff member who made them', () => {
+  it('refuses a serving-scope approval without identity, scorecard, or all four scores', async () => {
+    const unmapped = await insertPendingDeployment();
+    await getDb()
+      .update(inferenceDeployments)
+      .set({ internalRouteId: null })
+      .where(eq(inferenceDeployments.id, unmapped.deploymentId));
+    await request('POST', `${ADMIN}/deployments/${unmapped.deploymentId}/legal-review`, {
+      status: 'approved',
+      evidenceRef: `contract-register/${suffix()}`,
+    });
+    expect(
+      (await request('POST', `${ADMIN}/deployments/${unmapped.deploymentId}/approve`, {})).status
+    ).toBe(409);
+
+    const missing = await insertPendingDeployment();
+    await request('POST', `${ADMIN}/deployments/${missing.deploymentId}/legal-review`, {
+      status: 'approved',
+      evidenceRef: `contract-register/${suffix()}`,
+    });
+    expect(
+      (await request('POST', `${ADMIN}/deployments/${missing.deploymentId}/approve`, {})).status
+    ).toBe(409);
+
+    const incomplete = await insertPendingDeployment();
+    const body = completeScorecard(incomplete);
+    body.balanced.score = null;
+    expect(
+      (
+        await request(
+          'PUT',
+          `${ADMIN}/kaana-deployments/${incomplete.internalRouteId}/routing-scorecard`,
+          body
+        )
+      ).status
+    ).toBe(200);
+    await request('POST', `${ADMIN}/deployments/${incomplete.deploymentId}/legal-review`, {
+      status: 'approved',
+      evidenceRef: `contract-register/${suffix()}`,
+    });
+    expect(
+      (await request('POST', `${ADMIN}/deployments/${incomplete.deploymentId}/approve`, {})).status
+    ).toBe(409);
+  });
+
   it('refuses an approval before the review, and accepts it after — 409, not 500', async () => {
     const fixture = await insertPendingDeployment();
 
@@ -635,6 +952,7 @@ describe('an approval cites a review, and both name the staff member who made th
       { status: 'approved', evidenceRef }
     );
     expect(review.status).toBe(200);
+    await authorCompleteScorecard(fixture);
 
     const approved = await request(
       'POST',
@@ -724,6 +1042,7 @@ describe('a retired route stays retired', () => {
       status: 'approved',
       evidenceRef: `contract-register/${suffix()}`,
     });
+    await authorCompleteScorecard(other);
     await request('POST', `${ADMIN}/deployments/${other.deploymentId}/approve`, {});
 
     const catalogue = await request('GET', MODELS);

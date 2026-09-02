@@ -63,9 +63,14 @@
  */
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
+import { getTableColumns } from 'drizzle-orm';
 import { authSessions } from './authSessions';
 import { federationKeyPairs } from './federationKeyPairs';
 import { inferenceDeployments } from './inferenceDeployments';
+import {
+  inferenceDeploymentRoutingScoreEvents,
+  inferenceDeploymentRoutingScores,
+} from './inferenceDeploymentRoutingScores';
 import {
   GPAI_DOCUMENTATION_INTERNAL_COLUMNS,
   inferenceModelGpaiDocumentation,
@@ -182,6 +187,67 @@ export const INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS = [
   'upstreamWholesaleCostPer',
 ] as const;
 
+/** Internal routing decisions and their staff-only provenance. */
+export const INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS = [
+  'deploymentId',
+  'priceScore',
+  'priceSource',
+  'priceEvidenceRef',
+  'priceVersionId',
+  'latencyScore',
+  'latencySource',
+  'latencyEvidenceRef',
+  'latencyMeasurementWindowStart',
+  'latencyMeasurementWindowEnd',
+  'latencyValidUntil',
+  'throughputScore',
+  'throughputSource',
+  'throughputEvidenceRef',
+  'throughputMeasurementWindowStart',
+  'throughputMeasurementWindowEnd',
+  'throughputValidUntil',
+  'balancedScore',
+  'balancedSource',
+  'balancedEvidenceRef',
+  'balancedFormulaRef',
+  'balancedValidUntil',
+  'reason',
+  'changedByUserId',
+  'changedAt',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+/** The immutable staff audit is internal in its entirety. */
+export const INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS = [
+  'id',
+  'deploymentId',
+  'priceScore',
+  'priceSource',
+  'priceEvidenceRef',
+  'priceVersionId',
+  'latencyScore',
+  'latencySource',
+  'latencyEvidenceRef',
+  'latencyMeasurementWindowStart',
+  'latencyMeasurementWindowEnd',
+  'latencyValidUntil',
+  'throughputScore',
+  'throughputSource',
+  'throughputEvidenceRef',
+  'throughputMeasurementWindowStart',
+  'throughputMeasurementWindowEnd',
+  'throughputValidUntil',
+  'balancedScore',
+  'balancedSource',
+  'balancedEvidenceRef',
+  'balancedFormulaRef',
+  'balancedValidUntil',
+  'reason',
+  'changedByUserId',
+  'createdAt',
+] as const;
+
 /**
  * `inference_model_gpai_documentation` columns that are documentation for an
  * AUTHORITY rather than for a downstream developer.
@@ -219,6 +285,9 @@ export const PROTECTED_COLUMNS_BY_TABLE = {
   federation_key_pairs: FEDERATION_KEY_PAIRS_PROTECTED_COLUMNS,
   messages: MESSAGES_PROTECTED_COLUMNS,
   inference_deployments: INFERENCE_DEPLOYMENTS_PROTECTED_COLUMNS,
+  inference_deployment_routing_scores: INFERENCE_ROUTING_SCORES_PROTECTED_COLUMNS,
+  inference_deployment_routing_score_events:
+    INFERENCE_ROUTING_SCORE_EVENTS_PROTECTED_COLUMNS,
   inference_model_gpai_documentation: INFERENCE_GPAI_DOCUMENTATION_PROTECTED_COLUMNS,
 } as const;
 
@@ -396,6 +465,20 @@ export const PROTECTED_COLUMNS: readonly ProtectedColumn[] = [
       'The denominator of the wholesale rate. Protected with the rest of the ' +
       'group so no subset of it can be reassembled from a default read.',
   },
+  ...Object.values(getTableColumns(inferenceDeploymentRoutingScores)).map((column) => ({
+    table: inferenceDeploymentRoutingScores,
+    column,
+    reason:
+      'Internal traffic-order input or staff provenance. Customers receive the ' +
+      'resolved provider attribution, never scores, topology, evidence or actor data.',
+  })),
+  ...Object.values(getTableColumns(inferenceDeploymentRoutingScoreEvents)).map((column) => ({
+    table: inferenceDeploymentRoutingScoreEvents,
+    column,
+    reason:
+      'Immutable staff audit of internal traffic-order decisions. It is an ' +
+      'operations record and never part of a customer response.',
+  })),
   {
     table: inferenceModelGpaiDocumentation,
     column: inferenceModelGpaiDocumentation.trainingComputeFlops,

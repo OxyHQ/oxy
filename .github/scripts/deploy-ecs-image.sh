@@ -17,9 +17,11 @@ POLL_INTERVAL="${POLL_INTERVAL:-15}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
+TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
+PRE_DEPLOY_TASK_COMMAND_JSON="${PRE_DEPLOY_TASK_COMMAND_JSON:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
@@ -62,6 +64,15 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]] &&
   echo "::error::POST_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
   exit 1
 fi
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]] &&
+   ! jq -e '
+     type == "array" and
+     length > 0 and
+     all(.[]; type == "string" and length > 0)
+   ' <<<"$PRE_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
+  echo "::error::PRE_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
+  exit 1
+fi
 if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
   TASK_SECRET_OVERRIDES_JSON='{}'
 fi
@@ -79,6 +90,34 @@ if ! jq -e '
   )
 ' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_SECRET_OVERRIDES_JSON must map environment variable names to complete SSM parameter ARNs."
+  exit 1
+fi
+if [[ -z "$TASK_ENV_OVERRIDES_JSON" ]]; then
+  TASK_ENV_OVERRIDES_JSON='{}'
+fi
+if ! jq -e '
+  type == "object" and
+  length <= 50 and
+  all(
+    to_entries[];
+    (.key | type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$")) and
+    (.value | type == "string" and utf8bytelength <= 4096)
+  )
+' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to string values of at most 4096 bytes."
+  exit 1
+fi
+task_override_name_overlap="$(jq -n \
+  --argjson environment "$TASK_ENV_OVERRIDES_JSON" \
+  --argjson secrets "$TASK_SECRET_OVERRIDES_JSON" \
+  '[($environment | keys[]) as $name | select($secrets | has($name))] | length')"
+if [[ "$task_override_name_overlap" != "0" ]]; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON names must not overlap TASK_SECRET_OVERRIDES_JSON; secret values may never be injected as plaintext environment."
+  exit 1
+fi
+if [[ -n "$INTERNAL_METRICS_PARAMETER" ]] &&
+   jq -e 'has("INTERNAL_METRICS_TOKEN")' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must not override INTERNAL_METRICS_TOKEN; it is an SSM-backed secret."
   exit 1
 fi
 
@@ -414,6 +453,12 @@ task_secret_overrides="$(jq -c '
     | {name: .key, valueFrom: .value}
   ]
 ' <<<"$TASK_SECRET_OVERRIDES_JSON")"
+task_environment_overrides="$(jq -c '
+  [
+    to_entries[]
+    | {name: .key, value: .value}
+  ]
+' <<<"$TASK_ENV_OVERRIDES_JSON")"
 
 aws ecs describe-task-definition \
   --task-definition "$current_task_definition" \
@@ -426,12 +471,30 @@ if [[ "$container_matches" != "1" ]]; then
   echo "::error::Expected exactly one container named $CONTAINER_NAME; found $container_matches. Available: $available_containers"
   exit 1
 fi
+existing_secret_overlap="$(jq \
+  --arg name "$CONTAINER_NAME" \
+  --argjson taskEnvironmentOverrides "$task_environment_overrides" \
+  '
+    ($taskEnvironmentOverrides | map(.name)) as $plainNames
+    | [
+        .containerDefinitions[]
+        | select(.name == $name)
+        | (.secrets // [])[]
+        | select(.name as $secretName | ($plainNames | index($secretName)) != null)
+      ]
+    | length
+  ' "$task_definition_file")"
+if [[ "$existing_secret_overlap" != "0" ]]; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must not replace an existing ECS secret; move only non-secret operational configuration through plaintext environment."
+  exit 1
+fi
 
 jq \
   --arg name "$CONTAINER_NAME" \
   --arg image "$IMAGE_URI" \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
+  --argjson taskEnvironmentOverrides "$task_environment_overrides" \
   '
     del(
       .taskDefinitionArn,
@@ -443,6 +506,7 @@ jq \
       .registeredBy
     )
     | ($taskSecretOverrides | map(.name)) as $taskSecretNames
+    | ($taskEnvironmentOverrides | map(.name)) as $taskEnvironmentNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
@@ -472,6 +536,16 @@ jq \
                   ))
               + $taskSecretOverrides
             )
+          | .environment = (
+              ((.environment // [])
+                | map(
+                    select(
+                      .name as $existingName
+                      | ($taskEnvironmentNames | index($existingName)) == null
+                    )
+                  ))
+              + $taskEnvironmentOverrides
+            )
         else . end
       )
   ' \
@@ -483,7 +557,9 @@ new_task_definition="$(aws ecs register-task-definition \
   --output text)"
 
 one_shot_run_task_args=()
-if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
+if [[ "$RUN_MIGRATIONS" == "true" ||
+      -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ||
+      -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
   network_configuration="$(jq -c '.services[0].networkConfiguration' <<<"$service_json")"
   if [[ -z "$network_configuration" || "$network_configuration" == "null" ]]; then
     echo "::error::ECS service $APP has no network configuration for the migration task."
@@ -523,6 +599,18 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   if ! run_one_shot_command \
     "Migration" \
     '["node","packages/api/dist/db/migrate.js","--phase=pre"]'; then
+    exit 1
+  fi
+fi
+
+if [[ -n "$PRE_DEPLOY_TASK_COMMAND_JSON" ]]; then
+  # This uses the newly registered task definition after additive migrations,
+  # but before update-service. It is the slot for cutover invariants whose
+  # failure must leave the previous image serving untouched.
+  if ! run_one_shot_command \
+    "Pre-deploy readiness" \
+    "$PRE_DEPLOY_TASK_COMMAND_JSON"; then
+    echo "::error::Pre-deploy readiness failed; the service was not updated."
     exit 1
   fi
 fi

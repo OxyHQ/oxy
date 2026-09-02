@@ -111,6 +111,11 @@ export interface RequiredEnvVars {
   //    authorization control — see the module header.
   INFERENCE_PRIVACY_REVIEW?: string;
 
+  // Minimum remaining lifetime required of latency, throughput and balanced
+  // routing evidence before approval or cutover. No default: the operator must
+  // choose a horizon that covers rollout plus the evidence-refresh SLO.
+  INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS?: string;
+
   // How far above its own trailing daily median an account's hourly inference
   // spend has to go before it is recorded as an anomaly (#972 sections 8 and 12).
   // A number above 1; unset means the documented default in
