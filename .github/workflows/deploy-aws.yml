@@ -20,6 +20,7 @@ on:
       # would change how every deploy behaves and trigger no deploy to
       # exercise the change.
       - ".github/scripts/deploy-ecs-image.sh"
+      - ".github/scripts/smoke-inbox-mcp.sh"
   workflow_dispatch:
 
 permissions:
@@ -251,6 +252,7 @@ jobs:
           # SMTP/device uses of the word relay remain untouched.
           TASK_REMOVE_NAMES_JSON: >-
             ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY"]
+          POST_DEPLOY_SMOKE_SCRIPT: .github/scripts/smoke-inbox-mcp.sh
           # The deploy script renders from the task definition the service is
           # currently running, not from Terraform's latest registered revision.
           # Re-assert new bindings here so capability authority cannot disappear
