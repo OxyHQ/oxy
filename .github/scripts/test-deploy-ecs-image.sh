@@ -618,7 +618,7 @@ fi
 # additive schema/API rollout and serving enforcement.
 workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
 grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
-grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600"}' \
+grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","INFERENCE_KAANA_EXECUTION":"disabled"}' \
   "$workflow_file" >/dev/null
 if grep -F 'PRE_DEPLOY_TASK_COMMAND_JSON:' "$workflow_file" >/dev/null; then
   echo "Phase A must not activate the inference routing readiness gate." >&2
