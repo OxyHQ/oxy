@@ -1,5 +1,13 @@
 # Changelog: `@oxyhq/protocol`
 
+## 0.2.1
+
+### Changed
+
+- Replaced the duplicate elliptic/bn.js secp256k1 implementations with one
+  audited `@noble/curves` implementation shared by Node, browser and React
+  Native builds. Public wire formats and signatures remain compatible.
+
 ## 0.2.0
 
 ### Licence: AGPL-3.0-only becomes Apache-2.0

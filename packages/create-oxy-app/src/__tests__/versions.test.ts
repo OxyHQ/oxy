@@ -35,6 +35,10 @@ describe('VERSIONS drift guard', () => {
     expect(VERSIONS.oxyCore).toBe(`^${readWorkspaceVersion('core')}`);
   });
 
+  test('oxyContracts matches the current workspace release', () => {
+    expect(VERSIONS.oxyContracts).toBe(`^${readWorkspaceVersion('contracts')}`);
+  });
+
   test('oxyBloom matches the workspace catalog', () => {
     expect(VERSIONS.oxyBloom).toBe(readWorkspaceCatalogVersion('@oxyhq/bloom'));
   });

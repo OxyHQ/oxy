@@ -1,6 +1,11 @@
 # Changelog — `@oxyhq/core`
 
-## Unreleased
+## 23.0.1
+
+### Added
+
+- Ed25519 capability-ticket issue and verification helpers with key ids,
+  strict audience/resource binding and per-action limit enforcement.
 
 ### Security: `oxy.auth()` authenticated forged tokens as any account
 

@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/app-preset",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "The Oxy distro of Expo — centralized Expo config plugin, Metro/Babel/ESLint factories, Tailwind base CSS and TypeScript bases shared by every Oxy app (Mention, Homiio, Allo, accounts, …). A zero-build package: apps replace copy-pasted config with a single dependency bump.",
   "main": "./app.plugin.js",
   "publishConfig": {
