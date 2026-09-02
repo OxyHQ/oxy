@@ -25,6 +25,9 @@ jobs:
   api-test:
     name: API Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
     # their own caps (16m for the ffmpeg install, 45m for the serial shards),
     # and this is their sum plus the ~5m the fixed steps cost at their observed maxima
@@ -306,6 +309,8 @@ jobs:
           disable_search: true
           flags: api
           name: api-coverage
+          use_oidc: true
+          fail_ci_if_error: true
 
   # Build check
   api-build:
