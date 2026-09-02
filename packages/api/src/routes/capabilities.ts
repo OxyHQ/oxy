@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Router, type Response } from 'express';
 import { and, asc, desc, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
@@ -50,6 +51,8 @@ import {
   listActiveCapabilityCatalogs,
   registerCapabilityCatalog,
 } from '../services/capabilityCatalog.service';
+import { persistCapabilityAuditEvent } from '../services/capabilityRuntimeStore.service';
+import { capabilityLimitError } from '../services/capabilityLimitPolicy';
 
 const router = Router();
 
@@ -229,6 +232,18 @@ router.post('/grants', authMiddleware, async (request: AuthRequest, response: Re
     response.status(400).json({ error: 'redelegation_requires_access_delegate' });
     return;
   }
+  if (input.limits.length) {
+    const catalog = await activeCapabilityCatalog(input.resource.appId);
+    if (!catalog) {
+      response.status(400).json({ error: 'catalog_not_registered' });
+      return;
+    }
+    const limitError = capabilityLimitError(input.limits, catalog.catalog.tools, input.resource.resourceType);
+    if (limitError) {
+      response.status(400).json({ error: limitError });
+      return;
+    }
+  }
 
   const grant = await getDb().transaction(async (tx) => {
     const [inserted] = await tx.insert(delegationGrants).values({
@@ -335,6 +350,11 @@ router.post('/execution-authorizations', authMiddleware, async (request: AuthReq
   const tool = catalog?.catalog.tools.find((entry) => entry.name === input.tool);
   if (!tool || !tool.exposure.includes('internal') || !tool.resourceTypes.includes(input.resource.resourceType)) {
     response.status(400).json({ error: 'tool_not_available_for_resource' });
+    return;
+  }
+  const limitError = capabilityLimitError(input.limits, [tool], input.resource.resourceType);
+  if (limitError) {
+    response.status(400).json({ error: limitError });
     return;
   }
   if (tool.effect !== 'read' && (input.maximumAutonomy === 'read_only' || input.maximumAutonomy === 'draft')) {
@@ -606,17 +626,13 @@ router.post('/audit', serviceAuthMiddleware, async (request: ServiceAuthRequest,
       runId: claims.runId,
       ...(claims.stepId ? { stepId: claims.stepId } : {}),
       ...(claims.automationId ? { automationId: claims.automationId } : {}),
-      ...(parsed.data.idempotencyKey ? { idempotencyKey: parsed.data.idempotencyKey } : {}),
+      ...(parsed.data.idempotencyKey ? {
+        idempotencyKeyHash: createHash('sha256').update(parsed.data.idempotencyKey).digest('hex'),
+      } : {}),
       capabilityTicketId: claims.jti,
     },
   };
-  await getDb().insert(capabilityAuditEvents).values({
-    eventKey: event.eventId,
-    effectiveAccountKey: event.effectiveAccountId,
-    executorAccountKey: event.executor.type === 'agent' ? event.executor.accountId : null,
-    runKey: event.correlation.runId,
-    event,
-  }).onConflictDoNothing({ target: capabilityAuditEvents.eventKey });
+  await persistCapabilityAuditEvent(event);
   const [stored] = await getDb()
     .select()
     .from(capabilityAuditEvents)

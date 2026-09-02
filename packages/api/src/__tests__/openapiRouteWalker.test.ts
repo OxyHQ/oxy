@@ -113,6 +113,7 @@ describe('the walker reads code, not prose', () => {
       router.get('/messages', handler);
     `);
 
+    expect(routes).toHaveLength(1);
     expect(routes[0]?.middlewares).toContain('emailCapabilityAuth');
   });
 

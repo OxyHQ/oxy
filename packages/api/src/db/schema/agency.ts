@@ -98,7 +98,13 @@ export const delegationLimits = pgTable(
     value: jsonb().$type<GrantLimit['value']>().notNull(),
     createdAt: createdAt(),
   },
-  (t) => [unique('delegation_limits_grant_tool_key_key').on(t.grantId, t.tool, t.key)],
+  (t) => [
+    check(
+      'delegation_limits_scalar_value_check',
+      sql`jsonb_typeof(${t.value}) in ('number', 'boolean')`,
+    ),
+    unique('delegation_limits_grant_tool_key_key').on(t.grantId, t.tool, t.key),
+  ],
 );
 
 export const capabilityExecutionAuthorizations = pgTable(
@@ -132,6 +138,12 @@ export const capabilityExecutionAuthorizations = pgTable(
     check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} = 'agent' and ${t.actorAccountId} is not null)`),
     check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),
     check('capability_execution_authorizations_autonomy_check', sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`),
+    check(
+      'capability_execution_authorizations_limits_check',
+      sql`jsonb_typeof(${t.limits}) = 'array'
+        and not jsonb_path_exists(${t.limits}, '$[*] ? (@.type() != "object" || !exists(@.tool) || @.tool.type() != "string" || !exists(@.key) || @.key.type() != "string" || !exists(@.value) || (@.value.type() != "number" && @.value.type() != "boolean"))')
+        and not jsonb_path_exists(${t.limits}, '$[*] ? (@.type() == "object").keyvalue() ? (@.key != "tool" && @.key != "key" && @.key != "value")')`,
+    ),
     index('capability_execution_authorizations_live_idx').on(t.id, t.expiresAt, t.revokedAt),
     index('capability_execution_authorizations_owner_idx').on(t.ownerAccountId, t.createdAt),
     index('capability_execution_authorizations_coordinator_idx').on(t.coordinatorApplicationId, t.coordinatorCredentialId),
@@ -191,6 +203,16 @@ export const capabilityAuditEvents = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
+    check(
+      'capability_audit_events_bounded_event_check',
+      sql`jsonb_typeof(${t.event}) = 'object'
+        and jsonb_typeof(${t.event} -> 'result') = 'object'
+        and not (${t.event} -> 'result' ? 'message')
+        and jsonb_typeof(${t.event} -> 'correlation') = 'object'
+        and not (${t.event} -> 'correlation' ? 'idempotencyKey')
+        and (${t.event} #>> '{correlation,idempotencyKeyHash}' is null or ${t.event} #>> '{correlation,idempotencyKeyHash}' ~ '^[a-f0-9]{64}$')
+        and not jsonb_path_exists(${t.event}, '$.** ? (@.type() == "object").keyvalue() ? (@.key == "prompt" || @.key == "completion" || @.key == "payload" || @.key == "toolArguments" || @.key == "toolInput" || @.key == "toolOutput" || @.key == "rawRequest" || @.key == "rawResponse" || @.key == "messageBody" || @.key == "messageContent" || @.key == "modelOutput")')`,
+    ),
     unique('capability_audit_events_event_key').on(t.eventKey),
     index('capability_audit_events_account_created_idx').on(t.effectiveAccountKey, t.createdAt),
     index('capability_audit_events_executor_created_idx').on(t.executorAccountKey, t.createdAt),

@@ -28,10 +28,10 @@
  * the thing under test cannot disagree with it. This is the only layer that sees
  * a map entry disappear together with its artifact.
  *
- * Layer 2 — no inference operation is published as needing no credential. This
- * is a RULE over path shape rather than a copied table: the edge and its control
- * plane are never anonymous, and the catalogue reads (`/models*`) are the one
- * deliberate exception, named here with its reason. It exists because the
+ * Layer 2 — no protected inference or email operation is published as needing
+ * no credential. This is a RULE over path shape rather than a copied operation
+ * table: the inference catalogue reads (`/models*`) and the two email operations
+ * registered before the router-level gate are the named public exceptions. It exists because the
  * generator infers security from middleware NAMES it recognises, so a renamed or
  * unrecognised gate makes it publish `security: [{}]` — "no credential" — which
  * is the most dangerous direction for a published contract to be wrong in.
@@ -124,6 +124,14 @@ const EXPECTED_PREFIXES = [
  * correct there and a rule that refused it would be measuring the wrong thing.
  */
 const PUBLIC_BY_DESIGN = ['/models', '/v1/models'];
+
+/**
+ * These two operations are registered before `router.use(emailCapabilityAuth)`.
+ * The inbound webhook authenticates with its own shared-secret header inside the
+ * handler, while the proxy is intentionally public. Every other `/email`
+ * operation is behind the router-level credential gate.
+ */
+const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/proxy']);
 
 /**
  * The `/v1` operations whose PAYLOADS a published contract must describe, and
@@ -290,6 +298,36 @@ function anonymousInferenceOperations(paths) {
   const findings = [];
   for (const path of examined) {
     for (const [verb, operation] of Object.entries(paths[path] ?? {})) {
+      const security = operation?.security;
+      if (!Array.isArray(security) || security.length === 0) {
+        findings.push(
+          `${verb.toUpperCase()} ${path} publishes no \`security\` at all, which a consumer reads ` +
+            'as needing no credential.',
+        );
+        continue;
+      }
+      if (security.some((requirement) => Object.keys(requirement ?? {}).length === 0)) {
+        findings.push(
+          `${verb.toUpperCase()} ${path} offers an EMPTY security requirement, which publishes it ` +
+            'as callable with no credential.',
+        );
+      }
+    }
+  }
+  return findings;
+}
+
+/** Layer 2b: every email operation after the two named public entries is credentialled. */
+function anonymousEmailOperations(paths) {
+  const examined = Object.keys(paths).filter((path) => path === '/email' || path.startsWith('/email/'));
+  if (examined.length === 0) {
+    return ['the email credential rule examined no paths, so its verdict carries no information.'];
+  }
+
+  const findings = [];
+  for (const path of examined) {
+    for (const [verb, operation] of Object.entries(paths[path] ?? {})) {
+      if (PUBLIC_EMAIL_OPERATIONS.has(`${verb.toUpperCase()} ${path}`)) continue;
       const security = operation?.security;
       if (!Array.isArray(security) || security.length === 0) {
         findings.push(
@@ -579,6 +617,19 @@ if (anonymous.length > 0) {
       'Fix: add the gate to `MIDDLEWARE_TOKEN_RE` in\n' +
       'packages/api/scripts/generate-openapi.ts and give it a case in the security block\n' +
       'of `buildOperation`, then regenerate.',
+  );
+}
+
+const anonymousEmail = anonymousEmailOperations(committed.paths);
+if (anonymousEmail.length > 0) {
+  reportAndExit(
+    `${DOCUMENT} publishes an email operation as needing no credential.`,
+    anonymousEmail,
+    'Every email operation except POST /email/inbound and GET /email/proxy is protected by ' +
+      '`emailCapabilityAuth` at router level.\n' +
+      'Fix: keep that gate in `MIDDLEWARE_TOKEN_RE` in\n' +
+      'packages/api/scripts/generate-openapi.ts and classify it as authenticated in\n' +
+      '`buildOperation`, then regenerate.',
   );
 }
 

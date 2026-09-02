@@ -21,7 +21,8 @@
  *        * tags by mount prefix using a human-friendly mapping
  *          (e.g. `/auth/*` → "Authentication")
  *        * infers required security (bearerAuth for anything that uses
- *          `authMiddleware`, serviceTokenAuth for `serviceAuthMiddleware`)
+ *          `authMiddleware` or `emailCapabilityAuth`, serviceTokenAuth for
+ *          `serviceAuthMiddleware`)
  *        * applies the standard error envelope for 4xx/5xx responses.
  *   4. Write the merged document to `packages/api/openapi.json` so the website
  *      sync step can copy it via `git show <ref>:openapi.json`.

@@ -126,8 +126,7 @@ components:
         refused on /v1/*.
     capabilityTicketAuth:
       type: http
-      scheme: bearer
-      bearerFormat: Capability <signed-ticket>
+      scheme: Capability
       description: >
         Short-lived, signed and audience-bound authority for one exact actor,
         account, resource and tool. Send as `Authorization: Capability <ticket>`.
