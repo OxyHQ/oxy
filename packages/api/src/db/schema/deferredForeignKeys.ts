@@ -58,6 +58,7 @@ import { inferenceRouteSwitchEvents } from './inferenceRouteSwitchEvents';
 import { inferenceUsageEvents } from './inferenceUsageEvents';
 import { messageAttachments } from './messageAttachments';
 import { messages } from './messages';
+import { mcpOauthClients } from './mcpOAuth';
 import { moderationEffects } from './moderationEffects';
 import { notifications } from './notifications';
 import { pushTokens } from './pushTokens';
@@ -115,6 +116,13 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     reason:
       "The Alia runtime's automation identifier. Automation definitions remain " +
       'owned by Alia; Oxy keeps this opaque correlation value for revocation and audit.',
+  },
+  {
+    table: mcpOauthClients,
+    column: mcpOauthClients.clientId,
+    reason:
+      "This client's own RFC 7591 public identifier. It is a natural handle " +
+      'minted by Oxy, not a reference to another database row.',
   },
   {
     table: followEvents,

@@ -259,7 +259,15 @@ export const SEED_APPS: SeedAppSpec[] = [
     // recommendation signals (interest + interaction-affinity edges) — the
     // credential already carries it, so the app MUST declare it or the mint's
     // intersection drops it.
-    scopes: ['user:read', 'files:read', 'files:write', 'federation:write', 'signals:write'],
+    scopes: [
+      'user:read',
+      'files:read',
+      'files:write',
+      'federation:write',
+      'signals:write',
+      'catalogs:write',
+    ],
+    capabilities: [catalogApplicationCapability('mention')],
   },
   {
     name: 'Homiio',

@@ -87,6 +87,20 @@ export function consentRequiredFromBody(body: unknown): boolean {
 }
 
 /**
+ * Parse the deliberately smaller decision returned by the resource-bound MCP
+ * OAuth lane. A missing, wrapped incorrectly, or non-boolean value always means
+ * "show consent"; only an explicit `false` may skip the screen.
+ */
+export function mcpConsentRequiredFromBody(body: unknown): boolean {
+    const inner =
+        body && typeof body === "object" && "data" in body
+            ? (body as { data: unknown }).data
+            : body
+    const parsed = z.object({ consentRequired: z.boolean() }).strict().safeParse(inner)
+    return parsed.success ? parsed.data.consentRequired : true
+}
+
+/**
  * Safely parse a JSON response with a Zod schema. Returns the parsed data or
  * `null` if validation fails. Delegates to the contracts package's
  * `safeParseContract` so there is exactly one parse helper across the ecosystem.
