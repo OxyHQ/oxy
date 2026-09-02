@@ -110,6 +110,7 @@ export * from './mailboxes';
 export * from './messageAttachments';
 export * from './messageRecipients';
 export * from './messages';
+export * from './mcpOAuth';
 export * from './moderationEffects';
 export * from './moderationPolicies';
 export * from './moderationPolicySeverityRules';

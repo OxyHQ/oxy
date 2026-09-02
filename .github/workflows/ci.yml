@@ -25,11 +25,13 @@ jobs:
   api-test:
     name: API Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
     # their own caps (16m for the ffmpeg install, 45m for the serial shards),
     # and this is their sum plus the ~5m the fixed steps cost at their observed maxima
     # (containers 35s, checkout/bun/node/node-gyp 19s, install 30s, guards 10s,
-    # build 50s, lint 20s, coverage upload 8s). So a step cap always fires
+    # build 50s, lint 20s, coverage merge/artifact 8s). So a step cap always fires
     # first, and this can only catch a runner wedged OUTSIDE a step.
     #
     # That ordering is the point. A job-level timeout reports `cancelled`,
@@ -246,6 +248,10 @@ jobs:
         run: bun run lint
         working-directory: ./packages/api
 
+      - name: Test native coverage gate
+        run: bun run test:coverage-merge
+        working-directory: ./packages/api
+
       # `jest.config.js` sizes its worker pool from this machine's cores and RAM,
       # because a fixed count that fits a 32-core workstation exhausts a
       # 4-vCPU/16-GiB runner: the kernel takes the runner down mid-run and the
@@ -269,8 +275,8 @@ jobs:
       # no overlap or omission. Running those partitions in separate processes
       # bounds retained transform/coverage state without hiding a test, changing
       # instrumentation, or allowing three 4-GiB heaps to coexist. Each shard
-      # writes its own lcov report; the following Codecov step uploads all three
-      # in one report. The historical unsharded suite max was 20m57s; two extra
+      # writes its own JSON and lcov report; the following native gate validates
+      # and merges all three. The historical unsharded suite max was 20m57s; two extra
       # global setups do not fit the historical unsharded 30-minute cap: run
       # 33584690054 reached the third shard with every completed test passing,
       # then GitHub stopped the step at exactly 30 minutes. Forty-five minutes
@@ -283,7 +289,10 @@ jobs:
             echo "Running API coverage shard ${shard_index}/3"
             bun run test:coverage -- \
               --shard="${shard_index}/3" \
-              --coverageDirectory="coverage/shard-${shard_index}"
+              --coverageDirectory="coverage/shard-${shard_index}" \
+              --coverageReporters=json \
+              --coverageReporters=lcovonly \
+              --coverageReporters=text-summary
           done
         working-directory: ./packages/api
         env:
@@ -296,16 +305,28 @@ jobs:
           AWS_S3_BUCKET: test-bucket
           NODE_ENV: test
 
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v7
+      - name: Merge coverage and enforce global floors
+        run: |
+          for shard_index in 1 2 3; do
+            for report in coverage-final.json lcov.info; do
+              report_path="coverage/shard-${shard_index}/${report}"
+              if [ ! -s "$report_path" ]; then
+                echo "::error file=${report_path}::Expected non-empty coverage report"
+                exit 1
+              fi
+            done
+          done
+          bun run coverage:merge
+        working-directory: ./packages/api
+
+      - name: Upload merged coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v7
         with:
-          # One explicit upload lets Codecov merge the three disjoint test
-          # partitions; disable discovery so their JSON/clover companions are
-          # not uploaded a second time as additional coverage inputs.
-          files: ./packages/api/coverage/shard-1/lcov.info,./packages/api/coverage/shard-2/lcov.info,./packages/api/coverage/shard-3/lcov.info
-          disable_search: true
-          flags: api
-          name: api-coverage
+          name: api-coverage-${{ github.sha }}-${{ github.run_attempt }}
+          path: ./packages/api/coverage/merged
+          if-no-files-found: error
+          retention-days: 14
 
   # Build check
   api-build:
@@ -431,7 +452,7 @@ jobs:
     # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
     # flagged the absent default; scoped here rather than at workflow level,
     # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage upload.
+    # other job in this file, including the coverage artifact upload.
     permissions:
       contents: read
     steps:
@@ -464,7 +485,7 @@ jobs:
     # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
     # flagged the absent default; scoped here rather than at workflow level,
     # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage upload.
+    # other job in this file, including the coverage artifact upload.
     permissions:
       contents: read
     steps:
@@ -500,7 +521,7 @@ jobs:
     # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
     # flagged the absent default; scoped here rather than at workflow level,
     # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage upload.
+    # other job in this file, including the coverage artifact upload.
     permissions:
       contents: read
     steps:
@@ -539,7 +560,7 @@ jobs:
     # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
     # flagged the absent default; scoped here rather than at workflow level,
     # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage upload.
+    # other job in this file, including the coverage artifact upload.
     permissions:
       contents: read
     steps:
@@ -945,7 +966,7 @@ jobs:
     # Only reads the checkout. CodeQL's `actions/missing-workflow-permissions`
     # flagged the absent default; scoped here rather than at workflow level,
     # because a workflow-wide block would silently re-scope the token of every
-    # other job in this file, including the coverage upload.
+    # other job in this file, including the coverage artifact upload.
     permissions:
       contents: read
 

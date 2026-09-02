@@ -22,6 +22,7 @@ import linksRoutes from './routes/links';
 import storeRoutes from './routes/store';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
 import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
@@ -628,6 +629,8 @@ app.get('/csrf-token', getCsrfToken);
 
 // API Routes
 // Apply stricter rate limiting to auth routes
+app.use(mcpOAuthDiscoveryRouter);
+app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
 app.use("/auth", userRateLimiter, csrfProtection, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);

@@ -18,6 +18,7 @@ RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
+TASK_REMOVE_NAMES_JSON="${TASK_REMOVE_NAMES_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -107,6 +108,18 @@ if ! jq -e '
   echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to string values of at most 4096 bytes."
   exit 1
 fi
+if [[ -z "$TASK_REMOVE_NAMES_JSON" ]]; then
+  TASK_REMOVE_NAMES_JSON='[]'
+fi
+if ! jq -e '
+  type == "array" and
+  length <= 50 and
+  length == (unique | length) and
+  all(.[]; type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$"))
+' <<<"$TASK_REMOVE_NAMES_JSON" >/dev/null; then
+  echo "::error::TASK_REMOVE_NAMES_JSON must be an array of at most 50 unique environment variable names."
+  exit 1
+fi
 task_override_name_overlap="$(jq -n \
   --argjson environment "$TASK_ENV_OVERRIDES_JSON" \
   --argjson secrets "$TASK_SECRET_OVERRIDES_JSON" \
@@ -115,9 +128,24 @@ if [[ "$task_override_name_overlap" != "0" ]]; then
   echo "::error::TASK_ENV_OVERRIDES_JSON names must not overlap TASK_SECRET_OVERRIDES_JSON; secret values may never be injected as plaintext environment."
   exit 1
 fi
+task_remove_override_overlap="$(jq -n \
+  --argjson environment "$TASK_ENV_OVERRIDES_JSON" \
+  --argjson secrets "$TASK_SECRET_OVERRIDES_JSON" \
+  --argjson remove "$TASK_REMOVE_NAMES_JSON" \
+  '[($environment + $secrets | keys[]) as $name | select($remove | index($name) != null)] | length')"
+if [[ "$task_remove_override_overlap" != "0" ]]; then
+  echo "::error::TASK_REMOVE_NAMES_JSON must not name a TASK_ENV_OVERRIDES_JSON or TASK_SECRET_OVERRIDES_JSON entry."
+  exit 1
+fi
 if [[ -n "$INTERNAL_METRICS_PARAMETER" ]] &&
    jq -e 'has("INTERNAL_METRICS_TOKEN")' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_ENV_OVERRIDES_JSON must not override INTERNAL_METRICS_TOKEN; it is an SSM-backed secret."
+  exit 1
+fi
+if [[ -n "$INTERNAL_METRICS_PARAMETER" ]] &&
+   jq -e 'index("INTERNAL_METRICS_TOKEN") != null or index("INTERNAL_METRICS_ENABLED") != null' \
+     <<<"$TASK_REMOVE_NAMES_JSON" >/dev/null; then
+  echo "::error::TASK_REMOVE_NAMES_JSON must not remove enabled internal metrics configuration."
   exit 1
 fi
 
@@ -495,6 +523,7 @@ jq \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
   --argjson taskEnvironmentOverrides "$task_environment_overrides" \
+  --argjson taskRemoveNames "$TASK_REMOVE_NAMES_JSON" \
   '
     del(
       .taskDefinitionArn,
@@ -531,7 +560,8 @@ jq \
                 | map(
                     select(
                       .name as $existingName
-                      | ($taskSecretNames | index($existingName)) == null
+                      | ($taskSecretNames | index($existingName)) == null and
+                        ($taskRemoveNames | index($existingName)) == null
                     )
                   ))
               + $taskSecretOverrides
@@ -541,7 +571,8 @@ jq \
                 | map(
                     select(
                       .name as $existingName
-                      | ($taskEnvironmentNames | index($existingName)) == null
+                      | ($taskEnvironmentNames | index($existingName)) == null and
+                        ($taskRemoveNames | index($existingName)) == null
                     )
                   ))
               + $taskEnvironmentOverrides

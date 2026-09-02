@@ -223,6 +223,11 @@ jobs:
           # approve its route.
           TASK_ENV_OVERRIDES_JSON: >-
             {"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","INFERENCE_KAANA_EXECUTION":"disabled"}
+          # Exact legacy inference bindings inherited from the previous task
+          # definition. The deployer removes only these named entries; ordinary
+          # SMTP/device uses of the word relay remain untouched.
+          TASK_REMOVE_NAMES_JSON: >-
+            ["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY"]
           # The deploy script renders from the task definition the service is
           # currently running, not from Terraform's latest registered revision.
           # Re-assert new bindings here so capability authority cannot disappear

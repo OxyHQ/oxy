@@ -137,6 +137,21 @@ export type KaanaStreamFrame =
   | { readonly kind: 'event'; readonly event: InferenceStreamEvent }
   | { readonly kind: 'usage'; readonly usage: NormalizedUsageReport };
 
+/** One exact route identity from a single Kaana inventory snapshot. */
+export interface KaanaDeploymentDescriptor {
+  readonly deploymentId: string;
+  readonly modelReference: string;
+  readonly provider: string;
+  /** Empty means the execution/residency region is unattested, never global. */
+  readonly regions: readonly string[];
+}
+
+/** Atomic identity evidence for every deployment the edge may authorize. */
+export interface KaanaDeploymentAttestation {
+  readonly snapshotId: string;
+  readonly deployments: readonly KaanaDeploymentDescriptor[];
+}
+
 /**
  * Everything a settlement can be computed from, in the two forms the data plane
  * actually offers — and NOTHING synthesized to make them look alike.
@@ -178,13 +193,19 @@ export interface KaanaExecuteOptions {
 }
 
 /**
- * The two calls the edge makes into the data plane.
+ * The calls the edge makes into the data plane.
  *
- * No routing, health or catalogue methods: routing execution and provider health
- * are the data plane's to own (ADR 0006), and every one of those would be a
- * second place a routing constraint could be dropped.
+ * `attestDeployments` is not a selector: the edge has already selected exact
+ * opaque ids from its authorised PostgreSQL catalogue, and Kaana only proves
+ * that the same identities still exist together in one live serving snapshot.
+ * There are no name/provider/model lookups and no cached inference from array
+ * order. Provider health and route selection remain the data plane's to own.
  */
 export interface KaanaClient {
+  attestDeployments(
+    deploymentIds: readonly string[],
+    options: KaanaExecuteOptions
+  ): Promise<KaanaDeploymentAttestation>;
   execute(envelope: InferenceRequest, options: KaanaExecuteOptions): Promise<KaanaCompletion>;
   /**
    * The normalized events as they are produced, then the usage report.

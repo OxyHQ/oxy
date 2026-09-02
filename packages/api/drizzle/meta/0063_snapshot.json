@@ -1,5 +1,5 @@
 {
-  "id": "902daf9f-a845-4336-a367-3e719c9a5266",
+  "id": "d06c5324-ffbb-4d94-9956-4488135859b6",
   "prevId": "4725864c-9bb0-4e9d-9fc9-cc2c3757bc7e",
   "version": "7",
   "dialect": "postgresql",
@@ -11252,22 +11252,6 @@
         }
       },
       "indexes": {
-        "inference_deployments_approved_internal_route_id_key": {
-          "name": "inference_deployments_approved_internal_route_id_key",
-          "columns": [
-            {
-              "expression": "internal_route_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"inference_deployments\".\"permission_state\" = 'approved' and \"inference_deployments\".\"internal_route_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "inference_deployments_scope_permission_status_idx": {
           "name": "inference_deployments_scope_permission_status_idx",
           "columns": [
@@ -11407,6 +11391,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "inference_deployments_regions_check": {
+          "name": "inference_deployments_regions_check",
+          "value": "cardinality(\"inference_deployments\".\"regions\") >= 1"
+        },
         "inference_deployments_availability_scope_check": {
           "name": "inference_deployments_availability_scope_check",
           "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
@@ -11462,423 +11450,6 @@
         "inference_deployments_wholesale_cost_shape": {
           "name": "inference_deployments_wholesale_cost_shape",
           "value": "(\"inference_deployments\".\"upstream_wholesale_cost_amount\" is null or \"inference_deployments\".\"upstream_wholesale_cost_amount\" >= 0)\n        and (\"inference_deployments\".\"upstream_wholesale_cost_per\" is null or \"inference_deployments\".\"upstream_wholesale_cost_per\" > 0)\n        and (\"inference_deployments\".\"upstream_wholesale_cost_currency\" is null or \"inference_deployments\".\"upstream_wholesale_cost_currency\" ~ '^[A-Z]{3}$')\n        and (\"inference_deployments\".\"upstream_wholesale_cost_unit\" is null or \"inference_deployments\".\"upstream_wholesale_cost_unit\" = any(array['input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_tokens', 'requests', 'images', 'audio_input_milliseconds', 'audio_output_milliseconds', 'video_milliseconds', 'characters', 'embeddings']::text[]))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.inference_deployment_routing_score_events": {
-      "name": "inference_deployment_routing_score_events",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "deployment_id": {
-          "name": "deployment_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price_score": {
-          "name": "price_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "price_source": {
-          "name": "price_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price_evidence_ref": {
-          "name": "price_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price_version_id": {
-          "name": "price_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_score": {
-          "name": "latency_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "latency_source": {
-          "name": "latency_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_evidence_ref": {
-          "name": "latency_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_measurement_window_start": {
-          "name": "latency_measurement_window_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_measurement_window_end": {
-          "name": "latency_measurement_window_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_valid_until": {
-          "name": "latency_valid_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_score": {
-          "name": "throughput_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "throughput_source": {
-          "name": "throughput_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_evidence_ref": {
-          "name": "throughput_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_measurement_window_start": {
-          "name": "throughput_measurement_window_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_measurement_window_end": {
-          "name": "throughput_measurement_window_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_valid_until": {
-          "name": "throughput_valid_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_score": {
-          "name": "balanced_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "balanced_source": {
-          "name": "balanced_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_evidence_ref": {
-          "name": "balanced_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_formula_ref": {
-          "name": "balanced_formula_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_valid_until": {
-          "name": "balanced_valid_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "changed_by_user_id": {
-          "name": "changed_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "inference_deployment_routing_score_events_price_version_id_price_versions_id_fk": {
-          "name": "inference_deployment_routing_score_events_price_version_id_price_versions_id_fk",
-          "tableFrom": "inference_deployment_routing_score_events",
-          "tableTo": "price_versions",
-          "columnsFrom": [
-            "price_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "inference_deployment_routing_score_events_identity_check": {
-          "name": "inference_deployment_routing_score_events_identity_check",
-          "value": "length(btrim(\"inference_deployment_routing_score_events\".\"deployment_id\")) > 0"
-        },
-        "inference_deployment_routing_score_events_range_check": {
-          "name": "inference_deployment_routing_score_events_range_check",
-          "value": "(\"inference_deployment_routing_score_events\".\"price_score\" is null or \"inference_deployment_routing_score_events\".\"price_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_score_events\".\"latency_score\" is null or \"inference_deployment_routing_score_events\".\"latency_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_score_events\".\"throughput_score\" is null or \"inference_deployment_routing_score_events\".\"throughput_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_score_events\".\"balanced_score\" is null or \"inference_deployment_routing_score_events\".\"balanced_score\" between -1000000 and 1000000)"
-        },
-        "inference_deployment_routing_score_events_source_check": {
-          "name": "inference_deployment_routing_score_events_source_check",
-          "value": "\"inference_deployment_routing_score_events\".\"price_source\" in ('provider_contract', 'cost_model', 'reviewed_scorecard')\n        and \"inference_deployment_routing_score_events\".\"latency_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_score_events\".\"throughput_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_score_events\".\"balanced_source\" in ('cost_model', 'reviewed_scorecard')"
-        },
-        "inference_deployment_routing_score_events_evidence_check": {
-          "name": "inference_deployment_routing_score_events_evidence_check",
-          "value": "length(btrim(\"inference_deployment_routing_score_events\".\"price_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"latency_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"throughput_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"balanced_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"balanced_formula_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"reason\")) between 1 and 500"
-        },
-        "inference_deployment_routing_score_events_measurement_windows_check": {
-          "name": "inference_deployment_routing_score_events_measurement_windows_check",
-          "value": "\"inference_deployment_routing_score_events\".\"latency_measurement_window_end\" >= \"inference_deployment_routing_score_events\".\"latency_measurement_window_start\"\n        and \"inference_deployment_routing_score_events\".\"latency_valid_until\" >= \"inference_deployment_routing_score_events\".\"latency_measurement_window_end\"\n        and \"inference_deployment_routing_score_events\".\"throughput_measurement_window_end\" >= \"inference_deployment_routing_score_events\".\"throughput_measurement_window_start\"\n        and \"inference_deployment_routing_score_events\".\"throughput_valid_until\" >= \"inference_deployment_routing_score_events\".\"throughput_measurement_window_end\""
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.inference_deployment_routing_scores": {
-      "name": "inference_deployment_routing_scores",
-      "schema": "",
-      "columns": {
-        "deployment_id": {
-          "name": "deployment_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "price_score": {
-          "name": "price_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "price_source": {
-          "name": "price_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price_evidence_ref": {
-          "name": "price_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "price_version_id": {
-          "name": "price_version_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_score": {
-          "name": "latency_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "latency_source": {
-          "name": "latency_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_evidence_ref": {
-          "name": "latency_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_measurement_window_start": {
-          "name": "latency_measurement_window_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_measurement_window_end": {
-          "name": "latency_measurement_window_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "latency_valid_until": {
-          "name": "latency_valid_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_score": {
-          "name": "throughput_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "throughput_source": {
-          "name": "throughput_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_evidence_ref": {
-          "name": "throughput_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_measurement_window_start": {
-          "name": "throughput_measurement_window_start",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_measurement_window_end": {
-          "name": "throughput_measurement_window_end",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "throughput_valid_until": {
-          "name": "throughput_valid_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_score": {
-          "name": "balanced_score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "balanced_source": {
-          "name": "balanced_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_evidence_ref": {
-          "name": "balanced_evidence_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_formula_ref": {
-          "name": "balanced_formula_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "balanced_valid_until": {
-          "name": "balanced_valid_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "changed_by_user_id": {
-          "name": "changed_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "changed_at": {
-          "name": "changed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "date_trunc('milliseconds', now())"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "inference_deployment_routing_scores_price_version_id_price_versions_id_fk": {
-          "name": "inference_deployment_routing_scores_price_version_id_price_versions_id_fk",
-          "tableFrom": "inference_deployment_routing_scores",
-          "tableTo": "price_versions",
-          "columnsFrom": [
-            "price_version_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "inference_deployment_routing_scores_identity_check": {
-          "name": "inference_deployment_routing_scores_identity_check",
-          "value": "length(btrim(\"inference_deployment_routing_scores\".\"deployment_id\")) > 0"
-        },
-        "inference_deployment_routing_scores_range_check": {
-          "name": "inference_deployment_routing_scores_range_check",
-          "value": "(\"inference_deployment_routing_scores\".\"price_score\" is null or \"inference_deployment_routing_scores\".\"price_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_scores\".\"latency_score\" is null or \"inference_deployment_routing_scores\".\"latency_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_scores\".\"throughput_score\" is null or \"inference_deployment_routing_scores\".\"throughput_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_scores\".\"balanced_score\" is null or \"inference_deployment_routing_scores\".\"balanced_score\" between -1000000 and 1000000)"
-        },
-        "inference_deployment_routing_scores_source_check": {
-          "name": "inference_deployment_routing_scores_source_check",
-          "value": "\"inference_deployment_routing_scores\".\"price_source\" in ('provider_contract', 'cost_model', 'reviewed_scorecard')\n        and \"inference_deployment_routing_scores\".\"latency_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_scores\".\"throughput_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_scores\".\"balanced_source\" in ('cost_model', 'reviewed_scorecard')"
-        },
-        "inference_deployment_routing_scores_evidence_check": {
-          "name": "inference_deployment_routing_scores_evidence_check",
-          "value": "length(btrim(\"inference_deployment_routing_scores\".\"price_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"latency_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"throughput_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"balanced_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"balanced_formula_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"reason\")) between 1 and 500"
-        },
-        "inference_deployment_routing_scores_measurement_windows_check": {
-          "name": "inference_deployment_routing_scores_measurement_windows_check",
-          "value": "\"inference_deployment_routing_scores\".\"latency_measurement_window_end\" >= \"inference_deployment_routing_scores\".\"latency_measurement_window_start\"\n        and \"inference_deployment_routing_scores\".\"latency_valid_until\" >= \"inference_deployment_routing_scores\".\"latency_measurement_window_end\"\n        and \"inference_deployment_routing_scores\".\"throughput_measurement_window_end\" >= \"inference_deployment_routing_scores\".\"throughput_measurement_window_start\"\n        and \"inference_deployment_routing_scores\".\"throughput_valid_until\" >= \"inference_deployment_routing_scores\".\"throughput_measurement_window_end\""
         }
       },
       "isRLSEnabled": false
@@ -17293,6 +16864,737 @@
           "value": "\"messages\".\"reply_to_address\" is not null or \"messages\".\"reply_to_name\" is null"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.mcp_oauth_access_tokens": {
+      "name": "mcp_oauth_access_tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "jti": {
+          "name": "jti",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grant_id": {
+          "name": "grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "mcp_oauth_access_tokens_expiry_idx": {
+          "name": "mcp_oauth_access_tokens_expiry_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_oauth_access_tokens_grant_idx": {
+          "name": "mcp_oauth_access_tokens_grant_idx",
+          "columns": [
+            {
+              "expression": "grant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mcp_oauth_access_tokens_grant_id_mcp_oauth_grants_id_fk": {
+          "name": "mcp_oauth_access_tokens_grant_id_mcp_oauth_grants_id_fk",
+          "tableFrom": "mcp_oauth_access_tokens",
+          "tableTo": "mcp_oauth_grants",
+          "columnsFrom": [
+            "grant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mcp_oauth_access_tokens_jti_key": {
+          "name": "mcp_oauth_access_tokens_jti_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "jti"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mcp_oauth_authorization_codes": {
+      "name": "mcp_oauth_authorization_codes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grant_id": {
+          "name": "grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "redirect_uri": {
+          "name": "redirect_uri",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code_challenge": {
+          "name": "code_challenge",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource": {
+          "name": "resource",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "mcp_oauth_authorization_codes_expiry_idx": {
+          "name": "mcp_oauth_authorization_codes_expiry_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_oauth_authorization_codes_grant_idx": {
+          "name": "mcp_oauth_authorization_codes_grant_idx",
+          "columns": [
+            {
+              "expression": "grant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mcp_oauth_authorization_codes_grant_id_mcp_oauth_grants_id_fk": {
+          "name": "mcp_oauth_authorization_codes_grant_id_mcp_oauth_grants_id_fk",
+          "tableFrom": "mcp_oauth_authorization_codes",
+          "tableTo": "mcp_oauth_grants",
+          "columnsFrom": [
+            "grant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mcp_oauth_authorization_codes_hash_key": {
+          "name": "mcp_oauth_authorization_codes_hash_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mcp_oauth_clients": {
+      "name": "mcp_oauth_clients",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_name": {
+          "name": "client_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "redirect_uris": {
+          "name": "redirect_uris",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grant_types": {
+          "name": "grant_types",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "response_types": {
+          "name": "response_types",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_endpoint_auth_method": {
+          "name": "token_endpoint_auth_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'none'"
+        },
+        "client_uri": {
+          "name": "client_uri",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logo_uri": {
+          "name": "logo_uri",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mcp_oauth_clients_client_id_key": {
+          "name": "mcp_oauth_clients_client_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "client_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "mcp_oauth_clients_status_check": {
+          "name": "mcp_oauth_clients_status_check",
+          "value": "\"mcp_oauth_clients\".\"status\" in ('active', 'revoked')"
+        },
+        "mcp_oauth_clients_revoked_at_check": {
+          "name": "mcp_oauth_clients_revoked_at_check",
+          "value": "(\"mcp_oauth_clients\".\"status\" = 'revoked') = (\"mcp_oauth_clients\".\"revoked_at\" is not null)"
+        },
+        "mcp_oauth_clients_grant_types_check": {
+          "name": "mcp_oauth_clients_grant_types_check",
+          "value": "\"mcp_oauth_clients\".\"grant_types\" <@ array['authorization_code', 'refresh_token']::text[]\n        and \"mcp_oauth_clients\".\"grant_types\" @> array['authorization_code']::text[]"
+        },
+        "mcp_oauth_clients_response_types_check": {
+          "name": "mcp_oauth_clients_response_types_check",
+          "value": "\"mcp_oauth_clients\".\"response_types\" = array['code']::text[]"
+        },
+        "mcp_oauth_clients_redirect_uris_check": {
+          "name": "mcp_oauth_clients_redirect_uris_check",
+          "value": "cardinality(\"mcp_oauth_clients\".\"redirect_uris\") > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.mcp_oauth_grants": {
+      "name": "mcp_oauth_grants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "principal_user_id": {
+          "name": "principal_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_account_id": {
+          "name": "effective_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "client_record_id": {
+          "name": "client_record_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_slug": {
+          "name": "app_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource": {
+          "name": "resource",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audience": {
+          "name": "audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "mcp_oauth_grants_active_key": {
+          "name": "mcp_oauth_grants_active_key",
+          "columns": [
+            {
+              "expression": "principal_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "client_record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resource",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"mcp_oauth_grants\".\"revoked_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_oauth_grants_account_idx": {
+          "name": "mcp_oauth_grants_account_idx",
+          "columns": [
+            {
+              "expression": "effective_account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_oauth_grants_client_idx": {
+          "name": "mcp_oauth_grants_client_idx",
+          "columns": [
+            {
+              "expression": "client_record_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mcp_oauth_grants_principal_user_id_users_id_fk": {
+          "name": "mcp_oauth_grants_principal_user_id_users_id_fk",
+          "tableFrom": "mcp_oauth_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "principal_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mcp_oauth_grants_effective_account_id_users_id_fk": {
+          "name": "mcp_oauth_grants_effective_account_id_users_id_fk",
+          "tableFrom": "mcp_oauth_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "effective_account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mcp_oauth_grants_client_record_id_mcp_oauth_clients_id_fk": {
+          "name": "mcp_oauth_grants_client_record_id_mcp_oauth_clients_id_fk",
+          "tableFrom": "mcp_oauth_grants",
+          "tableTo": "mcp_oauth_clients",
+          "columnsFrom": [
+            "client_record_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mcp_oauth_refresh_tokens": {
+      "name": "mcp_oauth_refresh_tokens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grant_id": {
+          "name": "grant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "family_key": {
+          "name": "family_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_token_id": {
+          "name": "parent_token_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scopes": {
+          "name": "scopes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "mcp_oauth_refresh_tokens_family_idx": {
+          "name": "mcp_oauth_refresh_tokens_family_idx",
+          "columns": [
+            {
+              "expression": "family_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_oauth_refresh_tokens_expiry_idx": {
+          "name": "mcp_oauth_refresh_tokens_expiry_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mcp_oauth_refresh_tokens_grant_idx": {
+          "name": "mcp_oauth_refresh_tokens_grant_idx",
+          "columns": [
+            {
+              "expression": "grant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mcp_oauth_refresh_tokens_grant_id_mcp_oauth_grants_id_fk": {
+          "name": "mcp_oauth_refresh_tokens_grant_id_mcp_oauth_grants_id_fk",
+          "tableFrom": "mcp_oauth_refresh_tokens",
+          "tableTo": "mcp_oauth_grants",
+          "columnsFrom": [
+            "grant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "mcp_oauth_refresh_tokens_parent_token_id_mcp_oauth_refresh_tokens_id_fk": {
+          "name": "mcp_oauth_refresh_tokens_parent_token_id_mcp_oauth_refresh_tokens_id_fk",
+          "tableFrom": "mcp_oauth_refresh_tokens",
+          "tableTo": "mcp_oauth_refresh_tokens",
+          "columnsFrom": [
+            "parent_token_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "mcp_oauth_refresh_tokens_hash_key": {
+          "name": "mcp_oauth_refresh_tokens_hash_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.moderation_effects": {

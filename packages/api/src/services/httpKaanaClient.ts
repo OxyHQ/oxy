@@ -57,7 +57,11 @@
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
+  deploymentIdSchema,
+  inferenceProviderSlugSchema,
+  inferenceRegionSchema,
   inferenceStreamEventSchema,
+  modelReferenceSchema,
   normalizedUsageReportSchema,
   type InferenceError,
   type InferenceFinishReason,
@@ -69,6 +73,7 @@ import {
   type UsageQuantity,
   type UsageSource,
 } from '@oxyhq/contracts';
+import { z } from 'zod';
 import {
   kaanaPublicKeyBase64,
   resolveKaanaDataPlane,
@@ -81,6 +86,7 @@ import {
   KaanaProtocolError,
   type KaanaClient,
   type KaanaCompletion,
+  type KaanaDeploymentAttestation,
   type KaanaExecuteOptions,
   type KaanaStreamFrame,
   type KaanaUsageEvidence,
@@ -92,6 +98,7 @@ import {
 
 /** The one route the edge calls. */
 export const KAANA_INFERENCE_PATH = '/internal/v1/inference';
+export const KAANA_DEPLOYMENTS_QUERY_PATH = '/internal/v1/deployments/query';
 
 export const KAANA_KEY_ID_HEADER = 'X-Oxy-Kaana-Key-Id';
 export const KAANA_TIMESTAMP_HEADER = 'X-Oxy-Kaana-Timestamp';
@@ -135,6 +142,25 @@ const MAX_KAANA_EVENT_CHARACTERS = 8 * 1024 * 1024;
  * likely to be noticed.
  */
 const MAX_KAANA_REJECTION_BYTES = 64 * 1024;
+const MAX_KAANA_ATTESTATION_IDS = 64;
+
+const kaanaDeploymentAttestationSchema = z
+  .object({
+    snapshotId: z.string().min(1).max(256),
+    deployments: z
+      .array(
+        z
+          .object({
+            deploymentId: deploymentIdSchema,
+            modelReference: modelReferenceSchema,
+            provider: inferenceProviderSlugSchema,
+            regions: z.array(inferenceRegionSchema),
+          })
+          .strict()
+      )
+      .max(MAX_KAANA_ATTESTATION_IDS),
+  })
+  .strict();
 
 /* -------------------------------------------------------------------------- */
 /*  Signing                                                                   */
@@ -218,6 +244,75 @@ class HttpKaanaClient implements KaanaClient {
 
   constructor(config: KaanaDataPlaneConfig) {
     this.config = config;
+  }
+
+  async attestDeployments(
+    deploymentIds: readonly string[],
+    options: KaanaExecuteOptions
+  ): Promise<KaanaDeploymentAttestation> {
+    if (
+      deploymentIds.length === 0 ||
+      deploymentIds.length > MAX_KAANA_ATTESTATION_IDS ||
+      new Set(deploymentIds).size !== deploymentIds.length
+    ) {
+      throw new KaanaProtocolError(
+        `The edge attempted an invalid deployment attestation batch; expected 1..${MAX_KAANA_ATTESTATION_IDS} unique exact ids.`
+      );
+    }
+
+    const body = Buffer.from(JSON.stringify({ deploymentIds: [...deploymentIds] }), 'utf8');
+    const timestamp = Date.now();
+    const response = await fetch(
+      `${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'Cache-Control': 'no-store',
+          [KAANA_KEY_ID_HEADER]: this.config.keyId,
+          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+          [KAANA_SIGNATURE_HEADER]: signEnvelope(
+            this.config.privateKey,
+            this.config.keyId,
+            timestamp,
+            body
+          ),
+        },
+        body,
+        cache: 'no-store',
+        signal: options.signal,
+      }
+    );
+
+    if (!response.ok) {
+      await readBounded(response);
+      throw new KaanaProtocolError(
+        `The inference data plane refused deployment attestation with HTTP ${response.status}.`
+      );
+    }
+    if (!response.headers.get('Cache-Control')?.toLowerCase().includes('no-store')) {
+      throw new KaanaProtocolError(
+        'The inference data plane returned cacheable deployment identity evidence.'
+      );
+    }
+
+    const raw = await readBounded(response);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      throw new KaanaProtocolError(
+        'The inference data plane returned deployment identity evidence that is not JSON.'
+      );
+    }
+    const parsed = kaanaDeploymentAttestationSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new KaanaProtocolError(
+        `The inference data plane returned deployment identity evidence Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+      );
+    }
+    return parsed.data;
   }
 
   /**

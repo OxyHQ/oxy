@@ -83,6 +83,7 @@ import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
 import {
   createHttpKaanaClient,
+  KAANA_DEPLOYMENTS_QUERY_PATH,
   KAANA_INFERENCE_PATH,
   KAANA_KEY_ID_HEADER,
   KAANA_SIGNATURE_HEADER,
@@ -94,9 +95,10 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
+  attestFixtureDeployments,
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
-} from './kaanaRuntimeFixtures';
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -228,10 +230,10 @@ async function startKaanaStub(): Promise<KaanaStub> {
     });
 
     const handle = async (body: Buffer): Promise<void> => {
-      stub.headers.push(req.headers);
-      stub.bodies.push(body);
-
-      if (req.url !== KAANA_INFERENCE_PATH || !verifyEdgeSignature(req.headers, body)) {
+      if (
+        (req.url !== KAANA_INFERENCE_PATH && req.url !== KAANA_DEPLOYMENTS_QUERY_PATH) ||
+        !verifyEdgeSignature(req.headers, body)
+      ) {
         stub.rejected += 1;
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(
@@ -246,6 +248,30 @@ async function startKaanaStub(): Promise<KaanaStub> {
         return;
       }
 
+      if (req.url === KAANA_DEPLOYMENTS_QUERY_PATH) {
+        const query = JSON.parse(body.toString('utf8')) as { deploymentIds?: unknown };
+        if (
+          !Array.isArray(query.deploymentIds) ||
+          query.deploymentIds.some((deploymentId) => typeof deploymentId !== 'string')
+        ) {
+          res.writeHead(400, {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+          });
+          res.end(JSON.stringify({ code: 'invalid_request' }));
+          return;
+        }
+        const attestation = await attestFixtureDeployments(query.deploymentIds);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        });
+        res.end(JSON.stringify(attestation));
+        return;
+      }
+
+      stub.headers.push(req.headers);
+      stub.bodies.push(body);
       stub.verified += 1;
       const envelope = JSON.parse(body.toString('utf8')) as InferenceRequest;
       stub.received.push(envelope);
@@ -1909,8 +1935,9 @@ describe('an unconfigured deployment', () => {
     }
   }
 
-  it('still answers a typed, non-retryable service_unavailable', async () => {
+  it('fails closed before reserving or executing when Kaana is unconfigured', async () => {
     const fixture = await makeFixture();
+    const before = await balanceOf(fixture.accountId);
 
     await withUnconfiguredEdge(async (request) => {
       const response = await request(
@@ -1926,11 +1953,9 @@ describe('an unconfigured deployment', () => {
       });
     });
 
-    // And the hold it took is released, so the balance is not frozen.
-    const receipts = await receiptsOf(fixture.accountId);
-    expect(receipts).toHaveLength(1);
-    expect(Number(receipts[0].billedAmount)).toBe(0);
-    expect(Number((await balanceOf(fixture.accountId)).reserved)).toBe(0);
+    // Attestation precedes both the hold and the Kaana inference request.
+    expect(await receiptsOf(fixture.accountId)).toHaveLength(0);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
   });
 
   it('still refuses stream: true, before reserving anything', async () => {
@@ -1944,9 +1969,9 @@ describe('an unconfigured deployment', () => {
         chatBody(fixture, { stream: true }),
         bearer(fixture.token)
       );
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(503);
       expect(JSON.parse(response.body)).toMatchObject({
-        error: { code: 'invalid_request', param: 'stream' },
+        error: { code: 'service_unavailable' },
       });
     });
 

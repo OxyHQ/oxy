@@ -1,9 +1,59 @@
+// Keep reusable helpers outside __tests__ so Jest does not collect them as a suite.
+import { eq, inArray } from 'drizzle-orm';
 import { getDb } from '../../config/postgres';
-import { inferenceDeploymentRoutingScores } from '../../db/schema';
+import {
+  inferenceDeploymentRoutingScores,
+  inferenceDeployments,
+  inferenceModelRevisions,
+  inferenceModels,
+} from '../../db/schema';
 import {
   createRoutingPolicy,
   type RoutingPolicyControls,
 } from '../../services/inferenceRoutingPolicy.service';
+import type { KaanaDeploymentAttestation } from '../../services/kaanaClient';
+
+/**
+ * Test-only live inventory projection from the same rows a fixture inserted.
+ * Individual attestation-failure cases override this with hostile wire shapes;
+ * ordinary edge cases use it so adding the production preflight does not make
+ * every unrelated billing/routing fixture duplicate route identity by hand.
+ */
+export async function attestFixtureDeployments(
+  deploymentIds: readonly string[]
+): Promise<KaanaDeploymentAttestation> {
+  const rows = await getDb()
+    .select({
+      deploymentId: inferenceDeployments.internalRouteId,
+      modelId: inferenceModels.modelId,
+      revision: inferenceModelRevisions.revision,
+      provider: inferenceDeployments.providerSlug,
+      regions: inferenceDeployments.regions,
+    })
+    .from(inferenceDeployments)
+    .innerJoin(
+      inferenceModelRevisions,
+      eq(inferenceModelRevisions.id, inferenceDeployments.modelRevisionId)
+    )
+    .innerJoin(inferenceModels, eq(inferenceModels.id, inferenceModelRevisions.modelId))
+    .where(inArray(inferenceDeployments.internalRouteId, [...deploymentIds]));
+
+  return {
+    snapshotId: 'fixture-serving-snapshot',
+    deployments: rows.flatMap((row) =>
+      row.deploymentId === null
+        ? []
+        : [
+            {
+              deploymentId: row.deploymentId,
+              modelReference: `${row.modelId}@${row.revision}`,
+              provider: row.provider,
+              regions: row.regions,
+            },
+          ]
+    ),
+  };
+}
 
 export function neutralRoutingPolicy(
   overrides: Partial<RoutingPolicyControls> = {}

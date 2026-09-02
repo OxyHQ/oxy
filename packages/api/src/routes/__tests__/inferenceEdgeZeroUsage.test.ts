@@ -75,9 +75,10 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
+  attestFixtureDeployments,
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
-} from './kaanaRuntimeFixtures';
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -355,6 +356,7 @@ function kaanaReporting(
   seen: InferenceRequest[]
 ): KaanaClient {
   return {
+    attestDeployments: attestFixtureDeployments,
     execute: async (envelope): Promise<KaanaCompletion> => {
       seen.push(envelope);
       const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === provider);

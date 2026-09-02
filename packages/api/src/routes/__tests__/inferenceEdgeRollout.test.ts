@@ -67,9 +67,10 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
+  attestFixtureDeployments,
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
-} from './kaanaRuntimeFixtures';
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -378,6 +379,7 @@ const chatBody = (fixture: Fixture) => ({
  */
 function fakeKaana(units: { input: number; output: number }, provider: string): KaanaClient {
   return {
+    attestDeployments: attestFixtureDeployments,
     execute: async (envelope: InferenceRequest): Promise<KaanaCompletion> => {
       const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === provider);
       if (servedRoute === undefined) {
