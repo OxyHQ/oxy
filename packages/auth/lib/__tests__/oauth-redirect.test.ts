@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { safeRedirectUrl } from '@/lib/oauth-redirect';
+import { safeMcpRedirectUrl, safeRedirectUrl } from '@/lib/oauth-redirect';
 
 describe('safeRedirectUrl', () => {
   test('accepts https origins without trailing slash noise', () => {
@@ -23,5 +23,20 @@ describe('safeRedirectUrl', () => {
 
   test('allows registered native schemes', () => {
     expect(safeRedirectUrl('astro://oauth/callback')).toBe('astro://oauth/callback');
+  });
+});
+
+describe('safeMcpRedirectUrl', () => {
+  test('accepts HTTPS and HTTP loopback redirects', () => {
+    expect(safeMcpRedirectUrl('https://client.example/callback')).toBe('https://client.example/callback');
+    expect(safeMcpRedirectUrl('https://client.example/')).toBe('https://client.example/');
+    expect(safeMcpRedirectUrl('http://127.0.0.1:43123/callback')).toBe('http://127.0.0.1:43123/callback');
+    expect(safeMcpRedirectUrl('http://localhost:43123/callback')).toBe('http://localhost:43123/callback');
+  });
+
+  test('rejects insecure remote, credentialed and fragment redirects', () => {
+    expect(safeMcpRedirectUrl('http://client.example/callback')).toBeNull();
+    expect(safeMcpRedirectUrl('https://user:pass@client.example/callback')).toBeNull();
+    expect(safeMcpRedirectUrl('https://client.example/callback#token')).toBeNull();
   });
 });

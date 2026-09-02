@@ -275,6 +275,15 @@ describe('the canonical official-application registry', () => {
     });
   });
 
+  describe('Mention owns its canonical catalog namespace', () => {
+    it('can register the Mention catalog without receiving another app namespace', () => {
+      expect(specNamed('Mention').scopes).toContain('catalogs:write');
+      expect(specNamed('Mention').capabilities).toEqual([
+        catalogApplicationCapability('mention'),
+      ]);
+    });
+  });
+
   describe('the dedicated owner account is one this platform actually seeds', () => {
     it('Alia is owned by its own account, not by the platform owner', () => {
       expect(specNamed('Alia').ownerAccountUsername).toBe(ALIA_OWNER_ACCOUNT_USERNAME);

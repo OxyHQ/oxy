@@ -16,12 +16,16 @@ export type { JsonSchema } from './jsonSchema';
 export {
   buildProtectedResourceMetadata,
   createMcpAuthInfo,
+  issueMcpAccessToken,
   mcpPrincipalFromAuthInfo,
   validateMcpAccessTokenClaims,
   verifyMcpAccessToken,
+  verifyMcpAccessTokenSignature,
 } from './oauth';
 export type {
   McpAccessTokenClaims,
+  McpAccessTokenSignatureVerificationOptions,
+  McpAccessTokenSigningOptions,
   McpPrincipal,
   McpTokenStatusContext,
   McpTokenValidationOptions,
