@@ -14,6 +14,7 @@
     "seed:oxy-applications": "bun run scripts/seed-oxy-applications.ts",
     "seed:internal-cost-centers": "bun run scripts/seed-internal-cost-centers.ts",
     "seed:inference-catalogue": "bun run scripts/seed-inference-catalogue.ts",
+    "bootstrap:kaana-catalogue": "bun run scripts/bootstrap-kaana-catalogue.ts",
     "verify:inference-routing": "bun run scripts/verify-inference-routing-readiness.ts",
     "test": "jest",
     "test:watch": "jest --watch",
