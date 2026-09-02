@@ -26,8 +26,8 @@ jobs:
     name: API Tests
     runs-on: ubuntu-latest
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
-    # their own caps (16m for the ffmpeg install, 30m for the suite), and this
-    # is their sum plus the ~5m the fixed steps cost at their observed maxima
+    # their own caps (16m for the ffmpeg install, 45m for the serial shards),
+    # and this is their sum plus the ~5m the fixed steps cost at their observed maxima
     # (containers 35s, checkout/bun/node/node-gyp 19s, install 30s, guards 10s,
     # build 50s, lint 20s, coverage upload 8s). So a step cap always fires
     # first, and this can only catch a runner wedged OUTSIDE a step.
@@ -42,7 +42,7 @@ jobs:
     # Measured over 118 recent runs (109 passing): p50 20m57s, p95 23m44s, max
     # on a passing run 26m29s, sd 2m23s. The old 30m cap sat 1.13x that max, so
     # the ffmpeg step's heavy tail alone was enough to blow it.
-    timeout-minutes: 51
+    timeout-minutes: 66
 
     services:
       # Postgres target of the Mongo->Postgres port. Mirrors
@@ -258,15 +258,33 @@ jobs:
           node -e "const os=require('node:os');console.log('cpus=%d totalmem=%s GiB maxWorkers=%d',os.cpus().length,(os.totalmem()/1073741824).toFixed(1),require('./jest.config.js').maxWorkers)"
         working-directory: ./packages/api
 
-      # The suite itself is the well-behaved half of this job: over 54 recent
-      # passing runs it is p50 18m47s, p95 19m42s, max 20m57s, sd 2m00s — the
-      # job's variance lives in the ffmpeg step above, not here. 30m is 1.43x
-      # that max, so it leaves the ~390 suites room to keep growing while still
-      # turning a genuinely hung test into a `failure` naming THIS step instead
-      # of a job-level `cancelled` that reads as a supersession.
+      # Keep three shards SERIAL. Run 33581098336 proved that the one stable
+      # Jest process can reach Node's default 4-GiB old-space limit after 202
+      # suites (4065.5 MiB before the fatal GC) while the runner still has 15.6
+      # GiB. Raising maxWorkers is not available: two Node 24.20.0 measurements
+      # crashed a worker inside V8, which is why jest.workerCount.cjs pins one.
+      # `workerIdleMemoryLimit` cannot recycle that in-band process either.
+      #
+      # Jest's native sharder partitions the current 415 files 139/138/138 with
+      # no overlap or omission. Running those partitions in separate processes
+      # bounds retained transform/coverage state without hiding a test, changing
+      # instrumentation, or allowing three 4-GiB heaps to coexist. Each shard
+      # writes its own lcov report; the following Codecov step uploads all three
+      # in one report. The historical unsharded suite max was 20m57s; two extra
+      # global setups do not fit the historical unsharded 30-minute cap: run
+      # 33584690054 reached the third shard with every completed test passing,
+      # then GitHub stopped the step at exactly 30 minutes. Forty-five minutes
+      # keeps a finite hang backstop while giving the measured serial process a
+      # 1.5x margin; it does not increase a heap or run heaps concurrently.
       - name: Run tests with coverage
-        timeout-minutes: 30
-        run: bun run test:coverage
+        timeout-minutes: 45
+        run: |
+          for shard_index in 1 2 3; do
+            echo "Running API coverage shard ${shard_index}/3"
+            bun run test:coverage -- \
+              --shard="${shard_index}/3" \
+              --coverageDirectory="coverage/shard-${shard_index}"
+          done
         working-directory: ./packages/api
         env:
           DATABASE_URL: postgres://oxy:oxy@127.0.0.1:5432/oxy_test
@@ -281,7 +299,11 @@ jobs:
       - name: Upload coverage reports
         uses: codecov/codecov-action@v7
         with:
-          files: ./packages/api/coverage/lcov.info
+          # One explicit upload lets Codecov merge the three disjoint test
+          # partitions; disable discovery so their JSON/clover companions are
+          # not uploaded a second time as additional coverage inputs.
+          files: ./packages/api/coverage/shard-1/lcov.info,./packages/api/coverage/shard-2/lcov.info,./packages/api/coverage/shard-3/lcov.info
+          disable_search: true
           flags: api
           name: api-coverage
 
