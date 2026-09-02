@@ -95,16 +95,43 @@ const kaanaCredentialOperationActorSchema = z
     },
   );
 
+const base64Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * Decode only enough of a strict base64 value to prove every output byte is
+ * visible ASCII. Keeping this implementation local avoids a Node Buffer or
+ * browser atob dependency in the universal contracts package.
+ */
+function isVisibleASCIIProviderCredential(value: string): boolean {
+  const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+  const decodedLength = (value.length / 4) * 3 - padding;
+  if (decodedLength < 1 || decodedLength > 4096) return false;
+
+  for (let offset = 0, output = 0; offset < value.length; offset += 4, output += 3) {
+    const first = base64Alphabet.indexOf(value[offset] ?? '');
+    const second = base64Alphabet.indexOf(value[offset + 1] ?? '');
+    const third = value[offset + 2] === '=' ? 0 : base64Alphabet.indexOf(value[offset + 2] ?? '');
+    const fourth = value[offset + 3] === '=' ? 0 : base64Alphabet.indexOf(value[offset + 3] ?? '');
+    if (first < 0 || second < 0 || third < 0 || fourth < 0) return false;
+
+    const packed = (first << 18) | (second << 12) | (third << 6) | fourth;
+    const bytes = [(packed >> 16) & 0xff, (packed >> 8) & 0xff, packed & 0xff];
+    const count = Math.min(3, decodedLength - output);
+    for (let index = 0; index < count; index += 1) {
+      const byte = bytes[index];
+      if (byte === undefined || byte < 0x21 || byte > 0x7e) return false;
+    }
+  }
+  return true;
+}
+
 const kaanaCredentialSecretBase64Schema = z
   .string()
   .min(1)
   .max(8192)
   .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
-  .refine((value) => {
-    const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
-    return (value.length / 4) * 3 - padding <= 4096;
-  }, {
-    message: 'a decoded provider credential is at most 4096 bytes',
+  .refine(isVisibleASCIIProviderCredential, {
+    message: 'a decoded provider credential is 1-4096 visible ASCII bytes',
   });
 
 export const kaanaCredentialCreateMutationSchema = kaanaCredentialIdentitySchema

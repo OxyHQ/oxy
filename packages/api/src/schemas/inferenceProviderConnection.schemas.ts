@@ -11,11 +11,11 @@
  * stack trace. The strict parse is the boundary at which an unexpected shape
  * stops.
  *
- * The secret is `.max(4096)`: no provider issues a credential near that, and a
- * cap is what stops the field being used to post a payload. It has no `.min(8)`
- * or format rule — provider key formats are theirs to change, and a client
- * refused for a format Oxy guessed wrong is a support ticket with no security
- * benefit.
+ * The secret is capped at 4096 visible ASCII bytes. This is not a guessed
+ * provider prefix or token format: it is the common wire subset that Kaana can
+ * carry unchanged in `Authorization` and `x-api-key` over HTTP/1 and HTTP/2.
+ * Refusing control bytes, whitespace and non-ASCII here prevents a value Oxy
+ * accepted from later becoming a local transport failure in Kaana.
  *
  * Nothing here echoes the secret back. The response schema is
  * `providerConnectionSchema` from `@oxyhq/contracts`, which is `.strict()` and
@@ -42,6 +42,12 @@ export const providerConnectionParams = z.object({ connectionId: idParam }).stri
 /** Environments a credential is issued into. Mirrors `inferenceEnvironmentSchema`. */
 export const providerConnectionEnvironment = z.enum(['development', 'staging', 'production']);
 
+const providerCredentialSecret = z
+  .string()
+  .min(1)
+  .max(4096)
+  .regex(/^[\x21-\x7E]+$/, 'secret must contain only visible ASCII bytes');
+
 /**
  * The credential itself, plus everything the row needs.
  *
@@ -63,7 +69,7 @@ export const providerCredentialBody = z
       .regex(/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/, 'provider must be a lowercase URL-safe slug'),
     environment: providerConnectionEnvironment,
     /** The customer's own upstream provider credential. Never stored, never logged. */
-    secret: z.string().min(1).max(4096),
+    secret: providerCredentialSecret,
     acknowledgeProviderTerms: z.boolean().default(false),
   })
   .strict();
@@ -79,7 +85,7 @@ export const providerConnectionAccountBody = providerCredentialBody
 
 /** The rotation body: a new credential and nothing else. */
 export const providerConnectionRotateBody = z
-  .object({ secret: z.string().min(1).max(4096) })
+  .object({ secret: providerCredentialSecret })
   .strict();
 
 /**

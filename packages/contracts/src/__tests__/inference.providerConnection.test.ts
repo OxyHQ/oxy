@@ -67,6 +67,27 @@ describe('Kaana provider credential contracts', () => {
       kaanaCredentialMutationSchema.safeParse({ ...create, ownerAccountId: 'acc/guessed' }).success,
     ).toBe(false);
     expect(kaanaCredentialMutationSchema.safeParse({ ...create, actor: {} }).success).toBe(false);
+
+    for (const invalidSecret of [
+      Buffer.from([0]),
+      Buffer.from(' customer-provider-key '),
+      Buffer.from('customer\tprovider'),
+      Buffer.from('credencial-ñ'),
+      Buffer.from('a'.repeat(4097)),
+    ]) {
+      expect(
+        kaanaCredentialMutationSchema.safeParse({
+          ...create,
+          secretBase64: invalidSecret.toString('base64'),
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      kaanaCredentialMutationSchema.safeParse({
+        ...create,
+        secretBase64: Buffer.from('a'.repeat(4096)).toString('base64'),
+      }).success,
+    ).toBe(true);
   });
 
   it('keeps outcome queries metadata-only and conflicts reference-free', () => {
