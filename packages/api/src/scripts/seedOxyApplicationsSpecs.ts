@@ -394,6 +394,16 @@ export const SEED_APPS: SeedAppSpec[] = [
       'https://dashboard.mercaria.co',
       'https://pos.mercaria.co',
     ],
+    // Mercaria owns one canonical capability catalog. Its service credential
+    // registers that catalog, validates live capability tickets and records
+    // their execution audit; it receives no coordinator or ticket-mint scope.
+    scopes: [
+      'user:read',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+    ],
+    capabilities: [catalogApplicationCapability('mercaria')],
   },
   {
     name: 'Moovo',

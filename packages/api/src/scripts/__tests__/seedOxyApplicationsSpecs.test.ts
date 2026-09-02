@@ -300,6 +300,24 @@ describe('the canonical official-application registry', () => {
     });
   });
 
+  describe('Mercaria owns only its catalog execution authority', () => {
+    it('declares the scopes used by catalog registration, ticket introspection and audit', () => {
+      expect(specNamed('Mercaria').scopes).toEqual([
+        'user:read',
+        'catalogs:write',
+        'capabilities:read',
+        'capability-audit:write',
+      ]);
+    });
+
+    it('is bound to the Mercaria catalog namespace without coordinator authority', () => {
+      expect(specNamed('Mercaria').capabilities).toEqual([
+        catalogApplicationCapability('mercaria'),
+      ]);
+      expect(specNamed('Mercaria').scopes).not.toContain('capability-tickets:issue');
+    });
+  });
+
   describe('the dedicated owner account is one this platform actually seeds', () => {
     it('Alia is owned by its own account, not by the platform owner', () => {
       expect(specNamed('Alia').ownerAccountUsername).toBe(ALIA_OWNER_ACCOUNT_USERNAME);
