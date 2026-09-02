@@ -76,6 +76,7 @@ async function fixture(maximumAutonomy: AutonomyLevel) {
       idempotency: 'required',
       rollback: 'none',
       exposure: ['internal'],
+      limitKeys: [],
       invocation: { method: 'POST', path: '/effects' },
     }],
     events: [],

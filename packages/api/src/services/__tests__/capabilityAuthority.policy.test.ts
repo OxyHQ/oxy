@@ -18,6 +18,7 @@ function tool(input: Partial<CatalogTool> = {}): CatalogTool {
     idempotency: 'none',
     rollback: 'none',
     exposure: ['internal', 'mcp'],
+    limitKeys: [],
     invocation: { method: 'GET', path: '/email/messages/:id' },
     ...input,
   };

@@ -21,7 +21,12 @@ const attachment = {
   additionalProperties: false,
 } as const;
 
-function readTool(input: Omit<CatalogTool, 'version' | 'capabilityPackage' | 'requiredCapabilities' | 'effect' | 'idempotency' | 'rollback' | 'exposure'>): CatalogTool {
+type ReadToolInput = Omit<
+  CatalogTool,
+  'version' | 'capabilityPackage' | 'requiredCapabilities' | 'effect' | 'idempotency' | 'rollback' | 'exposure' | 'limitKeys'
+> & { limitKeys?: CatalogTool['limitKeys'] };
+
+function readTool(input: ReadToolInput): CatalogTool {
   return {
     ...input,
     version: '1.0.0',
@@ -31,6 +36,7 @@ function readTool(input: Omit<CatalogTool, 'version' | 'capabilityPackage' | 're
     idempotency: 'none',
     rollback: 'none',
     exposure: ['internal', 'mcp'],
+    limitKeys: input.limitKeys ?? [],
   };
 }
 
@@ -56,6 +62,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
         additionalProperties: false,
       },
       outputSchema: objectOutput,
+      limitKeys: [{ key: 'limit', kind: 'maximum_number' }],
       resourceTypes: ['mailbox', 'email_account'],
       invocation: { method: 'GET', path: '/email/search' },
     }),
@@ -68,6 +75,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
         additionalProperties: false,
       },
       outputSchema: objectOutput,
+      limitKeys: [{ key: 'limit', kind: 'maximum_number' }],
       resourceTypes: ['mailbox', 'email_account'],
       invocation: { method: 'GET', path: '/email/messages' },
     }),
@@ -118,6 +126,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       idempotency: 'required',
       rollback: 'none',
       exposure: ['internal', 'mcp'],
+      limitKeys: [],
       invocation: { method: 'POST', path: '/email/messages' },
     },
     readTool({
@@ -153,6 +162,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       idempotency: 'required',
       rollback: 'manual',
       exposure: ['internal', 'mcp'],
+      limitKeys: [],
       invocation: { method: 'POST', path: '/email/messages/{messageId}/move' },
     },
     {
@@ -179,6 +189,11 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       idempotency: 'required',
       rollback: 'manual',
       exposure: ['internal', 'mcp'],
+      limitKeys: [
+        { key: 'flags.seen', kind: 'exact_boolean' },
+        { key: 'flags.starred', kind: 'exact_boolean' },
+        { key: 'flags.pinned', kind: 'exact_boolean' },
+      ],
       invocation: { method: 'PUT', path: '/email/messages/{messageId}/flags' },
     },
     readTool({
@@ -195,6 +210,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
         description: 'Build typed minimal context for email coordination and event handling.',
         inputSchema: { type: 'object', properties: { limit: { type: 'integer' } }, additionalProperties: false },
         outputSchema: objectOutput,
+        limitKeys: [{ key: 'limit', kind: 'maximum_number' }],
         resourceTypes: ['mailbox', 'email_account'],
         invocation: { method: 'GET', path: '/email/ai-context' },
       }),

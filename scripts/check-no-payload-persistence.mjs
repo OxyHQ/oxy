@@ -174,7 +174,6 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
   },
   { table: 'security_activities', column: 'metadata', holds: 'per-event security detail; carries no IP in any form, per the platform invariant' },
   { table: 'reputation_transactions', column: 'metadata', holds: 'the reason and source of a reputation award or correction' },
-
   // ---- delegated agency -------------------------------------------------------
   {
     table: 'app_capability_catalog_registrations',
@@ -184,17 +183,17 @@ const DECLARED_FREE_SHAPED_COLUMNS = [
   {
     table: 'capability_audit_events',
     column: 'event',
-    holds: 'a schema-validated authority decision and bounded result status; the contract has no tool input or output field',
+    holds: 'a schema-validated authority decision and bounded result status with hashed idempotency correlation; no tool input or output field',
   },
   {
     table: 'capability_execution_authorizations',
     column: 'limits',
-    holds: 'schema-validated scalar grant limits for one authorized tool, never tool arguments',
+    holds: 'catalog-declared numeric maxima and exact booleans for one authorized tool; no strings, arrays or tool arguments',
   },
   {
     table: 'delegation_limits',
     column: 'value',
-    holds: 'one schema-validated scalar or string-list grant limit, never tool arguments',
+    holds: 'one catalog-declared finite numeric maximum or exact boolean, never a string, list or tool argument',
   },
 
   // ---- email: the customer's own mailbox --------------------------------------

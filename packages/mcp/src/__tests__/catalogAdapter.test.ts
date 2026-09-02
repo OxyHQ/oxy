@@ -56,6 +56,7 @@ const catalog: AppCapabilityCatalog = {
       idempotency: 'none',
       rollback: 'none',
       exposure: ['internal', 'mcp'],
+      limitKeys: [],
       invocation: { method: 'GET', path: '/notes/search' },
     },
     {
@@ -70,6 +71,7 @@ const catalog: AppCapabilityCatalog = {
       idempotency: 'none',
       rollback: 'none',
       exposure: ['mcp'],
+      limitKeys: [],
       invocation: { method: 'GET', path: '/notes/sync-status' },
     },
   ],

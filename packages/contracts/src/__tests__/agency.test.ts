@@ -1,7 +1,9 @@
 import {
     appCapabilityCatalogSchema,
+    auditResultSchema,
     capabilityTicketClaimsSchema,
     delegationGrantSchema,
+    grantLimitSchema,
 } from '../index';
 
 const resource = {
@@ -98,6 +100,7 @@ describe('agency contracts', () => {
             idempotency: 'none' as const,
             rollback: 'none' as const,
             exposure: ['internal' as const, 'mcp' as const],
+            limitKeys: [],
             invocation: { method: 'GET' as const, path: '/email/messages/:id' },
         };
         const catalog = {
@@ -112,6 +115,59 @@ describe('agency contracts', () => {
         };
 
         expect(appCapabilityCatalogSchema.safeParse(catalog).success).toBe(false);
+    });
+
+    it('allows only catalog-declared scalar limit shapes, never tool arguments', () => {
+        expect(grantLimitSchema.safeParse({ tool: 'searchEmails', key: 'limit', value: 25 }).success).toBe(true);
+        expect(grantLimitSchema.safeParse({ tool: 'updateEmailFlags', key: 'flags.seen', value: true }).success).toBe(true);
+        expect(grantLimitSchema.safeParse({ tool: 'searchEmails', key: 'q', value: 'private prompt marker' }).success).toBe(false);
+        expect(grantLimitSchema.safeParse({ tool: 'sendEmail', key: 'to.address', value: ['private@example.com'] }).success).toBe(false);
+        expect(grantLimitSchema.safeParse({ tool: 'searchEmails', key: 'not a path', value: 1 }).success).toBe(false);
+    });
+
+    it('does not accept free-form messages in persisted capability audit results', () => {
+        expect(auditResultSchema.safeParse({ status: 'denied', code: 'policy_denied' }).success).toBe(true);
+        expect(auditResultSchema.safeParse({
+            status: 'denied',
+            code: 'policy_denied',
+            message: 'private prompt marker',
+        }).success).toBe(false);
+    });
+
+    it('validates and deduplicates catalog limit declarations against input properties', () => {
+        const tool = {
+            name: 'searchEmails',
+            version: '1.0.0',
+            description: 'Search messages.',
+            inputSchema: {
+                type: 'object',
+                properties: { limit: { type: 'integer' }, unread: { type: 'boolean' }, q: { type: 'string' } },
+            },
+            capabilityPackage: 'read' as const,
+            requiredCapabilities: ['email.read'],
+            resourceTypes: ['mailbox'],
+            effect: 'read' as const,
+            idempotency: 'none' as const,
+            rollback: 'none' as const,
+            exposure: ['internal' as const],
+            invocation: { method: 'GET' as const, path: '/email/search' },
+        };
+        const catalog = (limitKeys: unknown[]) => ({
+            schemaVersion: '1', appId: 'inbox', version: '1', audience: 'inbox-api',
+            accountResourceType: 'email_account', tools: [{ ...tool, limitKeys }], events: [],
+        });
+
+        expect(appCapabilityCatalogSchema.safeParse(catalog([
+            { key: 'limit', kind: 'maximum_number' },
+            { key: 'unread', kind: 'exact_boolean' },
+        ])).success).toBe(true);
+        expect(appCapabilityCatalogSchema.safeParse(catalog([
+            { key: 'q', kind: 'maximum_number' },
+        ])).success).toBe(false);
+        expect(appCapabilityCatalogSchema.safeParse(catalog([
+            { key: 'limit', kind: 'maximum_number' },
+            { key: 'limit', kind: 'maximum_number' },
+        ])).success).toBe(false);
     });
 
     it('allows tools without structured output schemas', () => {

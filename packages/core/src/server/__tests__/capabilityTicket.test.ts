@@ -4,6 +4,7 @@ import type { CapabilityTicketError } from '../capabilityTicket';
 import {
   inputSatisfiesCapabilityLimits,
   issueCapabilityTicket,
+  readCapabilityAuthorization,
   verifyCapabilityTicket,
 } from '../capabilityTicket';
 
@@ -33,6 +34,13 @@ const claims: Omit<CapabilityTicketClaims, 'iss' | 'iat' | 'exp' | 'jti'> = {
 };
 
 describe('capability tickets', () => {
+  it('parses the Capability HTTP authentication scheme case-insensitively', () => {
+    expect(readCapabilityAuthorization('Capability signed-ticket')).toBe('signed-ticket');
+    expect(readCapabilityAuthorization('capability signed-ticket')).toBe('signed-ticket');
+    expect(readCapabilityAuthorization('Bearer signed-ticket')).toBeNull();
+    expect(readCapabilityAuthorization('Capability signed-ticket extra')).toBeNull();
+  });
+
   it('round-trips exact actor, effective account, resource and run claims', () => {
     const token = issueCapabilityTicket(claims, {
       issuer: 'https://api.oxy.so',
@@ -86,21 +94,18 @@ describe('capability tickets', () => {
     })).toThrow(expect.objectContaining<Partial<CapabilityTicketError>>({ code: 'ttl_exceeded' }));
   });
 
-  it('enforces amount and recipient limits carried by a ticket', () => {
+  it('enforces numeric and boolean limits carried by a ticket', () => {
     const limits = [
       { tool: 'sendPayment', key: 'amount', value: 100 },
-      { tool: 'sendPayment', key: 'recipient', value: ['vendor-1', 'vendor-2'] },
+      { tool: 'sendPayment', key: 'confirmed', value: true },
     ];
-    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, recipient: 'vendor-1' }, limits)).toBe(true);
-    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 101, recipient: 'vendor-1' }, limits)).toBe(false);
-    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, recipient: 'attacker' }, limits)).toBe(false);
+    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, confirmed: true }, limits)).toBe(true);
+    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 101, confirmed: true }, limits)).toBe(false);
+    expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75, confirmed: false }, limits)).toBe(false);
     expect(inputSatisfiesCapabilityLimits('sendPayment', { amount: 75 }, limits)).toBe(false);
-    expect(inputSatisfiesCapabilityLimits('otherTool', { amount: 75, recipient: 'vendor-1' }, limits)).toBe(false);
-    expect(inputSatisfiesCapabilityLimits('sendEmail', {
-      to: [{ address: 'allowed@example.com' }],
-    }, [{ tool: 'sendEmail', key: 'to.address', value: ['allowed@example.com'] }])).toBe(true);
-    expect(inputSatisfiesCapabilityLimits('sendEmail', {
-      to: [{ address: 'allowed@example.com' }, { address: 'blocked@example.com' }],
-    }, [{ tool: 'sendEmail', key: 'to.address', value: ['allowed@example.com'] }])).toBe(false);
+    expect(inputSatisfiesCapabilityLimits('otherTool', { amount: 75, confirmed: true }, limits)).toBe(false);
+    expect(inputSatisfiesCapabilityLimits('updateFlags', {
+      flags: { seen: true },
+    }, [{ tool: 'updateFlags', key: 'flags.seen', value: true }])).toBe(true);
   });
 });
