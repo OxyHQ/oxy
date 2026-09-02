@@ -121,6 +121,7 @@ function contextRow(over: { contextId: string; displayName: string; handle: stri
   return {
     contextId: over.contextId,
     accountId: over.contextId,
+    subject: { accountId: over.contextId },
     displayName: over.displayName,
     handle: over.handle,
     avatarUrl: undefined,
@@ -248,8 +249,28 @@ const { AuthorizePage } = await import("@/src/pages/authorize")
  * "no consent needed" — so a refusal that leaked into the normal path would mint
  * a code and be impossible to mistake for a pass.
  */
-const fetchMock = mock(async (input: RequestInfo | URL) => {
+const fetchMock = mock(async (input: RequestInfo | URL, _init?: RequestInit) => {
   const url = String(input)
+  if (url.includes("/auth/mcp/oauth/client/")) {
+    return new Response(
+      JSON.stringify({
+        application: { id: "mcp-client-1", name: "External MCP Client", scopes: ["posts.read"] },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    )
+  }
+  if (url.includes("/auth/mcp/oauth/consent")) {
+    return new Response(JSON.stringify({ consentRequired: false }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })
+  }
+  if (url.includes("/auth/mcp/oauth/authorize")) {
+    return new Response(JSON.stringify({ code: "mcp-code" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    })
+  }
   if (url.includes("/auth/oauth/client/")) {
     return new Response(
       JSON.stringify({
@@ -271,6 +292,76 @@ const fetchMock = mock(async (input: RequestInfo | URL) => {
     })
   }
   return new Response("{}", { status: 404 })
+})
+
+describe("AuthorizePage — resource-bound MCP OAuth", () => {
+  beforeEach(() => {
+    installMocks()
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    fetchMock.mockClear()
+    deliverOAuthResult.mockClear()
+    postMessage.mockClear()
+    oxyServices.startCommonsSignIn.mockClear()
+    sessionState = SIGNED_IN
+    harness.opener = null
+    harness.location = { href: "" }
+    harness.closed = false
+  })
+
+  afterEach(() => {
+    sessionState = NO_SESSION
+  })
+
+  test("keeps the resource, PKCE and active account bound to the central MCP endpoints", async () => {
+    const resource = "https://mcp.example.test"
+    const redirect = "http://127.0.0.1:43123/callback"
+    const { unmount } = await renderAuthorize({
+      client_id: CLIENT_ID,
+      redirect_uri: redirect,
+      state: STATE,
+      response_type: "code",
+      code_challenge: CODE_CHALLENGE,
+      code_challenge_method: "S256",
+      scope: "posts.read",
+      resource,
+    })
+    await act(async () => {
+      await flush()
+    })
+
+    const calls = fetchMock.mock.calls.map(([url, options]) => ({
+      url: String(url),
+      options: options as RequestInit | undefined,
+    }))
+    const clientCall = calls.find((call) => call.url.includes("/auth/mcp/oauth/client/"))
+    expect(clientCall?.url).toContain(`resource=${encodeURIComponent(resource)}`)
+    expect(clientCall?.url).toContain(`redirectUri=${encodeURIComponent(redirect)}`)
+    expect(calls.some((call) => call.url.includes("/auth/mcp/oauth/consent"))).toBe(true)
+
+    const authorizeCall = calls.find((call) => call.url.includes("/auth/mcp/oauth/authorize"))
+    expect(authorizeCall).toBeDefined()
+    expect(JSON.parse(String(authorizeCall?.options?.body))).toEqual({
+      clientId: CLIENT_ID,
+      redirectUri: redirect,
+      codeChallenge: CODE_CHALLENGE,
+      codeChallengeMethod: "S256",
+      scope: "posts.read",
+      state: STATE,
+      responseType: "code",
+      resource,
+      accountId: NATE_CONTEXT.accountId,
+    })
+    expect(calls.some((call) => call.url.includes("/auth/oauth/"))).toBe(false)
+    expect(oxyServices.startCommonsSignIn).not.toHaveBeenCalled()
+    expect(deliverOAuthResult).toHaveBeenCalledTimes(1)
+    expect((deliverOAuthResult.mock.calls[0]?.[0] as DeliverInput).result).toEqual({
+      kind: "code",
+      code: "mcp-code",
+      state: STATE,
+    })
+
+    unmount()
+  })
 })
 
 async function flush(): Promise<void> {

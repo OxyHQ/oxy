@@ -81,7 +81,10 @@ import type {
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
-import { insertValidRoutingScorecard } from '../__fixtures__/kaanaRuntimeFixtures';
+import {
+  attestFixtureDeployments,
+  insertValidRoutingScorecard,
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -522,6 +525,7 @@ function foldedKaana(
   followModelSwitch = true
 ): KaanaClient {
   return {
+    attestDeployments: attestFixtureDeployments,
     execute: async (envelope): Promise<KaanaCompletion> => {
       const now = new Date().toISOString();
       const requestedModelReference =
@@ -581,6 +585,7 @@ function streamingKaana(
   switches: (envelope: InferenceRequest) => readonly InferenceStreamRouteSwitchEvent[]
 ): KaanaClient {
   return {
+    attestDeployments: attestFixtureDeployments,
     execute: () => {
       throw new Error('this fake serves only streaming requests');
     },
@@ -1330,6 +1335,7 @@ describe('a completion carrying no routeSwitchEvents field', () => {
     await givePolicy(fixture);
 
     const withoutTheField: KaanaClient = {
+      attestDeployments: attestFixtureDeployments,
       execute: async (envelope): Promise<KaanaCompletion> => {
         const now = new Date().toISOString();
         const servedRoute = envelope.authorizedRoutes[0];

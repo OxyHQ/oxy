@@ -67,6 +67,7 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
+  attestFixtureDeployments,
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
 } from '../__fixtures__/kaanaRuntimeFixtures';
@@ -378,6 +379,7 @@ const chatBody = (fixture: Fixture) => ({
  */
 function fakeKaana(units: { input: number; output: number }, provider: string): KaanaClient {
   return {
+    attestDeployments: attestFixtureDeployments,
     execute: async (envelope: InferenceRequest): Promise<KaanaCompletion> => {
       const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === provider);
       if (servedRoute === undefined) {

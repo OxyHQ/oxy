@@ -171,6 +171,7 @@ import {
   KaanaProtocolError,
   type KaanaClient,
   type KaanaCompletion,
+  type KaanaDeploymentAttestation,
   type KaanaUsageEvidence,
 } from './kaanaClient';
 import { intersectScopes, type ApplicationScope } from '../utils/applicationScopes';
@@ -581,6 +582,68 @@ function compareExactDeploymentIds(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
+function sameRegionSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return leftSet.size === rightSet.size && [...leftSet].every((region) => rightSet.has(region));
+}
+
+/**
+ * Validate live data-plane evidence against the exact PostgreSQL routes the
+ * request would sign. Equality is on all four identity fields. Regions are a
+ * set because their wire order carries no meaning; an empty set remains the
+ * explicit unattested state and therefore only equals another empty set.
+ */
+function deploymentAttestationMismatch(
+  attestation: KaanaDeploymentAttestation,
+  authorizedRoutes: readonly EdgeRoute[]
+): string | undefined {
+  if (
+    typeof attestation?.snapshotId !== 'string' ||
+    attestation.snapshotId.length === 0 ||
+    !Array.isArray(attestation.deployments)
+  ) {
+    return 'kaana-attestation-malformed';
+  }
+  const expectedByID = new Map(
+    authorizedRoutes.map((route) => [route.deploymentId, route] as const)
+  );
+  if (expectedByID.size !== authorizedRoutes.length) {
+    return 'authorized-deployment-id-collision';
+  }
+  if (attestation.deployments.length !== expectedByID.size) {
+    return 'kaana-attestation-cardinality-mismatch';
+  }
+
+  const seen = new Set<string>();
+  for (const descriptor of attestation.deployments) {
+    if (
+      typeof descriptor?.deploymentId !== 'string' ||
+      typeof descriptor.modelReference !== 'string' ||
+      typeof descriptor.provider !== 'string' ||
+      !Array.isArray(descriptor.regions)
+    ) {
+      return 'kaana-attestation-malformed';
+    }
+    if (seen.has(descriptor.deploymentId)) {
+      return 'kaana-attestation-duplicate-id';
+    }
+    seen.add(descriptor.deploymentId);
+    const expected = expectedByID.get(descriptor.deploymentId);
+    if (expected === undefined) {
+      return 'kaana-attestation-extra-id';
+    }
+    if (
+      descriptor.modelReference !== expected.modelReference ||
+      descriptor.provider !== expected.provider ||
+      !sameRegionSet(descriptor.regions, expected.regions)
+    ) {
+      return 'kaana-attestation-identity-mismatch';
+    }
+  }
+  return seen.size === expectedByID.size ? undefined : 'kaana-attestation-missing-id';
+}
+
 /** The stable model line shared by all revision-pinned references. */
 function modelLineOf(reference: string): string {
   const separator = reference.indexOf('@');
@@ -660,18 +723,6 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     return refuse(
       'insufficient_scope',
       'This credential does not hold the inference:invoke scope.'
-    );
-  }
-
-  // A deployment with no data plane cannot stream, and says so with the same
-  // typed refusal it always has. Checked here, before anything is reserved, and
-  // after the scope check so an unauthorized caller is still told about their
-  // scope rather than about a capability they could not have used either way.
-  if (request.stream && context.kaanaClient === undefined) {
-    return refuse(
-      'invalid_request',
-      'Streaming responses are not served by this edge yet. Send stream: false.',
-      { param: 'stream' }
     );
   }
 
@@ -773,6 +824,19 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     return refuse('no_route_available', 'No route is currently available.', {
       reason: `routing_evidence:${reason}`,
     });
+  };
+
+  const kaanaEvidenceRefusal = async (modelReference: string, reason: string): Promise<Admission> => {
+    await recordEdgeTelemetry(context, {
+      requestedModelReference: modelReference,
+      statusCode: inferenceErrorStatus('service_unavailable'),
+      units: {},
+    });
+    return refuse(
+      'service_unavailable',
+      'The inference routing evidence is temporarily unavailable.',
+      { reason: `routing_evidence:${reason}` }
+    );
   };
 
   const routeGroups: RouteGroup[] = [];
@@ -1132,7 +1196,46 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     }
   }
 
-  // 6b. Size the hold at the exact maximum of every partition the request can
+  // 6b. Reconcile Oxy's complete exact-ID authorization set with ONE live
+  //     Kaana inventory snapshot before any hold or inference POST. This is
+  //     identity attestation, not route selection: no name, provider, model or
+  //     array position can substitute for an exact deployment id.
+  //
+  // This preflight cannot eliminate the TOCTOU between this snapshot and
+  // execution on another Kaana replica. The signed inference envelope therefore
+  // keeps the executor's exact-route revalidation, and the existing settlement
+  // path releases/refunds a hold if the route is retired in that interval. A
+  // snapshot id is deliberately not sent as a pretend lease: Kaana does not
+  // retain snapshots globally across replicas, so that would create safety by
+  // name without creating the state required to enforce it.
+  if (context.kaanaClient === undefined) {
+    return kaanaEvidenceRefusal(requestedModelReference, 'kaana-not-configured');
+  }
+  let attestation: KaanaDeploymentAttestation;
+  try {
+    attestation = await context.kaanaClient.attestDeployments(
+      authorizedRoutes.map((authorized) => authorized.deploymentId),
+      { signal: context.signal }
+    );
+  } catch (error) {
+    logger.error(
+      'inference.edge.routing_evidence_unavailable',
+      error instanceof Error ? error : new Error(String(error)),
+      { requestId, reason: 'kaana-attestation-failed' }
+    );
+    return kaanaEvidenceRefusal(requestedModelReference, 'kaana-attestation-failed');
+  }
+  const attestationMismatch = deploymentAttestationMismatch(attestation, authorizedRoutes);
+  if (attestationMismatch !== undefined) {
+    logger.error(
+      'inference.edge.routing_evidence_unavailable',
+      new Error('Kaana deployment attestation did not match the exact authorization set.'),
+      { requestId, reason: attestationMismatch }
+    );
+    return kaanaEvidenceRefusal(requestedModelReference, attestationMismatch);
+  }
+
+  // 6c. Size the hold at the exact maximum of every partition the request can
   //     consume, for every route the signed envelope authorizes. Completion
   //     input is split between ordinary and cached tokens, and output between
   //     ordinary and reasoning tokens. Quoting all four extreme partitions is
@@ -1222,7 +1325,7 @@ async function admitRequest(context: EdgeExecutionContext): Promise<Admission> {
     environment: principal.environment,
   };
 
-  // 6c. Reserve. NOTHING is forwarded before this returns `reserved` — unless
+  // 6d. Reserve. NOTHING is forwarded before this returns `reserved` — unless
   //     this deployment is shadow metering, in which case nothing is held
   //     because nothing will be charged. `hold` being `undefined` is what every
   //     later step branches on, so the two modes cannot half-happen.

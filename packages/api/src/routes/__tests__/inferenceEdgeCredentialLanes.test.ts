@@ -147,6 +147,7 @@ import { generateMachineCredentialToken } from '../../utils/machineCredentialTok
 import applicationsRouter from '../applications';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
 import {
+  attestFixtureDeployments,
   createNeutralRoutingPolicy,
   insertValidRoutingScorecard,
 } from '../__fixtures__/kaanaRuntimeFixtures';
@@ -215,6 +216,12 @@ beforeAll(async () => {
     '/v1',
     createInferenceEdgeRouter({
       kaanaClient: {
+        attestDeployments: (deploymentIds, options) => {
+          if (currentKaana === undefined) {
+            throw new Error('no data plane was installed for this test');
+          }
+          return currentKaana.attestDeployments(deploymentIds, options);
+        },
         execute: (envelope, options) => {
           if (currentKaana === undefined) {
             throw new Error('no data plane was installed for this test');
@@ -538,6 +545,7 @@ function fakeKaana(
   seen?: InferenceRequest[]
 ): KaanaClient {
   return {
+    attestDeployments: attestFixtureDeployments,
     execute: async (envelope) => {
       seen?.push(envelope);
       return build(envelope);
@@ -884,6 +892,7 @@ describe('credential rotation during traffic', () => {
     // A data plane that holds the request open until this test lets it finish, so
     // the rotation genuinely lands MID-REQUEST rather than between two of them.
     currentKaana = {
+      attestDeployments: attestFixtureDeployments,
       execute: async (envelope) => {
         await inFlight;
         return completionFor(envelope, { input: 12, output: 20, provider: fixture.provider });

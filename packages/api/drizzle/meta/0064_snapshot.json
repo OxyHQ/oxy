@@ -1,6 +1,6 @@
 {
-  "id": "d06c5324-ffbb-4d94-9956-4488135859b6",
-  "prevId": "4725864c-9bb0-4e9d-9fc9-cc2c3757bc7e",
+  "id": "ae898ff8-1464-4fdf-83ff-66b04d937953",
+  "prevId": "d06c5324-ffbb-4d94-9956-4488135859b6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11252,6 +11252,22 @@
         }
       },
       "indexes": {
+        "inference_deployments_approved_internal_route_id_key": {
+          "name": "inference_deployments_approved_internal_route_id_key",
+          "columns": [
+            {
+              "expression": "internal_route_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inference_deployments\".\"permission_state\" = 'approved' and \"inference_deployments\".\"internal_route_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "inference_deployments_scope_permission_status_idx": {
           "name": "inference_deployments_scope_permission_status_idx",
           "columns": [
@@ -11391,10 +11407,6 @@
       },
       "policies": {},
       "checkConstraints": {
-        "inference_deployments_regions_check": {
-          "name": "inference_deployments_regions_check",
-          "value": "cardinality(\"inference_deployments\".\"regions\") >= 1"
-        },
         "inference_deployments_availability_scope_check": {
           "name": "inference_deployments_availability_scope_check",
           "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
@@ -11450,6 +11462,423 @@
         "inference_deployments_wholesale_cost_shape": {
           "name": "inference_deployments_wholesale_cost_shape",
           "value": "(\"inference_deployments\".\"upstream_wholesale_cost_amount\" is null or \"inference_deployments\".\"upstream_wholesale_cost_amount\" >= 0)\n        and (\"inference_deployments\".\"upstream_wholesale_cost_per\" is null or \"inference_deployments\".\"upstream_wholesale_cost_per\" > 0)\n        and (\"inference_deployments\".\"upstream_wholesale_cost_currency\" is null or \"inference_deployments\".\"upstream_wholesale_cost_currency\" ~ '^[A-Z]{3}$')\n        and (\"inference_deployments\".\"upstream_wholesale_cost_unit\" is null or \"inference_deployments\".\"upstream_wholesale_cost_unit\" = any(array['input_tokens', 'cached_input_tokens', 'output_tokens', 'reasoning_tokens', 'requests', 'images', 'audio_input_milliseconds', 'audio_output_milliseconds', 'video_milliseconds', 'characters', 'embeddings']::text[]))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inference_deployment_routing_score_events": {
+      "name": "inference_deployment_routing_score_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "deployment_id": {
+          "name": "deployment_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_score": {
+          "name": "price_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price_source": {
+          "name": "price_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_evidence_ref": {
+          "name": "price_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_version_id": {
+          "name": "price_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_score": {
+          "name": "latency_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latency_source": {
+          "name": "latency_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_evidence_ref": {
+          "name": "latency_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_measurement_window_start": {
+          "name": "latency_measurement_window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_measurement_window_end": {
+          "name": "latency_measurement_window_end",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_valid_until": {
+          "name": "latency_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_score": {
+          "name": "throughput_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "throughput_source": {
+          "name": "throughput_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_evidence_ref": {
+          "name": "throughput_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_measurement_window_start": {
+          "name": "throughput_measurement_window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_measurement_window_end": {
+          "name": "throughput_measurement_window_end",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_valid_until": {
+          "name": "throughput_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_score": {
+          "name": "balanced_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "balanced_source": {
+          "name": "balanced_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_evidence_ref": {
+          "name": "balanced_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_formula_ref": {
+          "name": "balanced_formula_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_valid_until": {
+          "name": "balanced_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changed_by_user_id": {
+          "name": "changed_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "inference_deployment_routing_score_events_price_version_id_price_versions_id_fk": {
+          "name": "inference_deployment_routing_score_events_price_version_id_price_versions_id_fk",
+          "tableFrom": "inference_deployment_routing_score_events",
+          "tableTo": "price_versions",
+          "columnsFrom": [
+            "price_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inference_deployment_routing_score_events_identity_check": {
+          "name": "inference_deployment_routing_score_events_identity_check",
+          "value": "length(btrim(\"inference_deployment_routing_score_events\".\"deployment_id\")) > 0"
+        },
+        "inference_deployment_routing_score_events_range_check": {
+          "name": "inference_deployment_routing_score_events_range_check",
+          "value": "(\"inference_deployment_routing_score_events\".\"price_score\" is null or \"inference_deployment_routing_score_events\".\"price_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_score_events\".\"latency_score\" is null or \"inference_deployment_routing_score_events\".\"latency_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_score_events\".\"throughput_score\" is null or \"inference_deployment_routing_score_events\".\"throughput_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_score_events\".\"balanced_score\" is null or \"inference_deployment_routing_score_events\".\"balanced_score\" between -1000000 and 1000000)"
+        },
+        "inference_deployment_routing_score_events_source_check": {
+          "name": "inference_deployment_routing_score_events_source_check",
+          "value": "\"inference_deployment_routing_score_events\".\"price_source\" in ('provider_contract', 'cost_model', 'reviewed_scorecard')\n        and \"inference_deployment_routing_score_events\".\"latency_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_score_events\".\"throughput_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_score_events\".\"balanced_source\" in ('cost_model', 'reviewed_scorecard')"
+        },
+        "inference_deployment_routing_score_events_evidence_check": {
+          "name": "inference_deployment_routing_score_events_evidence_check",
+          "value": "length(btrim(\"inference_deployment_routing_score_events\".\"price_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"latency_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"throughput_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"balanced_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"balanced_formula_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_score_events\".\"reason\")) between 1 and 500"
+        },
+        "inference_deployment_routing_score_events_measurement_windows_check": {
+          "name": "inference_deployment_routing_score_events_measurement_windows_check",
+          "value": "\"inference_deployment_routing_score_events\".\"latency_measurement_window_end\" >= \"inference_deployment_routing_score_events\".\"latency_measurement_window_start\"\n        and \"inference_deployment_routing_score_events\".\"latency_valid_until\" >= \"inference_deployment_routing_score_events\".\"latency_measurement_window_end\"\n        and \"inference_deployment_routing_score_events\".\"throughput_measurement_window_end\" >= \"inference_deployment_routing_score_events\".\"throughput_measurement_window_start\"\n        and \"inference_deployment_routing_score_events\".\"throughput_valid_until\" >= \"inference_deployment_routing_score_events\".\"throughput_measurement_window_end\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inference_deployment_routing_scores": {
+      "name": "inference_deployment_routing_scores",
+      "schema": "",
+      "columns": {
+        "deployment_id": {
+          "name": "deployment_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "price_score": {
+          "name": "price_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price_source": {
+          "name": "price_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_evidence_ref": {
+          "name": "price_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_version_id": {
+          "name": "price_version_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_score": {
+          "name": "latency_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latency_source": {
+          "name": "latency_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_evidence_ref": {
+          "name": "latency_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_measurement_window_start": {
+          "name": "latency_measurement_window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_measurement_window_end": {
+          "name": "latency_measurement_window_end",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latency_valid_until": {
+          "name": "latency_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_score": {
+          "name": "throughput_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "throughput_source": {
+          "name": "throughput_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_evidence_ref": {
+          "name": "throughput_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_measurement_window_start": {
+          "name": "throughput_measurement_window_start",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_measurement_window_end": {
+          "name": "throughput_measurement_window_end",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "throughput_valid_until": {
+          "name": "throughput_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_score": {
+          "name": "balanced_score",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "balanced_source": {
+          "name": "balanced_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_evidence_ref": {
+          "name": "balanced_evidence_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_formula_ref": {
+          "name": "balanced_formula_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balanced_valid_until": {
+          "name": "balanced_valid_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changed_by_user_id": {
+          "name": "changed_by_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changed_at": {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "inference_deployment_routing_scores_price_version_id_price_versions_id_fk": {
+          "name": "inference_deployment_routing_scores_price_version_id_price_versions_id_fk",
+          "tableFrom": "inference_deployment_routing_scores",
+          "tableTo": "price_versions",
+          "columnsFrom": [
+            "price_version_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inference_deployment_routing_scores_identity_check": {
+          "name": "inference_deployment_routing_scores_identity_check",
+          "value": "length(btrim(\"inference_deployment_routing_scores\".\"deployment_id\")) > 0"
+        },
+        "inference_deployment_routing_scores_range_check": {
+          "name": "inference_deployment_routing_scores_range_check",
+          "value": "(\"inference_deployment_routing_scores\".\"price_score\" is null or \"inference_deployment_routing_scores\".\"price_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_scores\".\"latency_score\" is null or \"inference_deployment_routing_scores\".\"latency_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_scores\".\"throughput_score\" is null or \"inference_deployment_routing_scores\".\"throughput_score\" between -1000000 and 1000000)\n        and (\"inference_deployment_routing_scores\".\"balanced_score\" is null or \"inference_deployment_routing_scores\".\"balanced_score\" between -1000000 and 1000000)"
+        },
+        "inference_deployment_routing_scores_source_check": {
+          "name": "inference_deployment_routing_scores_source_check",
+          "value": "\"inference_deployment_routing_scores\".\"price_source\" in ('provider_contract', 'cost_model', 'reviewed_scorecard')\n        and \"inference_deployment_routing_scores\".\"latency_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_scores\".\"throughput_source\" in ('kaana_measurement', 'reviewed_scorecard')\n        and \"inference_deployment_routing_scores\".\"balanced_source\" in ('cost_model', 'reviewed_scorecard')"
+        },
+        "inference_deployment_routing_scores_evidence_check": {
+          "name": "inference_deployment_routing_scores_evidence_check",
+          "value": "length(btrim(\"inference_deployment_routing_scores\".\"price_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"latency_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"throughput_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"balanced_evidence_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"balanced_formula_ref\")) between 1 and 500\n        and length(btrim(\"inference_deployment_routing_scores\".\"reason\")) between 1 and 500"
+        },
+        "inference_deployment_routing_scores_measurement_windows_check": {
+          "name": "inference_deployment_routing_scores_measurement_windows_check",
+          "value": "\"inference_deployment_routing_scores\".\"latency_measurement_window_end\" >= \"inference_deployment_routing_scores\".\"latency_measurement_window_start\"\n        and \"inference_deployment_routing_scores\".\"latency_valid_until\" >= \"inference_deployment_routing_scores\".\"latency_measurement_window_end\"\n        and \"inference_deployment_routing_scores\".\"throughput_measurement_window_end\" >= \"inference_deployment_routing_scores\".\"throughput_measurement_window_start\"\n        and \"inference_deployment_routing_scores\".\"throughput_valid_until\" >= \"inference_deployment_routing_scores\".\"throughput_measurement_window_end\""
         }
       },
       "isRLSEnabled": false

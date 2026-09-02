@@ -232,6 +232,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://inbox.oxy.so',
     type: 'first_party',
     redirectUris: ['https://inbox.oxy.so'],
+    scopes: [
+      'user:read',
+      'catalogs:write',
+      'capability-events:publish',
+    ],
+    capabilities: [catalogApplicationCapability('inbox')],
   },
   {
     name: 'Oxy Auth',
@@ -259,7 +265,15 @@ export const SEED_APPS: SeedAppSpec[] = [
     // recommendation signals (interest + interaction-affinity edges) — the
     // credential already carries it, so the app MUST declare it or the mint's
     // intersection drops it.
-    scopes: ['user:read', 'files:read', 'files:write', 'federation:write', 'signals:write'],
+    scopes: [
+      'user:read',
+      'files:read',
+      'files:write',
+      'federation:write',
+      'signals:write',
+      'catalogs:write',
+    ],
+    capabilities: [catalogApplicationCapability('mention')],
   },
   {
     name: 'Homiio',

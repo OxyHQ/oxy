@@ -1,8 +1,4 @@
 -- oxy:deploy-phase=pre
--- Kaana publishes an empty region set when no location has been attested. It
--- never means global: the resolver below the schema rejects it whenever a
--- routing policy carries any explicit regional control.
-ALTER TABLE "inference_deployments" DROP CONSTRAINT "inference_deployments_regions_check";--> statement-breakpoint
 CREATE TABLE "inference_deployment_routing_score_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"deployment_id" text NOT NULL,
@@ -100,6 +96,7 @@ CREATE TABLE "inference_deployment_routing_scores" (
         and "inference_deployment_routing_scores"."throughput_valid_until" >= "inference_deployment_routing_scores"."throughput_measurement_window_end")
 );
 --> statement-breakpoint
+ALTER TABLE "inference_deployments" DROP CONSTRAINT "inference_deployments_regions_check";--> statement-breakpoint
 ALTER TABLE "inference_deployment_routing_score_events" ADD CONSTRAINT "inference_deployment_routing_score_events_price_version_id_price_versions_id_fk" FOREIGN KEY ("price_version_id") REFERENCES "public"."price_versions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "inference_deployment_routing_scores" ADD CONSTRAINT "inference_deployment_routing_scores_price_version_id_price_versions_id_fk" FOREIGN KEY ("price_version_id") REFERENCES "public"."price_versions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "inference_deployments_approved_internal_route_id_key" ON "inference_deployments" USING btree ("internal_route_id") WHERE "inference_deployments"."permission_state" = 'approved' and "inference_deployments"."internal_route_id" is not null;--> statement-breakpoint

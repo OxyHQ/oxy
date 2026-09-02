@@ -70,10 +70,12 @@ import {
   KaanaIncompleteError,
   type KaanaClient,
   type KaanaCompletion,
+  type KaanaDeploymentAttestation,
 } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
+import { attestFixtureDeployments } from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -636,9 +638,11 @@ function fakeKaana(
   // take REAL time — which is the only way to test a clock without asserting
   // something a stopped clock would also satisfy.
   build: (envelope: InferenceRequest) => KaanaCompletion | Promise<KaanaCompletion>,
-  seen?: InferenceRequest[]
+  seen?: InferenceRequest[],
+  attest: KaanaClient['attestDeployments'] = attestFixtureDeployments
 ): KaanaClient {
   return {
+    attestDeployments: attest,
     execute: async (envelope) => {
       seen?.push(envelope);
       return build(envelope);
@@ -870,7 +874,7 @@ describe('no data plane configured', () => {
     });
   });
 
-  it('releases the hold it took, rather than leaving the balance frozen', async () => {
+  it('refuses before taking any hold or writing a receipt', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
     const before = await balanceOf(fixture.accountId);
 
@@ -888,23 +892,17 @@ describe('no data plane configured', () => {
     expect(after.purchased).toBe(before.purchased);
     expect(after.reserved).toBe(before.reserved);
 
-    // And the release happened NOW, not at the sweeper's deadline: a hold left
-    // `held` would also read as an unchanged balance only until it expired.
     const holds = await getDb()
       .select({ status: usageReservations.status })
       .from(usageReservations)
       .where(eq(usageReservations.accountId, fixture.accountId));
-    expect(holds).toHaveLength(1);
-    expect(holds[0].status).toBe('settled');
+    expect(holds).toHaveLength(0);
 
-    // The zero receipt the release wrote, which is what a customer reads back.
     const receipts = await getDb()
       .select({ billed: usageReceipts.billedAmount, outcome: usageReceipts.outcome })
       .from(usageReceipts)
       .where(eq(usageReceipts.accountId, fixture.accountId));
-    expect(receipts).toHaveLength(1);
-    expect(Number(receipts[0].billed)).toBe(0);
-    expect(receipts[0].outcome).toBe('failed');
+    expect(receipts).toHaveLength(0);
   });
 
   it('never falls through to the Alia proxy', async () => {
@@ -998,7 +996,7 @@ describe('admission', () => {
     });
   });
 
-  it('refuses streaming with a typed error rather than silently answering non-streamed', async () => {
+  it('refuses streaming when the data plane is unavailable before opening a stream', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
 
     await withServer(undefined, async (request) => {
@@ -1008,9 +1006,9 @@ describe('admission', () => {
         chatBody(fixture, { stream: true }),
         bearer(fixture.token)
       );
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(503);
       const body = json(response) as { error: { code: string } };
-      expect(body.error.code).toBe('invalid_request');
+      expect(body.error.code).toBe('service_unavailable');
     });
   });
 
@@ -2145,6 +2143,154 @@ describe('routing policy', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('routing evidence fail-closed before reservation and Kaana', () => {
+  const expectAttestationRefusal = async (
+    fixture: Fixture,
+    attest: KaanaClient['attestDeployments']
+  ): Promise<void> => {
+    const inferenceCalls: InferenceRequest[] = [];
+    const attestationCalls: string[][] = [];
+    const client = fakeKaana(
+      (envelope) =>
+        completionFor(envelope, { input: 1, output: 1, provider: fixture.provider }),
+      inferenceCalls,
+      async (deploymentIds, options) => {
+        attestationCalls.push([...deploymentIds]);
+        return attest(deploymentIds, options);
+      }
+    );
+
+    await withServer(client, async (request) => {
+      const response = await request(
+        'POST',
+        '/v1/responses',
+        { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
+        bearer(fixture.token)
+      );
+      expect(response.status).toBe(503);
+      expect(json(response)).toMatchObject({ code: 'service_unavailable' });
+    });
+
+    expect(attestationCalls).toEqual([[fixture.deploymentId]]);
+    expect(inferenceCalls).toHaveLength(0);
+    const reservations = await getDb()
+      .select({ id: usageReservations.id })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(0);
+  };
+
+  it('refuses an attestation transport failure before reservation and inference', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    await expectAttestationRefusal(fixture, async () => {
+      throw new Error('test transport cut');
+    });
+  });
+
+  it.each([
+    [
+      'an empty snapshot id',
+      (valid: KaanaDeploymentAttestation) => ({ ...valid, snapshotId: '' }),
+    ],
+    [
+      'a missing deployment',
+      (valid: KaanaDeploymentAttestation) => ({ ...valid, deployments: [] }),
+    ],
+    [
+      'an extra deployment',
+      (valid: KaanaDeploymentAttestation) => ({
+        ...valid,
+        deployments: [
+          ...valid.deployments,
+          { ...valid.deployments[0]!, deploymentId: 'dep_unrequested' },
+        ],
+      }),
+    ],
+    [
+      'a duplicate deployment',
+      (valid: KaanaDeploymentAttestation) => ({
+        ...valid,
+        deployments: [valid.deployments[0]!, valid.deployments[0]!],
+      }),
+    ],
+    [
+      'a different model revision',
+      (valid: KaanaDeploymentAttestation) => ({
+        ...valid,
+        deployments: valid.deployments.map((descriptor) => ({
+          ...descriptor,
+          modelReference: `${descriptor.modelReference}-other`,
+        })),
+      }),
+    ],
+    [
+      'a different provider',
+      (valid: KaanaDeploymentAttestation) => ({
+        ...valid,
+        deployments: valid.deployments.map((descriptor) => ({
+          ...descriptor,
+          provider: `other-${descriptor.provider}`,
+        })),
+      }),
+    ],
+    [
+      'a different region set',
+      (valid: KaanaDeploymentAttestation) => ({
+        ...valid,
+        deployments: valid.deployments.map((descriptor) => ({
+          ...descriptor,
+          regions: [...descriptor.regions, 'other-region'],
+        })),
+      }),
+    ],
+  ])('refuses when live Kaana attestation has %s', async (_name, corrupt) => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    await expectAttestationRefusal(fixture, async (deploymentIds) =>
+      corrupt(await attestFixtureDeployments(deploymentIds))
+    );
+  });
+
+  it('attests the whole authorization set once and compares regions as a set', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      regions: ['us-west-2', 'eu-central-1'],
+    });
+    const fallback = await addDeployment(fixture, { rank: 'z' });
+    const seen: InferenceRequest[] = [];
+    const attestationCalls: string[][] = [];
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, { input: 1, output: 1, provider: fixture.provider }),
+        seen,
+        async (deploymentIds) => {
+          attestationCalls.push([...deploymentIds]);
+          const valid = await attestFixtureDeployments(deploymentIds);
+          return {
+            ...valid,
+            deployments: valid.deployments.map((descriptor) => ({
+              ...descriptor,
+              regions: [...descriptor.regions].reverse(),
+            })),
+          };
+        }
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(attestationCalls).toHaveLength(1);
+    expect(new Set(attestationCalls[0])).toEqual(
+      new Set([fixture.deploymentId, fallback.deploymentId])
+    );
+    expect(seen).toHaveLength(1);
+  });
+
   it('refuses when any survivor has no exact Kaana deployment id', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
     const survivor = await addDeployment(fixture, { rank: 'z' });
