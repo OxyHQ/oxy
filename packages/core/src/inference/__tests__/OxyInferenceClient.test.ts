@@ -560,6 +560,44 @@ describe('OxyInferenceClient', () => {
             expect(types).toEqual(['start', 'error']);
         });
 
+        it('keeps reading to EOF and rejects any event after a terminal event', async () => {
+            const postTerminalUsage = {
+                schemaVersion: 2,
+                type: 'usage',
+                requestId: 'req-stream',
+                sequence: 2,
+                deploymentId: 'deployment-1',
+                units: [{ unit: 'output_tokens', quantity: 12 }],
+                usageSource: 'provider_reported',
+            } as const;
+            const { impl } = stubFetch([
+                {
+                    status: 200,
+                    sse: [
+                        sseFrame(STREAM_START),
+                        sseFrame(STREAM_DONE),
+                        sseFrame(postTerminalUsage),
+                    ],
+                },
+            ]);
+            const client = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: impl,
+            });
+            const iterator = client.stream({ input: 'hello' });
+
+            await expect(iterator.next()).resolves.toMatchObject({
+                value: { type: 'start' },
+                done: false,
+            });
+            await expect(iterator.next()).resolves.toMatchObject({
+                value: { type: 'done' },
+                done: false,
+            });
+            await expect(iterator.next()).rejects.toThrow('after a terminal event');
+        });
+
         it('fails closed on malformed JSON and on a stream without a terminal event', async () => {
             const malformed = new OxyInferenceClient({
                 credential: 'k',
