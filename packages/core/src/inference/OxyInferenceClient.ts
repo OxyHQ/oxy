@@ -678,6 +678,9 @@ export class OxyInferenceClient {
 /** Bound one public SSE event before parsing it as JSON. */
 const MAX_INFERENCE_STREAM_EVENT_CHARACTERS = 8 * 1024 * 1024;
 
+/** Bound the `data:` array too; empty lines consume memory without characters. */
+const MAX_INFERENCE_STREAM_EVENT_DATA_LINES = 4096;
+
 /** One SSE frame after transport decoding and before contract validation. */
 interface RawInferenceStreamFrame {
     readonly name: string;
@@ -707,12 +710,24 @@ async function* decodeEventStream(
     requestId: string,
 ): AsyncGenerator<RawInferenceStreamFrame> {
     const reader = body.getReader();
-    const decoder = new TextDecoder('utf-8');
+    const decoder = new TextDecoder('utf-8', { fatal: true });
     let pending = '';
     let name = '';
     let data: string[] = [];
     let accumulated = 0;
+    let dataLines = 0;
     let reachedEnd = false;
+
+    const decode = (chunk?: Uint8Array, options?: TextDecodeOptions): string => {
+        try {
+            return decoder.decode(chunk, options);
+        } catch (_error) {
+            throw protocolError(
+                'The inference API sent an SSE stream that is not valid UTF-8.',
+                requestId,
+            );
+        }
+    };
 
     const dispatch = (): RawInferenceStreamFrame | undefined => {
         if (data.length === 0 && name.length === 0) return undefined;
@@ -720,6 +735,7 @@ async function* decodeEventStream(
         name = '';
         data = [];
         accumulated = 0;
+        dataLines = 0;
         return frame;
     };
 
@@ -734,6 +750,13 @@ async function* decodeEventStream(
         const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue;
 
         if (field === 'data') {
+            dataLines += 1;
+            if (dataLines > MAX_INFERENCE_STREAM_EVENT_DATA_LINES) {
+                throw protocolError(
+                    `The inference API sent an SSE event with over ${MAX_INFERENCE_STREAM_EVENT_DATA_LINES} data lines.`,
+                    requestId,
+                );
+            }
             accumulated += value.length;
             if (accumulated > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
                 throw protocolError(
@@ -756,7 +779,7 @@ async function* decodeEventStream(
                 break;
             }
 
-            pending += decoder.decode(chunk.value, { stream: true });
+            pending += decode(chunk.value, { stream: true });
             if (pending.length > MAX_INFERENCE_STREAM_EVENT_CHARACTERS) {
                 throw protocolError(
                     `The inference API sent an SSE line over ${MAX_INFERENCE_STREAM_EVENT_CHARACTERS} characters with no boundary.`,
@@ -773,7 +796,7 @@ async function* decodeEventStream(
             }
         }
 
-        pending += decoder.decode();
+        pending += decode();
         if (pending.length > 0) {
             const frame = consume(pending);
             if (frame !== undefined) yield frame;

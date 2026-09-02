@@ -36,6 +36,13 @@ type StubAnswer =
           readonly headers?: Record<string, string>;
           readonly keepOpen?: boolean;
           readonly onCancel?: () => void;
+      }
+    | {
+          readonly status: number;
+          readonly rawSse: readonly Uint8Array[];
+          readonly headers?: Record<string, string>;
+          readonly keepOpen?: boolean;
+          readonly onCancel?: () => void;
       };
 
 /** A `fetch` double that records its calls and replays queued answers. */
@@ -44,11 +51,14 @@ function stubFetch(answers: StubAnswer[]) {
     const impl = jest.fn(async (url: string | URL | Request, init?: RequestInit) => {
         calls.push({ url: String(url), init: init ?? {} });
         const answer = answers.shift() ?? { status: 200, body: {} };
-        if ('sse' in answer) {
+        if ('sse' in answer || 'rawSse' in answer) {
             const body = new ReadableStream<Uint8Array>({
                 start(controller) {
                     const encoder = new TextEncoder();
-                    for (const chunk of answer.sse) controller.enqueue(encoder.encode(chunk));
+                    const chunks = 'sse' in answer
+                        ? answer.sse.map((chunk) => encoder.encode(chunk))
+                        : answer.rawSse;
+                    for (const chunk of chunks) controller.enqueue(chunk);
                     if (answer.keepOpen !== true) controller.close();
                 },
                 cancel() {
@@ -620,6 +630,42 @@ describe('OxyInferenceClient', () => {
             await expect(incompleteIterator.next()).rejects.toBeInstanceOf(
                 OxyInferenceProtocolError,
             );
+        });
+
+        it('fails closed on invalid UTF-8 and on unbounded empty data-line arrays', async () => {
+            const invalidUtf8 = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: stubFetch([
+                    {
+                        status: 200,
+                        rawSse: [
+                            new TextEncoder().encode('event: start\ndata: '),
+                            new Uint8Array([0xff]),
+                            new TextEncoder().encode('\n\n'),
+                        ],
+                    },
+                ]).impl,
+            });
+            const tooManyLines = new OxyInferenceClient({
+                credential: 'k',
+                baseURL: 'http://test.invalid',
+                fetch: stubFetch([
+                    {
+                        status: 200,
+                        sse: [`event: start\n${'data:\n'.repeat(4097)}\n`],
+                    },
+                ]).impl,
+            });
+
+            await expect(invalidUtf8.stream({ input: 'hello' }).next()).rejects.toMatchObject({
+                name: 'OxyInferenceProtocolError',
+                message: expect.stringContaining('valid UTF-8'),
+            });
+            await expect(tooManyLines.stream({ input: 'hello' }).next()).rejects.toMatchObject({
+                name: 'OxyInferenceProtocolError',
+                message: expect.stringContaining('over 4096 data lines'),
+            });
         });
 
         it('cancels the response body when the caller stops iterating', async () => {
