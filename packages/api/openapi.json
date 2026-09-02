@@ -35,6 +35,11 @@
         "bearerFormat": "oxy_sk_<id>_<secret>",
         "description": "Machine credential for the inference edge, created in the developer console: `oxy_sk_` followed by a 16-hex credential id, an underscore, and a 64-hex secret. Sent as `Authorization: Bearer oxy_sk_...`. It is not a JWT and carries no user identity — the owning account and application come from the credential row. A user session bearer is refused on /v1/*."
       },
+      "capabilityTicketAuth": {
+        "type": "http",
+        "scheme": "Capability",
+        "description": "Short-lived, signed and audience-bound authority for one exact actor, account, resource and tool. Send as `Authorization: Capability <ticket>`. It is accepted only by routes whose app catalog exposes that tool and is re-authorized immediately before execution so revocation takes effect."
+      },
       "csrfToken": {
         "type": "apiKey",
         "in": "header",
@@ -3157,6 +3162,11 @@
                         "reputation:moderation:apply",
                         "reputation:binding:register",
                         "notifications:write",
+                        "capabilities:read",
+                        "catalogs:write",
+                        "capability-tickets:issue",
+                        "capability-audit:write",
+                        "capability-events:publish",
                         "payments:read",
                         "payments:write",
                         "accounts:provision",
@@ -3417,6 +3427,11 @@
                         "reputation:moderation:apply",
                         "reputation:binding:register",
                         "notifications:write",
+                        "capabilities:read",
+                        "catalogs:write",
+                        "capability-tickets:issue",
+                        "capability-audit:write",
+                        "capability-events:publish",
                         "payments:read",
                         "payments:write",
                         "accounts:provision",
@@ -3768,6 +3783,11 @@
                         "reputation:moderation:apply",
                         "reputation:binding:register",
                         "notifications:write",
+                        "capabilities:read",
+                        "catalogs:write",
+                        "capability-tickets:issue",
+                        "capability-audit:write",
+                        "capability-events:publish",
                         "payments:read",
                         "payments:write",
                         "accounts:provision",
@@ -11295,6 +11315,60 @@
         "operationId": "deleteDevicesDeviceId"
       }
     },
+    "/email/ai-context": {
+      "get": {
+        "tags": [
+          "Email"
+        ],
+        "summary": "GET /email/ai-context",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/email.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/email.ts`, naming a Zod schema the file imports."
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "capabilityTicketAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getEmailAiContext"
+      }
+    },
     "/email/bundles": {
       "get": {
         "tags": [
@@ -12454,6 +12528,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12466,6 +12550,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -12724,6 +12811,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12736,6 +12833,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -12907,6 +13007,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12919,6 +13029,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -12956,6 +13069,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -12968,6 +13091,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13366,6 +13492,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13388,6 +13524,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13577,6 +13716,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13599,6 +13748,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13783,6 +13935,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13805,6 +13967,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -13963,6 +14128,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Resource not found",
             "content": {
@@ -13985,6 +14160,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -14307,6 +14485,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -14319,6 +14507,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }
@@ -14938,6 +15129,16 @@
               }
             }
           },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "5XX": {
             "description": "Server error",
             "content": {
@@ -14950,6 +15151,9 @@
           }
         },
         "security": [
+          {
+            "capabilityTicketAuth": []
+          },
           {
             "bearerAuth": []
           }

@@ -428,6 +428,13 @@
       "when": 1788307694189,
       "tag": "0061_goofy_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1788312025237,
+      "tag": "0062_fantastic_living_tribunal",
+      "breakpoints": true
     }
   ]
 }

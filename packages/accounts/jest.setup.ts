@@ -7,12 +7,15 @@
  * debug logs behind it don't blow up under Node.
  */
 
+import { TextDecoder, TextEncoder } from 'node:util';
+
 declare global {
-   
+  // eslint-disable-next-line no-var
   var __DEV__: boolean;
 }
 
 (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+Object.assign(globalThis, { TextDecoder, TextEncoder });
 
 // Silence expected error logs from paths that deliberately console.error on
 // handled failures. Tests that want to assert on these can override with their

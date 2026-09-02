@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { blankComments, parseRoutesFromFile } from '../../scripts/generate-openapi';
+import { INBOX_CAPABILITY_CATALOG } from '../capabilities/inbox.catalog';
 
 /**
  * The route walker decides which credential the PUBLISHED contract says each
@@ -103,6 +106,17 @@ describe('the walker reads code, not prose', () => {
     expect(after?.middlewares).toContain('authMiddleware');
   });
 
+  it('recognises the Inbox dual-lane capability gate at router level', () => {
+    const routes = parseRoutesFromFile(`
+      const router = Router();
+      router.use(emailCapabilityAuth);
+      router.get('/messages', handler);
+    `);
+
+    expect(routes).toHaveLength(1);
+    expect(routes[0]?.middlewares).toContain('emailCapabilityAuth');
+  });
+
   it('does not apply a PATH-SCOPED router.use, which gates a subtree it cannot resolve', () => {
     const routes = parseRoutesFromFile(`
       const router = Router();
@@ -153,5 +167,41 @@ describe('the walker reads code, not prose', () => {
     `);
 
     expect(routes[0]?.jsdoc).toContain('Lists the things.');
+  });
+});
+
+describe('the generated Inbox contract preserves both authentication lanes', () => {
+  const document = JSON.parse(
+    readFileSync(path.resolve(__dirname, '../../openapi.json'), 'utf8'),
+  ) as {
+    paths: Record<string, Record<string, { security?: Array<Record<string, string[]>> }>>;
+  };
+
+  it('publishes only the two explicit email ingress/proxy operations as public', () => {
+    const capabilityOperations = new Set(
+      INBOX_CAPABILITY_CATALOG.tools.map(
+        (tool) => `${tool.invocation.method.toLowerCase()} ${tool.invocation.path}`,
+      ),
+    );
+    const operations = Object.entries(document.paths)
+      .filter(([route]) => route.startsWith('/email'))
+      .flatMap(([route, methods]) =>
+        Object.entries(methods).map(([method, operation]) => ({ route, method, operation })),
+      );
+
+    expect(operations.length).toBeGreaterThan(0);
+    const deliberatelyPublic = new Set(['post /email/inbound', 'get /email/proxy']);
+    for (const { route, method, operation } of operations) {
+      const operationKey = `${method} ${route}`;
+      expect({ route, method, security: operation.security }).toEqual({
+        route,
+        method,
+        security: capabilityOperations.has(operationKey)
+          ? [{ capabilityTicketAuth: [] }, { bearerAuth: [] }]
+          : deliberatelyPublic.has(operationKey)
+            ? [{}]
+            : [{ bearerAuth: [] }],
+      });
+    }
   });
 });

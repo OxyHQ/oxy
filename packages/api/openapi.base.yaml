@@ -124,6 +124,14 @@ components:
         not a JWT and carries no user identity — the owning account and
         application come from the credential row. A user session bearer is
         refused on /v1/*.
+    capabilityTicketAuth:
+      type: http
+      scheme: Capability
+      description: >
+        Short-lived, signed and audience-bound authority for one exact actor,
+        account, resource and tool. Send as `Authorization: Capability <ticket>`.
+        It is accepted only by routes whose app catalog exposes that tool and is
+        re-authorized immediately before execution so revocation takes effect.
     csrfToken:
       type: apiKey
       in: header

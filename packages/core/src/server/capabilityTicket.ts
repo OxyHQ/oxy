@@ -110,13 +110,6 @@ export function inputSatisfiesCapabilityLimits(
       ))) return false;
       continue;
     }
-    if (Array.isArray(limit.value)) {
-      const allowedValues = limit.value;
-      if (!actualValues.every((actual) => (
-        typeof actual === 'string' && allowedValues.includes(actual)
-      ))) return false;
-      continue;
-    }
     if (!actualValues.every((actual) => actual === limit.value)) return false;
   }
   return true;
@@ -222,7 +215,7 @@ export function verifyCapabilityTicket(
 export function readCapabilityAuthorization(authorization: string | undefined): string | null {
   if (!authorization) return null;
   const [scheme, token, extra] = authorization.trim().split(/\s+/);
-  if (scheme !== 'Capability' || !token || extra) return null;
+  if (scheme?.toLowerCase() !== 'capability' || !token || extra) return null;
   return token;
 }
 
