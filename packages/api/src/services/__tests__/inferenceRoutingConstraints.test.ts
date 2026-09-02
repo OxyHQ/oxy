@@ -21,12 +21,12 @@
  * Choosing the wrong shape for a model-level control produces a fixture that
  * cannot express the case at all. Establish the level before writing the test.
  *
- * ## The ordering is the mutation guard
+ * ## The score is the mutation guard
  *
- * Candidates are ordered by provider slug and the resolver takes the first that
- * qualifies, so each pair is planted with the VIOLATING route on an `a…` slug
- * and the conforming one on a `z…` slug. Each case then asserts BOTH directions
- * against the same pair:
+ * Each pair is planted with the VIOLATING route on an `a…` slug and a higher
+ * explicit balanced score than the conforming `z…` route. Provider names are
+ * identity metadata, never ordering inputs. Each case then asserts BOTH
+ * directions against the same pair:
  *
  *  - with the control set, the `z…` route is served;
  *  - with the control absent, the `a…` route is served.
@@ -51,6 +51,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import {
   moneySchema,
   routingPolicySchema,
@@ -61,6 +62,7 @@ import {
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeployments,
+  inferenceDeploymentRoutingScores,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
@@ -71,10 +73,11 @@ import {
   EVERY_ROUTING_CONTROL_IS_CLASSIFIED,
   PUBLIC_CATALOGUE_VIEWER,
   resolveCatalogueViewer,
-  resolveEdgeRoute,
+  resolveEdgeRoute as resolveEdgeRouteRuntime,
   routingConstraintsOf,
   selectRouteForViewer,
   UNCONSTRAINED_ROUTING,
+  UNCONSTRAINED_EDGE_CAPACITY,
   UNFILTERED_ROUTING_CONTROLS,
   type RoutingConstraints,
   TEXT_COMPLETION_MODALITY,
@@ -95,6 +98,24 @@ function suffix(): string {
 }
 
 const INTERNAL_VIEWER = resolveCatalogueViewer({ type: 'internal', isInternal: true });
+const TEST_OPTIMISE_FOR = 'balanced' as const;
+
+/** Test-only explicit profile dimension; production callers may not omit it. */
+function resolveEdgeRoute(
+  viewer: Parameters<typeof resolveEdgeRouteRuntime>[0],
+  modelReference: Parameters<typeof resolveEdgeRouteRuntime>[1],
+  constraints: Parameters<typeof resolveEdgeRouteRuntime>[2],
+  modality: Parameters<typeof resolveEdgeRouteRuntime>[3]
+) {
+  return resolveEdgeRouteRuntime(
+    viewer,
+    modelReference,
+    constraints,
+    modality,
+    TEST_OPTIMISE_FOR,
+    UNCONSTRAINED_EDGE_CAPACITY
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Fixtures                                                                  */
@@ -185,11 +206,13 @@ async function insertModel(
 
 interface DeploymentOptions {
   /**
-   * Fixes the provider slug's first character, and therefore this route's place
-   * in the resolver's `order by provider_slug`. `'a'` is the route a broken
-   * filter would serve; `'z'` is the conforming one.
+   * Fixes the provider slug's first character for readable assertions. It does
+   * not participate in ranking.
    */
   readonly rank: 'a' | 'z';
+  readonly internalRouteId?: string;
+  /** Higher wins. Defaults preserve the mutation-guard shape (`a` > `z`). */
+  readonly routingScore?: number;
   readonly retainsPayloads?: boolean;
   readonly retentionDays?: number;
   readonly trainsOnCustomerData?: boolean;
@@ -242,6 +265,7 @@ async function insertDeployment(
 ): Promise<{ providerSlug: string; deploymentId: string }> {
   const db = getDb();
   const providerSlug = `${options.rank}prv${suffix()}`;
+  const internalRouteId = options.internalRouteId ?? `kaana-${options.rank}-${suffix()}`;
   const scope = options.availabilityScope ?? 'public_payg';
 
   // The provider ORGANISATION's own posture is deliberately the OPPOSITE of the
@@ -276,11 +300,10 @@ async function insertDeployment(
     );
   }
 
-  const [deployment] = await db
-    .insert(inferenceDeployments)
-    .values({
+  await db.insert(inferenceDeployments).values({
       modelRevisionId: model.revisionId,
       providerSlug,
+      internalRouteId,
       regions: options.regions ?? ['us-west-2'],
       retainsPayloads: options.retainsPayloads ?? false,
       retentionDays: options.retentionDays ?? 0,
@@ -295,10 +318,38 @@ async function insertDeployment(
       legalReviewEvidenceRef: `contract-register/${suffix()}`,
       permissionState: 'approved',
       ...(options.unpriced ? {} : { priceVersionId: priceVersion.id }),
-    })
-    .returning({ id: inferenceDeployments.id });
+    });
 
-  return { providerSlug, deploymentId: deployment.id };
+  const now = Date.now();
+  await db.insert(inferenceDeploymentRoutingScores).values({
+    deploymentId: internalRouteId,
+    priceScore: options.routingScore ?? (options.rank === 'a' ? 200 : 100),
+    priceSource: 'reviewed_scorecard',
+    priceEvidenceRef: `price-score/${suffix()}`,
+    priceVersionId: priceVersion.id,
+    latencyScore: options.routingScore ?? (options.rank === 'a' ? 200 : 100),
+    latencySource: 'reviewed_scorecard',
+    latencyEvidenceRef: `latency-score/${suffix()}`,
+    latencyMeasurementWindowStart: new Date(now - 120_000),
+    latencyMeasurementWindowEnd: new Date(now - 60_000),
+    latencyValidUntil: new Date(now + 3_600_000),
+    throughputScore: options.routingScore ?? (options.rank === 'a' ? 200 : 100),
+    throughputSource: 'reviewed_scorecard',
+    throughputEvidenceRef: `throughput-score/${suffix()}`,
+    throughputMeasurementWindowStart: new Date(now - 120_000),
+    throughputMeasurementWindowEnd: new Date(now - 60_000),
+    throughputValidUntil: new Date(now + 3_600_000),
+    balancedScore: options.routingScore ?? (options.rank === 'a' ? 200 : 100),
+    balancedSource: 'reviewed_scorecard',
+    balancedEvidenceRef: `balanced-score/${suffix()}`,
+    balancedFormulaRef: 'test-fixture/v1',
+    balancedValidUntil: new Date(now + 3_600_000),
+    reason: 'routing constraint test fixture',
+    changedByUserId: 'test-suite',
+    changedAt: new Date(now),
+  });
+
+  return { providerSlug, deploymentId: internalRouteId };
 }
 
 /** The constraints a policy with exactly these controls set would impose. */
@@ -850,7 +901,11 @@ describe('maxPricePerUnit', () => {
         UNCONSTRAINED_ROUTING,
         TEXT_COMPLETION_MODALITY
       )
-    ).resolves.toEqual({ status: 'unpriced-route', modelReference: model.modelId });
+    ).resolves.toEqual({
+      status: 'routing-evidence-unavailable',
+      modelReference: model.modelId,
+      reason: 'missing-price',
+    });
   });
 });
 
@@ -1117,8 +1172,8 @@ describe('a request that cannot be served under its own policy is refused', () =
     expect(resolution.status).toBe('resolved');
     if (resolution.status !== 'resolved') return;
 
-    // Ordered by provider slug, which IS preference order — so `a…` is the
-    // primary and `z…` is the failover destination, never the reverse.
+    // Ordered by the explicit score. Provider slugs merely make the assertion
+    // readable; they are not consulted by the resolver.
     expect(resolution.route.provider).toBe(first.providerSlug);
     expect(resolution.alternates.map((alternate) => alternate.provider)).toEqual([
       second.providerSlug,
@@ -1133,13 +1188,12 @@ describe('a request that cannot be served under its own policy is refused', () =
     expect(resolution.alternates[0].regions).toEqual(['us-west-2']);
   });
 
-  it('does not authorize a survivor Oxy publishes no price for', async () => {
-    // An unpriced PRIMARY refuses the whole request (`unpriced-route`); an
-    // unpriced ALTERNATE is simply not authorized. The asymmetry is the point: a
-    // route that cannot be charged cannot be a failover destination, because the
-    // hold it would settle against could not be sized.
+  it('fails closed when ANY survivor has no published price', async () => {
+    // Silently dropping the unpriced alternate would change the authorized
+    // candidate set after ranking. The complete envelope is valid or none of it
+    // is sent to Kaana.
     const model = await insertModel();
-    const priced = await insertDeployment(model, { rank: 'a' });
+    await insertDeployment(model, { rank: 'a' });
     await insertDeployment(model, { rank: 'z', unpriced: true });
 
     const resolution = await resolveEdgeRoute(
@@ -1149,10 +1203,11 @@ describe('a request that cannot be served under its own policy is refused', () =
       TEXT_COMPLETION_MODALITY
     );
 
-    expect(resolution.status).toBe('resolved');
-    if (resolution.status !== 'resolved') return;
-    expect(resolution.route.provider).toBe(priced.providerSlug);
-    expect(resolution.alternates).toEqual([]);
+    expect(resolution).toEqual({
+      status: 'routing-evidence-unavailable',
+      modelReference: model.modelId,
+      reason: 'missing-price',
+    });
   });
 });
 
@@ -1226,7 +1281,7 @@ describe('a policy refusal is never confused with an absent route', () => {
 
   it('reports a policy exclusion rather than an Oxy pricing gap', async () => {
     // Order matters: an unpriced route the policy also forbids is the customer's
-    // configuration, not Oxy's. Reporting `unpriced-route` would send them to
+    // configuration, not Oxy's. Reporting a routing-evidence gap would send them to
     // support about a setting they own.
     const model = await insertModel();
     await insertDeployment(model, {
@@ -1255,7 +1310,117 @@ describe('a policy refusal is never confused with an absent route', () => {
     // is about the ordering of the two checks and not about the fixture.
     await expect(
       resolveEdgeRoute(PUBLIC_CATALOGUE_VIEWER, model.modelId, UNCONSTRAINED_ROUTING, TEXT_COMPLETION_MODALITY)
-    ).resolves.toEqual({ status: 'unpriced-route', modelReference: model.modelId });
+    ).resolves.toEqual({
+      status: 'routing-evidence-unavailable',
+      modelReference: model.modelId,
+      reason: 'missing-price',
+    });
+  });
+});
+
+describe('routing score order and exact Kaana identity', () => {
+  it('selects by score under reversed insertion order and altered model/provider names', async () => {
+    for (const highFirst of [true, false]) {
+      const model = await insertModel();
+      const tag = suffix();
+      const highRank = highFirst ? 'z' : 'a';
+      const lowRank = highRank === 'a' ? 'z' : 'a';
+      const highId = `kaana-winner-${tag}`;
+      const lowId = `kaana-loser-${tag}`;
+      const insertHigh = () =>
+        insertDeployment(model, {
+          rank: highRank,
+          routingScore: 900,
+          internalRouteId: highId,
+        });
+      const insertLow = () =>
+        insertDeployment(model, {
+          rank: lowRank,
+          routingScore: 10,
+          internalRouteId: lowId,
+        });
+      let high: Awaited<ReturnType<typeof insertHigh>>;
+      let low: Awaited<ReturnType<typeof insertLow>>;
+      if (highFirst) {
+        high = await insertHigh();
+        low = await insertLow();
+      } else {
+        low = await insertLow();
+        high = await insertHigh();
+      }
+
+      // Cosmetic names point in the opposite direction and differ per pass.
+      // Neither may become a hidden selector or an order stabilizer.
+      await getDb()
+        .update(inferenceModels)
+        .set({ displayName: highFirst ? 'ZZZ cosmetic model' : 'AAA cosmetic model' })
+        .where(eq(inferenceModels.id, model.rowId));
+      await getDb()
+        .update(inferenceProviders)
+        .set({ displayName: 'AAA cosmetic provider' })
+        .where(eq(inferenceProviders.slug, high.providerSlug));
+      await getDb()
+        .update(inferenceProviders)
+        .set({ displayName: 'ZZZ cosmetic provider' })
+        .where(eq(inferenceProviders.slug, low.providerSlug));
+
+      const resolution = await resolveEdgeRoute(
+        PUBLIC_CATALOGUE_VIEWER,
+        model.modelId,
+        UNCONSTRAINED_ROUTING,
+        TEXT_COMPLETION_MODALITY
+      );
+      expect(resolution.status).toBe('resolved');
+      if (resolution.status !== 'resolved') continue;
+      expect(resolution.route.deploymentId).toBe(highId);
+      expect(resolution.route.routingScore).toBe(900);
+      expect(resolution.alternates.map((route) => route.deploymentId)).toEqual([lowId]);
+    }
+  });
+
+  it('chooses the higher score even when the provider slug sorts later', async () => {
+    const model = await insertModel();
+    await insertDeployment(model, { rank: 'a', routingScore: 10 });
+    const scoredHigher = await insertDeployment(model, { rank: 'z', routingScore: 900 });
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    expect(resolution.status).toBe('resolved');
+    if (resolution.status !== 'resolved') return;
+    expect(resolution.route.provider).toBe(scoredHigher.providerSlug);
+    expect(resolution.route.deploymentId).toBe(scoredHigher.deploymentId);
+  });
+
+  it('breaks an equal-score tie by exact deployment id code units, not provider name', async () => {
+    const model = await insertModel();
+    const tag = suffix();
+    await insertDeployment(model, {
+      rank: 'a',
+      routingScore: 500,
+      internalRouteId: `kaana-z-${tag}`,
+    });
+    const exactIdFirst = await insertDeployment(model, {
+      rank: 'z',
+      routingScore: 500,
+      internalRouteId: `kaana-a-${tag}`,
+    });
+
+    const resolution = await resolveEdgeRoute(
+      PUBLIC_CATALOGUE_VIEWER,
+      model.modelId,
+      UNCONSTRAINED_ROUTING,
+      TEXT_COMPLETION_MODALITY
+    );
+
+    expect(resolution.status).toBe('resolved');
+    if (resolution.status !== 'resolved') return;
+    expect(resolution.route.deploymentId).toBe(exactIdFirst.deploymentId);
+    expect(resolution.route.provider).toBe(exactIdFirst.providerSlug);
   });
 });
 

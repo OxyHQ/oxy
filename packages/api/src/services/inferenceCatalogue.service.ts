@@ -33,7 +33,7 @@
  *     `schema/__tests__/inferenceCatalogue.test.ts` fails until somebody
  *     classifies it either way.
  *
- * Relay remains the source of technical deployment health and route
+ * Kaana remains the source of technical deployment health and route
  * availability (ADR 0006). Nothing here reports whether a route is answering
  * right now; `status` is the catalogue's own decision about whether a route may
  * be OFFERED, which is a different question. Collapsing the two is what the
@@ -60,6 +60,7 @@ import type { SelectedRow } from '@oxyhq/db';
 import { getDb } from '../config/postgres';
 import {
   inferenceDeployments,
+  inferenceDeploymentRoutingScores,
   inferenceModelEvaluations,
   inferenceModelRevisions,
   inferenceModels,
@@ -183,7 +184,7 @@ export function resolveCatalogueViewer(
  * Catalogue statuses under which a route may still be offered.
  *
  * `degraded` is included: it means "offer it with a warning", not "it is timing
- * out" — which is Relay's signal, and not stored here. `disabled` and `retired`
+ * out" — which is Kaana's signal, and not stored here. `disabled` and `retired`
  * are never offered.
  */
 const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
@@ -206,25 +207,6 @@ function selectableDeploymentWhere(viewer: CatalogueViewer) {
     inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES])
   );
 }
-
-/**
- * A total order over availability scopes, used to pick the ONE route whose
- * commercial terms an entry reports.
- *
- * A catalogue entry carries a single `availabilityScope` and
- * `commercialPermission` while a model may be offered on several routes, so
- * something has to choose. An arbitrary choice would make the same model report
- * different terms on different reads, which is worse than a rule somebody
- * disagrees with — so the rule is declared here, once, and is deterministic:
- * the most customer-facing terms first, ties broken by provider slug.
- */
-const SCOPE_PRIMACY: readonly AvailabilityScope[] = [
-  'public_payg',
-  'oxy_hosted',
-  'enterprise',
-  'internal_alia',
-  'byok_only',
-];
 
 /* -------------------------------------------------------------------------- */
 /*  3. The customer's own routing policy, applied to the candidates           */
@@ -298,7 +280,7 @@ export const UNFILTERED_ROUTING_CONTROLS = {
   fallback:
     'ENFORCED, in two places and never here: `inferenceEdge.service.ts` decides from `fallback.disabled`/`sameModelDeployment` whether the envelope’s `authorizedRoutes` carries any failover destination at all (ADR 0017), and `inferenceRoutingPolicy.service.ts`’s `recordRouteSwitch` refuses to record a substitution whose destination is not named in the version’s authorisation rows. It governs a SWITCH between routes, not the qualification of one, so it cannot be expressed as a predicate over a single candidate — which is why `resolveEdgeRoute` returns every survivor and the edge, not this filter, applies it.',
   optimiseFor:
-    'A RANKING among the routes that already qualify, which is routing EXECUTION and therefore the data plane’s (ADR 0006). It can never exclude a candidate, so enforcing it here would mean inventing a routing decision the control plane has no way to test.',
+    'ENFORCED by the edge resolver as a ranking over reviewed scorecards after every filtering control has qualified the candidate. It never excludes a policy-conforming route; unavailable or stale ranking evidence makes the complete route set unavailable before reservation.',
 } as const satisfies Readonly<Partial<Record<keyof RoutingPolicy, string>>>;
 
 /** A control of `routingPolicySchema` that is in neither list. */
@@ -611,8 +593,8 @@ export function exceedsAmount(amount: string, other: string): boolean {
  *     shown to keep it. This is the direction that matters: admitting it would
  *     turn every ceiling off for exactly the routes Oxy has described least. A
  *     customer with a ceiling therefore hears `policy_violation` naming their own
- *     control for an unpriced route, where a customer without one hears
- *     `unpriced-route` — see {@link resolveEdgeRoute}.
+ *     control for an unpriced route. Without a ceiling, the route reaches the
+ *     complete-envelope evidence check and fails closed as `missing-price`.
  *  2. **The version does not price this unit ⇒ ADMITTED.** Checked BEFORE the
  *     currency, because there is nothing to compare and therefore no currency
  *     question. A published version is a complete statement of what a route
@@ -1063,23 +1045,20 @@ interface CatalogueProviderRow {
   readonly displayName: string;
 }
 
-/**
- * The customer-safe data policy, from a deployment row.
- *
- * Reads the DEPLOYMENT's policy rather than the provider organisation's,
- * because a routing policy is enforced against the ROUTE: a zero-retention
- * endpoint from a provider whose default retains is a real and important case,
- * and reporting the organisation's default there would tell a customer their
- * data is retained when it is not.
- */
-function dataPolicyOf(deployment: CustomerSafeDeploymentRow) {
+/** Conservative policy guaranteed across every route in a catalogue group. */
+function aggregateDataPolicy(deployments: readonly CustomerSafeDeploymentRow[]) {
+  const policyUrls = new Set(deployments.map((deployment) => deployment.policyUrl));
+  const onlyPolicyUrl = policyUrls.size === 1 ? [...policyUrls][0] : null;
   return {
-    retainsPayloads: deployment.retainsPayloads,
-    retentionDays: deployment.retentionDays,
-    trainsOnCustomerData: deployment.trainsOnCustomerData,
-    zeroDataRetentionAvailable: deployment.zeroDataRetentionAvailable,
-    subprocessors: deployment.subprocessors ?? [],
-    ...(deployment.policyUrl === null ? {} : { policyUrl: deployment.policyUrl }),
+    retainsPayloads: deployments.some((deployment) => deployment.retainsPayloads),
+    retentionDays: Math.max(...deployments.map((deployment) => deployment.retentionDays)),
+    trainsOnCustomerData: deployments.some((deployment) => deployment.trainsOnCustomerData),
+    zeroDataRetentionAvailable: deployments.every(
+      (deployment) => deployment.zeroDataRetentionAvailable
+    ),
+    subprocessors: [...new Set(deployments.flatMap((deployment) => deployment.subprocessors ?? []))]
+      .sort(),
+    ...(onlyPolicyUrl === null ? {} : { policyUrl: onlyPolicyUrl }),
   };
 }
 
@@ -1150,15 +1129,18 @@ async function loadPriceSnapshots(
  * wholesale cost to read. The `.parse()` at the end is the second, runtime
  * guard — it strips anything unknown and fails loudly on anything malformed.
  *
- * `pricing` comes from the PRIMARY route's price version, the same route whose
- * data policy, availability scope and commercial permission this entry reports —
- * one route's commercial terms, resolved once, rather than a price from one row
- * beside a policy from another.
+ * No route is selected here. Runtime selection belongs to the edge and uses
+ * profile priority, reviewed score and exact deployment id. The catalogue emits
+ * one price/scope/permission only when every visible route agrees; otherwise it
+ * omits the singular field instead of inventing a representative by name or DB
+ * order. Its data policy is the conservative guarantee across all visible routes.
  *
- * Absent `pricing` on a LISTED entry has exactly one meaning: the primary route
- * names no price version, i.e. it is not yet priced — which is the state
- * {@link resolveEdgeRoute} refuses with `unpriced-route`, so the edge will not
- * serve it either. The other case the schema allows, a `byok_only` route whose
+ * Absent `pricing` on a LISTED entry means the visible routes do not share one
+ * complete price snapshot: they may disagree on the price version, or the only
+ * version may be absent/incomplete. The edge does not infer from this projection;
+ * it validates the exact selected deployment's price independently and fails
+ * closed when that evidence is missing or mismatched. The other case the schema
+ * allows, a `byok_only` route whose
  * price version the CHECK `inference_deployments_byok_has_no_price_version`
  * forces to null, is NOT reachable here: `byok_only` is in
  * {@link UNGRANTABLE_SCOPES}, so no viewer is served such a route and none is
@@ -1176,22 +1158,16 @@ function buildCatalogueEntry(
 ): ModelCatalogueEntry | null {
   if (model.modelId === null || deployments.length === 0) return null;
 
-  // The route whose commercial terms this entry reports. Deterministic: the
-  // most customer-facing scope first, then provider slug. See SCOPE_PRIMACY.
-  const primary = [...deployments].sort((left, right) => {
-    const byScope =
-      SCOPE_PRIMACY.indexOf(left.availabilityScope as AvailabilityScope) -
-      SCOPE_PRIMACY.indexOf(right.availabilityScope as AvailabilityScope);
-    return byScope !== 0 ? byScope : left.providerSlug.localeCompare(right.providerSlug);
-  })[0];
-
-  // Resolved from the SAME row the terms above come from. `undefined` when the
-  // route names no price version, and also when the version it names has no unit
-  // prices — see `loadPriceSnapshots`.
+  const priceVersionIds = new Set(deployments.map((deployment) => deployment.joinPriceVersionId));
+  const onlyPriceVersionId = priceVersionIds.size === 1 ? [...priceVersionIds][0] : null;
   const pricing =
-    primary.joinPriceVersionId === null
+    onlyPriceVersionId === null
       ? undefined
-      : priceSnapshotsByVersionId.get(primary.joinPriceVersionId);
+      : priceSnapshotsByVersionId.get(onlyPriceVersionId);
+  const availabilityScopes = new Set(deployments.map((deployment) => deployment.availabilityScope));
+  const commercialPermissions = new Set(
+    deployments.map((deployment) => deployment.commercialPermission)
+  );
 
   const regions = [...new Set(deployments.flatMap((deployment) => deployment.regions))].sort();
 
@@ -1199,20 +1175,21 @@ function buildCatalogueEntry(
     .sort()
     .flatMap((slug) => {
       const provider = providersBySlug.get(slug);
-      const deployment = deployments.find((candidate) => candidate.providerSlug === slug);
-      if (provider === undefined || deployment === undefined) return [];
+      const providerDeployments = deployments.filter((candidate) => candidate.providerSlug === slug);
+      if (provider === undefined || providerDeployments.length === 0) return [];
       return [
         {
           slug: provider.slug,
           displayName: provider.displayName,
-          regions: [...deployment.regions].sort(),
-          dataPolicy: dataPolicyOf(deployment),
+          regions: [...new Set(providerDeployments.flatMap((deployment) => deployment.regions))]
+            .sort(),
+          dataPolicy: aggregateDataPolicy(providerDeployments),
         },
       ];
     });
 
   const entry = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     modelId: model.modelId,
     publisher: {
       slug: model.publisherSlug,
@@ -1257,10 +1234,14 @@ function buildCatalogueEntry(
     ...(model.releasedOn === null ? {} : { releasedOn: model.releasedOn }),
     regions,
     servingProviders,
-    dataPolicy: dataPolicyOf(primary),
+    dataPolicy: aggregateDataPolicy(deployments),
     ...(pricing === undefined ? {} : { pricing }),
-    availabilityScope: primary.availabilityScope,
-    commercialPermission: primary.commercialPermission,
+    ...(availabilityScopes.size === 1
+      ? { availabilityScope: [...availabilityScopes][0] }
+      : {}),
+    ...(commercialPermissions.size === 1
+      ? { commercialPermission: [...commercialPermissions][0] }
+      : {}),
     deprecation: {
       status: model.deprecationStatus,
       ...(model.replacementModelReference === null
@@ -1528,44 +1509,23 @@ export async function selectRouteForViewer(
   modelReference: string,
   constraints: RoutingConstraints
 ): Promise<SelectedRoute | undefined> {
-  if (viewer.scopes.length === 0) return undefined;
-
-  const separator = modelReference.indexOf('@');
-  const modelId = separator === -1 ? modelReference : modelReference.slice(0, separator);
-  const pinnedRevision = separator === -1 ? undefined : modelReference.slice(separator + 1);
-
-  const db = getDb();
-
-  const rows = await db
-    .select({
-      ...CONSTRAINT_COLUMNS,
-      revision: inferenceModelRevisions.revision,
-      isCurrent: inferenceModelRevisions.isCurrent,
-      retiredAt: inferenceModelRevisions.retiredAt,
-      resolvedModelId: inferenceModels.modelId,
-    })
-    .from(inferenceDeployments)
-    .innerJoin(
-      inferenceModelRevisions,
-      eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
-    )
-    .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
-    .where(and(selectableDeploymentWhere(viewer), eq(inferenceModels.modelId, modelId)))
-    .orderBy(asc(inferenceDeployments.providerSlug));
-
-  const candidates = rows.filter((row) => {
-    if (row.retiredAt !== null) return false;
-    return pinnedRevision === undefined ? row.isCurrent : row.revision === pinnedRevision;
-  });
-
-  const chosen = (await applyRoutingConstraints(constraints, candidates)).kept[0];
-  if (chosen === undefined || chosen.resolvedModelId === null) return undefined;
-
+  // Compatibility projection for internal callers/tests. There is deliberately
+  // no second selector here: the authoritative resolver applies exact identity,
+  // price and balanced-score evidence, including the deployment-ID tie-break.
+  const resolution = await resolveEdgeRoute(
+    viewer,
+    modelReference,
+    constraints,
+    TEXT_COMPLETION_MODALITY,
+    'balanced',
+    UNCONSTRAINED_EDGE_CAPACITY
+  );
+  if (resolution.status !== 'resolved') return undefined;
   return {
-    modelReference: composeModelReference(chosen.resolvedModelId, chosen.revision),
-    provider: chosen.providerSlug,
-    regions: chosen.regions,
-    availabilityScope: chosen.availabilityScope as AvailabilityScope,
+    modelReference: resolution.route.modelReference,
+    provider: resolution.route.provider,
+    regions: resolution.route.regions,
+    availabilityScope: resolution.route.availabilityScope,
   };
 }
 
@@ -1582,27 +1542,31 @@ export async function selectRouteForViewer(
  *
  *  - `priceVersionId`, because a hold has to be sized in money and money comes
  *    from a price version. A route with no published price cannot be charged, so
- *    it cannot be admitted — see {@link EdgeRouteResolution}'s `unpriced-route`.
+ *    it cannot be admitted — see {@link EdgeRouteResolution}'s
+ *    `routing-evidence-unavailable` arm.
  *  - `maxContextTokens` / `maxOutputTokens`, because a request that cannot fit is
  *    refused AT THE EDGE rather than forwarded and paid for. Inheriting whatever
  *    the upstream provider happens to enforce is how a customer is billed for a
  *    request that was never going to succeed.
  *
- * `deploymentId` and `regions` are here for a different reason: they are what an
- * entry of the envelope's `authorizedRoutes` list requires (ADR 0017,
- * `authorizedRouteSchema`). Neither is customer-facing — the deployment id is the
- * data plane's own key, opaque to customers — and neither takes part in admission.
+ * `deploymentId` and `regions` are also admission evidence: the exact deployment
+ * id must map uniquely and every declared region must survive the customer's
+ * controls before the route can enter the signed `authorizedRoutes` list (ADR
+ * 0017, `authorizedRouteSchema`). Neither value is customer-facing — the id is
+ * Kaana's opaque key and regions are policy evidence, not a display choice.
  *
  * It goes through {@link selectableDeploymentWhere} like every other read, so an
  * admission can never reach a route the catalogue would not offer.
  */
 export interface EdgeRoute {
   /**
-   * `inference_deployments.id` — which concrete endpoint. Opaque to customers
-   * and never in a customer projection; it crosses only to the data plane, which
-   * resolves it against its own inventory.
+   * `inference_deployments.internal_route_id` — Kaana's exact endpoint identity.
+   * Opaque to customers and never in a customer projection; it crosses only to
+   * the data plane, which resolves it against its own inventory.
    */
   readonly deploymentId: string;
+  /** Reviewed score for this request's explicit optimisation dimension. */
+  readonly routingScore: number;
   /** `<publisher>/<model>@<revision>` — always revision-pinned. */
   readonly modelReference: string;
   readonly provider: string;
@@ -1652,7 +1616,7 @@ export interface EdgeRoute {
  * returns indices with relevance scores, which is none of the five. So rerank
  * constrains its INPUT and leaves its output unconstrained, rather than claiming
  * a modality that would be false. A `ranking` member would be a `@oxyhq/contracts`
- * enum change, and therefore a two-repo release (Relay derives its own contract
+ * enum change, and therefore a two-repo release (Kaana derives its own contract
  * from the published package and gates on drift) — not something to smuggle in
  * behind an endpoint.
  *
@@ -1665,6 +1629,19 @@ export interface EdgeModalityRequirement {
   readonly output?: InferenceModalityValue;
 }
 
+/** Request-specific capacity a route must have before it can enter an envelope. */
+export interface EdgeCapacityRequirement {
+  readonly inputTokens: number;
+  /** A completion without an explicit limit reserves the model's full output ceiling. */
+  readonly outputTokens: number | 'model-maximum';
+}
+
+/** Capacity-neutral value for catalogue unit tests that exercise other constraints. */
+export const UNCONSTRAINED_EDGE_CAPACITY: EdgeCapacityRequirement = {
+  inputTokens: 0,
+  outputTokens: 0,
+};
+
 /** The requirement a text-in, text-out completion places on a route. */
 export const TEXT_COMPLETION_MODALITY: EdgeModalityRequirement = {
   input: 'text',
@@ -1674,12 +1651,11 @@ export const TEXT_COMPLETION_MODALITY: EdgeModalityRequirement = {
 /**
  * Outcome of {@link resolveEdgeRoute}.
  *
- * `unknown-model` and `unpriced-route` are separate arms because they are
- * different platform facts and only one of them is the customer's to act on: a
- * model that does not exist (or that this viewer may not see) is a request
- * error, while a route Oxy has published without a price is an Oxy
- * configuration gap. Collapsing them would tell a customer to fix a model id
- * that was correct.
+ * `unknown-model` is distinct from `routing-evidence-unavailable`: a model that
+ * does not exist (or that this viewer may not see) is a request error, while a
+ * surviving route with incomplete identity, price or score evidence is an Oxy
+ * configuration gap. The edge maps the latter to one generic 503 without
+ * leaking which internal datum is incomplete.
  *
  * `policy-excluded` is a third fact and the customer's own: routes for this
  * model exist and this credential may see them, and the customer's OWN policy
@@ -1706,12 +1682,10 @@ export type EdgeRouteResolution =
        * envelope's `substitution` for each is `same_model`, never a cross-model
        * substitute.
        *
-       * A survivor with no published price or no resolvable model id is dropped
-       * rather than returned. The asymmetry with `route` is deliberate: the
-       * PRIMARY must be servable, so an unpriced one refuses the whole request
-       * as `unpriced-route`; an alternate that could not be charged simply is not
-       * authorized, and narrowing an authorization list can only ever reduce what
-       * may be served.
+       * Every survivor has already passed the same complete-envelope evidence
+       * check. No alternate is silently dropped for a missing exact id, price or
+       * score: one incomplete survivor refuses the whole request before a hold is
+       * reserved or Kaana is called.
        *
        * Whether the customer's policy actually AUTHORIZES failover among these is
        * not decided here. `fallback` is not a {@link RoutingConstraint} — it
@@ -1722,7 +1696,21 @@ export type EdgeRouteResolution =
       readonly alternates: readonly EdgeRoute[];
     }
   | { readonly status: 'unknown-model'; readonly modelReference: string }
-  | { readonly status: 'unpriced-route'; readonly modelReference: string }
+  | {
+      readonly status: 'routing-evidence-unavailable';
+      readonly modelReference: string;
+      readonly reason:
+        | 'missing-exact-deployment-id'
+        | 'deployment-id-collision'
+        | 'missing-price'
+        | 'price-identity-mismatch'
+        | 'price-inactive'
+        | 'price-not-effective'
+        | 'missing-score'
+        | 'stale-score'
+        | 'score-price-mismatch'
+        | 'unsupported-optimisation';
+    }
   | {
       readonly status: 'policy-excluded';
       readonly modelReference: string;
@@ -1736,6 +1724,12 @@ export type EdgeRouteResolution =
       /** What the candidate routes actually declare, deduplicated and sorted. */
       readonly supportedInput: readonly string[];
       readonly supportedOutput: readonly string[];
+    }
+  | {
+      readonly status: 'capacity-unavailable';
+      readonly modelReference: string;
+      readonly outputLimitExceeded: boolean;
+      readonly contextLimitExceeded: boolean;
     };
 
 /**
@@ -1754,12 +1748,12 @@ export type EdgeRouteResolution =
  * candidate set rather than to `candidates[0]`, so a conforming route ranked
  * second is served rather than refused.
  *
- * That ordering also decides which answer an UNPRICED route gets, and the two are
- * both correct for their own customer. With no price ceiling in force the route is
- * `unpriced-route`, an Oxy configuration gap. With one, the ceiling excludes it
- * first — a promise about what a request will cost cannot be kept by a route that
- * publishes no price — so the customer hears `policy-excluded` naming their own
- * control, which is the one of the two they can act on. See
+ * That ordering also decides which answer an UNPRICED route gets. With no price
+ * ceiling in force it reaches complete-envelope validation and fails closed as
+ * unavailable routing evidence. With one, the ceiling excludes it first — a
+ * promise about what a request will cost cannot be kept by a route that publishes
+ * no price — so the customer hears `policy-excluded` naming their own control,
+ * which is the one of the two they can act on. See
  * {@link violatedConstraints}.
  *
  * ## `constraints` is required, and the shape that made it required
@@ -1785,7 +1779,9 @@ export async function resolveEdgeRoute(
   viewer: CatalogueViewer,
   modelReference: string,
   constraints: RoutingConstraints,
-  modality: EdgeModalityRequirement
+  modality: EdgeModalityRequirement,
+  optimiseFor: RoutingPolicy['optimiseFor'] | RoutingProfile['optimiseFor'],
+  capacity: EdgeCapacityRequirement
 ): Promise<EdgeRouteResolution> {
   if (viewer.scopes.length === 0) {
     return { status: 'unknown-model', modelReference };
@@ -1795,12 +1791,30 @@ export async function resolveEdgeRoute(
   const modelId = separator === -1 ? modelReference : modelReference.slice(0, separator);
   const pinnedRevision = separator === -1 ? undefined : modelReference.slice(separator + 1);
 
-  const rows = await getDb()
+  const db = getDb();
+  const rows = await db
     .select({
       ...CONSTRAINT_COLUMNS,
-      // Not a constraint input: the id is what an `authorizedRoutes` entry names
-      // so the data plane can execute the route without resolving it again.
-      deploymentId: inferenceDeployments.id,
+      internalRouteId: inferenceDeployments.internalRouteId,
+      scoreDeploymentId: inferenceDeploymentRoutingScores.deploymentId,
+      scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
+      joinedPriceVersionId: priceVersions.id,
+      joinedPriceStatus: priceVersions.status,
+      joinedPriceModelReference: priceVersions.modelReference,
+      joinedPriceProvider: priceVersions.provider,
+      joinedPriceEffectiveFrom: priceVersions.effectiveFrom,
+      joinedPriceEffectiveUntil: priceVersions.effectiveUntil,
+      priceScore: inferenceDeploymentRoutingScores.priceScore,
+      latencyScore: inferenceDeploymentRoutingScores.latencyScore,
+      latencyMeasurementWindowEnd:
+        inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
+      latencyValidUntil: inferenceDeploymentRoutingScores.latencyValidUntil,
+      throughputScore: inferenceDeploymentRoutingScores.throughputScore,
+      throughputMeasurementWindowEnd:
+        inferenceDeploymentRoutingScores.throughputMeasurementWindowEnd,
+      throughputValidUntil: inferenceDeploymentRoutingScores.throughputValidUntil,
+      balancedScore: inferenceDeploymentRoutingScores.balancedScore,
+      balancedValidUntil: inferenceDeploymentRoutingScores.balancedValidUntil,
       revision: inferenceModelRevisions.revision,
       isCurrent: inferenceModelRevisions.isCurrent,
       retiredAt: inferenceModelRevisions.retiredAt,
@@ -1816,8 +1830,12 @@ export async function resolveEdgeRoute(
       eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
     )
     .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
-    .where(and(selectableDeploymentWhere(viewer), eq(inferenceModels.modelId, modelId)))
-    .orderBy(asc(inferenceDeployments.providerSlug));
+    .leftJoin(
+      inferenceDeploymentRoutingScores,
+      eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+    )
+    .leftJoin(priceVersions, eq(inferenceDeployments.priceVersionId, priceVersions.id))
+    .where(and(selectableDeploymentWhere(viewer), eq(inferenceModels.modelId, modelId)));
 
   const candidates = rows.filter((row) => {
     if (row.retiredAt !== null) return false;
@@ -1861,6 +1879,140 @@ export async function resolveEdgeRoute(
     return { status: 'policy-excluded', modelReference, constraints: permitted.excludedBy };
   }
 
+  // Capacity is an ordinary availability fact, so it narrows the set BEFORE
+  // exact identity, price and score evidence are validated. A too-small
+  // cross-model fallback is never authorized for this request and therefore
+  // cannot poison the otherwise complete envelope with irrelevant evidence.
+  const capacityCompatible = permitted.kept.filter((candidate) => {
+    const outputTokens =
+      capacity.outputTokens === 'model-maximum'
+        ? candidate.maxOutputTokens
+        : capacity.outputTokens;
+    return (
+      candidate.maxOutputTokens >= outputTokens &&
+      candidate.maxContextTokens >= capacity.inputTokens + outputTokens
+    );
+  });
+  if (capacityCompatible.length === 0) {
+    const explicitOutput =
+      capacity.outputTokens === 'model-maximum' ? undefined : capacity.outputTokens;
+    return {
+      status: 'capacity-unavailable',
+      modelReference,
+      outputLimitExceeded:
+        explicitOutput !== undefined &&
+        permitted.kept.every((candidate) => candidate.maxOutputTokens < explicitOutput),
+      contextLimitExceeded: permitted.kept.every((candidate) => {
+        const outputTokens =
+          capacity.outputTokens === 'model-maximum'
+            ? candidate.maxOutputTokens
+            : capacity.outputTokens;
+        return candidate.maxContextTokens < capacity.inputTokens + outputTokens;
+      }),
+    };
+  }
+
+  const exactDeploymentIds: string[] = [];
+  for (const candidate of capacityCompatible) {
+    if (candidate.internalRouteId === null) {
+      return {
+        status: 'routing-evidence-unavailable',
+        modelReference,
+        reason: 'missing-exact-deployment-id',
+      };
+    }
+    exactDeploymentIds.push(candidate.internalRouteId);
+  }
+
+  const approvedMappings = await db
+    .select({ deploymentId: inferenceDeployments.internalRouteId })
+    .from(inferenceDeployments)
+    .where(
+      and(
+        eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
+        inArray(inferenceDeployments.internalRouteId, exactDeploymentIds)
+      )
+    );
+  const mappingCounts = new Map<string, number>();
+  for (const mapping of approvedMappings) {
+    if (mapping.deploymentId === null) continue;
+    mappingCounts.set(mapping.deploymentId, (mappingCounts.get(mapping.deploymentId) ?? 0) + 1);
+  }
+  if (
+    new Set(exactDeploymentIds).size !== exactDeploymentIds.length ||
+    exactDeploymentIds.some((deploymentId) => mappingCounts.get(deploymentId) !== 1)
+  ) {
+    return {
+      status: 'routing-evidence-unavailable',
+      modelReference,
+      reason: 'deployment-id-collision',
+    };
+  }
+
+  const now = Date.now();
+  const ranked: { readonly candidate: (typeof capable)[number]; readonly score: number }[] = [];
+  for (const candidate of capacityCompatible) {
+    if (candidate.priceVersionId === null) {
+      return {
+        status: 'routing-evidence-unavailable',
+        modelReference,
+        reason: 'missing-price',
+      };
+    }
+    const exactModelReference =
+      candidate.resolvedModelId === null
+        ? undefined
+        : composeModelReference(candidate.resolvedModelId, candidate.revision);
+    if (
+      candidate.joinedPriceVersionId !== candidate.priceVersionId ||
+      candidate.joinedPriceModelReference !== exactModelReference ||
+      candidate.joinedPriceProvider !== candidate.providerSlug
+    ) {
+      return {
+        status: 'routing-evidence-unavailable',
+        modelReference,
+        reason: 'price-identity-mismatch',
+      };
+    }
+    if (candidate.joinedPriceStatus !== 'active') {
+      return {
+        status: 'routing-evidence-unavailable',
+        modelReference,
+        reason: 'price-inactive',
+      };
+    }
+    if (
+      candidate.joinedPriceEffectiveFrom === null ||
+      candidate.joinedPriceEffectiveFrom.getTime() > now ||
+      (candidate.joinedPriceEffectiveUntil !== null &&
+        candidate.joinedPriceEffectiveUntil.getTime() <= now)
+    ) {
+      return {
+        status: 'routing-evidence-unavailable',
+        modelReference,
+        reason: 'price-not-effective',
+      };
+    }
+    const score = routingScoreFor(candidate, optimiseFor, now);
+    if (score.status === 'unavailable') {
+      return {
+        status: 'routing-evidence-unavailable',
+        modelReference,
+        reason: score.reason,
+      };
+    }
+    ranked.push({ candidate, score: score.value });
+  }
+
+  ranked.sort((left, right) => {
+    const byScore = right.score - left.score;
+    if (byScore !== 0) return byScore;
+    const leftId = left.candidate.internalRouteId;
+    const rightId = right.candidate.internalRouteId;
+    if (leftId === null || rightId === null) return 0;
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+  });
+
   // One mapper for the primary and the alternates, so the two cannot describe
   // the same row differently — the reason `CONSTRAINT_COLUMNS` is shared, one
   // level up. `resolvedModelId` and `priceVersionId` are parameters rather than
@@ -1869,9 +2021,12 @@ export async function resolveEdgeRoute(
   const edgeRouteOf = (
     row: (typeof capable)[number],
     resolvedModelId: string,
-    priceVersionId: string
+    internalRouteId: string,
+    priceVersionId: string,
+    routingScore: number
   ): EdgeRoute => ({
-    deploymentId: row.deploymentId,
+    deploymentId: internalRouteId,
+    routingScore,
     modelReference: composeModelReference(resolvedModelId, row.revision),
     provider: row.providerSlug,
     regions: row.regions,
@@ -1883,27 +2038,141 @@ export async function resolveEdgeRoute(
     outputModalities: row.outputModalities,
   });
 
-  const chosen = permitted.kept[0];
-  if (chosen.resolvedModelId === null) {
+  const chosen = ranked[0];
+  if (chosen === undefined) {
+    return {
+      status: 'routing-evidence-unavailable',
+      modelReference,
+      reason: 'missing-score',
+    };
+  }
+  if (chosen.candidate.resolvedModelId === null) {
     return { status: 'unknown-model', modelReference };
   }
 
-  if (chosen.priceVersionId === null) {
-    return { status: 'unpriced-route', modelReference };
+  if (chosen.candidate.internalRouteId === null || chosen.candidate.priceVersionId === null) {
+    return {
+      status: 'routing-evidence-unavailable',
+      modelReference,
+      reason: 'missing-exact-deployment-id',
+    };
+  }
+
+  const alternates: EdgeRoute[] = [];
+  for (const { candidate, score } of ranked.slice(1)) {
+    const { resolvedModelId, internalRouteId, priceVersionId } = candidate;
+    if (resolvedModelId === null || internalRouteId === null || priceVersionId === null) {
+      return {
+        status: 'routing-evidence-unavailable',
+        modelReference,
+        reason:
+          internalRouteId === null ? 'missing-exact-deployment-id' : 'missing-price',
+      };
+    }
+    alternates.push(
+      edgeRouteOf(candidate, resolvedModelId, internalRouteId, priceVersionId, score)
+    );
   }
 
   return {
     status: 'resolved',
-    route: edgeRouteOf(chosen, chosen.resolvedModelId, chosen.priceVersionId),
-    // The survivors this resolver used to compute and discard. Order is already
-    // preference order — the same `orderBy` the primary was taken from — so the
-    // list needs no ranking of its own.
-    alternates: permitted.kept.slice(1).flatMap((survivor) => {
-      const { resolvedModelId, priceVersionId } = survivor;
-      if (resolvedModelId === null || priceVersionId === null) return [];
-      return [edgeRouteOf(survivor, resolvedModelId, priceVersionId)];
-    }),
+    route: edgeRouteOf(
+      chosen.candidate,
+      chosen.candidate.resolvedModelId,
+      chosen.candidate.internalRouteId,
+      chosen.candidate.priceVersionId,
+      chosen.score
+    ),
+    alternates,
   };
+}
+
+type RoutingScoreResolution =
+  | { readonly status: 'available'; readonly value: number }
+  | {
+      readonly status: 'unavailable';
+      readonly reason:
+        | 'missing-score'
+        | 'stale-score'
+        | 'score-price-mismatch'
+        | 'unsupported-optimisation';
+    };
+
+function routingScoreFor(
+  candidate: {
+    readonly internalRouteId: string | null;
+    readonly scoreDeploymentId: string | null;
+    readonly priceVersionId: string | null;
+    readonly scorePriceVersionId: string | null;
+    readonly priceScore: number | null;
+    readonly latencyScore: number | null;
+    readonly latencyMeasurementWindowEnd: Date | null;
+    readonly latencyValidUntil: Date | null;
+    readonly throughputScore: number | null;
+    readonly throughputMeasurementWindowEnd: Date | null;
+    readonly throughputValidUntil: Date | null;
+    readonly balancedScore: number | null;
+    readonly balancedValidUntil: Date | null;
+  },
+  optimiseFor: RoutingPolicy['optimiseFor'] | RoutingProfile['optimiseFor'],
+  now: number
+): RoutingScoreResolution {
+  if (
+    candidate.internalRouteId === null ||
+    candidate.scoreDeploymentId !== candidate.internalRouteId
+  ) {
+    return { status: 'unavailable', reason: 'missing-score' };
+  }
+  if (
+    candidate.priceVersionId === null ||
+    candidate.scorePriceVersionId !== candidate.priceVersionId
+  ) {
+    return { status: 'unavailable', reason: 'score-price-mismatch' };
+  }
+
+  if (optimiseFor === 'price') {
+    return candidate.priceScore === null
+      ? { status: 'unavailable', reason: 'missing-score' }
+      : { status: 'available', value: candidate.priceScore };
+  }
+  if (optimiseFor === 'latency') {
+    if (candidate.latencyScore === null) {
+      return { status: 'unavailable', reason: 'missing-score' };
+    }
+    if (
+      candidate.latencyMeasurementWindowEnd === null ||
+      candidate.latencyMeasurementWindowEnd.getTime() > now ||
+      candidate.latencyValidUntil === null ||
+      candidate.latencyValidUntil.getTime() <= now
+    ) {
+      return { status: 'unavailable', reason: 'stale-score' };
+    }
+    return { status: 'available', value: candidate.latencyScore };
+  }
+  if (optimiseFor === 'throughput') {
+    if (candidate.throughputScore === null) {
+      return { status: 'unavailable', reason: 'missing-score' };
+    }
+    if (
+      candidate.throughputMeasurementWindowEnd === null ||
+      candidate.throughputMeasurementWindowEnd.getTime() > now ||
+      candidate.throughputValidUntil === null ||
+      candidate.throughputValidUntil.getTime() <= now
+    ) {
+      return { status: 'unavailable', reason: 'stale-score' };
+    }
+    return { status: 'available', value: candidate.throughputScore };
+  }
+  if (optimiseFor === 'balanced') {
+    if (candidate.balancedScore === null) {
+      return { status: 'unavailable', reason: 'missing-score' };
+    }
+    if (candidate.balancedValidUntil === null || candidate.balancedValidUntil.getTime() <= now) {
+      return { status: 'unavailable', reason: 'stale-score' };
+    }
+    return { status: 'available', value: candidate.balancedScore };
+  }
+  return { status: 'unavailable', reason: 'unsupported-optimisation' };
 }
 
 /**
@@ -2033,4 +2302,111 @@ export async function listRoutingProfiles(): Promise<RoutingProfile[]> {
       }),
     ];
   });
+}
+export type EdgeRoutingProfileResolution =
+  | { readonly status: 'resolved'; readonly profile: RoutingProfile }
+  | { readonly status: 'unknown-profile' }
+  | {
+      readonly status: 'routing-evidence-unavailable';
+      readonly reason: 'missing-profile-candidate' | 'invalid-profile-candidate';
+    };
+
+/**
+ * Resolve one routing profile for execution without the public catalogue's
+ * default-deny omission semantics.
+ *
+ * `listRoutingProfiles` may omit a malformed catalogue entry because returning a
+ * smaller customer-visible list grants nothing. Execution is different: silently
+ * narrowing a named profile changes the set the caller authorized. Every stored
+ * candidate is therefore converted explicitly here, and one unresolvable row
+ * refuses the whole profile before a reservation or Kaana call.
+ */
+export async function resolveRoutingProfileForEdge(
+  slug: string
+): Promise<EdgeRoutingProfileResolution> {
+  const db = getDb();
+  const [profile] = await db
+    .select({
+      id: inferenceRoutingProfiles.id,
+      slug: inferenceRoutingProfiles.slug,
+      displayName: inferenceRoutingProfiles.displayName,
+      description: inferenceRoutingProfiles.description,
+      optimiseFor: inferenceRoutingProfiles.optimiseFor,
+      isProductPreset: inferenceRoutingProfiles.isProductPreset,
+    })
+    .from(inferenceRoutingProfiles)
+    .where(eq(inferenceRoutingProfiles.slug, slug))
+    .limit(1);
+  if (profile === undefined) return { status: 'unknown-profile' };
+
+  const candidateRows = await db
+    .select({
+      priority: inferenceRoutingProfileCandidates.priority,
+      unpinnedModelId: inferenceRoutingProfileCandidates.modelId,
+      pinnedRevisionId: inferenceRoutingProfileCandidates.modelRevisionId,
+      pinnedRevision: inferenceModelRevisions.revision,
+      pinnedRevisionModelId: inferenceModelRevisions.modelId,
+    })
+    .from(inferenceRoutingProfileCandidates)
+    .leftJoin(
+      inferenceModelRevisions,
+      eq(inferenceRoutingProfileCandidates.modelRevisionId, inferenceModelRevisions.id)
+    )
+    .where(eq(inferenceRoutingProfileCandidates.routingProfileId, profile.id))
+    .orderBy(asc(inferenceRoutingProfileCandidates.priority));
+  if (candidateRows.length === 0) {
+    return { status: 'routing-evidence-unavailable', reason: 'missing-profile-candidate' };
+  }
+
+  const referencedModelRowIds: string[] = [];
+  for (const candidate of candidateRows) {
+    const modelRowId = candidate.unpinnedModelId ?? candidate.pinnedRevisionModelId;
+    if (modelRowId === null) {
+      return { status: 'routing-evidence-unavailable', reason: 'invalid-profile-candidate' };
+    }
+    referencedModelRowIds.push(modelRowId);
+  }
+  const canonicalModelIds = new Map(
+    (
+      await db
+        .select({ id: inferenceModels.id, modelId: inferenceModels.modelId })
+        .from(inferenceModels)
+        .where(inArray(inferenceModels.id, [...new Set(referencedModelRowIds)]))
+    ).map((row) => [row.id, row.modelId] as const)
+  );
+
+  const candidates: RoutingProfile['candidates'][number][] = [];
+  for (const candidate of candidateRows) {
+    const modelRowId = candidate.unpinnedModelId ?? candidate.pinnedRevisionModelId;
+    const canonicalModelId =
+      modelRowId === null ? undefined : canonicalModelIds.get(modelRowId);
+    const pinnedCandidate = candidate.pinnedRevisionId !== null;
+    if (
+      canonicalModelId === undefined ||
+      canonicalModelId === null ||
+      (pinnedCandidate && candidate.pinnedRevision === null)
+    ) {
+      return { status: 'routing-evidence-unavailable', reason: 'invalid-profile-candidate' };
+    }
+    candidates.push({
+      modelReference: pinnedCandidate
+        ? composeModelReference(canonicalModelId, candidate.pinnedRevision as string)
+        : canonicalModelId,
+      priority: candidate.priority,
+    });
+  }
+
+  const parsed = routingProfileSchema.safeParse({
+    schemaVersion: 1 as const,
+    routingProfileId: profile.id,
+    slug: profile.slug,
+    displayName: profile.displayName,
+    ...(profile.description === null ? {} : { description: profile.description }),
+    optimiseFor: profile.optimiseFor,
+    candidates,
+    isProductPreset: profile.isProductPreset,
+  });
+  return parsed.success
+    ? { status: 'resolved', profile: parsed.data }
+    : { status: 'routing-evidence-unavailable', reason: 'invalid-profile-candidate' };
 }

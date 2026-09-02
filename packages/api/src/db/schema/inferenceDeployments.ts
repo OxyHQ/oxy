@@ -27,7 +27,7 @@
  *
  * - **Provider credentials of any kind.** BYOK secrets live in managed secret
  *   storage (workstream 10); Oxy's own upstream keys are the data plane's.
- * - **Route health.** Relay owns technical deployment health and availability
+ * - **Route health.** Kaana owns technical deployment health and availability
  *   (ADR 0006). `status` here is the CATALOGUE's decision about whether a route
  *   may be offered at all, which is a different question from whether it is
  *   answering right now, and the two must not be collapsed — the fake
@@ -82,7 +82,7 @@ export const COMMERCIAL_PERMISSIONS = commercialPermissionSchema.options;
 /**
  * The catalogue's own decision about whether a route may be offered.
  *
- * Distinct from Relay's health signal, which Oxy does not store: `degraded` here
+ * Distinct from Kaana's health signal, which Oxy does not store: `degraded` here
  * means "offer it with a warning", not "it is timing out right now".
  * Mirrors `modelDeploymentSchema.status`.
  */
@@ -243,7 +243,7 @@ export const inferenceDeployments = pgTable(
     /**
      * PROTECTED. The data plane's own identifier for this route.
      *
-     * Stored so operations can correlate a catalogue row with what Relay is
+     * Stored so operations can correlate a catalogue row with what Kaana is
      * running. It is exactly the kind of internal topology the serving boundary
      * says must never reach a customer, even when attribution is permitted:
      * naming the serving PROVIDER is attribution, naming the internal route is
@@ -259,7 +259,7 @@ export const inferenceDeployments = pgTable(
      *
      * This is NOT a price version and NOT customer money. The ledger owns
      * `price_versions` and every customer-facing amount; this column exists so
-     * staff can review margin against a route's contracted rate, and Relay
+     * staff can review margin against a route's contracted rate, and Kaana
      * remains the authority for MEASURED upstream cost (ADR 0006). Two price
      * authorities is the failure this epic exists to prevent, so nothing reads
      * this in a billing path.

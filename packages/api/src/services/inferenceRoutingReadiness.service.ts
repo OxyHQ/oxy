@@ -4,11 +4,13 @@ import {
   inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
+  priceVersionUnitPrices,
 } from '../db/schema';
 
 export interface InferenceRoutingReadinessRow {
   readonly deploymentId: string | null;
   readonly currentPriceVersionId: string | null;
+  readonly requestUnitPriceVersionId: string | null;
   readonly scorePriceVersionId: string | null;
   readonly price: number | null;
   readonly latency: number | null;
@@ -38,6 +40,7 @@ export async function readInferenceRoutingReadinessRows(): Promise<
     .select({
       deploymentId: inferenceDeployments.internalRouteId,
       currentPriceVersionId: inferenceDeployments.priceVersionId,
+      requestUnitPriceVersionId: priceVersionUnitPrices.priceVersionId,
       scorePriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
       price: inferenceDeploymentRoutingScores.priceScore,
       latency: inferenceDeploymentRoutingScores.latencyScore,
@@ -58,6 +61,13 @@ export async function readInferenceRoutingReadinessRows(): Promise<
     .leftJoin(
       inferenceDeploymentRoutingScores,
       eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+    )
+    .leftJoin(
+      priceVersionUnitPrices,
+      and(
+        eq(inferenceDeployments.priceVersionId, priceVersionUnitPrices.priceVersionId),
+        eq(priceVersionUnitPrices.unit, 'requests')
+      )
     )
     .where(
       and(
@@ -95,6 +105,7 @@ export function assessInferenceRoutingReadiness(
       route.deploymentId === null ||
       route.price === null ||
       route.currentPriceVersionId === null ||
+      route.requestUnitPriceVersionId !== route.currentPriceVersionId ||
       route.scorePriceVersionId !== route.currentPriceVersionId ||
       route.latency === null ||
       route.latencyMeasurementWindowEnd === null ||

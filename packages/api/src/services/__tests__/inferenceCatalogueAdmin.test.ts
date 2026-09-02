@@ -23,6 +23,7 @@ import {
   inferenceProviders,
   inferencePublishers,
   priceVersions,
+  priceVersionUnitPrices,
   users,
 } from '../../db/schema';
 import {
@@ -143,6 +144,13 @@ async function insertProposedRoute(): Promise<{
     .returning({ id: priceVersions.id });
 
   const internalRouteId = `dep_proposed_${suffix()}`;
+
+  await db.insert(priceVersionUnitPrices).values({
+    priceVersionId: priceVersion.id,
+    unit: 'requests',
+    amount: '0.000000000000',
+    per: 1,
+  });
 
   const [deployment] = await db
     .insert(inferenceDeployments)

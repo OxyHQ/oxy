@@ -62,10 +62,14 @@ import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
 import { SHADOW_METERING_EVENT } from '../../services/inferenceEdge.service';
-import type { RelayClient, RelayCompletion } from '../../services/relayClient';
+import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
+import {
+  createNeutralRoutingPolicy,
+  insertValidRoutingScorecard,
+} from './kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -94,12 +98,12 @@ type Requester = (
 
 /** A server per test, so each can be given its own (or no) data plane. */
 async function withServer(
-  relayClient: RelayClient | undefined,
+  kaanaClient: KaanaClient | undefined,
   run: (request: Requester) => Promise<void>
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
-  app.use('/v1', createInferenceEdgeRouter(relayClient === undefined ? {} : { relayClient }));
+  app.use('/v1', createInferenceEdgeRouter(kaanaClient === undefined ? {} : { kaanaClient }));
 
   const server = await new Promise<http.Server>((resolve) => {
     const created = app.listen(0, '127.0.0.1', () => resolve(created));
@@ -208,6 +212,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
   const publisherSlug = `pub${tag}`;
   const modelSlug = `model-${tag}`;
   const providerSlug = `prov${tag}`;
+  const kaanaDeploymentId = `kaana-rollout-${tag}`;
   const revision = '2026-01-01';
 
   await db
@@ -268,7 +273,19 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
   await db.insert(priceVersionUnitPrices).values([
     {
       priceVersionId: priceVersion.id,
+      unit: 'requests',
+      amount: '0.000000000000',
+      per: 1,
+    },
+    {
+      priceVersionId: priceVersion.id,
       unit: 'input_tokens',
+      amount: '3.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'cached_input_tokens',
       amount: '3.000000000000',
       per: 1_000_000,
     },
@@ -278,11 +295,18 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       amount: '15.000000000000',
       per: 1_000_000,
     },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'reasoning_tokens',
+      amount: '15.000000000000',
+      per: 1_000_000,
+    },
   ]);
 
   await db.insert(inferenceDeployments).values({
     modelRevisionId: revisionRow.id,
     providerSlug,
+    internalRouteId: kaanaDeploymentId,
     regions: ['us-west-2'],
     retainsPayloads: false,
     retentionDays: 0,
@@ -296,6 +320,15 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
     legalReviewEvidenceRef: `contract-register/${tag}`,
     permissionState: 'approved',
     priceVersionId: priceVersion.id,
+  });
+  await insertValidRoutingScorecard({
+    deploymentId: kaanaDeploymentId,
+    priceVersionId: priceVersion.id,
+    changedByUserId: account.id,
+  });
+  await createNeutralRoutingPolicy({
+    accountId: account.id,
+    applicationId: application.id,
   });
 
   await provisionBillingProfile({ accountId: account.id });
@@ -338,23 +371,25 @@ const chatBody = (fixture: Fixture) => ({
 /**
  * A fake data plane returning a fixed, exactly-priceable usage report.
  *
- * TESTS ONLY — `services/relayClient.ts` has no production implementation, and
+ * TESTS ONLY — `services/kaanaClient.ts` has no production implementation, and
  * this is the fake its header says belongs here. It echoes the envelope's own
  * model reference and request id so the edge's completion validation never
  * becomes the reason a rollout case fails.
  */
-function fakeRelay(units: { input: number; output: number }, provider: string): RelayClient {
+function fakeKaana(units: { input: number; output: number }, provider: string): KaanaClient {
   return {
-    execute: async (envelope: InferenceRequest): Promise<RelayCompletion> => {
-      const modelReference =
-        envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
+    execute: async (envelope: InferenceRequest): Promise<KaanaCompletion> => {
+      const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === provider);
+      if (servedRoute === undefined) {
+        throw new Error('fixture selected a route outside the exact authorization list');
+      }
       const now = new Date().toISOString();
       return {
         generationId: `gen-${randomUUID()}`,
         output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
         finishReason: 'stop',
         usage: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           requestId: envelope.attribution.requestId,
           attribution: envelope.attribution,
           outcome: 'completed',
@@ -363,8 +398,9 @@ function fakeRelay(units: { input: number; output: number }, provider: string): 
             { unit: 'output_tokens', quantity: units.output },
           ],
           usageSource: 'provider_reported',
-          resolvedModelReference: modelReference,
+          resolvedModelReference: servedRoute.modelReference,
           servingProvider: provider,
+          deploymentId: servedRoute.deploymentId,
           routeSwitches: 0,
           startedAt: now,
           completedAt: now,
@@ -375,7 +411,7 @@ function fakeRelay(units: { input: number; output: number }, provider: string): 
     },
     // No rollout case streams, and a throw is what makes one that starts to fail
     // loudly rather than silently taking an unwritten path. The streaming lane has
-    // its own suite: `__tests__/relayStreaming.test.ts`.
+    // its own suite: `__tests__/kaanaStreaming.test.ts`.
     stream: () => {
       throw new Error('this fake serves only non-streaming requests');
     },
@@ -431,7 +467,7 @@ describe('an unconfigured deployment serves nobody', () => {
   it('refuses an authenticated, funded, correctly-scoped caller', async () => {
     const fixture = await makeFixture({ fund: '10.00' });
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, fixture.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, fixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -461,7 +497,7 @@ describe('an unconfigured deployment serves nobody', () => {
     const fixture = await makeFixture({ fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${fixture.applicationId}`;
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, fixture.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, fixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -495,7 +531,7 @@ describe('each rollout stage admits the applications it names', () => {
     const external = await makeFixture({ fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = 'internal';
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, internal.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, internal.provider), async (request) => {
       const admitted = await request(
         'POST',
         '/v1/chat/completions',
@@ -521,7 +557,7 @@ describe('each rollout stage admits the applications it names', () => {
     const flagged = await makeFixture({ type: 'third_party', isInternal: true, fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = 'internal';
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, flagged.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, flagged.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -536,7 +572,7 @@ describe('each rollout stage admits the applications it names', () => {
     const firstParty = await makeFixture({ type: 'first_party', fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = 'internal';
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, firstParty.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, firstParty.provider), async (request) => {
       const tooEarly = await request(
         'POST',
         '/v1/chat/completions',
@@ -561,7 +597,7 @@ describe('each rollout stage admits the applications it names', () => {
     const uninvited = await makeFixture({ fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${invited.applicationId}`;
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, invited.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, invited.provider), async (request) => {
       const admitted = await request(
         'POST',
         '/v1/chat/completions',
@@ -594,7 +630,7 @@ describe('each rollout stage admits the applications it names', () => {
     const fixture = await makeFixture({ fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = 'public';
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, fixture.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, fixture.provider), async (request) => {
       const refused = await request(
         'POST',
         '/v1/chat/completions',
@@ -638,7 +674,7 @@ describe('the machine-credential lane is a switch of its own', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${fixture.applicationId}`;
     delete process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE];
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, fixture.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, fixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -654,7 +690,7 @@ describe('the machine-credential lane is a switch of its own', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${fixture.applicationId}`;
     process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = 'disabled';
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, fixture.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, fixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -681,7 +717,7 @@ describe('the machine-credential lane is a switch of its own', () => {
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${fixture.applicationId}`;
     process.env[MACHINE_CREDENTIAL_AUTH_VARIABLE] = 'enabled';
 
-    await withServer(fakeRelay({ input: 20, output: 30 }, fixture.provider), async (request) => {
+    await withServer(fakeKaana({ input: 20, output: 30 }, fixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -721,7 +757,7 @@ describe('shadow metering measures without settling', () => {
 
     const before = await balanceOf(fixture.accountId);
 
-    await withServer(fakeRelay(UNITS, fixture.provider), async (request) => {
+    await withServer(fakeKaana(UNITS, fixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -768,7 +804,7 @@ describe('shadow metering measures without settling', () => {
     const shadowFixture = await makeFixture({ fund: '10.00' });
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${shadowFixture.applicationId}`;
 
-    await withServer(fakeRelay(UNITS, shadowFixture.provider), async (request) => {
+    await withServer(fakeKaana(UNITS, shadowFixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -785,7 +821,7 @@ describe('shadow metering measures without settling', () => {
     process.env[CHARGING_AUTHORIZED_VARIABLE] = ARMED_CHARGING;
 
     const before = await balanceOf(chargedFixture.accountId);
-    await withServer(fakeRelay(UNITS, chargedFixture.provider), async (request) => {
+    await withServer(fakeKaana(UNITS, chargedFixture.provider), async (request) => {
       const response = await request(
         'POST',
         '/v1/chat/completions',
@@ -827,7 +863,7 @@ describe('shadow metering measures without settling', () => {
     const fixture = await makeFixture();
     process.env[EDGE_AUDIENCE_VARIABLE] = `allowlist:${fixture.applicationId}`;
 
-    await withServer(fakeRelay(UNITS, fixture.provider), async (request) => {
+    await withServer(fakeKaana(UNITS, fixture.provider), async (request) => {
       const served = await request(
         'POST',
         '/v1/chat/completions',

@@ -527,7 +527,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: inferenceDeployments.internalRouteId,
     reason:
       'The DATA PLANE’s own identifier for this route, stored so operations can ' +
-      'correlate a catalogue row with what Relay is running. Relay’s id space, ' +
+      'correlate a catalogue row with what Kaana is running. Kaana’s id space, ' +
       'not Oxy’s, and deliberately never dereferenced here. PROTECTED: it is ' +
       'operational topology and never reaches a customer.',
   },
@@ -643,7 +643,7 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     column: inferenceUsageEvents.deploymentId,
     reason:
       '(f) The data plane’s endpoint identity. Operational detail belonging ' +
-      'to Relay, stored opaquely for attribution and never dereferenced here.',
+      'to Kaana, stored opaquely for attribution and never dereferenced here.',
   },
 
   // --- the routing policy control plane (#972 workstream 6) ----------------

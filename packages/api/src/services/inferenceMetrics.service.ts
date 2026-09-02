@@ -19,32 +19,31 @@
  * observability, and with no scrape target configured anywhere a second
  * in-process copy of these numbers would be weaker than the table it duplicates.
  *
- * ## Two metrics have NO DATA YET, and say so rather than reporting zero
+ * ## Two metrics distinguish NO DATA from a measured zero
  *
- * `time_to_first_token_ms` and `route_switches` are NULL/`0` on every row today.
- * Both are reported through a discriminated `state` — `pending` with a reason and
- * the row counts behind it, never a zero. A metric that reads `0` when it means
+ * When no row carries `time_to_first_token_ms` or `route_switches`, both are
+ * reported through a discriminated `state` — `pending` with a reason and the row
+ * counts behind it, never a zero. A metric that reads `0` when it means
  * "unmeasurable" is indistinguishable from one that is correctly zero, and the
  * second reading is the one a dashboard takes.
  *
  * **The reason is NOT that the edge cannot produce them.** It once was, and that
- * changed: since the signed relay hop landed the edge streams both public dialects
+ * changed: since the signed kaana hop landed the edge streams both public dialects
  * and forwards the data plane's own `timeToFirstTokenMs` and `routeSwitches` when
- * the usage report carries them (`inferenceEdge.service.ts`). What is absent is a
- * data plane: `resolveRelayDataPlane()` answers `absent` unless `RELAY_BASE_URL`
- * and the two signing variables are all set, and no deployment sets them, so
- * nothing has ever streamed and no route has ever switched.
+ * the usage report carries them (`inferenceEdge.service.ts`). Whether production
+ * should already have such rows is answered live: `resolveKaanaDataPlane()`
+ * reports the signed-client configuration and `resolveKaanaExecution()` reports
+ * the independent kill switch.
  *
- * That distinction is worth a field rather than a comment, because it is the one
- * that will matter the day Relay is deployed: `dataPlane` on the payload reports
- * what `resolveRelayDataPlane()` says, so "no data because nothing is deployed"
- * and "deployed, and STILL not reporting a first token" are different readings of
- * the same `pending`. The second is a bug in the data plane; the first is a
- * Tuesday.
+ * That distinction is worth fields rather than a comment. `dataPlane` reports
+ * whether the signed client is configured; `dataPlaneExecution` reports the
+ * independent kill switch. Only configured plus enabled means traffic can flow,
+ * so a fully populated but deliberately disabled deployment is never described
+ * as operational.
  *
- * Both discriminators are DERIVED — `rowsCarryingValue` is a `count()` over the
- * column and `dataPlane` is read from the environment resolver — so neither arm is
- * a hardcoded state, and both stop being pending by themselves.
+ * All discriminators are DERIVED — `rowsCarryingValue` is a `count()` over the
+ * column and both data-plane fields are read from their environment resolvers —
+ * so no arm is a hardcoded state.
  *
  * ## Which table answers which question, and why
  *
@@ -72,19 +71,6 @@
  * that measures Oxy rather than somebody else, and conflating them would destroy
  * it.
  *
- * ## The provider dimension is deliberately absent
- *
- * No metric here is broken down by serving provider, and that is not an
- * omission of convenience. The edge writes `route.provider` — the provider it
- * ADMITTED — at every telemetry, receipt and rollup site, and never reads
- * `completion.usage.servingProvider`, the provider the data plane REPORTS. A
- * same-model failover would therefore be recorded against the original provider,
- * so a per-provider error rate built here would be confidently wrong for exactly
- * the traffic it exists to explain. A follow-up fixes the write side; until then
- * this surface declines to publish the dimension rather than publish it
- * misattributed. `inferenceReporting.service.ts` still groups the customer's own
- * usage by provider, and inherits the same gap.
- *
  * ## Staff only, and money-free
  *
  * Mounted behind `requireStaff` on `routes/inferenceAdmin.ts`. Request counts per
@@ -101,7 +87,8 @@
 import { sql } from 'drizzle-orm';
 import { executeRows } from '@oxyhq/db';
 import { getDb } from '../config/postgres';
-import { resolveRelayDataPlane } from '../config/relayDataPlane';
+import { resolveKaanaDataPlane } from '../config/kaanaDataPlane';
+import { resolveKaanaExecution } from '../config/rolloutFlags';
 import {
   billingReconciliationDiscrepancies,
   billingReconciliationRuns,
@@ -295,8 +282,8 @@ export interface ReserveFailureMetric {
  * **What these rows are is narrower than "awaiting real figures".** They are
  * requests the data plane reported nothing for, settled at ZERO with the refund
  * reason `usage_unavailable`, so the customer was not charged and Oxy absorbed the
- * upstream cost. Nothing arrives later to reconcile them against today — there is
- * no ingestion path for a provider's retrospective usage — so the honest reading
+ * upstream cost. Nothing arrives later to reconcile them — there is no ingestion
+ * path for a provider's retrospective usage — so the honest reading
  * of a rising number is "the data plane is losing usage reports", not "a backlog is
  * building".
  *
@@ -347,14 +334,14 @@ export type ReconciliationDriftMetric =
 
 /**
  * Whether this deployment has a data plane at all, from
- * `resolveRelayDataPlane()`.
+ * `resolveKaanaDataPlane()`.
  *
  * On the payload because it is what makes a `pending` metric readable: with
  * `absent`, no request can ever have streamed and no route can have switched, so
  * `timeToFirstTokenMs` and `fallback` are pending for a reason nobody needs to
- * investigate. With `configured`, the same `pending` means the data plane is not
- * reporting what it should — which is a bug, and one that would otherwise look
- * identical.
+ * investigate. Only `configured` together with enabled execution makes the same
+ * `pending` an expected data-plane reporting bug; configuration with execution
+ * disabled is deliberately inert.
  *
  * `unreadable` is the third state the resolver has: the variables are set and
  * malformed. It is reported rather than folded into `absent` because a deployment
@@ -366,8 +353,13 @@ export type DataPlanePresence = 'configured' | 'absent' | 'unreadable';
 export interface InferenceOperationalMetrics {
   readonly schemaVersion: 1;
   readonly window: MetricsWindow;
-  /** What `resolveRelayDataPlane()` says — see {@link DataPlanePresence}. */
+  /** What `resolveKaanaDataPlane()` says — see {@link DataPlanePresence}. */
   readonly dataPlane: DataPlanePresence;
+  /** Independent execution kill switch; configuration alone never means traffic can flow. */
+  readonly dataPlaneExecution: {
+    readonly enabled: boolean;
+    readonly disabledReason: 'not_configured' | 'disabled' | 'unreadable' | null;
+  };
   /**
    * Telemetry is written outside the ledger transaction, so every count and
    * distribution here can lag a settlement or miss a request whose recorder
@@ -782,10 +774,15 @@ async function readReconciliationDrift(
 export async function readInferenceOperationalMetrics(
   scope: MetricsScope
 ): Promise<InferenceOperationalMetrics> {
+  const execution = resolveKaanaExecution();
   return {
     schemaVersion: 1,
     window: scope.window,
-    dataPlane: resolveRelayDataPlane().status,
+    dataPlane: resolveKaanaDataPlane().status,
+    dataPlaneExecution: {
+      enabled: execution.status === 'enabled',
+      disabledReason: execution.status === 'disabled' ? execution.reason : null,
+    },
     consistency: 'eventually-consistent',
     requests: await readRates(scope),
     totalLatencyMs: await readEventDistribution(scope, 'latency_ms', 'no_requests_recorded'),

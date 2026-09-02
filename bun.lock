@@ -411,7 +411,7 @@
     },
     "packages/contracts": {
       "name": "@oxyhq/contracts",
-      "version": "0.37.1",
+      "version": "0.37.2",
       "dependencies": {
         "zod": "^3.25.64",
       },

@@ -504,7 +504,7 @@ export const catalogueServingProviderSummarySchema = z
  */
 export const modelCatalogueEntrySchema = z.object({
   /** See `version.ts`: this is the public catalogue response shape. */
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   modelId: modelIdSchema,
   publisher: cataloguePublisherSummarySchema,
   displayName: z.string().min(1).max(200),
@@ -522,8 +522,10 @@ export const modelCatalogueEntrySchema = z.object({
   dataPolicy: inferenceDataPolicySchema,
   /** Absent for routes a customer cannot buy per-unit (BYOK-only, internal). */
   pricing: priceSnapshotSchema.optional(),
-  availabilityScope: availabilityScopeSchema,
-  commercialPermission: commercialPermissionSchema,
+  /** Present only when every visible deployment shares one scope. */
+  availabilityScope: availabilityScopeSchema.optional(),
+  /** Present only when every visible deployment shares one permission basis. */
+  commercialPermission: commercialPermissionSchema.optional(),
   deprecation: modelDeprecationSchema,
   evaluations: z.array(modelEvaluationResultSchema).default([]),
   safety: modelSafetyMetadataSchema.optional(),

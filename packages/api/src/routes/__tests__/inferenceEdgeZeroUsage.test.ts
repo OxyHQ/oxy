@@ -70,10 +70,14 @@ import { usageReceipts } from '../../db/schema/usageReceipts';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
-import type { RelayClient, RelayCompletion } from '../../services/relayClient';
+import type { KaanaClient, KaanaCompletion } from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
+import {
+  createNeutralRoutingPolicy,
+  insertValidRoutingScorecard,
+} from './kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -94,14 +98,14 @@ function json(response: RawResponse): Record<string, unknown> {
 
 /** A server per test, so each can be given its own data plane. */
 async function withServer(
-  relayClient: RelayClient,
+  kaanaClient: KaanaClient,
   run: (
     request: (path: string, body: unknown, headers: Record<string, string>) => Promise<RawResponse>
   ) => Promise<void>
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
-  app.use('/v1', createInferenceEdgeRouter({ relayClient }));
+  app.use('/v1', createInferenceEdgeRouter({ kaanaClient }));
 
   const server = await new Promise<http.Server>((resolve) => {
     const created = app.listen(0, '127.0.0.1', () => resolve(created));
@@ -228,6 +232,7 @@ async function makeFixture(): Promise<Fixture> {
   const publisherSlug = `pub${tag}`;
   const modelSlug = `model-${tag}`;
   const providerSlug = `prov${tag}`;
+  const kaanaDeploymentId = `kaana-zero-${tag}`;
   const revision = '2026-01-01';
 
   await db
@@ -285,13 +290,17 @@ async function makeFixture(): Promise<Fixture> {
     .returning({ id: priceVersions.id });
 
   await db.insert(priceVersionUnitPrices).values([
+    { priceVersionId: priceVersion.id, unit: 'requests', amount: '0.000000000000', per: 1 },
     { priceVersionId: priceVersion.id, unit: 'input_tokens', amount: '3.000000000000', per: 1_000_000 },
+    { priceVersionId: priceVersion.id, unit: 'cached_input_tokens', amount: '3.000000000000', per: 1_000_000 },
     { priceVersionId: priceVersion.id, unit: 'output_tokens', amount: '15.000000000000', per: 1_000_000 },
+    { priceVersionId: priceVersion.id, unit: 'reasoning_tokens', amount: '15.000000000000', per: 1_000_000 },
   ]);
 
   await db.insert(inferenceDeployments).values({
     modelRevisionId: revisionRow.id,
     providerSlug,
+    internalRouteId: kaanaDeploymentId,
     regions: ['us-west-2'],
     retainsPayloads: false,
     retentionDays: 0,
@@ -305,6 +314,15 @@ async function makeFixture(): Promise<Fixture> {
     legalReviewEvidenceRef: `contract-register/${tag}`,
     permissionState: 'approved',
     priceVersionId: priceVersion.id,
+  });
+  await insertValidRoutingScorecard({
+    deploymentId: kaanaDeploymentId,
+    priceVersionId: priceVersion.id,
+    changedByUserId: account.id,
+  });
+  await createNeutralRoutingPolicy({
+    accountId: account.id,
+    applicationId: application.id,
   });
 
   await provisionBillingProfile({ accountId: account.id });
@@ -329,31 +347,35 @@ async function makeFixture(): Promise<Fixture> {
  *
  * `units` is passed through verbatim, INCLUDING an empty array, because the shape
  * under test is one the wire schema admits and this file must be able to produce
- * it. TESTS ONLY — `services/relayClient.ts` has no production implementation.
+ * it. TESTS ONLY — `services/kaanaClient.ts` has no production implementation.
  */
-function relayReporting(
+function kaanaReporting(
   units: readonly { unit: 'input_tokens' | 'output_tokens'; quantity: number }[],
   provider: string,
   seen: InferenceRequest[]
-): RelayClient {
+): KaanaClient {
   return {
-    execute: async (envelope): Promise<RelayCompletion> => {
+    execute: async (envelope): Promise<KaanaCompletion> => {
       seen.push(envelope);
+      const servedRoute = envelope.authorizedRoutes.find((route) => route.provider === provider);
+      if (servedRoute === undefined) {
+        throw new Error('fixture selected a route outside the exact authorization list');
+      }
       const now = new Date().toISOString();
       return {
         generationId: `gen-${randomUUID()}`,
         output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
         finishReason: 'stop',
         usage: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           requestId: envelope.attribution.requestId,
           attribution: envelope.attribution,
           outcome: 'completed',
           units: [...units],
           usageSource: 'provider_reported',
-          resolvedModelReference:
-            envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown',
+          resolvedModelReference: servedRoute.modelReference,
           servingProvider: provider,
+          deploymentId: servedRoute.deploymentId,
           routeSwitches: 0,
           startedAt: now,
           completedAt: now,
@@ -426,7 +448,7 @@ describe('a completed report that metered nothing', () => {
     const before = await balanceOf(fixture.accountId);
     const seen: InferenceRequest[] = [];
 
-    await withServer(relayReporting([], fixture.provider, seen), async (request) => {
+    await withServer(kaanaReporting([], fixture.provider, seen), async (request) => {
       const response = await request('/v1/responses', body(fixture), bearer(fixture.token));
 
       expect(response.status).not.toBe(200);
@@ -466,7 +488,7 @@ describe('a completed report that metered nothing', () => {
     // The residual the wire schema does not close: this validates upstream and
     // still means nothing was metered.
     await withServer(
-      relayReporting(
+      kaanaReporting(
         [
           { unit: 'input_tokens', quantity: 0 },
           { unit: 'output_tokens', quantity: 0 },
@@ -510,7 +532,7 @@ describe('a completed report that metered nothing', () => {
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      relayReporting([{ unit: 'input_tokens', quantity: 0 }], fixture.provider, seen),
+      kaanaReporting([{ unit: 'input_tokens', quantity: 0 }], fixture.provider, seen),
       async (request) => {
         await request('/v1/responses', body(fixture), bearer(fixture.token));
       }
@@ -535,7 +557,7 @@ describe('a completed report that metered nothing', () => {
     const seen: InferenceRequest[] = [];
 
     await withServer(
-      relayReporting([{ unit: 'input_tokens', quantity: 1 }], fixture.provider, seen),
+      kaanaReporting([{ unit: 'input_tokens', quantity: 1 }], fixture.provider, seen),
       async (request) => {
         const response = await request('/v1/responses', body(fixture), bearer(fixture.token));
         // The same fixture, the same path, one non-zero unit — served. Without

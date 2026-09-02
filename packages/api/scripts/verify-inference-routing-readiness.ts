@@ -43,12 +43,12 @@ async function main(): Promise<void> {
         .map((route) => route.deploymentId ?? '<unmapped>')
         .join(', ');
       process.stderr.write(
-        `Kaana routing readiness FAILED: ${assessment.routes.length} selectable route(s) lack an exact deploymentId, a complete score, the current priceVersionId, or live non-future evidence. First identities: ${identities}\n`
+        `Kaana routing readiness FAILED: ${assessment.routes.length} selectable route(s) lack an exact deploymentId, an explicit requests unit price, a complete score, the current priceVersionId, or live non-future evidence. First identities: ${identities}\n`
       );
       process.exitCode = 1;
     } else {
       process.stdout.write(
-        'Kaana routing readiness passed: every selectable route has an exact deploymentId, all four explicit scores, the current priceVersionId and evidence covering INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS. Run this command periodically and alert on any failure before evidence expiry.\n'
+        'Kaana routing readiness passed: every selectable route has an exact deploymentId, an explicit requests unit price, all four explicit scores, the current priceVersionId and evidence covering INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS. Run this command periodically and alert on any failure before evidence expiry.\n'
       );
     }
   } finally {

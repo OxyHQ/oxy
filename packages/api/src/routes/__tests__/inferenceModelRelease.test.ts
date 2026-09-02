@@ -334,7 +334,7 @@ async function publishRevision(modelId: string, revisionLabel: string): Promise<
     legalReviewedAt: new Date(),
     legalReviewEvidenceRef: `contract-register/${suffix()}`,
     permissionState: 'approved',
-    internalRouteId: `relay-route-${suffix()}`,
+    internalRouteId: `kaana-route-${suffix()}`,
   });
 }
 

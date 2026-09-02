@@ -10,6 +10,7 @@ function completeRow(overrides: Partial<InferenceRoutingReadinessRow> = {}) {
   return {
     deploymentId: 'dep_ready',
     currentPriceVersionId: 'price_current',
+    requestUnitPriceVersionId: 'price_current',
     scorePriceVersionId: 'price_current',
     price: 100,
     latency: 100,
@@ -48,6 +49,7 @@ describe('inference routing readiness decision', () => {
     ['an unmapped row', { deploymentId: null }],
     ['a null score', { balanced: null }],
     ['a stale price version', { scorePriceVersionId: 'price_old' }],
+    ['a missing request unit price', { requestUnitPriceVersionId: null }],
     [
       'expired latency evidence',
       { latencyValidUntil: new Date('2026-09-02T01:59:59.999Z') },
