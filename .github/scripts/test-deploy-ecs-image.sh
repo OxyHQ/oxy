@@ -373,8 +373,12 @@ aws() {
       elif jq -e '.containerOverrides[0].command | index("packages/api/scripts/verify-inference-routing-readiness.ts") != null' \
         <<<"$overrides" >/dev/null; then
         printf 'readiness\n' >>"$DEPLOY_TEST_LOG"
-      else
+      elif jq -e '.containerOverrides[0].command == ["reconcile"]' \
+        <<<"$overrides" >/dev/null; then
         printf 'reconcile\n' >>"$DEPLOY_TEST_LOG"
+      else
+        jq -r '.containerOverrides[0].command | join(" ")' <<<"$overrides" \
+          >>"$DEPLOY_TEST_LOG"
       fi
       printf '%s\n' '{
         "failures": [],
@@ -423,6 +427,7 @@ run_release() {
   local pre_deploy_command="${10:-}"
   local task_environment_overrides="${11:-}"
   local task_remove_names="${12:-}"
+  local post_deploy_tasks_json="${13:-}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -474,10 +479,14 @@ run_release() {
     RUN_MIGRATIONS="$run_migrations"
     POST_DEPLOY_SMOKE_SCRIPT="$smoke_script"
     PRE_DEPLOY_TASK_COMMAND_JSON="$pre_deploy_command"
-    POST_DEPLOY_TASK_COMMAND_JSON='["reconcile"]'
     TASK_ENV_OVERRIDES_JSON="$task_environment_overrides"
     TASK_REMOVE_NAMES_JSON="$task_remove_names"
   )
+  if [[ -n "$post_deploy_tasks_json" ]]; then
+    release_environment+=(POST_DEPLOY_TASKS_JSON="$post_deploy_tasks_json")
+  else
+    release_environment+=(POST_DEPLOY_TASK_COMMAND_JSON='["reconcile"]')
+  fi
   if [[ "$inject_internal_metrics" == "true" ]]; then
     release_environment+=(
       INTERNAL_METRICS_PARAMETER="$DEPLOY_TEST_METRICS_PARAMETER"
@@ -513,6 +522,20 @@ printf '%s\n' \
 diff -u \
   "$test_directory/success/expected.log" \
   "$test_directory/success/aws.log"
+
+run_release \
+  ordered-post-deploy-tasks \
+  true false false 0 false 1 healthy 0 '' '' '' \
+  '[{"label":"Post-deploy migration","command":["post-migrate"]},{"label":"Inbox catalog registration","command":["register-catalog"]}]'
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  post-migrate \
+  register-catalog \
+  >"$test_directory/ordered-post-deploy-tasks/expected.log"
+diff -u \
+  "$test_directory/ordered-post-deploy-tasks/expected.log" \
+  "$test_directory/ordered-post-deploy-tasks/aws.log"
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a
