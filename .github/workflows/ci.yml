@@ -26,8 +26,8 @@ jobs:
     name: API Tests
     runs-on: ubuntu-latest
     # A BACKSTOP, not a budget: the two steps that can actually run long carry
-    # their own caps (16m for the ffmpeg install, 30m for the suite), and this
-    # is their sum plus the ~5m the fixed steps cost at their observed maxima
+    # their own caps (16m for the ffmpeg install, 45m for the serial shards),
+    # and this is their sum plus the ~5m the fixed steps cost at their observed maxima
     # (containers 35s, checkout/bun/node/node-gyp 19s, install 30s, guards 10s,
     # build 50s, lint 20s, coverage upload 8s). So a step cap always fires
     # first, and this can only catch a runner wedged OUTSIDE a step.
@@ -42,7 +42,7 @@ jobs:
     # Measured over 118 recent runs (109 passing): p50 20m57s, p95 23m44s, max
     # on a passing run 26m29s, sd 2m23s. The old 30m cap sat 1.13x that max, so
     # the ffmpeg step's heavy tail alone was enough to blow it.
-    timeout-minutes: 51
+    timeout-minutes: 66
 
     services:
       # Postgres target of the Mongo->Postgres port. Mirrors
