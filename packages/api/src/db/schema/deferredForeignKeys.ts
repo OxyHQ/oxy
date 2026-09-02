@@ -36,6 +36,7 @@ import { authCodes } from './authCodes';
 import { authSessions } from './authSessions';
 import { billingSubscriptions } from './billingSubscriptions';
 import { billingTransactions } from './billingTransactions';
+import { capabilityExecutionAuthorizations } from './agency';
 import { followEvents } from './followEvents';
 import { bookmarks } from './bookmarks';
 import { conductStrikes } from './conductStrikes';
@@ -94,6 +95,27 @@ export interface IdColumnWithoutForeignKey {
 export const DEFERRED_FOREIGN_KEYS: readonly DeferredForeignKey[] = [];
 
 export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[] = [
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.runId,
+    reason:
+      "The Alia runtime's run identifier. Runs live in Alia's database; Oxy " +
+      'stores the value only to bind authority and audit across service boundaries.',
+  },
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.stepId,
+    reason:
+      "The Alia runtime's optional step identifier. The step belongs to Alia's " +
+      'execution graph and has no row in the Oxy database to reference.',
+  },
+  {
+    table: capabilityExecutionAuthorizations,
+    column: capabilityExecutionAuthorizations.automationId,
+    reason:
+      "The Alia runtime's automation identifier. Automation definitions remain " +
+      'owned by Alia; Oxy keeps this opaque correlation value for revocation and audit.',
+  },
   {
     table: followEvents,
     column: followEvents.relationshipId,
