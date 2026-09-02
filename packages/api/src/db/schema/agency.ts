@@ -123,7 +123,8 @@ export const capabilityExecutionAuthorizations = pgTable(
     resourceType: text().notNull(),
     resourceKey: text().notNull(),
     tool: text().notNull(),
-    runId: text().notNull(),
+    /** Direct requests are bound here; automations bind a fresh run when a ticket is issued. */
+    runId: text(),
     stepId: text(),
     automationId: text(),
     maximumAutonomy: text({ enum: AUTONOMY_LEVELS }).$type<AutonomyLevel>().notNull(),
@@ -137,6 +138,11 @@ export const capabilityExecutionAuthorizations = pgTable(
     check('capability_execution_authorizations_kind_check', sql`${t.kind} in ('direct_request', 'automation')`),
     check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} = 'agent' and ${t.actorAccountId} is not null)`),
     check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),
+    check(
+      'capability_execution_authorizations_run_scope_check',
+      sql`(${t.kind} = 'direct_request' and ${t.runId} is not null)
+        or (${t.kind} = 'automation')`,
+    ),
     check('capability_execution_authorizations_autonomy_check', sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`),
     check(
       'capability_execution_authorizations_limits_check',

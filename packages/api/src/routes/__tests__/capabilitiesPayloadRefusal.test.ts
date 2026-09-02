@@ -108,6 +108,46 @@ it('rejects list-shaped execution limits with 400 and no database access', async
   expect(getDb).not.toHaveBeenCalled();
 });
 
+it('rejects a direct execution authorization without its exact run', async () => {
+  const response = await request(app).post('/capabilities/execution-authorizations').send({
+    kind: 'direct_request',
+    ownerAccountId: 'owner-account',
+    coordinatorApplicationId: 'alia-app',
+    coordinatorCredentialId: 'alia-credential',
+    actor: { type: 'alia', ownerAccountId: 'owner-account' },
+    resource,
+    tool: 'searchEmails',
+    maximumAutonomy: 'read_only',
+    limits: [],
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  });
+
+  expect(response.status).toBe(400);
+  expect(response.body.error).toBe('invalid_execution_authorization');
+  expect(getDb).not.toHaveBeenCalled();
+});
+
+it('rejects a durable automation authorization pre-bound to a future run', async () => {
+  const response = await request(app).post('/capabilities/execution-authorizations').send({
+    kind: 'automation',
+    ownerAccountId: 'owner-account',
+    coordinatorApplicationId: 'alia-app',
+    coordinatorCredentialId: 'alia-credential',
+    actor: { type: 'agent', accountId: 'agent-account' },
+    resource,
+    tool: 'searchEmails',
+    runId: 'future-run',
+    automationId: 'automation-1',
+    maximumAutonomy: 'autonomous',
+    limits: [],
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+  });
+
+  expect(response.status).toBe(400);
+  expect(response.body.error).toBe('invalid_execution_authorization');
+  expect(getDb).not.toHaveBeenCalled();
+});
+
 it('rejects free-form audit messages with 400 and no persistence edge', async () => {
   const response = await request(app).post('/capabilities/audit').send({
     ticket: 'capability-ticket',
