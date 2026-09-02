@@ -120,8 +120,9 @@ meant — see [catalogue.md](./catalogue.md). A real `<publisher>/<model>` where
 model was meant; a clearly labelled routing profile where a preset was meant.
 
 **What you need to do:** stop sending them. There is no drop-in replacement id to
-give you, because the catalogue is empty — this documentation deliberately
-invents none rather than printing a plausible-looking model id you cannot call.
+give you because no model bootstrap is merged and a caller's visible catalogue
+is live, audience-scoped state. This documentation deliberately invents none
+rather than printing a plausible-looking model id you cannot call.
 
 ### Where they still appear
 

@@ -175,8 +175,11 @@ a route that retains nothing cannot train on customer data. A route claiming
 either is reporting one of its own fields wrongly, and a customer constraint
 would then be enforced against a value that is not true.
 
-**The catalogue is empty**, so there is no route whose data policy you can read
-today. When there is, `oxy.inference().getModel(id)` returns it.
+Merged source contains no model bootstrap; the last recorded production readback
+was empty on 2026-08-17 and draft #1147 proposes the first exact routes. For any
+entry visible to the caller now, `oxy.inference().getModel(id)` returns its
+conservative policy projection. Query the live audience rather than assuming
+the dated empty state still holds.
 
 ---
 

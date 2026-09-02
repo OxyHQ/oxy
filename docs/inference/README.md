@@ -42,10 +42,10 @@ claims, so use the live cutover gates before calling the end-to-end path ready.
 | The `oxy_sk_*` bearer middleware | `packages/api/src/middleware/machineCredential.ts` | Mounted on the edge with its per-credential and per-application limiters, and **the lane is shut by default** (`INFERENCE_MACHINE_CREDENTIAL_AUTH`) |
 | Native service tokens (`clientId + clientSecret` → 1h JWT) | `POST /auth/service-token` | Yes |
 | The `inference:*` scope family | `packages/api/src/utils/applicationScopes.ts` | Yes — see the caveat on `inference:models:read` below |
-| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. **The catalogue is EMPTY**, and is withheld from public viewers until published (`INFERENCE_CATALOGUE_AUDIENCE`) |
+| Model catalogue tables + read API | `packages/api/src/routes/inferenceCatalogue.ts` | Yes — `/models` and `/v1/models`, same router. Merged source has no model bootstrap; draft #1147 proposes the first exact routes. Public visibility remains gated by `INFERENCE_CATALOGUE_AUDIENCE` |
 | Exact financial ledger: reserve → settle → refund | `packages/api/src/services/inferenceLedger.service.ts` | Yes — the edge reserves before forwarding and settles on every path out, **once charging is authorized**. Unset, it shadow meters: prices the request, records the amount, writes no financial record |
 | Routing policy control plane | `packages/api/src/routes/inferenceRoutingPolicies.ts` | Yes — stored, validated, versioned, pinned onto every receipt, filtered by the thirteen qualification controls and ranked from reviewed scorecards using the exact deployment identity contract |
-| BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Merged metadata reads exist; create and rotate still refuse `503`. Kaana PostgreSQL/KMS custody and opaque-handle Oxy control are draft cuts, not live availability |
+| BYOK provider connections | `packages/api/src/routes/inferenceProviderConnections.ts` | Merged metadata reads exist; create and rotate still refuse `503`. Kaana PostgreSQL/KMS custody is merged in Kaana source, but opaque-handle Oxy control and production gates remain pending |
 | Usage, spend, balance, charges, budgets | `packages/api/src/routes/inferenceReporting.ts` | Yes |
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
 | Inference usage telemetry + daily rollups | `packages/api/src/db/schema/inferenceUsageEvents.ts` | Yes — written by the edge, read by the reporting API |
@@ -54,12 +54,12 @@ claims, so use the live cutover gates before calling the end-to-end path ready.
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
-**The catalogue itself is EMPTY.** The tables and the read API exist; the
-contents do not. `packages/api/scripts/seed-inference-catalogue.ts` seeds five
-publisher slugs and **no models**, because the repository does not record which
-weights Oxy can serve, under which contract, at what price. `GET /models`
-answers `[]`, and that is the correct answer, not a failure. Nothing in these
-docs invents a model id to make an example look complete.
+**Merged source publishes no models by itself.** The tables and read API exist;
+the publisher seed writes five publisher slugs and no model rows. The last
+production readback recorded in the responsibility matrix (2026-08-17) was
+empty, while draft #1147 proposes the first exact routes. `GET /models` returning
+`[]` is valid for an empty or withheld audience, not proof of current production
+contents. Nothing here invents a model id to make an example look complete.
 
 **`inference:models:read` is checked nowhere.** The catalogue is audience-scoped
 by application type, not by scope: an anonymous caller, a user bearer and an
@@ -88,10 +88,10 @@ as an infrastructure provider and never fabricates a completion.
 
 ### The catalogue's contents — workstream 5
 
-Zero models. Until a route has a reviewed commercial permission it is not
-publicly exposed, and default-deny is the starting state. So `GET /models`
-answers `[]`, `getModel(...)` throws for every id, and the edge refuses any
-model you name with `model_not_found`.
+No model bootstrap is merged; draft #1147 is the proposed first publication.
+Until a route has reviewed commercial permission it is not publicly exposed,
+and default-deny is the starting state. Re-check the live audience rather than
+turning the dated empty readback into a standing production claim.
 
 ### Route selection — workstream 6
 
@@ -130,8 +130,8 @@ list.
 
 The accepted architecture puts every provider credential, including BYOK, in
 Kaana PostgreSQL encrypted by KMS. Oxy keeps only metadata plus an opaque handle
-and revision. Kaana #48 and the coordinated Oxy cut implement that boundary in
-draft; they are not merged or production-verified. The merged path therefore
+and revision. Kaana #48 implements its half in merged source; the coordinated
+Oxy cut is still draft and the combined path is not production-verified. The merged Oxy path therefore
 still refuses create and rotate with `503 provider_secret_store_unavailable`
 before reading the credential. [byok.md](./byok.md) separates the target
 contract, current refusal and live rollout gates.

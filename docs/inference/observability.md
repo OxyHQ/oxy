@@ -106,12 +106,13 @@ metric surface that is correctly zero. The edge now fills them:
 - **`time_to_first_token_ms`** — forwarded from the data plane's usage report
   when it reports one, and left NULL when it does not. Never imputed: the first
   token is produced upstream, and a fabricated number here would enter every
-  dashboard as a fact. It is NULL on every row today because **no deployment
-  configures a data plane**, not because the edge cannot stream — it can, on both
-  public dialects, since the signed Kaana hop landed.
+  dashboard as a fact. The 2026-08-17 production readback recorded by this
+  workstream found it NULL; verify live rows before repeating that claim. The
+  edge can stream on both public dialects when the signed Kaana path is
+  configured.
 - **`route_switches`** — forwarded from the same report, and surfaced as a
-  `route_switch` frame on both dialects. This is the fallback metric; it is `0` on
-  every row today for the same reason.
+  `route_switch` frame on both dialects. This is the fallback metric; a zero means
+  no switch was recorded for that row, not that production cannot fail over.
 
 ### What each named metric is derivable from, today
 

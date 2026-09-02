@@ -12,16 +12,18 @@ handle and its exact revision. See
 
 ## Status: architecture accepted, rollout pending
 
-[Kaana #48](https://github.com/OxyHQ/Kaana/pull/48) and the coordinated Oxy cut
-implement this boundary in draft source. They are not merged, published or
+[Kaana #48](https://github.com/OxyHQ/Kaana/pull/48) is merged and implements the
+custody/control half in Kaana source. The coordinated Oxy opaque-handle cut is
+still draft and neither the combined path nor its infrastructure is
 production-verified. The currently merged Oxy path still refuses create and
 rotate with `503 provider_secret_store_unavailable`; that historical refusal is
 safer than reading a credential into a process with no approved custody path and
 is recorded by [ADR 0013](../adr/0013-byok-secret-custody.md).
 
-Do not infer availability from either draft. A live BYOK request remains blocked
-until the contracts, migrations, database roles, inverse KMS permissions,
-authorized-route binding and end-to-end settlement gate all pass.
+Do not infer availability from the Kaana merge or the Oxy draft. A live BYOK
+request remains blocked until the contracts, migrations, database roles,
+inverse KMS permissions, authorized-route binding and end-to-end settlement
+gate all pass.
 
 ## One owner for each part
 

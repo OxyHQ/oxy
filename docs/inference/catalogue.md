@@ -6,14 +6,16 @@ developer-facing reading of
 [ADR 0008](../adr/0008-catalogue-concept-separation.md), which is the decision
 record.
 
-**The catalogue is empty today.** The tables and the read API exist; what they
-hold does not. `packages/api/scripts/seed-inference-catalogue.ts` seeds five
-publisher slugs and **no models**, because the repository does not record which
-weights Oxy can actually serve, under which contract, at what price. Every read
-returns nothing.
+**Merged source publishes no model rows by itself.** The tables and read API
+exist, while `packages/api/scripts/seed-inference-catalogue.ts` seeds five
+publisher slugs and no models. The last production readback recorded here
+(2026-08-17) was empty; that is dated evidence, not a permanent assertion.
+Draft [#1147](https://github.com/OxyHQ/oxy/pull/1147) proposes the first exact
+routes and profiles but is not merged. Query the live audience before claiming
+that the catalogue is empty or available.
 
-There are therefore no example model ids on this page that you can call. The
-ones below illustrate the grammar and are not claims that Oxy serves them.
+No example model id on this page is a callability claim. The values below
+illustrate grammar; discover actual entries from the live audience-scoped read.
 
 ---
 
@@ -74,13 +76,12 @@ Two features, two switches, and conflating them is what the platform's
 A request that named a concrete revision is never subject to cross-model
 fallback, whatever the policy says.
 
-**Neither is executed.** A switch between routes happens mid-request, and that
-is routing EXECUTION, which belongs to the data plane — and there is no data
-plane. What does exist is the authorisation: a cross-model substitution is
-refused unless the destination is named in the policy version's own
-authorisation rows, so the first implementation cannot quietly collapse the
-distinction. [routing.md](./routing.md#fallback-two-features-two-switches) is the
-detail.
+Both mechanisms exist in merged Oxy and Kaana source. Runtime execution walks
+only the signed exact-ID order; a cross-model substitution is refused unless the
+destination is named in the policy version's own authorization rows. That source
+fact is not a production canary: verify the live audience, inventory, signed
+request and customer-visible route switch before calling failover deployed.
+[routing.md](./routing.md#fallback-two-features-two-switches) has the detail.
 
 ---
 
@@ -113,18 +114,19 @@ const one: ModelCatalogueEntry = await inference.getModel('acme/some-model');
 const profiles: RoutingProfile[] = await inference.listRoutingProfiles();
 ```
 
-Run that today and `models` is `[]` and `getModel('acme/some-model')` throws a
-404 — `acme/some-model` is written there to show the id GRAMMAR, not because Oxy
-serves it. Nothing is wrong with your credential. The client is
-[sdk.md](./sdk.md).
+`acme/some-model` is written there to show the id GRAMMAR, not because Oxy serves
+it, and `getModel('acme/some-model')` therefore throws 404. `models` is `[]`
+whenever the caller's live audience has no published entries; that answer alone
+does not distinguish an empty catalogue from a deliberately withheld audience.
+The client is [sdk.md](./sdk.md).
 
 Types come from `@oxyhq/contracts` directly — `@oxyhq/services` does not
 re-export them, and neither does `@oxyhq/core`.
 
 Three behaviours to code against:
 
-- **`[]` is a normal answer**, and is the only answer today. Render "no models
-  available"; do not treat it as an error.
+- **`[]` is a normal answer.** Render "no models available"; do not treat it as
+  a retryable error or infer production rollout state from it.
 - **`getModel` takes a model id, not a model reference.** A pinned
   `<publisher>/<model>@<revision>` is rejected client-side rather than sent,
   because the catalogue is keyed on models and a pinned reference would 404

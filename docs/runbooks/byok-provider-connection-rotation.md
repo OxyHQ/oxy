@@ -8,10 +8,10 @@ stores only the opaque `credentialHandle` and exact revision described by
 ## Current status
 
 This is the operational contract for the coordinated rollout, not a command to
-run today. [Kaana #48](https://github.com/OxyHQ/Kaana/pull/48) and the Oxy custody
-cut are still draft and have not established a published contract or live
-service. The merged Oxy path continues to refuse create/rotate with
-`503 provider_secret_store_unavailable`.
+run today. [Kaana #48](https://github.com/OxyHQ/Kaana/pull/48) is merged in
+Kaana source; the Oxy custody cut is still draft, and the combined path has not
+established a live service. The merged Oxy path continues to refuse
+create/rotate with `503 provider_secret_store_unavailable`.
 
 Do not call Kaana's internal mutation endpoint manually, edit either database,
 invent a `secretRef`, or put the credential in SSM/environment while the cut is

@@ -70,9 +70,9 @@ life.
 | `getGeneration(id)` | `GET /v1/generations/:id` |
 
 `stream(request, options?)` is implemented in draft
-[#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the draft Kaana
-runtime cut. It sends `stream: true`, propagates cancellation and validates the
-versioned SSE event union. It is not merged, published or production-verified,
+[#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
+runtime v2 source. It sends `stream: true`, propagates cancellation and
+validates the versioned SSE event union. It is not merged, published or production-verified,
 so check the installed `@oxyhq/core` package before using that method. Embeddings
 and images remain outside this client. See [streaming.md](./streaming.md).
 
@@ -106,9 +106,10 @@ contains DNS, TLS, both network legs and your own parse. Report them side by
 side: this one has no network in it, and yours cannot be attributed to the model.
 Their difference is not a fourth measurement — neither clock took it.
 
-Nothing on this page names a model Oxy serves, because
-[the catalogue is empty](./catalogue.md). `listModels()` answers `[]`, and that
-is a normal answer to render rather than an error to retry.
+Nothing on this page names a model Oxy serves because main contains no merged
+model bootstrap and these docs do not invent one. `listModels()` may answer
+`[]`; that is a normal audience-scoped result to render rather than an error to
+retry or proof of current production contents. See [catalogue.md](./catalogue.md).
 
 ### Errors
 

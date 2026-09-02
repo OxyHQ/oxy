@@ -84,9 +84,10 @@ Kaana executes model requests across providers. Alia owns agents,
 conversations, memory, tools and approvals. Provider keys belong only to
 Kaana's KMS-encrypted PostgreSQL store, including customer BYOK credentials;
 they are never app, Oxy or Alia environment variables. Oxy retains only BYOK
-metadata plus an opaque Kaana handle and revision. The Kaana and Oxy BYOK cuts
-are still drafts, so this custody contract is not a production-availability
-claim. Oxy selects an exact `deploymentId` from complete, current routing
+metadata plus an opaque Kaana handle and revision. Kaana's custody source is
+merged, while the coordinated Oxy BYOK cut and all production gates remain
+pending; this contract is not a production-availability claim. Oxy selects an
+exact `deploymentId` from complete, current routing
 evidence: explicit profile priority first, score descending second, and exact
 ID UTF-16 code units only as a deterministic tie-break. Names and database row
 order never select a route. Kaana emits `requests: 1` once per attempted

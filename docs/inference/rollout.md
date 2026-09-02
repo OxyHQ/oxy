@@ -2,15 +2,15 @@
 
 Workstream 16 of [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
 
-**Nothing in this document describes something that has happened.** The
-mechanisms below exist and are tested; every stage they can express is still
-ahead of us, and the flags that would express one are unset in every deployment.
-Read [README.md](./README.md) for what is built, and
+**This document defines stages; it does not assert which one production is in.**
+The mechanisms below exist and are tested. Determine the current stage from the
+live staff readout and task configuration, not from an older empty/unset
+observation. Read [README.md](./README.md) for what is built, and
 [billing.md](./billing.md) for the ledger this rollout is careful about.
 
 ---
 
-## The five flags
+## The six flags
 
 They live in one module — `packages/api/src/config/rolloutFlags.ts` — and they
 are readable in one call: `GET /inference/admin/rollout` (staff only) returns
@@ -20,11 +20,12 @@ every flag, its resolved state, and the reason for that state.
 |---|---|---|---|
 | `INFERENCE_EDGE_AUDIENCE` | `closed` · `internal` · `first_party` · `allowlist:<appId>,…` · `public` | **closed — nobody** | Who may reach `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id` |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `enabled` · `disabled` | **disabled** | Whether an `oxy_sk_…` machine credential authenticates at all |
+| `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **disabled** | Whether ambient production wiring may construct the signed Kaana client; tests may still inject an explicit client |
 | `INFERENCE_CHARGING_AUTHORIZED` | `<reason>:<YYYY-MM-DD>` | **shadow metering — nobody is charged** | Whether the edge reserves, settles and moves money |
 | `INFERENCE_CATALOGUE_AUDIENCE` | `internal` · `public` | **internal** | Whether a public viewer is served the published catalogue |
 | `INFERENCE_PRIVACY_REVIEW` | `<reviewer>:<YYYY-MM-DD>` | **no review recorded — a public audience stays closed** | Whether the privacy and security review a public launch is gated on has been recorded |
 
-None of them is a secret — each names a deployment STATE — so all five belong in
+None of them is a secret — each names a deployment STATE — so all six belong in
 the ECS task definition's plain environment and never in SSM.
 
 ### Every default is the state that does nothing
@@ -130,11 +131,11 @@ this repository, so the review is a re-check rather than a survey:
 | PII redaction for opted-in traces | No traces exist to redact. The adjacent control that DOES exist is the credential refusal in free error text (`@oxyhq/contracts`' `safeErrorTextSchema`, enforced at `utils/inferenceEdgeErrors.ts`). |
 | Deletion and export preserve legally required financial records | `DELETE /users/me` refuses a live subscription, a held reservation and a live BYOK connection, then erases everything optional and ARCHIVES rather than deletes when financial history blocks. `GET /users/me/export` carries the account's own receipts, ledger entries and holds. **Open: an archived account is not anonymised** — it keeps its username, email and display name, and that is an owner decision, not a code gap. |
 | No upstream provider key in logs, traces, metrics, errors or responses | The target boundary is structural: all provider plaintext, including BYOK, exists only inside Kaana's credential-control/inference paths and ciphertext is in Kaana PostgreSQL/KMS. Oxy stores only an opaque handle. The legacy Alia proxy is a clearly transitional product route, not alternate provider custody; its error-body refusal remains defence in depth until the live cutover retires it. |
-| Secret scanning and accidental-serialization tests | Serialization tests exist and are strong. Secret scanning in CI is a separate workstream. |
-| Rotation runbooks and break-glass | [The BYOK runbook](../runbooks/byok-provider-connection-rotation.md) records the exact opaque-handle/KMS procedure and labels it pending until both draft cuts and live gates pass. The general inference rollback remains [below](#the-rollback-plan). |
+| Secret scanning and accidental-serialization tests | Both exist: the CI secret scanner has mutation-tested signatures and vacuity floors, while serialization tests prove provider material cannot escape through common string/JSON/logger paths. |
+| Rotation runbooks and break-glass | [The BYOK runbook](../runbooks/byok-provider-connection-rotation.md) records the exact opaque-handle/KMS procedure and labels it pending until the Oxy cut and live gates pass. The general inference rollback remains [below](#the-rollback-plan). |
 | Least-privilege admin roles | Graded staff capabilities (`users.staff_capabilities`) on the highest-value writes: catalogue publication, balance adjustment, cost centres. Read-only staff surfaces stay on the plain `is_staff` flag. |
 | Rate limits and fraud controls | See [Fraud controls](#fraud-controls-and-what-is-deliberately-left-open) below. |
-| Provider-key custody | Accepted architecture, not production proof: every provider credential, including BYOK, is KMS ciphertext in Kaana PostgreSQL; Oxy stores only metadata plus an opaque handle/revision. Kaana #48 and the coordinated Oxy cut remain draft, so merged Oxy still refuses BYOK writes. |
+| Provider-key custody | Accepted architecture, not production proof: every provider credential, including BYOK, is KMS ciphertext in Kaana PostgreSQL; Oxy stores only metadata plus an opaque handle/revision. Kaana #48 is merged in Kaana source, but the coordinated Oxy cut remains draft, so merged Oxy still refuses BYOK writes. |
 
 ### Ordering
 
@@ -467,7 +468,7 @@ rest on the rollback being done carefully:
 
 ### What to check after a rollback
 
-1. `GET /inference/admin/rollout` — the resolved state of all five flags, with
+1. `GET /inference/admin/rollout` — the resolved state of all six flags, with
    the reason for each. `charging.shadowMetering: true` is the assertion that the
    flow has stopped.
 2. `inference.edge.shadow_metered` log lines appearing again, which is what

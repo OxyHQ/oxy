@@ -25,13 +25,14 @@ the validated SSE path when Kaana execution is configured. An unconfigured path
 refuses before opening a stream and keeps no charge.
 
 `OxyInferenceClient.stream()` is implemented in draft
-[#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the draft Kaana
-runtime cut. It requests `stream: true`, decodes frames incrementally against
-the shared event contract, forwards `AbortSignal`, and exposes protocol failures
-as typed errors. Neither draft source nor a green PR proves that an installed SDK
-contains the method or that a live audience can reach Kaana. Verify the published
-package and then run the production proof below; do not hand-roll a second event
-contract while the typed implementation is pending release.
+[#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
+runtime v2 source. It requests `stream: true`, decodes frames incrementally
+against the shared event contract, forwards `AbortSignal`, and exposes protocol
+failures as typed errors. The draft decoder and a green PR do not prove that an
+installed SDK contains the method or that a live audience can reach Kaana.
+Verify the published package and then run the production proof below; do not
+hand-roll a second event contract while the typed implementation is pending
+release.
 
 ### The event union exists, and is worth reading now
 
