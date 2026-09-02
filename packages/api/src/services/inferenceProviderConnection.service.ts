@@ -49,7 +49,7 @@ import {
   type ProviderConnectionStatus,
 } from '@oxyhq/contracts';
 import { uuidv7 } from '@oxyhq/db';
-import { getDb } from '../config/postgres';
+import { getDb, type Transaction } from '../config/postgres';
 import { applications } from '../db/schema/applications';
 import {
   inferenceProviderConnectionAuditEvents,
@@ -333,6 +333,20 @@ export async function getProviderConnectionRow(
     .from(inferenceProviderConnections)
     .where(eq(inferenceProviderConnections.id, connectionId))
     .limit(1);
+  return row;
+}
+
+/** Serialize lifecycle writers on one connection before deriving their transition. */
+async function lockProviderConnectionRow(
+  tx: Transaction,
+  connectionId: string,
+): Promise<InferenceProviderConnectionRow | undefined> {
+  const [row] = await tx
+    .select()
+    .from(inferenceProviderConnections)
+    .where(eq(inferenceProviderConnections.id, connectionId))
+    .limit(1)
+    .for('update');
   return row;
 }
 
@@ -840,15 +854,15 @@ async function transitionStatus(input: {
     row: InferenceProviderConnectionRow,
   ) => ProviderConnectionStatus | undefined;
 }): Promise<ProviderConnectionStatusResult> {
-  const existing = await getProviderConnectionRow(input.connectionId);
-  if (existing === undefined) return { status: 'unknown-connection' };
-  if (existing.status === 'revoked') return { status: 'revoked' };
+  return getDb().transaction(async (tx): Promise<ProviderConnectionStatusResult> => {
+    const existing = await lockProviderConnectionRow(tx, input.connectionId);
+    if (existing === undefined) return { status: 'unknown-connection' };
+    if (existing.status === 'revoked') return { status: 'revoked' };
 
-  const refusal = input.refuseWhen(existing);
-  if (refusal !== undefined) return { status: 'already', current: refusal };
+    const refusal = input.refuseWhen(existing);
+    if (refusal !== undefined) return { status: 'already', current: refusal };
 
-  const next = input.next(existing);
-  const connection = await getDb().transaction(async (tx) => {
+    const next = input.next(existing);
     const [row] = await tx
       .update(inferenceProviderConnections)
       .set({ status: next })
@@ -864,10 +878,8 @@ async function transitionStatus(input: {
       metadata: { previousStatus: existing.status, status: row.status },
     });
 
-    return toProviderConnection(row);
+    return { status: 'updated', connection: toProviderConnection(row) };
   });
-
-  return { status: 'updated', connection };
 }
 
 /** Outcomes of a revoke. */
@@ -896,22 +908,22 @@ export async function revokeProviderConnection(
   },
   control?: KaanaCredentialControl,
 ): Promise<RevokeProviderConnectionResult> {
-  const existing = await getProviderConnectionRow(input.connectionId);
-  if (existing === undefined) return { status: 'unknown-connection' };
-  if (existing.status === 'revoked') return { status: 'already-revoked' };
-  if (
-    existing.custodyState !== 'ready' ||
-    existing.credentialHandle === null ||
-    existing.credentialRevision === null
-  ) {
-    return { status: 'custody-reconcile' };
-  }
-
   const operationId = uuidv7();
-  const operationActor = providerConnectionOperationActor(input.actor);
-  const credentialHandle = existing.credentialHandle;
-  const credentialRevision = existing.credentialRevision;
   const fenced = await getDb().transaction(async (tx) => {
+    const existing = await lockProviderConnectionRow(tx, input.connectionId);
+    if (existing === undefined) return { status: 'unknown-connection' as const };
+    if (existing.status === 'revoked') return { status: 'already-revoked' as const };
+    if (
+      existing.custodyState !== 'ready' ||
+      existing.credentialHandle === null ||
+      existing.credentialRevision === null
+    ) {
+      return { status: 'custody-reconcile' as const };
+    }
+
+    const operationActor = providerConnectionOperationActor(input.actor);
+    const credentialHandle = existing.credentialHandle;
+    const credentialRevision = existing.credentialRevision;
     const [row] = await tx
       .update(inferenceProviderConnections)
       .set({ status: 'revoked', custodyState: 'reconcile' })
@@ -925,7 +937,9 @@ export async function revokeProviderConnection(
         ),
       )
       .returning();
-    if (row === undefined) return undefined;
+    if (row === undefined) {
+      throw new Error('locked provider connection could not be fenced for revocation');
+    }
     await tx.insert(inferenceProviderCredentialOperations).values({
       id: operationId,
       connectionId: existing.id,
@@ -941,15 +955,17 @@ export async function revokeProviderConnection(
       previousConnectionStatus: existing.status,
       state: 'pending',
     });
-    return row;
+    return {
+      status: 'fenced' as const,
+      existing,
+      operationActor,
+      credentialHandle,
+      credentialRevision,
+    };
   });
 
-  if (fenced === undefined) {
-    const current = await getProviderConnectionRow(input.connectionId);
-    return current?.status === 'revoked'
-      ? { status: 'already-revoked' }
-      : { status: 'unknown-connection' };
-  }
+  if (fenced.status !== 'fenced') return fenced;
+  const { existing, operationActor, credentialHandle, credentialRevision } = fenced;
 
   if (control === undefined) {
     await markCredentialOperation(existing.id, operationId, 'reconciliation');
@@ -1094,18 +1110,18 @@ export async function recordProviderConnectionValidation(input: {
    */
   readonly actor: ProviderConnectionActor;
 }): Promise<RecordValidationResult> {
-  const existing = await getProviderConnectionRow(input.connectionId);
-  if (existing === undefined) return { status: 'unknown-connection' };
-  if (existing.status === 'revoked') return { status: 'revoked' };
+  return getDb().transaction(async (tx): Promise<RecordValidationResult> => {
+    const existing = await lockProviderConnectionRow(tx, input.connectionId);
+    if (existing === undefined) return { status: 'unknown-connection' };
+    if (existing.status === 'revoked') return { status: 'revoked' };
 
-  const rejected = input.state === 'invalid' || input.state === 'expired';
-  const nextStatus: ProviderConnectionStatus = rejected
-    ? 'disabled'
-    : input.state === 'valid' && existing.status === 'pending_validation'
-      ? 'active'
-      : existing.status;
+    const rejected = input.state === 'invalid' || input.state === 'expired';
+    const nextStatus: ProviderConnectionStatus = rejected
+      ? 'disabled'
+      : input.state === 'valid' && existing.status === 'pending_validation'
+        ? 'active'
+        : existing.status;
 
-  const connection = await getDb().transaction(async (tx) => {
     const [row] = await tx
       .update(inferenceProviderConnections)
       .set({
@@ -1142,10 +1158,8 @@ export async function recordProviderConnectionValidation(input: {
       });
     }
 
-    return toProviderConnection(row);
+    return { status: 'recorded', connection: toProviderConnection(row) };
   });
-
-  return { status: 'recorded', connection };
 }
 
 /* -------------------------------------------------------------------------- */

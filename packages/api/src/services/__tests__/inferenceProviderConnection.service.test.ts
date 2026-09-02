@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { KaanaCredentialOutcome, KaanaCredentialOutcomeRequest } from '@oxyhq/contracts';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { inferenceProviderConnections } from '../../db/schema/inferenceProviderConnections';
@@ -9,7 +9,9 @@ import { inferenceProviders } from '../../db/schema/inferenceProviders';
 import { users } from '../../db/schema/users';
 import {
   createProviderConnection,
+  disableProviderConnection,
   reconcileProviderConnection,
+  recordProviderConnectionValidation,
   resolveProviderConnectionForApplication,
   revokeProviderConnection,
   rotateProviderConnection,
@@ -217,6 +219,36 @@ async function operationForConnection(connectionId: string) {
   return operation;
 }
 
+function voidDeferred(): {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+} {
+  let release: (() => void) | undefined;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  if (release === undefined) throw new Error('deferred resolver was not initialized');
+  return { promise, resolve: release };
+}
+
+async function waitForBlockedConnectionWriters(lockerPid: number, expected: number): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const blocked = await getDb().execute<{ pid: number }>(sql`
+      select pid
+      from pg_stat_activity
+      where datname = current_database()
+        and usename = current_user
+        and pid <> ${lockerPid}
+        and wait_event_type = 'Lock'
+        and query like '%inference_provider_connections%'
+    `);
+    if (blocked.length >= expected) return;
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`expected ${expected} provider-connection writers to wait on the row lock`);
+}
+
 describe('Kaana provider connection custody', () => {
   it('persists the exact operation before the network and never persists plaintext', async () => {
     const control = new FakeKaanaControl();
@@ -403,6 +435,84 @@ describe('Kaana provider connection custody', () => {
       custodyState: 'revoked',
       credentialRevision: 2,
     });
+  });
+
+  it.each([
+    {
+      writer: 'disable',
+      run: (connectionId: string, actorId: string) =>
+        disableProviderConnection({
+          connectionId,
+          actor: { kind: 'user', userId: actorId },
+        }),
+    },
+    {
+      writer: 'validation',
+      run: (connectionId: string, actorId: string) =>
+        recordProviderConnectionValidation({
+          connectionId,
+          state: 'valid',
+          actor: { kind: 'user', userId: actorId },
+        }),
+    },
+  ])('does not let a stale $writer writer undo a concurrent revoke fence', async ({ run }) => {
+    const control = new FakeKaanaControl();
+    const created = await createFixture(control);
+    if (created.result.status !== 'created') throw new Error('fixture create failed');
+    const connectionId = created.result.connection.connectionId;
+
+    const rowLocked = voidDeferred();
+    const releaseRowLock = voidDeferred();
+    let lockerPid: number | undefined;
+    const lockTransaction = getDb().transaction(async (tx) => {
+      const [backend] = await tx.execute<{ pid: number }>(sql`
+        select pg_backend_pid()::integer as pid
+      `);
+      if (backend === undefined) throw new Error('row-lock backend pid is unavailable');
+      await tx
+        .select({ id: inferenceProviderConnections.id })
+        .from(inferenceProviderConnections)
+        .where(eq(inferenceProviderConnections.id, connectionId))
+        .for('update');
+      lockerPid = backend.pid;
+      rowLocked.resolve();
+      await releaseRowLock.promise;
+    });
+    await rowLocked.promise;
+    if (lockerPid === undefined) throw new Error('row-lock backend pid was not recorded');
+
+    const mutationStarted = voidDeferred();
+    const releaseMutation = voidDeferred();
+    control.beforeMutation = async (action) => {
+      expect(action).toBe('revoke');
+      mutationStarted.resolve();
+      await releaseMutation.promise;
+    };
+
+    const revoke = revokeProviderConnection(
+      {
+        connectionId,
+        actor: { kind: 'user', userId: created.accountId },
+      },
+      control,
+    );
+    await waitForBlockedConnectionWriters(lockerPid, 1);
+
+    const statusWrite = run(connectionId, created.accountId);
+    await waitForBlockedConnectionWriters(lockerPid, 2);
+    releaseRowLock.resolve();
+    await lockTransaction;
+    await mutationStarted.promise;
+
+    await expect(statusWrite).resolves.toEqual({ status: 'revoked' });
+    releaseMutation.resolve();
+    await expect(revoke).resolves.toMatchObject({ status: 'revoked' });
+
+    const [row] = await getDb()
+      .select()
+      .from(inferenceProviderConnections)
+      .where(eq(inferenceProviderConnections.id, connectionId));
+    expect(row).toMatchObject({ status: 'revoked', custodyState: 'revoked' });
   });
 
   it('leaves an inexact revoke response in reconciliation', async () => {

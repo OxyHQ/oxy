@@ -734,7 +734,7 @@ describe('cross-account isolation', () => {
 });
 
 describe('with no Kaana credential control configured', () => {
-  it('refuses a create with a typed 503 and writes nothing', async () => {
+  it('refuses a create before validating or reading the credential body', async () => {
     delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
     delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
     const account = await insertAccount();
@@ -751,6 +751,9 @@ describe('with no Kaana credential control configured', () => {
         environment: 'production',
         scope: 'account',
         secret: plaintext,
+        // Invalid as a strict request shape on purpose. A 400 would prove the
+        // body schema ran before the absent signed custody authority was refused.
+        operationActor: 'attacker',
       },
     );
 
@@ -778,7 +781,30 @@ describe('with no Kaana credential control configured', () => {
       'POST',
       `/inference/provider-connections/${connection}/rotate`,
       undefined,
-      { secret: 'sk-live-rotate' },
+      { secret: 'sk-live-rotate', operationActor: 'attacker' },
+    );
+    expect(response.status).toBe(503);
+    expect(response.body.error).toBe('kaana_credential_control_unavailable');
+  });
+
+  it('refuses an application create before validating the credential body', async () => {
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
+    const account = await insertAccount();
+    const application = await insertApplication(account);
+    const provider = await insertProvider();
+    currentUserId = await insertMemberAccount(account, 'admin');
+
+    const response = await request(
+      'POST',
+      `/inference/provider-connections/applications/${application}`,
+      undefined,
+      {
+        provider,
+        environment: 'production',
+        secret: 'sk-live-application',
+        operationActor: 'attacker',
+      },
     );
     expect(response.status).toBe(503);
     expect(response.body.error).toBe('kaana_credential_control_unavailable');
@@ -806,7 +832,7 @@ describe('with no Kaana credential control configured', () => {
     expect(response.body.error).toBe('kaana_credential_control_unavailable');
   });
 
-  it('refuses an UNAUTHORISED caller with 403, not 503', async () => {
+  it('refuses an UNAUTHORISED caller before validating or reading the credential body', async () => {
     /*
      * Order matters, and this is what holds it: a caller with no authority must
      * never learn what this deployment is configured with. Authorise first, then
@@ -832,6 +858,8 @@ describe('with no Kaana credential control configured', () => {
         environment: 'production',
         scope: 'account',
         secret: 'sk-live-y',
+        // Invalid on purpose. Authorization must still be the first refusal.
+        operationActor: 'attacker',
       },
     );
     expect(response.status).toBe(403);

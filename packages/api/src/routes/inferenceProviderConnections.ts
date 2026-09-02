@@ -62,7 +62,7 @@
 import { Router, type Response } from 'express';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { rateLimit } from '../middleware/rateLimiter';
-import { validate } from '../middleware/validate';
+import { parseValidatedRequestValue, validate } from '../middleware/validate';
 import { verifyServiceToken, type ServiceTokenPayload } from '../middleware/serviceToken';
 import {
   providerConnectionAccountBody,
@@ -491,14 +491,13 @@ router.get(
  *
  * Register a credential at account or project scope. Kaana control is resolved
  * before the body is read — see the module header.
+ *
+ * @requestBody providerConnectionAccountBody
  */
 router.post(
   '/accounts/:accountId',
   providerWriteLimiter,
-  validate({
-    params: providerConnectionAccountParams,
-    body: providerConnectionAccountBody,
-  }),
+  validate({ params: providerConnectionAccountParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { accountId } = providerConnectionAccountParams.parse(req.params);
     const principal = principalOf(req);
@@ -510,7 +509,7 @@ router.post(
     );
 
     const control = kaanaCredentialControlOr503();
-    const body = providerConnectionAccountBody.parse(req.body);
+    const body = parseValidatedRequestValue(providerConnectionAccountBody, req.body);
 
     const result = await createProviderConnection(
       {
@@ -583,14 +582,13 @@ router.get(
  * Register a credential scoped to one application. The owning account is
  * resolved SERVER-side from the application, never taken from the request — an
  * account id in a body would be the whole attribution chain replaced by a claim.
+ *
+ * @requestBody providerCredentialBody
  */
 router.post(
   '/applications/:applicationId',
   providerWriteLimiter,
-  validate({
-    params: providerConnectionApplicationParams,
-    body: providerCredentialBody,
-  }),
+  validate({ params: providerConnectionApplicationParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { applicationId } = providerConnectionApplicationParams.parse(req.params);
     const principal = principalOf(req);
@@ -607,7 +605,7 @@ router.post(
     }
 
     const control = kaanaCredentialControlOr503();
-    const body = providerCredentialBody.parse(req.body);
+    const body = parseValidatedRequestValue(providerCredentialBody, req.body);
 
     const result = await createProviderConnection(
       {
@@ -632,14 +630,13 @@ router.post(
  * Replace the credential. The reference is unchanged, so a data plane holding it
  * keeps working and the previous generation becomes unavailable once Kaana
  * acknowledges the exact revision transition.
+ *
+ * @requestBody providerConnectionRotateBody
  */
 router.post(
   '/:connectionId/rotate',
   providerWriteLimiter,
-  validate({
-    params: providerConnectionParams,
-    body: providerConnectionRotateBody,
-  }),
+  validate({ params: providerConnectionParams }),
   asyncHandler(async (req: ProviderRequest, res: Response) => {
     const { connectionId } = providerConnectionParams.parse(req.params);
     const principal = principalOf(req);
@@ -654,7 +651,7 @@ router.post(
     );
 
     const control = kaanaCredentialControlOr503();
-    const body = providerConnectionRotateBody.parse(req.body);
+    const body = parseValidatedRequestValue(providerConnectionRotateBody, req.body);
 
     const result = await rotateProviderConnection(
       {
