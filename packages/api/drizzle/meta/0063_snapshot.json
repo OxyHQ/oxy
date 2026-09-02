@@ -11407,10 +11407,6 @@
       },
       "policies": {},
       "checkConstraints": {
-        "inference_deployments_regions_check": {
-          "name": "inference_deployments_regions_check",
-          "value": "cardinality(\"inference_deployments\".\"regions\") >= 1"
-        },
         "inference_deployments_availability_scope_check": {
           "name": "inference_deployments_availability_scope_check",
           "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"

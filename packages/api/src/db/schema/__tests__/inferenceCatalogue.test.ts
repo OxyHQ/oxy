@@ -476,13 +476,12 @@ describe('a route is unselectable until somebody approves it', () => {
     expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
   });
 
-  it('refuses a route with no region', async () => {
-    // `cardinality`, not `array_length`: the latter is NULL on `{}` and a CHECK
-    // rejects only FALSE, so the obvious spelling would ADMIT this row.
-    const rejected = getDb()
+  it('stores an empty region set as explicitly unattested, never as global', async () => {
+    const [row] = await getDb()
       .insert(inferenceDeployments)
-      .values({ ...(await deploymentDefaults()), regions: [] });
-    expect(pgErrorCode(await rejection(rejected))).toBe(CHECK_VIOLATION);
+      .values({ ...(await deploymentDefaults()), regions: [] })
+      .returning({ regions: inferenceDeployments.regions });
+    expect(row.regions).toEqual([]);
   });
 });
 

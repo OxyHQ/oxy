@@ -755,16 +755,23 @@ export function violatedConstraints(
   // SUBSET, not intersection. A deployment declares every region it MAY serve
   // from and choosing among them is routing execution (ADR 0006), so a route
   // that may run outside the allowed set cannot honour a residency requirement.
-  // Never vacuously true over an empty array: `regions` carries a
-  // `cardinality(...) >= 1` CHECK.
+  // An empty set means Kaana has not attested a region. It is NOT "global" and
+  // cannot satisfy any explicit residency control, including a deny-only one:
+  // without an attested location Oxy cannot prove that the denied region is
+  // avoided. Unconstrained routing may still use the deployment.
   if (
     constraints.allowedRegions.length > 0 &&
-    !candidate.regions.every((region) => constraints.allowedRegions.includes(region))
+    (candidate.regions.length === 0 ||
+      !candidate.regions.every((region) => constraints.allowedRegions.includes(region)))
   ) {
     violated.push('allowedRegions');
   }
 
-  if (candidate.regions.some((region) => constraints.deniedRegions.includes(region))) {
+  if (
+    constraints.deniedRegions.length > 0 &&
+    (candidate.regions.length === 0 ||
+      candidate.regions.some((region) => constraints.deniedRegions.includes(region)))
+  ) {
     violated.push('deniedRegions');
   }
 

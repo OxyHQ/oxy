@@ -1,4 +1,8 @@
 -- oxy:deploy-phase=pre
+-- Kaana publishes an empty region set when no location has been attested. It
+-- never means global: the resolver below the schema rejects it whenever a
+-- routing policy carries any explicit regional control.
+ALTER TABLE "inference_deployments" DROP CONSTRAINT "inference_deployments_regions_check";--> statement-breakpoint
 CREATE TABLE "inference_deployment_routing_score_events" (
 	"id" text PRIMARY KEY NOT NULL,
 	"deployment_id" text NOT NULL,

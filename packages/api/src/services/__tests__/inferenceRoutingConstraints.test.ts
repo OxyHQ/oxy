@@ -489,6 +489,22 @@ describe('the provider, residency and hosting controls exclude the same way', ()
     );
   });
 
+  it('excludes an unattested region set from every explicit regional policy', async () => {
+    const model = await insertModel();
+    const unattested = await insertDeployment(model, { rank: 'a', regions: [] });
+    const attested = await insertDeployment(model, { rank: 'z', regions: ['eu-west-1'] });
+
+    await expect(
+      servingProvider(model.modelId, constrain({ allowedRegions: ['eu-west-1'] }))
+    ).resolves.toBe(attested.providerSlug);
+    await expect(
+      servingProvider(model.modelId, constrain({ deniedRegions: ['us-west-2'] }))
+    ).resolves.toBe(attested.providerSlug);
+    await expect(servingProvider(model.modelId, UNCONSTRAINED_ROUTING)).resolves.toBe(
+      unattested.providerSlug
+    );
+  });
+
   it('honours Oxy-hosted-only', async () => {
     const model = await insertModel();
     const thirdParty = await insertDeployment(model, { rank: 'a', availabilityScope: 'public_payg' });

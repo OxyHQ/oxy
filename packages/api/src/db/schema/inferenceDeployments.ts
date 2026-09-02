@@ -160,10 +160,10 @@ export const inferenceDeployments = pgTable(
       .references(() => inferenceProviders.slug, { onDelete: 'restrict' }),
 
     /**
-     * Where it runs. At least one, enforced with `cardinality` — `array_length`
-     * is NULL on an empty array and a CHECK rejects only FALSE, so `>= 1`
-     * written that way would ADMIT `{}` and make a residency policy match a
-     * route with no declared region.
+     * Where Kaana has ATTESTED that the deployment may run. An empty array is
+     * explicit "region not attested", never "global": any routing policy with
+     * an allow- or deny-region control excludes it, while an unconstrained
+     * policy may still use it.
      */
     regions: text().array().notNull(),
 
@@ -302,8 +302,6 @@ export const inferenceDeployments = pgTable(
     uniqueIndex(APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
       .on(t.internalRouteId)
       .where(sql`${t.permissionState} = 'approved' and ${t.internalRouteId} is not null`),
-
-    check('inference_deployments_regions_check', sql`cardinality(${t.regions}) >= 1`),
 
     /* ---- closed value sets ---------------------------------------------- */
 
