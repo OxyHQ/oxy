@@ -64,10 +64,13 @@ import {
 import { logger } from '../src/utils/logger';
 
 const APPLY = process.env.APPLY === '1';
-const reviewerUserId = process.env.KAANA_CATALOGUE_REVIEWER_USER_ID?.trim();
-const inventoryBucket = process.env.KAANA_INVENTORY_BUCKET?.trim();
-const inventoryKey = process.env.KAANA_INVENTORY_KEY?.trim();
-const inventoryRegion = process.env.AWS_REGION?.trim();
+// These values are authorities and object identities, not display input. Use
+// the exact configured bytes so whitespace or any other mismatch fails closed
+// instead of silently selecting a different reviewer or inventory object.
+const reviewerUserId = process.env.KAANA_CATALOGUE_REVIEWER_USER_ID;
+const inventoryBucket = process.env.KAANA_INVENTORY_BUCKET;
+const inventoryKey = process.env.KAANA_INVENTORY_KEY;
+const inventoryRegion = process.env.AWS_REGION;
 
 class DryRunRollback extends Error {}
 
