@@ -10,6 +10,16 @@ const recipient = {
   required: ['address'],
   additionalProperties: false,
 } as const;
+const attachment = {
+  type: 'object',
+  properties: {
+    fileId: { type: 'string', minLength: 1 },
+    contentId: { type: 'string' },
+    isInline: { type: 'boolean' },
+  },
+  required: ['fileId'],
+  additionalProperties: false,
+} as const;
 
 function readTool(input: Omit<CatalogTool, 'version' | 'capabilityPackage' | 'requiredCapabilities' | 'effect' | 'idempotency' | 'rollback' | 'exposure'>): CatalogTool {
   return {
@@ -89,10 +99,12 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       inputSchema: {
         type: 'object',
         properties: {
-          to: { type: 'array', items: recipient }, cc: { type: 'array', items: recipient },
-          bcc: { type: 'array', items: recipient }, subject: { type: 'string' },
+          to: { type: 'array', items: recipient, minItems: 1, maxItems: 100 },
+          cc: { type: 'array', items: recipient, maxItems: 100 },
+          bcc: { type: 'array', items: recipient, maxItems: 100 }, subject: { type: 'string', maxLength: 998 },
           text: { type: 'string' }, html: { type: 'string' }, inReplyTo: { type: 'string' },
           references: { type: 'array', items: { type: 'string' } }, scheduledAt: { type: 'string' },
+          attachments: { type: 'array', items: attachment, maxItems: 20 },
           requestReadReceipt: { type: 'boolean' },
         },
         required: ['to'], additionalProperties: false,

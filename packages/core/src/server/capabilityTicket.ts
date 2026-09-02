@@ -1,4 +1,9 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import {
+  randomUUID,
+  sign as signBytes,
+  verify as verifyBytes,
+  type KeyObject,
+} from 'node:crypto';
 import {
   capabilityTicketClaimsSchema,
   type CapabilityTicketClaims,
@@ -7,13 +12,15 @@ import {
 } from '@oxyhq/contracts';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
-const HEADER = { alg: 'HS256', typ: 'OXY-CAPABILITY+JWT' } as const;
+const ALGORITHM = 'EdDSA';
+const TOKEN_TYPE = 'OXY-CAPABILITY+JWT';
 const DEFAULT_MAX_TTL_SECONDS = 300;
 
 type UnsignedCapabilityTicketClaims = Omit<CapabilityTicketClaims, 'iss' | 'iat' | 'exp' | 'jti'>;
 
 export interface CapabilityTicketSigningOptions {
-  secret: string | Uint8Array;
+  privateKey: KeyObject;
+  keyId: string;
   issuer: string;
   ttlSeconds?: number;
   now?: Date;
@@ -21,7 +28,7 @@ export interface CapabilityTicketSigningOptions {
 }
 
 export interface CapabilityTicketVerificationOptions {
-  secret: string | Uint8Array;
+  resolvePublicKey: (keyId: string) => KeyObject | undefined;
   audience: string;
   issuer?: string;
   now?: Date;
@@ -41,6 +48,7 @@ export class CapabilityTicketError extends Error {
     public readonly code:
       | 'malformed'
       | 'invalid_signature'
+      | 'unknown_key'
       | 'invalid_claims'
       | 'expired'
       | 'not_yet_valid'
@@ -66,39 +74,50 @@ function decodeJsonSegment(segment: string): unknown {
   }
 }
 
-function sign(input: string, secret: string | Uint8Array): Buffer {
-  return createHmac('sha256', secret).update(input).digest();
-}
-
-function valueAtPath(input: Record<string, unknown>, path: string): unknown {
-  let current: unknown = input;
+function valuesAtPath(input: Record<string, unknown>, path: string): unknown[] {
+  let current: unknown[] = [input];
   for (const segment of path.split('.')) {
-    if (typeof current !== 'object' || current === null || Array.isArray(current)) return undefined;
-    current = (current as Record<string, unknown>)[segment];
+    const next: unknown[] = [];
+    for (const value of current) {
+      const records = Array.isArray(value) ? value : [value];
+      for (const record of records) {
+        if (typeof record !== 'object' || record === null || Array.isArray(record)) continue;
+        if (Object.prototype.hasOwnProperty.call(record, segment)) {
+          next.push((record as Record<string, unknown>)[segment]);
+        }
+      }
+    }
+    if (next.length === 0) return [];
+    current = next;
   }
-  return current;
+  return current.flatMap((value) => Array.isArray(value) ? value : [value]);
 }
 
 /** Enforces the signed per-action bounds before a domain handler runs. */
 export function inputSatisfiesCapabilityLimits(
+  tool: string,
   input: Record<string, unknown>,
   limits: readonly GrantLimit[],
 ): boolean {
   for (const limit of limits) {
-    const actual = valueAtPath(input, limit.key);
-    if (actual === undefined) continue;
+    if (limit.tool !== tool) return false;
+    const actualValues = valuesAtPath(input, limit.key);
+    if (actualValues.length === 0) return false;
     if (typeof limit.value === 'number') {
-      if (typeof actual !== 'number' || !Number.isFinite(actual) || actual > limit.value) return false;
+      const maximum = limit.value;
+      if (!actualValues.every((actual) => (
+        typeof actual === 'number' && Number.isFinite(actual) && actual <= maximum
+      ))) return false;
       continue;
     }
     if (Array.isArray(limit.value)) {
       const allowedValues = limit.value;
-      if (typeof actual === 'string' && !allowedValues.includes(actual)) return false;
-      if (Array.isArray(actual) && !actual.every((entry) => typeof entry === 'string' && allowedValues.includes(entry))) return false;
-      if (typeof actual !== 'string' && !Array.isArray(actual)) return false;
+      if (!actualValues.every((actual) => (
+        typeof actual === 'string' && allowedValues.includes(actual)
+      ))) return false;
       continue;
     }
-    if (actual !== limit.value) return false;
+    if (!actualValues.every((actual) => actual === limit.value)) return false;
   }
   return true;
 }
@@ -120,8 +139,12 @@ export function issueCapabilityTicket(
     exp: issuedAt + ttlSeconds,
     jti: options.jti ?? randomUUID(),
   });
-  const signingInput = `${base64UrlEncode(JSON.stringify(HEADER))}.${base64UrlEncode(JSON.stringify(payload))}`;
-  return `${signingInput}.${base64UrlEncode(sign(signingInput, options.secret))}`;
+  if (options.privateKey.asymmetricKeyType !== 'ed25519') {
+    throw new CapabilityTicketError('invalid_claims', 'Capability tickets require an Ed25519 private key');
+  }
+  const header = { alg: ALGORITHM, typ: TOKEN_TYPE, kid: options.keyId } as const;
+  const signingInput = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(payload))}`;
+  return `${signingInput}.${base64UrlEncode(signBytes(null, Buffer.from(signingInput), options.privateKey))}`;
 }
 
 export function verifyCapabilityTicket(
@@ -138,28 +161,35 @@ export function verifyCapabilityTicket(
   }
 
   const header = decodeJsonSegment(encodedHeader);
+  if (typeof header !== 'object' || header === null || Array.isArray(header)) {
+    throw new CapabilityTicketError('malformed', 'Capability ticket header is not supported');
+  }
+  const headerRecord = header as Record<string, unknown>;
   if (
-    typeof header !== 'object'
-    || header === null
-    || !('alg' in header)
-    || !('typ' in header)
-    || header.alg !== HEADER.alg
-    || header.typ !== HEADER.typ
+    Object.keys(headerRecord).length !== 3
+    || headerRecord.alg !== ALGORITHM
+    || headerRecord.typ !== TOKEN_TYPE
+    || typeof headerRecord.kid !== 'string'
+    || headerRecord.kid.length === 0
   ) {
     throw new CapabilityTicketError('malformed', 'Capability ticket header is not supported');
   }
-
-  const expectedSignature = sign(`${encodedHeader}.${encodedPayload}`, options.secret);
+  const publicKey = options.resolvePublicKey(headerRecord.kid);
+  if (!publicKey || publicKey.asymmetricKeyType !== 'ed25519') {
+    throw new CapabilityTicketError('unknown_key', 'Capability ticket signing key is not trusted');
+  }
   let providedSignature: Buffer;
   try {
     providedSignature = Buffer.from(encodedSignature, 'base64url');
   } catch {
     throw new CapabilityTicketError('malformed', 'Capability ticket signature is malformed');
   }
-  if (
-    providedSignature.length !== expectedSignature.length
-    || !timingSafeEqual(providedSignature, expectedSignature)
-  ) {
+  if (!verifyBytes(
+    null,
+    Buffer.from(`${encodedHeader}.${encodedPayload}`),
+    publicKey,
+    providedSignature,
+  )) {
     throw new CapabilityTicketError('invalid_signature', 'Capability ticket signature is invalid');
   }
 

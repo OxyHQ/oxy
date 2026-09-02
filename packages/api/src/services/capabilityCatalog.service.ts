@@ -1,11 +1,12 @@
-import { createHash, createHmac } from 'node:crypto';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { createHash, sign as signBytes } from 'node:crypto';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import {
   appCapabilityCatalogSchema,
   type AppCapabilityCatalog,
 } from '@oxyhq/contracts';
 import { getDb } from '../config/postgres';
 import { appCapabilityCatalogRegistrations } from '../db/schema/agency';
+import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 
 function canonicalValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalValue);
@@ -24,16 +25,14 @@ export function digestCatalog(catalog: AppCapabilityCatalog): string {
   return createHash('sha256').update(canonicalCatalogJson(catalog)).digest('hex');
 }
 
-function signingSecret(): string {
-  const secret = process.env.CAPABILITY_TICKET_SECRET ?? process.env.ACCESS_TOKEN_SECRET;
-  if (!secret) throw new Error('CAPABILITY_TICKET_SECRET or ACCESS_TOKEN_SECRET must be configured');
-  return secret;
-}
-
 function signRegistration(appId: string, version: string, digest: string): string {
-  return createHmac('sha256', signingSecret())
-    .update(`oxy-catalog-v1\n${appId}\n${version}\n${digest}`)
-    .digest('base64url');
+  const signing = capabilityTicketSigningConfig();
+  const signature = signBytes(
+    null,
+    Buffer.from(`oxy-catalog-v1\n${appId}\n${version}\n${digest}`),
+    signing.privateKey,
+  );
+  return `${signing.keyId}.${signature.toString('base64url')}`;
 }
 
 export async function registerCapabilityCatalog(input: {
@@ -43,20 +42,19 @@ export async function registerCapabilityCatalog(input: {
   deployedAt?: Date;
 }) {
   const catalog = appCapabilityCatalogSchema.parse(input.catalog);
-  const db = getDb();
-  const [existingOwner] = await db
-    .select({ registeredByApplicationId: appCapabilityCatalogRegistrations.registeredByApplicationId })
-    .from(appCapabilityCatalogRegistrations)
-    .where(eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId))
-    .limit(1);
-  if (existingOwner && existingOwner.registeredByApplicationId !== input.applicationId) {
-    throw new Error('Catalog appId is already owned by another application');
-  }
-
   const digest = digestCatalog(catalog);
   const signature = signRegistration(catalog.appId, catalog.version, digest);
   const deployedAt = input.deployedAt ?? new Date();
-  return db.transaction(async (tx) => {
+  return getDb().transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`capability-catalog:${catalog.appId}`}, 0))`);
+    const [existingOwner] = await tx
+      .select({ registeredByApplicationId: appCapabilityCatalogRegistrations.registeredByApplicationId })
+      .from(appCapabilityCatalogRegistrations)
+      .where(eq(appCapabilityCatalogRegistrations.appSlug, catalog.appId))
+      .limit(1);
+    if (existingOwner && existingOwner.registeredByApplicationId !== input.applicationId) {
+      throw new Error('Catalog appId is already owned by another application');
+    }
     await tx
       .update(appCapabilityCatalogRegistrations)
       .set({ active: false })

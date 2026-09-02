@@ -78,6 +78,8 @@
     "@types/smtp-server": "^3.5.13",
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.18.1",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "axios": "catalog:",
     "bullmq": "^5.80.4",
     "cheerio": "^1.1.2",

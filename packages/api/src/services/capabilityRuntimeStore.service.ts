@@ -20,12 +20,6 @@ export async function reserveCapabilityEffect(
   keyHash: string,
 ): Promise<boolean> {
   const db = getDb();
-  const selector = and(
-    eq(capabilityIdempotencyKeys.effectiveAccountId, claims.resource.effectiveAccountId),
-    eq(capabilityIdempotencyKeys.appSlug, claims.resource.appId),
-    eq(capabilityIdempotencyKeys.tool, claims.tool),
-    eq(capabilityIdempotencyKeys.keyHash, keyHash),
-  );
   const inserted = await db.insert(capabilityIdempotencyKeys).values({
     effectiveAccountId: claims.resource.effectiveAccountId,
     appSlug: claims.resource.appId,
@@ -41,14 +35,7 @@ export async function reserveCapabilityEffect(
       capabilityIdempotencyKeys.keyHash,
     ],
   }).returning({ id: capabilityIdempotencyKeys.id });
-  if (inserted.length > 0) return true;
-  const reclaimed = await db.update(capabilityIdempotencyKeys).set({
-    status: 'started',
-    ticketJti: claims.jti,
-    responseStatus: null,
-  }).where(and(selector, eq(capabilityIdempotencyKeys.status, 'failed')))
-    .returning({ id: capabilityIdempotencyKeys.id });
-  return reclaimed.length > 0;
+  return inserted.length > 0;
 }
 
 export async function mailboxBelongsToAccount(mailboxId: string, accountId: string): Promise<boolean> {
@@ -73,6 +60,15 @@ export async function messageBelongsToMailbox(
       eq(messages.userId, accountId),
       eq(messages.mailboxId, mailboxId),
     ))
+    .limit(1);
+  return Boolean(message);
+}
+
+export async function messageBelongsToAccount(messageId: string, accountId: string): Promise<boolean> {
+  const [message] = await getDb()
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.id, messageId), eq(messages.userId, accountId)))
     .limit(1);
   return Boolean(message);
 }

@@ -414,6 +414,20 @@
       "when": 1788302024100,
       "tag": "0059_delegated_capability_architecture",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788307679486,
+      "tag": "0060_natural_raider",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788307694189,
+      "tag": "0061_goofy_tyrannus",
+      "breakpoints": true
     }
   ]
 }

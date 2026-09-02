@@ -50,8 +50,26 @@ export const toolGrantOverrideSchema = z.object({
 }).strict();
 
 export const grantLimitSchema = z.object({
+    tool: identifierSchema,
     key: identifierSchema,
     value: z.union([z.string(), z.number().finite(), z.boolean(), z.array(z.string())]),
+}).strict();
+
+export const executionAuthorizationRefSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('direct_request'),
+        id: identifierSchema,
+    }).strict(),
+    z.object({
+        kind: z.literal('automation'),
+        id: identifierSchema,
+        automationId: identifierSchema,
+    }).strict(),
+]);
+
+export const capabilityCoordinatorSchema = z.object({
+    applicationId: identifierSchema,
+    credentialId: identifierSchema,
 }).strict();
 
 export const delegationGrantSchema = z.object({
@@ -122,6 +140,8 @@ export const capabilityTicketClaimsSchema = z.object({
     runId: identifierSchema,
     stepId: identifierSchema.optional(),
     automationId: identifierSchema.optional(),
+    executionAuthorization: executionAuthorizationRefSchema,
+    coordinator: capabilityCoordinatorSchema,
     grantId: identifierSchema.optional(),
     requesterAccountId: identifierSchema,
     ownerAccountId: identifierSchema,
@@ -131,7 +151,56 @@ export const capabilityTicketClaimsSchema = z.object({
     capabilities: z.array(identifierSchema).min(1),
     limits: z.array(grantLimitSchema).default([]),
     autonomy: autonomyLevelSchema,
-}).strict();
+}).strict().superRefine((claims, context) => {
+    const expectedSubject = claims.actor.type === 'agent'
+        ? claims.actor.accountId
+        : `alia:${claims.actor.ownerAccountId}`;
+    if (claims.sub !== expectedSubject) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'sub must identify the exact executing actor',
+            path: ['sub'],
+        });
+    }
+    if (claims.actor.type === 'alia' && claims.actor.ownerAccountId !== claims.ownerAccountId) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Alia actor owner must match ownerAccountId',
+            path: ['actor', 'ownerAccountId'],
+        });
+    }
+    if (claims.exp <= claims.iat) {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'exp must be later than iat',
+            path: ['exp'],
+        });
+    }
+    if (claims.executionAuthorization.kind === 'automation') {
+        if (claims.automationId !== claims.executionAuthorization.automationId) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'automationId must match the execution authorization',
+                path: ['automationId'],
+            });
+        }
+    } else if (claims.automationId !== undefined || claims.autonomy === 'autonomous') {
+        context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'direct requests cannot carry automation identity or autonomous authority',
+            path: ['executionAuthorization'],
+        });
+    }
+    for (const [index, limit] of claims.limits.entries()) {
+        if (limit.tool !== claims.tool) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'ticket limits must be scoped to the ticket tool',
+                path: ['limits', index, 'tool'],
+            });
+        }
+    }
+});
 
 export const policyDecisionSchema = z.object({
     allowed: z.boolean(),
@@ -150,7 +219,7 @@ export const auditEventSchema = z.object({
     eventId: identifierSchema,
     occurredAt: z.string().datetime(),
     requesterAccountId: identifierSchema,
-    coordinator: actorRefSchema,
+    coordinator: capabilityCoordinatorSchema,
     executor: actorRefSchema,
     effectiveAccountId: identifierSchema,
     resource: resourceRefSchema,
@@ -322,6 +391,8 @@ export type ActorRef = z.infer<typeof actorRefSchema>;
 export type ResourceRef = z.infer<typeof resourceRefSchema>;
 export type ToolGrantOverride = z.infer<typeof toolGrantOverrideSchema>;
 export type GrantLimit = z.infer<typeof grantLimitSchema>;
+export type ExecutionAuthorizationRef = z.infer<typeof executionAuthorizationRefSchema>;
+export type CapabilityCoordinator = z.infer<typeof capabilityCoordinatorSchema>;
 export type DelegationGrant = z.infer<typeof delegationGrantSchema>;
 export type AutomationTrigger = z.infer<typeof automationTriggerSchema>;
 export type AutomationActorSelection = z.infer<typeof automationActorSelectionSchema>;

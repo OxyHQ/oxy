@@ -93,11 +93,49 @@ export const delegationLimits = pgTable(
   {
     id: generatedId(),
     grantId: text().notNull().references(() => delegationGrants.id, { onDelete: 'cascade' }),
+    tool: text().notNull(),
     key: text().notNull(),
     value: jsonb().$type<GrantLimit['value']>().notNull(),
     createdAt: createdAt(),
   },
-  (t) => [unique('delegation_limits_grant_key_key').on(t.grantId, t.key)],
+  (t) => [unique('delegation_limits_grant_tool_key_key').on(t.grantId, t.tool, t.key)],
+);
+
+export const capabilityExecutionAuthorizations = pgTable(
+  'capability_execution_authorizations',
+  {
+    id: generatedId(),
+    kind: text({ enum: ['direct_request', 'automation'] }).notNull(),
+    requesterAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    ownerAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    coordinatorApplicationId: text().notNull().references(() => applications.id, { onDelete: 'cascade' }),
+    coordinatorCredentialId: text().notNull().references(() => applicationCredentials.id, { onDelete: 'cascade' }),
+    actorType: text({ enum: ['alia', 'agent'] }).notNull(),
+    actorAccountId: text().references(() => users.id, { onDelete: 'cascade' }),
+    resourceApp: text().notNull(),
+    effectiveAccountId: text().notNull().references(() => users.id, { onDelete: 'cascade' }),
+    resourceType: text().notNull(),
+    resourceKey: text().notNull(),
+    tool: text().notNull(),
+    runId: text().notNull(),
+    stepId: text(),
+    automationId: text(),
+    maximumAutonomy: text({ enum: AUTONOMY_LEVELS }).$type<AutonomyLevel>().notNull(),
+    limits: jsonb().$type<GrantLimit[]>().notNull().default(sql`'[]'::jsonb`),
+    expiresAt: timestamptz().notNull(),
+    revokedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    check('capability_execution_authorizations_kind_check', sql`${t.kind} in ('direct_request', 'automation')`),
+    check('capability_execution_authorizations_actor_check', sql`(${t.actorType} = 'alia' and ${t.actorAccountId} is null) or (${t.actorType} = 'agent' and ${t.actorAccountId} is not null)`),
+    check('capability_execution_authorizations_automation_check', sql`(${t.kind} = 'automation') = (${t.automationId} is not null)`),
+    check('capability_execution_authorizations_autonomy_check', sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`),
+    index('capability_execution_authorizations_live_idx').on(t.id, t.expiresAt, t.revokedAt),
+    index('capability_execution_authorizations_owner_idx').on(t.ownerAccountId, t.createdAt),
+    index('capability_execution_authorizations_coordinator_idx').on(t.coordinatorApplicationId, t.coordinatorCredentialId),
+  ],
 );
 
 export const accountCapabilityPolicies = pgTable(
