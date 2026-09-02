@@ -292,7 +292,18 @@ aws() {
       fi
       ;;
     "ecs run-task")
-      printf 'reconcile\n' >>"$DEPLOY_TEST_LOG"
+      local previous_argument=""
+      local overrides=""
+      local argument
+      for argument in "$@"; do
+        if [[ "$previous_argument" == "--overrides" ]]; then
+          overrides="$argument"
+          break
+        fi
+        previous_argument="$argument"
+      done
+      jq -r '.containerOverrides[0].command | join(" ")' <<<"$overrides" \
+        >>"$DEPLOY_TEST_LOG"
       printf '%s\n' '{
         "failures": [],
         "tasks": [{"taskArn": "arn:aws:ecs:test:task/deploy-test-reconcile"}]
@@ -337,6 +348,7 @@ run_release() {
   local service_desired_count="${7:-1}"
   local rollout_scenario="${8:-healthy}"
   local smoke_exit_code="${9:-0}"
+  local post_deploy_tasks_json="${10:-}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -377,8 +389,12 @@ run_release() {
     POLL_INTERVAL=1
     RUN_MIGRATIONS="$run_migrations"
     POST_DEPLOY_SMOKE_SCRIPT="$smoke_script"
-    POST_DEPLOY_TASK_COMMAND_JSON='["reconcile"]'
   )
+  if [[ -n "$post_deploy_tasks_json" ]]; then
+    release_environment+=(POST_DEPLOY_TASKS_JSON="$post_deploy_tasks_json")
+  else
+    release_environment+=(POST_DEPLOY_TASK_COMMAND_JSON='["reconcile"]')
+  fi
   if [[ "$inject_internal_metrics" == "true" ]]; then
     release_environment+=(
       INTERNAL_METRICS_PARAMETER="$DEPLOY_TEST_METRICS_PARAMETER"
@@ -414,6 +430,20 @@ printf '%s\n' \
 diff -u \
   "$test_directory/success/expected.log" \
   "$test_directory/success/aws.log"
+
+run_release \
+  ordered-post-deploy-tasks \
+  true false false 0 false 1 healthy 0 \
+  '[{"label":"Post-deploy migration","command":["post-migrate"]},{"label":"Inbox catalog registration","command":["register-catalog"]}]'
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  post-migrate \
+  register-catalog \
+  >"$test_directory/ordered-post-deploy-tasks/expected.log"
+diff -u \
+  "$test_directory/ordered-post-deploy-tasks/expected.log" \
+  "$test_directory/ordered-post-deploy-tasks/aws.log"
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a
@@ -463,7 +493,7 @@ diff -u \
 
 run_release migration-failure false true false 1
 printf '%s\n' \
-  reconcile \
+  'node packages/api/dist/db/migrate.js --phase=pre' \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \

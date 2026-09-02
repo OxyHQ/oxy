@@ -1,28 +1,10 @@
-import { OxyServices } from '@oxyhq/core';
 import { normalizedAppEventSchema, type NormalizedAppEvent } from '@oxyhq/contracts';
 import { logger } from '../utils/logger';
+import { inboxServiceClient } from './inbox-service-client';
 
 const ALIA_API_URL = (process.env.ALIA_API_URL ?? 'https://api.alia.onl').replace(/\/$/, '');
-const OXY_API_URL = (process.env.OXY_API_URL ?? 'https://api.oxy.so').replace(/\/$/, '');
-
-let eventClient: OxyServices | null | undefined;
-
-function serviceClient(): OxyServices | null {
-  if (eventClient !== undefined) return eventClient;
-  const key = process.env.OXY_EVENT_APPLICATION_KEY?.trim();
-  const secret = process.env.OXY_EVENT_APPLICATION_SECRET?.trim();
-  if (!key || !secret) {
-    eventClient = null;
-    return eventClient;
-  }
-  const client = new OxyServices({ baseURL: OXY_API_URL });
-  client.configureServiceAuth(key, secret);
-  eventClient = client;
-  return eventClient;
-}
-
 async function publish(event: NormalizedAppEvent): Promise<boolean> {
-  const client = serviceClient();
+  const client = inboxServiceClient();
   if (!client) return false;
   const token = await client.getServiceToken();
   const response = await fetch(`${ALIA_API_URL}/webhooks/oxy`, {

@@ -21,6 +21,7 @@ AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
 POST_DEPLOY_TASK_COMMAND_JSON="${POST_DEPLOY_TASK_COMMAND_JSON:-}"
+POST_DEPLOY_TASKS_JSON="${POST_DEPLOY_TASKS_JSON:-}"
 # Exit code a smoke script uses to say "this failed, and rolling back cannot fix
 # it" — a check that crosses a boundary this deploy does not own (a CDN in front
 # of the origin, another service the route consults). Reverting the image for one
@@ -60,6 +61,31 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]] &&
      all(.[]; type == "string" and length > 0)
    ' <<<"$POST_DEPLOY_TASK_COMMAND_JSON" >/dev/null; then
   echo "::error::POST_DEPLOY_TASK_COMMAND_JSON must be a non-empty JSON string array."
+  exit 1
+fi
+if [[ -z "$POST_DEPLOY_TASKS_JSON" ]]; then
+  POST_DEPLOY_TASKS_JSON='[]'
+fi
+if ! jq -e '
+  type == "array" and
+  length <= 10 and
+  all(
+    .[];
+    type == "object" and
+    (.label | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9 .:_-]{0,79}$")) and
+    (
+      .command |
+      type == "array" and
+      length > 0 and
+      all(.[]; type == "string" and length > 0)
+    )
+  )
+' <<<"$POST_DEPLOY_TASKS_JSON" >/dev/null; then
+  echo "::error::POST_DEPLOY_TASKS_JSON must be an array of at most 10 labeled, non-empty command arrays."
+  exit 1
+fi
+if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" && "$POST_DEPLOY_TASKS_JSON" != '[]' ]]; then
+  echo "::error::Use POST_DEPLOY_TASK_COMMAND_JSON or POST_DEPLOY_TASKS_JSON, not both."
   exit 1
 fi
 if [[ -z "$TASK_SECRET_OVERRIDES_JSON" ]]; then
@@ -483,7 +509,9 @@ new_task_definition="$(aws ecs register-task-definition \
   --output text)"
 
 one_shot_run_task_args=()
-if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
+if [[ "$RUN_MIGRATIONS" == "true" ||
+      -n "$POST_DEPLOY_TASK_COMMAND_JSON" ||
+      "$(jq 'length' <<<"$POST_DEPLOY_TASKS_JSON")" != "0" ]]; then
   network_configuration="$(jq -c '.services[0].networkConfiguration' <<<"$service_json")"
   if [[ -z "$network_configuration" || "$network_configuration" == "null" ]]; then
     echo "::error::ECS service $APP has no network configuration for the migration task."
@@ -602,6 +630,18 @@ if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
     exit 1
   fi
 fi
+
+while IFS= read -r post_deploy_task; do
+  post_deploy_label="$(jq -r '.label' <<<"$post_deploy_task")"
+  post_deploy_command="$(jq -c '.command' <<<"$post_deploy_task")"
+  if ! run_one_shot_command "$post_deploy_label" "$post_deploy_command"; then
+    echo "::error::$post_deploy_label failed."
+    if ! rollback_service; then
+      echo "::error::$post_deploy_label and rollback both failed; manual intervention is required."
+    fi
+    exit 1
+  fi
+done < <(jq -c '.[]' <<<"$POST_DEPLOY_TASKS_JSON")
 
 if [[ "$smoke_reported_external_failure" == "true" ]]; then
   echo "::error::$APP is deployed and live at $new_task_definition, but its post-deploy smoke checks are still failing on a dependency. Nothing was rolled back; this release needs a human."

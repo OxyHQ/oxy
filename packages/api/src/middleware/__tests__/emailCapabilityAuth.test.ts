@@ -145,6 +145,21 @@ beforeEach(() => {
 });
 
 describe('emailCapabilityAuth', () => {
+  it('requires an idempotency header before validating an effectful body', async () => {
+    const result = await run(request({
+      method: 'POST',
+      path: `/messages/${MESSAGE_ID}/move`,
+      token: ticket('moveEmail'),
+      body: { mailboxId: 'mailbox_test_2' },
+    }));
+
+    expect(result.res.statusCode).toBe(400);
+    expect(result.res.body).toEqual({ error: 'idempotency_key_required' });
+    expect(result.next).not.toHaveBeenCalled();
+    expect(mockReauthorize).not.toHaveBeenCalled();
+    expect(mockAuditWrite).toHaveBeenCalledTimes(1);
+  });
+
   it('validates the catalog input before authority and effect reservation', async () => {
     const result = await run(request({
       method: 'POST',
