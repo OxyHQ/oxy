@@ -154,6 +154,7 @@ describe('agency contracts', () => {
         };
         const catalog = (limitKeys: unknown[]) => ({
             schemaVersion: '1', appId: 'inbox', version: '1', audience: 'inbox-api',
+            internalBaseUrl: 'https://api.oxy.so',
             accountResourceType: 'email_account', tools: [{ ...tool, limitKeys }], events: [],
         });
 
