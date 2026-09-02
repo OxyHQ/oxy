@@ -18937,7 +18937,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/accounts/:accountId`",
-        "description": "Register a credential at account or project scope. The store is resolved\nbefore the body is read — see the module header.",
+        "description": "Register a credential at account or project scope. Kaana control is resolved\nbefore the body is read — see the module header.",
         "parameters": [
           {
             "name": "accountId",
@@ -19530,7 +19530,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/:connectionId/disable`",
-        "description": "Immediate and reversible. Pure database work — no store round trip — so\n\"immediate\" does not depend on the availability of the thing being stopped.",
+        "description": "Immediate and reversible. Pure database work — no Kaana round trip — so\n\"immediate\" does not depend on the availability of the thing being stopped.",
         "parameters": [
           {
             "name": "connectionId",
@@ -19742,7 +19742,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/:connectionId/revoke`",
-        "description": "Terminal, and it destroys the stored credential. A destroy failure does NOT\nblock the revoke — retiring a connection is a safety operation, often because\nthe key leaked — so the response and the audit row both state whether the\nsecret was actually destroyed. There is deliberately no DELETE: a deleted\nconnection would make a past charge unexplainable and would take its own audit\ntrail with it.",
+        "description": "Terminal. Oxy fences it locally before asking Kaana to revoke the exact\ngeneration, and the response states whether Kaana acknowledged that change.\nThere is deliberately no DELETE: a deleted\nconnection would make a past charge unexplainable and would take its own audit\ntrail with it.",
         "parameters": [
           {
             "name": "connectionId",
@@ -19848,7 +19848,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/:connectionId/rotate`",
-        "description": "Replace the credential. The reference is unchanged, so a data plane holding it\nkeeps working and the previous credential is gone the instant the store write\nlands.",
+        "description": "Replace the credential. The reference is unchanged, so a data plane holding it\nkeeps working and the previous generation becomes unavailable once Kaana\nacknowledges the exact revision transition.",
         "parameters": [
           {
             "name": "connectionId",

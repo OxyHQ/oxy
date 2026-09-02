@@ -94,6 +94,16 @@ stop and perform an explicit read-once import with receipts, exact identities,
 Kaana acknowledgements and revocation/deletion in the old backend. Never convert
 a locator into a handle or infer an ID.
 
+The production inventory was proven on 2026-09-02 by a one-shot Fargate task
+using deployed task definition `oxy-oxy-api:289`. It began a read-only
+transaction and emitted only this count receipt: `provider_connections = 0`,
+`rows_with_legacy_locator = 0`, with `populated_database_control = 85055` as a
+positive control that the production database was actually queried. The task
+`43b54aa7736846c3b9043b7842214f70` exited `0`; its CloudWatch stream is
+`oxy-api/oxy-api/43b54aa7736846c3b9043b7842214f70`. The query selected no locator
+or credential value. Therefore no read-once import is required for this cut,
+but the post-deploy column removal remains mandatory.
+
 `0065` is an additive pre-deploy migration. It leaves the old `secret_ref`
 column nullable solely so the previous image can coexist during a rolling
 deployment. Keep custody signing configuration disabled until every old task is
@@ -118,6 +128,7 @@ recorded:
 
 1. Production query proves zero legacy rows, or a reviewed read-once import has
    receipts for every exact connection and confirms removal from the old store.
+   The count-only 2026-09-02 receipt above satisfies this inventory gate.
 2. The rolling deploy is complete and post-deploy migration `0066` has dropped
    `secret_ref` and its old constraints/index.
 3. Deterministic create/rotate/revoke reconciliation exists and has lost-response,
