@@ -30,6 +30,7 @@ const catalog: AppCapabilityCatalog = {
   appId: 'noted',
   version: '1.0.0',
   audience: 'noted-api',
+  internalBaseUrl: 'https://api.noted.oxy.so',
   accountResourceType: 'workspace',
   tools: [
     {

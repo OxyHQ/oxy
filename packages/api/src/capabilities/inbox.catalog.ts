@@ -43,8 +43,9 @@ function readTool(input: ReadToolInput): CatalogTool {
 export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
   schemaVersion: '1',
   appId: 'inbox',
-  version: '1.0.0',
+  version: '1.1.0',
   audience: 'oxy-inbox-api',
+  internalBaseUrl: 'https://api.oxy.so',
   accountResourceType: 'email_account',
   tools: [
     readTool({

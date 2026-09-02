@@ -378,6 +378,23 @@ export const appCapabilityCatalogSchema = z.object({
     appId: identifierSchema,
     version: identifierSchema,
     audience: identifierSchema,
+    /** HTTPS origin that serves the catalog's internal invocation paths. */
+    internalBaseUrl: z.string().url().superRefine((value, context) => {
+        const url = new URL(value);
+        const localDevelopment = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+        if (url.protocol !== 'https:' && !(localDevelopment && url.protocol === 'http:')) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'internalBaseUrl must use HTTPS outside local development',
+            });
+        }
+        if (url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'internalBaseUrl must be an origin without path, query or fragment',
+            });
+        }
+    }),
     /** Account-scoped resource used for native Alia bindings without app-specific code. */
     accountResourceType: identifierSchema,
     tools: z.array(catalogToolSchema),

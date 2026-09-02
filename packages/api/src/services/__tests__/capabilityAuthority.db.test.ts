@@ -61,6 +61,7 @@ async function fixture(maximumAutonomy: AutonomyLevel) {
     appId: appSlug,
     version: '1.0.0',
     audience: `${appSlug}-api`,
+    internalBaseUrl: 'https://api.example.test',
     accountResourceType: 'account',
     tools: [{
       name: 'publishEffect',
