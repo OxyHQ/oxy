@@ -22,6 +22,7 @@ import linksRoutes from './routes/links';
 import storeRoutes from './routes/store';
 import locationSearchRoutes from './routes/locationSearch';
 import authRoutes from './routes/auth';
+import mcpOAuthRoutes, { mcpOAuthDiscoveryRouter } from './routes/mcpOAuth';
 import assetRoutes from './routes/assets';
 import cdnRoutes from './routes/cdn';
 import storageRoutes from './routes/storage';
@@ -149,6 +150,7 @@ import { errorHandler } from './middleware/errorHandler';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
+import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
 
 // Load environment variables
 dotenv.config();
@@ -170,6 +172,20 @@ app.set('trust proxy', 1);
 
 // Security headers middleware (first, before any other middleware)
 app.use(securityHeaders);
+
+// The external Inbox MCP endpoint owns its raw JSON body, exact resource host,
+// OAuth challenge, and origin policy. Mount it before compression and global
+// body parsing so the protocol boundary is enforced exactly once.
+const inboxMcpHttpService = createInboxMcpHttpService();
+app.all(
+  inboxMcpHttpService.protectedResourceMetadataPath,
+  (request, response) => {
+    inboxMcpHttpService.handleProtectedResourceMetadata(request, response);
+  },
+);
+app.all(inboxMcpHttpService.mcpPath, (request, response) => {
+  void inboxMcpHttpService.handleMcp(request, response);
+});
 
 // Compress responses (gzip/brotli)
 app.use(compression());
@@ -628,6 +644,8 @@ app.get('/csrf-token', getCsrfToken);
 
 // API Routes
 // Apply stricter rate limiting to auth routes
+app.use(mcpOAuthDiscoveryRouter);
+app.use('/auth/mcp/oauth', authRateLimiter, mcpOAuthRoutes);
 app.use("/auth", authRateLimiter, authRoutes);
 app.use("/auth", userRateLimiter, csrfProtection, authLinkingRoutes); // Auth linking (requires auth)
 app.use("/assets", assetRoutes);

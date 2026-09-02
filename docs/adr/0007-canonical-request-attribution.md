@@ -61,18 +61,18 @@ delegated call becomes a charge against the wrong party.
 
 `requestId` is generated at the edge, on admission, before authorization — so a
 rejected request is still traceable — and travels unchanged into the envelope,
-into Relay, into the ledger and into the customer-visible receipt. It is the
+into Kaana, into the ledger and into the customer-visible receipt. It is the
 correlation key named in workstream 16's observability requirements.
 
-### Relay-generated
+### Kaana-generated
 
 `generationId` identifies one generated output inside a request (an n>1
 completion, one image in a batch, one segment of a stream that is settled
-independently). Relay allocates it, because Relay is what knows how many outputs
+independently). Kaana allocates it, because Kaana is what knows how many outputs
 a request produced. Oxy stores it as an opaque string on the receipt and exposes
 it through `GET /v1/generations/:id`.
 
-Relay does **not** allocate `requestId`. A data plane that mints the correlation
+Kaana does **not** allocate `requestId`. A data plane that mints the correlation
 key cannot correlate a request it never received, and rejected-at-the-edge
 requests are exactly the ones an operator most needs to find.
 
@@ -96,7 +96,7 @@ would change what any account is charged, the code is wrong.**
 
 ### Where the tuple must appear
 
-- **The internal envelope** to Relay (ADR 0010) carries all six fields.
+- **The internal envelope** to Kaana (ADR 0010) carries all six fields.
 - **Telemetry** (`api_key_usage_events`, workstream 8) gains `account_id`,
   attributes to `application_credential_id` rather than the obsolete
   `api_key_id`, and records `request_id` and optional `generation_id`.

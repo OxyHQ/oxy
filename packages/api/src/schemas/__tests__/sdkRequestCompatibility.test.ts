@@ -28,18 +28,19 @@ import type { OxyResponsesRequest } from '@oxyhq/core';
 import { responsesRequestSchema } from '../inferenceEdge.schemas';
 
 /**
- * Fields `responsesRequestSchema` accepts and `OxyResponsesRequest` deliberately
- * does not declare.
+ * Fields `responsesRequestSchema` accepts and the SDK deliberately controls at
+ * the method boundary instead of exposing on `OxyResponsesRequest`.
  *
- * EXACT, not a floor: an entry here is a capability the SDK cannot express, and
- * a growing list is the gate switching itself off one defensible line at a time.
+ * EXACT, not a floor: an entry here must name a transport choice expressed by a
+ * public SDK method, and a growing list is the gate switching itself off one
+ * defensible line at a time.
  *
- * `stream` — the edge refuses `stream: true` with `invalid_request` because
- * there is no data plane to stream from, so a client field that could only ever
- * produce a refusal would be a worse artefact than an absent one. When streaming
- * ships, this entry is removed in the same change that adds the SDK method.
+ * `stream` — `OxyInferenceClient.respond()` omits it and expects JSON;
+ * `OxyInferenceClient.stream()` injects literal `true` and expects SSE. Keeping
+ * it out of the shared request type prevents a caller from choosing a body that
+ * contradicts the method's return transport.
  */
-const SDK_OMITTED_FIELDS = ['stream'] as const;
+const SDK_METHOD_CONTROLLED_FIELDS = ['stream'] as const;
 
 /**
  * Every field of `OxyResponsesRequest`, populated.
@@ -105,7 +106,7 @@ describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('the SDK can express every field the schema accepts, but the named exemptions', () => {
+  it('the SDK can express every field the schema accepts', () => {
     // The other direction: a capability added to the edge that no SDK caller
     // can reach parses fine and would be invisible to the cases above.
     const schemaFields = Object.keys(responsesRequestSchema.innerType().shape).sort();
@@ -113,12 +114,12 @@ describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
       ...new Set([...Object.keys(exhaustiveRequest), ...Object.keys(profileRequest)]),
     ].sort();
 
-    expect(schemaFields).toEqual([...sdkFields, ...SDK_OMITTED_FIELDS].sort());
+    expect(schemaFields).toEqual([...sdkFields, ...SDK_METHOD_CONTROLLED_FIELDS].sort());
   });
 
-  it('the exemption list is exactly what it claims to be', () => {
+  it('the method-controlled field list is exactly what it claims to be', () => {
     // An exact count, so an entry cannot be appended to make a failure go away
     // without somebody editing this number and answering for it.
-    expect(SDK_OMITTED_FIELDS).toEqual(['stream']);
+    expect(SDK_METHOD_CONTROLLED_FIELDS).toEqual(['stream']);
   });
 });

@@ -8,6 +8,10 @@ const limitKeySchema = z.string().regex(
 ).max(255);
 const auditCodeSchema = z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/);
 const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const invocationPathSchema = z.string().regex(
+    /^\/(?!\/)[^\\?#]*$/,
+    'invocation paths must be absolute app-local paths without backslashes, query or fragment',
+);
 
 /** Autonomy is ordered from least to most permissive. */
 export const AUTONOMY_LEVELS = [
@@ -269,7 +273,7 @@ export const catalogToolSchema = z.object({
     }).strict()).default([]),
     invocation: z.object({
         method: z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']),
-        path: nonEmptyStringSchema,
+        path: invocationPathSchema,
     }).strict(),
 }).strict().superRefine((tool, context) => {
     const requireUnique = (values: readonly string[], path: string): void => {
@@ -378,8 +382,46 @@ export const appCapabilityCatalogSchema = z.object({
     appId: identifierSchema,
     version: identifierSchema,
     audience: identifierSchema,
+    /** HTTPS origin that serves the catalog's internal invocation paths. */
+    internalBaseUrl: z.string().url().superRefine((value, context) => {
+        const url = new URL(value);
+        const localDevelopment = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+        if (url.protocol !== 'https:' && !(localDevelopment && url.protocol === 'http:')) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'internalBaseUrl must use HTTPS outside local development',
+            });
+        }
+        if (url.pathname !== '/' || url.search !== '' || url.hash !== '') {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: 'internalBaseUrl must be an origin without path, query or fragment',
+            });
+        }
+    }),
     /** Account-scoped resource used for native Alia bindings without app-specific code. */
     accountResourceType: identifierSchema,
+    /** Canonical protected-resource URI when this catalog is also exposed as an external MCP server. */
+    externalMcp: z.object({
+        resource: z.string().url().superRefine((value, context) => {
+            const url = new URL(value);
+            const localDevelopment = url.hostname === 'localhost'
+                || url.hostname === '127.0.0.1'
+                || url.hostname === '[::1]';
+            if (url.protocol !== 'https:' && !(localDevelopment && url.protocol === 'http:')) {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'externalMcp.resource must use HTTPS outside local development',
+                });
+            }
+            if (url.username || url.password || url.search || url.hash) {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'externalMcp.resource cannot contain credentials, query or fragment',
+                });
+            }
+        }),
+    }).strict().optional(),
     tools: z.array(catalogToolSchema),
     events: z.array(catalogEventSchema),
 }).strict().superRefine((catalog, context) => {

@@ -1,7 +1,17 @@
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
+import {
+  randomUUID,
+  sign as signBytes,
+  verify as verifyBytes,
+  type KeyObject,
+} from 'node:crypto';
 import { z } from 'zod';
 
-const mcpAccessTokenClaimsSchema = z.object({
+const MCP_ACCESS_TOKEN_ALGORITHM = 'EdDSA';
+const MCP_ACCESS_TOKEN_TYPE = 'at+jwt';
+const MAX_ISSUED_TOKEN_TTL_SECONDS = 3_600;
+
+export const mcpAccessTokenClaimsSchema = z.object({
   iss: z.url(),
   sub: z.string().trim().min(1),
   aud: z.string().trim().min(1),
@@ -21,6 +31,19 @@ const mcpAccessTokenClaimsSchema = z.object({
 const AUTH_INFO_CLAIMS_KEY = 'oxy.accessTokenClaims';
 
 export type McpAccessTokenClaims = z.infer<typeof mcpAccessTokenClaimsSchema>;
+
+export interface McpAccessTokenSigningOptions {
+  privateKey: KeyObject;
+  keyId: string;
+  issuer: string;
+  ttlSeconds?: number;
+  now?: Date;
+  jti?: string;
+}
+
+export interface McpAccessTokenSignatureVerificationOptions {
+  resolvePublicKey: (keyId: string) => KeyObject | undefined;
+}
 
 export interface McpTokenValidationOptions {
   issuer: string;
@@ -54,6 +77,94 @@ export interface McpPrincipal {
 
 function scopesOf(value: string | string[]): string[] {
   return [...new Set(Array.isArray(value) ? value : value.split(/\s+/).filter(Boolean))].sort();
+}
+
+function base64UrlEncode(value: string | Uint8Array): string {
+  return Buffer.from(value).toString('base64url');
+}
+
+function decodeBase64Url(segment: string): Buffer {
+  if (!/^[A-Za-z0-9_-]+$/.test(segment)) {
+    throw new Error('MCP access token contains invalid base64url');
+  }
+  const decoded = Buffer.from(segment, 'base64url');
+  if (decoded.toString('base64url') !== segment) {
+    throw new Error('MCP access token contains non-canonical base64url');
+  }
+  return decoded;
+}
+
+function decodeJsonSegment(segment: string): unknown {
+  try {
+    return JSON.parse(decodeBase64Url(segment).toString('utf8')) as unknown;
+  } catch {
+    throw new Error('MCP access token is not valid base64url JSON');
+  }
+}
+
+/** Mint a short-lived, resource-bound MCP access token under Oxy's Ed25519 key. */
+export function issueMcpAccessToken(
+  claims: Omit<McpAccessTokenClaims, 'iss' | 'iat' | 'nbf' | 'exp' | 'jti'>,
+  options: McpAccessTokenSigningOptions,
+): { token: string; claims: McpAccessTokenClaims } {
+  const ttlSeconds = options.ttlSeconds ?? 900;
+  if (!Number.isInteger(ttlSeconds) || ttlSeconds < 1 || ttlSeconds > MAX_ISSUED_TOKEN_TTL_SECONDS) {
+    throw new Error(`MCP access token TTL must be between 1 and ${MAX_ISSUED_TOKEN_TTL_SECONDS} seconds`);
+  }
+  if (options.privateKey.asymmetricKeyType !== 'ed25519') {
+    throw new Error('MCP access tokens require an Ed25519 private key');
+  }
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(options.keyId)) {
+    throw new Error('MCP access token key id must be URL-safe');
+  }
+
+  const issuedAt = Math.floor((options.now ?? new Date()).getTime() / 1_000);
+  const signedClaims = mcpAccessTokenClaimsSchema.parse({
+    ...claims,
+    iss: options.issuer,
+    iat: issuedAt,
+    nbf: issuedAt,
+    exp: issuedAt + ttlSeconds,
+    jti: options.jti ?? randomUUID(),
+  });
+  const header = {
+    alg: MCP_ACCESS_TOKEN_ALGORITHM,
+    typ: MCP_ACCESS_TOKEN_TYPE,
+    kid: options.keyId,
+  } as const;
+  const signingInput = `${base64UrlEncode(JSON.stringify(header))}.${base64UrlEncode(JSON.stringify(signedClaims))}`;
+  const signature = signBytes(null, Buffer.from(signingInput), options.privateKey);
+  return { token: `${signingInput}.${base64UrlEncode(signature)}`, claims: signedClaims };
+}
+
+/** Verify the compact JWS envelope and return structurally valid claims. */
+export function verifyMcpAccessTokenSignature(
+  token: string,
+  options: McpAccessTokenSignatureVerificationOptions,
+): McpAccessTokenClaims {
+  const segments = token.split('.');
+  if (segments.length !== 3 || segments.some((segment) => segment.length === 0)) {
+    throw new Error('MCP access token must have three non-empty segments');
+  }
+  const [encodedHeader, encodedPayload, encodedSignature] = segments as [string, string, string];
+  const header = z.object({
+    alg: z.literal(MCP_ACCESS_TOKEN_ALGORITHM),
+    typ: z.literal(MCP_ACCESS_TOKEN_TYPE),
+    kid: z.string().min(1),
+  }).strict().parse(decodeJsonSegment(encodedHeader));
+  const publicKey = options.resolvePublicKey(header.kid);
+  if (!publicKey || publicKey.asymmetricKeyType !== 'ed25519') {
+    throw new Error('MCP access token signing key is not trusted');
+  }
+
+  const valid = verifyBytes(
+    null,
+    Buffer.from(`${encodedHeader}.${encodedPayload}`),
+    publicKey,
+    decodeBase64Url(encodedSignature),
+  );
+  if (!valid) throw new Error('MCP access token signature is invalid');
+  return mcpAccessTokenClaimsSchema.parse(decodeJsonSegment(encodedPayload));
 }
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {

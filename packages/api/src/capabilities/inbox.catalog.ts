@@ -1,6 +1,12 @@
 import type { AppCapabilityCatalog, CatalogTool } from '@oxyhq/contracts';
 
 const objectOutput = { type: 'object', additionalProperties: true } as const;
+const idempotencyKey = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 255,
+  description: 'Stable caller-generated key for retry-safe execution.',
+} as const;
 const recipient = {
   type: 'object',
   properties: {
@@ -43,8 +49,10 @@ function readTool(input: ReadToolInput): CatalogTool {
 export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
   schemaVersion: '1',
   appId: 'inbox',
-  version: '1.0.0',
+  version: '1.2.0',
   audience: 'oxy-inbox-api',
+  internalBaseUrl: 'https://api.oxy.so',
+  externalMcp: { resource: 'https://mcp.inbox.oxy.so' },
   accountResourceType: 'email_account',
   tools: [
     readTool({
@@ -56,7 +64,8 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
           q: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' },
           subject: { type: 'string' }, hasAttachment: { type: 'boolean' },
           dateAfter: { type: 'string' }, dateBefore: { type: 'string' },
-          label: { type: 'string' }, limit: { type: 'integer' }, offset: { type: 'integer' },
+          label: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 },
+          offset: { type: 'integer', minimum: 0 },
         },
         additionalProperties: false,
       },
@@ -70,7 +79,10 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       description: 'List unread messages in one delegated mailbox.',
       inputSchema: {
         type: 'object',
-        properties: { limit: { type: 'integer' }, offset: { type: 'integer' } },
+        properties: {
+          limit: { type: 'integer', minimum: 1, maximum: 100 },
+          offset: { type: 'integer', minimum: 0 },
+        },
         additionalProperties: false,
       },
       outputSchema: objectOutput,
@@ -107,6 +119,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       inputSchema: {
         type: 'object',
         properties: {
+          idempotencyKey,
           to: { type: 'array', items: recipient, minItems: 1, maxItems: 100 },
           cc: { type: 'array', items: recipient, maxItems: 100 },
           bcc: { type: 'array', items: recipient, maxItems: 100 }, subject: { type: 'string', maxLength: 998 },
@@ -115,7 +128,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
           attachments: { type: 'array', items: attachment, maxItems: 20 },
           requestReadReceipt: { type: 'boolean' },
         },
-        required: ['to'], additionalProperties: false,
+        required: ['idempotencyKey', 'to'], additionalProperties: false,
       },
       outputSchema: objectOutput,
       capabilityPackage: 'communicate',
@@ -150,8 +163,8 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       description: 'Move one message out of a delegated mailbox into another mailbox in the same account.',
       inputSchema: {
         type: 'object',
-        properties: { messageId: { type: 'string' }, mailboxId: { type: 'string' } },
-        required: ['messageId', 'mailboxId'], additionalProperties: false,
+        properties: { idempotencyKey, messageId: { type: 'string' }, mailboxId: { type: 'string' } },
+        required: ['idempotencyKey', 'messageId', 'mailboxId'], additionalProperties: false,
       },
       outputSchema: objectOutput,
       capabilityPackage: 'administer',
@@ -171,6 +184,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       inputSchema: {
         type: 'object',
         properties: {
+          idempotencyKey,
           messageId: { type: 'string' },
           flags: {
             type: 'object',
@@ -178,7 +192,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
             additionalProperties: false,
           },
         },
-        required: ['messageId', 'flags'], additionalProperties: false,
+        required: ['idempotencyKey', 'messageId', 'flags'], additionalProperties: false,
       },
       outputSchema: objectOutput,
       capabilityPackage: 'administer',

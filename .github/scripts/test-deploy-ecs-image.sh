@@ -25,6 +25,8 @@ export DEPLOY_TEST_EXPECT_METRICS_ARN=false
 export DEPLOY_TEST_METRICS_PARAMETER=/oxy/sampleapp/INTERNAL_METRICS_TOKEN
 export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
+export DEPLOY_TEST_EXPECT_TASK_ENV=false
+export DEPLOY_TEST_EXPECT_TASK_REMOVE=false
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 export DEPLOY_TEST_DEPLOYMENT_ID=ecs-deploy-test-2
@@ -135,6 +137,21 @@ aws() {
           "name": "deploy-test",
           "image": "example.invalid/deploy-test:old",
           "essential": true,
+          "environment": [
+            {"name": "KEEP_EXISTING", "value": "preserved"},
+            {"name": "REPLACE_EXISTING", "value": "old"},
+            {"name": "REMOVE_ENV", "value": "obsolete"}
+          ],
+          "secrets": [
+            {
+              "name": "EXISTING_SECRET",
+              "valueFrom": "arn:aws:ssm:test:123456789012:parameter/oxy/deploy-test/EXISTING_SECRET"
+            },
+            {
+              "name": "REMOVE_SECRET",
+              "valueFrom": "arn:aws:ssm:test:123456789012:parameter/oxy/deploy-test/REMOVE_SECRET"
+            }
+          ],
           "logConfiguration": {
             "logDriver": "awslogs",
             "options": {
@@ -208,6 +225,54 @@ aws() {
           printf 'task-secret:arn\n' >>"$DEPLOY_TEST_LOG"
         else
           printf 'task-secret:arn:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
+      fi
+      if [[ "$DEPLOY_TEST_EXPECT_TASK_ENV" == "true" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        if jq -e '
+          .containerDefinitions[]
+          | select(.name == "deploy-test")
+          | (.environment | map({key: .name, value: .value}) | from_entries) as $environment
+          | $environment.KEEP_EXISTING == "preserved" and
+            $environment.REPLACE_EXISTING == "new" and
+            $environment.NEW_PLAIN_SETTING == "do-not-log-sensitive-value"
+        ' "$input_json" >/dev/null; then
+          printf 'task-env:valid\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'task-env:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
+      fi
+      if [[ "$DEPLOY_TEST_EXPECT_TASK_REMOVE" == "true" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        if jq -e '
+          .containerDefinitions[]
+          | select(.name == "deploy-test")
+          | ([.environment[].name] | index("REMOVE_ENV") == null) and
+            ([.secrets[].name] | index("REMOVE_SECRET") == null) and
+            ([.environment[].name] | index("KEEP_EXISTING") != null) and
+            ([.secrets[].name] | index("EXISTING_SECRET") != null)
+        ' "$input_json" >/dev/null; then
+          printf 'task-remove:valid\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'task-remove:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
         fi
       fi
       printf '%s\n' "arn:aws:ecs:test:task-definition/deploy-test:2"
@@ -292,7 +357,29 @@ aws() {
       fi
       ;;
     "ecs run-task")
-      printf 'reconcile\n' >>"$DEPLOY_TEST_LOG"
+      local previous_argument=""
+      local overrides=""
+      local argument
+      for argument in "$@"; do
+        if [[ "$previous_argument" == "--overrides" ]]; then
+          overrides="$argument"
+          break
+        fi
+        previous_argument="$argument"
+      done
+      if jq -e '.containerOverrides[0].command | index("packages/api/dist/db/migrate.js") != null' \
+        <<<"$overrides" >/dev/null; then
+        printf 'migration\n' >>"$DEPLOY_TEST_LOG"
+      elif jq -e '.containerOverrides[0].command | index("packages/api/scripts/verify-inference-routing-readiness.ts") != null' \
+        <<<"$overrides" >/dev/null; then
+        printf 'readiness\n' >>"$DEPLOY_TEST_LOG"
+      elif jq -e '.containerOverrides[0].command == ["reconcile"]' \
+        <<<"$overrides" >/dev/null; then
+        printf 'reconcile\n' >>"$DEPLOY_TEST_LOG"
+      else
+        jq -r '.containerOverrides[0].command | join(" ")' <<<"$overrides" \
+          >>"$DEPLOY_TEST_LOG"
+      fi
       printf '%s\n' '{
         "failures": [],
         "tasks": [{"taskArn": "arn:aws:ecs:test:task/deploy-test-reconcile"}]
@@ -337,6 +424,10 @@ run_release() {
   local service_desired_count="${7:-1}"
   local rollout_scenario="${8:-healthy}"
   local smoke_exit_code="${9:-0}"
+  local pre_deploy_command="${10:-}"
+  local task_environment_overrides="${11:-}"
+  local task_remove_names="${12:-}"
+  local post_deploy_tasks_json="${13:-}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -346,11 +437,21 @@ run_release() {
   DEPLOY_TEST_EXPECT_METRICS_ARN="$inject_internal_metrics"
   DEPLOY_TEST_TASK_EXIT_CODE="$task_exit_code"
   DEPLOY_TEST_EXPECT_TASK_SECRET_ARN="$inject_task_secret"
+  DEPLOY_TEST_EXPECT_TASK_ENV=false
+  if [[ -n "$task_environment_overrides" ]]; then
+    DEPLOY_TEST_EXPECT_TASK_ENV=true
+  fi
+  DEPLOY_TEST_EXPECT_TASK_REMOVE=false
+  if [[ -n "$task_remove_names" ]]; then
+    DEPLOY_TEST_EXPECT_TASK_REMOVE=true
+  fi
   DEPLOY_TEST_SERVICE_DESIRED_COUNT="$service_desired_count"
   DEPLOY_TEST_ROLLOUT_SCENARIO="$rollout_scenario"
   export DEPLOY_TEST_LOG DEPLOY_TEST_EXPECT_METRICS_ARN
   export DEPLOY_TEST_TASK_EXIT_CODE
   export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN
+  export DEPLOY_TEST_EXPECT_TASK_ENV
+  export DEPLOY_TEST_EXPECT_TASK_REMOVE
   export DEPLOY_TEST_SERVICE_DESIRED_COUNT
   export DEPLOY_TEST_ROLLOUT_SCENARIO
   export DEPLOY_TEST_DEPLOYMENT_ID
@@ -377,8 +478,15 @@ run_release() {
     POLL_INTERVAL=1
     RUN_MIGRATIONS="$run_migrations"
     POST_DEPLOY_SMOKE_SCRIPT="$smoke_script"
-    POST_DEPLOY_TASK_COMMAND_JSON='["reconcile"]'
+    PRE_DEPLOY_TASK_COMMAND_JSON="$pre_deploy_command"
+    TASK_ENV_OVERRIDES_JSON="$task_environment_overrides"
+    TASK_REMOVE_NAMES_JSON="$task_remove_names"
   )
+  if [[ -n "$post_deploy_tasks_json" ]]; then
+    release_environment+=(POST_DEPLOY_TASKS_JSON="$post_deploy_tasks_json")
+  else
+    release_environment+=(POST_DEPLOY_TASK_COMMAND_JSON='["reconcile"]')
+  fi
   if [[ "$inject_internal_metrics" == "true" ]]; then
     release_environment+=(
       INTERNAL_METRICS_PARAMETER="$DEPLOY_TEST_METRICS_PARAMETER"
@@ -415,6 +523,20 @@ diff -u \
   "$test_directory/success/expected.log" \
   "$test_directory/success/aws.log"
 
+run_release \
+  ordered-post-deploy-tasks \
+  true false false 0 false 1 healthy 0 '' '' '' \
+  '[{"label":"Post-deploy migration","command":["post-migrate"]},{"label":"Inbox catalog registration","command":["register-catalog"]}]'
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  post-migrate \
+  register-catalog \
+  >"$test_directory/ordered-post-deploy-tasks/expected.log"
+diff -u \
+  "$test_directory/ordered-post-deploy-tasks/expected.log" \
+  "$test_directory/ordered-post-deploy-tasks/aws.log"
+
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a
 # hyphen, so an app whose path had none deployed and an app whose path had one
@@ -449,6 +571,172 @@ diff -u \
   "$test_directory/explicit-task-secret/expected.log" \
   "$test_directory/explicit-task-secret/aws.log"
 
+run_release explicit-task-environment true false false 0 false 1 healthy 0 '' \
+  '{"REPLACE_EXISTING":"new","NEW_PLAIN_SETTING":"do-not-log-sensitive-value"}'
+printf '%s\n' \
+  task-env:valid \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  reconcile \
+  >"$test_directory/explicit-task-environment/expected.log"
+diff -u \
+  "$test_directory/explicit-task-environment/expected.log" \
+  "$test_directory/explicit-task-environment/aws.log"
+if grep -R -F 'do-not-log-sensitive-value' \
+  "$test_directory/explicit-task-environment/output.log" \
+  "$test_directory/explicit-task-environment/aws.log" >/dev/null; then
+  echo "TASK_ENV_OVERRIDES_JSON value leaked to deploy logs." >&2
+  exit 1
+fi
+
+run_release explicit-task-removal true false false 0 false 1 healthy 0 '' '' \
+  '["REMOVE_ENV","REMOVE_SECRET"]'
+printf '%s\n' \
+  task-remove:valid \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  reconcile \
+  >"$test_directory/explicit-task-removal/expected.log"
+diff -u \
+  "$test_directory/explicit-task-removal/expected.log" \
+  "$test_directory/explicit-task-removal/aws.log"
+
+case_directory="$test_directory/invalid-task-removal"
+mkdir -p "$case_directory"
+if env \
+  AWS_REGION=test \
+  CLUSTER=deploy-test \
+  APP=deploy-test \
+  IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  TASK_REMOVE_NAMES_JSON='["DUPLICATE","DUPLICATE"]' \
+  bash "$repository_root/.github/scripts/deploy-ecs-image.sh" \
+  >"$case_directory/output.log" 2>&1; then
+  echo "Expected invalid TASK_REMOVE_NAMES_JSON to fail." >&2
+  exit 1
+fi
+grep -F 'TASK_REMOVE_NAMES_JSON must be an array' "$case_directory/output.log" >/dev/null
+if [[ -s "$case_directory/aws.log" ]]; then
+  echo "Invalid TASK_REMOVE_NAMES_JSON reached AWS." >&2
+  exit 1
+fi
+
+case_directory="$test_directory/remove-override-overlap"
+mkdir -p "$case_directory"
+if env \
+  AWS_REGION=test \
+  CLUSTER=deploy-test \
+  APP=deploy-test \
+  IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  TASK_ENV_OVERRIDES_JSON='{"SAME_NAME":"new"}' \
+  TASK_REMOVE_NAMES_JSON='["SAME_NAME"]' \
+  bash "$repository_root/.github/scripts/deploy-ecs-image.sh" \
+  >"$case_directory/output.log" 2>&1; then
+  echo "Expected remove/override overlap to fail." >&2
+  exit 1
+fi
+grep -F 'must not name a TASK_ENV_OVERRIDES_JSON' "$case_directory/output.log" >/dev/null
+
+case_directory="$test_directory/invalid-task-environment"
+mkdir -p "$case_directory"
+if env \
+  AWS_REGION=test \
+  CLUSTER=deploy-test \
+  APP=deploy-test \
+  IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  TASK_ENV_OVERRIDES_JSON='{"INVALID":42}' \
+  bash "$repository_root/.github/scripts/deploy-ecs-image.sh" \
+  >"$case_directory/output.log" 2>&1; then
+  echo "Expected invalid TASK_ENV_OVERRIDES_JSON to fail." >&2
+  exit 1
+fi
+grep -F 'TASK_ENV_OVERRIDES_JSON must map environment variable names to string values' \
+  "$case_directory/output.log" >/dev/null
+if [[ -s "$case_directory/aws.log" ]]; then
+  echo "Invalid TASK_ENV_OVERRIDES_JSON reached AWS." >&2
+  exit 1
+fi
+
+case_directory="$test_directory/plain-secret-override-overlap"
+mkdir -p "$case_directory"
+if env \
+  AWS_REGION=test \
+  CLUSTER=deploy-test \
+  APP=deploy-test \
+  IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  TASK_ENV_OVERRIDES_JSON='{"SHARED_NAME":"do-not-print-overlap"}' \
+  TASK_SECRET_OVERRIDES_JSON='{"SHARED_NAME":"arn:aws:ssm:test:123456789012:parameter/oxy/deploy-test/SHARED_NAME"}' \
+  bash "$repository_root/.github/scripts/deploy-ecs-image.sh" \
+  >"$case_directory/output.log" 2>&1; then
+  echo "Expected plaintext/secret override overlap to fail." >&2
+  exit 1
+fi
+grep -F 'must not overlap TASK_SECRET_OVERRIDES_JSON' \
+  "$case_directory/output.log" >/dev/null
+if grep -F 'do-not-print-overlap' "$case_directory/output.log" >/dev/null; then
+  echo "Overlapping plaintext value leaked to deploy logs." >&2
+  exit 1
+fi
+
+case_directory="$test_directory/plain-existing-secret-overlap"
+mkdir -p "$case_directory"
+DEPLOY_TEST_LOG="$case_directory/aws.log"
+export DEPLOY_TEST_LOG
+if env \
+  AWS_REGION=test \
+  CLUSTER=deploy-test \
+  APP=deploy-test \
+  CONTAINER_NAME=deploy-test \
+  IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  TASK_ENV_OVERRIDES_JSON='{"EXISTING_SECRET":"do-not-print"}' \
+  bash "$repository_root/.github/scripts/deploy-ecs-image.sh" \
+  >"$case_directory/output.log" 2>&1; then
+  echo "Expected plaintext/existing ECS secret overlap to fail." >&2
+  exit 1
+fi
+grep -F 'must not replace an existing ECS secret' \
+  "$case_directory/output.log" >/dev/null
+if grep -F 'do-not-print' "$case_directory/output.log" >/dev/null; then
+  echo "Existing-secret overlap value leaked to deploy logs." >&2
+  exit 1
+fi
+
+case_directory="$test_directory/plain-internal-metrics-secret-overlap"
+mkdir -p "$case_directory"
+if env \
+  AWS_REGION=test \
+  CLUSTER=deploy-test \
+  APP=deploy-test \
+  IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  INTERNAL_METRICS_PARAMETER=/oxy/deploy-test/INTERNAL_METRICS_TOKEN \
+  TASK_ENV_OVERRIDES_JSON='{"INTERNAL_METRICS_TOKEN":"do-not-print"}' \
+  bash "$repository_root/.github/scripts/deploy-ecs-image.sh" \
+  >"$case_directory/output.log" 2>&1; then
+  echo "Expected plaintext/internal metrics secret overlap to fail." >&2
+  exit 1
+fi
+grep -F 'must not override INTERNAL_METRICS_TOKEN' \
+  "$case_directory/output.log" >/dev/null
+if grep -F 'do-not-print' "$case_directory/output.log" >/dev/null; then
+  echo "Internal metrics overlap value leaked to deploy logs." >&2
+  exit 1
+fi
+
+# Phase A must publish the non-secret score validity horizon before operators
+# can approve serving routes, but it must not activate the readiness gate in
+# the same release. That separation leaves a safe authoring window between the
+# additive schema/API rollout and serving enforcement.
+workflow_file="$repository_root/.github/workflows/deploy-aws.yml"
+grep -F 'TASK_ENV_OVERRIDES_JSON: >-' "$workflow_file" >/dev/null
+grep -F '{"INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS":"3600","KAANA_BASE_URL":"https://kaana.ai","KAANA_EDGE_SIGNING_KEY_ID":"oxy-edge-2026-08-17","INFERENCE_KAANA_EXECUTION":"disabled"}' \
+  "$workflow_file" >/dev/null
+grep -F 'TASK_REMOVE_NAMES_JSON: >-' "$workflow_file" >/dev/null
+grep -F '["RELAY_BASE_URL","RELAY_EDGE_SIGNING_KEY_ID","RELAY_EDGE_SIGNING_PRIVATE_KEY"]' \
+  "$workflow_file" >/dev/null
+if grep -F 'PRE_DEPLOY_TASK_COMMAND_JSON:' "$workflow_file" >/dev/null; then
+  echo "Phase A must not activate the inference routing readiness gate." >&2
+  exit 1
+fi
+
 run_release reconciliation-failure false false false 1
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
@@ -463,7 +751,7 @@ diff -u \
 
 run_release migration-failure false true false 1
 printf '%s\n' \
-  reconcile \
+  migration \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \
@@ -475,6 +763,32 @@ grep -F \
   >/dev/null
 if grep -q '^service:' "$test_directory/migration-failure/aws.log"; then
   echo "Failed migration reached update-service." >&2
+  exit 1
+fi
+
+run_release readiness-success true false false 0 false 1 healthy 0 \
+  '["bun","run","packages/api/scripts/verify-inference-routing-readiness.ts"]'
+printf '%s\n' \
+  readiness \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  reconcile \
+  >"$test_directory/readiness-success/expected.log"
+diff -u \
+  "$test_directory/readiness-success/expected.log" \
+  "$test_directory/readiness-success/aws.log"
+
+run_release readiness-failure false false false 1 false 1 healthy 0 \
+  '["bun","run","packages/api/scripts/verify-inference-routing-readiness.ts"]'
+printf '%s\n' \
+  readiness \
+  tasklogs \
+  >"$test_directory/readiness-failure/expected.log"
+diff -u \
+  "$test_directory/readiness-failure/expected.log" \
+  "$test_directory/readiness-failure/aws.log"
+if grep -q '^service:' "$test_directory/readiness-failure/aws.log"; then
+  echo "Failed readiness check reached update-service." >&2
   exit 1
 fi
 

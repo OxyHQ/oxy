@@ -5,7 +5,7 @@
  *
  * ## What makes the signature assertions falsifiable
  *
- * The stub Relay VERIFIES the Ed25519 signature with a public key it holds, and
+ * The stub Kaana VERIFIES the Ed25519 signature with a public key it holds, and
  * refuses `401` when it does not verify. So a broken signature fails these tests
  * rather than being ignored — and the POSITIVE CONTROL for that claim is
  * `rejects a tampered body`, which replays a request's own valid headers over
@@ -13,7 +13,7 @@
  * request" would also be what a stub that verifies nothing reports.
  *
  * `the signing input is the four lines the ADR specifies` is the second half:
- * every other case verifies with `relaySigningInput`, the production function, so
+ * every other case verifies with `kaanaSigningInput`, the production function, so
  * a change to the FRAMING would keep both sides agreeing with each other. That
  * one case builds the four lines by hand.
  *
@@ -60,10 +60,10 @@ jest.mock('../../utils/logger', () => ({
 import { and, eq } from 'drizzle-orm';
 import type { InferenceRequest, UsageQuantity } from '@oxyhq/contracts';
 import {
-  RELAY_BASE_URL_VARIABLE,
-  RELAY_SIGNING_KEY_ID_VARIABLE,
-  RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
-} from '../../config/relayDataPlane';
+  KAANA_BASE_URL_VARIABLE,
+  KAANA_SIGNING_KEY_ID_VARIABLE,
+  KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
+} from '../../config/kaanaDataPlane';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { PRIVACY_REVIEW_VARIABLE } from '../../config/rolloutFlags';
 import { accountBalances } from '../../db/schema/accountBalances';
@@ -82,17 +82,23 @@ import { usageReceipts } from '../../db/schema/usageReceipts';
 import { usageReservations } from '../../db/schema/usageReservations';
 import { users } from '../../db/schema/users';
 import {
-  createHttpRelayClient,
-  RELAY_INFERENCE_PATH,
-  RELAY_KEY_ID_HEADER,
-  RELAY_SIGNATURE_HEADER,
-  RELAY_TIMESTAMP_HEADER,
-  relaySigningInput,
-} from '../../services/httpRelayClient';
+  createHttpKaanaClient,
+  KAANA_DEPLOYMENTS_QUERY_PATH,
+  KAANA_INFERENCE_PATH,
+  KAANA_KEY_ID_HEADER,
+  KAANA_SIGNATURE_HEADER,
+  KAANA_TIMESTAMP_HEADER,
+  kaanaSigningInput,
+} from '../../services/httpKaanaClient';
 import { provisionBillingProfile, recordTopUp } from '../../services/inferenceLedger.service';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
+import {
+  attestFixtureDeployments,
+  createNeutralRoutingPolicy,
+  insertValidRoutingScorecard,
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -110,7 +116,7 @@ const EDGE_PRIVATE_PEM = edgeKeyPair.privateKey
 /** The stub holds ONLY this. It cannot construct an envelope it would accept. */
 const EDGE_PUBLIC_KEY: KeyObject = edgeKeyPair.publicKey;
 
-/** Relay's own bound: five minutes either way, and no nonce cache (ADR 0015). */
+/** Kaana's own bound: five minutes either way, and no nonce cache (ADR 0015). */
 const MAX_SKEW_MS = 5 * 60 * 1000;
 
 /* -------------------------------------------------------------------------- */
@@ -157,9 +163,9 @@ interface ScriptContext {
   readonly finish: () => void;
 }
 
-type RelayScript = (context: ScriptContext) => Promise<void>;
+type KaanaScript = (context: ScriptContext) => Promise<void>;
 
-interface RelayStub {
+interface KaanaStub {
   readonly baseUrl: string;
   /** Every envelope that verified, in order. */
   readonly received: InferenceRequest[];
@@ -170,12 +176,12 @@ interface RelayStub {
   verified: number;
   rejected: number;
   aborted: number;
-  script: RelayScript;
+  script: KaanaScript;
   close(): Promise<void>;
 }
 
 /**
- * Verify a request the way Relay's own `internal/edgeauth` does.
+ * Verify a request the way Kaana's own `internal/edgeauth` does.
  *
  * One boolean for every cause, deliberately: an unknown key id, a stale
  * timestamp and a bad signature are all "this did not come from the Oxy edge",
@@ -183,28 +189,28 @@ interface RelayStub {
  * forgery attempt was closer.
  */
 function verifyEdgeSignature(headers: http.IncomingHttpHeaders, body: Buffer): boolean {
-  const keyId = headers[RELAY_KEY_ID_HEADER.toLowerCase()];
+  const keyId = headers[KAANA_KEY_ID_HEADER.toLowerCase()];
   if (keyId !== EDGE_KEY_ID) return false;
 
-  const timestamp = Number(headers[RELAY_TIMESTAMP_HEADER.toLowerCase()]);
+  const timestamp = Number(headers[KAANA_TIMESTAMP_HEADER.toLowerCase()]);
   if (!Number.isInteger(timestamp)) return false;
   if (Math.abs(Date.now() - timestamp) > MAX_SKEW_MS) return false;
 
-  const raw = headers[RELAY_SIGNATURE_HEADER.toLowerCase()];
+  const raw = headers[KAANA_SIGNATURE_HEADER.toLowerCase()];
   if (typeof raw !== 'string' || !raw.startsWith('v1=')) return false;
   const signature = Buffer.from(raw.slice('v1='.length), 'base64');
   if (signature.length !== 64) return false;
 
   return verifySignature(
     null,
-    relaySigningInput(EDGE_KEY_ID, timestamp, body),
+    kaanaSigningInput(EDGE_KEY_ID, timestamp, body),
     EDGE_PUBLIC_KEY,
     signature
   );
 }
 
-async function startRelayStub(): Promise<RelayStub> {
-  const stub: RelayStub = {
+async function startKaanaStub(): Promise<KaanaStub> {
+  const stub: KaanaStub = {
     baseUrl: '',
     received: [],
     headers: [],
@@ -224,10 +230,10 @@ async function startRelayStub(): Promise<RelayStub> {
     });
 
     const handle = async (body: Buffer): Promise<void> => {
-      stub.headers.push(req.headers);
-      stub.bodies.push(body);
-
-      if (req.url !== RELAY_INFERENCE_PATH || !verifyEdgeSignature(req.headers, body)) {
+      if (
+        (req.url !== KAANA_INFERENCE_PATH && req.url !== KAANA_DEPLOYMENTS_QUERY_PATH) ||
+        !verifyEdgeSignature(req.headers, body)
+      ) {
         stub.rejected += 1;
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(
@@ -236,12 +242,36 @@ async function startRelayStub(): Promise<RelayStub> {
             code: 'authentication_failed',
             message: 'the request is not a signed Oxy edge envelope',
             retryable: false,
-            requestId: `req_relay_${randomUUID()}`,
+            requestId: `req_kaana_${randomUUID()}`,
           })
         );
         return;
       }
 
+      if (req.url === KAANA_DEPLOYMENTS_QUERY_PATH) {
+        const query = JSON.parse(body.toString('utf8')) as { deploymentIds?: unknown };
+        if (
+          !Array.isArray(query.deploymentIds) ||
+          query.deploymentIds.some((deploymentId) => typeof deploymentId !== 'string')
+        ) {
+          res.writeHead(400, {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+          });
+          res.end(JSON.stringify({ code: 'invalid_request' }));
+          return;
+        }
+        const attestation = await attestFixtureDeployments(query.deploymentIds);
+        res.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        });
+        res.end(JSON.stringify(attestation));
+        return;
+      }
+
+      stub.headers.push(req.headers);
+      stub.bodies.push(body);
       stub.verified += 1;
       const envelope = JSON.parse(body.toString('utf8')) as InferenceRequest;
       stub.received.push(envelope);
@@ -320,7 +350,7 @@ interface StreamedResponse {
 }
 
 interface EdgeHarness {
-  readonly stub: RelayStub;
+  readonly stub: KaanaStub;
   /** Issue one request; `onFrame` sees each SSE frame as it arrives. */
   readonly request: (
     method: 'GET' | 'POST',
@@ -334,29 +364,44 @@ interface EdgeHarness {
 /**
  * A stub data plane, a configured edge and an HTTP client, for one test.
  *
- * The router is built from `createHttpRelayClient()`, so what is exercised is the
+ * The router is built from `createHttpKaanaClient()`, so what is exercised is the
  * REAL client resolved from the REAL environment variables — not a fake handed in
  * through the router's options.
  */
 async function withEdge(
-  script: RelayScript,
+  script: KaanaScript,
   run: (harness: EdgeHarness) => Promise<void>
 ): Promise<void> {
-  const stub = await startRelayStub();
+  const stub = await startKaanaStub();
   stub.script = script;
 
-  process.env[RELAY_BASE_URL_VARIABLE] = stub.baseUrl;
-  process.env[RELAY_SIGNING_KEY_ID_VARIABLE] = EDGE_KEY_ID;
-  process.env[RELAY_SIGNING_PRIVATE_KEY_VARIABLE] = EDGE_PRIVATE_PEM;
+  process.env[KAANA_BASE_URL_VARIABLE] = 'https://kaana.ai';
+  process.env[KAANA_SIGNING_KEY_ID_VARIABLE] = EDGE_KEY_ID;
+  process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE] = EDGE_PRIVATE_PEM;
 
-  const relayClient = createHttpRelayClient();
-  expect(relayClient).toBeDefined();
+  // Production configuration remains pinned to Kaana's one canonical origin.
+  // Redirect only this test process's transport to the loopback verifier; the
+  // client still constructs, signs and attempts the exact production URL.
+  const systemFetch = globalThis.fetch;
+  globalThis.fetch = (async (input, init) => {
+    const requested =
+      typeof input === 'string'
+        ? new URL(input)
+        : input instanceof URL
+          ? input
+          : new URL(input.url);
+    expect(requested.origin).toBe('https://kaana.ai');
+    return systemFetch(`${stub.baseUrl}${requested.pathname}${requested.search}`, init);
+  }) as typeof fetch;
+
+  const kaanaClient = createHttpKaanaClient();
+  expect(kaanaClient).toBeDefined();
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use(
     '/v1',
-    createInferenceEdgeRouter(relayClient === undefined ? {} : { relayClient })
+    createInferenceEdgeRouter(kaanaClient === undefined ? {} : { kaanaClient })
   );
 
   const server = await new Promise<http.Server>((resolve) => {
@@ -372,9 +417,10 @@ async function withEdge(
       server.close(() => resolve());
     });
     await stub.close();
-    delete process.env[RELAY_BASE_URL_VARIABLE];
-    delete process.env[RELAY_SIGNING_KEY_ID_VARIABLE];
-    delete process.env[RELAY_SIGNING_PRIVATE_KEY_VARIABLE];
+    globalThis.fetch = systemFetch;
+    delete process.env[KAANA_BASE_URL_VARIABLE];
+    delete process.env[KAANA_SIGNING_KEY_ID_VARIABLE];
+    delete process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE];
   }
 }
 
@@ -505,14 +551,14 @@ async function makeFixture(): Promise<Fixture> {
 
   const [account] = await db
     .insert(users)
-    .values({ username: `relay-${tag}`, email: `relay-${tag}@example.test` })
+    .values({ username: `kaana-${tag}`, email: `kaana-${tag}@example.test` })
     .returning({ id: users.id });
 
   const scopes = ['inference:invoke', 'inference:usage:read'];
 
   const [application] = await db
     .insert(applications)
-    .values({ name: `Relay ${tag}`, ownerAccountId: account.id, scopes })
+    .values({ name: `Kaana ${tag}`, ownerAccountId: account.id, scopes })
     .returning({ id: applications.id });
 
   const minted = generateMachineCredentialToken();
@@ -534,6 +580,7 @@ async function makeFixture(): Promise<Fixture> {
   const publisherSlug = `pub${tag}`;
   const modelSlug = `model-${tag}`;
   const providerSlug = `prov${tag}`;
+  const kaanaDeploymentId = `kaana-stream-${tag}`;
 
   await db
     .insert(inferencePublishers)
@@ -592,7 +639,19 @@ async function makeFixture(): Promise<Fixture> {
   await db.insert(priceVersionUnitPrices).values([
     {
       priceVersionId: priceVersion.id,
+      unit: 'requests',
+      amount: '0.000000000000',
+      per: 1,
+    },
+    {
+      priceVersionId: priceVersion.id,
       unit: 'input_tokens',
+      amount: '3.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'cached_input_tokens',
       amount: '3.000000000000',
       per: 1_000_000,
     },
@@ -602,11 +661,18 @@ async function makeFixture(): Promise<Fixture> {
       amount: '15.000000000000',
       per: 1_000_000,
     },
+    {
+      priceVersionId: priceVersion.id,
+      unit: 'reasoning_tokens',
+      amount: '15.000000000000',
+      per: 1_000_000,
+    },
   ]);
 
   await db.insert(inferenceDeployments).values({
     modelRevisionId: revisionRow.id,
     providerSlug,
+    internalRouteId: kaanaDeploymentId,
     regions: ['us-west-2'],
     retainsPayloads: false,
     retentionDays: 0,
@@ -621,10 +687,19 @@ async function makeFixture(): Promise<Fixture> {
     permissionState: 'approved',
     priceVersionId: priceVersion.id,
   });
+  await insertValidRoutingScorecard({
+    deploymentId: kaanaDeploymentId,
+    priceVersionId: priceVersion.id,
+    changedByUserId: account.id,
+  });
+  await createNeutralRoutingPolicy({
+    accountId: account.id,
+    applicationId: application.id,
+  });
 
   await provisionBillingProfile({ accountId: account.id });
   await recordTopUp({
-    idempotencyKey: `relay-top-up-${tag}`,
+    idempotencyKey: `kaana-top-up-${tag}`,
     accountId: account.id,
     currency: 'USD',
     amount: '10.000000000000',
@@ -706,15 +781,16 @@ async function waitForReceipt(accountId: string, timeoutMs = 10_000): Promise<Re
 function emitter(context: ScriptContext, provider: string) {
   const requestId = context.envelope.attribution.requestId;
   const generationId = `gen-${randomUUID()}`;
-  const resolvedModelReference =
-    context.envelope.target.kind === 'model'
-      ? context.envelope.target.modelReference
-      : 'unknown/unknown@0000-00-00';
+  const servedRoute = context.envelope.authorizedRoutes.find((route) => route.provider === provider);
+  if (servedRoute === undefined) {
+    throw new Error('stream fixture selected a route outside the exact authorization list');
+  }
+  const resolvedModelReference = servedRoute.modelReference;
   let sequence = 0;
 
   const event = (payload: Record<string, unknown>): void => {
     context.frame('stream_event', {
-      schemaVersion: 1,
+      schemaVersion: payload.type === 'usage' ? 2 : 1,
       requestId,
       sequence: sequence++,
       ...payload,
@@ -739,7 +815,12 @@ function emitter(context: ScriptContext, provider: string) {
     toolCall: (id: string, name: string, argumentsDelta: string, complete: boolean) =>
       event({ type: 'tool_call', toolCallId: id, name, argumentsDelta, complete }),
     usage: (units: UsageQuantity[]) =>
-      event({ type: 'usage', units, usageSource: 'provider_reported' }),
+      event({
+        type: 'usage',
+        deploymentId: servedRoute.deploymentId,
+        units,
+        usageSource: 'provider_reported',
+      }),
     routeSwitch: () =>
       event({
         type: 'route_switch',
@@ -763,11 +844,19 @@ function emitter(context: ScriptContext, provider: string) {
         finishReason: 'stop',
         completedAt: new Date().toISOString(),
       }),
-    report: (units: UsageQuantity[], outcome: string) => {
+    report: (
+      units: UsageQuantity[],
+      outcome: string,
+      overrides: {
+        readonly schemaVersion?: number;
+        readonly requestId?: string;
+        readonly deploymentId?: string;
+      } = {}
+    ) => {
       const now = new Date().toISOString();
       context.frame('usage_report', {
-        schemaVersion: 1,
-        requestId,
+        schemaVersion: overrides.schemaVersion ?? 2,
+        requestId: overrides.requestId ?? requestId,
         generationId,
         attribution: context.envelope.attribution,
         outcome,
@@ -775,6 +864,7 @@ function emitter(context: ScriptContext, provider: string) {
         usageSource: 'provider_reported',
         resolvedModelReference,
         servingProvider: provider,
+        deploymentId: overrides.deploymentId ?? servedRoute.deploymentId,
         routeSwitches: 0,
         startedAt: now,
         completedAt: now,
@@ -785,6 +875,7 @@ function emitter(context: ScriptContext, provider: string) {
 }
 
 const UNITS: UsageQuantity[] = [
+  { unit: 'requests', quantity: 1 },
   { unit: 'input_tokens', quantity: 100 },
   { unit: 'output_tokens', quantity: 200 },
 ];
@@ -792,7 +883,7 @@ const UNITS: UsageQuantity[] = [
 const EXPECTED_CHARGE = 100 * INPUT_PRICE_PER_TOKEN + 200 * OUTPUT_PRICE_PER_TOKEN;
 
 /** A complete, well-formed stream: start, two deltas, usage, done, report. */
-function servesCompletely(provider: string): RelayScript {
+function servesCompletely(provider: string): KaanaScript {
   return async (context) => {
     const emit = emitter(context, provider);
     emit.start();
@@ -850,16 +941,16 @@ function chunksOf(response: StreamedResponse): Record<string, unknown>[] {
 const ROLLOUT_ENVIRONMENT = {
   INFERENCE_EDGE_AUDIENCE: 'public',
   INFERENCE_MACHINE_CREDENTIAL_AUTH: 'enabled',
-  INFERENCE_CHARGING_AUTHORIZED: 'relay-suite-fixture:2026-08-01',
-  INFERENCE_PRIVACY_REVIEW: 'relay-suite-fixture:2026-08-01',
+  INFERENCE_CHARGING_AUTHORIZED: 'kaana-suite-fixture:2026-08-01',
+  INFERENCE_PRIVACY_REVIEW: 'kaana-suite-fixture:2026-08-01',
 } as const;
 
 const ORIGINAL_ENVIRONMENT = Object.fromEntries(
   [
     ...Object.keys(ROLLOUT_ENVIRONMENT),
-    RELAY_BASE_URL_VARIABLE,
-    RELAY_SIGNING_KEY_ID_VARIABLE,
-    RELAY_SIGNING_PRIVATE_KEY_VARIABLE,
+    KAANA_BASE_URL_VARIABLE,
+    KAANA_SIGNING_KEY_ID_VARIABLE,
+    KAANA_SIGNING_PRIVATE_KEY_VARIABLE,
   ].map((key) => [key, process.env[key]])
 );
 
@@ -901,14 +992,14 @@ describe('the signed envelope', () => {
       expect(stub.rejected).toBe(0);
 
       const headers = stub.headers[0];
-      expect(headers[RELAY_KEY_ID_HEADER.toLowerCase()]).toBe(EDGE_KEY_ID);
-      expect(headers[RELAY_SIGNATURE_HEADER.toLowerCase()]).toMatch(/^v1=[A-Za-z0-9+/]+=*$/);
+      expect(headers[KAANA_KEY_ID_HEADER.toLowerCase()]).toBe(EDGE_KEY_ID);
+      expect(headers[KAANA_SIGNATURE_HEADER.toLowerCase()]).toMatch(/^v1=[A-Za-z0-9+/]+=*$/);
 
       // MILLISECONDS, not seconds. A unix-seconds value is ~1.8e9 and would be
       // more than 5 minutes from now when read as milliseconds, so the stub would
       // have rejected it — but asserting the magnitude says WHY rather than
       // leaving a future reader to derive it.
-      const timestamp = Number(headers[RELAY_TIMESTAMP_HEADER.toLowerCase()]);
+      const timestamp = Number(headers[KAANA_TIMESTAMP_HEADER.toLowerCase()]);
       expect(timestamp).toBeGreaterThan(1_700_000_000_000);
       expect(Math.abs(Date.now() - timestamp)).toBeLessThan(MAX_SKEW_MS);
     });
@@ -960,12 +1051,12 @@ describe('the signed envelope', () => {
       expect(tampered).not.toEqual(original);
 
       const replay = await postToStub(stub, tampered, {
-        [RELAY_KEY_ID_HEADER]: String(stub.headers[0][RELAY_KEY_ID_HEADER.toLowerCase()]),
-        [RELAY_TIMESTAMP_HEADER]: String(
-          stub.headers[0][RELAY_TIMESTAMP_HEADER.toLowerCase()]
+        [KAANA_KEY_ID_HEADER]: String(stub.headers[0][KAANA_KEY_ID_HEADER.toLowerCase()]),
+        [KAANA_TIMESTAMP_HEADER]: String(
+          stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]
         ),
-        [RELAY_SIGNATURE_HEADER]: String(
-          stub.headers[0][RELAY_SIGNATURE_HEADER.toLowerCase()]
+        [KAANA_SIGNATURE_HEADER]: String(
+          stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]
         ),
       });
 
@@ -975,12 +1066,12 @@ describe('the signed envelope', () => {
       // And the UNTAMPERED body with the same headers is accepted, so the 401
       // above is about the bytes and not about replaying a request at all.
       const honest = await postToStub(stub, original, {
-        [RELAY_KEY_ID_HEADER]: String(stub.headers[0][RELAY_KEY_ID_HEADER.toLowerCase()]),
-        [RELAY_TIMESTAMP_HEADER]: String(
-          stub.headers[0][RELAY_TIMESTAMP_HEADER.toLowerCase()]
+        [KAANA_KEY_ID_HEADER]: String(stub.headers[0][KAANA_KEY_ID_HEADER.toLowerCase()]),
+        [KAANA_TIMESTAMP_HEADER]: String(
+          stub.headers[0][KAANA_TIMESTAMP_HEADER.toLowerCase()]
         ),
-        [RELAY_SIGNATURE_HEADER]: String(
-          stub.headers[0][RELAY_SIGNATURE_HEADER.toLowerCase()]
+        [KAANA_SIGNATURE_HEADER]: String(
+          stub.headers[0][KAANA_SIGNATURE_HEADER.toLowerCase()]
         ),
       });
       expect(honest.status).toBe(200);
@@ -993,7 +1084,7 @@ describe('the signed envelope', () => {
     const body = Buffer.from('{"schemaVersion":1}', 'utf8');
 
     const expected = [
-      'oxy-relay-envelope:v1',
+      'oxy-kaana-envelope:v1',
       keyId,
       String(timestamp),
       createHash('sha256').update(body).digest('hex'),
@@ -1001,7 +1092,7 @@ describe('the signed envelope', () => {
 
     // Built by hand here, so a change to the FRAMING fails this case rather than
     // leaving both sides of the wire agreeing with each other about something new.
-    expect(relaySigningInput(keyId, timestamp, body).toString('utf8')).toBe(expected);
+    expect(kaanaSigningInput(keyId, timestamp, body).toString('utf8')).toBe(expected);
     expect(expected.endsWith('\n')).toBe(false);
   });
 
@@ -1036,11 +1127,11 @@ describe('the signed envelope', () => {
 
 /** POST straight to the stub, bypassing the edge — used for the tamper control. */
 function postToStub(
-  stub: RelayStub,
+  stub: KaanaStub,
   body: Buffer,
   headers: Record<string, string>
 ): Promise<{ status: number }> {
-  const url = new URL(`${stub.baseUrl}${RELAY_INFERENCE_PATH}`);
+  const url = new URL(`${stub.baseUrl}${KAANA_INFERENCE_PATH}`);
   return new Promise((resolve, reject) => {
     const request = http.request(
       {
@@ -1372,18 +1463,89 @@ describe('POST /v1/responses with stream: true', () => {
     });
   });
 
+  it('does not fall back to earlier partial usage when a terminal report contradicts the signed route', async () => {
+    const fixture = await makeFixture();
+    const before = await balanceOf(fixture.accountId);
+
+    await withEdge(
+      async (context) => {
+        const emit = emitter(context, fixture.provider);
+        emit.start();
+        emit.delta('Hello.');
+        emit.usage(UNITS);
+        emit.done();
+        emit.report(UNITS, 'completed', { deploymentId: `unauthorized-${suffix()}` });
+      },
+      async ({ request }) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          responsesBody(fixture, { stream: true }),
+          bearer(fixture.token)
+        );
+        // Frames were already delivered, so an invalid terminal metering record
+        // cannot retract the 200. It can and must prevent a charge.
+        expect(response.status).toBe(200);
+        expect(response.frames.some((frame) => frame.name === 'usage')).toBe(true);
+      }
+    );
+
+    const receipts = await receiptsOf(fixture.accountId);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].billedAmount).toBe('0.000000000000');
+    expect(receipts[0].usageSource).toBe('estimated');
+    const after = await balanceOf(fixture.accountId);
+    expect(Number(after.purchased)).toBeCloseTo(Number(before.purchased), 9);
+    expect(Number(after.reserved)).toBe(0);
+  });
+
+  it('discards earlier partial usage when the terminal report is malformed', async () => {
+    const fixture = await makeFixture();
+    const before = await balanceOf(fixture.accountId);
+
+    await withEdge(
+      async (context) => {
+        const emit = emitter(context, fixture.provider);
+        emit.start();
+        emit.delta('Hello.');
+        emit.usage(UNITS);
+        emit.done();
+        // A v1 terminal report is a known frame with an unreadable current
+        // schema. It must poison metering rather than look like no report arrived.
+        emit.report(UNITS, 'completed', { schemaVersion: 1 });
+      },
+      async ({ request }) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          responsesBody(fixture, { stream: true }),
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+        expect(response.frames.some((frame) => frame.name === 'usage')).toBe(true);
+        expect(response.frames.some((frame) => frame.name === 'error')).toBe(true);
+      }
+    );
+
+    const receipts = await receiptsOf(fixture.accountId);
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].billedAmount).toBe('0.000000000000');
+    expect(receipts[0].usageSource).toBe('estimated');
+    const after = await balanceOf(fixture.accountId);
+    expect(Number(after.purchased)).toBeCloseTo(Number(before.purchased), 9);
+    expect(Number(after.reserved)).toBe(0);
+  });
+
   /**
    * REPORTED, and nothing more — do not upgrade this assertion.
    *
    * The epic requires a customer-visible receipt when an allowed route switch
    * occurs, and that is exactly what this asserts. It deliberately does NOT
-   * assert the switch respected the customer's routing policy, because it cannot:
-   * the envelope carries a policy REFERENCE rather than the values, so a
-   * data-plane-initiated switch has nothing to check a replacement route against
-   * (see the forwarding site in `inferenceEdge.service.ts`). When the decided
-   * follow-up lands — an ordered list of pre-authorized routes on the envelope —
-   * the guarantee will come from that list, not from this frame, so the assertion
-   * to add then belongs where the list is built.
+   * assert the switch respected the customer's routing policy, because this frame
+   * is only what Kaana REPORTED. The guarantee comes from the signed, ordered
+   * `authorizedRoutes` list and from settlement validating the exact deployment
+   * identity; those invariants have their own edge and contract tests. This case
+   * proves only that the customer-visible notice survives transport.
    */
   it('surfaces a route switch to the customer, in stream', async () => {
     const fixture = await makeFixture();
@@ -1773,8 +1935,9 @@ describe('an unconfigured deployment', () => {
     }
   }
 
-  it('still answers a typed, non-retryable service_unavailable', async () => {
+  it('fails closed before reserving or executing when Kaana is unconfigured', async () => {
     const fixture = await makeFixture();
+    const before = await balanceOf(fixture.accountId);
 
     await withUnconfiguredEdge(async (request) => {
       const response = await request(
@@ -1790,11 +1953,9 @@ describe('an unconfigured deployment', () => {
       });
     });
 
-    // And the hold it took is released, so the balance is not frozen.
-    const receipts = await receiptsOf(fixture.accountId);
-    expect(receipts).toHaveLength(1);
-    expect(Number(receipts[0].billedAmount)).toBe(0);
-    expect(Number((await balanceOf(fixture.accountId)).reserved)).toBe(0);
+    // Attestation precedes both the hold and the Kaana inference request.
+    expect(await receiptsOf(fixture.accountId)).toHaveLength(0);
+    expect(await balanceOf(fixture.accountId)).toEqual(before);
   });
 
   it('still refuses stream: true, before reserving anything', async () => {
@@ -1808,9 +1969,9 @@ describe('an unconfigured deployment', () => {
         chatBody(fixture, { stream: true }),
         bearer(fixture.token)
       );
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(503);
       expect(JSON.parse(response.body)).toMatchObject({
-        error: { code: 'invalid_request', param: 'stream' },
+        error: { code: 'service_unavailable' },
       });
     });
 
@@ -1820,11 +1981,11 @@ describe('an unconfigured deployment', () => {
   });
 
   it('resolves no client at all when the environment names no data plane', () => {
-    delete process.env[RELAY_BASE_URL_VARIABLE];
-    delete process.env[RELAY_SIGNING_KEY_ID_VARIABLE];
-    delete process.env[RELAY_SIGNING_PRIVATE_KEY_VARIABLE];
+    delete process.env[KAANA_BASE_URL_VARIABLE];
+    delete process.env[KAANA_SIGNING_KEY_ID_VARIABLE];
+    delete process.env[KAANA_SIGNING_PRIVATE_KEY_VARIABLE];
 
-    expect(createHttpRelayClient()).toBeUndefined();
+    expect(createHttpKaanaClient()).toBeUndefined();
   });
 });
 

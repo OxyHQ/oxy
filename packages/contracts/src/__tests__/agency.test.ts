@@ -108,6 +108,7 @@ describe('agency contracts', () => {
             appId: 'inbox',
             version: '1.0.0',
             audience: 'inbox-api',
+            internalBaseUrl: 'https://api.oxy.so',
             accountResourceType: 'email_account',
             tools: [tool, tool],
             events: [],
@@ -153,6 +154,7 @@ describe('agency contracts', () => {
         };
         const catalog = (limitKeys: unknown[]) => ({
             schemaVersion: '1', appId: 'inbox', version: '1', audience: 'inbox-api',
+            internalBaseUrl: 'https://api.oxy.so',
             accountResourceType: 'email_account', tools: [{ ...tool, limitKeys }], events: [],
         });
 
@@ -175,6 +177,7 @@ describe('agency contracts', () => {
             appId: 'noted',
             version: '1.0.0',
             audience: 'noted-api',
+            internalBaseUrl: 'https://api.noted.oxy.so',
             accountResourceType: 'workspace',
             tools: [{
                 name: 'reportSyncError',
@@ -194,6 +197,26 @@ describe('agency contracts', () => {
         };
 
         expect(appCapabilityCatalogSchema.safeParse(catalog).success).toBe(true);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            internalBaseUrl: 'http://api.noted.oxy.so',
+        }).success).toBe(false);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            internalBaseUrl: 'https://api.noted.oxy.so/private',
+        }).success).toBe(false);
+        for (const path of [
+            '//outside.example.test/notes',
+            '/\\outside.example.test/notes',
+            'https://outside.example.test/notes',
+            '/notes?account=other',
+            '/notes#private',
+        ]) {
+            expect(appCapabilityCatalogSchema.safeParse({
+                ...catalog,
+                tools: [{ ...catalog.tools[0], invocation: { method: 'GET', path } }],
+            }).success).toBe(false);
+        }
     });
 
     it('rejects unsafe or contradictory effect metadata', () => {
@@ -217,6 +240,7 @@ describe('agency contracts', () => {
             appId: 'mercaria',
             version: '1.0.0',
             audience: 'mercaria-api',
+            internalBaseUrl: 'https://api.mercaria.oxy.so',
             accountResourceType: 'billing_account',
             tools: [tool],
             events: [],
@@ -231,5 +255,33 @@ describe('agency contracts', () => {
                 'Financial and security effects require idempotency keys',
             ]));
         }
+    });
+
+    it('binds external MCP catalogs to a canonical secure resource URI', () => {
+        const catalog = {
+            schemaVersion: '1' as const,
+            appId: 'mention',
+            version: '1.0.0',
+            audience: 'mention-api',
+            internalBaseUrl: 'https://api.mention.earth',
+            accountResourceType: 'mention_account',
+            externalMcp: { resource: 'https://mcp.mention.earth' },
+            tools: [],
+            events: [],
+        };
+
+        expect(appCapabilityCatalogSchema.safeParse(catalog).success).toBe(true);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            externalMcp: { resource: 'http://mcp.mention.earth' },
+        }).success).toBe(false);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            externalMcp: { resource: 'https://user:secret@mcp.mention.earth' },
+        }).success).toBe(false);
+        expect(appCapabilityCatalogSchema.safeParse({
+            ...catalog,
+            externalMcp: { resource: 'https://mcp.mention.earth?account=other' },
+        }).success).toBe(false);
     });
 });

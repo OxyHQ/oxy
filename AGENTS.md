@@ -53,6 +53,12 @@ Local dev caveats (Postgres, the unset Redis, building shared libs before runnin
 an app, the end-to-end auth smoke test):
 `docs/engineering/local-dev-cursor-cloud.md`.
 
+Inference and agent work starts at `docs/inference/request-routing.md`: one-shot
+AI goes through Oxy to Kaana, while agents/chat go through Alia, Oxy and Kaana.
+All provider credentials, including BYOK, belong only in Kaana PostgreSQL/KMS;
+`https://kaana.ai` is the sole signed origin. Keep source, draft rollout and
+verified production state as three separate claims.
+
 ## Package boundaries (strict)
 
 - **`@oxyhq/contracts` and `@oxyhq/core` must never import `react`,

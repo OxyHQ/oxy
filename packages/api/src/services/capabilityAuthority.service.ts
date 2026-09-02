@@ -43,6 +43,9 @@ export interface CapabilityCoordinatorPrincipal {
 export interface AuthorityRequest {
   executionAuthorizationId: string;
   coordinator: CapabilityCoordinatorPrincipal;
+  /** Required when durable automation authority is materialized for one run. */
+  runId?: string;
+  stepId?: string;
 }
 
 export interface AuthorityResult {
@@ -182,6 +185,20 @@ export async function evaluateCapabilityAuthority(
   }
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization) return denied('execution_authorization_not_active');
+  let runId: string;
+  let stepId: string | undefined;
+  if (authorization.kind === 'automation') {
+    if (!request.runId) return denied('automation_run_identity_missing');
+    runId = request.runId;
+    stepId = request.stepId;
+  } else {
+    if (!authorization.runId) return denied('direct_request_run_identity_missing');
+    if (request.runId !== undefined || request.stepId !== undefined) {
+      return denied('direct_request_runtime_scope_override');
+    }
+    runId = authorization.runId;
+    stepId = authorization.stepId ?? undefined;
+  }
   if (!await requesterCanOperate(authorization.requesterAccountId, authorization.effectiveAccountId)) {
     return denied('requester_lacks_current_account_authority');
   }
@@ -266,8 +283,8 @@ export async function evaluateCapabilityAuthority(
   const unsignedClaims: Omit<CapabilityTicketClaims, 'iss' | 'iat' | 'exp' | 'jti'> = {
     aud: registration.catalog.audience,
     sub: actor.type === 'agent' ? actor.accountId : `alia:${authorization.ownerAccountId}`,
-    runId: authorization.runId,
-    ...(authorization.stepId ? { stepId: authorization.stepId } : {}),
+    runId,
+    ...(stepId ? { stepId } : {}),
     ...(automationId ? { automationId } : {}),
     executionAuthorization,
     coordinator: request.coordinator,
@@ -306,6 +323,10 @@ function claimsMatchAuthorization(claims: CapabilityTicketClaims, authorization:
     && (authorization.kind === 'direct_request'
       || (claims.executionAuthorization.kind === 'automation'
         && claims.executionAuthorization.automationId === authorization.automationId));
+  const runScopeMatches = authorization.kind === 'automation'
+    ? claims.automationId === authorization.automationId
+    : claims.runId === authorization.runId
+      && claims.stepId === (authorization.stepId ?? undefined);
   return executionAuthorizationMatches
     && claims.requesterAccountId === authorization.requesterAccountId
     && claims.ownerAccountId === authorization.ownerAccountId
@@ -318,8 +339,7 @@ function claimsMatchAuthorization(claims: CapabilityTicketClaims, authorization:
     && claims.resource.resourceType === authorization.resourceType
     && claims.resource.resourceId === authorization.resourceKey
     && claims.tool === authorization.tool
-    && claims.runId === authorization.runId
-    && claims.stepId === (authorization.stepId ?? undefined)
+    && runScopeMatches
     && claims.automationId === (authorization.automationId ?? undefined)
     && claims.autonomy === authorization.maximumAutonomy;
 }
@@ -329,6 +349,10 @@ export async function reauthorizeCapabilityTicket(claims: CapabilityTicketClaims
   const request = {
     executionAuthorizationId: claims.executionAuthorization.id,
     coordinator: claims.coordinator,
+    ...(claims.executionAuthorization.kind === 'automation' ? {
+      runId: claims.runId,
+      ...(claims.stepId ? { stepId: claims.stepId } : {}),
+    } : {}),
   };
   const authorization = await loadExecutionAuthorization(request, now);
   if (!authorization || !claimsMatchAuthorization(claims, authorization)) {

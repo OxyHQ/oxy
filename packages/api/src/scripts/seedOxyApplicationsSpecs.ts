@@ -232,6 +232,12 @@ export const SEED_APPS: SeedAppSpec[] = [
     websiteUrl: 'https://inbox.oxy.so',
     type: 'first_party',
     redirectUris: ['https://inbox.oxy.so'],
+    scopes: [
+      'user:read',
+      'catalogs:write',
+      'capability-events:publish',
+    ],
+    capabilities: [catalogApplicationCapability('inbox')],
   },
   {
     name: 'Oxy Auth',
@@ -259,7 +265,15 @@ export const SEED_APPS: SeedAppSpec[] = [
     // recommendation signals (interest + interaction-affinity edges) — the
     // credential already carries it, so the app MUST declare it or the mint's
     // intersection drops it.
-    scopes: ['user:read', 'files:read', 'files:write', 'federation:write', 'signals:write'],
+    scopes: [
+      'user:read',
+      'files:read',
+      'files:write',
+      'federation:write',
+      'signals:write',
+      'catalogs:write',
+    ],
+    capabilities: [catalogApplicationCapability('mention')],
   },
   {
     name: 'Homiio',
@@ -380,6 +394,16 @@ export const SEED_APPS: SeedAppSpec[] = [
       'https://dashboard.mercaria.co',
       'https://pos.mercaria.co',
     ],
+    // Mercaria owns one canonical capability catalog. Its service credential
+    // registers that catalog, validates live capability tickets and records
+    // their execution audit; it receives no coordinator or ticket-mint scope.
+    scopes: [
+      'user:read',
+      'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
+    ],
+    capabilities: [catalogApplicationCapability('mercaria')],
   },
   {
     name: 'Moovo',

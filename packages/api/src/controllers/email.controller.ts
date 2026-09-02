@@ -436,9 +436,31 @@ export async function deleteLabel(req: AuthRequest, res: Response): Promise<void
 
 // ─── Compose & Send ─────────────────────────────────────────────
 
-export async function sendMessage(req: AuthRequest, res: Response): Promise<void> {
-  const userId = req.user!.id;
-  const idempotencyKey = getOptionalQueryString(req.header('Idempotency-Key'), 'Idempotency-Key');
+export interface SendEmailCommand {
+  to: RecipientInput[];
+  cc?: RecipientInput[];
+  bcc?: RecipientInput[];
+  subject?: string;
+  text?: string;
+  html?: string;
+  inReplyTo?: string;
+  references?: string[];
+  attachments?: AttachmentInput[];
+  scheduledAt?: string;
+  requestReadReceipt?: boolean;
+}
+
+export interface SendEmailResult {
+  status: 202;
+  data: Record<string, unknown>;
+}
+
+/** One domain entry point shared by REST, native Alia tickets, and external MCP. */
+export async function sendMessageForUser(
+  userId: string,
+  command: SendEmailCommand,
+  idempotencyKey?: string,
+): Promise<SendEmailResult> {
   const {
     to,
     cc,
@@ -451,19 +473,7 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
     attachments,
     scheduledAt,
     requestReadReceipt,
-  } = req.body as {
-    to: RecipientInput[];
-    cc?: RecipientInput[];
-    bcc?: RecipientInput[];
-    subject?: string;
-    text?: string;
-    html?: string;
-    inReplyTo?: string;
-    references?: string[];
-    attachments?: AttachmentInput[];
-    scheduledAt?: string;
-    requestReadReceipt?: boolean;
-  };
+  } = command;
 
   // Schema validation already guarantees to.length >= 1 and recipient shape.
 
@@ -529,14 +539,14 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
       logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
     });
 
-    res.status(202).json({
+    return {
+      status: 202,
       data: {
         messageId: scheduled.messageId,
         scheduledAt: scheduledDate.toISOString(),
         message: 'Message scheduled for delivery',
       },
-    });
-    return;
+    };
   }
 
   const result = await smtpOutbound.send({
@@ -570,13 +580,23 @@ export async function sendMessage(req: AuthRequest, res: Response): Promise<void
     logger.warn('autoCollectContacts failed', { userId, error: err instanceof Error ? err.message : String(err) });
   });
 
-  res.status(202).json({
+  return {
+    status: 202,
     data: {
       messageId: result.messageId,
       queued: result.queued,
       message: result.queued ? 'Message queued for delivery' : 'Message sent',
     },
-  });
+  };
+}
+
+export async function sendMessage(req: AuthRequest, res: Response): Promise<void> {
+  const result = await sendMessageForUser(
+    req.user!.id,
+    req.body as SendEmailCommand,
+    getOptionalQueryString(req.header('Idempotency-Key'), 'Idempotency-Key'),
+  );
+  res.status(result.status).json({ data: result.data });
 }
 
 export async function saveDraft(req: AuthRequest, res: Response): Promise<void> {
@@ -636,22 +656,42 @@ export async function deleteSavedSearch(req: AuthRequest, res: Response): Promis
 
 // ─── Search ─────────────────────────────────────────────────────
 
-export async function searchMessages(req: AuthRequest, res: Response): Promise<void> {
-  const userId = req.user!.id;
-  const rawQuery = getOptionalQueryString(req.query.q, 'q');
+export interface SearchEmailCommand {
+  q?: string;
+  mailboxId?: string;
+  from?: string;
+  to?: string;
+  subject?: string;
+  hasAttachment?: boolean;
+  dateAfter?: string;
+  dateBefore?: string;
+  starred?: boolean;
+  label?: string;
+  limit?: number;
+  offset?: number;
+  cursor?: string;
+}
+
+export async function searchMessagesForUser(
+  userId: string,
+  command: SearchEmailCommand,
+): Promise<Record<string, unknown>> {
+  const rawQuery = command.q;
   const { query: q, seen } = parseSeenSearchOperator(rawQuery || '');
-  const mailboxId = getOptionalQueryString(req.query.mailbox, 'mailbox');
-  const from = getOptionalQueryString(req.query.from, 'from');
-  const to = getOptionalQueryString(req.query.to, 'to');
-  const subject = getOptionalQueryString(req.query.subject, 'subject');
-  const hasAttachment = req.query.hasAttachment === 'true';
-  const dateAfter = getOptionalQueryString(req.query.dateAfter, 'dateAfter');
-  const dateBefore = getOptionalQueryString(req.query.dateBefore, 'dateBefore');
-  const starred = req.query.starred === 'true';
-  const label = getOptionalQueryString(req.query.label, 'label');
-  const limit = Math.min(Number.parseInt(req.query.limit as string) || 50, 100);
-  const offset = Number.parseInt(req.query.offset as string) || 0;
-  const cursor = getOptionalQueryString(req.query.cursor, 'cursor');
+  const {
+    mailboxId,
+    from,
+    to,
+    subject,
+    hasAttachment = false,
+    dateAfter,
+    dateBefore,
+    starred = false,
+    label,
+    cursor,
+  } = command;
+  const limit = Math.min(command.limit || 50, 100);
+  const offset = command.offset || 0;
 
   // At least one search criterion required
   if (
@@ -686,10 +726,29 @@ export async function searchMessages(req: AuthRequest, res: Response): Promise<v
     hasMore: cursor !== undefined ? result.nextCursor !== null : result.offset + result.limit < result.total,
     ...(cursor !== undefined ? { nextCursor: result.nextCursor ?? null } : {}),
   };
-  res.json({
+  return {
     data: result.data,
     pagination,
+  };
+}
+
+export async function searchMessages(req: AuthRequest, res: Response): Promise<void> {
+  const result = await searchMessagesForUser(req.user!.id, {
+    q: getOptionalQueryString(req.query.q, 'q'),
+    mailboxId: getOptionalQueryString(req.query.mailbox, 'mailbox'),
+    from: getOptionalQueryString(req.query.from, 'from'),
+    to: getOptionalQueryString(req.query.to, 'to'),
+    subject: getOptionalQueryString(req.query.subject, 'subject'),
+    hasAttachment: req.query.hasAttachment === 'true',
+    dateAfter: getOptionalQueryString(req.query.dateAfter, 'dateAfter'),
+    dateBefore: getOptionalQueryString(req.query.dateBefore, 'dateBefore'),
+    starred: req.query.starred === 'true',
+    label: getOptionalQueryString(req.query.label, 'label'),
+    limit: Math.min(Number.parseInt(req.query.limit as string) || 50, 100),
+    offset: Number.parseInt(req.query.offset as string) || 0,
+    cursor: getOptionalQueryString(req.query.cursor, 'cursor'),
   });
+  res.json(result);
 }
 
 // ─── Quota ──────────────────────────────────────────────────────

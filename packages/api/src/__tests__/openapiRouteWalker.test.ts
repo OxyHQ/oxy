@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { blankComments, parseRoutesFromFile } from '../../scripts/generate-openapi';
+import {
+  blankComments,
+  buildOperation,
+  parseRoutesFromFile,
+} from '../../scripts/generate-openapi';
 import { INBOX_CAPABILITY_CATALOG } from '../capabilities/inbox.catalog';
 
 /**
@@ -203,5 +207,64 @@ describe('the generated Inbox contract preserves both authentication lanes', () 
             : [{ bearerAuth: [] }],
       });
     }
+  });
+});
+
+describe('explicit non-success responses', () => {
+  function operationFor(source: string, openApiPath = '/fixture/things') {
+    const route = parseRoutesFromFile(source)[0];
+    if (route === undefined) throw new Error('response-tag fixture did not produce a route');
+    return buildOperation({
+      route: { ...route, mountPrefix: '/fixture', filename: 'fixture.ts' },
+      openApiPath,
+    });
+  }
+
+  it('publishes an explicitly declared 409 with the shared Error envelope', () => {
+    const operation = operationFor(`
+      /**
+       * Changes the thing.
+       *
+       * @response 409 Error The thing conflicts with current state.
+       */
+      router.put('/things', handler);
+    `);
+
+    expect(operation.responses?.['409']).toEqual({
+      description: 'The thing conflicts with current state.',
+      content: {
+        'application/json': { schema: { $ref: '#/components/schemas/Error' } },
+      },
+    });
+  });
+
+  it('does not invent a 409 for an otherwise identical unannotated route', () => {
+    const operation = operationFor(`
+      /** Changes the thing. */
+      router.put('/things', handler);
+    `);
+
+    expect(operation.responses).not.toHaveProperty('409');
+  });
+
+  it('does not overwrite an explicit non-2xx response with an inferred default', () => {
+    const operation = operationFor(
+      `
+        /**
+         * Changes one thing.
+         *
+         * @response 400 Error The declared domain validation failed.
+         */
+        router.put('/things/:id', handler);
+      `,
+      '/fixture/things/{id}'
+    );
+
+    expect(operation.responses?.['400']).toEqual({
+      description: 'The declared domain validation failed.',
+      content: {
+        'application/json': { schema: { $ref: '#/components/schemas/Error' } },
+      },
+    });
   });
 });

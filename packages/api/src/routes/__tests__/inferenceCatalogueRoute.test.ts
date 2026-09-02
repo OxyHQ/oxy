@@ -139,7 +139,7 @@ async function insertRoute(options: {
   const modelSlug = `cmdl${suffix()}`;
   const revision = `cr${suffix()}`;
   const providerSlug = `cprv${suffix()}`;
-  const internalRouteId = `relay-route-${suffix()}`;
+  const internalRouteId = `kaana-route-${suffix()}`;
 
   await db.insert(inferencePublishers).values({ slug: publisherSlug, displayName: 'Cat Pub' });
 
@@ -711,7 +711,7 @@ describe('GET /models/stats keeps Console’s envelope and invents nothing', () 
       expect(entry).not.toHaveProperty(invented);
     }
     // CONTROL: the object is a real entry, so the absences above are absences.
-    expect(entry.schemaVersion).toBe(1);
+    expect(entry.schemaVersion).toBe(2);
     expect(entry.displayName).toBe('Catalogue Fixture Model');
   });
 });

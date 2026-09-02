@@ -435,6 +435,34 @@
       "when": 1788312025237,
       "tag": "0062_fantastic_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1788322871312,
+      "tag": "0063_mcp_oauth_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1788331460123,
+      "tag": "0064_burly_revanche",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1788353451915,
+      "tag": "0065_mixed_infant_terrible",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1788356821479,
+      "tag": "0066_bright_nekra",
+      "breakpoints": true
     }
   ]
 }

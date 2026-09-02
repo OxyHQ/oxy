@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/protocol",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Oxy Protocol — the app-agnostic base substrate: signed-record envelope, canonical JSON, signature/verification, and platform crypto. Reused by any Oxy app to decentralize its own content.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",

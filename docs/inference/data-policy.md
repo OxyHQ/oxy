@@ -35,11 +35,12 @@ built, so there is no way — for you or for Oxy — to turn payload retention o
 
 [ADR 0016](../adr/0016-no-inference-payload-persistence.md) turns that state from
 a fact about today's code into a decision with a lock on it: **the four properties
-are PRECONDITIONS on introducing capture, not work to do afterwards** — and the
-third of them, a key Oxy does not hold in PostgreSQL, needs the same managed
-secret backend that [ADR 0013](../adr/0013-byok-secret-custody.md) records as
-absent. So capture cannot honestly land today, and the decision cannot be
-revisited until that backend exists.
+are PRECONDITIONS on introducing capture, not work to do afterwards**. Kaana's
+provider-credential KMS path is intentionally too narrow to satisfy the
+encryption precondition: it is not a payload vault, gives Oxy no payload key and
+must not be reused for prompts. Capture therefore cannot honestly land today;
+ADR 0016 requires a separately approved store, key, redaction boundary and
+audited retention lifecycle before revisiting the decision.
 
 `scripts/check-no-payload-persistence.mjs` is what makes the refusal survive the
 next person who has a reason. It is a census over the drizzle schema barrel — the
@@ -174,8 +175,11 @@ a route that retains nothing cannot train on customer data. A route claiming
 either is reporting one of its own fields wrongly, and a customer constraint
 would then be enforced against a value that is not true.
 
-**The catalogue is empty**, so there is no route whose data policy you can read
-today. When there is, `oxy.inference().getModel(id)` returns it.
+Merged source contains no model bootstrap; the last recorded production readback
+was empty on 2026-08-17 and draft #1147 proposes the first exact routes. For any
+entry visible to the caller now, `oxy.inference().getModel(id)` returns its
+conservative policy projection. Query the live audience rather than assuming
+the dated empty state still holds.
 
 ---
 
@@ -191,9 +195,10 @@ plane.
 
 ### Where a request would run
 
-A deployment declares its `regions`, and a catalogue entry reports them to you.
-That is the serving side, and it is the data plane's — Oxy publishes the fact,
-the data plane owns the placement.
+A deployment declares its attested `regions`, and a catalogue entry reports
+them to you. An empty list is an explicit absence of regional attestation, not
+an invented global region. That is the serving side, and it is the data plane's
+— Oxy publishes the fact, the data plane owns the placement.
 
 ### The residency and retention controls are enforced
 
@@ -208,7 +213,9 @@ Two readings decided in the implementation, both the stricter one:
 
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it MAY serve from, and which it picks is the data plane's — so a
-  route that may run outside your allowed set does not qualify.
+  route that may run outside your allowed set does not qualify. A deployment
+  with no attested regions fails both an allow-list and a deny-list; it can be
+  selected only when neither regional control is configured.
 - **`requireZeroDataRetention` needs the route to actually not retain.**
   `zeroDataRetentionAvailable` is a capability; a route that has it and still
   retains by default is excluded.
@@ -223,13 +230,15 @@ state: the constraints were stored, versioned and read by nothing, so every
 visible signal said they were in force. Measured on `main` at `da404475`,
 2026-08-16.
 
-**You cannot observe it yet.** The catalogue is empty, so no candidate is ever
-filtered in practice — every model you name answers `model_not_found` first. Once
-there is a catalogue, verify by reading the chosen route's own `dataPolicy` and
+Do not infer enforcement from an empty catalogue or a parked serving task. Verify
+the deployed path with an eligible route and a deliberately excluded route, then
+read the chosen deployment's own `dataPolicy`, exact `deploymentId` and attested
 `regions` back rather than trusting the policy alone.
 
-The two price ceilings and `optimiseFor` are the exceptions and are NOT
-enforced — see [routing.md](./routing.md#not-enforced).
+Both price ceilings are enforced during qualification and `optimiseFor` ranks
+the survivors from reviewed deployment scorecards — see
+[the price ceilings](./routing.md#the-price-ceilings) and
+[ranking after qualification](./routing.md#ranking-after-qualification).
 
 ---
 
@@ -265,14 +274,16 @@ enforced — see [routing.md](./routing.md#not-enforced).
   administers. This is the subject's own copy.
 - **A live BYOK connection now BLOCKS account deletion, loudly.**
   `inference_provider_connections.owner_account_id` is `RESTRICT` so that deleting
-  an account can never orphan a credential in the secret store, and the schema
+  an account can never orphan a credential under Kaana custody, and the schema
   comment always promised that "account deletion must revoke these first, which is
   a deliberate, loud step". The step now exists: `DELETE /users/me` answers `409`
-  naming every connection whose credential is still stored, and the customer
-  revokes each one — which is what destroys the stored secret.
+  naming every connection whose credential is still live, and the customer
+  revokes each one — which is what schedules destruction of Kaana's KMS
+  ciphertext under the accepted ADR 0019 contract. That control mutation is
+  still a coordinated draft, so current merged BYOK writes remain fail-closed.
 
   It is refused rather than revoked automatically for the same reason a live
   subscription is refused: revoking a BYOK credential is a declaration to a THIRD
   PARTY, whose own console still shows a key the customer believes is in use.
-  "Still stored" means any status other than `revoked` — `disabled` is reversible
-  and keeps its secret, so the serving statuses are the wrong test here.
+  "Still live" means any status other than `revoked` — `disabled` is reversible
+  and retains the credential, so the serving statuses are the wrong test here.
