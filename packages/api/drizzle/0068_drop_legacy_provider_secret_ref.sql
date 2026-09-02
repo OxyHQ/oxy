@@ -1,7 +1,7 @@
 -- oxy:deploy-phase=post
 --
 -- Remove the final Oxy-side locator from the provider-credential schema after
--- the Kaana-custody image is fully live. Migration 0066 refuses to run when the
+-- the Kaana-custody image is fully live. Migration 0067 refuses to run when the
 -- legacy inventory is non-empty; new writes leave this compatibility column
 -- NULL. Repeat that safety condition here so a stale task or manual write cannot
 -- turn the post-deploy cleanup into silent loss of the only locator for an

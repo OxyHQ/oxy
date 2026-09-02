@@ -97,7 +97,7 @@ only that exact signed outcome lookup. Manual row editing is not reconciliation.
 ## Legacy inventory and rolling deploy
 
 The previous Oxy build shipped an empty provider-secret backend registry, so the
-expected production inventory is zero. Migration `0065` enforces that statement:
+expected production inventory is zero. Migration `0067` enforces that statement:
 it aborts if any legacy provider-connection row exists. If the count is nonzero,
 stop and perform an explicit read-once import with receipts, exact identities,
 Kaana acknowledgements and revocation/deletion in the old backend. Never convert
@@ -113,10 +113,10 @@ positive control that the production database was actually queried. The task
 or credential value. Therefore no read-once import is required for this cut,
 but the post-deploy column removal remains mandatory.
 
-`0065` is an additive pre-deploy migration. It leaves the old `secret_ref`
+`0067` is an additive pre-deploy migration. It leaves the old `secret_ref`
 column nullable solely so the previous image can coexist during a rolling
 deployment. Keep custody signing configuration disabled until every old task is
-gone. Post-deploy migration `0067_drop_legacy_provider_secret_ref` then rechecks
+gone. Post-deploy migration `0068_drop_legacy_provider_secret_ref` then rechecks
 that no locator was written during the rollout and drops the legacy column, its
 constraints and its index. Successful execution of that post phase remains a
 launch gate.
@@ -138,7 +138,7 @@ recorded:
 1. Production query proves zero legacy rows, or a reviewed read-once import has
    receipts for every exact connection and confirms removal from the old store.
    The count-only 2026-09-02 receipt above satisfies this inventory gate.
-2. The rolling deploy is complete and post-deploy migration `0066` has dropped
+2. The rolling deploy is complete and post-deploy migration `0068` has dropped
    `secret_ref` and its old constraints/index.
 3. Kaana draft #50's exact mutation/outcome ledger is merged and deployed, and
    Oxy's same-ID create/rotate/revoke reconciliation gates pass lost-response,

@@ -460,15 +460,22 @@
     {
       "idx": 66,
       "version": "7",
-      "when": 1788356835423,
-      "tag": "0066_kaana_credential_custody",
+      "when": 1788356821479,
+      "tag": "0066_bright_nekra",
       "breakpoints": true
     },
     {
       "idx": 67,
       "version": "7",
+      "when": 1788356835423,
+      "tag": "0067_kaana_credential_custody",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
       "when": 1788356857879,
-      "tag": "0067_drop_legacy_provider_secret_ref",
+      "tag": "0068_drop_legacy_provider_secret_ref",
       "breakpoints": true
     }
   ]
