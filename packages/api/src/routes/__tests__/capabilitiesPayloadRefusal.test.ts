@@ -108,7 +108,7 @@ it('rejects list-shaped execution limits with 400 and no database access', async
   expect(getDb).not.toHaveBeenCalled();
 });
 
-it('rejects free-form audit messages with 400 and no database access', async () => {
+it('rejects free-form audit messages with 400 and no persistence edge', async () => {
   const response = await request(app).post('/capabilities/audit').send({
     ticket: 'capability-ticket',
     result: {
