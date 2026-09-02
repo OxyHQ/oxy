@@ -268,9 +268,20 @@ describe('review comes before approval', () => {
     expect(result.permissionState).toBe('approved');
     const now = new Date();
     const readinessRows = await readInferenceRoutingReadinessRows();
-    expect(readinessRows.map((row) => row.deploymentId)).toContain(internalRouteId);
+    // The API suite shares one Postgres across parallel files. Other files may
+    // intentionally author incomplete approved routes while exercising the
+    // fail-closed deploy gate, so this route-specific permission test must not
+    // make their global readiness state part of its assertion.
+    const routeReadinessRows = readinessRows.filter(
+      (row) => row.deploymentId === internalRouteId
+    );
+    expect(routeReadinessRows).toHaveLength(1);
     expect(
-      assessInferenceRoutingReadiness(readinessRows, now, routingScoreValidityThreshold(now))
+      assessInferenceRoutingReadiness(
+        routeReadinessRows,
+        now,
+        routingScoreValidityThreshold(now)
+      )
     ).toEqual({ status: 'ready' });
     await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
   });
