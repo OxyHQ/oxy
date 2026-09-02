@@ -5,6 +5,9 @@ import {
 } from '../kaanaInitialCatalogue';
 import {
   assertKaanaInventoryCredentialSource,
+  createKaanaInventoryAbortDeadline,
+  KAANA_INITIAL_INVENTORY_MAX_BYTES,
+  readBoundedKaanaInventoryBody,
   validateKaanaInitialInventory,
 } from '../kaanaInitialInventory';
 
@@ -35,6 +38,53 @@ function inventory(): Record<string, unknown> {
 }
 
 describe('the versioned live Kaana inventory bootstrap gate', () => {
+  async function* bodyChunks(...chunks: Uint8Array[]): AsyncGenerator<Uint8Array> {
+    yield* chunks;
+  }
+
+  it('reads an exactly sized byte stream and refuses declared or streamed overflow', async () => {
+    const encoder = new TextEncoder();
+    const first = encoder.encode('{"ok":');
+    const second = encoder.encode('true}');
+    await expect(
+      readBoundedKaanaInventoryBody(
+        bodyChunks(first, second),
+        first.byteLength + second.byteLength
+      )
+    ).resolves.toBe('{"ok":true}');
+
+    await expect(
+      readBoundedKaanaInventoryBody(
+        bodyChunks(encoder.encode('{}')),
+        KAANA_INITIAL_INVENTORY_MAX_BYTES + 1
+      )
+    ).rejects.toThrow(/ContentLength exceeds/);
+    await expect(
+      readBoundedKaanaInventoryBody(
+        bodyChunks(new Uint8Array(KAANA_INITIAL_INVENTORY_MAX_BYTES + 1)),
+        KAANA_INITIAL_INVENTORY_MAX_BYTES
+      )
+    ).rejects.toThrow(/body exceeds/);
+  });
+
+  it('refuses missing or truncated ContentLength and exposes a cancellable timeout', async () => {
+    const encoder = new TextEncoder();
+    await expect(
+      readBoundedKaanaInventoryBody(bodyChunks(encoder.encode('{}')), undefined)
+    ).rejects.toThrow(/ContentLength/);
+    await expect(
+      readBoundedKaanaInventoryBody(bodyChunks(encoder.encode('{}')), 3)
+    ).rejects.toThrow(/does not match ContentLength/);
+
+    jest.useFakeTimers();
+    const deadline = createKaanaInventoryAbortDeadline(25);
+    expect(deadline.signal.aborted).toBe(false);
+    jest.advanceTimersByTime(25);
+    expect(deadline.signal.aborted).toBe(true);
+    deadline.clear();
+    jest.useRealTimers();
+  });
+
   it.each(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN'])(
     'refuses static credential env %s',
     (name) => {

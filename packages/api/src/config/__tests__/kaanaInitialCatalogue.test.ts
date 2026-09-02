@@ -2,6 +2,8 @@ import {
   KAANA_INITIAL_MODEL,
   KAANA_INITIAL_PROVIDERS,
   KAANA_INITIAL_ROUTING_PROFILES,
+  KAANA_INITIAL_SCORECARD_REASON,
+  requireSingleKaanaBootstrapScoreEvent,
 } from '../kaanaInitialCatalogue';
 
 describe('the reviewed initial Kaana catalogue', () => {
@@ -75,5 +77,21 @@ describe('the reviewed initial Kaana catalogue', () => {
       const expectedBalanced = Math.round((provider.scores.price + provider.scores.throughput) / 2);
       expect(provider.scores.balanced).toBe(expectedBalanced);
     }
+  });
+
+  it('describes neutral latency honestly instead of claiming it as primary-source evidence', () => {
+    expect(KAANA_INITIAL_SCORECARD_REASON).toContain('primary-source price/throughput');
+    expect(KAANA_INITIAL_SCORECARD_REASON).toContain('neutral unmeasured latency');
+  });
+
+  it('requires exactly one append-only provenance event', () => {
+    const event = { id: 'event-1' };
+    expect(requireSingleKaanaBootstrapScoreEvent('deployment-1', [event])).toBe(event);
+    expect(() => requireSingleKaanaBootstrapScoreEvent('deployment-1', [])).toThrow(
+      /exactly one.*found 0/
+    );
+    expect(() => requireSingleKaanaBootstrapScoreEvent('deployment-1', [event, event])).toThrow(
+      /exactly one.*found 2/
+    );
   });
 });

@@ -190,3 +190,18 @@ export const KAANA_INITIAL_ROUTING_PROFILES = [
 
 export const KAANA_INITIAL_BALANCED_FORMULA_REF =
   'reviewed-scorecard-v1:round((price+throughput)/2);latency-unmeasured';
+
+export const KAANA_INITIAL_SCORECARD_REASON =
+  'Initial primary-source price/throughput review with neutral unmeasured latency for the exact Kaana deployment identity.';
+
+export function requireSingleKaanaBootstrapScoreEvent<T>(
+  deploymentId: string,
+  events: readonly T[]
+): T {
+  if (events.length !== 1) {
+    throw new Error(
+      `Scorecard ${deploymentId} must have exactly one append-only provenance event; found ${events.length}`
+    );
+  }
+  return events[0]!;
+}

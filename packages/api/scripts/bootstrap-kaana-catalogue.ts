@@ -32,11 +32,16 @@ import {
   KAANA_INITIAL_REVIEWED_AT,
   KAANA_INITIAL_REVISION,
   KAANA_INITIAL_ROUTING_PROFILES,
+  KAANA_INITIAL_SCORECARD_REASON,
   KAANA_INITIAL_SCORE_VALID_UNTIL,
+  requireSingleKaanaBootstrapScoreEvent,
   type KaanaInitialProvider,
 } from '../src/config/kaanaInitialCatalogue';
 import {
   assertKaanaInventoryCredentialSource,
+  createKaanaInventoryAbortDeadline,
+  KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS,
+  readBoundedKaanaInventoryBody,
   validateKaanaInitialInventory,
   type KaanaInitialInventoryAttestation,
 } from '../src/config/kaanaInitialInventory';
@@ -94,20 +99,36 @@ async function requireLiveInventory(): Promise<KaanaInitialInventoryAttestation>
   if (!inventoryBucket || !inventoryKey || !inventoryRegion) {
     throw new Error('KAANA_INVENTORY_BUCKET, KAANA_INVENTORY_KEY and AWS_REGION are required');
   }
-  const response = await new S3Client({ region: inventoryRegion }).send(
-    new GetObjectCommand({ Bucket: inventoryBucket, Key: inventoryKey })
-  );
-  if (response.Body === undefined) throw new Error('The live Kaana inventory object is empty');
-
-  let decoded: unknown;
+  const client = new S3Client({ region: inventoryRegion });
+  const deadline = createKaanaInventoryAbortDeadline();
   try {
-    decoded = JSON.parse(await response.Body.transformToString());
+    const response = await client.send(
+      new GetObjectCommand({ Bucket: inventoryBucket, Key: inventoryKey }),
+      { abortSignal: deadline.signal }
+    );
+    if (response.Body === undefined) throw new Error('The live Kaana inventory object is empty');
+    const body = response.Body as AsyncIterable<Uint8Array>;
+    const decoded: unknown = JSON.parse(
+      await readBoundedKaanaInventoryBody(body, response.ContentLength)
+    );
+    return validateKaanaInitialInventory(decoded, response.VersionId, Date.now());
   } catch (error) {
-    throw new Error('The live Kaana inventory is not valid JSON', {
-      cause: error,
-    });
+    if (deadline.signal.aborted) {
+      throw new Error(
+        `Kaana inventory fetch exceeded ${KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS}ms`,
+        { cause: error }
+      );
+    }
+    if (error instanceof SyntaxError) {
+      throw new Error('The live Kaana inventory is not valid JSON', {
+        cause: error,
+      });
+    }
+    throw error;
+  } finally {
+    deadline.clear();
+    client.destroy();
   }
-  return validateKaanaInitialInventory(decoded, response.VersionId, Date.now());
 }
 
 function normalize(value: unknown): unknown {
@@ -431,7 +452,7 @@ async function ensureScorecard(
     balancedEvidenceRef: `${provider.priceEvidenceRef};${provider.performanceEvidenceRef}`,
     balancedFormulaRef: KAANA_INITIAL_BALANCED_FORMULA_REF,
     balancedValidUntil: validUntil,
-    reason: 'Initial primary-source scorecard for the exact Kaana deployment identity.',
+    reason: KAANA_INITIAL_SCORECARD_REASON,
     changedByUserId: reviewerUserId!,
     changedAt: reviewedAt,
   };
@@ -453,7 +474,7 @@ async function ensureScorecard(
   // A current row without its immutable provenance event is not "close
   // enough". Refuse the rerun rather than silently repairing history after the
   // fact; the operator must investigate how an audited write was bypassed.
-  const [event] = await tx
+  const events = await tx
     .select()
     .from(inferenceDeploymentRoutingScoreEvents)
     .where(
@@ -462,9 +483,7 @@ async function ensureScorecard(
         eq(inferenceDeploymentRoutingScoreEvents.createdAt, reviewedAt)
       )
     );
-  if (event === undefined) {
-    throw new Error(`Scorecard ${provider.deploymentId} has no append-only provenance event`);
-  }
+  const event = requireSingleKaanaBootstrapScoreEvent(provider.deploymentId, events);
   const { changedAt: _currentRowOnly, ...eventExpected } = expected;
   assertFields(`scorecard-event:${provider.deploymentId}`, event, {
     ...eventExpected,

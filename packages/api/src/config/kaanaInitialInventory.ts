@@ -7,12 +7,81 @@ import {
 } from './kaanaInitialCatalogue';
 
 const MAX_INVENTORY_AGE_MS = 60 * 60 * 1_000;
+export const KAANA_INITIAL_INVENTORY_MAX_BYTES = 1024 * 1024;
+export const KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS = 15_000;
 
 export interface KaanaInitialInventoryAttestation {
   readonly snapshotId: string;
   readonly issuedAt: string;
   readonly versionId: string;
   readonly deployments: readonly unknown[];
+}
+
+export interface KaanaInventoryAbortDeadline {
+  readonly signal: AbortSignal;
+  clear(): void;
+}
+
+/** Keep the S3 request and streamed body read under one real wall-clock deadline. */
+export function createKaanaInventoryAbortDeadline(
+  timeoutMs = KAANA_INITIAL_INVENTORY_FETCH_TIMEOUT_MS
+): KaanaInventoryAbortDeadline {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new Error('Kaana inventory fetch timeout must be a positive integer');
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeout),
+  };
+}
+
+/** Refuse oversized or truncated inventory objects while consuming the stream. */
+export async function readBoundedKaanaInventoryBody(
+  body: AsyncIterable<Uint8Array>,
+  contentLength: unknown
+): Promise<string> {
+  if (
+    typeof contentLength !== 'number' ||
+    !Number.isSafeInteger(contentLength) ||
+    contentLength < 0
+  ) {
+    throw new Error('Kaana inventory ContentLength must be a non-negative integer');
+  }
+  if (contentLength > KAANA_INITIAL_INVENTORY_MAX_BYTES) {
+    throw new Error(
+      `Kaana inventory ContentLength exceeds ${KAANA_INITIAL_INVENTORY_MAX_BYTES} bytes`
+    );
+  }
+
+  const chunks: Uint8Array[] = [];
+  let receivedBytes = 0;
+  for await (const chunk of body) {
+    if (!(chunk instanceof Uint8Array)) {
+      throw new Error('Kaana inventory body emitted a non-byte chunk');
+    }
+    receivedBytes += chunk.byteLength;
+    if (receivedBytes > KAANA_INITIAL_INVENTORY_MAX_BYTES) {
+      throw new Error(
+        `Kaana inventory body exceeds ${KAANA_INITIAL_INVENTORY_MAX_BYTES} bytes`
+      );
+    }
+    chunks.push(chunk);
+  }
+  if (receivedBytes !== contentLength) {
+    throw new Error(
+      `Kaana inventory body length ${receivedBytes} does not match ContentLength ${contentLength}`
+    );
+  }
+
+  const bytes = new Uint8Array(receivedBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
 
 /** The production lane is role-only; local operators may use AWS_PROFILE. */
