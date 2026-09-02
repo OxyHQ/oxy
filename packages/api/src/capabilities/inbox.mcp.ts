@@ -1,4 +1,8 @@
-import { registerCatalogWithMcp, type CatalogToolHandlers } from '@oxyhq/mcp';
+import {
+  registerCatalogWithMcp,
+  type CatalogMcpRegistrationOptions,
+  type CatalogToolHandlers,
+} from '@oxyhq/mcp';
 import { INBOX_CAPABILITY_CATALOG } from './inbox.catalog';
 
 /**
@@ -9,6 +13,7 @@ import { INBOX_CAPABILITY_CATALOG } from './inbox.catalog';
 export function registerInboxMcpTools(
   server: Parameters<typeof registerCatalogWithMcp>[0],
   handlers: CatalogToolHandlers,
+  options: CatalogMcpRegistrationOptions,
 ): void {
-  registerCatalogWithMcp(server, INBOX_CAPABILITY_CATALOG, handlers);
+  registerCatalogWithMcp(server, INBOX_CAPABILITY_CATALOG, handlers, options);
 }
