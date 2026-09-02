@@ -69,7 +69,7 @@ describe('inference_provider_connections Kaana custody constraints', () => {
     expect(columns).toHaveLength(0);
 
     const post = readFileSync(
-      join(MIGRATIONS_FOLDER, '0066_drop_legacy_provider_secret_ref.sql'),
+      join(MIGRATIONS_FOLDER, '0067_drop_legacy_provider_secret_ref.sql'),
       'utf8',
     );
     expect(post).toContain('-- oxy:deploy-phase=post');
@@ -149,7 +149,7 @@ describe('inference_provider_connections Kaana custody constraints', () => {
     await getDb()
       .insert(inferenceProviderConnections)
       .values(await baseValues());
-    const pre = readFileSync(join(MIGRATIONS_FOLDER, '0065_kaana_credential_custody.sql'), 'utf8');
+    const pre = readFileSync(join(MIGRATIONS_FOLDER, '0066_kaana_credential_custody.sql'), 'utf8');
     const inventoryGuard = pre.split('--> statement-breakpoint', 1)[0];
     await expect(getDb().execute(sql.raw(inventoryGuard))).rejects.toThrow(
       /requires an empty legacy provider-connection inventory/,

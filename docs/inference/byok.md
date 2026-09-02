@@ -116,7 +116,7 @@ but the post-deploy column removal remains mandatory.
 `0065` is an additive pre-deploy migration. It leaves the old `secret_ref`
 column nullable solely so the previous image can coexist during a rolling
 deployment. Keep custody signing configuration disabled until every old task is
-gone. Post-deploy migration `0066_drop_legacy_provider_secret_ref` then rechecks
+gone. Post-deploy migration `0067_drop_legacy_provider_secret_ref` then rechecks
 that no locator was written during the rollout and drops the legacy column, its
 constraints and its index. Successful execution of that post phase remains a
 launch gate.
