@@ -200,9 +200,7 @@ export {
     oxySignedRecordTypeSchema,
 } from './oxyRecordTypes';
 
-export type {
-    OxySignedRecordType,
-} from './oxyRecordTypes';
+export type { OxySignedRecordType } from './oxyRecordTypes';
 
 export {
     // Schemas
@@ -210,11 +208,7 @@ export {
     logPageResponseSchema,
 } from './protocol';
 
-export type {
-    LexiconRecord,
-    ChainHeadResponse,
-    LogPageResponse,
-} from './protocol';
+export type { LexiconRecord, ChainHeadResponse, LogPageResponse } from './protocol';
 
 export {
     // Schemas
@@ -503,15 +497,9 @@ export type {
     DeviceDirectorySync,
 } from './deviceDirectory';
 
-export {
-    oauthConsentDecisionSchema,
-    oauthAuthorizeCodeResponseSchema,
-} from './oauth';
+export { oauthConsentDecisionSchema, oauthAuthorizeCodeResponseSchema } from './oauth';
 
-export type {
-    OauthConsentDecision,
-    OauthAuthorizeCodeResponse,
-} from './oauth';
+export type { OauthConsentDecision, OauthAuthorizeCodeResponse } from './oauth';
 
 export {
     BROWSER_HUB_COOKIE_NAME,
@@ -805,11 +793,7 @@ export {
     priceSnapshotSchema,
 } from './inference/priceVersion';
 
-export type {
-    PriceVersionStatus,
-    PriceVersion,
-    PriceSnapshot,
-} from './inference/priceVersion';
+export type { PriceVersionStatus, PriceVersion, PriceSnapshot } from './inference/priceVersion';
 
 export {
     // The six distinct catalogue objects + the customer-safe projection.
@@ -1006,9 +990,9 @@ export type {
 
 export {
     // BYOK connection metadata that structurally cannot carry a secret.
-    PROVIDER_SECRET_REFERENCE_NAMESPACE,
     providerConnectionScopeSchema,
-    providerSecretReferenceSchema,
+    kaanaCredentialHandleSchema,
+    providerCredentialCustodyStateSchema,
     providerConnectionValidationSchema,
     providerConnectionStatusSchema,
     providerConnectionSchema,
@@ -1018,6 +1002,7 @@ export type {
     ProviderConnectionScope,
     ProviderConnectionValidation,
     ProviderConnectionStatus,
+    ProviderCredentialCustodyState,
     ProviderConnection,
 } from './inference/providerConnection';
 

@@ -25,8 +25,9 @@
  *
  * ## What is NOT here, and must never be
  *
- * - **Provider credentials of any kind.** BYOK secrets live in managed secret
- *   storage (workstream 10); Oxy's own upstream keys are the data plane's.
+ * - **Provider credentials of any kind.** Kaana encrypts BYOK credentials in
+ *   its PostgreSQL database with KMS and resolves them only inside inference;
+ *   Oxy stores only metadata plus the opaque exact handle/revision.
  * - **Route health.** Kaana owns technical deployment health and availability
  *   (ADR 0006). `status` here is the CATALOGUE's decision about whether a route
  *   may be offered at all, which is a different question from whether it is

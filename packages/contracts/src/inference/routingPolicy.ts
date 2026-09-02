@@ -43,6 +43,7 @@ import {
   oxyApplicationIdSchema,
   routingProfileSlugSchema,
 } from './identifiers';
+import { kaanaCredentialHandleSchema } from './providerConnection';
 import { exactDecimalSchema, currencyCodeSchema, unitPriceSchema } from './money';
 
 /**
@@ -278,6 +279,20 @@ const authorizedRouteFields = {
   modelReference: modelReferenceSchema,
   provider: inferenceProviderSlugSchema,
   regions: z.array(inferenceRegionSchema),
+  /**
+   * Exact customer credential binding. Absence means a platform credential;
+   * presence names the immutable Kaana generation this route may use.
+   */
+  customerProviderCredential: z
+    .object({
+      credentialHandle: kaanaCredentialHandleSchema,
+      credentialRevision: z.number().int().positive().safe(),
+      ownerAccountId: oxyAccountIdSchema,
+      connectionId: z.string().min(1).max(128),
+      environment: z.enum(['development', 'staging', 'production']),
+    })
+    .strict()
+    .optional(),
 } as const;
 
 /**
@@ -303,7 +318,12 @@ const authorizedRouteFields = {
  */
 export const authorizedRouteSchema = z
   .discriminatedUnion('substitution', [
-    z.object({ substitution: z.literal('same_model'), ...authorizedRouteFields }).strict(),
+    z
+      .object({
+        substitution: z.literal('same_model'),
+        ...authorizedRouteFields,
+      })
+      .strict(),
     z
       .object({
         substitution: z.literal('cross_model'),
@@ -321,7 +341,8 @@ export const authorizedRouteSchema = z
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['modelReference'],
-        message: 'an authorized route must pin an immutable revision (<publisher>/<model>@<revision>)',
+        message:
+          'an authorized route must pin an immutable revision (<publisher>/<model>@<revision>)',
       });
     }
   });

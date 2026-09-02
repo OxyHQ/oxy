@@ -86,8 +86,8 @@
  * `services/inferenceProviderConnection.service.ts`, which is the only writer.
  *
  * In production that legacy set is empty: a connection can only be created
- * through `createProviderConnection`, which requires a secret store, and
- * `PROVIDER_SECRET_STORE_BACKENDS` is empty in the shipped build — so no
+ * through `createProviderConnection`, and the previous build shipped no custody
+ * backend — so no
  * connection exists to have an audit row. The nullable arm is kept anyway,
  * because a development or staging database whose rows nobody can classify is
  * exactly the case a migration must not fail on.

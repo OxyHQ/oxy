@@ -433,7 +433,10 @@ const FIXTURES: Record<string, unknown> = {
       format: 'messages',
       messages: [
         { role: 'system', content: [{ type: 'text', text: 'You are terse.' }] },
-        { role: 'user', content: [{ type: 'text', text: 'Summarise this invoice.' }] },
+        {
+          role: 'user',
+          content: [{ type: 'text', text: 'Summarise this invoice.' }],
+        },
       ],
     },
     stream: true,
@@ -610,9 +613,7 @@ const FIXTURES: Record<string, unknown> = {
     reference: 'anthropic/claude-opus-5@2026-05-01',
     releasedAt: '2026-06-02T00:00:00.000Z',
     modelCardUrl: 'https://www.anthropic.com/model-card',
-    evaluations: [
-      { suite: 'swe-bench-verified', metric: 'resolved', score: '74.5%' },
-    ],
+    evaluations: [{ suite: 'swe-bench-verified', metric: 'resolved', score: '74.5%' }],
     safety: {
       contentFilteringDefault: 'provider_default',
       knownLimitations: ['May hallucinate citations.'],
@@ -707,9 +708,7 @@ const FIXTURES: Record<string, unknown> = {
     deniedRegions: [],
     requireZeroDataRetention: true,
     prohibitTrainingOnCustomerData: true,
-    maxPricePerUnit: [
-      { unit: 'output_tokens', amount: '20.00', per: 1000000, currency: 'USD' },
-    ],
+    maxPricePerUnit: [{ unit: 'output_tokens', amount: '20.00', per: 1000000, currency: 'USD' }],
     maxPricePerRequest: { amount: '5.000000000000', currency: 'USD' },
     optimiseFor: 'balanced',
     oxyHostedOnly: false,
@@ -829,7 +828,9 @@ const FIXTURES: Record<string, unknown> = {
     },
     environment: 'production',
     status: 'active',
-    secretRef: 'kms:oxy/inference/byok/production/acc_01H8Z9QK7M/pcx_01H8Z9W2DD',
+    custodyState: 'ready',
+    credentialHandle: `kcred_${'a'.repeat(26)}`,
+    credentialRevision: 1,
     keyPrefix: 'sk-proj-4f',
     fingerprint: 'a'.repeat(64),
     validation: { state: 'valid', lastValidatedAt: '2026-08-15T08:00:00.000Z' },
@@ -845,7 +846,11 @@ const FIXTURES: Record<string, unknown> = {
     billingMode: 'prepaid',
     status: 'active',
     creditLimit: '0',
-    autoRecharge: { enabled: true, threshold: '10.000000000000', amount: '50.000000000000' },
+    autoRecharge: {
+      enabled: true,
+      threshold: '10.000000000000',
+      amount: '50.000000000000',
+    },
     createdAt: '2026-08-01T10:00:00.000Z',
     updatedAt: '2026-08-15T09:41:03.100Z',
   },
@@ -1120,7 +1125,10 @@ describe('inference contract versioning', () => {
 
   it('rejects a message declaring a version this build does not implement', () => {
     for (const [name, schema] of Object.entries(censusVersionedSchemas)) {
-      const bumped = { ...(FIXTURES[name] as Record<string, unknown>), schemaVersion: 99 };
+      const bumped = {
+        ...(FIXTURES[name] as Record<string, unknown>),
+        schemaVersion: 99,
+      };
       expect(schema.safeParse(bumped).success).toBe(false);
     }
   });
@@ -1207,7 +1215,10 @@ describe('inference contract negative cases', () => {
       false,
     );
     expect(
-      usage.usageReceiptSchema.safeParse({ ...receipt, billedAmount: '0.0054960000001' }).success,
+      usage.usageReceiptSchema.safeParse({
+        ...receipt,
+        billedAmount: '0.0054960000001',
+      }).success,
     ).toBe(false);
   });
 
@@ -1278,9 +1289,7 @@ describe('inference contract negative cases', () => {
   it('refuses an unknown error code', () => {
     const error = FIXTURES.inferenceErrorSchema as Record<string, unknown>;
 
-    expect(errors.inferenceErrorSchema.safeParse({ ...error, code: 'teapot' }).success).toBe(
-      false,
-    );
+    expect(errors.inferenceErrorSchema.safeParse({ ...error, code: 'teapot' }).success).toBe(false);
     expect(errors.inferenceErrorSchema.safeParse(error).success).toBe(true);
   });
 

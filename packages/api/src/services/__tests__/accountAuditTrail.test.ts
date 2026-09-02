@@ -123,10 +123,8 @@ async function insertConnection(ownerAccountId: string, applicationId: string): 
       trainsOnCustomerData: false,
       zeroDataRetentionAvailable: true,
     });
-  // The id is minted HERE rather than by the column default, mirroring
-  // `inferenceProviderConnection.service.ts`: the partition CHECK requires
-  // `secret_ref` to END with `/<environment>/<ownerAccountId>/<id>`, which a
-  // database-side default could only satisfy after the insert.
+  // The id is minted here to mirror the service: it is part of Kaana's exact
+  // provider + owner + connection + environment credential identity.
   const connectionId = uuidv7();
   const [row] = await getDb()
     .insert(inferenceProviderConnections)
@@ -139,7 +137,9 @@ async function insertConnection(ownerAccountId: string, applicationId: string): 
       scopeKind: 'application',
       provider: slug,
       environment: 'development',
-      secretRef: `secretsmanager:oxy/inference/byok/development/${ownerAccountId}/${connectionId}`,
+      custodyState: 'ready',
+      credentialHandle: `kcred_${'a'.repeat(16)}${suffix().replace(/[0189]/g, 'a')}`,
+      credentialRevision: 1,
       // `key_prefix` is 1..12 chars and `fingerprint` must be 64 lowercase hex —
       // a SHA-256 digest and nothing else. The fixture satisfies both rather than
       // working around them.

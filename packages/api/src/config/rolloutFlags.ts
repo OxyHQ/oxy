@@ -35,8 +35,7 @@
  *
  * ## Read per call, never cached
  *
- * Same reasoning as `services/providerSecretStore.ts`: a test can set the
- * variable, and a task-definition change takes effect on restart without a
+ * A test can set the variable, and a task-definition change takes effect on restart without a
  * second mechanism deciding it did not. The work is an environment read and a
  * small parse; nothing here touches the database.
  *

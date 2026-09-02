@@ -1548,14 +1548,14 @@ router.delete(
 
     if (holds.hasLiveProviderConnection) {
       /*
-       * A BYOK CREDENTIAL IS STILL IN THE SECRET STORE (issue #972 section 12).
+       * A BYOK CREDENTIAL IS STILL ACTIVE IN KAANA CUSTODY (issue #972 section 12).
        *
        * `inference_provider_connections.owner_account_id` is `RESTRICT` rather
        * than `CASCADE` precisely so this cannot happen silently, and its schema
        * comment promises the missing half: "Account deletion must revoke these
        * first, which is a deliberate, loud step." Until now the step did not
        * exist — the account archived and the connection stayed live with its
-       * credential in the store, listed among the records Oxy claimed to be
+       * credential in Kaana, listed among the records Oxy claimed to be
        * retaining for legal reasons.
        *
        * Refused rather than revoked on the customer's behalf, for the same reason
@@ -1563,13 +1563,13 @@ router.delete(
        * declaration to a THIRD PARTY, whose own console still shows a key the
        * customer believes is in use. Destroying it as a side effect of a delete is
        * the same class of act as cancelling somebody's payment agreement, and if
-       * the secret store were unreachable the alternative would delete the account
-       * and orphan the secret — which is the exact outcome the `RESTRICT` exists
+       * Kaana control path were unreachable the alternative would delete the account
+       * and orphan the ciphertext — which is the exact outcome the `RESTRICT` exists
        * to prevent.
        */
       throw new ConflictError(
         'This account still holds provider credentials. Revoke each connection first — ' +
-          'revoking destroys the stored credential, which deleting the account cannot do for you.',
+          'revoking retires the Kaana-held credential, which deleting the account cannot do for you.',
         { providerConnections: holds.liveProviderConnections }
       );
     }

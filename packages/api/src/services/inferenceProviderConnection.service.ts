@@ -9,18 +9,15 @@
  * ## What it will not do
  *
  * It will not accept a credential when there is nowhere safe to put one. Every
- * entry point that has to hold plaintext takes a {@link ProviderSecretStore} as
- * an ARGUMENT rather than reaching for one, so the refusal happens in the route,
- * before the credential is read out of the request body — and so a test can
- * exercise the write path with a fake store without a test-only registration
- * hook existing in production code. No secret backend is wired in this
- * deployment; see `providerSecretStore.ts` for what would wire one.
+ * entry point that briefly handles plaintext takes a {@link KaanaCredentialControl}
+ * as an argument. The route resolves that signed client before parsing the
+ * credential body; absent or partial configuration refuses the request.
  *
  * ## Validation, and where the provider call lives
  *
  * A credential can only be checked by whoever holds it. Oxy holds it for the
- * duration of one create or rotate request and never again — {@link ProviderSecretStore}
- * has no `get`, deliberately — so re-validation is performed by the data plane,
+ * duration of one signed create or rotate request and never again. Re-validation
+ * is performed by the data plane,
  * which resolves the reference to serve a request, and reported back through
  * {@link recordProviderConnectionValidation} as a verdict from a CLOSED set.
  * Nothing here logs, echoes or persists the credential, and the verdict carries
@@ -70,12 +67,11 @@ import { inferenceProviders } from '../db/schema/inferenceProviders';
 import { userAncestors } from '../db/schema/userAncestors';
 import { logger } from '../utils/logger';
 import {
-  fingerprintProviderSecret,
-  fingerprintsMatch,
-  providerSecretReference,
-  type ProviderSecretStore,
-  type ProviderSecretValue,
-} from './providerSecretStore';
+  fingerprintProviderCredential,
+  providerCredentialFingerprintsMatch,
+  type KaanaCredentialControl,
+  type ProviderCredentialValue,
+} from './kaanaCredentialControl';
 
 /* -------------------------------------------------------------------------- */
 /*  Serialization                                                             */
@@ -109,7 +105,9 @@ export function toProviderConnection(row: InferenceProviderConnectionRow): Provi
     scope,
     environment: row.environment,
     status: row.status,
-    secretRef: row.secretRef,
+    custodyState: row.custodyState,
+    credentialHandle: row.credentialHandle ?? undefined,
+    credentialRevision: row.credentialRevision ?? undefined,
     keyPrefix: row.keyPrefix,
     fingerprint: row.fingerprint,
     validation: {
@@ -240,7 +238,7 @@ export function resetUseAuditCooldown(): void {
  * whether a row was written so "suppressed" and "failed" stay distinguishable.
  */
 export async function recordProviderConnectionUse(
-  row: Pick<InferenceProviderConnectionRow, 'id' | 'ownerAccountId' | 'environment'>
+  row: Pick<InferenceProviderConnectionRow, 'id' | 'ownerAccountId' | 'environment'>,
 ): Promise<boolean> {
   if (shouldSuppressUseAudit(row.id)) return false;
 
@@ -259,7 +257,7 @@ export async function recordProviderConnectionUse(
     logger.error(
       'Failed to record provider connection use',
       error instanceof Error ? error : new Error(String(error)),
-      { component: 'inferenceProviderConnection', connectionId: row.id }
+      { component: 'inferenceProviderConnection', connectionId: row.id },
     );
     return false;
   }
@@ -279,7 +277,7 @@ export async function recordProviderConnectionUse(
  */
 export async function listProviderConnectionAuditEvents(
   connectionId: string,
-  limit: number
+  limit: number,
 ): Promise<
   readonly {
     eventType: ProviderConnectionAuditEventType;
@@ -303,11 +301,14 @@ export async function listProviderConnectionAuditEvents(
     .where(eq(inferenceProviderConnectionAuditEvents.connectionId, connectionId))
     .orderBy(
       desc(inferenceProviderConnectionAuditEvents.createdAt),
-      desc(inferenceProviderConnectionAuditEvents.id)
+      desc(inferenceProviderConnectionAuditEvents.id),
     )
     .limit(limit);
 
-  return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
+  return rows.map((row) => ({
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+  }));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -316,7 +317,7 @@ export async function listProviderConnectionAuditEvents(
 
 /** One connection, or `undefined`. Never filtered — the caller authorises. */
 export async function getProviderConnectionRow(
-  connectionId: string
+  connectionId: string,
 ): Promise<InferenceProviderConnectionRow | undefined> {
   const [row] = await getDb()
     .select()
@@ -328,7 +329,7 @@ export async function getProviderConnectionRow(
 
 /** Every connection an account owns, newest first. */
 export async function listProviderConnectionsForAccount(
-  accountId: string
+  accountId: string,
 ): Promise<readonly ProviderConnection[]> {
   const rows = await getDb()
     .select()
@@ -386,14 +387,18 @@ export async function resolveProviderConnectionForApplication(input: {
     .where(eq(applications.id, input.applicationId))
     .limit(1);
   if (application === undefined) {
-    return { status: 'unknown-application', applicationId: input.applicationId };
+    return {
+      status: 'unknown-application',
+      applicationId: input.applicationId,
+    };
   }
 
   const live = inArray(inferenceProviderConnections.status, [...LIVE_PROVIDER_CONNECTION_STATUSES]);
   const matches = and(
     eq(inferenceProviderConnections.provider, input.provider),
     eq(inferenceProviderConnections.environment, input.environment),
-    live
+    eq(inferenceProviderConnections.custodyState, 'ready'),
+    live,
   );
 
   const [own] = await db
@@ -402,7 +407,12 @@ export async function resolveProviderConnectionForApplication(input: {
     .where(and(matches, eq(inferenceProviderConnections.applicationId, input.applicationId)))
     .limit(1);
   if (own !== undefined) {
-    return { status: 'resolved', connection: toProviderConnection(own), row: own, source: 'application' };
+    return {
+      status: 'resolved',
+      connection: toProviderConnection(own),
+      row: own,
+      source: 'application',
+    };
   }
 
   const accountScoped = await db
@@ -412,8 +422,8 @@ export async function resolveProviderConnectionForApplication(input: {
       and(
         matches,
         eq(inferenceProviderConnections.ownerAccountId, application.ownerAccountId),
-        isNull(inferenceProviderConnections.applicationId)
-      )
+        isNull(inferenceProviderConnections.applicationId),
+      ),
     );
 
   // `project` beats `account` on the same account: it is the more specific of the
@@ -443,15 +453,15 @@ export async function resolveProviderConnectionForApplication(input: {
     .from(userAncestors)
     .innerJoin(
       inferenceProviderConnections,
-      eq(inferenceProviderConnections.ownerAccountId, userAncestors.ancestorId)
+      eq(inferenceProviderConnections.ownerAccountId, userAncestors.ancestorId),
     )
     .where(
       and(
         eq(userAncestors.userId, application.ownerAccountId),
         matches,
         eq(inferenceProviderConnections.scopeKind, 'account'),
-        isNull(inferenceProviderConnections.applicationId)
-      )
+        isNull(inferenceProviderConnections.applicationId),
+      ),
     )
     .orderBy(desc(userAncestors.depth))
     .limit(1);
@@ -481,7 +491,7 @@ export interface CreateProviderConnectionInput {
   /** Required when `scopeKind` is `application`, refused otherwise. */
   readonly applicationId?: string;
   readonly environment: ProviderConnectionEnvironment;
-  readonly secret: ProviderSecretValue;
+  readonly secret: ProviderCredentialValue;
   /** The customer's acknowledgement of the provider's own BYOK terms. */
   readonly acknowledgeProviderTerms: boolean;
   readonly actor: ProviderConnectionActor;
@@ -497,6 +507,7 @@ export interface CreateProviderConnectionInput {
  */
 export type CreateProviderConnectionResult =
   | { readonly status: 'created'; readonly connection: ProviderConnection }
+  | { readonly status: 'custody-reconcile'; readonly connectionId: string }
   | { readonly status: 'unknown-provider'; readonly provider: string }
   | {
       readonly status: 'terms-not-acknowledged';
@@ -507,29 +518,20 @@ export type CreateProviderConnectionResult =
   | { readonly status: 'scope-mismatch' };
 
 /**
- * Register a connection: write the credential to the store, keep the reference.
+ * Register a connection: commit pending metadata, then ask Kaana for its handle.
  *
- * `store` is a parameter, not a lookup. The route resolves it FIRST and refuses
- * before reading the credential out of the request when none is configured, so
- * an unconfigured deployment never holds a customer secret at all — not for the
- * duration of a handler, not in a stack trace.
+ * `control` is a parameter, not a lookup. The route resolves it first and
+ * refuses before parsing the credential when the dedicated authority is absent.
  *
  * ## Ordering, and which failure is survivable
  *
- * The row is inserted first, inside the transaction, and the store write happens
- * before the commit. A store failure therefore rolls the row back, and the
- * common failure — a constraint violation, a taken scope — never reaches the
- * store at all, so nothing is written anywhere. The residual hazard is a commit
- * that fails after a successful `put`, which leaves a secret in the store with
- * no row naming it; the catch below destroys it best-effort and logs if it
- * cannot, because an orphaned secret is the one outcome nobody can find later.
- *
- * The reverse order has the same residual hazard and adds a worse common case,
- * so this is the better of two imperfect orderings rather than a perfect one.
+ * The pending row is committed before the network hop. Kaana success is fenced
+ * into `ready`; every missing or conflicting acknowledgement becomes
+ * `reconcile`, which the resolver excludes unconditionally.
  */
 export async function createProviderConnection(
   input: CreateProviderConnectionInput,
-  store: ProviderSecretStore
+  control: KaanaCredentialControl,
 ): Promise<CreateProviderConnectionResult> {
   if ((input.scopeKind === 'application') !== (input.applicationId !== undefined)) {
     return { status: 'scope-mismatch' };
@@ -555,44 +557,75 @@ export async function createProviderConnection(
     };
   }
 
-  // Minted here rather than by the column default, because the secret reference
-  // has to contain it — that is what the partition CHECK enforces, and a
-  // database-side default would only be known after the insert.
+  // Minted here because this exact id is part of Kaana's immutable KMS context.
   const connectionId = uuidv7();
-  const secretRef = providerSecretReference(store.name, {
-    environment: input.environment,
-    ownerAccountId: input.ownerAccountId,
-    connectionId,
-  });
-
-  let secretWritten = false;
   try {
-    const connection = await getDb().transaction(async (tx) => {
+    await getDb().transaction(async (tx) => {
+      await tx.insert(inferenceProviderConnections).values({
+        id: connectionId,
+        provider: provider.slug,
+        ownerAccountId: input.ownerAccountId,
+        scopeKind: input.scopeKind,
+        applicationId: input.applicationId ?? null,
+        environment: input.environment,
+        // Never `active` on create: nothing has checked the credential yet, and
+        // a connection that claims to work before anyone asked the provider is
+        // the state a customer debugs for an hour.
+        status: 'pending_validation',
+        custodyState: 'pending',
+        credentialHandle: null,
+        credentialRevision: null,
+        keyPrefix: input.secret.prefix(),
+        fingerprint: fingerprintProviderCredential(input.secret),
+        validationState: 'unvalidated',
+        termsAcknowledgedAt: provider.termsRequired ? new Date() : null,
+        providerTermsAcknowledgementRequired: provider.termsRequired,
+      });
+    });
+  } catch (error) {
+    if (isLiveScopeCollision(error)) {
+      return { status: 'scope-taken' };
+    }
+    throw error;
+  }
+
+  let reference: Awaited<ReturnType<KaanaCredentialControl['create']>>;
+  try {
+    reference = await control.create({
+      provider: provider.slug,
+      ownerAccountId: input.ownerAccountId,
+      connectionId,
+      environment: input.environment,
+      secret: input.secret,
+      actor: input.actor,
+    });
+  } catch {
+    await markCustodyReconcile(connectionId);
+    return { status: 'custody-reconcile', connectionId };
+  }
+  if (reference.revision !== 1) {
+    await markCustodyReconcile(connectionId);
+    return { status: 'custody-reconcile', connectionId };
+  }
+
+  let connection: ProviderConnection;
+  try {
+    connection = await getDb().transaction(async (tx) => {
       const [row] = await tx
-        .insert(inferenceProviderConnections)
-        .values({
-          id: connectionId,
-          provider: provider.slug,
-          ownerAccountId: input.ownerAccountId,
-          scopeKind: input.scopeKind,
-          applicationId: input.applicationId ?? null,
-          environment: input.environment,
-          // Never `active` on create: nothing has checked the credential yet, and
-          // a connection that claims to work before anyone asked the provider is
-          // the state a customer debugs for an hour.
-          status: 'pending_validation',
-          secretRef,
-          keyPrefix: input.secret.prefix(),
-          fingerprint: fingerprintProviderSecret(input.secret),
-          validationState: 'unvalidated',
-          termsAcknowledgedAt: provider.termsRequired ? new Date() : null,
-          providerTermsAcknowledgementRequired: provider.termsRequired,
+        .update(inferenceProviderConnections)
+        .set({
+          custodyState: 'ready',
+          credentialHandle: reference.credentialHandle,
+          credentialRevision: reference.revision,
         })
+        .where(
+          and(
+            eq(inferenceProviderConnections.id, connectionId),
+            eq(inferenceProviderConnections.custodyState, 'pending'),
+          ),
+        )
         .returning();
-
-      await store.put(secretRef, input.secret);
-      secretWritten = true;
-
+      if (row === undefined) throw new Error('provider credential create lost its pending row');
       await appendAuditEvent(tx, {
         connectionId: row.id,
         ownerAccountId: row.ownerAccountId,
@@ -603,29 +636,23 @@ export async function createProviderConnection(
           provider: row.provider,
           scopeKind: row.scopeKind,
           keyPrefix: row.keyPrefix,
-          secretStore: store.name,
+          credentialRevision: reference.revision,
           termsAcknowledged: provider.termsRequired,
         },
       });
-
       return toProviderConnection(row);
     });
-
-    return { status: 'created', connection };
-  } catch (error) {
-    if (secretWritten) {
-      await destroySecretBestEffort(store, secretRef, connectionId);
-    }
-    if (isLiveScopeCollision(error)) {
-      return { status: 'scope-taken' };
-    }
-    throw error;
+  } catch {
+    await markCustodyReconcile(connectionId);
+    return { status: 'custody-reconcile', connectionId };
   }
+  return { status: 'created', connection };
 }
 
 /** Outcomes of a rotation. */
 export type RotateProviderConnectionResult =
   | { readonly status: 'rotated'; readonly connection: ProviderConnection }
+  | { readonly status: 'custody-reconcile' }
   | { readonly status: 'unknown-connection' }
   | { readonly status: 'revoked' }
   | { readonly status: 'unchanged-credential' };
@@ -636,9 +663,7 @@ export type RotateProviderConnectionResult =
  * The REFERENCE does not change — it is pinned to the connection's environment,
  * owner and id by the partition CHECK, none of which a rotation touches — so a
  * data plane holding the reference keeps working and the old credential is gone
- * the instant the store write lands. That is replacement, which is what a
- * customer rotating a leaked key needs; a new reference would leave the old
- * secret in the store with nothing pointing at it.
+ * after Kaana advances the exact revision. The opaque handle is stable.
  *
  * `status` is deliberately NOT reset. A rotation is not a suspension: taking a
  * working connection out of service because its key was replaced would make
@@ -648,55 +673,115 @@ export type RotateProviderConnectionResult =
 export async function rotateProviderConnection(
   input: {
     readonly connectionId: string;
-    readonly secret: ProviderSecretValue;
+    readonly secret: ProviderCredentialValue;
     readonly actor: ProviderConnectionActor;
   },
-  store: ProviderSecretStore
+  control: KaanaCredentialControl,
 ): Promise<RotateProviderConnectionResult> {
   const existing = await getProviderConnectionRow(input.connectionId);
   if (existing === undefined) return { status: 'unknown-connection' };
   if (existing.status === 'revoked') return { status: 'revoked' };
 
-  const fingerprint = fingerprintProviderSecret(input.secret);
-  if (fingerprintsMatch(fingerprint, existing.fingerprint)) {
+  if (
+    existing.custodyState !== 'ready' ||
+    existing.credentialHandle === null ||
+    existing.credentialRevision === null
+  ) {
+    return { status: 'custody-reconcile' };
+  }
+  const credentialHandle = existing.credentialHandle;
+  const credentialRevision = existing.credentialRevision;
+
+  const fingerprint = fingerprintProviderCredential(input.secret);
+  if (providerCredentialFingerprintsMatch(fingerprint, existing.fingerprint)) {
     // A rotation that changes nothing would still emit a `rotated` audit row and
     // a new `rotated_at`, which is an audit trail asserting something that did
     // not happen.
     return { status: 'unchanged-credential' };
   }
 
-  const connection = await getDb().transaction(async (tx) => {
-    const [row] = await tx
-      .update(inferenceProviderConnections)
-      .set({
-        keyPrefix: input.secret.prefix(),
-        fingerprint,
-        validationState: 'unvalidated',
-        validationFailureCode: null,
-        rotatedAt: new Date(),
-      })
-      .where(eq(inferenceProviderConnections.id, input.connectionId))
-      .returning();
+  const [fenced] = await getDb()
+    .update(inferenceProviderConnections)
+    .set({ custodyState: 'reconcile' })
+    .where(
+      and(
+        eq(inferenceProviderConnections.id, input.connectionId),
+        eq(inferenceProviderConnections.custodyState, 'ready'),
+        eq(inferenceProviderConnections.credentialRevision, credentialRevision),
+      ),
+    )
+    .returning({ id: inferenceProviderConnections.id });
+  if (fenced === undefined) return { status: 'custody-reconcile' };
 
-    await store.put(existing.secretRef, input.secret);
-
-    await appendAuditEvent(tx, {
-      connectionId: row.id,
-      ownerAccountId: row.ownerAccountId,
-      environment: row.environment,
-      eventType: 'rotated',
+  let reference: Awaited<ReturnType<KaanaCredentialControl['rotate']>>;
+  try {
+    reference = await control.rotate({
+      provider: existing.provider,
+      ownerAccountId: existing.ownerAccountId,
+      connectionId: existing.id,
+      environment: existing.environment,
+      credentialHandle,
+      revision: credentialRevision,
+      secret: input.secret,
       actor: input.actor,
-      metadata: {
-        // Both already appear in the public DTO: a SHA-256 of a credential is
-        // not the credential, and a 12-character prefix cannot be one.
-        previousFingerprint: existing.fingerprint,
-        previousKeyPrefix: existing.keyPrefix,
-        keyPrefix: row.keyPrefix,
-      },
     });
+  } catch {
+    return { status: 'custody-reconcile' };
+  }
+  if (
+    reference.credentialHandle !== credentialHandle ||
+    reference.revision !== credentialRevision + 1
+  ) {
+    return { status: 'custody-reconcile' };
+  }
 
-    return toProviderConnection(row);
-  });
+  let connection: ProviderConnection;
+  try {
+    connection = await getDb().transaction(async (tx) => {
+      const [row] = await tx
+        .update(inferenceProviderConnections)
+        .set({
+          custodyState: 'ready',
+          credentialRevision: reference.revision,
+          keyPrefix: input.secret.prefix(),
+          fingerprint,
+          validationState: 'unvalidated',
+          validationFailureCode: null,
+          rotatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(inferenceProviderConnections.id, input.connectionId),
+            eq(inferenceProviderConnections.status, existing.status),
+            eq(inferenceProviderConnections.custodyState, 'reconcile'),
+            eq(inferenceProviderConnections.credentialHandle, credentialHandle),
+            eq(inferenceProviderConnections.credentialRevision, credentialRevision),
+          ),
+        )
+        .returning();
+      if (row === undefined) throw new Error('provider credential rotation lost its fenced row');
+
+      await appendAuditEvent(tx, {
+        connectionId: row.id,
+        ownerAccountId: row.ownerAccountId,
+        environment: row.environment,
+        eventType: 'rotated',
+        actor: input.actor,
+        metadata: {
+          // Both already appear in the public DTO: a SHA-256 of a credential is
+          // not the credential, and a 12-character prefix cannot be one.
+          previousFingerprint: existing.fingerprint,
+          previousKeyPrefix: existing.keyPrefix,
+          keyPrefix: row.keyPrefix,
+          credentialRevision: reference.revision,
+        },
+      });
+
+      return toProviderConnection(row);
+    });
+  } catch {
+    return { status: 'custody-reconcile' };
+  }
 
   return { status: 'rotated', connection };
 }
@@ -711,7 +796,7 @@ export type ProviderConnectionStatusResult =
 /**
  * Take a connection out of service immediately.
  *
- * Pure database work — no store round trip — because "immediate" has to mean
+ * Pure database work — no Kaana round trip — because "immediate" has to mean
  * immediate, and a disable that waited on an external service would be at the
  * mercy of the thing the customer is trying to stop using. Reversible: the
  * credential still exists, which is the difference from a revoke.
@@ -755,7 +840,9 @@ async function transitionStatus(input: {
   readonly actor: ProviderConnectionActor;
   readonly eventType: Extract<ProviderConnectionAuditEventType, 'disabled' | 'enabled'>;
   readonly next: (row: InferenceProviderConnectionRow) => ProviderConnectionStatus;
-  readonly refuseWhen: (row: InferenceProviderConnectionRow) => ProviderConnectionStatus | undefined;
+  readonly refuseWhen: (
+    row: InferenceProviderConnectionRow,
+  ) => ProviderConnectionStatus | undefined;
 }): Promise<ProviderConnectionStatusResult> {
   const existing = await getProviderConnectionRow(input.connectionId);
   if (existing === undefined) return { status: 'unknown-connection' };
@@ -792,48 +879,92 @@ export type RevokeProviderConnectionResult =
   | {
       readonly status: 'revoked';
       readonly connection: ProviderConnection;
-      readonly secretDestroyed: boolean;
+      readonly credentialRevoked: boolean;
     }
   | { readonly status: 'unknown-connection' }
   | { readonly status: 'already-revoked' };
 
 /**
- * Retire a connection permanently and destroy the credential behind it.
+ * Retire a connection permanently and ask Kaana to revoke the exact generation.
  *
- * ## Destroy FIRST, then record — and never let the destroy block the record
- *
- * The credential is destroyed before the status write, so a process that dies
- * between the two leaves the secret gone and the row stale, rather than the row
- * revoked and the secret still live in the store. Of the two crash states, the
- * first cannot serve anything and the second is a credential nobody is tracking.
- *
- * A destroy FAILURE does not stop the revoke. Retiring a connection is a safety
- * operation, often performed because the key leaked, and refusing to record it
- * because a store call timed out would leave the connection resolvable. The
- * outcome is recorded in the audit row and returned, so a failed destruction is
- * visible and actionable rather than assumed.
- *
- * `store` is optional: a deployment whose secret backend has since been
- * unconfigured must still be able to revoke. The audit row then says the secret
- * was not destroyed, which is the true statement.
+ * The Oxy row is fenced locally first, so no request can route while the signed
+ * control hop is in flight. A missing acknowledgement remains `reconcile` and
+ * never gets promoted to `revoked` custody by assumption.
  */
 export async function revokeProviderConnection(
-  input: { readonly connectionId: string; readonly actor: ProviderConnectionActor },
-  store?: ProviderSecretStore
+  input: {
+    readonly connectionId: string;
+    readonly actor: ProviderConnectionActor;
+  },
+  control?: KaanaCredentialControl,
 ): Promise<RevokeProviderConnectionResult> {
   const existing = await getProviderConnectionRow(input.connectionId);
   if (existing === undefined) return { status: 'unknown-connection' };
   if (existing.status === 'revoked') return { status: 'already-revoked' };
 
-  const secretDestroyed =
-    store === undefined
-      ? false
-      : await destroySecretBestEffort(store, existing.secretRef, existing.id);
+  const [fenced] = await getDb()
+    .update(inferenceProviderConnections)
+    .set({ status: 'revoked', custodyState: 'reconcile' })
+    .where(
+      and(
+        eq(inferenceProviderConnections.id, input.connectionId),
+        eq(inferenceProviderConnections.status, existing.status),
+        eq(inferenceProviderConnections.custodyState, existing.custodyState),
+      ),
+    )
+    .returning();
+
+  if (fenced === undefined) {
+    const current = await getProviderConnectionRow(input.connectionId);
+    return current?.status === 'revoked'
+      ? { status: 'already-revoked' }
+      : { status: 'unknown-connection' };
+  }
+
+  const credentialHandle = fenced?.credentialHandle;
+  const credentialRevision = fenced?.credentialRevision;
+  let reference: Awaited<ReturnType<KaanaCredentialControl['revoke']>> | undefined;
+  if (
+    control !== undefined &&
+    fenced !== undefined &&
+    credentialHandle !== null &&
+    credentialHandle !== undefined &&
+    credentialRevision !== null &&
+    credentialRevision !== undefined
+  ) {
+    try {
+      const acknowledged = await control.revoke({
+        provider: fenced.provider,
+        ownerAccountId: fenced.ownerAccountId,
+        connectionId: fenced.id,
+        environment: fenced.environment,
+        credentialHandle,
+        revision: credentialRevision,
+        actor: input.actor,
+      });
+      if (
+        acknowledged.credentialHandle === credentialHandle &&
+        acknowledged.revision === credentialRevision + 1
+      ) {
+        reference = acknowledged;
+      }
+    } catch {
+      reference = undefined;
+    }
+  }
 
   const connection = await getDb().transaction(async (tx) => {
     const [row] = await tx
       .update(inferenceProviderConnections)
-      .set({ status: 'revoked' })
+      .set(
+        reference === undefined
+          ? { status: 'revoked', custodyState: 'reconcile' }
+          : {
+              status: 'revoked',
+              custodyState: 'revoked',
+              credentialRevision: reference.revision,
+            },
+      )
       .where(eq(inferenceProviderConnections.id, input.connectionId))
       .returning();
 
@@ -845,15 +976,19 @@ export async function revokeProviderConnection(
       actor: input.actor,
       metadata: {
         previousStatus: existing.status,
-        secretDestroyed,
-        secretStore: store?.name ?? null,
+        credentialRevoked: reference !== undefined,
+        credentialRevision: reference?.revision ?? existing.credentialRevision,
       },
     });
 
     return toProviderConnection(row);
   });
 
-  return { status: 'revoked', connection, secretDestroyed };
+  return {
+    status: 'revoked',
+    connection,
+    credentialRevoked: reference !== undefined,
+  };
 }
 
 /** Outcomes of recording a validation verdict. */
@@ -867,7 +1002,7 @@ export type RecordValidationResult =
  *
  * The check itself is performed where the credential is — the data plane, which
  * resolves the reference to serve a request. This module never fetches a secret
- * back to check it, which is why {@link ProviderSecretStore} has no `get`.
+ * back to check it; only Kaana inference can resolve it.
  *
  * An `invalid` verdict also DISABLES the connection, in the same transaction and
  * with its own audit row. Two rows rather than one, because two things happened
@@ -943,35 +1078,12 @@ export async function recordProviderConnectionValidation(input: {
 /*  Internals                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Destroy a stored secret without letting the failure propagate.
- *
- * Both callers have already decided that the metadata write matters more than
- * the store call succeeding — a rolled-back create must not fail twice, and a
- * revoke must never be blocked. The failure is LOGGED and RETURNED rather than
- * swallowed: an orphaned or surviving secret is the one outcome that needs a
- * human, so it must be visible in both the log and the audit row.
- */
-async function destroySecretBestEffort(
-  store: ProviderSecretStore,
-  secretRef: string,
-  connectionId: string
-): Promise<boolean> {
-  try {
-    await store.destroy(secretRef);
-    return true;
-  } catch (error) {
-    logger.error(
-      'Failed to destroy a provider secret; it may remain in the secret store',
-      error instanceof Error ? error : new Error(String(error)),
-      {
-        component: 'inferenceProviderConnection',
-        connectionId,
-        secretStore: store.name,
-      }
-    );
-    return false;
-  }
+/** Fence an uncertain cross-service result out of all routing. */
+async function markCustodyReconcile(connectionId: string): Promise<void> {
+  await getDb()
+    .update(inferenceProviderConnections)
+    .set({ custodyState: 'reconcile' })
+    .where(eq(inferenceProviderConnections.id, connectionId));
 }
 
 /**

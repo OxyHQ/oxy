@@ -9,17 +9,16 @@ import { toProviderConnectionView } from '@/lib/provider-connection';
 // workstream 10).
 //
 // A customer registers their own upstream provider credential; Oxy keeps a
-// reference to it and the metadata around it. Nothing in this file returns a
+// opaque Kaana handle plus metadata. Nothing in this file returns a
 // credential, and the `select` on every read projects the response through
-// `toProviderConnectionView`, which drops `secretRef` — so the secret's ADDRESS
-// never even enters the React Query cache, let alone a component.
+// `toProviderConnectionView`, which drops the internal handle and revision.
 //
 // The customer's credential travels in exactly one direction, in exactly two
 // mutations (`create`, `rotate`), read out of component state and handed
 // straight to the request. It is never a query key, never a cached value, and
 // never retried: `retry: false` is what stops a refused write from re-sending a
 // secret three more times over the following seconds — and the refusal these
-// deployments actually produce is a `503 provider_secret_store_unavailable`,
+// deployments actually produce is a `503 kaana_credential_control_unavailable`,
 // which the SDK's default retry policy WOULD retry, because it is a 5xx.
 // ===========================================================================
 
@@ -209,7 +208,7 @@ export function useRotateProviderConnection() {
 /**
  * Take a connection out of service, or put it back.
  *
- * Pure database work on the server — no secret store round trip — so "immediate"
+ * Pure database work on the server — no Kaana control round trip — so "immediate"
  * does not depend on the availability of the thing being stopped. That is why
  * this lane keeps working in a deployment where create and rotate refuse.
  */

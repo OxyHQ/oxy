@@ -107,7 +107,7 @@ export interface AccountFinancialHolds {
   /** Reservations still `held` — money neither spent nor returned. */
   readonly heldReservations: number;
   /**
-   * BYOK connections whose CREDENTIAL IS STILL IN THE SECRET STORE, by id.
+   * BYOK connections whose credential is still active in Kaana custody, by id.
    *
    * The one arm of this answer that is not financial, and it is here because it
    * is the same question: what must a person deal with before their account can
@@ -115,14 +115,12 @@ export interface AccountFinancialHolds {
    * rather than `CASCADE` on purpose, and its schema comment states the reason
    * and the obligation:
    *
-   *   > A cascade here would delete the metadata while leaving the credential
-   *   > sitting in the secret store with nothing left in Oxy that knows it
-   *   > exists — an orphaned secret nobody can find to destroy. Account deletion
-   *   > must revoke these first, which is a deliberate, loud step.
+   *   > A cascade here would delete the metadata while leaving Kaana ciphertext
+   *   > with no Oxy record carrying the opaque handle needed to revoke it.
    *
    * The delete route never performed that step. So an account with a live
    * connection archived — correctly, nothing leaked, the account could no longer
-   * act — while the row stayed live with its credential in the store, and the
+   * act — while the row stayed live with its credential in Kaana, and the
    * connection appeared in {@link retainedRecords} as though it were a financial
    * record it must legally keep. This makes the promised step exist.
    *
@@ -137,9 +135,9 @@ export interface AccountFinancialHolds {
    * ## Why "not revoked" and not `LIVE_PROVIDER_CONNECTION_STATUSES`
    *
    * That constant answers "may a request be served through this connection", and
-   * excludes `disabled`. This asks whether a credential is still held in the
-   * secret store, and only `revoke` destroys one — `disabled` is explicitly
-   * reversible and keeps its secret. Using the serving constant here would let a
+   * excludes `disabled`. This asks whether Kaana still holds an active credential,
+   * and only `revoke` retires one — `disabled` is explicitly reversible and keeps
+   * its ciphertext. Using the serving constant here would let a
    * disabled connection's credential survive its owner's account.
    */
   readonly liveProviderConnections: readonly string[];
@@ -156,7 +154,7 @@ export interface AccountFinancialHolds {
   readonly retainedRecords: readonly RetainedRecordCount[];
   /** True when Stripe would keep charging a deleted customer. */
   readonly hasLiveSubscription: boolean;
-  /** True when a credential of this account's is still in the secret store. */
+  /** True when a credential of this account is still active in Kaana custody. */
   readonly hasLiveProviderConnection: boolean;
   /** True when a `DELETE FROM users` would raise a foreign key violation. */
   readonly blocksHardDelete: boolean;
@@ -216,8 +214,8 @@ export async function describeAccountFinancialHolds(
   );
 
   // `status <> 'revoked'` rather than the serving statuses: `disabled` is
-  // reversible and keeps its credential in the secret store, and only `revoke`
-  // destroys one. See `liveProviderConnections`.
+  // reversible and keeps its credential in Kaana, and only `revoke` retires it.
+  // See `liveProviderConnections`.
   const providerConnections = await executeRows<{ id: string }>(
     db,
     sql`

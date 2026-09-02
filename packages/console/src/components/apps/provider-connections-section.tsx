@@ -50,7 +50,7 @@ import { getErrorMessage } from '@/lib/api-error';
 import {
   connectionAppliesToApplication,
   connectionStatusVariant,
-  isSecretStoreUnavailable,
+  isKaanaCredentialControlUnavailable,
   providerConnectionAuditAttribution,
   providerConnectionScopeLabel,
   shortFingerprint,
@@ -62,17 +62,17 @@ import {
  *
  * Three things this section is careful about:
  *
- *  - **It never shows a secret, and never shows the secret's ADDRESS.** The API
- *    returns a `secretRef` (`vault:…` / `kms:…`); `toProviderConnectionView`
- *    drops it in the query's `select`, so it is gone before any component sees
+ *  - **It never shows a secret or internal execution handle.**
+ *    `toProviderConnectionView` drops the opaque Kaana reference in the query's
+ *    `select`, so it is gone before any component sees
  *    it. What is rendered is the safe prefix and the fingerprint, which are the
  *    two fields the contract exists to make showable.
- *  - **"No secret store in this deployment" is a state, not an error.** The API
- *    answers `503 provider_secret_store_unavailable` and refuses BEFORE reading
+ *  - **"Kaana custody is unavailable" is a state, not an error.** The API
+ *    answers `503 kaana_credential_control_unavailable` and refuses BEFORE reading
  *    the credential out of the request, so an unconfigured deployment never
  *    holds a customer secret at all. Console renders that as a standing
  *    explanation with no retry, because retrying changes nothing — what changes
- *    it is an operator wiring a store.
+ *    it is an operator wiring the dedicated signed control authority.
  *  - **Disable and revoke keep working when create and rotate do not.** Those
  *    two are pure database work on the server, which is the point: taking a
  *    credential out of service must not depend on the availability of the thing
@@ -131,7 +131,7 @@ export function ProviderConnectionsSection({
    * credential, once a write has actually established it.
    *
    * Deliberately not assumed up front: Console has no read-only way to ask
-   * whether a secret store is wired, and claiming "unavailable" without having
+   * whether Kaana credential control is reachable, and claiming "unavailable" without having
    * been told so would be a guess that reads exactly like a fact.
    */
   const [storeUnavailable, setStoreUnavailable] = useState<string | null>(null);
@@ -179,9 +179,9 @@ export function ProviderConnectionsSection({
       toast.success('Provider connection created');
     } catch (connectError) {
       setSecret('');
-      if (isSecretStoreUnavailable(connectError)) {
+      if (isKaanaCredentialControlUnavailable(connectError)) {
         setStoreUnavailable(
-          getErrorMessage(connectError, 'This deployment has no managed secret store configured.')
+          getErrorMessage(connectError, 'This deployment cannot reach signed Kaana credential custody.')
         );
         setShowConnect(false);
         return;
@@ -205,9 +205,9 @@ export function ProviderConnectionsSection({
       toast.success('Credential rotated');
     } catch (rotateError) {
       setRotationSecret('');
-      if (isSecretStoreUnavailable(rotateError)) {
+      if (isKaanaCredentialControlUnavailable(rotateError)) {
         setStoreUnavailable(
-          getErrorMessage(rotateError, 'This deployment has no managed secret store configured.')
+          getErrorMessage(rotateError, 'This deployment cannot reach signed Kaana credential custody.')
         );
         setRotating(null);
         return;
@@ -262,8 +262,8 @@ export function ProviderConnectionsSection({
           <h2 className="text-sm font-semibold text-foreground">Provider connections</h2>
           <p className="text-sm text-muted-foreground">
             Your own upstream provider credentials. The provider bills your account directly and Oxy
-            charges only its platform fee. Oxy stores a reference to your credential in managed
-            secret storage — never the credential, and never in a page like this one.
+            charges only its platform fee. Kaana encrypts the credential in its PostgreSQL database;
+            Oxy stores only metadata and an opaque Kaana handle, never the credential.
           </p>
         </div>
         {canUpdateApplication && storeUnavailable === null && (
@@ -348,8 +348,9 @@ export function ProviderConnectionsSection({
           <DialogHeader>
             <DialogTitle>Connect a provider</DialogTitle>
             <DialogDescription>
-              The credential is sent once, written to managed secret storage, and never returned. Oxy
-              keeps a reference, a short prefix and a fingerprint.
+              The credential is sent once to Kaana over the signed custody path, encrypted in Kaana
+              PostgreSQL with KMS, and never returned. Oxy keeps only metadata and an opaque Kaana
+              handle.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

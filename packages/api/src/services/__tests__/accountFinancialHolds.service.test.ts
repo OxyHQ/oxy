@@ -144,10 +144,8 @@ describe('the blocking set is read from the catalogue', () => {
 /**
  * A BYOK connection row in a chosen status.
  *
- * `secret_ref` must satisfy two database CHECKs — the store-prefixed grammar and
- * the partition suffix `/<environment>/<owner_account_id>/<id>` — so the id is
- * generated here rather than defaulted, which is the only way to name it inside
- * the reference.
+ * The id is generated here to mirror the exact identity bound to Kaana's opaque
+ * handle and revision.
  */
 async function seedProviderConnection(
   accountId: string,
@@ -177,7 +175,9 @@ async function seedProviderConnection(
       applicationId: null,
       environment,
       status,
-      secretRef: `secretsmanager:oxy/inference/byok/${environment}/${accountId}/${id}`,
+      custodyState: 'ready',
+      credentialHandle: `kcred_${'a'.repeat(16)}${tag.replace(/[0189]/g, 'a')}`,
+      credentialRevision: 1,
       keyPrefix: 'sk-live-1234',
       fingerprint: 'a'.repeat(64),
       validationState: 'unvalidated',

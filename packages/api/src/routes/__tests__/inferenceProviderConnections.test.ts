@@ -24,7 +24,7 @@
 import express from 'express';
 import http from 'http';
 import type { AddressInfo } from 'net';
-import { randomUUID } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
 
 // `jest.setup.cjs` stubs `jsonwebtoken` globally (sign → a fixed string). The
 // service-token claims ARE the gate here, so restore the real module.
@@ -44,7 +44,7 @@ jest.mock('../../middleware/auth', () => ({
   authMiddleware: (
     req: { user?: { _id: string; id: string } },
     _res: unknown,
-    next: () => void
+    next: () => void,
   ) => {
     if (currentUserId.length > 0) {
       req.user = { _id: currentUserId, id: currentUserId };
@@ -57,7 +57,12 @@ jest.mock('../../middleware/rateLimiter', () => ({
   rateLimit: () => (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 jest.mock('../../utils/logger', () => ({
-  logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+  logger: {
+    warn: jest.fn(),
+    error: jest.fn(),
+    info: jest.fn(),
+    debug: jest.fn(),
+  },
 }));
 
 import { eq } from 'drizzle-orm';
@@ -88,7 +93,7 @@ function request(
   method: 'GET' | 'POST',
   path: string,
   token: string | undefined,
-  body?: unknown
+  body?: unknown,
 ): Promise<JsonResponse> {
   const address = server.address() as AddressInfo;
   const payload = body === undefined ? undefined : JSON.stringify(body);
@@ -121,7 +126,7 @@ function request(
             raw,
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload !== undefined) req.write(payload);
@@ -141,12 +146,14 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((resolve, reject) =>
-    server.close((error) => (error ? reject(error) : resolve()))
+    server.close((error) => (error ? reject(error) : resolve())),
   );
   await closePostgres();
 });
 
-const ORIGINAL_STORE = process.env.INFERENCE_PROVIDER_SECRET_STORE;
+const ORIGINAL_CONTROL_KEY_ID = process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
+const ORIGINAL_CONTROL_PRIVATE_KEY = process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
+const ORIGINAL_KAANA_BASE_URL = process.env.KAANA_BASE_URL;
 
 beforeEach(() => {
   // A leaked `currentUserId` would let a SERVICE-lane case fall through to the
@@ -155,19 +162,22 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (ORIGINAL_STORE === undefined) delete process.env.INFERENCE_PROVIDER_SECRET_STORE;
-  else process.env.INFERENCE_PROVIDER_SECRET_STORE = ORIGINAL_STORE;
+  if (ORIGINAL_CONTROL_KEY_ID === undefined)
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
+  else process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID = ORIGINAL_CONTROL_KEY_ID;
+  if (ORIGINAL_CONTROL_PRIVATE_KEY === undefined)
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
+  else process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY = ORIGINAL_CONTROL_PRIVATE_KEY;
+  if (ORIGINAL_KAANA_BASE_URL === undefined) delete process.env.KAANA_BASE_URL;
+  else process.env.KAANA_BASE_URL = ORIGINAL_KAANA_BASE_URL;
+  jest.restoreAllMocks();
 });
 
 function suffix(): string {
   return randomUUID().replace(/-/g, '').slice(0, 10);
 }
 
-function serviceToken(input: {
-  appId: string;
-  ownerAccountId: string;
-  scopes: string[];
-}): string {
+function serviceToken(input: { appId: string; ownerAccountId: string; scopes: string[] }): string {
   return jwt.sign(
     {
       type: 'service',
@@ -179,7 +189,7 @@ function serviceToken(input: {
       scopes: input.scopes,
     },
     process.env.ACCESS_TOKEN_SECRET as string,
-    { expiresIn: '1h' }
+    { expiresIn: '1h' },
   );
 }
 
@@ -200,7 +210,7 @@ async function insertAccount(): Promise<string> {
 async function insertMember(
   accountId: string,
   memberUserId: string,
-  role: AccountRole
+  role: AccountRole,
 ): Promise<void> {
   await getDb()
     .insert(accountMembers)
@@ -224,17 +234,15 @@ async function insertApplication(ownerAccountId: string): Promise<string> {
 
 async function insertProvider(): Promise<string> {
   const slug = `prvr${suffix()}`;
-  await getDb()
-    .insert(inferenceProviders)
-    .values({
-      slug,
-      displayName: 'Fixture Provider',
-      kind: 'customer_byok',
-      retainsPayloads: false,
-      retentionDays: 0,
-      trainsOnCustomerData: false,
-      zeroDataRetentionAvailable: true,
-    });
+  await getDb().insert(inferenceProviders).values({
+    slug,
+    displayName: 'Fixture Provider',
+    kind: 'customer_byok',
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+  });
   return slug;
 }
 
@@ -256,7 +264,12 @@ async function seedConnection(ownerAccountId: string, provider: string): Promise
       scopeKind: 'account',
       environment: 'production',
       status: 'pending_validation',
-      secretRef: `secretsmanager:oxy/inference/byok/production/${ownerAccountId}/${id}`,
+      custodyState: 'ready',
+      credentialHandle: `kcred_${randomUUID()
+        .replace(/-/g, '')
+        .replace(/[0189]/g, 'a')
+        .slice(0, 26)}`,
+      credentialRevision: 1,
       keyPrefix: 'sk-live-1234',
       fingerprint: 'b'.repeat(64),
       validationState: 'unvalidated',
@@ -284,7 +297,7 @@ describe('the `inference:providers:write` scope gate', () => {
       'POST',
       `/inference/provider-connections/${connection}/disable`,
       token,
-      {}
+      {},
     );
     expect(response.status).toBe(403);
     expect(response.body.message).toContain('inference:providers:write');
@@ -313,7 +326,7 @@ describe('the `inference:providers:write` scope gate', () => {
       'POST',
       `/inference/provider-connections/${connection}/disable`,
       token,
-      {}
+      {},
     );
 
     // "It succeeds" is not available as a control any more: a service credential
@@ -321,9 +334,7 @@ describe('the `inference:providers:write` scope gate', () => {
     // working scope check from a route that refuses everything is that the SAME
     // request WITH the scope is refused for a DIFFERENT and LATER reason.
     expect(response.status).toBe(403);
-    expect(response.body.message).toBe(
-      'A service credential may not change provider connections'
-    );
+    expect(response.body.message).toBe('A service credential may not change provider connections');
     expect(response.body.message).not.toContain('does not carry');
   });
 
@@ -339,7 +350,7 @@ describe('the `inference:providers:write` scope gate', () => {
       'POST',
       `/inference/provider-connections/${connection}/disable`,
       undefined,
-      {}
+      {},
     );
     expect(response.status).toBe(200);
 
@@ -362,11 +373,7 @@ describe('the `inference:providers:write` scope gate', () => {
       scopes: ['inference:invoke'],
     });
 
-    const response = await request(
-      'GET',
-      `/inference/provider-connections/${connection}`,
-      token
-    );
+    const response = await request('GET', `/inference/provider-connections/${connection}`, token);
     expect(response.status).toBe(403);
   });
 
@@ -382,11 +389,7 @@ describe('the `inference:providers:write` scope gate', () => {
       scopes: ['inference:providers:read'],
     });
 
-    const response = await request(
-      'GET',
-      `/inference/provider-connections/${connection}`,
-      token
-    );
+    const response = await request('GET', `/inference/provider-connections/${connection}`, token);
     expect(response.status).toBe(200);
     const data = response.body.data as Record<string, unknown>;
     expect(data.connectionId).toBe(connection);
@@ -406,23 +409,26 @@ describe('the `inference:providers:write` scope gate', () => {
  */
 describe('a service credential may not change provider connections', () => {
   /** Every configuration write, and the body each needs. */
-  const WRITES: readonly { readonly what: string; readonly path: string; readonly body: unknown }[] =
-    [
-      { what: 'rotate', path: '/rotate', body: { secret: 'sk-live-rotated' } },
-      { what: 'disable', path: '/disable', body: {} },
-      { what: 'enable', path: '/enable', body: {} },
-      { what: 'revoke', path: '/revoke', body: {} },
-      // Inside the refusal deliberately: an `invalid` verdict DISABLES the
-      // connection, so leaving this open would leave a disable-equivalent open to
-      // exactly the credential the refusal exists to stop.
-      // The body is deliberately VALID: `validate()` runs before the handler, so a
-      // malformed verdict would 400 and the refusal below would never be reached.
-      {
-        what: 'validation',
-        path: '/validation',
-        body: { state: 'invalid', failureCode: 'unauthorized' },
-      },
-    ];
+  const WRITES: readonly {
+    readonly what: string;
+    readonly path: string;
+    readonly body: unknown;
+  }[] = [
+    { what: 'rotate', path: '/rotate', body: { secret: 'sk-live-rotated' } },
+    { what: 'disable', path: '/disable', body: {} },
+    { what: 'enable', path: '/enable', body: {} },
+    { what: 'revoke', path: '/revoke', body: {} },
+    // Inside the refusal deliberately: an `invalid` verdict DISABLES the
+    // connection, so leaving this open would leave a disable-equivalent open to
+    // exactly the credential the refusal exists to stop.
+    // The body is deliberately VALID: `validate()` runs before the handler, so a
+    // malformed verdict would 400 and the refusal below would never be reached.
+    {
+      what: 'validation',
+      path: '/validation',
+      body: { state: 'invalid', failureCode: 'unauthorized' },
+    },
+  ];
 
   it.each(WRITES)('refuses $what, even carrying the staff-gated write scope', async (write) => {
     const account = await insertAccount();
@@ -442,7 +448,7 @@ describe('a service credential may not change provider connections', () => {
       'POST',
       `/inference/provider-connections/${connection}${write.path}`,
       token,
-      write.body
+      write.body,
     );
     expect(response.status).toBe(403);
     expect(response.body).toMatchObject({
@@ -485,22 +491,22 @@ describe('a service credential may not change provider connections', () => {
       'POST',
       `/inference/provider-connections/accounts/${account}`,
       token,
-      { ...body, scope: 'account' }
+      { ...body, scope: 'account' },
     );
     expect(accountLane.status).toBe(403);
     expect(accountLane.body.message).toBe(
-      'A service credential may not change provider connections'
+      'A service credential may not change provider connections',
     );
 
     const applicationLane = await request(
       'POST',
       `/inference/provider-connections/applications/${application}`,
       token,
-      body
+      body,
     );
     expect(applicationLane.status).toBe(403);
     expect(applicationLane.body.message).toBe(
-      'A service credential may not change provider connections'
+      'A service credential may not change provider connections',
     );
 
     const rows = await getDb()
@@ -553,11 +559,11 @@ describe('a service credential may not change provider connections', () => {
       'POST',
       `/inference/provider-connections/${connection}/disable`,
       undefined,
-      {}
+      {},
     );
     expect(asPerson.status).toBe(403);
     expect(asPerson.body.message).toBe(
-      'This action requires the inference:providers:write permission'
+      'This action requires the inference:providers:write permission',
     );
 
     // Through the credential they are entitled to mint: refused as well. This is
@@ -571,11 +577,11 @@ describe('a service credential may not change provider connections', () => {
         ownerAccountId: account,
         scopes: ['inference:providers:write'],
       }),
-      {}
+      {},
     );
     expect(throughCredential.status).toBe(403);
     expect(throughCredential.body.message).toBe(
-      'A service credential may not change provider connections'
+      'A service credential may not change provider connections',
     );
 
     // POSITIVE CONTROL: an `admin` on the same account, same URL, same body.
@@ -586,9 +592,9 @@ describe('a service credential may not change provider connections', () => {
           'POST',
           `/inference/provider-connections/${connection}/disable`,
           undefined,
-          {}
+          {},
         )
-      ).status
+      ).status,
     ).toBe(200);
   });
 
@@ -608,17 +614,17 @@ describe('a service credential may not change provider connections', () => {
     const refused = await request(
       'GET',
       `/inference/provider-connections/${connection}`,
-      undefined
+      undefined,
     );
     expect(refused.status).toBe(403);
     expect(refused.body.message).toBe(
-      'This action requires the inference:providers:read permission'
+      'This action requires the inference:providers:read permission',
     );
 
     // POSITIVE CONTROL: an `editor`, who does hold it, reads the same connection.
     currentUserId = await insertMemberAccount(account, 'editor');
     expect(
-      (await request('GET', `/inference/provider-connections/${connection}`, undefined)).status
+      (await request('GET', `/inference/provider-connections/${connection}`, undefined)).status,
     ).toBe(200);
   });
 });
@@ -639,11 +645,7 @@ describe('cross-account isolation', () => {
       scopes: ['inference:providers:read', 'inference:providers:write'],
     });
 
-    const response = await request(
-      'GET',
-      `/inference/provider-connections/${connection}`,
-      token
-    );
+    const response = await request('GET', `/inference/provider-connections/${connection}`, token);
     // 404, never 403: distinguishing them would make the id space an existence
     // oracle for another tenant's BYOK setup.
     expect(response.status).toBe(404);
@@ -664,7 +666,7 @@ describe('cross-account isolation', () => {
       'POST',
       `/inference/provider-connections/${connection}/revoke`,
       undefined,
-      {}
+      {},
     );
     // 404, never 403: distinguishing them would make the id space an existence
     // oracle for another tenant's BYOK setup.
@@ -691,21 +693,15 @@ describe('cross-account isolation', () => {
 
     // The credential READS its own account's connection.
     expect(
-      (await request('GET', `/inference/provider-connections/${connection}`, token)).status
+      (await request('GET', `/inference/provider-connections/${connection}`, token)).status,
     ).toBe(200);
 
     // …and the account's own admin WRITES it, at the identical URL the stranger
     // above was refused.
     currentUserId = await insertMemberAccount(owner, 'admin');
     expect(
-      (
-        await request(
-          'POST',
-          `/inference/provider-connections/${connection}/revoke`,
-          undefined,
-          {}
-        )
-      ).status
+      (await request('POST', `/inference/provider-connections/${connection}/revoke`, undefined, {}))
+        .status,
     ).toBe(200);
   });
 
@@ -725,15 +721,16 @@ describe('cross-account isolation', () => {
     const response = await request(
       'GET',
       `/inference/provider-connections/applications/${ownerApp}?provider=${provider}&environment=production`,
-      token
+      token,
     );
     expect(response.status).toBe(404);
   });
 });
 
-describe('with no secret backend configured', () => {
+describe('with no Kaana credential control configured', () => {
   it('refuses a create with a typed 503 and writes nothing', async () => {
-    delete process.env.INFERENCE_PROVIDER_SECRET_STORE;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
     const account = await insertAccount();
     const provider = await insertProvider();
     currentUserId = await insertMemberAccount(account, 'admin');
@@ -743,12 +740,16 @@ describe('with no secret backend configured', () => {
       'POST',
       `/inference/provider-connections/accounts/${account}`,
       undefined,
-      { provider, environment: 'production', scope: 'account', secret: plaintext }
+      {
+        provider,
+        environment: 'production',
+        scope: 'account',
+        secret: plaintext,
+      },
     );
 
     expect(response.status).toBe(503);
-    expect(response.body.error).toBe('provider_secret_store_unavailable');
-    expect((response.body.details as Record<string, unknown>).reason).toBe('not-configured');
+    expect(response.body.error).toBe('kaana_credential_control_unavailable');
     // The refusal must not quote back the thing it refused to hold.
     expect(response.raw).not.toContain(plaintext);
 
@@ -760,7 +761,8 @@ describe('with no secret backend configured', () => {
   });
 
   it('refuses a rotation the same way', async () => {
-    delete process.env.INFERENCE_PROVIDER_SECRET_STORE;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
     const account = await insertAccount();
     const provider = await insertProvider();
     const connection = await seedConnection(account, provider);
@@ -770,14 +772,15 @@ describe('with no secret backend configured', () => {
       'POST',
       `/inference/provider-connections/${connection}/rotate`,
       undefined,
-      { secret: 'sk-live-rotate' }
+      { secret: 'sk-live-rotate' },
     );
     expect(response.status).toBe(503);
-    expect(response.body.error).toBe('provider_secret_store_unavailable');
+    expect(response.body.error).toBe('kaana_credential_control_unavailable');
   });
 
-  it('names an unrecognised store rather than the generic refusal', async () => {
-    process.env.INFERENCE_PROVIDER_SECRET_STORE = 's3';
+  it('refuses a partial control signing configuration', async () => {
+    process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID = 'control-1';
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
     const account = await insertAccount();
     const provider = await insertProvider();
     currentUserId = await insertMemberAccount(account, 'admin');
@@ -786,10 +789,15 @@ describe('with no secret backend configured', () => {
       'POST',
       `/inference/provider-connections/accounts/${account}`,
       undefined,
-      { provider, environment: 'production', scope: 'account', secret: 'sk-live-x' }
+      {
+        provider,
+        environment: 'production',
+        scope: 'account',
+        secret: 'sk-live-x',
+      },
     );
     expect(response.status).toBe(503);
-    expect((response.body.details as Record<string, unknown>).reason).toBe('unknown-store');
+    expect(response.body.error).toBe('kaana_credential_control_unavailable');
   });
 
   it('refuses an UNAUTHORISED caller with 403, not 503', async () => {
@@ -798,7 +806,8 @@ describe('with no secret backend configured', () => {
      * never learn what this deployment is configured with. Authorise first, then
      * resolve the store.
      */
-    delete process.env.INFERENCE_PROVIDER_SECRET_STORE;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
     const account = await insertAccount();
     const application = await insertApplication(account);
     const provider = await insertProvider();
@@ -812,13 +821,19 @@ describe('with no secret backend configured', () => {
       'POST',
       `/inference/provider-connections/accounts/${account}`,
       token,
-      { provider, environment: 'production', scope: 'account', secret: 'sk-live-y' }
+      {
+        provider,
+        environment: 'production',
+        scope: 'account',
+        secret: 'sk-live-y',
+      },
     );
     expect(response.status).toBe(403);
   });
 
   it('still serves the routes that need no credential', async () => {
-    delete process.env.INFERENCE_PROVIDER_SECRET_STORE;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID;
+    delete process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY;
     const account = await insertAccount();
     const application = await insertApplication(account);
     const provider = await insertProvider();
@@ -839,39 +854,82 @@ describe('with no secret backend configured', () => {
           'POST',
           `/inference/provider-connections/${connection}/disable`,
           undefined,
-          {}
+          {},
         )
-      ).status
+      ).status,
     ).toBe(200);
 
     // The READ still works for the credential, with no store configured.
     const previousUser = currentUserId;
     currentUserId = '';
     expect(
-      (
-        await request(
-          'GET',
-          `/inference/provider-connections/${connection}/audit`,
-          token
-        )
-      ).status
+      (await request('GET', `/inference/provider-connections/${connection}/audit`, token)).status,
     ).toBe(200);
     currentUserId = previousUser;
 
     expect(
-      (
-        await request(
-          'POST',
-          `/inference/provider-connections/${connection}/revoke`,
-          undefined,
-          {}
-        )
-      ).status
+      (await request('POST', `/inference/provider-connections/${connection}/revoke`, undefined, {}))
+        .status,
     ).toBe(200);
   });
 });
 
 describe('the response body', () => {
+  it('derives operationActor from the authorized Oxy principal, never the request body', async () => {
+    const account = await insertAccount();
+    const provider = await insertProvider();
+    currentUserId = await insertMemberAccount(account, 'admin');
+    const { privateKey } = generateKeyPairSync('ed25519');
+    process.env.KAANA_BASE_URL = 'https://kaana.ai';
+    process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID = 'route-control-test';
+    process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY = privateKey
+      .export({ format: 'pem', type: 'pkcs8' })
+      .toString();
+
+    let mutation: Record<string, unknown> | undefined;
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      mutation = JSON.parse((init?.body as Buffer).toString('utf8')) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          schemaVersion: 1,
+          credentialHandle: `kcred_${'g'.repeat(26)}`,
+          revision: 1,
+        }),
+        { status: 201 },
+      );
+    });
+
+    const rejected = await request(
+      'POST',
+      `/inference/provider-connections/accounts/${account}`,
+      undefined,
+      {
+        provider,
+        environment: 'production',
+        scope: 'account',
+        secret: 'route-provider-key',
+        operationActor: 'attacker',
+      },
+    );
+    expect(rejected.status).toBe(400);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    const accepted = await request(
+      'POST',
+      `/inference/provider-connections/accounts/${account}`,
+      undefined,
+      {
+        provider,
+        environment: 'production',
+        scope: 'account',
+        secret: 'route-provider-key',
+      },
+    );
+    expect(accepted.status).toBe(201);
+    expect(mutation?.operationActor).toBe(`user:${currentUserId}`);
+    expect(mutation?.actor).toBeUndefined();
+  });
+
   it('carries a reference and a prefix, and no field a credential could occupy', async () => {
     const account = await insertAccount();
     const application = await insertApplication(account);
@@ -883,17 +941,15 @@ describe('the response body', () => {
       scopes: ['inference:providers:read'],
     });
 
-    const response = await request(
-      'GET',
-      `/inference/provider-connections/${connection}`,
-      token
-    );
+    const response = await request('GET', `/inference/provider-connections/${connection}`, token);
     const data = response.body.data as Record<string, unknown>;
 
     expect(Object.keys(data)).not.toContain('secret');
     expect(Object.keys(data)).not.toContain('apiKey');
     expect(Object.keys(data)).not.toContain('token');
-    expect(String(data.secretRef)).toMatch(/^secretsmanager:oxy\/inference\/byok\//);
+    expect(String(data.credentialHandle)).toMatch(/^kcred_[a-z2-7]{26}$/);
+    expect(data.credentialRevision).toBe(1);
+    expect(data.custodyState).toBe('ready');
     expect(String(data.keyPrefix).length).toBeLessThanOrEqual(12);
     expect(data.upstreamBillsCustomerDirectly).toBe(true);
   });

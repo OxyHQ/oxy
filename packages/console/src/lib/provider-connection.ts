@@ -7,11 +7,10 @@ import type { ProviderConnectionAuditEvent } from '@/hooks/use-provider-connecti
 
 /**
  * The Console's view of a BYOK provider connection — the contract's shape with
- * `secretRef` REMOVED.
+ * opaque Kaana handle and revision REMOVED.
  *
- * `providerConnectionSchema` carries a `secretRef`: a `<store>:<locator>`
- * pointer into Vault/KMS. It is not the credential, but it IS the address of the
- * credential, and a customer screen has no use for it — so it never enters a
+ * The handle is not credential material, but a customer screen has no use for
+ * an internal execution reference — so it never enters a
  * React tree, a DOM node, a clipboard or a screenshot.
  *
  * Two mechanisms keep that true rather than remembered:
@@ -20,14 +19,17 @@ import type { ProviderConnectionAuditEvent } from '@/hooks/use-provider-connecti
  *    this type. Adding a field to the contract without listing it here is a
  *    `tsc` error at the projection, not a field that silently appears on screen.
  *  - `__tests__/provider-connection.test.ts` asserts the projected object has no
- *    `secretRef` own property, so re-introducing it by spread fails the suite.
+ *    opaque handle/revision fields, so re-introducing them by spread fails the suite.
  *
  * `keyPrefix` and `fingerprint` are the two fields designed to be shown: the
  * contract caps the prefix at 12 characters (shorter than any usable credential)
  * and the fingerprint is a SHA-256 of the credential, which is what makes a
  * rotation verifiable without ever handling the key.
  */
-export type ProviderConnectionView = Omit<ProviderConnection, 'secretRef'>;
+export type ProviderConnectionView = Omit<
+  ProviderConnection,
+  'credentialHandle' | 'credentialRevision'
+>;
 
 /** Project a connection into the shape Console is allowed to render. */
 export function toProviderConnectionView(connection: ProviderConnection): ProviderConnectionView {
@@ -39,6 +41,7 @@ export function toProviderConnectionView(connection: ProviderConnection): Provid
     scope: connection.scope,
     environment: connection.environment,
     status: connection.status,
+    custodyState: connection.custodyState,
     keyPrefix: connection.keyPrefix,
     fingerprint: connection.fingerprint,
     validation: connection.validation,
@@ -57,21 +60,22 @@ export function toProviderConnectionView(connection: ProviderConnection): Provid
  * `POST …/:connectionId/rotate` BEFORE the request body is read, so an
  * unconfigured deployment never holds a customer secret at all.
  */
-export const PROVIDER_SECRET_STORE_UNAVAILABLE = 'provider_secret_store_unavailable';
+export const KAANA_CREDENTIAL_CONTROL_UNAVAILABLE =
+  'kaana_credential_control_unavailable';
 
 /**
- * True when the API refused because no managed secret store is wired.
+ * True when the API refused because signed Kaana credential custody is unavailable.
  *
  * Branches on the `code` the API sends (`{ error: '<code>', message, details }`,
  * lifted onto the thrown `Error` by the SDK's `parseHttpErrorBody`), never on
  * the prose, which is operator-facing and free to change.
  */
-export function isSecretStoreUnavailable(error: unknown): boolean {
+export function isKaanaCredentialControlUnavailable(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
   }
   const code = (error as Error & { code?: string }).code;
-  return code === PROVIDER_SECRET_STORE_UNAVAILABLE;
+  return code === KAANA_CREDENTIAL_CONTROL_UNAVAILABLE;
 }
 
 /**
