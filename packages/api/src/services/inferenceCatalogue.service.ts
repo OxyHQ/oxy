@@ -1568,10 +1568,12 @@ export interface EdgeRoute {
   readonly modelReference: string;
   readonly provider: string;
   /**
-   * Every region this deployment MAY serve from, plural because
-   * `modelDeploymentSchema.regions` is. Oxy checked the whole set against the
+   * Every ATTESTED region this deployment MAY serve from, plural because
+   * `modelDeploymentSchema.regions` is. Oxy checked a non-empty set against the
    * customer's residency controls as a SUBSET, so choosing among them cannot
-   * escape the policy and the choice stays routing execution (ADR 0006).
+   * escape the policy and the choice stays routing execution (ADR 0006). Empty
+   * means no location was attested and survives only when the request carries no
+   * explicit regional control; it never means global.
    */
   readonly regions: readonly string[];
   readonly availabilityScope: AvailabilityScope;

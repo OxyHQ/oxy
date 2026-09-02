@@ -201,6 +201,8 @@ interface FixtureOptions {
    * default is the zero-retention posture every other case relies on.
    */
   readonly retainsAndTrains?: boolean;
+  /** Empty is an explicit unattested location set, never a fabricated region. */
+  readonly regions?: string[];
   /** `false` is reserved for tests that exercise absence or create their own version. */
   readonly routingPolicy?: false | Partial<RoutingPolicyControls>;
 }
@@ -314,7 +316,7 @@ async function makeFixture(options: FixtureOptions = {}): Promise<Fixture> {
       modelRevisionId: revisionRow.id,
       providerSlug,
       internalRouteId: kaanaDeploymentId,
-      regions: ['us-west-2'],
+      regions: options.regions ?? ['us-west-2'],
       retainsPayloads: options.retainsAndTrains === true,
       retentionDays: options.retainsAndTrains === true ? 30 : 0,
       trainsOnCustomerData: options.retainsAndTrains === true,
@@ -2658,6 +2660,18 @@ describe('the envelope’s authorized routes', () => {
     });
     expect(created.status).toBe('written');
   }
+
+  it('serves an unattested region set when no explicit regional control applies', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000', regions: [] });
+
+    const routes = await envelopeRoutesFor(fixture);
+
+    expect(routes).toHaveLength(1);
+    expect(routes?.[0]).toMatchObject({
+      deploymentId: fixture.deploymentId,
+      regions: [],
+    });
+  });
 
   it('carries every surviving deployment, in preference order, when the policy permits same-model failover', async () => {
     const fixture = await makeFixture({ fund: '10.000000000000' });
