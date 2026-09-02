@@ -77,6 +77,11 @@ import {
 import { devicePairingSessions } from './schema/devicePairingSessions';
 import { domainVerifications } from './schema/domainVerifications';
 import {
+  mcpOauthAccessTokens,
+  mcpOauthAuthorizationCodes,
+  mcpOauthRefreshTokens,
+} from './schema/mcpOAuth';
+import {
   SECURITY_ACTIVITY_RETENTION_SECONDS,
   securityActivities,
 } from './schema/securityActivities';
@@ -156,6 +161,30 @@ export const EXPIRY_SWEEP_TARGETS: readonly ExpirySweepTarget[] = [
       'replay (`used_at` is set) instead of answering "no such code". ' +
       'Lowering it to 0 converts a detected replay into an indistinguishable ' +
       'miss.',
+  },
+  {
+    table: mcpOauthAuthorizationCodes,
+    column: mcpOauthAuthorizationCodes.expiresAt,
+    retentionSeconds: 300,
+    reason:
+      'Five-minute replay-detection grace after the code deadline. Every exchange ' +
+      'filters expiry and atomically marks the row used before issuing tokens.',
+  },
+  {
+    table: mcpOauthAccessTokens,
+    column: mcpOauthAccessTokens.expiresAt,
+    retentionSeconds: 300,
+    reason:
+      'Housekeeping only. Signature, expiry, grant state and this live jti row are ' +
+      'checked before an external MCP action is accepted.',
+  },
+  {
+    table: mcpOauthRefreshTokens,
+    column: mcpOauthRefreshTokens.expiresAt,
+    retentionSeconds: 604800,
+    reason:
+      'A seven-day replay-detection window retains spent refresh-token family ' +
+      'members after expiry while every refresh request checks the deadline itself.',
   },
   {
     table: authSessions,

@@ -19,7 +19,11 @@
  */
 import { describe, expect, test } from "bun:test"
 import { oauthConsentDecisionSchema } from "@oxyhq/contracts"
-import { consentRequiredFromBody, safeParse } from "@/lib/schemas"
+import {
+    consentRequiredFromBody,
+    mcpConsentRequiredFromBody,
+    safeParse,
+} from "@/lib/schemas"
 
 describe("oauthConsentDecisionSchema", () => {
     test("parses every valid reason", () => {
@@ -162,5 +166,18 @@ describe("consentRequiredFromBody", () => {
     test("fails safe to true for a non-object body", () => {
         expect(consentRequiredFromBody("not json")).toBe(true)
         expect(consentRequiredFromBody(42)).toBe(true)
+    })
+})
+
+describe("mcpConsentRequiredFromBody", () => {
+    test("accepts only an explicit MCP consent decision", () => {
+        expect(mcpConsentRequiredFromBody({ consentRequired: false })).toBe(false)
+        expect(mcpConsentRequiredFromBody({ data: { consentRequired: true } })).toBe(true)
+    })
+
+    test("fails safe for malformed or widened responses", () => {
+        expect(mcpConsentRequiredFromBody(null)).toBe(true)
+        expect(mcpConsentRequiredFromBody({ consentRequired: "false" })).toBe(true)
+        expect(mcpConsentRequiredFromBody({ consentRequired: false, extra: true })).toBe(true)
     })
 })

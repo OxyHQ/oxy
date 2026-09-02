@@ -18,6 +18,7 @@ import {
   sessionStatusSchema,
   safeParse,
   consentRequiredFromBody,
+  mcpConsentRequiredFromBody,
 } from "@/lib/schemas";
 import {
   buildRelativeUrl,
@@ -25,7 +26,7 @@ import {
   buildApiUrl,
   getAvatarUrl,
 } from "@/lib/oxy-api-client";
-import { safeRedirectUrl } from "@/lib/oauth-redirect";
+import { safeMcpRedirectUrl, safeRedirectUrl } from "@/lib/oauth-redirect";
 import { deliverOAuthResult, type OAuthResult } from "@/lib/oauth-web-message";
 import {
   buildCommonsOAuthBinding,
@@ -67,11 +68,23 @@ function relayOutcomeFor(result: OAuthResult): RelayOutcome {
  * unresolved-application error rather than any generic fallback.
  */
 async function resolvePublicApplication(
-  clientId: string
+  clientId: string,
+  resource: string | null,
+  redirectUri: string | null
 ): Promise<PublicApplication | null> {
   try {
+    const safeRedirect = resource !== null
+      ? safeMcpRedirectUrl(redirectUri)
+      : safeRedirectUrl(redirectUri);
+    if (!safeRedirect) return null;
+    const endpoint = resource !== null
+      ? `/auth/mcp/oauth/client/${encodeURIComponent(clientId)}?${new URLSearchParams({
+          resource,
+          redirectUri: safeRedirect,
+        }).toString()}`
+      : `/auth/oauth/client/${encodeURIComponent(clientId)}`;
     const response = await fetch(
-      buildApiUrl(`/auth/oauth/client/${encodeURIComponent(clientId)}`),
+      buildApiUrl(endpoint),
       { credentials: "include" }
     );
     if (!response.ok) return null;
@@ -167,6 +180,12 @@ function AuthorizeRequest() {
   const codeChallenge = searchParams.get("code_challenge");
   const codeChallengeMethod = searchParams.get("code_challenge_method");
   const scope = searchParams.get("scope");
+  const resource = searchParams.get("resource");
+  const responseType = searchParams.get("response_type");
+  const isMcpOAuth = resource !== null;
+  const safeRequestRedirect = () => isMcpOAuth
+    ? safeMcpRedirectUrl(redirectUri)
+    : safeRedirectUrl(redirectUri);
   const statusParam = searchParams.get("status");
   const urlError = searchParams.get("error");
   // Popup sign-in: `response_mode=web_message` asks us to post the result to
@@ -245,14 +264,16 @@ function AuthorizeRequest() {
   // the session-bearing path below stays exactly as it was.
   const commonsBinding = useMemo(
     () =>
-      buildCommonsOAuthBinding({
-        clientId,
-        safeRedirectUri: safeRedirectUrl(redirectUri),
-        codeChallenge,
-        codeChallengeMethod,
-        scope,
-      }),
-    [clientId, redirectUri, codeChallenge, codeChallengeMethod, scope]
+      isMcpOAuth
+        ? null
+        : buildCommonsOAuthBinding({
+            clientId,
+            safeRedirectUri: safeRequestRedirect(),
+            codeChallenge,
+            codeChallengeMethod,
+            scope,
+          }),
+    [clientId, redirectUri, codeChallenge, codeChallengeMethod, scope, isMcpOAuth]
   );
 
   /**
@@ -289,7 +310,7 @@ function AuthorizeRequest() {
    * request).
    */
   function handleCommonsOutcome(outcome: CommonsOAuthOutcome): void {
-    const safeRedirect = safeRedirectUrl(redirectUri);
+    const safeRedirect = safeRequestRedirect();
     if (!safeRedirect) {
       // Unreachable in practice — the lane only exists once the binding built,
       // which already required a usable redirect target — but a result is never
@@ -320,7 +341,7 @@ function AuthorizeRequest() {
         // without a device-flow token) and is the authoritative identity source
         // for the OAuth path.
         const oauthApplication = clientId
-          ? await resolvePublicApplication(clientId)
+          ? await resolvePublicApplication(clientId, resource, redirectUri)
           : null;
 
         // If we have an auth session token, check its status
@@ -408,8 +429,17 @@ function AuthorizeRequest() {
 
         // OAuth code flow without a device-flow token (or with status already
         // resolved via the URL). The application MUST resolve from client_id.
+        const invalidMcpRequest = isMcpOAuth && (
+          responseType !== "code" ||
+          !resource ||
+          !scope ||
+          !codeChallenge ||
+          codeChallengeMethod !== "S256"
+        );
         const resolvedError = urlError
           ? urlError
+          : invalidMcpRequest
+            ? "The MCP authorization request is missing a required secure binding."
           : clientId && !oauthApplication
             ? UNRESOLVED_APP_ERROR
             : null;
@@ -427,7 +457,20 @@ function AuthorizeRequest() {
       }
     }
     loadData();
-  }, [token, redirectUri, state, statusParam, urlError, clientId]);
+  }, [
+    token,
+    redirectUri,
+    state,
+    statusParam,
+    urlError,
+    clientId,
+    resource,
+    responseType,
+    isMcpOAuth,
+    scope,
+    codeChallenge,
+    codeChallengeMethod,
+  ]);
 
   // Auto-close a child approval window when authorization is complete.
   useEffect(() => {
@@ -455,6 +498,8 @@ function AuthorizeRequest() {
         code_challenge: codeChallenge || undefined,
         code_challenge_method: codeChallengeMethod || undefined,
         scope: scope || undefined,
+        resource: resource || undefined,
+        response_type: responseType || undefined,
         response_mode: responseMode || undefined,
         login_hint: hint || undefined,
       })
@@ -476,7 +521,7 @@ function AuthorizeRequest() {
         return;
       }
       setChooserDismissed(true);
-      await maybeAutoApprove(oxyServices.getAccessToken());
+      await maybeAutoApprove(oxyServices.getAccessToken(), context.accountId);
     } catch {
       gotoLoginWithHint(context.handle ?? undefined);
     } finally {
@@ -499,7 +544,7 @@ function AuthorizeRequest() {
       return;
     }
     autoApproveAttemptedRef.current = true;
-    void maybeAutoApprove(oxyServices.getAccessToken());
+    void maybeAutoApprove(oxyServices.getAccessToken(), activeContext.subject.accountId);
   }, [
     contextCount,
     directoryLoading,
@@ -515,7 +560,8 @@ function AuthorizeRequest() {
   // logic exists exactly once. PKCE + `state` are passed through untouched.
   async function runOAuthAuthorize(
     accessToken: string,
-    safeRedirect: string
+    safeRedirect: string,
+    effectiveAccountId: string | undefined
   ): Promise<void> {
     if (!clientId) return;
 
@@ -529,8 +575,22 @@ function AuthorizeRequest() {
     }
     if (scope) body.scope = scope;
     if (state) body.state = state;
+    if (isMcpOAuth) {
+      if (!resource || !effectiveAccountId) {
+        setAutoApproving(false);
+        setSubmitting(false);
+        setData((prev) => ({ ...prev, error: "The MCP account or resource binding is missing." }));
+        return;
+      }
+      body.responseType = responseType || "code";
+      body.resource = resource;
+      body.accountId = effectiveAccountId;
+    }
 
-    const codeResponse = await fetch(buildApiUrl("/auth/oauth/authorize"), {
+    const authorizePath = isMcpOAuth
+      ? "/auth/mcp/oauth/authorize"
+      : "/auth/oauth/authorize";
+    const codeResponse = await fetch(buildApiUrl(authorizePath), {
       method: "POST",
       credentials: "include",
       headers: {
@@ -550,6 +610,8 @@ function AuthorizeRequest() {
           code_challenge: codeChallenge || undefined,
           code_challenge_method: codeChallengeMethod || undefined,
           scope: scope || undefined,
+          resource: resource || undefined,
+          response_type: responseType || undefined,
           response_mode: responseMode || undefined,
           error: "Session expired. Please sign in again.",
         })
@@ -595,8 +657,11 @@ function AuthorizeRequest() {
   // consent screen" (`consentRequiredFromBody`) — we never silently auto-approve
   // on an error. Only runs on the OAuth code path; the device-flow handoff
   // (no client_id) always shows the consent screen.
-  async function maybeAutoApprove(accessToken: string | null): Promise<void> {
-    const safeRedirect = safeRedirectUrl(redirectUri);
+  async function maybeAutoApprove(
+    accessToken: string | null,
+    effectiveAccountId: string | undefined
+  ): Promise<void> {
+    const safeRedirect = safeRequestRedirect();
     if (!clientId || !safeRedirect || !accessToken) return;
 
     // Show the neutral backdrop for the whole decision so the consent screen never
@@ -610,8 +675,19 @@ function AuthorizeRequest() {
       params.set("clientId", clientId);
       params.set("redirectUri", safeRedirect);
       if (scope) params.set("scope", scope);
+      if (isMcpOAuth) {
+        if (!resource || !effectiveAccountId) {
+          setAutoApproving(false);
+          return;
+        }
+        params.set("resource", resource);
+        params.set("accountId", effectiveAccountId);
+      }
+      const consentPath = isMcpOAuth
+        ? "/auth/mcp/oauth/consent"
+        : "/auth/oauth/consent";
       const response = await fetch(
-        buildApiUrl(`/auth/oauth/consent?${params.toString()}`),
+        buildApiUrl(`${consentPath}?${params.toString()}`),
         {
           credentials: "include",
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -640,19 +716,22 @@ function AuthorizeRequest() {
       body = null;
     }
 
-    if (consentRequiredFromBody(body)) {
+    const consentRequired = isMcpOAuth
+      ? mcpConsentRequiredFromBody(body)
+      : consentRequiredFromBody(body);
+    if (consentRequired) {
       setAutoApproving(false);
       return;
     }
 
-    await runOAuthAuthorize(accessToken, safeRedirect);
+    await runOAuthAuthorize(accessToken, safeRedirect, effectiveAccountId);
   }
 
   async function handleDecision(decision: "approve" | "deny") {
     if (!token && !clientId) return;
     setSubmitting(true);
 
-    const safeRedirect = safeRedirectUrl(redirectUri);
+    const safeRedirect = safeRequestRedirect();
 
     if (decision === "deny") {
       // Cancel the auth session
@@ -710,7 +789,7 @@ function AuthorizeRequest() {
 
       // ---- OAuth2 authorization code flow ----
       if (clientId && safeRedirect) {
-        await runOAuthAuthorize(accessToken, safeRedirect);
+        await runOAuthAuthorize(accessToken, safeRedirect, activeContext?.subject.accountId);
         return;
       }
 
@@ -747,6 +826,8 @@ function AuthorizeRequest() {
             code_challenge: codeChallenge || undefined,
             code_challenge_method: codeChallengeMethod || undefined,
             scope: scope || undefined,
+            resource: resource || undefined,
+            response_type: responseType || undefined,
             response_mode: responseMode || undefined,
             error: "Session expired. Please sign in again.",
           })
@@ -871,6 +952,8 @@ function AuthorizeRequest() {
           code_challenge: codeChallenge || undefined,
           code_challenge_method: codeChallengeMethod || undefined,
           scope: scope || undefined,
+          resource: resource || undefined,
+          response_type: responseType || undefined,
           response_mode: responseMode || undefined,
         })}
         replace

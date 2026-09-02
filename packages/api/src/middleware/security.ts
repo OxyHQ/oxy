@@ -94,6 +94,7 @@ export function isFederationServiceToServicePath(path: string): boolean {
  *   - POST /assets/service/user-media (persist media for a local user; MCP)
  *   - POST /assets/service/by-ids     (resolve asset metadata for a batch of ids)
  *   - POST /assets/service/by-sha256  (reverse-resolve assets by content hash)
+ *   - POST /auth/mcp/oauth/introspect (live MCP resource-token validation)
  *
  * Because these share a prefix with genuine browser/user routes (`/users/*`,
  * `/assets/*`), a PURE path match — as used for the IdP worker / federation
@@ -117,6 +118,7 @@ const SERVICE_TO_SERVICE_BULK_PATHS: ReadonlySet<string> = new Set([
   // is what the MOUNT-ORDER INVARIANT below requires of every entry here.
   '/assets/service/by-ids',
   '/assets/service/by-sha256',
+  '/auth/mcp/oauth/introspect',
 ]);
 
 /**
@@ -137,7 +139,11 @@ const SERVICE_TO_SERVICE_BULK_PATHS: ReadonlySet<string> = new Set([
  * that authenticated service traffic on that path has.
  */
 export function isServiceToServiceBulkRequest(req: Request): boolean {
-  if (!SERVICE_TO_SERVICE_BULK_PATHS.has(req.path)) return false;
+  const originalPath = req.originalUrl?.split('?', 1)[0];
+  const requestPath = originalPath?.startsWith('/api/')
+    ? originalPath.slice('/api'.length)
+    : originalPath;
+  if (!SERVICE_TO_SERVICE_BULK_PATHS.has(requestPath ?? req.path)) return false;
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) return false;
   return verifyServiceToken(authHeader.slice('Bearer '.length)).ok;
