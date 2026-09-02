@@ -13,6 +13,8 @@ export type {
 } from './catalogAdapter';
 export { jsonObjectSchemaToZod, jsonSchemaToZod } from './jsonSchema';
 export type { JsonSchema } from './jsonSchema';
+export { introspectOxyMcpAccessToken } from './introspection';
+export type { OxyMcpIntrospectionOptions } from './introspection';
 export {
   buildProtectedResourceMetadata,
   createMcpAuthInfo,
