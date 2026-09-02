@@ -130,6 +130,10 @@ describe('isServiceToServiceBulkRequest', () => {
 
   it('does NOT exempt an exempt path carrying a USER session token', () => {
     expect(isServiceToServiceBulkRequest(makeReq('/users/resolve', `Bearer ${userSessionToken()}`))).toBe(false);
+    expect(isServiceToServiceBulkRequest(makeReq(
+      '/auth/mcp/oauth/introspect',
+      `Bearer ${userSessionToken()}`,
+    ))).toBe(false);
   });
 
   it('does NOT exempt an exempt path carrying a garbage/invalid token', () => {
@@ -141,6 +145,10 @@ describe('isServiceToServiceBulkRequest', () => {
     expect(isServiceToServiceBulkRequest(makeReq('/users/me', `Bearer ${serviceToken()}`))).toBe(false);
     expect(isServiceToServiceBulkRequest(makeReq('/users/app-1', `Bearer ${serviceToken()}`))).toBe(false);
     expect(isServiceToServiceBulkRequest(makeReq('/assets/upload', `Bearer ${serviceToken()}`))).toBe(false);
+    expect(isServiceToServiceBulkRequest(makeReq(
+      '/auth/mcp/oauth/token',
+      `Bearer ${serviceToken()}`,
+    ))).toBe(false);
   });
 });
 
