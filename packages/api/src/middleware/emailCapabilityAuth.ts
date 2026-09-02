@@ -82,6 +82,9 @@ function validatedCanonicalInput(
     ...(request.method === 'GET' ? request.query : {}),
     ...body,
     ...invocation.params,
+    ...(invocation.tool.idempotency === 'required' && request.header('idempotency-key')
+      ? { idempotencyKey: request.header('idempotency-key') }
+      : {}),
   };
   const validateInput = inputValidators.get(invocation.tool.name);
   return validateInput?.(input) ? input : null;
@@ -170,6 +173,11 @@ export async function emailCapabilityAuth(
     response.status(403).json({ error: 'capability_tool_mismatch' });
     return;
   }
+  if (invocation.tool.idempotency === 'required' && !request.header('idempotency-key')) {
+    await auditResult(claims, { allowed: false, reason: 'idempotency_key_required' }, 400);
+    response.status(400).json({ error: 'idempotency_key_required' });
+    return;
+  }
   const input = validatedCanonicalInput(request, invocation);
   if (!input) {
     response.status(400).json({ error: 'capability_input_schema_mismatch' });
@@ -195,12 +203,7 @@ export async function emailCapabilityAuth(
   }
   let keyHash: string | undefined;
   if (invocation.tool.idempotency === 'required') {
-    const rawKey = request.header('idempotency-key');
-    if (!rawKey) {
-      await auditResult(claims, { allowed: false, reason: 'idempotency_key_required' }, 400);
-      response.status(400).json({ error: 'idempotency_key_required' });
-      return;
-    }
+    const rawKey = request.header('idempotency-key')!;
     keyHash = createHash('sha256').update(rawKey).digest('hex');
     if (!await reserveCapabilityEffect(claims, keyHash)) {
       await auditResult(claims, { allowed: false, reason: 'duplicate_effect_prevented' }, 409, keyHash);

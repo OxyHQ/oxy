@@ -150,6 +150,7 @@ import { errorHandler } from './middleware/errorHandler';
 import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './config/swagger';
+import { createInboxMcpHttpService } from './capabilities/inbox-mcp-http';
 
 // Load environment variables
 dotenv.config();
@@ -171,6 +172,20 @@ app.set('trust proxy', 1);
 
 // Security headers middleware (first, before any other middleware)
 app.use(securityHeaders);
+
+// The external Inbox MCP endpoint owns its raw JSON body, exact resource host,
+// OAuth challenge, and origin policy. Mount it before compression and global
+// body parsing so the protocol boundary is enforced exactly once.
+const inboxMcpHttpService = createInboxMcpHttpService();
+app.all(
+  inboxMcpHttpService.protectedResourceMetadataPath,
+  (request, response) => {
+    inboxMcpHttpService.handleProtectedResourceMetadata(request, response);
+  },
+);
+app.all(inboxMcpHttpService.mcpPath, (request, response) => {
+  void inboxMcpHttpService.handleMcp(request, response);
+});
 
 // Compress responses (gzip/brotli)
 app.use(compression());
