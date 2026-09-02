@@ -17184,6 +17184,16 @@
               }
             }
           },
+          "409": {
+            "description": "The permission transition conflicts with catalogue state, routing evidence or an already approved Kaana identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded",
             "content": {
@@ -17495,6 +17505,16 @@
           },
           "404": {
             "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The scorecard conflicts with the exact Kaana deployment state or would make an approved serving route unsafe.",
             "content": {
               "application/json": {
                 "schema": {

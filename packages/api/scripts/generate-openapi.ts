@@ -1178,11 +1178,15 @@ export function parseObjectLiteralEntries(source: string): Record<string, string
  *
  *     @response 200 responsesResponseSchema The completed generation.
  *     @response 200 application/octet-stream binary The audio bytes.
+ *     @response 409 Error The requested state conflicts with current state.
  *
  * Two forms, told apart by whether the second token is a media type (contains a
  * `/`; a Zod identifier cannot). Media type defaults to `application/json`.
  * `binary` in the schema position emits `{ type: 'string', format: 'binary' }`,
  * which is how OpenAPI 3.1 spells a byte body.
+ * `Error` names the shared `#/components/schemas/Error` envelope. Non-2xx
+ * responses are emitted only when a route declares them; the generator never
+ * infers a domain conflict such as 409 from handler prose or implementation.
  *
  * The identifier is resolved through the route file's OWN imports, exactly like a
  * `validate({ body })` reference, and an unresolvable one refuses the run rather
@@ -1474,7 +1478,7 @@ interface BuildOperationInput {
  * descriptions, request body, parameters, and responses with sensible
  * defaults based on the route's middleware and validate calls.
  */
-function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOperation {
+export function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOperation {
   const tag = TAG_GROUPS[route.mountPrefix] ?? 'Misc';
   const { jsdoc, validate, middlewares, verb } = route;
 
@@ -1623,25 +1627,33 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
 
   // Responses.
   //
-  // The success entry comes from the route's own `@response` declarations when it
-  // has any. Without them the operation falls back to a bare `{ description }`,
-  // which is what EVERY machine-derived operation carried before this: 352 of 390
+  // Every explicitly declared response comes from the route's own `@response`
+  // tags. Without a 2xx declaration the operation falls back to a bare
+  // `{ description }`, which is what EVERY machine-derived operation carried
+  // before this: 352 of 390
   // operations published with no success schema, so a generated client returned
   // `Any` from all of them. The fallback still exists because 300-odd operations
   // are not going to be annotated in one change — but the fallback now says so in
   // words a reader of the contract can act on, instead of the word "Success".
   const responses: Record<string, unknown> = {};
   const successTags = route.responseTags.filter((tag) => tag.status.startsWith('2'));
-  for (const tag of successTags) {
-    const schema =
-      tag.schemaRef === 'binary'
-        ? { type: 'string', format: 'binary' }
-        : (() => {
-            const resolved = resolveRouteSchema(route, tag.schemaRef);
-            return resolved === undefined ? {} : zodToOpenApi(resolved);
-          })();
+  for (const tag of route.responseTags) {
+    let schema: Record<string, unknown>;
+    if (tag.schemaRef === 'binary') {
+      schema = { type: 'string', format: 'binary' };
+    } else if (tag.schemaRef === 'Error') {
+      schema = { $ref: '#/components/schemas/Error' };
+    } else {
+      const resolved = resolveRouteSchema(route, tag.schemaRef);
+      schema = resolved === undefined ? {} : zodToOpenApi(resolved);
+    }
     responses[tag.status] = {
-      description: tag.description.length > 0 ? tag.description : 'Success',
+      description:
+        tag.description.length > 0
+          ? tag.description
+          : tag.status.startsWith('2')
+            ? 'Success'
+            : `HTTP ${tag.status}`,
       content: { [tag.mediaType]: { schema } },
     };
   }
@@ -1654,13 +1666,13 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
     };
   }
   if (requestBody || parameters.some((p) => p.in === 'path' || p.in === 'query')) {
-    responses['400'] = {
+    responses['400'] ??= {
       description: 'Validation failed',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
   if (requiresCredential) {
-    responses['401'] = {
+    responses['401'] ??= {
       description: 'Authentication required',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
@@ -1672,24 +1684,24 @@ function buildOperation({ route, openApiPath }: BuildOperationInput): OpenApiOpe
     isDualPrincipal ||
     acceptsCapabilityTicket
   ) {
-    responses['403'] = {
+    responses['403'] ??= {
       description: 'Insufficient privileges',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
   if (pathParamNames.length > 0) {
-    responses['404'] = {
+    responses['404'] ??= {
       description: 'Resource not found',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
   if (middlewares.some((m) => m === 'rateLimit' || /(?:Limiter|RateLimit)$/.test(m))) {
-    responses['429'] = {
+    responses['429'] ??= {
       description: 'Rate limit exceeded',
       content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
     };
   }
-  responses['5XX'] = {
+  responses['5XX'] ??= {
     description: 'Server error',
     content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
   };

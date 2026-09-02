@@ -401,6 +401,7 @@ router.post(
  * slug.
  *
  * @response 200 routingScorecardResponse The complete scorecard stored for this exact Kaana deployment.
+ * @response 409 Error The scorecard conflicts with the exact Kaana deployment state or would make an approved serving route unsafe.
  */
 router.put(
   '/kaana-deployments/:kaanaDeploymentId/routing-scorecard',
@@ -425,6 +426,8 @@ router.put(
  * `POST /inference/admin/deployments/:deploymentId/:action`
  *
  * `approve` | `restrict` | `suspend` | `retire`.
+ *
+ * @response 409 Error The permission transition conflicts with catalogue state, routing evidence or an already approved Kaana identity.
  */
 router.post(
   '/deployments/:deploymentId/:action',
