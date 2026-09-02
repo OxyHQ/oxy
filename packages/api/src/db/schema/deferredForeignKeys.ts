@@ -29,7 +29,6 @@
 
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core';
 import type { DeferredForeignKey } from '@oxyhq/db/assert';
-import { capabilityExecutionAuthorizations } from './agency';
 import { appAffinitySeenEvents } from './appAffinitySeenEvents';
 import { appEndorsementEdges } from './appEndorsementEdges';
 import { appUpdates } from './appUpdates';
@@ -37,6 +36,7 @@ import { authCodes } from './authCodes';
 import { authSessions } from './authSessions';
 import { billingSubscriptions } from './billingSubscriptions';
 import { billingTransactions } from './billingTransactions';
+import { capabilityExecutionAuthorizations } from './agency';
 import { followEvents } from './followEvents';
 import { bookmarks } from './bookmarks';
 import { conductStrikes } from './conductStrikes';
@@ -99,25 +99,22 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.runId,
     reason:
-      'The Alia runtime owns runs in its own database. Oxy preserves the opaque ' +
-      'run identifier for capability authorization and audit correlation, but has ' +
-      'no local run row to reference.',
+      "The Alia runtime's run identifier. Runs live in Alia's database; Oxy " +
+      'stores the value only to bind authority and audit across service boundaries.',
   },
   {
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.stepId,
     reason:
-      'The Alia runtime owns steps in its own database. Oxy preserves the opaque ' +
-      'step identifier for capability authorization and audit correlation, but has ' +
-      'no local step row to reference.',
+      "The Alia runtime's optional step identifier. The step belongs to Alia's " +
+      'execution graph and has no row in the Oxy database to reference.',
   },
   {
     table: capabilityExecutionAuthorizations,
     column: capabilityExecutionAuthorizations.automationId,
     reason:
-      'The Alia runtime owns automation definitions in its own database. Oxy ' +
-      'preserves the opaque automation identifier for capability authorization and ' +
-      'audit correlation, but has no local automation row to reference.',
+      "The Alia runtime's automation identifier. Automation definitions remain " +
+      'owned by Alia; Oxy keeps this opaque correlation value for revocation and audit.',
   },
   {
     table: followEvents,
