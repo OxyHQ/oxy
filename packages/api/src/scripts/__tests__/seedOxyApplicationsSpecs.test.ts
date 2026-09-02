@@ -275,6 +275,22 @@ describe('the canonical official-application registry', () => {
     });
   });
 
+  describe('Oxy Inbox owns its catalog and authenticated app events', () => {
+    it('has only the scopes its deployed backend uses', () => {
+      expect(specNamed('Oxy Inbox').scopes).toEqual([
+        'user:read',
+        'catalogs:write',
+        'capability-events:publish',
+      ]);
+    });
+
+    it('cannot register a catalog outside the Inbox namespace', () => {
+      expect(specNamed('Oxy Inbox').capabilities).toEqual([
+        catalogApplicationCapability('inbox'),
+      ]);
+    });
+  });
+
   describe('Mention owns its canonical catalog namespace', () => {
     it('can register the Mention catalog without receiving another app namespace', () => {
       expect(specNamed('Mention').scopes).toContain('catalogs:write');
