@@ -141,7 +141,7 @@ export const capabilityExecutionAuthorizations = pgTable(
     check(
       'capability_execution_authorizations_run_scope_check',
       sql`(${t.kind} = 'direct_request' and ${t.runId} is not null)
-        or (${t.kind} = 'automation')`,
+        or (${t.kind} = 'automation' and ${t.runId} is null and ${t.stepId} is null)`,
     ),
     check('capability_execution_authorizations_autonomy_check', sql`${t.maximumAutonomy} in (${sql.raw(inList(AUTONOMY_LEVELS))})`),
     check(
