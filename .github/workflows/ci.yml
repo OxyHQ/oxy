@@ -271,9 +271,13 @@ jobs:
       # instrumentation, or allowing three 4-GiB heaps to coexist. Each shard
       # writes its own lcov report; the following Codecov step uploads all three
       # in one report. The historical unsharded suite max was 20m57s; two extra
-      # global setups cost less than the 9m03s already inside this step's cap.
+      # global setups do not fit the historical unsharded 30-minute cap: run
+      # 33584690054 reached the third shard with every completed test passing,
+      # then GitHub stopped the step at exactly 30 minutes. Forty-five minutes
+      # keeps a finite hang backstop while giving the measured serial process a
+      # 1.5x margin; it does not increase a heap or run heaps concurrently.
       - name: Run tests with coverage
-        timeout-minutes: 30
+        timeout-minutes: 45
         run: |
           for shard_index in 1 2 3; do
             echo "Running API coverage shard ${shard_index}/3"
