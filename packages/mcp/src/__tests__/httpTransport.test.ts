@@ -15,6 +15,9 @@ let server: Server;
 let baseUrl: string;
 let resource: string;
 let introspectionMode: 'active' | 'inactive' | 'mismatch' | 'unavailable';
+const serviceBox: {
+  current?: ReturnType<typeof createCatalogMcpHttpService>;
+} = {};
 const introspectionFetch = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>();
 const logger = { error: jest.fn() };
 const authorize = jest.fn(async (_input, context: { principal: { accountId: string } }) => ({
@@ -79,9 +82,6 @@ function activeClaims() {
 }
 
 beforeAll(async () => {
-  const serviceBox: {
-    current?: ReturnType<typeof createCatalogMcpHttpService>;
-  } = {};
   server = createServer((request, response) => {
     const service = serviceBox.current;
     if (!service) {
@@ -282,6 +282,44 @@ describe('catalog MCP HTTP service', () => {
     const body = await response.json() as { result?: { serverInfo?: { name?: string } } };
     expect(body.result?.serverInfo?.name).toBe('noted-mcp');
     expect(introspectionFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an injected live introspector without a service-token HTTP hop', async () => {
+    const previous = serviceBox.current;
+    const introspectToken = jest.fn(async () => activeClaims());
+    serviceBox.current = createCatalogMcpHttpService({
+      catalog: catalogFor(resource),
+      handlers: {
+        searchNotes: async () => ({ structuredContent: { notes: [] } }),
+      },
+      authorizationServer: AUTHORIZATION_SERVER,
+      introspectToken,
+      authorize,
+      serverName: 'in-process-noted-mcp',
+    });
+
+    try {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: 'POST',
+        headers: authorizedHeaders(),
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 3,
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-11-25',
+            capabilities: {},
+            clientInfo: { name: 'in-process-test', version: '1.0.0' },
+          },
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(introspectToken).toHaveBeenCalledWith(ACCESS_TOKEN);
+      expect(introspectionFetch).not.toHaveBeenCalled();
+    } finally {
+      serviceBox.current = previous;
+    }
   });
 
   it('executes a catalog handler through the authenticated transport', async () => {
