@@ -262,7 +262,11 @@ describe('review comes before approval', () => {
     const readinessRows = await readInferenceRoutingReadinessRows();
     expect(readinessRows.map((row) => row.deploymentId)).toContain(internalRouteId);
     expect(
-      assessInferenceRoutingReadiness(readinessRows, now, routingScoreValidityThreshold(now))
+      assessInferenceRoutingReadiness(
+        readinessRows.filter((row) => row.deploymentId === internalRouteId),
+        now,
+        routingScoreValidityThreshold(now)
+      )
     ).toEqual({ status: 'ready' });
     await expect(selectRouteForViewer(PUBLIC_CATALOGUE_VIEWER, modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
   });
