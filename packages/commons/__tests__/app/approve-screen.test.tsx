@@ -35,8 +35,35 @@ jest.mock('@oxyhq/bloom/dialog', () => {
       }
       return ref.current;
     },
-    Dialog: ({ children }: { children: React.ReactNode }) =>
-      R.createElement('div', null, children),
+    Dialog: ({
+      children,
+      actions,
+    }: {
+      children: React.ReactNode;
+      actions?: Array<{
+        label: string;
+        onPress?: () => void;
+        disabled?: boolean;
+      }>;
+    }) =>
+      R.createElement(
+        'div',
+        null,
+        children,
+        actions?.map((action) =>
+          R.createElement(
+            'button',
+            {
+              key: action.label,
+              type: 'button',
+              'aria-label': action.label,
+              disabled: action.disabled,
+              onClick: action.onPress,
+            },
+            action.label,
+          ),
+        ),
+      ),
   };
 });
 
@@ -110,6 +137,39 @@ describe('ApproveSignInScreen', () => {
     await findByText('Sign in to Mention');
     expect(queryByTestId('approval-requester')).toBeNull();
     expect(container.textContent).not.toContain('Chrome on Windows');
+  });
+
+  it('owns exactly one confirm, one explicit rejection, and one cancel action', async () => {
+    installServices();
+    const { findByRole, getAllByRole } = renderScreen();
+
+    await findByRole('button', { name: 'Confirm identity' });
+    expect(getAllByRole('button').map((button) => button.textContent)).toEqual(
+      expect.arrayContaining(['Confirm identity', "This wasn't me", 'Cancel']),
+    );
+  });
+
+  it('starts confirmation directly from the Dialog primary action', async () => {
+    const services = installServices();
+    const { findByRole } = renderScreen();
+
+    fireEvent.click(await findByRole('button', { name: 'Confirm identity' }));
+
+    await waitFor(() => expect(services.approveCommonsSignIn).toHaveBeenCalledTimes(1));
+    expect(services.denyCommonsSignIn).not.toHaveBeenCalled();
+  });
+
+  it('locks every answer while approval is in flight and reports honest progress', async () => {
+    const services = installServices();
+    services.approveCommonsSignIn.mockImplementation(() => new Promise(() => undefined));
+    const { findByRole, getByRole } = renderScreen();
+
+    fireEvent.click(await findByRole('button', { name: 'Confirm identity' }));
+
+    const confirming = await findByRole('button', { name: 'Confirming identity…' });
+    expect((confirming as HTMLButtonElement).disabled).toBe(true);
+    expect((getByRole('button', { name: "This wasn't me" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('denies as not_me from "This wasn\'t me", and says what was recorded', async () => {

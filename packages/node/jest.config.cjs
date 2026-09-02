@@ -27,6 +27,7 @@ module.exports = {
     '^@oxyhq/contracts$': '<rootDir>/../contracts/src/index.ts',
     '^@oxyhq/protocol/node$': '<rootDir>/../protocol/src/node/index.ts',
     '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxyhq/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     '^@oxyhq/core/server$': '<rootDir>/../core/src/server/index.ts',
     '^@oxyhq/core$': '<rootDir>/../core/src/index.ts',
     // NodeNext ESM source uses `.js` extensions on relative imports of TS files.

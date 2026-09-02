@@ -1,6 +1,6 @@
 # Oxy Authentication, Sessions & Account System — Plan Maestro
 
-> **Estado:** ✅ **IMPLEMENTADO — proyecto cerrado (2026-07-07).** Fases 0–7 + 2c en `main` y en producción (core 9 / services 19 / contracts 0.13; sesión device-first cero-cookie; IdP device-first sin excepción de transporte/chooser). Este documento es el plan maestro de referencia; el estado de ejecución y el cierre están en [`oxy-auth-audit.md`](../archive/auth/oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO". Aprobado para ejecución 2026-07-05 (Nate + agente planificación).  
+> **Estado:** ✅ **IMPLEMENTADO — proyecto cerrado (2026-07-07).** Fases 0–7 + 2c en `main` y en producción (core 9 / services 19 / contracts 0.13; sesión device-first cero-cookie; IdP device-first sin excepción de transporte/chooser). Este documento es el plan maestro de referencia; el estado de ejecución y el cierre están en [`oxy-auth-audit.md`](../archive/auth/oxy-auth-audit.md) → "🏁 PROYECTO AUTH-PLATFORM CERRADO". Aprobado para ejecución 2026-07-05 (Nate + agente planificación).
 > **Ubicación canónica:** `docs/architecture/oxy-auth-platform.md`  
 > **Handoff agente implementador (archivado):** [`docs/architecture/archive/oxy-auth-agent-handoff.md`](./archive/oxy-auth-agent-handoff.md) — checklist, gates, subagentes, inventario borrado  
 >

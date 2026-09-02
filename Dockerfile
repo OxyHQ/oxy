@@ -11,7 +11,7 @@
 
 FROM oven/bun:1.3.14-alpine@sha256:5acc90a93e91ff07bf72aa90a7c9f0fa189765aec90b47bdbf2152d2196383c0 AS bun-bin
 
-FROM node:20-alpine AS bun-node
+FROM node:24-alpine AS bun-node
 
 # Copy one platform-specific, digest-pinned Bun binary. Installing the npm
 # wrapper retained multiple @oven platform binaries and added 346 MiB to the
@@ -41,11 +41,12 @@ COPY package.json ./
 # in this reduced server workspace pulled Expo, React Native and Bloom into both
 # the build graph and the production image even though no server package imports
 # them. Package-local dependencies below remain authoritative.
-RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
+RUN node -e "const p=require('./package.json'); const catalog=p.workspaces?.catalog; const packages=['packages/contracts','packages/protocol','packages/federation','packages/core','packages/mcp','packages/db','packages/api']; p.workspaces=catalog?{packages,catalog}:packages; p.dependencies={}; delete p.patchedDependencies; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2));"
 
 # Copy package.json files for dependency resolution
 COPY packages/api/package.json packages/api/
 COPY packages/core/package.json packages/core/
+COPY packages/mcp/package.json packages/mcp/
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/federation/package.json packages/federation/
@@ -75,6 +76,7 @@ RUN set -eu; \
 
 # Copy source code
 COPY packages/core/ packages/core/
+COPY packages/mcp/ packages/mcp/
 COPY packages/protocol/ packages/protocol/
 COPY packages/contracts/ packages/contracts/
 COPY packages/federation/ packages/federation/
@@ -97,6 +99,7 @@ RUN mkdir -p packages/api/drizzle-runtime/meta \
 RUN bun run --filter @oxyhq/contracts build
 RUN bun run --filter @oxyhq/protocol build
 RUN bun run --filter @oxyhq/core build
+RUN bun run --filter @oxyhq/mcp build
 # Federation's public build script rebuilds contracts, protocol and core before
 # compiling itself. Those exact artifacts were produced above, so invoke only
 # Federation's three package-local compilation phases here.
@@ -122,6 +125,7 @@ WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/packages/api/package.json packages/api/
 COPY --from=builder /app/packages/core/package.json packages/core/
+COPY --from=builder /app/packages/mcp/package.json packages/mcp/
 COPY --from=builder /app/packages/protocol/package.json packages/protocol/
 COPY --from=builder /app/packages/contracts/package.json packages/contracts/
 COPY --from=builder /app/packages/federation/package.json packages/federation/
@@ -134,7 +138,7 @@ RUN bun install --production \
               node_modules/.bun/@img+sharp-libvips-linux-*@*
 
 # ── Production image ──────────────────────────────────────────────
-FROM node:20-alpine
+FROM node:24-alpine
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
 RUN apk add --no-cache ffmpeg curl \
@@ -152,6 +156,7 @@ COPY --from=production-deps /app/node_modules node_modules/
 # admin scripts import the package at runtime.
 COPY --from=builder /app/packages/api/dist packages/api/dist
 COPY --from=builder /app/packages/core/dist packages/core/dist
+COPY --from=builder /app/packages/mcp/dist packages/mcp/dist
 COPY --from=builder /app/packages/protocol/dist packages/protocol/dist
 COPY --from=builder /app/packages/contracts/dist packages/contracts/dist
 COPY --from=builder /app/packages/federation/dist packages/federation/dist

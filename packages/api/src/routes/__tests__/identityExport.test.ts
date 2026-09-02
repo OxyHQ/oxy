@@ -34,11 +34,11 @@
  * unrelated to the export path are stubbed, so the router module can load.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { ec as EC } from 'elliptic';
 import { eq } from 'drizzle-orm';
 import { canonicalize } from '@oxyhq/protocol';
 import { exportBundleSchema, type SignedRecordEnvelope } from '@oxyhq/contracts';
@@ -88,10 +88,9 @@ import SignatureService from '../../services/signature.service';
 import usersRouter from '../users';
 import { errorHandler } from '../../middleware/errorHandler';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC_KEY = oxyKey.getPublic('hex');
-const OXY_PRIVATE_KEY = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC_KEY = oxyKey.publicKey;
+const OXY_PRIVATE_KEY = oxyKey.privateKey;
 
 /** The two ids the `text` primary key can hold; only one of them is minted now. */
 const OBJECT_ID_HEX = /^[0-9a-f]{24}$/i;
@@ -158,7 +157,7 @@ function envelopeFor(userId: string, type: 'identity' | 'profile', publicKey: st
  */
 async function seedFullAccount(): Promise<{ userId: string; publicKey: string; followedId: string; followerId: string }> {
   const db = getDb();
-  const publicKey = ec.genKeyPair().getPublic('hex');
+  const publicKey = generateSecp256k1KeyPair().publicKey;
   const username = `nate${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 
   const [row] = await db

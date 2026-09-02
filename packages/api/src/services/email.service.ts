@@ -68,6 +68,7 @@ import { assetService } from './assetServiceSingleton';
 import { simpleParser } from 'mailparser';
 import { idempotentMessageId } from './emailIdempotency';
 import { emailSavedSearches, type SavedEmailSearchFilters } from '../db/schema/emailSavedSearches';
+import { publishInboxMessageEvents } from '../capabilities/inbox.events';
 
 const MAX_STRUCTURED_SEARCH_FILTER_LENGTH = 128;
 /**
@@ -1854,6 +1855,7 @@ class EmailService {
       params.rawSize +
       storedAttachments.reduce((sum, a) => sum + a.size, 0);
 
+    const receivedAt = new Date();
     const storedMessageId = await insertMessageWithChildren(
       db,
       {
@@ -1874,7 +1876,7 @@ class EmailService {
         aliasTag: params.aliasTag,
         readReceiptRequested: Boolean(params.headers['disposition-notification-to']),
         date: params.date,
-        receivedAt: new Date(),
+        receivedAt,
       },
       { to: params.to, cc: params.cc ?? [] },
       storedAttachments,
@@ -1909,6 +1911,23 @@ class EmailService {
       from: params.from.address,
       subject: params.subject,
       mailbox: mailbox.name,
+    });
+
+    // Capability events carry identifiers and routing metadata only; agents
+    // fetch message content later with a live, mailbox-scoped ticket.
+    publishInboxMessageEvents({
+      ownerAccountId: userId,
+      mailboxId: mailbox.id,
+      messageId: storedMessageId,
+      senderAddress: params.from.address,
+      subject: params.subject,
+      headers: params.headers,
+      receivedAt,
+    }).catch((err) => {
+      logger.warn('Inbox capability event fan-out failed', {
+        messageId: storedMessageId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     });
 
     // Fire-and-forget AI processing (non-blocking, only for non-spam)

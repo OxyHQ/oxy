@@ -7,6 +7,7 @@
 
 import type { Request, Response } from 'express';
 import { and, eq, sql } from 'drizzle-orm';
+import type { CapabilityTicketClaims } from '@oxyhq/contracts';
 import { emailService } from '../services/email.service';
 import { smtpOutbound } from '../services/smtp.outbound';
 import { assetService } from '../services/assetServiceSingleton';
@@ -165,6 +166,7 @@ async function findOwnMessageByRfcId(
 
 interface AuthRequest extends Request {
   user?: { id: string };
+  capabilityTicket?: CapabilityTicketClaims;
 }
 
 // ─── Mailboxes ────────────────────────────────────────────────────
@@ -252,7 +254,11 @@ export async function getThread(req: AuthRequest, res: Response): Promise<void> 
   const { messageId } = req.params;
 
   const thread = await emailService.getThread(userId, messageId);
-  res.json({ data: thread });
+  const resource = req.capabilityTicket?.resource;
+  const scopedThread = resource?.resourceType === 'mailbox'
+    ? thread.filter((message) => String(message.mailboxId) === resource.resourceId)
+    : thread;
+  res.json({ data: scopedThread });
 }
 
 export async function updateMessageFlags(req: AuthRequest, res: Response): Promise<void> {

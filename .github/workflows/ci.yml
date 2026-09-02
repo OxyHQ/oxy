@@ -86,17 +86,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22.x'
-
-      # Pin node-gyp so bun does not fetch the volatile `bunx node-gyp@latest`
-      # when compiling better-sqlite3's native addon (packages/node). node-gyp@13's
-      # bundled undici calls `webidl.util.markAsUncloneable`, which broke the
-      # install. A pinned node-gyp on PATH + npm_config_node_gyp is Node-version
-      # independent and removes that volatility.
-      - name: Pin node-gyp for native addon builds
-        run: |
-          npm install -g node-gyp@11.5.0
-          echo "npm_config_node_gyp=$(npm root -g)/node-gyp/bin/node-gyp.js" >> "$GITHUB_ENV"
+          node-version: '24.x'
 
       # ONE test file decodes a real clip and therefore needs a real ffmpeg on
       # PATH: `routes/__tests__/cdnVideoImageVariant.test.ts`, whose fixture
@@ -199,8 +189,7 @@ jobs:
           echo "ffmpeg encodes h264 via lavfi: the video variant fixture can be built"
 
       - name: Install dependencies
-        run: bun install
-
+        run: bun install --frozen-lockfile --minimum-release-age=0
       # Before the builds and the suite, and needing neither: it reads the tracked
       # file listing. The backfill, 82 Mongoose models and the mongoose dependency
       # were removed on 2026-08-08 and `oxy-prod` is gone, so a Mongo reference is
@@ -312,21 +301,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '22.x'
-
-      # Pin node-gyp so bun does not fetch the volatile `bunx node-gyp@latest`
-      # when compiling better-sqlite3's native addon (packages/node). node-gyp@13's
-      # bundled undici calls `webidl.util.markAsUncloneable`, which broke the
-      # install. A pinned node-gyp on PATH + npm_config_node_gyp is Node-version
-      # independent and removes that volatility.
-      - name: Pin node-gyp for native addon builds
-        run: |
-          npm install -g node-gyp@11.5.0
-          echo "npm_config_node_gyp=$(npm root -g)/node-gyp/bin/node-gyp.js" >> "$GITHUB_ENV"
+          node-version: '24.x'
 
       - name: Install dependencies
-        run: bun install
-
+        run: bun install --frozen-lockfile --minimum-release-age=0
       - name: Build TypeScript
         run: bun run build
         working-directory: ./packages/api
@@ -365,7 +343,7 @@ jobs:
 
   # bun.lock must match the package.json files (see scripts/check-lockfile-sync.mjs).
   #
-  # Deliberately NOT `bun install --frozen-lockfile`: measured on bun 1.3.14
+  # Deliberately NOT `bun install --frozen-lockfile --minimum-release-age=0`: measured on bun 1.3.14
   # against this repo, that flag exits 0 on both shapes of desync we actually
   # shipped (a workspace `version` bump, and a widened-but-satisfiable dependency
   # range). It would have caught none of the three incidents while reading like
@@ -470,7 +448,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/db build
@@ -506,7 +484,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       # The gate's own fixture cases, run before the gate — both directions of
       # drift, the vacuity floor on a pair of sets that agree perfectly, and a
       # permission named only in an apostrophe-heavy doc comment, which is what a
@@ -545,7 +523,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       # The gate's own fixture cases, run before the gate — the original store.ts
       # keyGenerator verbatim, every banned member and header, both directions of
       # allow-list drift, the vacuity floors, and a file naming every banned
@@ -625,7 +603,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun run lint && bun run typescript && bun run build
         working-directory: ./packages/db
       - run: bun run test
@@ -646,7 +624,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun run test
         working-directory: ./packages/contracts
 
@@ -659,7 +637,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun run --filter @oxyhq/contracts build
       - run: bun run test
         working-directory: ./packages/protocol
@@ -673,7 +651,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun run build && bun run lint && bun run typescript && bun run test
         working-directory: ./packages/federation
 
@@ -686,7 +664,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
@@ -702,7 +680,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
@@ -719,7 +697,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
@@ -736,7 +714,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
@@ -761,7 +739,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
@@ -781,7 +759,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
@@ -801,7 +779,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: |
           bun run --filter @oxyhq/contracts build
           bun run --filter @oxyhq/protocol build
@@ -850,7 +828,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-      - run: bun install
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - name: Build Console and its workspace dependencies
         run: bunx turbo run build --filter=oxy-console...
       - name: Typecheck
@@ -886,8 +864,7 @@ jobs:
           bun-version: 1.3.14
 
       - name: Install dependencies
-        run: bun install
-
+        run: bun install --frozen-lockfile --minimum-release-age=0
       # The generator imports src/schemas/**, which reach @oxyhq/contracts, and it
       # REFUSES to write a partial document when a schema module cannot be
       # imported — it names this sequence itself when they are missing.

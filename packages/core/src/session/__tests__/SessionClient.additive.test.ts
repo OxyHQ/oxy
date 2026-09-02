@@ -49,6 +49,7 @@ describe('SessionClient.registerAndActivate', () => {
     expect(makeRequest).toHaveBeenNthCalledWith(1, 'POST', '/session/device/add', undefined, { cache: false });
     expect(makeRequest).toHaveBeenNthCalledWith(2, 'POST', '/session/device/switch', { accountId: 'a2' }, { cache: false });
     expect(c.getState()?.activeAccountId).toBe('a2');
+    c.stop();
   });
 
   it('falls back to the host current-account ref when no target is passed', async () => {
@@ -61,6 +62,7 @@ describe('SessionClient.registerAndActivate', () => {
     await c.registerAndActivate();
 
     expect(makeRequest).toHaveBeenNthCalledWith(2, 'POST', '/session/device/switch', { accountId: 'a2' }, { cache: false });
+    c.stop();
   });
 
   it('does NOT switch when the added account is already active', async () => {
@@ -71,6 +73,7 @@ describe('SessionClient.registerAndActivate', () => {
 
     expect(makeRequest).toHaveBeenCalledTimes(1);
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, { cache: false });
+    c.stop();
   });
 });
 

@@ -17,7 +17,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
@@ -26,16 +26,15 @@ import { users } from '../../db/schema/users';
 import { OXY_DID } from '../did.service';
 import { appendAppRecord, collectionIsWithinNamespaces } from '../appChainWrite.service';
 
-const ec = new EC('secp256k1');
 
 let restoreEnv: { priv?: string; pub?: string };
 
 beforeAll(async () => {
   await connectPostgres();
   restoreEnv = { priv: process.env.OXY_PRIVATE_KEY, pub: process.env.OXY_PUBLIC_KEY };
-  const pair = ec.genKeyPair();
-  process.env.OXY_PRIVATE_KEY = pair.getPrivate('hex');
-  process.env.OXY_PUBLIC_KEY = pair.getPublic('hex');
+  const pair = generateSecp256k1KeyPair();
+  process.env.OXY_PRIVATE_KEY = pair.privateKey;
+  process.env.OXY_PUBLIC_KEY = pair.publicKey;
 });
 
 afterAll(async () => {

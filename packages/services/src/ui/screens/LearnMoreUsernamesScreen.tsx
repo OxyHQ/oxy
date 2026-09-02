@@ -113,7 +113,7 @@ const LearnMoreUsernamesScreen: React.FC<BaseScreenProps> = ({
                                 {t(titleKey)}
                             </AccordionTrigger>
                             <AccordionContent>
-                                <Text className="font-sans text-bodyMedium text-text-secondary">
+                                <Text className="font-sans text-body text-text-secondary">
                                     {t(contentKey)}
                                 </Text>
                             </AccordionContent>

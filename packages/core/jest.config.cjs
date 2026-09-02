@@ -12,6 +12,7 @@ module.exports = {
     // `jest.mock('@oxyhq/protocol', () => ({ ...jest.requireActual(...) }))`
     // overrides in the KeyManager suites resolve deterministically.
     '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxyhq/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
   },
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {

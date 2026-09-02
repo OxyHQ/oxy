@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import QRCode from 'react-native-qrcode-svg';
 import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
-import { PrimaryButton } from '@/components/ui';
 import { CivicBadge } from '@/components/civic/CivicBadge';
 import { useAttestQr } from '@/hooks/useAttestQr';
 import { useTranslation } from '@/lib/i18n';
@@ -35,7 +34,7 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
   const control = useDialogControl();
 
   // One opaque interaction id per sheet session (stable across regenerations).
-  const context = useMemo(() => `irl-${Date.now().toString(36)}`, []);
+  const context = `irl-${useId()}`;
   const { state, payload, exp, regenerate } = useAttestQr(context);
 
   // Imperative controls bind during the commit's layout phase, so opening from
@@ -65,6 +64,17 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
       onClose={onClose}
       placement="bottom"
       label={t('civic.attest.request.title')}
+      actions={
+        expired || state === 'error'
+          ? [
+              {
+                label: t('civic.attest.request.regenerate'),
+                onPress: regenerate,
+                shouldCloseOnPress: false,
+              },
+            ]
+          : undefined
+      }
     >
       <View style={styles.body}>
         <ThemedText style={[styles.title, { color: colors.text }]}>
@@ -110,11 +120,6 @@ export function AttestQrSheet({ onClose }: AttestQrSheetProps) {
           {t('civic.attest.request.hint')}
         </ThemedText>
 
-        {(expired || state === 'error') && (
-          <View style={styles.regen}>
-            <PrimaryButton icon="refresh" label={t('civic.attest.request.regenerate')} onPress={regenerate} />
-          </View>
-        )}
       </View>
     </Dialog>
   );
@@ -167,9 +172,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 19,
     paddingHorizontal: 8,
-  },
-  regen: {
-    alignSelf: 'stretch',
-    marginTop: 4,
   },
 });

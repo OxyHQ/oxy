@@ -10,15 +10,13 @@
  *   multikey = 'z' + base58btc( 0xe7 0x01 || compressedPubKey(33 bytes) )
  *
  * Oxy stores secp256k1 public keys as UNCOMPRESSED hex (the `04 || X || Y`,
- * 65-byte form `elliptic` emits); this module re-derives the 33-byte compressed
- * point from it. Pure and dependency-light: `elliptic` (already a backend dep)
- * does the point math, `base58btc` is implemented inline (the standard Bitcoin
+ * 65-byte form used by Oxy); this module re-derives the 33-byte compressed
+ * point from it. The shared protocol primitive does the point math;
+ * `base58btc` is implemented inline (the standard Bitcoin
  * alphabet) to avoid pulling a multiformats dependency for ~20 lines.
  */
 
-import { ec as EC } from 'elliptic';
-
-const secp256k1 = new EC('secp256k1');
+import { normalizeSecp256k1PublicKey } from '@oxyhq/protocol/secp256k1';
 
 /** The Bitcoin/IPFS base58btc alphabet. */
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -64,14 +62,15 @@ function base58btcEncode(bytes: Uint8Array): string {
 }
 
 /**
- * Compress an `elliptic`-encoded secp256k1 public key (hex) to its 33-byte
+ * Compress a SEC1-encoded secp256k1 public key (hex) to its 33-byte
  * compressed form. Accepts the uncompressed (`04…`, 65-byte) form Oxy stores as
  * well as an already-compressed key. Throws when the input is not a valid
  * secp256k1 point.
  */
 function compressSecp256k1PublicKey(publicKeyHex: string): Uint8Array {
-    const key = secp256k1.keyFromPublic(publicKeyHex, 'hex');
-    return Uint8Array.from(key.getPublic().encodeCompressed());
+    return Uint8Array.from(
+        Buffer.from(normalizeSecp256k1PublicKey(publicKeyHex, true), 'hex'),
+    );
 }
 
 /**

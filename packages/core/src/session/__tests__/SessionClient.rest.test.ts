@@ -40,6 +40,7 @@ describe('SessionClient REST', () => {
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/switch', { accountId: 'a1' }, { cache: false });
     expect(c.getState()?.revision).toBe(4);
     expect(host.setTokens).toHaveBeenCalledWith('jwt-4');
+    c.stop();
   });
 
   it('signOut one account POSTs { accountId }', async () => {
@@ -47,6 +48,7 @@ describe('SessionClient REST', () => {
     const c = new SessionClient(makeHost(makeRequest));
     await c.signOut({ accountId: 'a1' });
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { accountId: 'a1' }, { cache: false });
+    c.stop();
   });
 
   it('signOut all POSTs { all: true }', async () => {
@@ -54,6 +56,7 @@ describe('SessionClient REST', () => {
     const c = new SessionClient(makeHost(makeRequest));
     await c.signOut({ all: true });
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/signout', { all: true }, { cache: false });
+    c.stop();
   });
 
   it('addCurrentAccount POSTs /session/device/add with no body', async () => {
@@ -61,6 +64,7 @@ describe('SessionClient REST', () => {
     const c = new SessionClient(makeHost(makeRequest));
     await c.addCurrentAccount();
     expect(makeRequest).toHaveBeenCalledWith('POST', '/session/device/add', undefined, { cache: false });
+    c.stop();
   });
 
   it('does not throw / does not apply when the server returns invalid state', async () => {

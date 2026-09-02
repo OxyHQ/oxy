@@ -13,7 +13,7 @@
 ## MENTION_NODE_* / app.mention env (built in workstream B3) — no fork.
 ##
 ## Build context is the MONOREPO ROOT (it copies @oxyhq/protocol + @oxyhq/core +
-## @oxyhq/contracts as workspace deps). Mirrors the api Dockerfile: node:20-alpine
+## @oxyhq/contracts as workspace deps). Mirrors the api Dockerfile: node:24-alpine
 ## + bun, a lean workspace subset (contracts + protocol + core + node only),
 ## build-from-source.
 ##
@@ -23,20 +23,11 @@
 ##   docker run --env-file .env -p 4000:4000 -v oxy-node-data:/data oxy-node
 ##
 
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 # python3/make/g++: better-sqlite3 compiles a native addon at install time.
 RUN apk add --no-cache python3 make g++
 RUN npm install -g bun
-
-# Pin node-gyp to a known-good version. better-sqlite3 has no prebuilt binary for
-# this Node/musl target, so it compiles from source. Bun's default addon build
-# fetches `bunx node-gyp@latest` — currently node-gyp@13, whose bundled undici
-# calls `webidl.util.markAsUncloneable`, which throws on Node 20 and fails the
-# install. Installing node-gyp globally puts a known-good `node-gyp` on PATH, and
-# `npm_config_node_gyp` makes bun use it directly instead of the volatile @latest.
-RUN npm install -g node-gyp@11.5.0
-ENV npm_config_node_gyp=/usr/local/lib/node_modules/node-gyp/bin/node-gyp.js
 
 WORKDIR /app
 
@@ -68,16 +59,10 @@ RUN bun run --filter @oxyhq/core build
 RUN cd packages/node && bunx tsc
 
 # ── Production image ──────────────────────────────────────────────
-FROM node:20-alpine
+FROM node:24-alpine
 
 RUN apk add --no-cache python3 make g++ curl
 RUN npm install -g bun
-
-# better-sqlite3 (a runtime dependency) compiles from source in the production
-# install too; pin node-gyp so bun does not fetch the broken `node-gyp@latest`.
-# See the builder stage above for the full rationale.
-RUN npm install -g node-gyp@11.5.0
-ENV npm_config_node_gyp=/usr/local/lib/node_modules/node-gyp/bin/node-gyp.js
 
 WORKDIR /app
 

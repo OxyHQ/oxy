@@ -1,8 +1,9 @@
 import React, { useCallback } from 'react';
-import { Linking, Platform, View, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { useOxy } from '@oxyhq/services';
 import { Screen, StackHeader } from '@/components/ui';
 import { useColors } from '@/hooks/useColors';
 import { useTranslation } from '@/lib/i18n';
@@ -12,17 +13,15 @@ import { useTranslation } from '@/lib/i18n';
  *
  * Owns the key-management and account actions that used to live on the vault
  * home: backup & recovery, key rotation, trust & verification, manage account
- * (deep-links to the Accounts app), and delete account. Identity info (public
+ * (the SDK's in-app account surface), and delete account. Identity info (public
  * key, DID, self-custody details) lives on the ID tab, not here. The detail
  * screens are pushed within this tab's stack. Uses Bloom's grouped settings list.
  */
-const ACCOUNTS_DEEP_LINK = 'accounts://';
-const ACCOUNTS_WEB_URL = 'https://accounts.oxy.so';
-
 export default function SettingsScreen() {
   const router = useRouter();
   const colors = useColors();
   const { t } = useTranslation();
+  const { showBottomSheet } = useOxy();
 
   const handleBackupRecovery = useCallback(() => {
     router.push('/(tabs)/(settings)/backup-recovery');
@@ -48,15 +47,12 @@ export default function SettingsScreen() {
     router.push('/(tabs)/(settings)/delete-account');
   }, [router]);
 
+  // 'ManageAccount' is the SDK's unified "Manage your Oxy Account" surface
+  // (packages/services/src/ui/navigation/routes.ts) — the same sheet every other
+  // Oxy app opens, so account management stays in-app instead of deep-linking out.
   const handleManageAccount = useCallback(() => {
-    const target = Platform.OS === 'web' ? ACCOUNTS_WEB_URL : ACCOUNTS_DEEP_LINK;
-    Linking.openURL(target).catch(() => {
-      // Accounts app not installed / link blocked — fall back to the web app.
-      if (target !== ACCOUNTS_WEB_URL) {
-        Linking.openURL(ACCOUNTS_WEB_URL).catch(() => undefined);
-      }
-    });
-  }, []);
+    showBottomSheet?.('ManageAccount');
+  }, [showBottomSheet]);
 
   return (
     // Bloom's SettingsListGroup owns its own 16pt horizontal gutter, so the
@@ -106,7 +102,7 @@ export default function SettingsScreen() {
         />
       </SettingsListGroup>
 
-      {/* Account management lives in the Accounts app */}
+      {/* Account management — opens the SDK's in-app account surface */}
       <SettingsListGroup title={t('vault.home.account')} footer={t('vault.home.accountSubtitle')}>
         <SettingsListItem
           icon={<MaterialCommunityIcons name="account-cog" size={22} color={colors.text} />}

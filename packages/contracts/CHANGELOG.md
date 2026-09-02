@@ -1,5 +1,15 @@
 # Changelog: `@oxyhq/contracts`
 
+## 0.36.0
+
+### Added
+
+- Canonical contracts for actors, resources, delegation grants,
+  automations, capability tickets, app capability catalogs and correlated
+  audit events.
+- A typed email-agent context that carries the effective mailbox and account
+  instead of relying on prompt conventions.
+
 ## 0.29.0
 
 ### `safeErrorTextSchema`: redacting against the old pattern could make a leak worse

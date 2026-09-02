@@ -157,6 +157,7 @@ interface MappingRow {
   type: ApplicationType;
   applicationId: string;
   clientId: string;
+  /** Effective AFTER this run (the union), not the pre-run value. */
   redirectUris: string[];
   applicationAction: RecordAction;
   changes: PlannedFieldChange[];
@@ -440,7 +441,6 @@ async function register(): Promise<void> {
           secretHash: null,
           type: 'public',
           environment: 'production',
-          scopes: spec.scopes,
           status: 'active',
           createdByUserId: oxyId,
         })

@@ -1,5 +1,12 @@
 # Changelog: `@oxyhq/app-preset`
 
+## 0.4.1
+
+### Fixed
+
+- Preserved Tailwind v4 theme variables in the shared web stylesheet and made
+  Metro resolve workspace source extensions consistently.
+
 ## 0.3.1
 
 ### Fixed

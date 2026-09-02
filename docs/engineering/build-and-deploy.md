@@ -256,5 +256,4 @@ Full detail: `packages/core/CHANGELOG.md`.
 even when you can prove no consumer in this org uses it — the package is on
 public npm, and semver exists precisely so consumers you cannot enumerate do not
 have to trust your grep. When a change is runtime-breaking rather than type-only,
-take the major.
-
+  take the major.

@@ -3,8 +3,11 @@
  *
  * Covers the three exported operations:
  *   - signIn (online happy path, best-effort device registration, error path)
- *   - logout (current session, partial vs full sign-out, 401 fast-path)
- *   - logoutAll (no-active-session early-out, success, error)
+ *   - logout (current session, partial vs full sign-out, 401 fast-path — with
+ *     and without an explicit target, since every in-app affordance calls it
+ *     with none)
+ *   - logoutAll (no-active-session early-out, success, error, and the
+ *     already-invalid-bearer case that follows an account deletion)
  *
  * `DeviceManager`, `SignatureService`, `fetchSessionsWithFallback`, the
  * device-first `AuthStateStore`, and the OxyServices network methods are mocked
@@ -539,6 +542,27 @@ describe('useAuthOperations.logout', () => {
     expect(helpers.onError).not.toHaveBeenCalled();
   });
 
+  it('clears local state and the store on a 401 when called with NO target (the real sign-out call shape)', async () => {
+    // Every in-app sign-out affordance calls `logout()` with no argument (see
+    // `ManageAccountScreen.handleSignOut`), so the invalid-session fast-path has
+    // to key on the RESOLVED session id, not on the raw optional parameter.
+    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    sessionClient.signOut.mockImplementationOnce(async () => {
+      const err: Error & { status?: number } = new Error('HTTP 401: invalid session');
+      err.status = 401;
+      throw err;
+    });
+    const helpers = setup({ activeSessionId: 'session-1', sessionClient });
+
+    await act(async () => {
+      await helpers.result.current.logout();
+    });
+
+    expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
+    expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+    expect(helpers.onError).not.toHaveBeenCalled();
+  });
+
   it('reports unexpected errors via onError', async () => {
     const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
     sessionClient.signOut.mockImplementationOnce(async () => {
@@ -608,6 +632,57 @@ describe('useAuthOperations.logoutAll', () => {
       code: 'LOGOUT_ALL_ERROR',
     }));
     // The failed revoke must NOT run the local teardown or wipe the store.
+    expect(helpers.clearSessionState).not.toHaveBeenCalled();
+    expect(helpers.store.clear).not.toHaveBeenCalled();
+  });
+
+  it('resolves (and tears down locally) when the bearer is already invalid — e.g. right after account deletion', async () => {
+    // `DELETE /users/me` revokes every session of the deleted user and detaches
+    // the account from all device-session docs, so the sign-out that FOLLOWS it
+    // necessarily answers 401. That is a COMPLETED sign-out, not a failure: the
+    // caller (Commons' delete-account flow) must reach its post-deletion cleanup
+    // instead of being handed an error.
+    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    sessionClient.signOut.mockImplementationOnce(async () => {
+      // `HttpService` rejects with the PLAIN `ApiError` object `handleHttpError`
+      // builds — not an `Error` instance. Mirror that exactly.
+      throw { message: 'Session not found or expired', code: 'UNAUTHORIZED', status: 401 };
+    });
+    const helpers = setup({ activeSessionId: 'session-1', sessionClient });
+
+    await act(async () => {
+      await expect(helpers.result.current.logoutAll()).resolves.toBeUndefined();
+    });
+
+    expect(sessionClient.signOut).toHaveBeenCalledWith({ all: true });
+    expect(helpers.clearSessionState).toHaveBeenCalledTimes(1);
+    expect(helpers.store.clear).toHaveBeenCalledTimes(1);
+    expect(helpers.onError).not.toHaveBeenCalled();
+  });
+
+  it('rejects with the SERVER message, not a generic one, when signOut fails with a plain ApiError object', async () => {
+    // `HttpService` never rejects with an `Error` instance, so an
+    // `error instanceof Error` rethrow guard always erased the real reason.
+    const sessionClient = buildFakeSessionClient([{ accountId: 'acc-1', sessionId: 'session-1', authuser: 0 }]);
+    sessionClient.signOut.mockImplementationOnce(async () => {
+      throw { message: 'Service unavailable', code: 'SERVICE_UNAVAILABLE', status: 503 };
+    });
+    const helpers = setup({ activeSessionId: 'session-1', sessionClient });
+
+    let caught: unknown;
+    await act(async () => {
+      try {
+        await helpers.result.current.logoutAll();
+      } catch (error) {
+        caught = error;
+      }
+    });
+
+    expect((caught as Error).message).toBe('Service unavailable');
+    expect(helpers.onError).toHaveBeenCalledWith(expect.objectContaining({
+      code: 'LOGOUT_ALL_ERROR',
+      status: 503,
+    }));
     expect(helpers.clearSessionState).not.toHaveBeenCalled();
     expect(helpers.store.clear).not.toHaveBeenCalled();
   });

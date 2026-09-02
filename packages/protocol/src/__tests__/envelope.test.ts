@@ -11,7 +11,7 @@
  * locked.
  */
 
-import { ec as EC } from 'elliptic';
+import { deriveSecp256k1PublicKey } from '../secp256k1';
 import { signedRecordEnvelopeSchema } from '@oxyhq/contracts';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import {
@@ -24,8 +24,6 @@ import {
   signEnvelope,
   verifyEnvelopeSignature,
 } from '../index';
-
-const ec = new EC('secp256k1');
 
 describe('signedRecordSigningInput — v1 byte stability (regression guard)', () => {
   it('produces the exact original canonical bytes for a v1 record', () => {
@@ -165,7 +163,7 @@ describe('computeRecordId — deterministic content address', () => {
 /**
  * CANONICAL-BYTES FIXTURE — the load-bearing "did the move change anything?"
  * guard. A fixed private key (a well-known secp256k1 test scalar) signing a
- * fixed v2 envelope must reproduce these exact bytes. `elliptic` uses RFC 6979
+ * fixed v2 envelope must reproduce these exact bytes. The signer uses RFC 6979
  * deterministic nonces, so the DER signature is reproducible.
  */
 describe('canonical-bytes fixture (move-invariance guard)', () => {
@@ -203,8 +201,8 @@ describe('canonical-bytes fixture (move-invariance guard)', () => {
     expect(env.publicKey).toBe(PUBLIC_KEY);
     expect(env.alg).toBe('ES256K-DER-SHA256');
     expect(env.signature).toBe(EXPECTED_SIGNATURE);
-    // The derived key equals `elliptic`'s own uncompressed hex for this scalar.
-    expect(env.publicKey).toBe(ec.keyFromPrivate(PRIVATE_KEY).getPublic('hex'));
+    // The derived key is the standard uncompressed SEC1 point for this scalar.
+    expect(env.publicKey).toBe(deriveSecp256k1PublicKey(PRIVATE_KEY));
   });
 
   it('signEnvelope is deterministic (RFC 6979) — same input, same signature', async () => {

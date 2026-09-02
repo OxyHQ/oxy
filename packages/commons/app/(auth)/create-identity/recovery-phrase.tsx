@@ -82,7 +82,7 @@ export default function RecoveryPhraseScreen() {
     // Persist the acknowledgement to disk so the next launch doesn't
     // re-nag the user.
     setRecoveryPhraseAcknowledgedPersisted(true);
-    router.replace('/(auth)/create-identity/username');
+    router.replace('/(auth)/create-identity/interests');
   }, [acknowledged, acknowledgeRecoveryPhrase, router, setRecoveryPhraseAcknowledgedPersisted]);
 
   const handleMissingPhrase = useCallback(() => {

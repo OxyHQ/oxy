@@ -7,7 +7,8 @@
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import multer from 'multer';
-import { authMiddleware } from '../middleware/auth';
+import { emailCapabilityAuth } from '../middleware/emailCapabilityAuth';
+import { getEmailAgentContext } from '../controllers/emailContext.controller';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
 import { BadRequestError } from '../utils/error';
@@ -144,7 +145,9 @@ const importUploadMiddleware = (req: Request, res: Response, next: NextFunction)
 };
 
 // All email routes require authentication
-router.use(authMiddleware);
+router.use(emailCapabilityAuth);
+
+router.get('/ai-context', asyncHandler(getEmailAgentContext));
 
 // ─── Mailboxes ────────────────────────────────────────────────────
 

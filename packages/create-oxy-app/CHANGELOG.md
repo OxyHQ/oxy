@@ -1,5 +1,12 @@
 # Changelog: `create-oxy-app`
 
+## 0.3.1
+
+### Changed
+
+- Updated generated projects to the current compatible Oxy SDK release set.
+- Removed the CLI's accidental runtime dependency on `@oxyhq/core`.
+
 ## 0.2.0
 
 ### Licence: MIT becomes Apache-2.0

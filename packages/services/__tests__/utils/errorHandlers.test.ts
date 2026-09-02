@@ -146,6 +146,23 @@ describe('handleAuthError', () => {
     });
   });
 
+  it('reads the status off a flat ApiError (the shape every SDK request failure has)', () => {
+    // `handleHttpError` in @oxyhq/core rejects with `{ message, code, status }`
+    // and NO `response` wrapper, so a status read that only looked at
+    // `response.status` reported every real SDK failure as 500.
+    const onError = jest.fn();
+    handleAuthError({ message: 'Service unavailable', code: 'SERVICE_UNAVAILABLE', status: 503 }, {
+      defaultMessage: 'fail',
+      code: 'X',
+      onError,
+    });
+    expect(onError).toHaveBeenCalledWith({
+      message: 'Service unavailable',
+      code: 'X',
+      status: 503,
+    });
+  });
+
   it('defaults status to 500 for unknown errors and uses the default message', () => {
     const onError = jest.fn();
     const message = handleAuthError(undefined, {

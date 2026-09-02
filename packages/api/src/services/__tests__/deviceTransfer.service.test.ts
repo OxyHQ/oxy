@@ -64,8 +64,8 @@
  * survives.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
 import { eq, inArray } from 'drizzle-orm';
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -81,16 +81,14 @@ import {
 } from '../deviceTransfer.service';
 import { SignatureService } from '../signature.service';
 
-const ec = new EC('secp256k1');
-
 /** A stable identity keypair for the caller — the CURRENT key it must sign with. */
-const identityKey = ec.genKeyPair();
-const identityPriv = identityKey.getPrivate('hex');
-const identityPub = identityKey.getPublic('hex');
+const identityKey = generateSecp256k1KeyPair();
+const identityPriv = identityKey.privateKey;
+const identityPub = identityKey.publicKey;
 /** A valid single-use ephemeral public key the old device supplies. */
-const oldEphPub = ec.genKeyPair().getPublic('hex');
+const oldEphPub = generateSecp256k1KeyPair().publicKey;
 /** A valid ephemeral public key the NEW device supplies at init. */
-const newEphPub = ec.genKeyPair().getPublic('hex');
+const newEphPub = generateSecp256k1KeyPair().publicKey;
 
 const CIPHERTEXT = 'ff'.repeat(20);
 const NONCE = '00'.repeat(24);
@@ -327,7 +325,7 @@ describe('approveDeviceTransfer — the dual proof', () => {
     // The whole point of the dual proof: a stolen bearer token proves account
     // control but NOT key possession, so it must not be able to clone the key.
     const pairingId = await seedPairing();
-    const attackerPriv = ec.genKeyPair().getPrivate('hex');
+    const attackerPriv = generateSecp256k1KeyPair().privateKey;
     const timestamp = Date.now();
 
     const outcome = await approveDeviceTransfer(

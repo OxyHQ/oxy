@@ -1110,7 +1110,7 @@
       "yourIdentitySubtitle": "Tú tienes la clave privada. Nadie puede bloquearte.",
       "manageKeys": "Claves y copia de seguridad",
       "account": "Cuenta",
-      "accountSubtitle": "Gestiona tu perfil, dispositivos y privacidad en la app de Accounts.",
+      "accountSubtitle": "Gestiona tu perfil, dispositivos y privacidad sin salir de Commons.",
       "actions": {
         "backupRecovery": "Copia y recuperación",
         "backupRecoverySubtitle": "Frase de recuperación y copia cifrada",
@@ -1164,6 +1164,7 @@
       "willActAs": "{{app}} actuará como",
       "identityUnchanged": "Sigues siendo tú. Tu identidad no cambia: solo autorizas a {{app}} a actuar como esta cuenta.",
       "confirm": "Confirmar identidad",
+      "confirming": "Confirmando identidad…",
       "reject": "No he sido yo",
       "rejecting": "Deteniendo…",
       "approvedTitle": "Sesión iniciada",
@@ -1865,6 +1866,7 @@
     "startOver": "Empezar de nuevo",
     "startOverConfirmTitle": "¿Empezar de nuevo?",
     "startOverConfirmBody": "Esto borra permanentemente la identidad protegida de este dispositivo. Sin tu frase de recuperación de 12 palabras, tu cuenta será irrecuperable.",
-    "startOverConfirmCta": "Borrar y empezar de nuevo"
+    "startOverConfirmCta": "Borrar y empezar de nuevo",
+    "startOverFailed": "No pudimos borrar la identidad de este dispositivo. Desbloquéalo e inténtalo de nuevo."
   }
 }

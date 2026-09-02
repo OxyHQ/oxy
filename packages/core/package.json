@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/core",
-  "version": "23.0.0",
+  "version": "23.0.1",
   "description": "OxyHQ SDK Foundation \u2014 API client, authentication, cryptographic identity, and shared utilities",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
@@ -119,9 +119,7 @@
     "@oxyhq/contracts": "workspace:^",
     "@oxyhq/protocol": "workspace:^",
     "@scure/bip39": "^1.6.0",
-    "@types/elliptic": "catalog:",
     "buffer": "^6.0.3",
-    "elliptic": "catalog:",
     "express-rate-limit": "catalog:",
     "helmet": "^8.0.0",
     "invariant": "^2.2.4",

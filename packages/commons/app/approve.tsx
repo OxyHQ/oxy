@@ -2,11 +2,9 @@ import React, { useCallback, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Linking, Platform, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useOxy } from '@oxyhq/services';
-import type { CommonsDenyReason } from '@oxyhq/contracts';
-import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
+import { Dialog, useDialogControl, type DialogAction } from '@oxyhq/bloom/dialog';
 import { useColors } from '@/hooks/useColors';
 import { CenteredState } from '@/components/ui/centered-state';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/action-button';
 import { useTranslation } from '@/lib/i18n';
 import { useCommonsApproval } from '@/hooks/commons-signin/useCommonsApproval';
 import { ApprovalRequest } from '@/components/commons-signin/approval-request';
@@ -99,12 +97,9 @@ export default function ApproveSignInScreen() {
 
   // The sheet reports WHICH answer was given; this only forwards it. A
   // dismissal never reaches here — it is a cancel, and denies nothing.
-  const reject = useCallback(
-    (reason: CommonsDenyReason) => {
-      void deny(reason);
-    },
-    [deny],
-  );
+  const reject = useCallback(() => {
+    void deny('not_me');
+  }, [deny]);
 
   // After a successful approve: briefly show the confirmation, then return to
   // the caller (deep-link handoff on Android) or close the sheet (scanner / iOS).
@@ -127,8 +122,12 @@ export default function ApproveSignInScreen() {
   // session — never from the request — because Commons stays the identity no
   // matter which account the requesting app ends up acting as.
   const identityName = user ? getDisplayNameOrNull(user) : null;
+  const confirming = state === 'confirming' || state === 'approving';
+  const rejecting = state === 'denying';
+  const busy = confirming || rejecting;
 
   let content: React.ReactNode;
+  let actions: DialogAction[] | undefined;
   if (state === 'approved' || state === 'denied') {
     // --- Terminal states. Approved auto-advances (return/close); denied waits. ---
     const approved = state === 'approved';
@@ -154,20 +153,10 @@ export default function ApproveSignInScreen() {
                     : 'signInApproval.approve.deniedBody',
                 )
           }
-          action={
-            approved ? undefined : (
-              <View className="mt-1 items-center">
-                <PrimaryButton
-                  label={t('signInApproval.approve.done')}
-                  onPress={dismiss}
-                  fullWidth={false}
-                />
-              </View>
-            )
-          }
         />
       </View>
     );
+    actions = approved ? undefined : [{ label: t('signInApproval.approve.done') }];
   } else if (state === 'error') {
     // --- Error state ---
     content = (
@@ -181,25 +170,21 @@ export default function ApproveSignInScreen() {
               ? (errorMessage ?? t('signInApproval.approve.errorBody'))
               : t('signInApproval.approve.noCode')
           }
-          action={
-            <View className="mt-1 flex-row gap-3">
-              {code ? (
-                <SecondaryButton
-                  label={t('signInApproval.approve.tryAgain')}
-                  onPress={reload}
-                  fullWidth={false}
-                />
-              ) : null}
-              <PrimaryButton
-                label={t('signInApproval.approve.done')}
-                onPress={dismiss}
-                fullWidth={false}
-              />
-            </View>
-          }
         />
       </View>
     );
+    actions = [
+      ...(code
+        ? [
+            {
+              label: t('signInApproval.approve.tryAgain'),
+              onPress: reload,
+              shouldCloseOnPress: false,
+            } satisfies DialogAction,
+          ]
+        : []),
+      { label: t('signInApproval.approve.done'), color: 'cancel' },
+    ];
   } else if (state === 'loading' || !info?.application) {
     // --- Loading ---
     content = (
@@ -215,14 +200,38 @@ export default function ApproveSignInScreen() {
         application={info.application}
         identityName={identityName}
         confirmationIssue={confirmationIssue}
-        confirming={state === 'confirming' || state === 'approving'}
-        rejecting={state === 'denying'}
-        onConfirm={confirm}
-        onReject={reject}
         onClose={dismiss}
         onOpenLink={openLink}
       />
     );
+    actions = [
+      {
+        label: t(
+          confirming
+            ? 'signInApproval.approve.confirming'
+            : 'signInApproval.approve.confirm',
+        ),
+        onPress: confirm,
+        shouldCloseOnPress: false,
+        disabled: busy,
+      },
+      {
+        label: t(
+          rejecting
+            ? 'signInApproval.approve.rejecting'
+            : 'signInApproval.approve.reject',
+        ),
+        onPress: reject,
+        shouldCloseOnPress: false,
+        color: 'destructive',
+        disabled: busy,
+      },
+      {
+        label: t('common.cancel'),
+        color: 'cancel',
+        disabled: busy,
+      },
+    ];
   }
 
   return (
@@ -230,9 +239,8 @@ export default function ApproveSignInScreen() {
       control={control}
       onClose={navigateAway}
       placement="bottom"
-      contentPadding={0}
-      showHandle={false}
       label={t('signInApproval.approve.heading')}
+      actions={actions}
     >
       <ScrollView
         className="w-full"

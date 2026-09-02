@@ -1,5 +1,13 @@
 # Changelog: `@oxyhq/federation`
 
+## 0.16.2
+
+### Fixed
+
+- Widened the verified `@oxyhq/contracts` compatibility range through 0.36.x
+  so consumers can adopt the delegated-agency contracts without dependency
+  conflicts.
+
 ## 0.16.1
 
 ### Fixed: 0.16.0's dependency floors were unconsumable

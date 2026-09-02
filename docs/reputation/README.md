@@ -252,8 +252,9 @@ jury selected server-side, `rl:civic:validate:` 60/min), `GET .../inbox` (auth),
 `graphExclusion.ts:125` `isSockPuppetRelation(a, b, { hops })` returns excluded
 when: `a === b` (`self`); `a` and `b` are graph-related within `hops`
 (`areGraphRelated`: direct Follow/Block in either direction, or, at 2 hops, a
-shared direct neighbor) (`graph_neighbor`); or they share a device fingerprint or
-IP across active sessions (`shared_device` / `shared_ip`).
+shared direct neighbor) (`graph_neighbor`); or they share a device id across
+active sessions (`shared_device`). No IP signal — removed under the
+no-user-IPs-at-rest invariant.
 
 ---
 

@@ -47,6 +47,7 @@ module.exports = {
     '^expo-modules-core$': '<rootDir>/__tests__/__mocks__/expo-modules-core.ts',
     '^react-native-reanimated$': '<rootDir>/__tests__/__mocks__/reanimated.ts',
     '^react-native-svg$': '<rootDir>/__tests__/__mocks__/react-native-svg.ts',
+    '^@oxyhq/bloom/package\\.json$': '<rootDir>/../../node_modules/@oxyhq/bloom/package.json',
     '^@oxyhq/bloom$': '<rootDir>/__tests__/__mocks__/bloom.ts',
     '^@oxyhq/bloom/(.*)$': '<rootDir>/__tests__/__mocks__/bloom.ts',
     '^@expo/vector-icons(/.*)?$': '<rootDir>/__tests__/__mocks__/expo-vector-icons.tsx',

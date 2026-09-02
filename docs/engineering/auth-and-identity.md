@@ -293,4 +293,3 @@ Standalone Vite app at `auth.oxy.so` — the **OAuth authorize/consent IdP** for
 - The hub's establishment lane is a plain `device_sign_in` Commons request, NOT the OAuth-bound one: an OAuth approval mints no session by design, so it can never establish a hub. Password and passkey sign-in on the IdP do not establish one either — that lane is not built.
 - Leftover per-apex `auth.<rp-apex>` CNAMEs and the deleted federation-era IdP env vars are INERT — nothing reads them; pending decommission in `oxy-infra`. Do not add new configuration that depends on them.
 - Changes require a redeploy of auth.oxy.so to take effect in production.
-

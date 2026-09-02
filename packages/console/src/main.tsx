@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from '@tanstack/react-router';
+import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { getRouter } from './router';
 import './styles.css';
 
@@ -12,5 +13,7 @@ const router = getRouter();
 // never re-attaches it, so bottom sheets never paint. accounts (Expo) and auth
 // render without StrictMode for the same reason.
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <RouterProvider router={router} />,
+  <BloomThemeProvider mode="system" colorPreset="oxy">
+    <RouterProvider router={router} />
+  </BloomThemeProvider>,
 );

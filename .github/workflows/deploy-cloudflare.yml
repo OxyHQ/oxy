@@ -57,12 +57,12 @@ jobs:
           bun-version: 1.3.14
       - uses: actions/setup-node@v7
         with:
-          node-version: '22.x'
-      # bun 1.3.14 `--frozen-lockfile` false-positives on a perfectly-synced
-      # lock (non-deterministic configVersion churn), failing deploys. Lockfile
-      # sync is already gated pre-push (test-build) and in PR CI, so the deploy
-      # installs without the buggy frozen flag.
-      - run: bun install
+          node-version: '24.x'
+      # CI installs the reviewed lock verbatim. The age override applies only to
+      # resolution and is safe here because frozen mode rejects lockfile drift;
+      # without it Bun re-applies the seven-day quarantine to already-locked
+      # fresh releases and blocks a deterministic deploy.
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       # Build the Vite SPA into packages/auth/dist. The IdP is static apart from
       # ONE Pages Functions directory: `packages/auth/functions/hub/*`, the
       # browser DeviceSession hub (issue #937 Phase 5, ADR 0003). The former
@@ -120,12 +120,12 @@ jobs:
           bun-version: 1.3.14
       - uses: actions/setup-node@v7
         with:
-          node-version: '22.x'
-      # bun 1.3.14 `--frozen-lockfile` false-positives on a perfectly-synced
-      # lock (non-deterministic configVersion churn), failing deploys. Lockfile
-      # sync is already gated pre-push (test-build) and in PR CI, so the deploy
-      # installs without the buggy frozen flag.
-      - run: bun install
+          node-version: '24.x'
+      # CI installs the reviewed lock verbatim. The age override applies only to
+      # resolution and is safe here because frozen mode rejects lockfile drift;
+      # without it Bun re-applies the seven-day quarantine to already-locked
+      # fresh releases and blocks a deterministic deploy.
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun x turbo run build --filter=accounts
         env:
           # Accounts' PRODUCTION Oxy client id. `packages/accounts/constants/oxy.ts`
@@ -187,12 +187,12 @@ jobs:
           bun-version: 1.3.14
       - uses: actions/setup-node@v7
         with:
-          node-version: '22.x'
-      # bun 1.3.14 `--frozen-lockfile` false-positives on a perfectly-synced
-      # lock (non-deterministic configVersion churn), failing deploys. Lockfile
-      # sync is already gated pre-push (test-build) and in PR CI, so the deploy
-      # installs without the buggy frozen flag.
-      - run: bun install
+          node-version: '24.x'
+      # CI installs the reviewed lock verbatim. The age override applies only to
+      # resolution and is safe here because frozen mode rejects lockfile drift;
+      # without it Bun re-applies the seven-day quarantine to already-locked
+      # fresh releases and blocks a deterministic deploy.
+      - run: bun install --frozen-lockfile --minimum-release-age=0
       - run: bun x turbo run build --filter=oxy-console
         env:
           # Console's PRODUCTION Oxy client id. `packages/console/src/lib/config.ts`

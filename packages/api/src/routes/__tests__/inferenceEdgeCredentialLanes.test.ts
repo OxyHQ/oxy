@@ -181,6 +181,7 @@ function json(response: RawResponse): Record<string, unknown> {
  * `403 permission_denied` before a credential is ever consulted.
  */
 const ROLLOUT_ENVIRONMENT = {
+  ACCESS_TOKEN_SECRET: 'inference-edge-credential-lanes-test-secret-at-least-32-chars',
   INFERENCE_EDGE_AUDIENCE: 'public',
   INFERENCE_MACHINE_CREDENTIAL_AUTH: 'enabled',
   INFERENCE_CHARGING_AUTHORIZED: 'lanes-suite-fixture:2026-08-01',

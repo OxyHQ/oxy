@@ -36,7 +36,15 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const getResponseStatus = (error: unknown): number | undefined => {
   if (!isObject(error)) return undefined;
   const response = (error as ErrorWithResponse).response;
-  return response?.status;
+  if (typeof response?.status === 'number') {
+    return response.status;
+  }
+  // `handleHttpError` (@oxyhq/core) rejects with a flat `ApiError` that carries
+  // the HTTP status at the TOP level and no `response` — the shape every SDK
+  // request failure actually has. Reading only `response.status` reported those
+  // as 500, which is why `isInvalidSessionError` already checks both.
+  const flatStatus = (error as { status?: unknown }).status;
+  return typeof flatStatus === 'number' ? flatStatus : undefined;
 };
 
 /**

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [30.2.1] - 2026-09-02
 
 ### Changed
 
@@ -9,6 +9,8 @@
   from 1,697,384 bytes to 75,172 bytes for those two families. A build gate now
   rejects stale subsets, changed source versions, unrecorded glyph names, or
   reintroduced full-family imports.
+- Centralized session commit handling so account activation, token state and
+  legacy OAuth redirect lanes converge through one tested flow.
 
 ## [28.0.0] - 2026-08-06
 

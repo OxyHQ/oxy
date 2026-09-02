@@ -27,7 +27,7 @@
  * empty.
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { asc, eq } from 'drizzle-orm';
 import { computeRecordId } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
@@ -38,7 +38,6 @@ import { users } from '../../db/schema/users';
 import { buildUserDid } from '../did.service';
 import { signRecordEnvelope, verifyAndStoreRecord } from '../signedRecord.service';
 
-const ec = new EC('secp256k1');
 
 /** A wall-clock base every envelope's `issuedAt` is offset from, so ordering is explicit. */
 const T0 = 1_700_000_000_000;
@@ -60,10 +59,10 @@ afterAll(async () => {
 
 /** An account whose primary `users.public_key` authorizes the returned signer. */
 async function signer(): Promise<Signer> {
-  const pair = ec.genKeyPair();
-  const publicKey = pair.getPublic('hex');
+  const pair = generateSecp256k1KeyPair();
+  const publicKey = pair.publicKey;
   const [row] = await getDb().insert(users).values({ publicKey }).returning({ id: users.id });
-  return { userId: row.id, did: buildUserDid(row.id), publicKey, privateKey: pair.getPrivate('hex') };
+  return { userId: row.id, did: buildUserDid(row.id), publicKey, privateKey: pair.privateKey };
 }
 
 /** Build + sign a v2 (chained) envelope. Defaults to the genesis position. */

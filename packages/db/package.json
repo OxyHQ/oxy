@@ -85,7 +85,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.1",
     "drizzle-orm": "catalog:",
-    "jest": "^29.7.0",
+    "jest": "^30.5.1",
     "postgres": "catalog:",
     "release-it": "catalog:",
     "ts-jest": "^29.4.12",

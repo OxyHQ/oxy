@@ -33,7 +33,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { eq } from 'drizzle-orm';
 
 const mockSafeFetch = jest.fn();
@@ -52,12 +52,11 @@ import { NODE_COLLECTION, NODE_RKEY } from '../../utils/nodes.constants';
 import { OXY_DID, buildUserDid } from '../did.service';
 import { getUserNode, provisionManagedVault, removeNode } from '../nodeRegistry.service';
 
-const ec = new EC('secp256k1');
 
 /** Oxy's custodial keypair for the run — what a managed vault is signed with. */
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC_KEY = oxyKey.getPublic('hex');
-const OXY_PRIVATE_KEY = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC_KEY = oxyKey.publicKey;
+const OXY_PRIVATE_KEY = oxyKey.privateKey;
 
 const ENV_KEYS = [
   'OXY_PRIVATE_KEY',
@@ -224,7 +223,7 @@ describe('provisionManagedVault — the vault is a chain registration', () => {
   });
 
   it('uses a dedicated fleet key when MANAGED_NODE_PUBLIC_KEY is set', async () => {
-    const fleetKey = ec.genKeyPair().getPublic('hex');
+    const fleetKey = generateSecp256k1KeyPair().publicKey;
     process.env.MANAGED_NODE_PUBLIC_KEY = fleetKey;
     const userId = await account();
 
@@ -309,7 +308,7 @@ describe('provisionManagedVault — fails closed', () => {
     // The published custodial key and the signing key disagree, so the chain
     // rejects the record — the check that makes a custodial record provenance
     // rather than an assertion.
-    process.env.OXY_PUBLIC_KEY = ec.genKeyPair().getPublic('hex');
+    process.env.OXY_PUBLIC_KEY = generateSecp256k1KeyPair().publicKey;
     const userId = await account();
 
     expect(await provisionManagedVault(userId)).toEqual({ ok: false, reason: 'provision_failed' });

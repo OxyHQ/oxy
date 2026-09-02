@@ -1,34 +1,8 @@
 const { computeMaxWorkers } = require('./jest.workerCount.cjs');
 
-// Every worker opens its OWN Postgres pool against its OWN throwaway database.
-// With `PG_MAX_POOL_SIZE = 8` (see `jest.globalSetup.ts` for where that number
-// came from), 10 workers ask for at most 80 connections against a
-// `max_connections` of 100 — under the ceiling with room for the migrator's own
-// session and a psql.
-//
-// Unbounded, jest forks one worker per core minus one, which on a 32-core
-// machine is 31 workers and up to 620 connections. The server then refuses
-// whichever worker happens to ask while it is saturated, so a different and
-// entirely innocent suite fails on each run. Five consecutive runs, five
-// different victims, every one green in isolation.
-//
-// That ceiling has to LOWER the worker count and never raise it. Written as a
-// bare `maxWorkers: 10` it did both, and on the machine CI actually runs on it
-// raised it: a GitHub-hosted `ubuntu-latest` runner has 4 vCPUs and 16 GiB, so
-// jest's own default there is 3 workers. Pinning 10 took the runner past its
-// memory and the kernel brought it down mid-run — five consecutive red runs on
-// `main`, each ending in `SIGTERM (Polite quit request)`, exit 143 and
-// `The runner has received a shutdown signal`, with not one test result
-// printed. That reads like a hung test rather than an exhausted machine, which
-// is what made it expensive to place.
-//
-// Measured on this suite in a cgroup held to the runner's shape (4 CPUs,
-// 16 GiB, no swap), peak ANONYMOUS bytes — page cache is reclaimable and does
-// not push a cgroup into OOM, so only anon counts: 3 workers = 7.06 GiB,
-// 10 workers = 13.68 GiB. Roughly a fixed 4.2 GiB for jest plus 0.95 GiB per
-// worker, because ts-jest holds a TypeScript program per worker and
-// `--coverage` instruments every file. 13.68 GiB does not fit in 16 GiB beside
-// the runner agent and the postgis service container; 7.06 GiB does.
+// Keep this value shared with global setup: every Jest worker owns one isolated
+// Postgres database. `jest.workerCount.cjs` documents the measured stability
+// limit and is the only place where it may be changed.
 const MAX_WORKERS = computeMaxWorkers();
 
 module.exports = {
@@ -57,6 +31,7 @@ module.exports = {
     // computeRecordId, imported by the signed-record + civic + node-sync services):
     // resolve from source so the api-test job needs no prior protocol build.
     '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxyhq/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     // Same rationale for @oxyhq/core (getNormalizedUserHandle in did.service.ts,
     // User model, etc.) and @oxyhq/core/server (safeFetch/SsrfRejection): resolve
     // from source so api tests do not depend on a prior core build.

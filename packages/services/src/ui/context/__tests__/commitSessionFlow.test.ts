@@ -1,8 +1,11 @@
 import type { User } from '@oxyhq/core';
 import { logger } from '@oxyhq/core';
+import type { WebAuthMode } from '../../oauth/types';
 import {
   commitDeviceSetAndResolve,
+  maybeSyncHubAfterCommit,
   type CommitDeviceSetAndResolveDeps,
+  type MaybeSyncHubAfterCommitDeps,
 } from '../commitSessionFlow';
 
 // A resolved promise chain (addCurrentAccount -> start -> syncFromClient) settles
@@ -188,6 +191,92 @@ describe('commitDeviceSetAndResolve — cold boot (activate: false)', () => {
       { component: 'OxyContext', method: 'commitSession' },
       unauthorized,
     );
+  });
+});
+
+/**
+ * Post-sign-in hub sync is a FULL-PAGE redirect to auth.oxy.so. It runs from the
+ * ONE commit funnel, so gating it here gates every commit path at once —
+ * `webAuthMode: 'popup'` must never bounce the tab, whichever path signed the
+ * user in (#691 phase 7).
+ */
+describe('maybeSyncHubAfterCommit — webAuthMode transport gate (#691 phase 7)', () => {
+  const buildHubDeps = (
+    overrides: Partial<MaybeSyncHubAfterCommitDeps> = {},
+  ): MaybeSyncHubAfterCommitDeps => ({
+    activate: true,
+    hubSyncRequested: true,
+    hubSyncEnabled: true,
+    webAuthMode: 'redirect',
+    syncHub: jest.fn(async () => true),
+    ...overrides,
+  });
+
+  it("redirect mode: syncs the hub after a deliberate sign-in (unchanged)", async () => {
+    const deps = buildHubDeps();
+
+    await expect(maybeSyncHubAfterCommit(deps)).resolves.toBe(true);
+
+    expect(deps.syncHub).toHaveBeenCalledTimes(1);
+  });
+
+  it('popup mode: NEVER syncs the hub, even on an otherwise-eligible sign-in', async () => {
+    const deps = buildHubDeps({ webAuthMode: 'popup' });
+
+    await expect(maybeSyncHubAfterCommit(deps)).resolves.toBe(false);
+
+    expect(deps.syncHub).not.toHaveBeenCalled();
+  });
+
+  it('popup mode: no commit path can opt back in', async () => {
+    // Every commit path differs only in `activate` / `hubSyncRequested`; the
+    // transport gate outranks all of them.
+    for (const activate of [true, false]) {
+      for (const hubSyncRequested of [true, false]) {
+        const deps = buildHubDeps({ webAuthMode: 'popup', activate, hubSyncRequested });
+        await expect(maybeSyncHubAfterCommit(deps)).resolves.toBe(false);
+        expect(deps.syncHub).not.toHaveBeenCalled();
+      }
+    }
+  });
+
+  it.each(['popup', 'redirect'] as const)(
+    'never syncs on a cold-boot restore, in either mode (%s)',
+    async (webAuthMode: WebAuthMode) => {
+      const deps = buildHubDeps({ webAuthMode, activate: false });
+
+      await expect(maybeSyncHubAfterCommit(deps)).resolves.toBe(false);
+
+      expect(deps.syncHub).not.toHaveBeenCalled();
+    },
+  );
+
+  it('redirect mode: honours the per-commit opt-out (account switch / popup OAuth lanes)', async () => {
+    const deps = buildHubDeps({ hubSyncRequested: false });
+
+    await expect(maybeSyncHubAfterCommit(deps)).resolves.toBe(false);
+
+    expect(deps.syncHub).not.toHaveBeenCalled();
+  });
+
+  it('redirect mode: honours the provider-level hubSync opt-out', async () => {
+    const deps = buildHubDeps({ hubSyncEnabled: false });
+
+    await expect(maybeSyncHubAfterCommit(deps)).resolves.toBe(false);
+
+    expect(deps.syncHub).not.toHaveBeenCalled();
+  });
+
+  it('redirect mode: a failing hub sync is non-fatal and never rejects', async () => {
+    const deps = buildHubDeps({
+      syncHub: jest.fn(async () => {
+        throw new Error('hub ticket failed');
+      }),
+    });
+
+    await expect(maybeSyncHubAfterCommit(deps)).resolves.toBe(false);
+
+    expect(deps.syncHub).toHaveBeenCalledTimes(1);
   });
 });
 

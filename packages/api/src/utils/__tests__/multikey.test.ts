@@ -8,10 +8,12 @@
  * compressed key forms is checked for stability.
  */
 
-import { ec as EC } from 'elliptic';
+import {
+  generateSecp256k1KeyPair,
+  normalizeSecp256k1PublicKey,
+} from '@oxyhq/protocol/secp256k1';
 import { secp256k1PublicKeyToMultikey } from '../multikey';
 
-const ec = new EC('secp256k1');
 
 /** Standard base58btc decode (Bitcoin alphabet) — inverse of the encoder. */
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -39,9 +41,9 @@ function base58btcDecode(str: string): Uint8Array {
 
 describe('secp256k1PublicKeyToMultikey', () => {
   it('encodes the multicodec-prefixed compressed key as a zQ3sh… multibase string', () => {
-    const kp = ec.genKeyPair();
-    const uncompressed = kp.getPublic('hex');
-    const compressed = Buffer.from(kp.getPublic().encodeCompressed()).toString('hex');
+    const kp = generateSecp256k1KeyPair();
+    const uncompressed = kp.publicKey;
+    const compressed = normalizeSecp256k1PublicKey(kp.publicKey, true);
 
     const multikey = secp256k1PublicKeyToMultikey(uncompressed);
 
@@ -58,9 +60,9 @@ describe('secp256k1PublicKeyToMultikey', () => {
   });
 
   it('is stable across the uncompressed and compressed input forms', () => {
-    const kp = ec.genKeyPair();
-    const uncompressed = kp.getPublic('hex');
-    const compressed = Buffer.from(kp.getPublic().encodeCompressed()).toString('hex');
+    const kp = generateSecp256k1KeyPair();
+    const uncompressed = kp.publicKey;
+    const compressed = normalizeSecp256k1PublicKey(kp.publicKey, true);
 
     expect(secp256k1PublicKeyToMultikey(uncompressed)).toBe(
       secp256k1PublicKeyToMultikey(compressed),
@@ -68,7 +70,7 @@ describe('secp256k1PublicKeyToMultikey', () => {
   });
 
   it('is deterministic for the same key', () => {
-    const publicKey = ec.genKeyPair().getPublic('hex');
+    const publicKey = generateSecp256k1KeyPair().publicKey;
     expect(secp256k1PublicKeyToMultikey(publicKey)).toBe(secp256k1PublicKeyToMultikey(publicKey));
   });
 

@@ -28,6 +28,7 @@ import storageRoutes from './routes/storage';
 import applicationRoutes from './routes/applications';
 import internalRoutes from './routes/internal';
 import accountRoutes from './routes/accounts';
+import capabilityRoutes from './routes/capabilities';
 import devicesRouter from './routes/devices';
 import securityRoutes from './routes/security';
 import subscriptionRoutes from './routes/subscription.routes';
@@ -696,6 +697,7 @@ app.use('/internal', internalRoutes);
 // Unified Account graph (tree + membership + service credentials). Per-route
 // rate limiters (rl:accounts:*) live inside the router.
 app.use('/accounts', csrfProtection, accountRoutes);
+app.use('/capabilities', userRateLimiter, csrfProtection, capabilityRoutes);
 app.use('/devices', userRateLimiter, csrfProtection, devicesRouter);
 app.use('/security', userRateLimiter, csrfProtection, securityRoutes);
 app.use('/subscription', userRateLimiter, csrfProtection, subscriptionRoutes);

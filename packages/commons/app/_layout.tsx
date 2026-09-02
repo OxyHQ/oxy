@@ -23,7 +23,8 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { useQueryClient } from '@tanstack/react-query';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { KeyManager, logger } from '@oxyhq/core';
-import { BloomThemeProvider, useNavigationTheme } from '@oxyhq/bloom/theme';
+import { useNavigationTheme } from '@oxyhq/bloom/theme';
+import { BloomProvider } from '@oxyhq/bloom/provider';
 
 import { ScrollProvider } from '@/contexts/scroll-context';
 import { ThemeModeProvider, useThemeMode } from '@/contexts/theme-mode-context';
@@ -197,10 +198,10 @@ function RootLayoutInner() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardProvider>
-        {/* OxyProvider does NOT wrap a BloomThemeProvider — by design, to
+        {/* OxyProvider does NOT wrap a BloomProvider — by design, to
             avoid duplicate contexts when an app already ships its own (see
             packages/services/src/ui/components/OxyProvider.tsx). The consumer
-            (this app) owns the BloomThemeProvider and feeds it the resolved
+            (this app) owns the BloomProvider and feeds it the resolved
             theme mode from ThemeModeProvider. */}
         <BloomThemeProvider mode={themeMode}>
           {/* `sessionMode="identity"` — Commons IS the identity, so its session
@@ -228,7 +229,7 @@ function RootLayoutInner() {
               <AppStackContent />
             </LocaleProvider>
           </OxyProvider>
-        </BloomThemeProvider>
+        </BloomProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
   );
@@ -249,7 +250,7 @@ function AppHead() {
  * Renders the navigation stack and drives the native OS splash hand-off.
  *
  * Readiness is computed HERE, inside the providers, not on frame 1 of
- * `RootLayoutInner`. This component lives UNDER `<BloomThemeProvider>`, whose
+ * `RootLayoutInner`. This component lives UNDER `<BloomProvider>`, whose
  * Bloom `FontLoader` gates its subtree — so by the time `AppStackContent`
  * mounts at all, fonts are already loaded. The only remaining readiness signals
  * are:
@@ -264,7 +265,7 @@ function AppHead() {
  * screen, with no blank frame and no white flash.
  */
 function AppStackContent() {
-  // Must be called inside OxyProvider (which wraps BloomThemeProvider)
+  // Must be called inside OxyProvider (which wraps BloomProvider)
   const navTheme = useNavigationTheme();
   const { isStorageReady } = useOxy();
   const { status, needsAuth, identityPresent } = useOnboardingStatus();

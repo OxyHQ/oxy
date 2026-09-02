@@ -94,6 +94,21 @@ export type {
   OxySecurityHeadersOptions,
 } from './securityHeaders';
 
+export {
+  CapabilityTicketError,
+  createCapabilityTicketMiddleware,
+  inputSatisfiesCapabilityLimits,
+  issueCapabilityTicket,
+  readCapabilityAuthorization,
+  verifyCapabilityTicket,
+} from './capabilityTicket';
+export type {
+  CapabilityTicketMiddlewareOptions,
+  CapabilityTicketRequest,
+  CapabilityTicketSigningOptions,
+  CapabilityTicketVerificationOptions,
+} from './capabilityTicket';
+
 // Constant-time secret comparison.
 export { verifySecret } from './verifySecret';
 

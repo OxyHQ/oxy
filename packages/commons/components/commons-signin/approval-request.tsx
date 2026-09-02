@@ -8,7 +8,6 @@ import {
   type CommonsApprovalSubjectAccount,
   type PublicApplication,
 } from '@oxyhq/core';
-import type { CommonsDenyReason } from '@oxyhq/contracts';
 import { useColors } from '@/hooks/useColors';
 import { ThemedText } from '@/components/themed-text';
 // Imported from their own modules rather than the `components/ui` barrel: the
@@ -16,7 +15,6 @@ import { ThemedText } from '@/components/themed-text';
 // react-native-gesture-handler's native module) into this sheet-only surface.
 import { Callout } from '@/components/ui/callout';
 import { ImportantBanner } from '@/components/ui/important-banner';
-import { PrimaryButton, SecondaryButton } from '@/components/ui/action-button';
 import { useTranslation, type TranslateFn } from '@/lib/i18n';
 import { summarizeScopes, type ScopeLine } from '@/lib/commons-signin/scope-summary';
 import { formatRequestOrigin } from '@/lib/commons-signin/request-origin';
@@ -42,20 +40,6 @@ export interface ApprovalRequestProps {
   identityName: string | null;
   /** Why the local confirmation did not complete, when it did not. */
   confirmationIssue: ApprovalConfirmationIssue | null;
-  /** The confirmation prompt is up, or the approval is being signed/sent. */
-  confirming: boolean;
-  /** The rejection is being sent. */
-  rejecting: boolean;
-  /** Primary action — opens the device biometric/passcode prompt directly. */
-  onConfirm: () => void;
-  /**
-   * A deliberate rejection, carrying WHICH answer the user gave. The sheet's
-   * only rejection is the explicit "This wasn't me", so it reports `'not_me'` —
-   * the value that records the denial as suspicious. Anything less specific
-   * would have to report `'declined'`; a dismissal reports nothing at all and
-   * goes to {@link ApprovalRequestProps.onClose}.
-   */
-  onReject: (reason: CommonsDenyReason) => void;
   /** Dismiss without answering. A cancel, NOT a denial. */
   onClose: () => void;
   onOpenLink: (url: string) => void;
@@ -118,10 +102,6 @@ export function ApprovalRequest({
   application,
   identityName,
   confirmationIssue,
-  confirming,
-  rejecting,
-  onConfirm,
-  onReject,
   onClose,
   onOpenLink,
 }: ApprovalRequestProps) {
@@ -137,7 +117,6 @@ export function ApprovalRequest({
   // treatment is withheld in this state so it can't lend false legitimacy to a
   // consent-phishing lure that reuses a trusted app's branding.
   const originVerified = info.originVerified === true;
-  const busy = confirming || rejecting;
   const hasLegalLinks = Boolean(application.privacyPolicyUrl || application.termsUrl);
   const privacyPolicyUrl = application.privacyPolicyUrl;
   const termsUrl = application.termsUrl;
@@ -289,29 +268,6 @@ export function ApprovalRequest({
             </ThemedText>
           </View>
         )}
-      </View>
-
-      {/* THE ONE PRIMARY ACTION — opens the device prompt directly. */}
-      <View className="px-5 pt-6">
-        <PrimaryButton
-          label={t('signInApproval.approve.confirm')}
-          onPress={onConfirm}
-          disabled={busy}
-          loading={confirming}
-        />
-        <View className="items-center pt-2">
-          <SecondaryButton
-            label={
-              rejecting
-                ? t('signInApproval.approve.rejecting')
-                : t('signInApproval.approve.reject')
-            }
-            onPress={() => onReject('not_me')}
-            disabled={busy}
-            tone="danger"
-            fullWidth={false}
-          />
-        </View>
       </View>
 
       {confirmationIssue ? (

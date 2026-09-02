@@ -29,8 +29,8 @@
  * containing only this test's accounts.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { createHash, randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
 import { and, eq, inArray } from 'drizzle-orm';
 import { canonicalize } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope, ValidationVerdict } from '@oxyhq/contracts';
@@ -75,7 +75,6 @@ import {
   VALIDATION_CORRECT_ACTION,
 } from '../../utils/reputation.constants';
 
-const ec = new EC('secp256k1');
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
 /**
@@ -92,13 +91,13 @@ interface Signer {
 }
 
 async function makeSigner(overrides: Partial<typeof users.$inferInsert> = {}): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const id = uniqueId();
   await getDb()
     .insert(users)
     .values({ id, username: `v${id.slice(0, 12)}`, publicKey, ...overrides });
-  return { userId: id, did: buildUserDid(id), publicKey, privateKey: keyPair.getPrivate('hex') };
+  return { userId: id, did: buildUserDid(id), publicKey, privateKey: keyPair.privateKey };
 }
 
 async function makeAccount(): Promise<string> {

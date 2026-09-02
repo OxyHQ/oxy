@@ -58,6 +58,7 @@ import catalogueRouter from '../inferenceCatalogue';
 jest.setTimeout(60_000);
 
 const MOUNT = '/models';
+const TEST_ACCESS_TOKEN_SECRET = 'inference-catalogue-publication-test-secret-at-least-32-chars';
 
 let server: http.Server;
 
@@ -230,8 +231,10 @@ function entryIds(body: Record<string, unknown>, key: 'data' | 'models'): string
 }
 
 const ORIGINAL = process.env[CATALOGUE_AUDIENCE_VARIABLE];
+const ORIGINAL_ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET;
 
 beforeAll(async () => {
+  process.env.ACCESS_TOKEN_SECRET = TEST_ACCESS_TOKEN_SECRET;
   await connectPostgres();
   await seed();
   const app = express();
@@ -245,6 +248,8 @@ beforeAll(async () => {
 afterAll(async () => {
   if (ORIGINAL === undefined) delete process.env[CATALOGUE_AUDIENCE_VARIABLE];
   else process.env[CATALOGUE_AUDIENCE_VARIABLE] = ORIGINAL;
+  if (ORIGINAL_ACCESS_TOKEN_SECRET === undefined) delete process.env.ACCESS_TOKEN_SECRET;
+  else process.env.ACCESS_TOKEN_SECRET = ORIGINAL_ACCESS_TOKEN_SECRET;
   await new Promise<void>((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve()))
   );

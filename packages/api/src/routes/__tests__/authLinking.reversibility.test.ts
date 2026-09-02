@@ -19,11 +19,11 @@
  * session service, and the socket emitter.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { ec as EC } from 'elliptic';
 import { and, eq } from 'drizzle-orm';
 
 /** The account `authMiddleware` injects for the current test. */
@@ -62,8 +62,6 @@ import authLinkingRouter from '../authLinking';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument, buildUserDid, OXY_DID } from '../../services/did.service';
 import { errorHandler } from '../../middleware/errorHandler';
-
-const ec = new EC('secp256k1');
 
 interface JsonResponse {
   status: number;
@@ -209,9 +207,9 @@ beforeEach(async () => {
 
 describe('identity link/unlink reversibility', () => {
   it('links → self-sovereign DID, unlinks → custodial DID, invalidating cache each step', async () => {
-    const keyPair = ec.genKeyPair();
-    const publicKey = keyPair.getPublic('hex');
-    const privateKey = keyPair.getPrivate('hex');
+    const keyPair = generateSecp256k1KeyPair();
+    const publicKey = keyPair.publicKey;
+    const privateKey = keyPair.privateKey;
     const timestamp = Date.now();
     const signature = SignatureService.signMessage(
       JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }),
@@ -247,9 +245,9 @@ describe('identity link/unlink reversibility', () => {
   });
 
   it('re-linking the SAME key does not add a second identity row', async () => {
-    const keyPair = ec.genKeyPair();
-    const publicKey = keyPair.getPublic('hex');
-    const privateKey = keyPair.getPrivate('hex');
+    const keyPair = generateSecp256k1KeyPair();
+    const publicKey = keyPair.publicKey;
+    const privateKey = keyPair.privateKey;
     const sign = () => {
       const timestamp = Date.now();
       return {
@@ -270,9 +268,9 @@ describe('identity link/unlink reversibility', () => {
   });
 
   it('stores the key LOWERCASED (the Mongoose `lowercase` setter has no Postgres counterpart)', async () => {
-    const keyPair = ec.genKeyPair();
-    const publicKey = keyPair.getPublic('hex').toUpperCase();
-    const privateKey = keyPair.getPrivate('hex');
+    const keyPair = generateSecp256k1KeyPair();
+    const publicKey = keyPair.publicKey.toUpperCase();
+    const privateKey = keyPair.privateKey;
     const timestamp = Date.now();
     const signature = SignatureService.signMessage(
       JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }),
@@ -286,7 +284,7 @@ describe('identity link/unlink reversibility', () => {
   });
 
   it('rejects an identity link with an invalid signature (no write, no invalidate)', async () => {
-    const publicKey = ec.genKeyPair().getPublic('hex');
+    const publicKey = generateSecp256k1KeyPair().publicKey;
     const res = await request(server, 'POST', '/auth/link', {
       type: 'identity',
       publicKey,
@@ -299,15 +297,15 @@ describe('identity link/unlink reversibility', () => {
   });
 
   it('rejects a key already linked to ANOTHER account (409, no write)', async () => {
-    const keyPair = ec.genKeyPair();
-    const publicKey = keyPair.getPublic('hex').toLowerCase();
+    const keyPair = generateSecp256k1KeyPair();
+    const publicKey = keyPair.publicKey.toLowerCase();
     const other = await account();
     await addIdentity(other, publicKey);
 
     const timestamp = Date.now();
     const signature = SignatureService.signMessage(
       JSON.stringify({ action: 'link_identity', userId: currentUserId, timestamp }),
-      keyPair.getPrivate('hex'),
+      keyPair.privateKey,
     );
 
     const res = await request(server, 'POST', '/auth/link', { type: 'identity', publicKey, signature, timestamp });
@@ -322,7 +320,7 @@ describe('identity link/unlink reversibility', () => {
     await getDb()
       .delete(userAuthMethods)
       .where(and(eq(userAuthMethods.userId, currentUserId), eq(userAuthMethods.type, 'webauthn')));
-    const publicKey = ec.genKeyPair().getPublic('hex').toLowerCase();
+    const publicKey = generateSecp256k1KeyPair().publicKey.toLowerCase();
     await addIdentity(currentUserId, publicKey);
 
     const res = await request(server, 'DELETE', '/auth/link/identity');
@@ -337,7 +335,7 @@ describe('identity link/unlink reversibility', () => {
 describe('DELETE /auth/link/webauthn/:credentialID (keep ≥1 auth method)', () => {
   it('unlinks a passkey when other auth methods remain (removes the method row, the credential row, and invalidates)', async () => {
     // identity + one passkey → two methods; unlinking the passkey is allowed.
-    await addIdentity(currentUserId, ec.genKeyPair().getPublic('hex').toLowerCase());
+    await addIdentity(currentUserId, generateSecp256k1KeyPair().publicKey.toLowerCase());
     const credentialID = await addPasskey(currentUserId, 'Second');
 
     const res = await request(server, 'DELETE', `/auth/link/webauthn/${credentialID}`);
@@ -374,7 +372,7 @@ describe('DELETE /auth/link/webauthn/:credentialID (keep ≥1 auth method)', () 
   it("rejects unlinking a passkey the account does not own — and the OWNER's rows survive", async () => {
     // The caller has two methods, so the guard would not block a legitimate unlink;
     // only the ownership scoping stands between them and someone else's passkey.
-    await addIdentity(currentUserId, ec.genKeyPair().getPublic('hex').toLowerCase());
+    await addIdentity(currentUserId, generateSecp256k1KeyPair().publicKey.toLowerCase());
     const victim = await account();
     const victimCredentialId = await addPasskey(victim, 'Victim Key');
 
@@ -392,7 +390,7 @@ describe('DELETE /auth/link/webauthn/:credentialID (keep ≥1 auth method)', () 
   });
 
   it('rejects an unknown credential id with 400', async () => {
-    await addIdentity(currentUserId, ec.genKeyPair().getPublic('hex').toLowerCase());
+    await addIdentity(currentUserId, generateSecp256k1KeyPair().publicKey.toLowerCase());
     const res = await request(server, 'DELETE', `/auth/link/webauthn/${freshCredentialId()}`);
     expect(res.status).toBe(400);
   });
@@ -400,7 +398,7 @@ describe('DELETE /auth/link/webauthn/:credentialID (keep ≥1 auth method)', () 
 
 describe('GET /auth/methods contract (B4)', () => {
   it('returns the account DID plus contract-shaped methods built from the child table', async () => {
-    const publicKey = ec.genKeyPair().getPublic('hex').toLowerCase();
+    const publicKey = generateSecp256k1KeyPair().publicKey.toLowerCase();
     await addIdentity(currentUserId, publicKey);
 
     const res = await request(server, 'GET', '/auth/methods');

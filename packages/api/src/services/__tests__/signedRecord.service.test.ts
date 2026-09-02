@@ -28,8 +28,8 @@
  * being empty.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
 import { eq } from 'drizzle-orm';
 import { signedRecordSigningInput, verifyEnvelopeSignature } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
@@ -44,8 +44,6 @@ import {
   verifyAndStoreRecord,
   verifyEnvelope,
 } from '../signedRecord.service';
-
-const ec = new EC('secp256k1');
 
 /** A keypair plus the DID it signs for. */
 interface SigningIdentity {
@@ -69,8 +67,8 @@ afterAll(async () => {
 
 /** A fresh secp256k1 keypair. Random per call, so no two tests share a key. */
 function keyPair(): { publicKey: string; privateKey: string } {
-  const pair = ec.genKeyPair();
-  return { publicKey: pair.getPublic('hex'), privateKey: pair.getPrivate('hex') };
+  const pair = generateSecp256k1KeyPair();
+  return { publicKey: pair.publicKey, privateKey: pair.privateKey };
 }
 
 /** An account whose PRIMARY `users.public_key` is the returned signing key. */

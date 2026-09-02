@@ -1098,3 +1098,67 @@ export type {
     CostCenterSpend,
     ProductEntitlement,
 } from './inference/entitlement';
+
+export {
+    AUTONOMY_LEVELS,
+    CAPABILITY_PACKAGES,
+    autonomyLevelSchema,
+    capabilityPackageSchema,
+    actorRefSchema,
+    resourceRefSchema,
+    toolGrantOverrideSchema,
+    grantLimitSchema,
+    executionAuthorizationRefSchema,
+    capabilityCoordinatorSchema,
+    delegationGrantSchema,
+    automationTriggerSchema,
+    automationActorSelectionSchema,
+    automationDataFlowSchema,
+    automationDefinitionSchema,
+    capabilityTicketClaimsSchema,
+    policyDecisionSchema,
+    auditResultSchema,
+    auditEventSchema,
+    catalogToolSchema,
+    catalogEventSchema,
+    appCapabilityCatalogSchema,
+    catalogRegistrationSchema,
+    normalizedAppEventSchema,
+} from './agency';
+
+export type {
+    AutonomyLevel,
+    CapabilityPackage,
+    ActorRef,
+    ResourceRef,
+    ToolGrantOverride,
+    GrantLimit,
+    ExecutionAuthorizationRef,
+    CapabilityCoordinator,
+    DelegationGrant,
+    AutomationTrigger,
+    AutomationActorSelection,
+    AutomationDefinition,
+    CapabilityTicketClaims,
+    PolicyDecision,
+    AuditEvent,
+    CatalogTool,
+    CatalogEvent,
+    AppCapabilityCatalog,
+    CatalogRegistration,
+    NormalizedAppEvent,
+} from './agency';
+
+export {
+    emailContextAddressSchema,
+    emailContextMailboxSchema,
+    emailContextMessageSchema,
+    emailAgentContextSchema,
+} from './emailAgentContext';
+
+export type {
+    EmailContextAddress,
+    EmailContextMailbox,
+    EmailContextMessage,
+    EmailAgentContext,
+} from './emailAgentContext';

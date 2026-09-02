@@ -6,15 +6,24 @@ import { useColors } from '@/hooks/useColors';
 import { Button, KeyboardAwareScrollViewWrapper } from '@/components/ui';
 import { useUsernameValidation } from '@/hooks/auth/useUsernameValidation';
 import { stripDisallowedUsernameCharacters } from '@oxyhq/contracts';
-import { useOxy } from '@oxyhq/services';
 import type { OxyServices } from '@oxyhq/core';
+import { Dialog, useDialogControl } from '@oxyhq/bloom/dialog';
 import { useTranslation } from '@/lib/i18n';
 import telescopeAnimation from '@/assets/lottie/telescope.json';
+
+/**
+ * Sections of the "Learn more about usernames" explainer, in presentation
+ * order. The copy itself lives in the shared dictionary under
+ * `learnMoreUsernames.sections.<id>.{title,content}` (resolved by `t()` through
+ * the accounts dictionary and then `@oxyhq/core`), so it stays the SAME copy
+ * the surface showed before, in every locale.
+ */
+const LEARN_MORE_SECTION_IDS = ['what', 'rules', 'unique', 'change', 'tips'] as const;
 
 interface UsernameStepProps {
   username: string;
   onUsernameChange: (username: string) => void;
-  onContinue: () => void;
+  onContinue: () => void | Promise<void>;
   onSkip?: () => void;
   isOffline: boolean;
   oxyServices: OxyServices | null;
@@ -41,15 +50,29 @@ export function UsernameStep({
 }: UsernameStepProps) {
   const colors = useColors();
   const { t } = useTranslation();
-  const { showBottomSheet } = useOxy();
   const insets = useSafeAreaInsets();
   const validation = useUsernameValidation(username, oxyServices);
   const lottieRef = useRef<LottieView>(null);
+  const isMountedRef = useRef(true);
+  const isConfirmingRef = useRef(false);
+  const confirmationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
+  const learnMoreDialog = useDialogControl();
   const [shouldLoop, setShouldLoop] = useState(false);
   const [isAnimationPlaying, setIsAnimationPlaying] = useState(true); // Start as true since autoPlay will start it
 
   const isUsernameValid = validation.isValid;
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (confirmationTimeoutRef.current) {
+        clearTimeout(confirmationTimeoutRef.current);
+        confirmationTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Play animation when checking username availability
   useEffect(() => {
@@ -108,8 +131,10 @@ export function UsernameStep({
     if (validation.isAvailable === false || validation.isChecking) {
       return;
     }
+    if (isConfirmingRef.current) return;
 
     // Start confirmation animation
+    isConfirmingRef.current = true;
     setIsConfirming(true);
     setShouldLoop(true);
     setIsAnimationPlaying(true);
@@ -121,9 +146,25 @@ export function UsernameStep({
     }
 
     // Wait 4 seconds before proceeding to next step
-    setTimeout(() => {
+    confirmationTimeoutRef.current = setTimeout(() => {
+      confirmationTimeoutRef.current = null;
       setShouldLoop(false);
-      onContinue();
+      void (async () => {
+        try {
+          await onContinue();
+        } finally {
+          // A successful save navigates away and unmounts this screen. If the
+          // parent stays here (session still starting, offline, API error),
+          // release the confirmation state so Continue and the rest of the UI
+          // remain usable and the user can retry.
+          isConfirmingRef.current = false;
+          if (isMountedRef.current) {
+            setIsConfirming(false);
+            setShouldLoop(false);
+            setIsAnimationPlaying(false);
+          }
+        }
+      })();
     }, 4000);
   };
 
@@ -218,13 +259,37 @@ export function UsernameStep({
         {!isOffline && (
           <Button
             variant="ghost"
-            onPress={() => showBottomSheet?.('LearnMoreUsernames')}
+            onPress={learnMoreDialog.open}
             disabled={isUpdating}
           >
             {t('auth.usernameStep.learnMore')}
           </Button>
         )}
       </KeyboardAwareScrollViewWrapper>
+
+      <Dialog
+        control={learnMoreDialog}
+        title={t('learnMoreUsernames.introTitle')}
+        description={t('learnMoreUsernames.introText')}
+        label={t('learnMoreUsernames.introTitle')}
+        actions={[{ label: t('common.close'), color: 'cancel' }]}
+      >
+        <View style={styles.learnMoreSections}>
+          {LEARN_MORE_SECTION_IDS.map((id) => (
+            <View key={id} style={styles.learnMoreSection}>
+              <Text style={[styles.learnMoreSectionTitle, { color: colors.text }]}>
+                {t(`learnMoreUsernames.sections.${id}.title`)}
+              </Text>
+              <Text style={[styles.learnMoreSectionBody, { color: colors.textSecondary }]}>
+                {t(`learnMoreUsernames.sections.${id}.content`)}
+              </Text>
+            </View>
+          ))}
+          <Text style={[styles.learnMoreFooter, { color: colors.textSecondary }]}>
+            {t('learnMoreUsernames.footer')}
+          </Text>
+        </View>
+      </Dialog>
     </View>
   );
 }
@@ -294,5 +359,24 @@ const styles = StyleSheet.create({
   skipButton: {
     marginTop: 12,
   },
+  learnMoreSections: {
+    gap: 20,
+    paddingBottom: 20,
+  },
+  learnMoreSection: {
+    gap: 4,
+  },
+  learnMoreSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 22,
+  },
+  learnMoreSectionBody: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  learnMoreFooter: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
 });
-

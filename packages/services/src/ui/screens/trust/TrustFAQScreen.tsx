@@ -85,7 +85,7 @@ const TrustFAQScreen: React.FC<BaseScreenProps> = () => {
                                     {faq.q}
                                 </AccordionTrigger>
                                 <AccordionContent>
-                                    <Text className="font-sans text-bodyMedium text-text-secondary">
+                                    <Text className="font-sans text-body text-text-secondary">
                                         {faq.a}
                                     </Text>
                                 </AccordionContent>

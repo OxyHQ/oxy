@@ -1310,4 +1310,3 @@ export async function listRouteSwitchEventsForApplication(
 
   return rows;
 }
-

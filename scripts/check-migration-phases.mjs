@@ -26,9 +26,10 @@
  *      `-- oxy:deploy-phase=pre|post` line — using the SAME reader the migrator
  *      uses at runtime. No default exists, so a migration whose author never
  *      considered the question fails here rather than in production.
- *   2. `.github/workflows/deploy-aws.yml` still sets `RUN_MIGRATIONS: 'true'`.
- *      Deleting it is a one-line change that reproduces the outage exactly, with
- *      a green deploy and no other symptom.
+ *   2. `.github/workflows/deploy-aws.yml` still sets `RUN_MIGRATIONS` to the
+ *      string `true`, independent of the YAML formatter's quote style. Deleting
+ *      it is a one-line change that reproduces the outage exactly, with a green
+ *      deploy and no other symptom.
  *   3. `.github/scripts/deploy-ecs-image.sh` still runs the pre-deploy migrator
  *      with `--phase=pre`. Without the flag the migrator refuses to run at all,
  *      but the failure would arrive as a red deploy nobody can place; with the
@@ -52,17 +53,17 @@
  * the real files.
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   POST_PHASE_GREP_PATTERN,
   readMigrationPhases,
-} from '../packages/db/src/migrate/phases.ts';
+} from "../packages/db/src/migrate/phases.ts";
 
-const DRIZZLE_FOLDER = join('packages', 'api', 'drizzle');
-const JOURNAL_PATH = join(DRIZZLE_FOLDER, 'meta', '_journal.json');
-const DEPLOY_WORKFLOW_PATH = join('.github', 'workflows', 'deploy-aws.yml');
-const DEPLOY_SCRIPT_PATH = join('.github', 'scripts', 'deploy-ecs-image.sh');
+const DRIZZLE_FOLDER = join("packages", "api", "drizzle");
+const JOURNAL_PATH = join(DRIZZLE_FOLDER, "meta", "_journal.json");
+const DEPLOY_WORKFLOW_PATH = join(".github", "workflows", "deploy-aws.yml");
+const DEPLOY_SCRIPT_PATH = join(".github", "scripts", "deploy-ecs-image.sh");
 
 /**
  * Vacuity guards. A journal this gate cannot read would otherwise check zero
@@ -71,7 +72,7 @@ const DEPLOY_SCRIPT_PATH = join('.github', 'scripts', 'deploy-ecs-image.sh');
  * is the one tag that can never legitimately leave the journal.
  */
 const MINIMUM_JOURNAL_ENTRIES = 10;
-const JOURNAL_SENTINEL = '0000_groovy_colossus';
+const JOURNAL_SENTINEL = "0000_groovy_colossus";
 
 /** What the pre-deploy one-shot must invoke, verbatim. */
 const PRE_PHASE_COMMAND = '"--phase=pre"';
@@ -84,7 +85,7 @@ function fail(message) {
 
 function read(path) {
   try {
-    return readFileSync(path, 'utf8');
+    return readFileSync(path, "utf8");
   } catch (error) {
     console.error(`Cannot read ${path}: ${error.message}`);
     process.exit(1);
@@ -97,17 +98,23 @@ function parseJournalTags() {
   try {
     parsed = JSON.parse(read(JOURNAL_PATH));
   } catch (error) {
-    fail(`${JOURNAL_PATH} is not readable JSON (${error.message}); the gate cannot see any migration.`);
+    fail(
+      `${JOURNAL_PATH} is not readable JSON (${error.message}); the gate cannot see any migration.`,
+    );
     return [];
   }
 
   const entries = parsed?.entries;
   if (!Array.isArray(entries)) {
-    fail(`${JOURNAL_PATH} has no \`entries\` array; the gate cannot see any migration.`);
+    fail(
+      `${JOURNAL_PATH} has no \`entries\` array; the gate cannot see any migration.`,
+    );
     return [];
   }
 
-  return entries.map((entry) => entry?.tag).filter((tag) => typeof tag === 'string');
+  return entries
+    .map((entry) => entry?.tag)
+    .filter((tag) => typeof tag === "string");
 }
 
 const tags = parseJournalTags();
@@ -116,39 +123,42 @@ const tags = parseJournalTags();
 if (tags.length > 0 && tags.length < MINIMUM_JOURNAL_ENTRIES) {
   fail(
     `Only ${tags.length} migration tag(s) parsed out of ${JOURNAL_PATH} (expected at least ` +
-    `${MINIMUM_JOURNAL_ENTRIES}). The parse is broken, not the source.`
+      `${MINIMUM_JOURNAL_ENTRIES}). The parse is broken, not the source.`,
   );
 }
 if (tags.length > 0 && !tags.includes(JOURNAL_SENTINEL)) {
   fail(
     `${JOURNAL_SENTINEL} was not among the parsed journal tags — the gate is reading the wrong ` +
-    `array in ${JOURNAL_PATH}.`
+      `array in ${JOURNAL_PATH}.`,
   );
 }
 
 // ── 1. Every migration declares its side of the deploy ─────────────────────
-const { phases, problems: phaseProblems } = readMigrationPhases(tags, DRIZZLE_FOLDER);
+const { phases, problems: phaseProblems } = readMigrationPhases(
+  tags,
+  DRIZZLE_FOLDER,
+);
 for (const problem of phaseProblems) fail(problem);
 
 // ── 2/3. The deploy still applies migrations, on the right side ────────────
 const deployWorkflow = read(DEPLOY_WORKFLOW_PATH);
 const deployScript = read(DEPLOY_SCRIPT_PATH);
 
-if (!/^\s+RUN_MIGRATIONS:\s*'true'\s*$/m.test(deployWorkflow)) {
+if (!/^\s+RUN_MIGRATIONS:\s*["']true["']\s*$/m.test(deployWorkflow)) {
   fail(
     `${DEPLOY_WORKFLOW_PATH} no longer sets \`RUN_MIGRATIONS: 'true'\` on the deploy step, so no ` +
-    'deploy applies migrations before its rollout. That is exactly the 2026-08-02 outage: the ' +
-    'image ships, the column does not, and every read of it 500s until somebody dispatches ' +
-    '`Run PostgreSQL migrations` by hand.'
+      "deploy applies migrations before its rollout. That is exactly the 2026-08-02 outage: the " +
+      "image ships, the column does not, and every read of it 500s until somebody dispatches " +
+      "`Run PostgreSQL migrations` by hand.",
   );
 }
 
 if (!deployScript.includes(PRE_PHASE_COMMAND)) {
   fail(
     `${DEPLOY_SCRIPT_PATH} no longer passes ${PRE_PHASE_COMMAND} to the pre-deploy migrator. ` +
-    'Without a phase the migrator refuses to run and the deploy fails for a reason nobody can ' +
-    'place; with the wrong phase it applies destructive migrations while the previous image is ' +
-    'still serving.'
+      "Without a phase the migrator refuses to run and the deploy fails for a reason nobody can " +
+      "place; with the wrong phase it applies destructive migrations while the previous image is " +
+      "still serving.",
   );
 }
 
@@ -156,26 +166,28 @@ if (!deployScript.includes(PRE_PHASE_COMMAND)) {
 if (!deployWorkflow.includes(POST_PHASE_GREP_PATTERN)) {
   fail(
     `${DEPLOY_WORKFLOW_PATH} does not grep for ${POST_PHASE_GREP_PATTERN}, the pattern ` +
-    "@oxyhq/db's migrate/phases.ts exports. The workflow decides whether a release needs " +
-    'a post-rollout migration task from that grep, so a pattern that no longer matches the marker ' +
-    'syntax silently skips the task and the destructive migration is never applied by anything.'
+      "@oxyhq/db's migrate/phases.ts exports. The workflow decides whether a release needs " +
+      "a post-rollout migration task from that grep, so a pattern that no longer matches the marker " +
+      "syntax silently skips the task and the destructive migration is never applied by anything.",
   );
 }
 
 if (problems.length > 0) {
-  console.error('Migration deploy phases are BROKEN:\n');
+  console.error("Migration deploy phases are BROKEN:\n");
   for (const problem of problems) console.error(`- ${problem}`);
   console.error(
-    '\nA migration that does not declare its side of the deploy, or a deploy that has stopped' +
-    '\napplying migrations, ships an image against a schema that does not match it. Nothing' +
-    '\nerrors at deploy time; the API just starts returning 500 on every read of the new column.'
+    "\nA migration that does not declare its side of the deploy, or a deploy that has stopped" +
+      "\napplying migrations, ships an image against a schema that does not match it. Nothing" +
+      "\nerrors at deploy time; the API just starts returning 500 on every read of the new column.",
   );
   process.exit(1);
 }
 
-const postCount = [...phases.values()].filter((phase) => phase === 'post').length;
+const postCount = [...phases.values()].filter(
+  (phase) => phase === "post",
+).length;
 console.log(
   `Migration deploy phases are sound: all ${tags.length} migration(s) declare a phase ` +
-  `(${tags.length - postCount} pre, ${postCount} post), deploy-aws.yml applies them before its ` +
-  'rollout, and its post-rollout grep matches the marker syntax the migrator reads.'
+    `(${tags.length - postCount} pre, ${postCount} post), deploy-aws.yml applies them before its ` +
+    "rollout, and its post-rollout grep matches the marker syntax the migrator reads.",
 );

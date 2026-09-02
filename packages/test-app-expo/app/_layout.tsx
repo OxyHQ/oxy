@@ -26,7 +26,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    // BloomThemeProvider owns the theme. OxyProvider does NOT mount its own
+    // BloomProvider owns the theme. OxyProvider does NOT mount its own
     // (by design, to avoid duplicate contexts), so this wraps the tree —
     // services UI like OxySignInButton calls bloom's useTheme().
     <SafeAreaProvider>
@@ -35,7 +35,7 @@ export default function RootLayout() {
         <OxyProvider baseURL={API_URL} clientId={OXY_CLIENT_ID} authRedirectUri={AUTH_REDIRECT_URI}>
           <RootNavigator />
         </OxyProvider>
-      </BloomThemeProvider>
+      </BloomProvider>
     </SafeAreaProvider>
   );
 }
@@ -44,7 +44,7 @@ function RootNavigator() {
   const navTheme = useNavigationTheme();
   return (
     // expo-router's ThemeProvider is the react-navigation theme — distinct from
-    // BloomThemeProvider. It colors the navigator chrome (Stack headers, screen
+    // BloomProvider. It colors the navigator chrome (Stack headers, screen
     // backgrounds, modal). We feed it Bloom's resolved colors so Bloom remains
     // the single source of truth, instead of raw DarkTheme/DefaultTheme.
     <ThemeProvider value={navTheme}>

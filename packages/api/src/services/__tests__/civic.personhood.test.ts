@@ -33,8 +33,8 @@
  * id and no assertion depends on a table being empty.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
 import { and, eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -71,7 +71,6 @@ import {
   VOUCH_SLASHED_POINTS,
 } from '../../utils/reputation.constants';
 
-const ec = new EC('secp256k1');
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
 /** An account that can sign: its `publicKey` is a current verification method. */
@@ -83,13 +82,13 @@ interface Signer {
 }
 
 async function makeSigner(overrides: Partial<typeof users.$inferInsert> = {}): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const id = uniqueId();
   await getDb()
     .insert(users)
     .values({ id, username: `p${id.slice(0, 12)}`, publicKey, ...overrides });
-  return { userId: id, did: buildUserDid(id), publicKey, privateKey: keyPair.getPrivate('hex') };
+  return { userId: id, did: buildUserDid(id), publicKey, privateKey: keyPair.privateKey };
 }
 
 /** A plain account with no signing key. */
@@ -452,14 +451,14 @@ describe('vouchForPerson — a refusal writes nothing at all', () => {
   it('refuses a signature made by a key that is not a current verification method', async () => {
     const voucher = await makeSeedVoucher();
     const subjectUserId = await makeAccount();
-    const stranger = ec.genKeyPair();
+    const stranger = generateSecp256k1KeyPair();
     // A well-formed, correctly-signed envelope — signed by the WRONG key. The
     // signature check passes; the resolver's current-VM check is what refuses it.
     const envelope = vouchEnvelope(
       {
         ...voucher,
-        publicKey: stranger.getPublic('hex'),
-        privateKey: stranger.getPrivate('hex'),
+        publicKey: stranger.publicKey,
+        privateKey: stranger.privateKey,
       },
       { about: buildUserDid(subjectUserId) },
     );

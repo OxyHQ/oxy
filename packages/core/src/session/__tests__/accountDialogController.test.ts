@@ -15,10 +15,22 @@ import {
 // A SessionClient whose applied state can be driven directly (applyState is
 // protected on the base) — mirrors the existing TestClient pattern.
 class TestSessionClient extends SessionClient {
+  static readonly instances = new Set<TestSessionClient>();
+
+  constructor(clientHost: SessionClientHost) {
+    super(clientHost);
+    TestSessionClient.instances.add(this);
+  }
+
   set(state: DeviceSessionState): void {
     this.applyState(state);
   }
 }
+
+afterEach(() => {
+  for (const client of TestSessionClient.instances) client.stop();
+  TestSessionClient.instances.clear();
+});
 
 /**
  * A valid, empty directory for the host below.
@@ -812,6 +824,7 @@ describe('AccountDialogController — Commons availability (canOpenApp)', () => 
 
     expect(canOpenApp).toHaveBeenCalledWith('oxycommons://');
     expect(controller.getSnapshot().commonsAvailability).toBe('available');
+    controller.destroy();
   });
 });
 

@@ -127,6 +127,12 @@ relying-party origin, no cookie.
    on a new origin, in exchange for a tab that never leaves the relying party's route
    without the user asking.
 
+   Both hops are FULL-PAGE, non-gesture navigations, so both are gated on
+   `webAuthMode: 'redirect'` (`OxyProvider` prop, default; issue #691 Phases 2/7a) —
+   `webAuthMode: 'popup'` disables both (`allowsAutomaticIdpRedirect`), trading
+   cross-domain silent sync for a tab that never leaves the relying party's route. See
+   "Cold boot" below.
+
 ## Cold boot
 
 `runSessionColdBoot` (`packages/core/src/boot/sessionColdBoot.ts`, exported from

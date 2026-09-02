@@ -140,6 +140,11 @@ export const APPLICATION_SCOPES = [
   'reputation:moderation:apply',
   'reputation:binding:register',
   'notifications:write',
+  'capabilities:read',
+  'catalogs:write',
+  'capability-tickets:issue',
+  'capability-audit:write',
+  'capability-events:publish',
   'payments:read',
   'payments:write',
   'accounts:provision',
@@ -272,6 +277,11 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'inference:providers:write',
   'acting-as:offline',
   'accounts:act-as-session',
+  'capabilities:read',
+  'catalogs:write',
+  'capability-tickets:issue',
+  'capability-audit:write',
+  'capability-events:publish',
 ] as const satisfies readonly ApplicationScope[];
 
 /**
