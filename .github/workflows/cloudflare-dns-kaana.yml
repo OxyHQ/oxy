@@ -17,10 +17,12 @@
 #     answers with its own addresses, so a proxied validation record breaks
 #     issuance outright — the certificate sits in PENDING_VALIDATION and the
 #     reason is invisible from AWS.
-#   - the exact apex `kaana.ai`, pointing at Kaana's DEDICATED load balancer.
-#     This is the signed Oxy -> Kaana data-plane hop, not Oxy's customer-facing
-#     API and never the shared `oxy-alb`. The apex is deliberately left absent
-#     until the parked Kaana service has a healthy canary target.
+#   - the exact apex `kaana.ai`, proxied through Cloudflare to Kaana's DEDICATED
+#     load balancer. This is the signed Oxy -> Kaana data-plane hop, not Oxy's
+#     customer-facing API and never the shared `oxy-alb`. Proxying is
+#     load-bearing: the ALB security group admits Cloudflare and the VPC only,
+#     and Cloudflare is the pre-signature request-size/rate-limit boundary. The
+#     apex is deliberately left absent until Kaana has a healthy canary target.
 name: Cloudflare DNS (Kaana)
 
 on:
@@ -100,7 +102,7 @@ jobs:
               wanted.append(("CNAME", os.environ["VAL_NAME"].rstrip("."),
                              os.environ["VAL_VALUE"].rstrip("."), False))
           if os.environ.get("KAANA_ALB_DNS"):
-              wanted.append(("CNAME", ZONE, os.environ["KAANA_ALB_DNS"].rstrip("."), False))
+              wanted.append(("CNAME", ZONE, os.environ["KAANA_ALB_DNS"].rstrip("."), True))
 
           if not wanted:
               print("no records requested; nothing to reconcile")

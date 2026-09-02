@@ -840,6 +840,7 @@ export type { RefreshDeps, TokenRefreshSchedulerHandle, DeviceSecretMintOutcome 
 export {
     OxyInferenceClient,
     OxyInferenceError,
+    OxyInferenceProtocolError,
     OXY_INFERENCE_BASE_URL,
 } from './inference/OxyInferenceClient';
 export type {

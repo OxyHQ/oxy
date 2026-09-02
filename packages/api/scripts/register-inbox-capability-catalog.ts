@@ -1,9 +1,9 @@
 import { INBOX_CAPABILITY_CATALOG } from '../src/capabilities/inbox.catalog';
+import { requiredInboxServiceClient } from '../src/capabilities/inbox-service-client';
 
 async function main(): Promise<void> {
   const apiUrl = process.env.OXY_API_URL ?? 'https://api.oxy.so';
-  const token = process.env.OXY_CATALOG_SERVICE_TOKEN;
-  if (!token) throw new Error('OXY_CATALOG_SERVICE_TOKEN is required');
+  const token = await requiredInboxServiceClient().getServiceToken();
 
   const response = await fetch(`${apiUrl.replace(/\/$/, '')}/capabilities/catalogs/register`, {
     method: 'POST',

@@ -130,6 +130,16 @@ jobs:
             aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
           done
 
+      - name: Verify Inbox service credential bindings
+        run: |
+          set -euo pipefail
+          for parameter in OXY_APPLICATION_KEY OXY_APPLICATION_SECRET; do
+            aws ssm get-parameter \
+              --name "/oxy/inbox/$parameter" \
+              --query 'Parameter.Name' \
+              --output text >/dev/null
+          done
+
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -186,17 +196,30 @@ jobs:
       # workflow greps for the pattern that module exports. Without that gate a
       # typo'd marker would read as "no post migration in this release" and the
       # drop would never be applied by anything.
-      - name: Decide whether a post-rollout migration task is needed
-        id: post_migrations
+      - name: Plan post-rollout reconciliation tasks
+        id: post_deploy_tasks
         run: |
           set -euo pipefail
           if grep -lE '^-- oxy:deploy-phase=post$' packages/api/drizzle/*.sql; then
-            echo 'command=["node","packages/api/dist/db/migrate.js","--phase=post"]' >>"$GITHUB_OUTPUT"
+            tasks=$(jq -cn '[
+              {
+                label: "Post-deploy migration",
+                command: ["node", "packages/api/dist/db/migrate.js", "--phase=post"]
+              },
+              {
+                label: "Inbox catalog registration",
+                command: ["bun", "run", "packages/api/scripts/register-inbox-capability-catalog.ts"]
+              }
+            ]')
             echo "This release carries post-rollout migrations."
           else
-            echo 'command=' >>"$GITHUB_OUTPUT"
-            echo "No post-rollout migrations in this release; skipping that task."
+            tasks=$(jq -cn '[{
+              label: "Inbox catalog registration",
+              command: ["bun", "run", "packages/api/scripts/register-inbox-capability-catalog.ts"]
+            }]')
+            echo "No post-rollout migrations in this release."
           fi
+          echo "tasks=$tasks" >>"$GITHUB_OUTPUT"
 
       - name: Register immutable task definition and deploy
         env:
@@ -214,7 +237,7 @@ jobs:
           # "skip when this push changed no migration file" would have skipped the
           # deploy AFTER the one that stranded 0013 and left production broken.
           RUN_MIGRATIONS: "true"
-          POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.post_migrations.outputs.command }}
+          POST_DEPLOY_TASKS_JSON: ${{ steps.post_deploy_tasks.outputs.tasks }}
           # Plain operational configuration, never provider credentials. The
           # Kaana hop is fully named here so an image deploy cannot silently
           # discard Terraform's task bindings; execution remains explicitly
@@ -233,7 +256,7 @@ jobs:
           # Re-assert new bindings here so capability authority cannot disappear
           # on the following image rollout.
           TASK_SECRET_OVERRIDES_JSON: >-
-            {"CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY"}
+            {"CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID","KAANA_EDGE_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/KAANA_EDGE_SIGNING_PRIVATE_KEY","INBOX_APPLICATION_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_KEY","INBOX_APPLICATION_SECRET":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/inbox/OXY_APPLICATION_SECRET"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
