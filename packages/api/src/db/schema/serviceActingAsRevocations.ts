@@ -4,26 +4,11 @@
  *
  * ## Why a marker table, when `app_grants` already exists
  *
- * Because for the applications that matter here there IS no `app_grants` row,
- * and there is not supposed to be one.
- *
- * A first-party Oxy application acting for a user is automatic: the platform
- * does not ask a user to authorize one Oxy app to act for them in another. That
- * is the same stance `app_grants` already takes — trusted applications are
- * auto-approved on the consent path and deliberately record no grant. So for
- * exactly the applications that can reach offline delegation, the grant table is
- * empty by design, and "delete the row" is not a revocation anyone can perform.
- *
- * Absence therefore cannot carry the answer in either direction:
- *
- *   - absence CANNOT mean revoked — a user who never connected anything has no
- *     row, and would be refusing an app they have never heard of;
- *   - absence CANNOT mean authorized on its own — that is what the trusted +
- *     active check decides, and it is checked separately.
- *
- * A revocation needs its own positive, persisted fact. This table is that fact
- * and nothing else: a row here means "no", and no row here means "ask the rest
- * of the rules".
+ * Deleting a grant is enough to fail closed, but absence cannot distinguish a
+ * deliberate refusal from an account that never consented. More importantly, a
+ * concurrent or stale writer could recreate a deleted grant after the user
+ * revoked it. This table is the positive refusal: a row here means "no" and is
+ * consulted before any grant that could say "yes".
  *
  * ## This does not reintroduce a second revocation surface
  *
@@ -36,8 +21,8 @@
  *
  * It also stays ONE user-facing action. `DELETE /auth/grants/:applicationId` is
  * still the only button: it deletes the grant row if there is one AND writes the
- * marker, so the same click revokes an OAuth grant and an automatic first-party
- * delegation without the user having to know which they had.
+ * marker, so the same click removes consent and records the user's explicit
+ * refusal.
  *
  * ## Undoing it takes a real decision, not an auto-approval
  *

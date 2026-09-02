@@ -552,31 +552,35 @@ describe('follow scopes are never auto-approved, for anybody', () => {
 });
 
 /**
- * Revoking has to reach the AUTOMATIC delegation too, not only the OAuth grant.
+ * Revoking removes explicit consent and records a positive refusal.
  *
- * Offline delegation is automatic for platform-trusted applications, which by
- * design have no `app_grants` row. So before the revocation marker existed, a
- * user clicking "disconnect" on a first-party app deleted nothing and revoked
- * nothing — silently, on exactly the applications with the most authority. These
- * tests assert against `resolveServiceActingAsGrant`, the function the verify
- * endpoint answers from, rather than against the marker row alone: a stored row
- * nothing consults would pass an existence check and still authorize the app.
+ * The grant is the only positive authorization path, including for first-party
+ * applications. The marker still matters: it wins over a stale or racing grant
+ * and can only be cleared by a fresh `acting-as:offline` consent flow. These
+ * tests assert against `resolveServiceActingAsGrant`, not storage alone.
  */
 describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
-  it('revokes a FIRST-PARTY app that never had a grant row to delete', async () => {
+  it('revokes an explicit FIRST-PARTY grant and writes a refusal marker', async () => {
     const userId = authenticatedUser?._id ?? '';
-    const { applicationId } = await client({ type: 'first_party' });
+    const { applicationId } = await client({
+      type: 'first_party',
+      scopes: ['user:read', 'acting-as:offline'],
+    });
+    await getDb().insert(appGrants).values({
+      userId,
+      applicationId,
+      scopes: ['user:read', 'acting-as:offline'],
+    });
 
-    // Automatic before: no grant row anywhere, and it may still act.
-    expect(await storedGrant(userId, applicationId)).toBeUndefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
       authorized: true,
-      scopes: ['user:read', 'files:read'],
+      scopes: ['user:read', 'acting-as:offline'],
     });
 
     const res = await send('DELETE', `/auth/grants/${applicationId}`);
 
     expect(res.status).toBe(200);
+    expect(await storedGrant(userId, applicationId)).toBeUndefined();
     expect(await storedRevocation(userId, applicationId)).toBeDefined();
     expect(await resolveServiceActingAsGrant(applicationId, userId)).toEqual({
       authorized: false,
@@ -586,8 +590,15 @@ describe('DELETE /auth/grants/:applicationId — offline delegation', () => {
 
   it('revokes for the caller only, leaving another user of the same app acting', async () => {
     const userId = authenticatedUser?._id ?? '';
-    const { applicationId } = await client({ type: 'first_party' });
+    const { applicationId } = await client({
+      type: 'first_party',
+      scopes: ['user:read', 'acting-as:offline'],
+    });
     const [other] = await getDb().insert(users).values({}).returning({ id: users.id });
+    await getDb().insert(appGrants).values([
+      { userId, applicationId, scopes: ['acting-as:offline'] },
+      { userId: other.id, applicationId, scopes: ['acting-as:offline'] },
+    ]);
 
     await send('DELETE', `/auth/grants/${applicationId}`);
 
