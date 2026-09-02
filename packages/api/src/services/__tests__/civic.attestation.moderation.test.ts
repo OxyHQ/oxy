@@ -24,15 +24,14 @@
  * scope — that belongs to `repoLog.test.ts` / `oxyRecordStore.test.ts`.
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair, verifySecp256k1Digest } from '@oxyhq/protocol/secp256k1';
 import { createHash } from 'node:crypto';
 import { signedRecordSigningInput } from '@oxyhq/protocol';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC = oxyKey.getPublic('hex');
-const OXY_PRIVATE = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC = oxyKey.publicKey;
+const OXY_PRIVATE = oxyKey.privateKey;
 
 const mockVerifyAndStore = jest.fn();
 const mockGetHead = jest.fn();
@@ -100,8 +99,8 @@ describe('attestModerationEffect — the signing path actually works', () => {
     // Verify the way a third party would: recompute the canonical signing input
     // from the envelope minus its signature, and check it against the public key.
     const { signature, ...fields } = record;
-    const digest = createHash('sha256').update(signedRecordSigningInput(fields)).digest();
-    const verified = ec.keyFromPublic(record.publicKey, 'hex').verify(digest, signature);
+    const digest = createHash('sha256').update(signedRecordSigningInput(fields)).digest('hex');
+    const verified = verifySecp256k1Digest(record.publicKey, digest, signature);
     expect(verified).toBe(true);
   });
 

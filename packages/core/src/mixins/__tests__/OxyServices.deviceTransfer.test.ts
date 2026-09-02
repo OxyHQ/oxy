@@ -20,7 +20,10 @@ jest.mock('../../session/socketLoader', () => ({
   getSocketIO: jest.fn(async () => null),
 }));
 
-import { ec as EC } from 'elliptic';
+import {
+  deriveSecp256k1PublicKey,
+  generateSecp256k1KeyPair,
+} from '@oxyhq/protocol/secp256k1';
 import { OxyServices } from '../../OxyServices';
 import { KeyManager } from '../../crypto/keyManager';
 import { SignatureService } from '../../crypto/signatureService';
@@ -29,8 +32,6 @@ import { hkdfSha256 } from '../../crypto/kdf';
 import { encryptAead, decryptAead } from '../../crypto/aead';
 import { bytesToHex, hexToBytes, utf8ToBytes, bytesToUtf8 } from '@noble/hashes/utils';
 import type { DeviceTransferInfoResponse } from '@oxyhq/contracts';
-
-const ec = new EC('secp256k1');
 
 /** A shared in-memory relay: a single pairing row, mirroring the API's shape. */
 interface RelayState {
@@ -100,9 +101,9 @@ describe('OxyServices.deviceTransfer', () => {
   let importedPrivateKey: string | null;
 
   beforeEach(() => {
-    const idKey = ec.genKeyPair();
-    identityPriv = idKey.getPrivate('hex');
-    identityPub = idKey.getPublic('hex');
+    const idKey = generateSecp256k1KeyPair();
+    identityPriv = idKey.privateKey;
+    identityPub = idKey.publicKey;
     importedPrivateKey = null;
 
     // Old device HOLDS the identity; new device IMPORTS it. One KeyManager is
@@ -111,7 +112,7 @@ describe('OxyServices.deviceTransfer', () => {
     jest.spyOn(KeyManager, 'getPublicKey').mockResolvedValue(identityPub);
     jest.spyOn(KeyManager, 'importKeyPair').mockImplementation(async (priv: string) => {
       importedPrivateKey = priv;
-      return ec.keyFromPrivate(priv, 'hex').getPublic('hex');
+      return deriveSecp256k1PublicKey(priv);
     });
     // The server (api service test) verifies the signature; here it is opaque.
     jest.spyOn(SignatureService, 'sign').mockResolvedValue('sig-hex');
@@ -203,11 +204,11 @@ describe('device-transfer crypto derivation', () => {
 
   it('is symmetric and round-trips the sealed identity key', () => {
     const pairingId = 'b'.repeat(32);
-    const oldEph = ec.genKeyPair();
-    const newEph = ec.genKeyPair();
+    const oldEph = generateSecp256k1KeyPair();
+    const newEph = generateSecp256k1KeyPair();
 
-    const sharedOld = deriveSharedSecret(oldEph.getPrivate('hex'), newEph.getPublic('hex'));
-    const sharedNew = deriveSharedSecret(newEph.getPrivate('hex'), oldEph.getPublic('hex'));
+    const sharedOld = deriveSharedSecret(oldEph.privateKey, newEph.publicKey);
+    const sharedNew = deriveSharedSecret(newEph.privateKey, oldEph.publicKey);
     expect(bytesToHex(sharedOld)).toBe(bytesToHex(sharedNew));
 
     const keyOld = deriveTransferKey(sharedOld, pairingId);
@@ -223,10 +224,10 @@ describe('device-transfer crypto derivation', () => {
 
   it('fails authentication when the ciphertext is tampered', () => {
     const pairingId = 'c'.repeat(32);
-    const oldEph = ec.genKeyPair();
-    const newEph = ec.genKeyPair();
+    const oldEph = generateSecp256k1KeyPair();
+    const newEph = generateSecp256k1KeyPair();
     const key = deriveTransferKey(
-      deriveSharedSecret(oldEph.getPrivate('hex'), newEph.getPublic('hex')),
+      deriveSharedSecret(oldEph.privateKey, newEph.publicKey),
       pairingId,
     );
     const { nonce, ciphertext } = encryptAead(key, utf8ToBytes('{"privateKey":"deadbeef"}'));
@@ -234,13 +235,13 @@ describe('device-transfer crypto derivation', () => {
     const tampered = Uint8Array.from(ciphertext);
     tampered[0] ^= 0x01; // flip one bit
     const keyNew = deriveTransferKey(
-      deriveSharedSecret(newEph.getPrivate('hex'), oldEph.getPublic('hex')),
+      deriveSharedSecret(newEph.privateKey, oldEph.publicKey),
       pairingId,
     );
     expect(() => decryptAead(keyNew, nonce, tampered)).toThrow();
     // And a wrong pairingId (wrong HKDF salt) also fails — binds to the pairing.
     const wrongSaltKey = deriveTransferKey(
-      deriveSharedSecret(newEph.getPrivate('hex'), oldEph.getPublic('hex')),
+      deriveSharedSecret(newEph.privateKey, oldEph.publicKey),
       'd'.repeat(32),
     );
     expect(() => decryptAead(wrongSaltKey, nonce, ciphertext)).toThrow();
@@ -248,10 +249,10 @@ describe('device-transfer crypto derivation', () => {
 
   it('re-derives from hex the way the wire transports the material', () => {
     const pairingId = 'e'.repeat(32);
-    const oldEph = ec.genKeyPair();
-    const newEph = ec.genKeyPair();
+    const oldEph = generateSecp256k1KeyPair();
+    const newEph = generateSecp256k1KeyPair();
     const keyOld = deriveTransferKey(
-      deriveSharedSecret(oldEph.getPrivate('hex'), newEph.getPublic('hex')),
+      deriveSharedSecret(oldEph.privateKey, newEph.publicKey),
       pairingId,
     );
     const { nonce, ciphertext } = encryptAead(keyOld, utf8ToBytes('{"k":1}'));
@@ -261,7 +262,7 @@ describe('device-transfer crypto derivation', () => {
     const ciphertextHex = bytesToHex(ciphertext);
 
     const keyNew = deriveTransferKey(
-      deriveSharedSecret(newEph.getPrivate('hex'), oldEph.getPublic('hex')),
+      deriveSharedSecret(newEph.privateKey, oldEph.publicKey),
       pairingId,
     );
     const opened = bytesToUtf8(decryptAead(keyNew, hexToBytes(nonceHex), hexToBytes(ciphertextHex)));

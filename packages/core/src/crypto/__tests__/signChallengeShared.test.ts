@@ -5,20 +5,18 @@
  * same `auth:${publicKey}:${challenge}:${timestamp}` message format so the
  * server verification path is unchanged — but sources the SHARED key from
  * `KeyManager` (not the primary device key). We mock the shared key access with
- * a REAL elliptic secp256k1 keypair so signing/verification is genuine.
+ * a real secp256k1 keypair so signing/verification is genuine.
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { verifySignature } from '@oxyhq/protocol';
 import { KeyManager } from '../keyManager';
 import { SignatureService } from '../signatureService';
 
-const ec = new EC('secp256k1');
-
 describe('SignatureService.signChallengeWithSharedKey', () => {
-  const sharedKeyPair = ec.genKeyPair();
-  const sharedPublicKey = sharedKeyPair.getPublic('hex');
-  const sharedPrivateKey = sharedKeyPair.getPrivate('hex');
+  const sharedKeyPair = generateSecp256k1KeyPair();
+  const sharedPublicKey = sharedKeyPair.publicKey;
+  const sharedPrivateKey = sharedKeyPair.privateKey;
 
   afterEach(() => {
     jest.restoreAllMocks();

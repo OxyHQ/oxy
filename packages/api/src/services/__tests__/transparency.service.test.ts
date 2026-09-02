@@ -40,18 +40,17 @@
  * The protocol crypto is real throughout.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { asc, eq, sql } from 'drizzle-orm';
 import {
   checkpointHash,
   verifyCheckpointSignature,
   verifyInclusionProof,
 } from '@oxyhq/protocol';
-import { ec as EC } from 'elliptic';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PRIVATE_KEY = oxyKey.getPrivate('hex');
-const OXY_PUBLIC_KEY = oxyKey.getPublic('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PRIVATE_KEY = oxyKey.privateKey;
+const OXY_PUBLIC_KEY = oxyKey.publicKey;
 
 jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },

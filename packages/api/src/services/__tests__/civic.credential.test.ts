@@ -32,8 +32,8 @@
  * carries a per-test random id and no assertion depends on a table being empty.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { createHash, randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
 import { eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -51,10 +51,9 @@ import { signRecordEnvelope } from '../signedRecord.service';
 import { buildUserDid, OXY_DID } from '../did.service';
 import { CREDENTIAL_BASE_TYPE, CREDENTIAL_COLLECTION } from '../../utils/civic.constants';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC = oxyKey.getPublic('hex');
-const OXY_PRIVATE = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC = oxyKey.publicKey;
+const OXY_PRIVATE = oxyKey.privateKey;
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
@@ -66,13 +65,13 @@ interface Signer {
 }
 
 async function makeSigner(): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const id = uniqueId();
   await getDb()
     .insert(users)
     .values({ id, username: `c${id.slice(0, 12)}`, publicKey });
-  return { userId: id, did: buildUserDid(id), publicKey, privateKey: keyPair.getPrivate('hex') };
+  return { userId: id, did: buildUserDid(id), publicKey, privateKey: keyPair.privateKey };
 }
 
 async function makeHolder(): Promise<string> {
@@ -418,7 +417,7 @@ describe('verifyCredential — the STORED envelope is the source of truth', () =
     const { issuer, recordId } = await issued();
     await getDb()
       .update(users)
-      .set({ publicKey: ec.genKeyPair().getPublic('hex') })
+      .set({ publicKey: generateSecp256k1KeyPair().publicKey })
       .where(eq(users.id, issuer.userId));
 
     // The credential is untouched; only the issuer's CURRENT verification
@@ -453,7 +452,7 @@ describe('verifyCredential — the STORED envelope is the source of truth', () =
   it('FAILS when the issuer DID resolves to no account at all', async () => {
     const chainOwner = await makeSigner();
     const holderUserId = await makeHolder();
-    const ghost = ec.genKeyPair();
+    const ghost = generateSecp256k1KeyPair();
     const ghostDid = buildUserDid(uniqueId());
     const envelope = signRecordEnvelope(
       {
@@ -471,10 +470,10 @@ describe('verifyCredential — the STORED envelope is the source of truth', () =
         prev: null,
         collection: CREDENTIAL_COLLECTION,
         rkey: 'ghost',
-        publicKey: ghost.getPublic('hex'),
+        publicKey: ghost.publicKey,
         alg: 'ES256K-DER-SHA256',
       },
-      ghost.getPrivate('hex'),
+      ghost.privateKey,
     );
     const { recordId } = await plantCredential({
       chainUserId: chainOwner.userId,

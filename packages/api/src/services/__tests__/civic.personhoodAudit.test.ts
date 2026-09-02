@@ -25,7 +25,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { and, eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodStatuses } from '../../db/schema/personhoodStatuses';
@@ -51,7 +51,6 @@ import {
   VOUCH_SLASHED_ACTION,
 } from '../../utils/reputation.constants';
 
-const ec = new EC('secp256k1');
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
 /** How many real persons this file seeds before exercising the random sweep. */
@@ -78,8 +77,8 @@ async function makeJudged(isRealPerson: boolean): Promise<string> {
 
 /** An ACTIVE vouch backed by a real signed record on the voucher's own chain. */
 async function seedActiveVouch(subjectUserId: string): Promise<string> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const voucherId = uniqueId();
   await getDb()
     .insert(users)
@@ -99,7 +98,7 @@ async function seedActiveVouch(subjectUserId: string): Promise<string> {
       publicKey,
       alg: 'ES256K-DER-SHA256',
     },
-    keyPair.getPrivate('hex'),
+    keyPair.privateKey,
   );
   const stored = await verifyAndStoreRecord(envelope, voucherId);
   if (!stored.ok) {

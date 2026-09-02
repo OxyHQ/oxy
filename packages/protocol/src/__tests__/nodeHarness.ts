@@ -7,16 +7,14 @@
  * service.
  */
 
+import { generateSecp256k1KeyPair } from '../secp256k1';
 import { createHash } from 'node:crypto';
-import { ec as EC } from 'elliptic';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { checkContinuity } from '../chain/continuity';
 import { signEnvelope, signMessage, verifySignature } from '../envelope/sign';
 import type { AppendOutcome, ChainHead } from '../chain/types';
 import type { BlobStore, RecordStore } from '../chain/recordStore';
 import { BlobHashMismatchError, type NodeLogger, type OwnerAuth } from '../node/nodeApp';
-
-const ec = new EC('secp256k1');
 
 export interface TestKeyPair {
   privateKey: string;
@@ -25,8 +23,8 @@ export interface TestKeyPair {
 
 /** Generate a secp256k1 keypair (uncompressed hex public key, matching the signer). */
 export function generateKeyPair(): TestKeyPair {
-  const kp = ec.genKeyPair();
-  return { privateKey: kp.getPrivate('hex'), publicKey: kp.getPublic('hex') };
+  const kp = generateSecp256k1KeyPair();
+  return { privateKey: kp.privateKey, publicKey: kp.publicKey };
 }
 
 export const DEFAULT_SUBJECT = 'did:web:node.example:u:owner';

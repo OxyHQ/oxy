@@ -27,11 +27,14 @@
  * the user cache, the session service and the socket emitter are mocked.
  */
 
+import {
+  generateSecp256k1KeyPair,
+  normalizeSecp256k1PublicKey,
+} from '@oxyhq/protocol/secp256k1';
 import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { ec as EC } from 'elliptic';
 import { and, eq } from 'drizzle-orm';
 
 /** The account `authMiddleware` injects for the current test. */
@@ -77,8 +80,6 @@ import authLinkingRouter from '../authLinking';
 import SignatureService from '../../services/signature.service';
 import { buildDidDocument } from '../../services/did.service';
 import { errorHandler } from '../../middleware/errorHandler';
-
-const ec = new EC('secp256k1');
 
 interface JsonResponse {
   status: number;
@@ -193,9 +194,9 @@ afterAll(async () => {
 
 beforeEach(async () => {
   jest.clearAllMocks();
-  oldKeyPair = ec.genKeyPair();
-  oldPublicKey = oldKeyPair.getPublic('hex');
-  oldPrivateKey = oldKeyPair.getPrivate('hex');
+  oldKeyPair = generateSecp256k1KeyPair();
+  oldPublicKey = oldKeyPair.publicKey;
+  oldPrivateKey = oldKeyPair.privateKey;
   currentUserId = await accountWithIdentity(oldPublicKey);
 });
 
@@ -253,8 +254,8 @@ function buildCompleteBody(params: {
   timestamp: number;
   signOutEverywhere?: boolean;
 }): Record<string, unknown> {
-  const newPublicKey = params.newPublicKey ?? params.newKeyPair.getPublic('hex');
-  const newPrivateKey = params.newKeyPair.getPrivate('hex');
+  const newPublicKey = params.newPublicKey ?? params.newKeyPair.publicKey;
+  const newPrivateKey = params.newKeyPair.privateKey;
   return {
     newPublicKey,
     challenge: params.challenge,
@@ -291,8 +292,8 @@ describe('POST /auth/rotate/challenge', () => {
 
 describe('POST /auth/rotate/complete — happy path', () => {
   it('replaces the identity key IN PLACE: same row, new key, challenge spent, backup gone', async () => {
-    const newKeyPair = ec.genKeyPair();
-    const newPublicKey = newKeyPair.getPublic('hex');
+    const newKeyPair = generateSecp256k1KeyPair();
+    const newPublicKey = newKeyPair.publicKey;
     const [identityBefore] = (await storedAuthMethods(currentUserId)).filter((m) => m.type === 'identity');
     await getDb().insert(identityBackups).values({
       userId: currentUserId,
@@ -351,7 +352,7 @@ describe('POST /auth/rotate/complete — happy path', () => {
       .delete(userAuthMethods)
       .where(and(eq(userAuthMethods.userId, currentUserId), eq(userAuthMethods.type, 'identity')));
 
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const res = await request(
       server,
@@ -363,14 +364,14 @@ describe('POST /auth/rotate/complete — happy path', () => {
     expect(res.status).toBe(200);
     const methods = await storedAuthMethods(currentUserId);
     expect(methods).toHaveLength(1);
-    expect(methods[0].methodPublicKey).toBe(newKeyPair.getPublic('hex'));
+    expect(methods[0].methodPublicKey).toBe(newKeyPair.publicKey);
   });
 });
 
 describe('security invariant — proof-of-possession of the new key', () => {
   it('rejects a request missing newKeyProof (schema validation, 400)', async () => {
-    const newKeyPair = ec.genKeyPair();
-    const newPublicKey = newKeyPair.getPublic('hex');
+    const newKeyPair = generateSecp256k1KeyPair();
+    const newPublicKey = newKeyPair.publicKey;
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
     const signature = signRotation({ privateKey: oldPrivateKey, oldPublicKey, newPublicKey, challenge, timestamp });
@@ -383,15 +384,15 @@ describe('security invariant — proof-of-possession of the new key', () => {
   });
 
   it('rejects a newKeyProof NOT signed by the new key (400, nothing written, challenge unspent)', async () => {
-    const newKeyPair = ec.genKeyPair();
-    const newPublicKey = newKeyPair.getPublic('hex');
-    const impostor = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
+    const newPublicKey = newKeyPair.publicKey;
+    const impostor = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
 
     const signature = signRotation({ privateKey: oldPrivateKey, oldPublicKey, newPublicKey, challenge, timestamp });
     // Proof signed by a DIFFERENT key than newPublicKey.
-    const newKeyProof = signNewKeyProof({ newPrivateKey: impostor.getPrivate('hex'), newPublicKey, challenge, timestamp });
+    const newKeyProof = signNewKeyProof({ newPrivateKey: impostor.privateKey, newPublicKey, challenge, timestamp });
 
     const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, newKeyProof, timestamp });
 
@@ -403,9 +404,9 @@ describe('security invariant — proof-of-possession of the new key', () => {
 
 describe('security invariant — key re-encoding is canonicalized', () => {
   it('stores the canonical (uncompressed, lowercased) key even when a compressed/uppercased form is sent', async () => {
-    const newKeyPair = ec.genKeyPair();
-    const compressed = newKeyPair.getPublic(true, 'hex').toUpperCase(); // compressed + uppercased
-    const canonical = newKeyPair.getPublic(false, 'hex').toLowerCase(); // uncompressed + lowercased
+    const newKeyPair = generateSecp256k1KeyPair();
+    const compressed = normalizeSecp256k1PublicKey(newKeyPair.publicKey, true).toUpperCase(); // compressed + uppercased
+    const canonical = newKeyPair.publicKey.toLowerCase(); // uncompressed + lowercased
 
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
@@ -426,9 +427,9 @@ describe('security invariant — key re-encoding is canonicalized', () => {
 
   it('rejects rotating to a re-encoding (compressed) of a key already registered to another account (409)', async () => {
     // A key some OTHER account already holds, stored canonically.
-    const victimKeyPair = ec.genKeyPair();
-    const victimCanonical = victimKeyPair.getPublic(false, 'hex').toLowerCase();
-    const victimCompressed = victimKeyPair.getPublic(true, 'hex');
+    const victimKeyPair = generateSecp256k1KeyPair();
+    const victimCanonical = victimKeyPair.publicKey.toLowerCase();
+    const victimCompressed = normalizeSecp256k1PublicKey(victimKeyPair.publicKey, true);
     await accountWithIdentity(victimCanonical);
 
     const challenge = await mintRotateChallenge();
@@ -449,31 +450,31 @@ describe('security invariant — key re-encoding is canonicalized', () => {
 
 describe('security invariant — oldPublicKey is server-derived', () => {
   it('ignores a client-supplied oldPublicKey and validates against the user row', async () => {
-    const newKeyPair = ec.genKeyPair();
-    const attacker = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
+    const attacker = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
     const body = buildCompleteBody({ oldPrivateKey, newKeyPair, oldPublicKey, challenge, timestamp });
 
     const res = await request(server, 'POST', '/auth/rotate/complete', {
       ...body,
-      oldPublicKey: attacker.getPublic('hex'), // ignored by the server
+      oldPublicKey: attacker.publicKey, // ignored by the server
     });
 
     expect(res.status).toBe(200);
-    expect((await storedUser(currentUserId)).publicKey).toBe(newKeyPair.getPublic('hex'));
+    expect((await storedUser(currentUserId)).publicKey).toBe(newKeyPair.publicKey);
   });
 
   it('rejects a signature made with a key other than the account key (proving control of X but rotating Y)', async () => {
-    const newKeyPair = ec.genKeyPair();
-    const newPublicKey = newKeyPair.getPublic('hex');
-    const attacker = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
+    const newPublicKey = newKeyPair.publicKey;
+    const attacker = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
 
     // Old-key signature by the WRONG key; new-key proof is valid.
-    const signature = signRotation({ privateKey: attacker.getPrivate('hex'), oldPublicKey, newPublicKey, challenge, timestamp });
-    const newKeyProof = signNewKeyProof({ newPrivateKey: newKeyPair.getPrivate('hex'), newPublicKey, challenge, timestamp });
+    const signature = signRotation({ privateKey: attacker.privateKey, oldPublicKey, newPublicKey, challenge, timestamp });
+    const newKeyProof = signNewKeyProof({ newPrivateKey: newKeyPair.privateKey, newPublicKey, challenge, timestamp });
 
     const res = await request(server, 'POST', '/auth/rotate/complete', { newPublicKey, challenge, signature, newKeyProof, timestamp });
 
@@ -485,10 +486,10 @@ describe('security invariant — oldPublicKey is server-derived', () => {
   });
 
   it('rotates when the account stores a compressed identity key but the client signs with the uncompressed form', async () => {
-    const compressedOld = oldKeyPair.getPublic(true, 'hex');
+    const compressedOld = normalizeSecp256k1PublicKey(oldKeyPair.publicKey, true);
     currentUserId = await accountWithIdentity(compressedOld);
 
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const res = await request(
       server,
@@ -498,13 +499,13 @@ describe('security invariant — oldPublicKey is server-derived', () => {
     );
 
     expect(res.status).toBe(200);
-    expect((await storedUser(currentUserId)).publicKey).toBe(newKeyPair.getPublic(false, 'hex').toLowerCase());
+    expect((await storedUser(currentUserId)).publicKey).toBe(newKeyPair.publicKey.toLowerCase());
   });
 });
 
 describe('security invariant — purpose scoping', () => {
   it('a signin challenge (default purpose) can NOT complete a rotation', async () => {
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     // Seed a SIGNIN-purpose challenge directly (as the signin flow would).
     const challenge = `signin-${randomUUID()}`;
     await getDb().insert(authChallenges).values({
@@ -529,8 +530,8 @@ describe('security invariant — purpose scoping', () => {
   });
 
   it("a rotate challenge minted for ANOTHER account's key cannot rotate this one", async () => {
-    const strangerKeyPair = ec.genKeyPair();
-    const strangerPublicKey = strangerKeyPair.getPublic('hex');
+    const strangerKeyPair = generateSecp256k1KeyPair();
+    const strangerPublicKey = strangerKeyPair.publicKey;
     const challenge = `foreign-${randomUUID()}`;
     await getDb().insert(authChallenges).values({
       publicKey: strangerPublicKey,
@@ -540,7 +541,7 @@ describe('security invariant — purpose scoping', () => {
       used: false,
     });
 
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const res = await request(
       server,
       'POST',
@@ -556,8 +557,8 @@ describe('security invariant — purpose scoping', () => {
 
 describe('security invariant — single-use challenge', () => {
   it('rejects a second rotation with an already-burned challenge', async () => {
-    const firstKeyPair = ec.genKeyPair();
-    const first = firstKeyPair.getPublic('hex');
+    const firstKeyPair = generateSecp256k1KeyPair();
+    const first = firstKeyPair.publicKey;
     const challenge = await mintRotateChallenge();
     const timestamp = Date.now();
 
@@ -570,12 +571,12 @@ describe('security invariant — single-use challenge', () => {
     expect(res1.status).toBe(200);
 
     // Replay with the same (now burned) challenge — the account key is now `first`.
-    const secondKeyPair = ec.genKeyPair();
+    const secondKeyPair = generateSecp256k1KeyPair();
     const res2 = await request(
       server,
       'POST',
       '/auth/rotate/complete',
-      buildCompleteBody({ oldPrivateKey: firstKeyPair.getPrivate('hex'), newKeyPair: secondKeyPair, oldPublicKey: first, challenge, timestamp }),
+      buildCompleteBody({ oldPrivateKey: firstKeyPair.privateKey, newKeyPair: secondKeyPair, oldPublicKey: first, challenge, timestamp }),
     );
 
     expect(res2.status).toBe(401);
@@ -584,7 +585,7 @@ describe('security invariant — single-use challenge', () => {
   });
 
   it('rejects an EXPIRED challenge with 401 (the read filters the deadline; it does not wait for the sweep)', async () => {
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     await getDb()
       .update(authChallenges)
@@ -607,7 +608,7 @@ describe('security invariant — single-use challenge', () => {
 
 describe('security invariant — stale request does not self-burn its challenge', () => {
   it('rejects a stale timestamp BEFORE burning the challenge', async () => {
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     // 10 minutes old — beyond the 5-minute freshness window.
     const timestamp = Date.now() - 10 * 60 * 1000;
@@ -628,8 +629,8 @@ describe('security invariant — stale request does not self-burn its challenge'
 
 describe('conflict + validation guards', () => {
   it('rejects a newPublicKey already registered to another account (409)', async () => {
-    const newKeyPair = ec.genKeyPair();
-    await accountWithIdentity(newKeyPair.getPublic(false, 'hex').toLowerCase());
+    const newKeyPair = generateSecp256k1KeyPair();
+    await accountWithIdentity(newKeyPair.publicKey.toLowerCase());
 
     const challenge = await mintRotateChallenge();
     const res = await request(
@@ -689,7 +690,7 @@ describe('signOutEverywhere', () => {
     await activeSession(s3);
     mockDeactivateAll.mockResolvedValue(2);
 
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const res = await request(
       server,
@@ -720,7 +721,7 @@ describe('signOutEverywhere', () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(sessions.sessionId, stale));
 
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const res = await request(
       server,
@@ -737,7 +738,7 @@ describe('signOutEverywhere', () => {
   it('does NOT revoke other sessions when the flag is absent', async () => {
     await activeSession(`s-${randomUUID()}`);
 
-    const newKeyPair = ec.genKeyPair();
+    const newKeyPair = generateSecp256k1KeyPair();
     const challenge = await mintRotateChallenge();
     const res = await request(
       server,

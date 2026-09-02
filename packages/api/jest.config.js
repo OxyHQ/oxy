@@ -31,6 +31,7 @@ module.exports = {
     // computeRecordId, imported by the signed-record + civic + node-sync services):
     // resolve from source so the api-test job needs no prior protocol build.
     '^@oxyhq/protocol$': '<rootDir>/../protocol/src/index.ts',
+    '^@oxyhq/protocol/secp256k1$': '<rootDir>/../protocol/src/secp256k1.ts',
     // Same rationale for @oxyhq/core (getNormalizedUserHandle in did.service.ts,
     // User model, etc.) and @oxyhq/core/server (safeFetch/SsrfRejection): resolve
     // from source so api tests do not depend on a prior core build.

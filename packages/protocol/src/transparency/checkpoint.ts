@@ -25,7 +25,7 @@
 import { canonicalize } from '../envelope/canonicalJson';
 import { sha256 } from '../envelope/recordId';
 import { signMessage, verifySignature } from '../envelope/sign';
-import { derivePublicKeyHex } from '../envelope/secp256k1';
+import { deriveSecp256k1PublicKey } from '../secp256k1';
 
 /** Domain prefix for checkpoint signing bytes. */
 const CHECKPOINT_PREFIX = 'oxy.transparency.checkpoint.v1:';
@@ -88,7 +88,7 @@ export async function signCheckpoint(
   privateKeyHex: string,
 ): Promise<TransparencyCheckpointSignature> {
   return {
-    publicKey: derivePublicKeyHex(privateKeyHex),
+    publicKey: deriveSecp256k1PublicKey(privateKeyHex),
     alg: ALG,
     signature: await signMessage(checkpointSigningInput(fields), privateKeyHex),
   };

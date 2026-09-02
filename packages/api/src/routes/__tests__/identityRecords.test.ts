@@ -26,11 +26,10 @@ import express from 'express';
 import http from 'http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'net';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 
-const ec = new EC('secp256k1');
-const PUBLIC_KEY = ec.genKeyPair().getPublic('hex');
+const PUBLIC_KEY = generateSecp256k1KeyPair().publicKey;
 
 /** The account `authMiddleware` injects for the current test. */
 let currentUserId = '';

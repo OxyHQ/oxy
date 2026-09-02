@@ -27,8 +27,8 @@
  *    chain names that same address.
  */
 
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { createHash, randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
 import { and, eq } from 'drizzle-orm';
 import type { SignedRecordEnvelope } from '@oxyhq/contracts';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
@@ -50,10 +50,9 @@ import {
 } from '../../utils/reputation.constants';
 import { REAL_LIFE_NONCE_MAX_AGE_MS } from '../../utils/civic.constants';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC = oxyKey.getPublic('hex');
-const OXY_PRIVATE = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC = oxyKey.publicKey;
+const OXY_PRIVATE = oxyKey.privateKey;
 
 const unique = () => randomUUID();
 
@@ -68,13 +67,13 @@ interface Signer {
 
 /** A counterparty: an account whose signing key the resolver will authorize. */
 async function signer(): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const [row] = await getDb()
     .insert(users)
     .values({ username: `u-${unique().slice(0, 18)}`, publicKey })
     .returning({ id: users.id });
-  return { id: row.id, privateKey: keyPair.getPrivate('hex'), publicKey };
+  return { id: row.id, privateKey: keyPair.privateKey, publicKey };
 }
 
 /** A subject: a plain account, which is all the QR owner needs to be. */
@@ -452,7 +451,7 @@ describe('the envelope gates', () => {
     // the attestor's `publicKey`, so only a real verification catches it.
     const forged = await attestation(attestor, {
       about: buildUserDid(subject),
-      signingKey: ec.genKeyPair().getPrivate('hex'),
+      signingKey: generateSecp256k1KeyPair().privateKey,
     });
 
     expect(await submitRealLifeAttestation(forged, attestor.id)).toEqual({

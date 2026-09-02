@@ -2,12 +2,10 @@
  * loadConfig tests — env-driven configuration parsing/validation.
  */
 
-import { ec as EC } from 'elliptic';
+import { normalizeSecp256k1PublicKey } from '@oxyhq/protocol/secp256k1';
 import { ConfigError, loadConfig } from '../config';
 import { DEFAULT_MAX_BLOB_BYTES, DEFAULT_PORT, PROTOCOL_VERSION } from '@oxyhq/protocol/node';
 import { generateTestKeyPair } from './helpers/signEnvelope';
-
-const secp256k1 = new EC('secp256k1');
 
 describe('loadConfig', () => {
   const owner = generateTestKeyPair();
@@ -50,9 +48,8 @@ describe('loadConfig', () => {
     // Re-encode the owner key in compressed (02|03 + 64 hex) form. A signed
     // envelope always embeds the UNCOMPRESSED key, so without normalization the
     // owner check (a string compare) would never match → all owner writes break.
-    const key = secp256k1.keyFromPublic(owner.publicKey, 'hex');
-    const compressed = key.getPublic(true, 'hex');
-    const uncompressed = key.getPublic(false, 'hex');
+    const compressed = normalizeSecp256k1PublicKey(owner.publicKey, true);
+    const uncompressed = normalizeSecp256k1PublicKey(owner.publicKey);
     expect(compressed.startsWith('02') || compressed.startsWith('03')).toBe(true);
     expect(uncompressed.startsWith('04')).toBe(true);
 
@@ -64,13 +61,12 @@ describe('loadConfig', () => {
 
   it('normalizes an explicit compressed node PUBLIC_KEY independently of the owner key', () => {
     const nodeKp = generateTestKeyPair();
-    const nodeKey = secp256k1.keyFromPublic(nodeKp.publicKey, 'hex');
     const config = loadConfig({
       OXY_NODE_OWNER_PUBLIC_KEY: owner.publicKey,
-      OXY_NODE_PUBLIC_KEY: nodeKey.getPublic(true, 'hex'),
+      OXY_NODE_PUBLIC_KEY: normalizeSecp256k1PublicKey(nodeKp.publicKey, true),
     });
     expect(config.ownerPublicKey).toBe(owner.publicKey.toLowerCase());
-    expect(config.nodePublicKey).toBe(nodeKey.getPublic(false, 'hex'));
+    expect(config.nodePublicKey).toBe(nodeKp.publicKey);
   });
 
   it('rejects a hex-shaped owner key that is not a valid curve point', () => {

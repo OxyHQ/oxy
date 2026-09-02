@@ -30,7 +30,7 @@ This is not hypothetical — it took main's whole `packages/api` jest run down (
 Same trap applies to Metro consumers: the `"react-native"` export condition points at published `src/`, so RN apps compile core/services SOURCE too. Babel does not typecheck, which is the only reason those apps do not also break.
 
 - Shims are legitimate ONLY for a dependency with no types at all AND no `@types/` package (`buffer`, `expo-crypto`, `expo-secure-store` — the three left in core). Check both before writing one.
-- If a type from a dependency appears in a package's PUBLISHED `.d.ts` (e.g. `KeyManager.getKeyPairObject(): EC.KeyPair`), its `@types/` package belongs in `dependencies`, not `devDependencies` — otherwise it resolves to nothing in the consumer and `skipLibCheck` silently degrades it to `any`.
+- If a type from a dependency appears in a package's PUBLISHED `.d.ts`, its type package belongs in `dependencies`, not `devDependencies` — otherwise it resolves to nothing in the consumer and `skipLibCheck` silently degrades it to `any`. Prefer owned value-oriented interfaces that do not expose an implementation library at all.
 - Verify a shim is load-bearing by deleting it and running the package's own `tsc`: core's 70-line `elliptic` shim had exactly one line anything used, and its `color` shim was for a package core does not import at all.
 
 ## Hermes Unicode Property Escapes (mobile — critical)

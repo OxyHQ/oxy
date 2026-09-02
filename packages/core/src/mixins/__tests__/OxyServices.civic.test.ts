@@ -29,7 +29,7 @@
  * they isolate the SDK's request shaping from native key storage.
  */
 
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import type {
   ExportAttestation,
   PublicCard,
@@ -40,8 +40,6 @@ import { OxyServices } from '../../OxyServices';
 import { canonicalize, signMessage } from '@oxyhq/protocol';
 import { SignatureService } from '../../crypto/signatureService';
 import { parseAttestPayload, parseIdPayload, verifyPublicCardAttestation } from '../OxyServices.civic';
-
-const ec = new EC('secp256k1');
 
 const baseCard: PublicCard = {
   did: 'did:web:oxy.so:u:user-123',
@@ -58,9 +56,9 @@ const baseCard: PublicCard = {
 
 /** Sign `canonicalize(card)` with a fresh keypair and return the sealed attestation. */
 async function signCard(card: PublicCard): Promise<{ attestation: ExportAttestation; publicKey: string }> {
-  const keyPair = ec.genKeyPair();
-  const privateKey = keyPair.getPrivate('hex');
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const privateKey = keyPair.privateKey;
+  const publicKey = keyPair.publicKey;
   const signature = await signMessage(canonicalize(card), privateKey);
   return {
     attestation: {
@@ -131,7 +129,7 @@ describe('OxyServices.civic', () => {
 
     it('returns verified:false (no throw) when the signature is from a different key', async () => {
       const { attestation } = await signCard(baseCard);
-      const otherKey = ec.genKeyPair().getPublic('hex');
+      const otherKey = generateSecp256k1KeyPair().publicKey;
       const forged: ExportAttestation = { ...attestation, publicKey: otherKey };
       makeRequestSpy.mockResolvedValue({ card: baseCard, attestation: forged });
 

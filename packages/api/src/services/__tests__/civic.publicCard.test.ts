@@ -29,7 +29,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { eq } from 'drizzle-orm';
 import { canonicalize } from '@oxyhq/protocol';
 import type { PublicCard } from '@oxyhq/contracts';
@@ -43,10 +43,9 @@ import SignatureService from '../signature.service';
 import { buildUserDid, OXY_DID } from '../did.service';
 import { getAssetCdnUrl } from '../../config/cdn';
 
-const ec = new EC('secp256k1');
-const oxyKey = ec.genKeyPair();
-const OXY_PUBLIC = oxyKey.getPublic('hex');
-const OXY_PRIVATE = oxyKey.getPrivate('hex');
+const oxyKey = generateSecp256k1KeyPair();
+const OXY_PUBLIC = oxyKey.publicKey;
+const OXY_PRIVATE = oxyKey.privateKey;
 
 const uniqueId = () => randomUUID().replace(/-/g, '');
 
@@ -243,7 +242,7 @@ describe('the Oxy attestation is what a scanner checks offline', () => {
     const signed = await buildSignedPublicCard(userId);
     if (!signed?.attestation) throw new Error('expected an attested card');
 
-    const stranger = ec.genKeyPair().getPublic('hex');
+    const stranger = generateSecp256k1KeyPair().publicKey;
     expect(
       SignatureService.verifySignature(
         canonicalize(signed.card),

@@ -26,7 +26,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { ec as EC } from 'elliptic';
+import { generateSecp256k1KeyPair } from '@oxyhq/protocol/secp256k1';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { personhoodVouches } from '../../db/schema/personhoodVouches';
 import { sessions } from '../../db/schema/sessions';
@@ -41,7 +41,6 @@ import {
   SYBIL_VOUCH_RING_WEIGHT,
 } from '../../utils/civic.constants';
 
-const ec = new EC('secp256k1');
 const unique = () => randomUUID();
 
 /** An account holding a signing key, so its vouch envelopes really verify. */
@@ -52,13 +51,13 @@ interface Signer {
 }
 
 async function signer(): Promise<Signer> {
-  const keyPair = ec.genKeyPair();
-  const publicKey = keyPair.getPublic('hex');
+  const keyPair = generateSecp256k1KeyPair();
+  const publicKey = keyPair.publicKey;
   const [row] = await getDb()
     .insert(users)
     .values({ username: `u-${unique().slice(0, 18)}`, publicKey })
     .returning({ id: users.id });
-  return { id: row.id, privateKey: keyPair.getPrivate('hex'), publicKey };
+  return { id: row.id, privateKey: keyPair.privateKey, publicKey };
 }
 
 /** An active session for `userId` on `deviceId`. */

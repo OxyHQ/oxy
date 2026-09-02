@@ -5,10 +5,13 @@
  * Used to authenticate users via their public key and digital signatures.
  */
 
-import { ec as EC } from 'elliptic';
+import {
+  isValidSecp256k1PublicKey,
+  normalizeSecp256k1PublicKey,
+  signSecp256k1Digest,
+  verifySecp256k1Digest,
+} from '@oxyhq/protocol/secp256k1';
 import crypto from 'crypto';
-
-const ec = new EC('secp256k1');
 
 // Challenge expiration time in milliseconds (5 minutes)
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -55,9 +58,8 @@ export class SignatureService {
    * @returns DER-encoded signature (hex)
    */
   static signMessage(message: string, privateKey: string): string {
-    const key = ec.keyFromPrivate(privateKey, 'hex');
     const messageHash = SignatureService.hashMessage(message);
-    return key.sign(messageHash).toDER('hex');
+    return signSecp256k1Digest(privateKey, messageHash);
   }
 
   /**
@@ -70,9 +72,8 @@ export class SignatureService {
    */
   static verifySignature(message: string, signature: string, publicKey: string): boolean {
     try {
-      const key = ec.keyFromPublic(publicKey, 'hex');
       const messageHash = SignatureService.hashMessage(message);
-      return key.verify(messageHash, signature);
+      return verifySecp256k1Digest(publicKey, messageHash, signature);
     } catch {
       return false;
     }
@@ -146,12 +147,7 @@ export class SignatureService {
    * Validate that a string is a valid public key
    */
   static isValidPublicKey(publicKey: string): boolean {
-    try {
-      ec.keyFromPublic(publicKey, 'hex');
-      return true;
-    } catch {
-      return false;
-    }
+    return isValidSecp256k1PublicKey(publicKey);
   }
 
   /**
@@ -167,7 +163,7 @@ export class SignatureService {
    * @throws if `publicKey` is not a valid secp256k1 public key.
    */
   static canonicalizePublicKey(publicKey: string): string {
-    return ec.keyFromPublic(publicKey, 'hex').getPublic(false, 'hex').toLowerCase();
+    return normalizeSecp256k1PublicKey(publicKey);
   }
 
   /**
@@ -180,5 +176,4 @@ export class SignatureService {
 }
 
 export default SignatureService;
-
 

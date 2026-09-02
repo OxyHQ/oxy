@@ -10,7 +10,7 @@
  * `.` entry is the pure connector contract + normalized DTOs), so
  * {@link CJS_PACKAGES} is empty. When a later phase adds a CJS-only runtime
  * dependency to the `./node` engine, add it here so ESM default-import interop
- * is applied — mirroring `@oxyhq/protocol`'s `elliptic` handling.
+ * is applied.
  */
 
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
@@ -68,7 +68,7 @@ async function walk(dir) {
       );
 
       // Fix 3: Rewrite CJS named imports to default + destructure
-      // e.g. `import { ec as EC } from 'elliptic'` → `import _elliptic from 'elliptic'; const { ec: EC } = _elliptic;`
+      // e.g. a named import becomes a default import plus destructuring.
       for (const pkg of CJS_PACKAGES) {
         const namedRe = new RegExp(
           `import\\s*\\{([^}]+)\\}\\s*from\\s*['"]${pkg}['"];?`,
