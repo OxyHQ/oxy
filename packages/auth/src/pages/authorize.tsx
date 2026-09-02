@@ -544,7 +544,7 @@ function AuthorizeRequest() {
       return;
     }
     autoApproveAttemptedRef.current = true;
-    void maybeAutoApprove(oxyServices.getAccessToken(), activeContext.accountId);
+    void maybeAutoApprove(oxyServices.getAccessToken(), activeContext.subject.accountId);
   }, [
     contextCount,
     directoryLoading,
@@ -789,7 +789,7 @@ function AuthorizeRequest() {
 
       // ---- OAuth2 authorization code flow ----
       if (clientId && safeRedirect) {
-        await runOAuthAuthorize(accessToken, safeRedirect, activeContext?.accountId);
+        await runOAuthAuthorize(accessToken, safeRedirect, activeContext?.subject.accountId);
         return;
       }
 

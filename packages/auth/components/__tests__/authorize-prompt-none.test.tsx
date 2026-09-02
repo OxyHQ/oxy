@@ -121,6 +121,7 @@ function contextRow(over: { contextId: string; displayName: string; handle: stri
   return {
     contextId: over.contextId,
     accountId: over.contextId,
+    subject: { accountId: over.contextId },
     displayName: over.displayName,
     handle: over.handle,
     avatarUrl: undefined,
