@@ -274,6 +274,14 @@ export const inferenceProviderConnections = pgTable(
      */
     unique('inference_provider_connections_credential_handle_key').on(t.credentialHandle),
 
+    /** Composite target for the durable operation ledger's exact identity FK. */
+    unique('inference_provider_connections_operation_identity_key').on(
+      t.id,
+      t.provider,
+      t.ownerAccountId,
+      t.environment,
+    ),
+
     /**
      * At most one LIVE connection per scope, provider and environment.
      *

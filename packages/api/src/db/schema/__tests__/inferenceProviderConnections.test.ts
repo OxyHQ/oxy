@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { uuidv7 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, getDb } from '../../../config/postgres';
 import { inferenceProviderConnections } from '../inferenceProviderConnections';
+import { inferenceProviderCredentialOperations } from '../inferenceProviderCredentialOperations';
 import { inferenceProviders } from '../inferenceProviders';
 import { users } from '../users';
 import { MIGRATIONS_FOLDER } from '../../migrationsFolder';
@@ -73,6 +74,75 @@ describe('inference_provider_connections Kaana custody constraints', () => {
     );
     expect(post).toContain('-- oxy:deploy-phase=post');
     expect(post).toContain('DROP COLUMN "secret_ref"');
+  });
+
+  it('creates a PostgreSQL-only durable operation ledger with no credential column', async () => {
+    const columns = await getDb().execute<{ column_name: string }>(sql`
+      select column_name
+      from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'inference_provider_credential_operations'
+      order by ordinal_position
+    `);
+    const names = columns.map((column) => column.column_name);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'id',
+        'connection_id',
+        'action',
+        'provider',
+        'owner_account_id',
+        'environment',
+        'operation_actor',
+        'credential_handle',
+        'expected_revision',
+        'secret_sha256',
+        'state',
+        'outcome_credential_handle',
+        'outcome_revision',
+      ]),
+    );
+    expect(names).not.toEqual(
+      expect.arrayContaining(['secret', 'secret_base64', 'plaintext', 'ciphertext', 'api_key']),
+    );
+  });
+
+  it('persists exact operation identity and rejects an action-inexact reference', async () => {
+    const connection = await baseValues();
+    await getDb().insert(inferenceProviderConnections).values(connection);
+    const operation = {
+      id: uuidv7(),
+      connectionId: connection.id,
+      action: 'create' as const,
+      provider: connection.provider,
+      ownerAccountId: connection.ownerAccountId,
+      environment: connection.environment,
+      operationActor: `user:${connection.ownerAccountId}`,
+      credentialHandle: null,
+      expectedRevision: null,
+      secretSha256: 'd'.repeat(64),
+      keyPrefix: 'sk-fixture',
+      previousConnectionStatus: null,
+      state: 'pending' as const,
+    };
+    await expect(
+      getDb().insert(inferenceProviderCredentialOperations).values(operation),
+    ).resolves.toBeDefined();
+    await expect(
+      getDb()
+        .insert(inferenceProviderCredentialOperations)
+        .values({
+          ...operation,
+          id: uuidv7(),
+          credentialHandle: connection.credentialHandle,
+          expectedRevision: 1,
+        }),
+    ).rejects.toMatchObject({
+      cause: expect.objectContaining({
+        code: '23514',
+        constraint_name: 'inference_provider_credential_operations_reference_action',
+      }),
+    });
   });
 
   it('proves the pre-migration inventory guard fails closed on a real PostgreSQL row', async () => {

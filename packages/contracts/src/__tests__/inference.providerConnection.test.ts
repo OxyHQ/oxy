@@ -1,5 +1,8 @@
 import {
   authorizedRouteSchema,
+  kaanaCredentialMutationSchema,
+  kaanaCredentialOutcomeRequestSchema,
+  kaanaCredentialOutcomeSchema,
   kaanaCredentialHandleSchema,
   providerConnectionSchema,
   safeParseContract,
@@ -42,6 +45,66 @@ describe('Kaana provider credential contracts', () => {
     ]) {
       expect(kaanaCredentialHandleSchema.safeParse(invalid).success).toBe(false);
     }
+  });
+
+  it('binds mutations to one exact operation, identity, actor and action shape', () => {
+    const create = {
+      schemaVersion: 1,
+      operationId: 'op_create_1',
+      action: 'create',
+      provider: 'openai',
+      ownerAccountId: 'acc_1',
+      connectionId: 'pcx_1',
+      environment: 'production',
+      operationActor: 'user:user_1',
+      secretBase64: Buffer.from('customer-provider-key').toString('base64'),
+    };
+    expect(kaanaCredentialMutationSchema.safeParse(create).success).toBe(true);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, credentialHandle: handle }).success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, ownerAccountId: 'acc/guessed' }).success,
+    ).toBe(false);
+    expect(kaanaCredentialMutationSchema.safeParse({ ...create, actor: {} }).success).toBe(false);
+  });
+
+  it('keeps outcome queries metadata-only and conflicts reference-free', () => {
+    const request = {
+      schemaVersion: 1,
+      operationId: 'op_rotate_1',
+      action: 'rotate',
+      provider: 'openai',
+      ownerAccountId: 'acc_1',
+      connectionId: 'pcx_1',
+      environment: 'production',
+      secretSha256: 'c'.repeat(64),
+      credentialHandle: handle,
+      expectedRevision: 2,
+    };
+    expect(kaanaCredentialOutcomeRequestSchema.safeParse(request).success).toBe(true);
+    expect(
+      kaanaCredentialOutcomeRequestSchema.safeParse({ ...request, secretBase64: 'c2VjcmV0' })
+        .success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialOutcomeSchema.safeParse({
+        schemaVersion: 1,
+        operationId: 'op_rotate_1',
+        action: 'rotate',
+        status: 'conflict',
+      }).success,
+    ).toBe(true);
+    expect(
+      kaanaCredentialOutcomeSchema.safeParse({
+        schemaVersion: 1,
+        operationId: 'op_rotate_1',
+        action: 'rotate',
+        status: 'conflict',
+        credentialHandle: handle,
+        revision: 3,
+      }).success,
+    ).toBe(false);
   });
 
   it('parses an exact handle and revision without credential material', () => {

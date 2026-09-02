@@ -61,6 +61,152 @@ export const kaanaCredentialHandleSchema = z
   .string()
   .regex(/^kcred_[a-z2-7]{26}$/, 'a Kaana credential handle is kcred_ plus 26 base32 characters');
 
+/** Oxy-minted, case-sensitive replay identity for one exact Kaana mutation. */
+export const kaanaCredentialOperationIdSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,128}$/, 'a Kaana credential operation id is 1-128 opaque characters');
+
+export const kaanaCredentialOperationActionSchema = z.enum(['create', 'rotate', 'revoke']);
+
+export const providerCredentialSha256Schema = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/, 'a provider credential fingerprint is 64 lowercase hex characters');
+
+/** Exact immutable Oxy identity repeated by both mutation and reconciliation. */
+export const kaanaCredentialIdentitySchema = z
+  .object({
+    provider: inferenceProviderSlugSchema,
+    ownerAccountId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+    connectionId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+    environment: inferenceEnvironmentSchema,
+  })
+  .strict();
+
+const kaanaCredentialOperationActorSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      new TextEncoder().encode(value).byteLength <= 256 &&
+      value === value.trim() &&
+      !/[\r\n]/.test(value),
+    {
+      message: 'a credential operation actor is one trimmed line of at most 256 bytes',
+    },
+  );
+
+const kaanaCredentialSecretBase64Schema = z
+  .string()
+  .min(1)
+  .max(8192)
+  .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+  .refine((value) => {
+    const padding = value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0;
+    return (value.length / 4) * 3 - padding <= 4096;
+  }, {
+    message: 'a decoded provider credential is at most 4096 bytes',
+  });
+
+export const kaanaCredentialCreateMutationSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('create'),
+    operationId: kaanaCredentialOperationIdSchema,
+    operationActor: kaanaCredentialOperationActorSchema,
+    secretBase64: kaanaCredentialSecretBase64Schema,
+  })
+  .strict();
+
+export const kaanaCredentialRotateMutationSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('rotate'),
+    operationId: kaanaCredentialOperationIdSchema,
+    operationActor: kaanaCredentialOperationActorSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().safe(),
+    secretBase64: kaanaCredentialSecretBase64Schema,
+  })
+  .strict();
+
+export const kaanaCredentialRevokeMutationSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('revoke'),
+    operationId: kaanaCredentialOperationIdSchema,
+    operationActor: kaanaCredentialOperationActorSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().safe(),
+  })
+  .strict();
+
+export const kaanaCredentialMutationSchema = z.discriminatedUnion('action', [
+  kaanaCredentialCreateMutationSchema,
+  kaanaCredentialRotateMutationSchema,
+  kaanaCredentialRevokeMutationSchema,
+]);
+
+export const kaanaCredentialCreateOutcomeRequestSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('create'),
+    operationId: kaanaCredentialOperationIdSchema,
+    secretSha256: providerCredentialSha256Schema,
+  })
+  .strict();
+
+export const kaanaCredentialRotateOutcomeRequestSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('rotate'),
+    operationId: kaanaCredentialOperationIdSchema,
+    secretSha256: providerCredentialSha256Schema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().safe(),
+  })
+  .strict();
+
+export const kaanaCredentialRevokeOutcomeRequestSchema = kaanaCredentialIdentitySchema
+  .extend({
+    schemaVersion: z.literal(1),
+    action: z.literal('revoke'),
+    operationId: kaanaCredentialOperationIdSchema,
+    credentialHandle: kaanaCredentialHandleSchema,
+    expectedRevision: z.number().int().positive().safe(),
+  })
+  .strict();
+
+export const kaanaCredentialOutcomeRequestSchema = z.discriminatedUnion('action', [
+  kaanaCredentialCreateOutcomeRequestSchema,
+  kaanaCredentialRotateOutcomeRequestSchema,
+  kaanaCredentialRevokeOutcomeRequestSchema,
+]);
+
+export const kaanaCredentialAppliedOutcomeSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    operationId: kaanaCredentialOperationIdSchema,
+    action: kaanaCredentialOperationActionSchema,
+    status: z.literal('applied'),
+    credentialHandle: kaanaCredentialHandleSchema,
+    revision: z.number().int().positive().safe(),
+  })
+  .strict();
+
+export const kaanaCredentialConflictOutcomeSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    operationId: kaanaCredentialOperationIdSchema,
+    action: kaanaCredentialOperationActionSchema,
+    status: z.literal('conflict'),
+  })
+  .strict();
+
+export const kaanaCredentialOutcomeSchema = z.discriminatedUnion('status', [
+  kaanaCredentialAppliedOutcomeSchema,
+  kaanaCredentialConflictOutcomeSchema,
+]);
+
 /**
  * Oxy's view of the cross-service mutation. Only `ready` may be routed.
  * `reconcile` is the fail-closed state after an outcome could not be proven.
@@ -119,9 +265,7 @@ export const providerConnectionSchema = z
      */
     keyPrefix: z.string().min(1).max(12),
     /** SHA-256 of the credential, so rotation is verifiable without the key. */
-    fingerprint: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/, 'fingerprint must be 64 lowercase hex characters'),
+    fingerprint: providerCredentialSha256Schema,
     validation: providerConnectionValidationSchema,
     /**
      * Always `true` for a BYOK connection: the provider bills the customer's own
@@ -190,6 +334,13 @@ export const providerConnectionSchema = z
   });
 
 export type ProviderConnectionScope = z.infer<typeof providerConnectionScopeSchema>;
+export type KaanaCredentialOperationAction = z.infer<
+  typeof kaanaCredentialOperationActionSchema
+>;
+export type KaanaCredentialIdentity = z.infer<typeof kaanaCredentialIdentitySchema>;
+export type KaanaCredentialMutation = z.infer<typeof kaanaCredentialMutationSchema>;
+export type KaanaCredentialOutcomeRequest = z.infer<typeof kaanaCredentialOutcomeRequestSchema>;
+export type KaanaCredentialOutcome = z.infer<typeof kaanaCredentialOutcomeSchema>;
 export type ProviderConnectionValidation = z.infer<typeof providerConnectionValidationSchema>;
 export type ProviderConnectionStatus = z.infer<typeof providerConnectionStatusSchema>;
 export type ProviderCredentialCustodyState = z.infer<typeof providerCredentialCustodyStateSchema>;

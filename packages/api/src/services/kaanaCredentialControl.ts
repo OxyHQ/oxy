@@ -1,46 +1,42 @@
 import { createHash, sign, timingSafeEqual } from 'node:crypto';
-import { kaanaCredentialHandleSchema } from '@oxyhq/contracts';
-import { z } from 'zod';
+import {
+  kaanaCredentialCreateMutationSchema,
+  kaanaCredentialCreateOutcomeRequestSchema,
+  kaanaCredentialMutationSchema,
+  kaanaCredentialOutcomeRequestSchema,
+  kaanaCredentialOutcomeSchema,
+  kaanaCredentialRevokeMutationSchema,
+  kaanaCredentialRevokeOutcomeRequestSchema,
+  kaanaCredentialRotateMutationSchema,
+  kaanaCredentialRotateOutcomeRequestSchema,
+  type KaanaCredentialIdentity,
+  type KaanaCredentialMutation,
+  type KaanaCredentialOutcome,
+  type KaanaCredentialOutcomeRequest,
+} from '@oxyhq/contracts';
 import {
   resolveKaanaCredentialControl,
   type KaanaCredentialControlConfig,
 } from '../config/kaanaCredentialControl';
-import type { ProviderConnectionActor } from '../db/schema/inferenceProviderConnectionAuditEvents';
-import type { ProviderConnectionEnvironment } from '../db/schema/inferenceProviderConnections';
 
 const MUTATION_PATH = '/internal/v1/customer-provider-credentials/mutations';
+const OUTCOME_PATH = '/internal/v1/customer-provider-credentials/outcomes';
 const SIGNATURE_DOMAIN = 'oxy-kaana-credential-control:v1';
 const KEY_ID_HEADER = 'X-Oxy-Kaana-Key-Id';
 const TIMESTAMP_HEADER = 'X-Oxy-Kaana-Timestamp';
 const SIGNATURE_HEADER = 'X-Oxy-Kaana-Signature';
 const MAX_RESPONSE_BYTES = 16 * 1024;
 
-const referenceSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    credentialHandle: kaanaCredentialHandleSchema,
-    revision: z.number().int().positive().safe(),
-  })
-  .strict();
-
-export interface KaanaCredentialReference {
-  readonly credentialHandle: string;
-  readonly revision: number;
-}
-
-export interface CredentialIdentity {
-  readonly provider: string;
-  readonly ownerAccountId: string;
-  readonly connectionId: string;
-  readonly environment: ProviderConnectionEnvironment;
-}
-
 /** Runtime-enforced redaction wrapper for request-only customer plaintext. */
 export class ProviderCredentialValue {
   readonly #value: string;
 
   constructor(value: string) {
-    if (value.length === 0 || Buffer.byteLength(value, 'utf8') > 4096 || /[\r\n]/.test(value)) {
+    if (
+      value.trim().length === 0 ||
+      Buffer.byteLength(value, 'utf8') > 4096 ||
+      /[\r\n]/.test(value)
+    ) {
       throw new Error('a provider credential must be one non-empty line of at most 4096 bytes');
     }
     this.#value = value;
@@ -77,26 +73,31 @@ export function providerCredentialFingerprintsMatch(left: string, right: string)
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+interface KaanaCredentialOperationBase extends KaanaCredentialIdentity {
+  readonly operationId: string;
+  readonly operationActor: string;
+}
+
+export interface KaanaCredentialCreateOperation extends KaanaCredentialOperationBase {
+  readonly secret: ProviderCredentialValue;
+  readonly secretSha256: string;
+}
+
+export interface KaanaCredentialRotateOperation extends KaanaCredentialCreateOperation {
+  readonly credentialHandle: string;
+  readonly expectedRevision: number;
+}
+
+export interface KaanaCredentialRevokeOperation extends KaanaCredentialOperationBase {
+  readonly credentialHandle: string;
+  readonly expectedRevision: number;
+}
+
 export interface KaanaCredentialControl {
-  create(
-    input: CredentialIdentity & {
-      readonly secret: ProviderCredentialValue;
-      readonly actor: ProviderConnectionActor;
-    },
-  ): Promise<KaanaCredentialReference>;
-  rotate(
-    input: CredentialIdentity &
-      KaanaCredentialReference & {
-        readonly secret: ProviderCredentialValue;
-        readonly actor: ProviderConnectionActor;
-      },
-  ): Promise<KaanaCredentialReference>;
-  revoke(
-    input: CredentialIdentity &
-      KaanaCredentialReference & {
-        readonly actor: ProviderConnectionActor;
-      },
-  ): Promise<KaanaCredentialReference>;
+  create(input: KaanaCredentialCreateOperation): Promise<KaanaCredentialOutcome>;
+  rotate(input: KaanaCredentialRotateOperation): Promise<KaanaCredentialOutcome>;
+  revoke(input: KaanaCredentialRevokeOperation): Promise<KaanaCredentialOutcome>;
+  outcome(input: KaanaCredentialOutcomeRequest): Promise<KaanaCredentialOutcome>;
 }
 
 export class KaanaCredentialControlUnavailableError extends Error {
@@ -105,6 +106,10 @@ export class KaanaCredentialControlUnavailableError extends Error {
 
 export class KaanaCredentialConflictError extends Error {
   readonly code = 'credential_conflict' as const;
+}
+
+export class KaanaCredentialOutcomeUnavailableError extends Error {
+  readonly code = 'credential_outcome_unavailable' as const;
 }
 
 export function requireKaanaCredentialControl(): KaanaCredentialControl {
@@ -120,90 +125,165 @@ export function requireKaanaCredentialControl(): KaanaCredentialControl {
 export class HttpKaanaCredentialControl implements KaanaCredentialControl {
   constructor(private readonly config: KaanaCredentialControlConfig) {}
 
-  async create(
-    input: CredentialIdentity & {
-      readonly secret: ProviderCredentialValue;
-      readonly actor: ProviderConnectionActor;
-    },
-  ): Promise<KaanaCredentialReference> {
+  async create(input: KaanaCredentialCreateOperation): Promise<KaanaCredentialOutcome> {
+    requireMatchingFingerprint(input.secret, input.secretSha256);
+    const outcomeRequest = kaanaCredentialCreateOutcomeRequestSchema.parse({
+      schemaVersion: 1,
+      action: 'create',
+      operationId: input.operationId,
+      ...identityFields(input),
+      secretSha256: input.secretSha256,
+    });
     return this.mutate(
-      {
+      kaanaCredentialCreateMutationSchema.parse({
         schemaVersion: 1,
         action: 'create',
+        operationId: input.operationId,
         ...identityFields(input),
-        operationActor: actorName(input.actor),
+        operationActor: input.operationActor,
         secretBase64: Buffer.from(input.secret.reveal(), 'utf8').toString('base64'),
-      },
-      true,
+      }),
+      outcomeRequest,
     );
   }
 
-  async rotate(
-    input: CredentialIdentity &
-      KaanaCredentialReference & {
-        readonly secret: ProviderCredentialValue;
-        readonly actor: ProviderConnectionActor;
-      },
-  ): Promise<KaanaCredentialReference> {
-    return this.mutate({
+  async rotate(input: KaanaCredentialRotateOperation): Promise<KaanaCredentialOutcome> {
+    requireMatchingFingerprint(input.secret, input.secretSha256);
+    const outcomeRequest = kaanaCredentialRotateOutcomeRequestSchema.parse({
       schemaVersion: 1,
       action: 'rotate',
+      operationId: input.operationId,
       ...identityFields(input),
+      secretSha256: input.secretSha256,
       credentialHandle: input.credentialHandle,
-      expectedRevision: input.revision,
-      operationActor: actorName(input.actor),
-      secretBase64: Buffer.from(input.secret.reveal(), 'utf8').toString('base64'),
+      expectedRevision: input.expectedRevision,
     });
+    return this.mutate(
+      kaanaCredentialRotateMutationSchema.parse({
+        schemaVersion: 1,
+        action: 'rotate',
+        operationId: input.operationId,
+        ...identityFields(input),
+        operationActor: input.operationActor,
+        credentialHandle: input.credentialHandle,
+        expectedRevision: input.expectedRevision,
+        secretBase64: Buffer.from(input.secret.reveal(), 'utf8').toString('base64'),
+      }),
+      outcomeRequest,
+    );
   }
 
-  async revoke(
-    input: CredentialIdentity &
-      KaanaCredentialReference & { readonly actor: ProviderConnectionActor },
-  ): Promise<KaanaCredentialReference> {
-    return this.mutate({
+  async revoke(input: KaanaCredentialRevokeOperation): Promise<KaanaCredentialOutcome> {
+    const outcomeRequest = kaanaCredentialRevokeOutcomeRequestSchema.parse({
       schemaVersion: 1,
       action: 'revoke',
+      operationId: input.operationId,
       ...identityFields(input),
       credentialHandle: input.credentialHandle,
-      expectedRevision: input.revision,
-      operationActor: actorName(input.actor),
+      expectedRevision: input.expectedRevision,
     });
+    return this.mutate(
+      kaanaCredentialRevokeMutationSchema.parse({
+        schemaVersion: 1,
+        action: 'revoke',
+        operationId: input.operationId,
+        ...identityFields(input),
+        operationActor: input.operationActor,
+        credentialHandle: input.credentialHandle,
+        expectedRevision: input.expectedRevision,
+      }),
+      outcomeRequest,
+    );
+  }
+
+  async outcome(input: KaanaCredentialOutcomeRequest): Promise<KaanaCredentialOutcome> {
+    const exactRequest = kaanaCredentialOutcomeRequestSchema.parse(input);
+    let response: SignedResponse;
+    try {
+      response = await this.postSigned(OUTCOME_PATH, exactRequest);
+    } catch (error) {
+      // Transport errors can contain request/response internals. The public
+      // reconciliation state is the only safe information to propagate.
+      void error;
+      throw new KaanaCredentialOutcomeUnavailableError(
+        'Kaana credential outcome could not be read exactly',
+      );
+    }
+    if (response.status === 404) {
+      throw new KaanaCredentialOutcomeUnavailableError(
+        'Kaana has no outcome for that exact operation identity',
+      );
+    }
+    const outcome = parseExactOutcome(response.body, exactRequest);
+    if ((response.status === 200 || response.status === 409) && outcome?.status === 'conflict') {
+      throw new KaanaCredentialConflictError('Kaana recorded a credential operation conflict');
+    }
+    if (response.status !== 200) {
+      throw new KaanaCredentialOutcomeUnavailableError(
+        'Kaana credential outcome could not be read exactly',
+      );
+    }
+    if (outcome === undefined) {
+      throw new KaanaCredentialOutcomeUnavailableError(
+        'Kaana credential outcome did not match the persisted operation',
+      );
+    }
+    return outcome;
   }
 
   private async mutate(
-    payload: object,
-    acceptCreateConflict = false,
-  ): Promise<KaanaCredentialReference> {
-    const body = Buffer.from(JSON.stringify(payload), 'utf8');
-    const timestamp = Date.now();
-    const signingInput = kaanaCredentialControlSigningInput(this.config.keyId, timestamp, body);
-    const signature = sign(null, signingInput, this.config.privateKey).toString('base64');
-
-    const response = await fetch(`${this.config.baseUrl}${MUTATION_PATH}`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        [KEY_ID_HEADER]: this.config.keyId,
-        [TIMESTAMP_HEADER]: String(timestamp),
-        [SIGNATURE_HEADER]: `v1=${signature}`,
-      },
-      body,
-      signal: AbortSignal.timeout(10_000),
-    });
-    const responseBody = await readBoundedBody(response);
-    if (response.ok || (acceptCreateConflict && response.status === 409)) {
-      const parsed = referenceSchema.safeParse(JSON.parse(responseBody));
-      if (parsed.success) {
-        return {
-          credentialHandle: parsed.data.credentialHandle,
-          revision: parsed.data.revision,
-        };
-      }
+    payload: KaanaCredentialMutation,
+    outcomeRequest: KaanaCredentialOutcomeRequest,
+  ): Promise<KaanaCredentialOutcome> {
+    let response: SignedResponse | undefined;
+    try {
+      response = await this.postSigned(MUTATION_PATH, kaanaCredentialMutationSchema.parse(payload));
+    } catch (error) {
+      void error;
+      return this.outcome(outcomeRequest);
     }
-    if (response.status === 409)
-      throw new KaanaCredentialConflictError('Kaana refused the revision');
-    throw new Error(`Kaana credential control refused the mutation with HTTP ${response.status}`);
+
+    const exact = parseExactOutcome(response.body, outcomeRequest);
+    if (response.status === 409 && exact?.status === 'conflict') {
+      throw new KaanaCredentialConflictError('Kaana recorded a credential operation conflict');
+    }
+    if (response.status >= 200 && response.status < 300 && exact?.status === 'applied') {
+      return exact;
+    }
+
+    // A missing, malformed or mismatched response never proves that the
+    // transaction did not commit. Ask the signed exact-outcome route with the
+    // already persisted operation id instead of retrying with a new one.
+    return this.outcome(outcomeRequest);
   }
+
+  private async postSigned(path: string, payload: object): Promise<SignedResponse> {
+    const body = Buffer.from(JSON.stringify(payload), 'utf8');
+    try {
+      const timestamp = Date.now();
+      const signingInput = kaanaCredentialControlSigningInput(this.config.keyId, timestamp, body);
+      const signature = sign(null, signingInput, this.config.privateKey).toString('base64');
+      const response = await fetch(`${this.config.baseUrl}${path}`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [KEY_ID_HEADER]: this.config.keyId,
+          [TIMESTAMP_HEADER]: String(timestamp),
+          [SIGNATURE_HEADER]: `v1=${signature}`,
+        },
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+      return { status: response.status, body: await readBoundedBody(response) };
+    } finally {
+      body.fill(0);
+    }
+  }
+}
+
+interface SignedResponse {
+  readonly status: number;
+  readonly body: string;
 }
 
 export function kaanaCredentialControlSigningInput(
@@ -215,7 +295,7 @@ export function kaanaCredentialControlSigningInput(
   return Buffer.from([SIGNATURE_DOMAIN, keyId, String(timestamp), digest].join('\n'), 'utf8');
 }
 
-function identityFields(input: CredentialIdentity): CredentialIdentity {
+function identityFields(input: KaanaCredentialIdentity): KaanaCredentialIdentity {
   return {
     provider: input.provider,
     ownerAccountId: input.ownerAccountId,
@@ -224,8 +304,39 @@ function identityFields(input: CredentialIdentity): CredentialIdentity {
   };
 }
 
-function actorName(actor: ProviderConnectionActor): string {
-  return actor.kind === 'user' ? `user:${actor.userId}` : actor.kind;
+function requireMatchingFingerprint(secret: ProviderCredentialValue, expected: string): void {
+  if (!providerCredentialFingerprintsMatch(fingerprintProviderCredential(secret), expected)) {
+    throw new Error('the persisted provider credential fingerprint does not match the mutation');
+  }
+}
+
+function parseExactOutcome(
+  body: string,
+  request: KaanaCredentialOutcomeRequest,
+): KaanaCredentialOutcome | undefined {
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(body);
+  } catch (error) {
+    void error;
+    return undefined;
+  }
+  const parsed = kaanaCredentialOutcomeSchema.safeParse(decoded);
+  if (
+    !parsed.success ||
+    parsed.data.operationId !== request.operationId ||
+    parsed.data.action !== request.action
+  ) {
+    return undefined;
+  }
+  if (parsed.data.status === 'conflict') return parsed.data;
+  if (request.action === 'create') {
+    return parsed.data.revision === 1 ? parsed.data : undefined;
+  }
+  return parsed.data.credentialHandle === request.credentialHandle &&
+    parsed.data.revision === request.expectedRevision + 1
+    ? parsed.data
+    : undefined;
 }
 
 async function readBoundedBody(response: Response): Promise<string> {

@@ -52,6 +52,14 @@ Only `custody_state = ready` can be returned by the effective-connection
 resolver. `pending`, `reconcile` and `revoked` are excluded in SQL as well as by
 the contract.
 
+`inference_provider_credential_operations` is the durable cross-service ledger.
+Before any network request, Oxy commits the operation ID, action, exact
+`provider + ownerAccountId + connectionId + environment`, actor, requested
+handle/revision when applicable, one-way credential fingerprint for
+create/rotate, and `pending` state. It has no plaintext, base64, ciphertext or
+provider-key column. Its terminal state is `applied`; uncertain operations stay
+`reconciliation`, while an exact confirmed conflict becomes `manual`.
+
 An authorized customer route may carry
 `customerProviderCredential = {credentialHandle, credentialRevision,
 ownerAccountId, connectionId, environment}`. The provider is already an exact
@@ -60,30 +68,31 @@ inference contract consumes and validates that full binding.
 
 ## Cross-service transitions
 
-- Create commits an Oxy `pending` row, asks Kaana to create, then fences the
-  exact row to `ready` with Kaana's returned handle/revision.
+- Create commits an Oxy `pending` row and its exact operation ledger row, asks
+  Kaana to create using that persisted operation ID, then fences the exact row
+  to `ready` with Kaana's returned handle/revision.
 - Rotate first changes custody to `reconcile`, making the connection
-  non-routable, then asks Kaana to advance the exact handle/revision. Only the
-  matching fenced row can return to `ready`.
+  non-routable, and commits the exact operation before asking Kaana to advance
+  the exact handle/revision. Only the matching fenced row can return to `ready`.
 - Revoke first changes the Oxy lifecycle to `revoked` and custody to
-  `reconcile`, then asks Kaana to revoke the exact generation. A positive Kaana
-  acknowledgement changes custody to `revoked`.
-- A timeout, rejected revision or unknown acknowledgement never guesses success;
-  it remains `reconcile`.
+  `reconcile`, and commits the exact operation before asking Kaana to revoke the
+  exact generation. An exact applied outcome changes custody to `revoked`.
 
-An in-flight create conflict is recognizable because Kaana returns the existing
-exact reference for the same immutable identity. A lost acknowledgement is not
-convergent for any action, including create: Oxy deliberately discards the
-plaintext and therefore cannot resubmit create, while replaying rotate or revoke
-at the old revision yields the same conflict whether the first mutation landed
-or a competing mutation won. Kaana currently exposes no signed metadata query
-or durable operation outcome that can disambiguate those states.
+If a mutation response is lost, malformed or mismatched, the signed client sends
+`POST /internal/v1/customer-provider-credentials/outcomes` with the same
+persisted operation ID and exact non-secret identity. It never mints a replacement
+ID, resends plaintext, retries a mutation by guess, derives identity from a name,
+or trusts a merely plausible handle/revision. Create outcomes must be revision
+1; rotate/revoke outcomes must preserve the requested handle and advance the
+persisted expected revision by exactly one.
 
-This cannot be repaired inside Oxy without persisting plaintext or guessing.
-Before launch, Kaana must add a signed, identity-bound status/outcome contract
-(or equivalent idempotency ledger), and Oxy must reconcile every pending row
-against it with lost-response, replay and concurrent-revision tests. Manual row
-editing is not reconciliation.
+An exact `applied` response atomically updates both the connection and operation
+ledger. Outcome `404`, network failure, malformed response, or any identity,
+action, handle or revision mismatch remains `reconciliation` and non-routable.
+An exact `409 conflict` has no credential reference and moves the operation to
+`manual`; automated reconciliation stops. The authenticated
+`POST /inference/provider-connections/:connectionId/reconcile` route performs
+only that exact signed outcome lookup. Manual row editing is not reconciliation.
 
 ## Legacy inventory and rolling deploy
 
@@ -116,7 +125,7 @@ launch gate.
 
 - Public writes require the dedicated BYOK account/application permission.
 - A service credential may read metadata but cannot create, rotate, revoke,
-  enable, disable or report validation on this surface.
+  reconcile, enable, disable or report validation on this surface.
 - Another account's connection returns `404`, never an existence-revealing
   `403`.
 - Kaana mutations accept only the dedicated signed internal lane.
@@ -131,8 +140,10 @@ recorded:
    The count-only 2026-09-02 receipt above satisfies this inventory gate.
 2. The rolling deploy is complete and post-deploy migration `0066` has dropped
    `secret_ref` and its old constraints/index.
-3. Deterministic create/rotate/revoke reconciliation exists and has lost-response,
-   replay and concurrent-revision tests.
+3. Kaana draft #50's exact mutation/outcome ledger is merged and deployed, and
+   Oxy's same-ID create/rotate/revoke reconciliation gates pass lost-response,
+   `404`, mismatch, conflict and concurrent-revision cases against that deployed
+   contract.
 4. The Kaana control database role exists before its migration; grants match
    `kaana_customer_credential_control`, `kaana_runtime` and admin exactly.
 5. The control task has KMS Encrypt only; runtime has Decrypt only; both are

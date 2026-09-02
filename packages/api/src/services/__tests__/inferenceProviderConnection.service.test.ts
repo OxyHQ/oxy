@@ -1,21 +1,27 @@
 import { randomUUID } from 'node:crypto';
+import type { KaanaCredentialOutcome, KaanaCredentialOutcomeRequest } from '@oxyhq/contracts';
 import { eq } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { applications } from '../../db/schema/applications';
 import { inferenceProviderConnections } from '../../db/schema/inferenceProviderConnections';
+import { inferenceProviderCredentialOperations } from '../../db/schema/inferenceProviderCredentialOperations';
 import { inferenceProviders } from '../../db/schema/inferenceProviders';
 import { users } from '../../db/schema/users';
 import {
   createProviderConnection,
+  reconcileProviderConnection,
   resolveProviderConnectionForApplication,
   revokeProviderConnection,
   rotateProviderConnection,
 } from '../inferenceProviderConnection.service';
 import {
+  KaanaCredentialConflictError,
+  KaanaCredentialOutcomeUnavailableError,
   ProviderCredentialValue,
-  type CredentialIdentity,
   type KaanaCredentialControl,
-  type KaanaCredentialReference,
+  type KaanaCredentialCreateOperation,
+  type KaanaCredentialRevokeOperation,
+  type KaanaCredentialRotateOperation,
 } from '../kaanaCredentialControl';
 
 beforeAll(connectPostgres);
@@ -25,56 +31,139 @@ function suffix(): string {
   return randomUUID().replace(/-/g, '').slice(0, 10);
 }
 
+type Action = 'create' | 'rotate' | 'revoke';
+
 class FakeKaanaControl implements KaanaCredentialControl {
-  readonly calls: Array<{ action: string; input: object }> = [];
-  failAction?: 'create' | 'rotate' | 'revoke';
-  wrongAcknowledgement?: 'create' | 'rotate' | 'revoke';
-  revision = 1;
+  readonly mutationCalls: Array<{ action: Action; input: object }> = [];
+  readonly outcomeCalls: KaanaCredentialOutcomeRequest[] = [];
+  readonly outcomes = new Map<
+    string,
+    { request: KaanaCredentialOutcomeRequest; outcome: KaanaCredentialOutcome }
+  >();
+  failAction?: Action;
+  loseResponseAction?: Action;
+  wrongAcknowledgement?: Action;
+  conflictAction?: Action;
+  outcomeUnavailable = false;
+  beforeMutation?: (action: Action, input: object) => Promise<void>;
   readonly handle = `kcred_${randomUUID()
     .replace(/-/g, '')
     .replace(/[0189]/g, 'a')
     .slice(0, 26)}`;
 
-  async create(
-    input: CredentialIdentity & {
-      secret: ProviderCredentialValue;
-      actor: object;
-    },
-  ) {
-    this.calls.push({ action: 'create', input });
-    if (this.failAction === 'create') throw new Error('ack lost');
-    return {
-      credentialHandle: this.handle,
-      revision: this.wrongAcknowledgement === 'create' ? 2 : this.revision,
+  async create(input: KaanaCredentialCreateOperation): Promise<KaanaCredentialOutcome> {
+    this.mutationCalls.push({ action: 'create', input });
+    await this.beforeMutation?.('create', input);
+    this.maybeConflictOrFail('create');
+    const request: KaanaCredentialOutcomeRequest = {
+      schemaVersion: 1,
+      operationId: input.operationId,
+      action: 'create',
+      provider: input.provider,
+      ownerAccountId: input.ownerAccountId,
+      connectionId: input.connectionId,
+      environment: input.environment,
+      secretSha256: input.secretSha256,
     };
+    const outcome: KaanaCredentialOutcome = {
+      schemaVersion: 1,
+      operationId: input.operationId,
+      action: 'create',
+      status: 'applied',
+      credentialHandle: this.handle,
+      revision: this.wrongAcknowledgement === 'create' ? 2 : 1,
+    };
+    this.outcomes.set(input.operationId, { request, outcome });
+    this.maybeLoseResponse('create');
+    return outcome;
   }
 
-  async rotate(
-    input: CredentialIdentity &
-      KaanaCredentialReference & {
-        secret: ProviderCredentialValue;
-        actor: object;
-      },
-  ) {
-    this.calls.push({ action: 'rotate', input });
-    if (this.failAction === 'rotate') throw new Error('ack lost');
-    this.revision = input.revision + 1;
-    return {
+  async rotate(input: KaanaCredentialRotateOperation): Promise<KaanaCredentialOutcome> {
+    this.mutationCalls.push({ action: 'rotate', input });
+    await this.beforeMutation?.('rotate', input);
+    this.maybeConflictOrFail('rotate');
+    const request: KaanaCredentialOutcomeRequest = {
+      schemaVersion: 1,
+      operationId: input.operationId,
+      action: 'rotate',
+      provider: input.provider,
+      ownerAccountId: input.ownerAccountId,
+      connectionId: input.connectionId,
+      environment: input.environment,
+      secretSha256: input.secretSha256,
+      credentialHandle: input.credentialHandle,
+      expectedRevision: input.expectedRevision,
+    };
+    const outcome: KaanaCredentialOutcome = {
+      schemaVersion: 1,
+      operationId: input.operationId,
+      action: 'rotate',
+      status: 'applied',
       credentialHandle:
         this.wrongAcknowledgement === 'rotate' ? `kcred_${'d'.repeat(26)}` : input.credentialHandle,
-      revision: this.revision,
+      revision: input.expectedRevision + 1,
     };
+    this.outcomes.set(input.operationId, { request, outcome });
+    this.maybeLoseResponse('rotate');
+    return outcome;
   }
 
-  async revoke(input: CredentialIdentity & KaanaCredentialReference & { actor: object }) {
-    this.calls.push({ action: 'revoke', input });
-    if (this.failAction === 'revoke') throw new Error('ack lost');
-    this.revision = input.revision + 1;
-    return {
+  async revoke(input: KaanaCredentialRevokeOperation): Promise<KaanaCredentialOutcome> {
+    this.mutationCalls.push({ action: 'revoke', input });
+    await this.beforeMutation?.('revoke', input);
+    this.maybeConflictOrFail('revoke');
+    const request: KaanaCredentialOutcomeRequest = {
+      schemaVersion: 1,
+      operationId: input.operationId,
+      action: 'revoke',
+      provider: input.provider,
+      ownerAccountId: input.ownerAccountId,
+      connectionId: input.connectionId,
+      environment: input.environment,
       credentialHandle: input.credentialHandle,
-      revision: this.wrongAcknowledgement === 'revoke' ? this.revision + 1 : this.revision,
+      expectedRevision: input.expectedRevision,
     };
+    const outcome: KaanaCredentialOutcome = {
+      schemaVersion: 1,
+      operationId: input.operationId,
+      action: 'revoke',
+      status: 'applied',
+      credentialHandle: input.credentialHandle,
+      revision: input.expectedRevision + (this.wrongAcknowledgement === 'revoke' ? 2 : 1),
+    };
+    this.outcomes.set(input.operationId, { request, outcome });
+    this.maybeLoseResponse('revoke');
+    return outcome;
   }
+
+  async outcome(input: KaanaCredentialOutcomeRequest): Promise<KaanaCredentialOutcome> {
+    this.outcomeCalls.push(input);
+    if (this.outcomeUnavailable) {
+      throw new KaanaCredentialOutcomeUnavailableError('outcome unavailable');
+    }
+    const stored = this.outcomes.get(input.operationId);
+    if (stored === undefined || !sameFlatObject(stored.request, input)) {
+      throw new KaanaCredentialOutcomeUnavailableError('exact outcome unavailable');
+    }
+    return stored.outcome;
+  }
+
+  private maybeConflictOrFail(action: Action): void {
+    if (this.conflictAction === action) {
+      throw new KaanaCredentialConflictError('confirmed conflict');
+    }
+    if (this.failAction === action) throw new Error('network failed before a known commit');
+  }
+
+  private maybeLoseResponse(action: Action): void {
+    if (this.loseResponseAction === action) {
+      throw new KaanaCredentialOutcomeUnavailableError('response lost after commit');
+    }
+  }
+}
+
+function sameFlatObject(left: object, right: object): boolean {
+  return JSON.stringify(Object.entries(left).sort()) === JSON.stringify(Object.entries(right).sort());
 }
 
 async function fixture() {
@@ -119,43 +208,72 @@ async function createFixture(control: FakeKaanaControl, secret = 'customer-provi
   return { ...f, result };
 }
 
+async function operationForConnection(connectionId: string) {
+  const [operation] = await getDb()
+    .select()
+    .from(inferenceProviderCredentialOperations)
+    .where(eq(inferenceProviderCredentialOperations.connectionId, connectionId));
+  if (operation === undefined) throw new Error('fixture operation missing');
+  return operation;
+}
+
 describe('Kaana provider connection custody', () => {
-  it('persists only metadata plus the opaque exact handle/revision', async () => {
+  it('persists the exact operation before the network and never persists plaintext', async () => {
     const control = new FakeKaanaControl();
     const plaintext = `provider-key-${randomUUID()}`;
+    control.beforeMutation = async (action, input) => {
+      const operationId = (input as KaanaCredentialCreateOperation).operationId;
+      const [operation] = await getDb()
+        .select()
+        .from(inferenceProviderCredentialOperations)
+        .where(eq(inferenceProviderCredentialOperations.id, operationId));
+      const [connection] = await getDb()
+        .select()
+        .from(inferenceProviderConnections)
+        .where(
+          eq(
+            inferenceProviderConnections.id,
+            (input as KaanaCredentialCreateOperation).connectionId,
+          ),
+        );
+      expect(action).toBe('create');
+      expect(operation).toMatchObject({ id: operationId, state: 'pending' });
+      expect(connection).toMatchObject({ custodyState: 'pending' });
+    };
     const { result } = await createFixture(control, plaintext);
     expect(result.status).toBe('created');
     if (result.status !== 'created') return;
-    expect(result.connection).toMatchObject({
-      custodyState: 'ready',
-      credentialHandle: control.handle,
-      credentialRevision: 1,
-    });
-    expect(JSON.stringify(result.connection)).not.toContain(plaintext);
 
-    const [row] = await getDb()
-      .select()
-      .from(inferenceProviderConnections)
-      .where(eq(inferenceProviderConnections.id, result.connection.connectionId));
-    expect(JSON.stringify(row)).not.toContain(plaintext);
-    expect(row).toMatchObject({ custodyState: 'ready', credentialRevision: 1 });
-    expect((control.calls[0]?.input as { actor?: unknown }).actor).toEqual({
-      kind: 'user',
-      userId: result.connection.ownerAccountId,
+    const operation = await operationForConnection(result.connection.connectionId);
+    const call = control.mutationCalls[0];
+    expect(operation).toMatchObject({
+      id: (call?.input as KaanaCredentialCreateOperation).operationId,
+      connectionId: result.connection.connectionId,
+      action: 'create',
+      provider: result.connection.provider,
+      ownerAccountId: result.connection.ownerAccountId,
+      environment: 'production',
+      operationActor: `user:${result.connection.ownerAccountId}`,
+      credentialHandle: null,
+      expectedRevision: null,
+      state: 'applied',
+      outcomeCredentialHandle: control.handle,
+      outcomeRevision: 1,
     });
+    expect(JSON.stringify(operation)).not.toContain(plaintext);
+    expect(JSON.stringify(result.connection)).not.toContain(plaintext);
   });
 
-  it('quarantines a create whose acknowledgement cannot be proven', async () => {
+  it('keeps a network failure under the same durable operation in reconciliation', async () => {
     const control = new FakeKaanaControl();
     control.failAction = 'create';
     const { result, applicationId, provider } = await createFixture(control);
     expect(result.status).toBe('custody-reconcile');
     if (result.status !== 'custody-reconcile') return;
-    const [row] = await getDb()
-      .select()
-      .from(inferenceProviderConnections)
-      .where(eq(inferenceProviderConnections.id, result.connectionId));
-    expect(row.custodyState).toBe('reconcile');
+    expect(await operationForConnection(result.connectionId)).toMatchObject({
+      action: 'create',
+      state: 'reconciliation',
+    });
     await expect(
       resolveProviderConnectionForApplication({
         applicationId,
@@ -165,7 +283,56 @@ describe('Kaana provider connection custody', () => {
     ).resolves.toEqual({ status: 'none' });
   });
 
-  it('quarantines a structurally valid but inexact Kaana acknowledgement', async () => {
+  it('reconciles a lost response through the outcome route without resubmitting', async () => {
+    const control = new FakeKaanaControl();
+    control.loseResponseAction = 'create';
+    const { result } = await createFixture(control);
+    expect(result.status).toBe('custody-reconcile');
+    if (result.status !== 'custody-reconcile') return;
+    const operation = await operationForConnection(result.connectionId);
+
+    const reconciled = await reconcileProviderConnection(result.connectionId, control);
+    expect(reconciled.status).toBe('reconciled');
+    expect(control.mutationCalls).toHaveLength(1);
+    expect(control.outcomeCalls).toHaveLength(1);
+    expect(control.outcomeCalls[0]?.operationId).toBe(operation.id);
+    expect(await operationForConnection(result.connectionId)).toMatchObject({
+      id: operation.id,
+      state: 'applied',
+      outcomeCredentialHandle: control.handle,
+      outcomeRevision: 1,
+    });
+  });
+
+  it('keeps a 404/network outcome lookup in reconciliation', async () => {
+    const control = new FakeKaanaControl();
+    control.failAction = 'create';
+    const { result } = await createFixture(control);
+    expect(result.status).toBe('custody-reconcile');
+    if (result.status !== 'custody-reconcile') return;
+    control.outcomeUnavailable = true;
+    await expect(reconcileProviderConnection(result.connectionId, control)).resolves.toEqual({
+      status: 'reconciliation-required',
+    });
+    expect(await operationForConnection(result.connectionId)).toMatchObject({
+      state: 'reconciliation',
+    });
+  });
+
+  it('moves a confirmed conflict to manual and never guesses an outcome', async () => {
+    const control = new FakeKaanaControl();
+    control.conflictAction = 'create';
+    const { result } = await createFixture(control);
+    expect(result.status).toBe('custody-manual');
+    if (result.status !== 'custody-manual') return;
+    expect(await operationForConnection(result.connectionId)).toMatchObject({ state: 'manual' });
+    await expect(reconcileProviderConnection(result.connectionId, control)).resolves.toEqual({
+      status: 'manual-required',
+    });
+    expect(control.outcomeCalls).toHaveLength(0);
+  });
+
+  it('quarantines a structurally valid but inexact acknowledgement', async () => {
     const control = new FakeKaanaControl();
     control.wrongAcknowledgement = 'create';
     const { result } = await createFixture(control);
@@ -182,7 +349,7 @@ describe('Kaana provider connection custody', () => {
     });
   });
 
-  it('fences rotation by exact handle/revision and leaves uncertain outcomes non-routable', async () => {
+  it('fences rotation by exact handle/revision and keeps uncertainty non-routable', async () => {
     const control = new FakeKaanaControl();
     const created = await createFixture(control);
     if (created.result.status !== 'created') throw new Error('fixture create failed');
@@ -199,49 +366,26 @@ describe('Kaana provider connection custody', () => {
     expect(rotated.connection.credentialRevision).toBe(2);
 
     control.failAction = 'rotate';
-    const uncertain = await rotateProviderConnection(
-      {
-        connectionId: rotated.connection.connectionId,
-        secret: new ProviderCredentialValue('another-provider-key'),
-        actor: { kind: 'user', userId: created.accountId },
-      },
-      control,
-    );
-    expect(uncertain.status).toBe('custody-reconcile');
-    const resolution = await resolveProviderConnectionForApplication({
-      applicationId: created.applicationId,
-      provider: created.provider,
-      environment: 'production',
-    });
-    expect(resolution.status).toBe('none');
+    expect(
+      await rotateProviderConnection(
+        {
+          connectionId: rotated.connection.connectionId,
+          secret: new ProviderCredentialValue('another-provider-key'),
+          actor: { kind: 'user', userId: created.accountId },
+        },
+        control,
+      ),
+    ).toEqual({ status: 'custody-reconcile' });
+    expect(
+      await resolveProviderConnectionForApplication({
+        applicationId: created.applicationId,
+        provider: created.provider,
+        environment: 'production',
+      }),
+    ).toEqual({ status: 'none' });
   });
 
-  it('does not trust a rotate response for a different Kaana handle', async () => {
-    const control = new FakeKaanaControl();
-    const created = await createFixture(control);
-    if (created.result.status !== 'created') throw new Error('fixture create failed');
-    control.wrongAcknowledgement = 'rotate';
-    const result = await rotateProviderConnection(
-      {
-        connectionId: created.result.connection.connectionId,
-        secret: new ProviderCredentialValue('rotated-provider-key'),
-        actor: { kind: 'user', userId: created.accountId },
-      },
-      control,
-    );
-    expect(result.status).toBe('custody-reconcile');
-    const [row] = await getDb()
-      .select()
-      .from(inferenceProviderConnections)
-      .where(eq(inferenceProviderConnections.id, created.result.connection.connectionId));
-    expect(row).toMatchObject({
-      custodyState: 'reconcile',
-      credentialHandle: control.handle,
-      credentialRevision: 1,
-    });
-  });
-
-  it('revokes locally before the Kaana hop and records a successful revision', async () => {
+  it('revokes locally first and applies only the exact next revision', async () => {
     const control = new FakeKaanaControl();
     const created = await createFixture(control);
     if (created.result.status !== 'created') throw new Error('fixture create failed');
@@ -254,29 +398,32 @@ describe('Kaana provider connection custody', () => {
     );
     expect(revoked.status).toBe('revoked');
     if (revoked.status !== 'revoked') return;
-    expect(revoked).toMatchObject({ credentialRevoked: true });
     expect(revoked.connection).toMatchObject({
+      status: 'revoked',
       custodyState: 'revoked',
       credentialRevision: 2,
     });
   });
 
-  it('keeps a revoke in reconcile when Kaana returns the wrong revision', async () => {
+  it('leaves an inexact revoke response in reconciliation', async () => {
     const control = new FakeKaanaControl();
     const created = await createFixture(control);
     if (created.result.status !== 'created') throw new Error('fixture create failed');
     control.wrongAcknowledgement = 'revoke';
-    const result = await revokeProviderConnection(
-      {
-        connectionId: created.result.connection.connectionId,
-        actor: { kind: 'user', userId: created.accountId },
-      },
-      control,
-    );
-    expect(result.status).toBe('revoked');
-    if (result.status !== 'revoked') return;
-    expect(result).toMatchObject({ credentialRevoked: false });
-    expect(result.connection).toMatchObject({
+    expect(
+      await revokeProviderConnection(
+        {
+          connectionId: created.result.connection.connectionId,
+          actor: { kind: 'user', userId: created.accountId },
+        },
+        control,
+      ),
+    ).toEqual({ status: 'custody-reconcile' });
+    const [row] = await getDb()
+      .select()
+      .from(inferenceProviderConnections)
+      .where(eq(inferenceProviderConnections.id, created.result.connection.connectionId));
+    expect(row).toMatchObject({
       status: 'revoked',
       custodyState: 'reconcile',
       credentialRevision: 1,

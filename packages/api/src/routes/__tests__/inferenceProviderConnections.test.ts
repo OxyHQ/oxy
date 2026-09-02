@@ -418,6 +418,7 @@ describe('a service credential may not change provider connections', () => {
     { what: 'disable', path: '/disable', body: {} },
     { what: 'enable', path: '/enable', body: {} },
     { what: 'revoke', path: '/revoke', body: {} },
+    { what: 'reconcile', path: '/reconcile', body: {} },
     // Inside the refusal deliberately: an `invalid` verdict DISABLES the
     // connection, so leaving this open would leave a disable-equivalent open to
     // exactly the credential the refusal exists to stop.
@@ -696,13 +697,18 @@ describe('cross-account isolation', () => {
       (await request('GET', `/inference/provider-connections/${connection}`, token)).status,
     ).toBe(200);
 
-    // …and the account's own admin WRITES it, at the identical URL the stranger
-    // above was refused.
+    // …and the account's own admin gets past authorization at the identical URL
+    // the stranger above was refused. With control signing unset, the later
+    // exact-outcome gate returns 503 after fencing the connection locally.
     currentUserId = await insertMemberAccount(owner, 'admin');
-    expect(
-      (await request('POST', `/inference/provider-connections/${connection}/revoke`, undefined, {}))
-        .status,
-    ).toBe(200);
+    const revoke = await request(
+      'POST',
+      `/inference/provider-connections/${connection}/revoke`,
+      undefined,
+      {},
+    );
+    expect(revoke.status).toBe(503);
+    expect(revoke.body.error).toBe('kaana_credential_reconcile_required');
   });
 
   it('does not let a service token reach an application it does not own', async () => {
@@ -844,9 +850,9 @@ describe('with no Kaana credential control configured', () => {
       scopes: ['inference:providers:read'],
     });
 
-    // Disable, revoke, validation-verdict and every read work without a store —
-    // so an unconfigured deployment is not one where a customer is stuck. The
-    // writes go on the user lane, which is the only lane they have.
+    // Disable, validation-verdict and every read work without Kaana control.
+    // A revoke still fences the connection locally, but cannot claim the remote
+    // credential was revoked without an exact signed outcome.
     currentUserId = await insertMemberAccount(account, 'admin');
     expect(
       (
@@ -867,10 +873,14 @@ describe('with no Kaana credential control configured', () => {
     ).toBe(200);
     currentUserId = previousUser;
 
-    expect(
-      (await request('POST', `/inference/provider-connections/${connection}/revoke`, undefined, {}))
-        .status,
-    ).toBe(200);
+    const revoke = await request(
+      'POST',
+      `/inference/provider-connections/${connection}/revoke`,
+      undefined,
+      {},
+    );
+    expect(revoke.status).toBe(503);
+    expect(revoke.body.error).toBe('kaana_credential_reconcile_required');
   });
 });
 
@@ -892,6 +902,9 @@ describe('the response body', () => {
       return new Response(
         JSON.stringify({
           schemaVersion: 1,
+          operationId: mutation.operationId,
+          action: 'create',
+          status: 'applied',
           credentialHandle: `kcred_${'g'.repeat(26)}`,
           revision: 1,
         }),
@@ -928,6 +941,71 @@ describe('the response body', () => {
     expect(accepted.status).toBe(201);
     expect(mutation?.operationActor).toBe(`user:${currentUserId}`);
     expect(mutation?.actor).toBeUndefined();
+  });
+
+  it('reconciles a lost create response with the same persisted operation id', async () => {
+    const account = await insertAccount();
+    const provider = await insertProvider();
+    currentUserId = await insertMemberAccount(account, 'admin');
+    const { privateKey } = generateKeyPairSync('ed25519');
+    process.env.KAANA_BASE_URL = 'https://kaana.ai';
+    process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_KEY_ID = 'route-reconcile-test';
+    process.env.KAANA_CREDENTIAL_CONTROL_SIGNING_PRIVATE_KEY = privateKey
+      .export({ format: 'pem', type: 'pkcs8' })
+      .toString();
+
+    let mutation: Record<string, unknown> | undefined;
+    const outcomeRequests: Record<string, unknown>[] = [];
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      if (!Buffer.isBuffer(init?.body)) throw new Error('expected a signed buffer body');
+      const body = JSON.parse(init.body.toString('utf8')) as Record<string, unknown>;
+      if (String(url).endsWith('/mutations')) {
+        mutation = body;
+        throw new Error('create response lost after commit');
+      }
+      outcomeRequests.push(body);
+      if (outcomeRequests.length === 1) return new Response('', { status: 404 });
+      return new Response(
+        JSON.stringify({
+          schemaVersion: 1,
+          operationId: body.operationId,
+          action: 'create',
+          status: 'applied',
+          credentialHandle: `kcred_${'h'.repeat(26)}`,
+          revision: 1,
+        }),
+        { status: 200 },
+      );
+    });
+
+    const created = await request(
+      'POST',
+      `/inference/provider-connections/accounts/${account}`,
+      undefined,
+      {
+        provider,
+        environment: 'production',
+        scope: 'account',
+        secret: 'route-reconcile-provider-key',
+      },
+    );
+    expect(created.status).toBe(503);
+    const connectionId = (created.body.details as Record<string, unknown>).connectionId;
+    expect(typeof connectionId).toBe('string');
+
+    const reconciled = await request(
+      'POST',
+      `/inference/provider-connections/${String(connectionId)}/reconcile`,
+      undefined,
+      {},
+    );
+    expect(reconciled.status).toBe(200);
+    expect(reconciled.body.reconciledAction).toBe('create');
+    expect(outcomeRequests).toHaveLength(2);
+    expect(outcomeRequests[0]?.operationId).toBe(mutation?.operationId);
+    expect(outcomeRequests[1]?.operationId).toBe(mutation?.operationId);
+    expect(outcomeRequests[1]?.operationActor).toBeUndefined();
+    expect(outcomeRequests[1]?.secretBase64).toBeUndefined();
   });
 
   it('carries a reference and a prefix, and no field a credential could occupy', async () => {

@@ -88,6 +88,7 @@ import {
   getProviderConnectionRow,
   listProviderConnectionAuditEvents,
   listProviderConnectionsForAccount,
+  reconcileProviderConnection,
   recordProviderConnectionUse,
   recordProviderConnectionValidation,
   resolveProviderConnectionForApplication,
@@ -406,6 +407,11 @@ function respondToCreate(res: Response, result: CreateProviderConnectionResult):
         'kaana_credential_reconcile_required',
         { connectionId: result.connectionId },
       );
+    case 'custody-manual':
+      throw new ConflictError(
+        'Kaana recorded a conflicting credential operation. The connection remains quarantined for manual resolution.',
+        { connectionId: result.connectionId },
+      );
     case 'unknown-provider':
       throw new BadRequestError(
         `Oxy does not serve ${result.provider}, so it cannot hold a connection for it`,
@@ -667,6 +673,10 @@ router.post(
           'The credential rotation outcome is uncertain and this connection is quarantined.',
           'kaana_credential_reconcile_required',
         );
+      case 'custody-manual':
+        throw new ConflictError(
+          'Kaana recorded a conflicting credential rotation. The connection remains quarantined for manual resolution.',
+        );
       case 'unknown-connection':
         throw new NotFoundError('No such provider connection');
       case 'revoked':
@@ -794,10 +804,69 @@ router.post(
           credentialRevoked: result.credentialRevoked,
         });
         return;
+      case 'custody-reconcile':
+        throw new ApiError(
+          503,
+          'The credential revocation outcome is uncertain and this connection remains quarantined.',
+          'kaana_credential_reconcile_required',
+        );
+      case 'custody-manual':
+        throw new ConflictError(
+          'Kaana recorded a conflicting credential revocation. The connection remains quarantined for manual resolution.',
+        );
       case 'unknown-connection':
         throw new NotFoundError('No such provider connection');
       case 'already-revoked':
         throw new ConflictError('This connection is already revoked');
+    }
+  }),
+);
+
+/**
+ * `POST /inference/provider-connections/:connectionId/reconcile`
+ *
+ * Retry only Kaana's signed exact-outcome lookup for the operation Oxy already
+ * persisted. It sends no provider secret and never mints or substitutes an id.
+ */
+router.post(
+  '/:connectionId/reconcile',
+  providerWriteLimiter,
+  validate({
+    params: providerConnectionParams,
+    body: providerConnectionEmptyBody,
+  }),
+  asyncHandler(async (req: ProviderRequest, res: Response) => {
+    const { connectionId } = providerConnectionParams.parse(req.params);
+    const principal = principalOf(req);
+    await authorizeConnection(
+      principal,
+      connectionId,
+      {
+        application: 'inference:byok:write',
+        account: 'inference:providers:write',
+      },
+      'inference:providers:write',
+    );
+
+    const result = await reconcileProviderConnection(connectionId, kaanaCredentialControlOr503());
+    switch (result.status) {
+      case 'reconciled':
+        res.json({ data: result.connection, reconciledAction: result.action });
+        return;
+      case 'reconciliation-required':
+        throw new ApiError(
+          503,
+          'Kaana still has no exact outcome for this operation. The connection remains quarantined.',
+          'kaana_credential_reconcile_required',
+        );
+      case 'manual-required':
+        throw new ConflictError(
+          'Kaana recorded a conflict for this operation. The connection requires manual resolution.',
+        );
+      case 'no-unresolved-operation':
+        throw new ConflictError('This connection has no unresolved credential operation');
+      case 'unknown-connection':
+        throw new NotFoundError('No such provider connection');
     }
   }),
 );

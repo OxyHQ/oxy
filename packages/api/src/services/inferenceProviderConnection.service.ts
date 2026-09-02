@@ -41,7 +41,10 @@
 
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import {
+  kaanaCredentialOutcomeRequestSchema,
   providerConnectionSchema,
+  type KaanaCredentialOutcome,
+  type KaanaCredentialOutcomeRequest,
   type ProviderConnection,
   type ProviderConnectionStatus,
 } from '@oxyhq/contracts';
@@ -63,11 +66,17 @@ import {
   type ProviderConnectionValidationFailureCode,
   type ProviderConnectionValidationStateValue,
 } from '../db/schema/inferenceProviderConnections';
+import {
+  inferenceProviderCredentialOperations,
+  type InferenceProviderCredentialOperationRow,
+  type ProviderCredentialOperationState,
+} from '../db/schema/inferenceProviderCredentialOperations';
 import { inferenceProviders } from '../db/schema/inferenceProviders';
 import { userAncestors } from '../db/schema/userAncestors';
 import { logger } from '../utils/logger';
 import {
   fingerprintProviderCredential,
+  KaanaCredentialConflictError,
   providerCredentialFingerprintsMatch,
   type KaanaCredentialControl,
   type ProviderCredentialValue,
@@ -508,6 +517,7 @@ export interface CreateProviderConnectionInput {
 export type CreateProviderConnectionResult =
   | { readonly status: 'created'; readonly connection: ProviderConnection }
   | { readonly status: 'custody-reconcile'; readonly connectionId: string }
+  | { readonly status: 'custody-manual'; readonly connectionId: string }
   | { readonly status: 'unknown-provider'; readonly provider: string }
   | {
       readonly status: 'terms-not-acknowledged';
@@ -526,8 +536,8 @@ export type CreateProviderConnectionResult =
  * ## Ordering, and which failure is survivable
  *
  * The pending row is committed before the network hop. Kaana success is fenced
- * into `ready`; every missing or conflicting acknowledgement becomes
- * `reconcile`, which the resolver excludes unconditionally.
+ * into `ready`; a missing acknowledgement becomes `reconciliation` and a
+ * confirmed conflict becomes `manual`, both excluded by the resolver.
  */
 export async function createProviderConnection(
   input: CreateProviderConnectionInput,
@@ -559,6 +569,10 @@ export async function createProviderConnection(
 
   // Minted here because this exact id is part of Kaana's immutable KMS context.
   const connectionId = uuidv7();
+  const operationId = uuidv7();
+  const secretSha256 = fingerprintProviderCredential(input.secret);
+  const keyPrefix = input.secret.prefix();
+  const operationActor = providerConnectionOperationActor(input.actor);
   try {
     await getDb().transaction(async (tx) => {
       await tx.insert(inferenceProviderConnections).values({
@@ -575,11 +589,26 @@ export async function createProviderConnection(
         custodyState: 'pending',
         credentialHandle: null,
         credentialRevision: null,
-        keyPrefix: input.secret.prefix(),
-        fingerprint: fingerprintProviderCredential(input.secret),
+        keyPrefix,
+        fingerprint: secretSha256,
         validationState: 'unvalidated',
         termsAcknowledgedAt: provider.termsRequired ? new Date() : null,
         providerTermsAcknowledgementRequired: provider.termsRequired,
+      });
+      await tx.insert(inferenceProviderCredentialOperations).values({
+        id: operationId,
+        connectionId,
+        action: 'create',
+        provider: provider.slug,
+        ownerAccountId: input.ownerAccountId,
+        environment: input.environment,
+        operationActor,
+        credentialHandle: null,
+        expectedRevision: null,
+        secretSha256,
+        keyPrefix,
+        previousConnectionStatus: null,
+        state: 'pending',
       });
     });
   } catch (error) {
@@ -589,70 +618,48 @@ export async function createProviderConnection(
     throw error;
   }
 
-  let reference: Awaited<ReturnType<KaanaCredentialControl['create']>>;
+  let outcome: KaanaCredentialOutcome;
   try {
-    reference = await control.create({
+    outcome = await control.create({
+      operationId,
       provider: provider.slug,
       ownerAccountId: input.ownerAccountId,
       connectionId,
       environment: input.environment,
+      operationActor,
       secret: input.secret,
-      actor: input.actor,
+      secretSha256,
     });
-  } catch {
-    await markCustodyReconcile(connectionId);
+  } catch (error) {
+    if (error instanceof KaanaCredentialConflictError) {
+      await markCredentialOperation(connectionId, operationId, 'manual');
+      return { status: 'custody-manual', connectionId };
+    }
+    await markCredentialOperation(connectionId, operationId, 'reconciliation');
     return { status: 'custody-reconcile', connectionId };
   }
-  if (reference.revision !== 1) {
-    await markCustodyReconcile(connectionId);
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(connectionId, operationId, 'reconciliation');
     return { status: 'custody-reconcile', connectionId };
   }
 
-  let connection: ProviderConnection;
   try {
-    connection = await getDb().transaction(async (tx) => {
-      const [row] = await tx
-        .update(inferenceProviderConnections)
-        .set({
-          custodyState: 'ready',
-          credentialHandle: reference.credentialHandle,
-          credentialRevision: reference.revision,
-        })
-        .where(
-          and(
-            eq(inferenceProviderConnections.id, connectionId),
-            eq(inferenceProviderConnections.custodyState, 'pending'),
-          ),
-        )
-        .returning();
-      if (row === undefined) throw new Error('provider credential create lost its pending row');
-      await appendAuditEvent(tx, {
-        connectionId: row.id,
-        ownerAccountId: row.ownerAccountId,
-        environment: row.environment,
-        eventType: 'created',
-        actor: input.actor,
-        metadata: {
-          provider: row.provider,
-          scopeKind: row.scopeKind,
-          keyPrefix: row.keyPrefix,
-          credentialRevision: reference.revision,
-          termsAcknowledged: provider.termsRequired,
-        },
-      });
-      return toProviderConnection(row);
-    });
-  } catch {
-    await markCustodyReconcile(connectionId);
+    return {
+      status: 'created',
+      connection: await applyCredentialOperation(operationId, outcome),
+    };
+  } catch (error) {
+    void error;
+    await markCredentialOperation(connectionId, operationId, 'reconciliation');
     return { status: 'custody-reconcile', connectionId };
   }
-  return { status: 'created', connection };
 }
 
 /** Outcomes of a rotation. */
 export type RotateProviderConnectionResult =
   | { readonly status: 'rotated'; readonly connection: ProviderConnection }
   | { readonly status: 'custody-reconcile' }
+  | { readonly status: 'custody-manual' }
   | { readonly status: 'unknown-connection' }
   | { readonly status: 'revoked' }
   | { readonly status: 'unchanged-credential' };
@@ -700,90 +707,79 @@ export async function rotateProviderConnection(
     return { status: 'unchanged-credential' };
   }
 
-  const [fenced] = await getDb()
-    .update(inferenceProviderConnections)
-    .set({ custodyState: 'reconcile' })
-    .where(
-      and(
-        eq(inferenceProviderConnections.id, input.connectionId),
-        eq(inferenceProviderConnections.custodyState, 'ready'),
-        eq(inferenceProviderConnections.credentialRevision, credentialRevision),
-      ),
-    )
-    .returning({ id: inferenceProviderConnections.id });
+  const operationId = uuidv7();
+  const keyPrefix = input.secret.prefix();
+  const operationActor = providerConnectionOperationActor(input.actor);
+  const fenced = await getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .update(inferenceProviderConnections)
+      .set({ custodyState: 'reconcile' })
+      .where(
+        and(
+          eq(inferenceProviderConnections.id, input.connectionId),
+          eq(inferenceProviderConnections.custodyState, 'ready'),
+          eq(inferenceProviderConnections.credentialHandle, credentialHandle),
+          eq(inferenceProviderConnections.credentialRevision, credentialRevision),
+        ),
+      )
+      .returning({ id: inferenceProviderConnections.id });
+    if (row === undefined) return undefined;
+    await tx.insert(inferenceProviderCredentialOperations).values({
+      id: operationId,
+      connectionId: existing.id,
+      action: 'rotate',
+      provider: existing.provider,
+      ownerAccountId: existing.ownerAccountId,
+      environment: existing.environment,
+      operationActor,
+      credentialHandle,
+      expectedRevision: credentialRevision,
+      secretSha256: fingerprint,
+      keyPrefix,
+      previousConnectionStatus: null,
+      state: 'pending',
+    });
+    return row;
+  });
   if (fenced === undefined) return { status: 'custody-reconcile' };
 
-  let reference: Awaited<ReturnType<KaanaCredentialControl['rotate']>>;
+  let outcome: KaanaCredentialOutcome;
   try {
-    reference = await control.rotate({
+    outcome = await control.rotate({
+      operationId,
       provider: existing.provider,
       ownerAccountId: existing.ownerAccountId,
       connectionId: existing.id,
       environment: existing.environment,
+      operationActor,
       credentialHandle,
-      revision: credentialRevision,
+      expectedRevision: credentialRevision,
       secret: input.secret,
-      actor: input.actor,
+      secretSha256: fingerprint,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof KaanaCredentialConflictError) {
+      await markCredentialOperation(existing.id, operationId, 'manual');
+      return { status: 'custody-manual' };
+    }
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
     return { status: 'custody-reconcile' };
   }
-  if (
-    reference.credentialHandle !== credentialHandle ||
-    reference.revision !== credentialRevision + 1
-  ) {
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
     return { status: 'custody-reconcile' };
   }
 
-  let connection: ProviderConnection;
   try {
-    connection = await getDb().transaction(async (tx) => {
-      const [row] = await tx
-        .update(inferenceProviderConnections)
-        .set({
-          custodyState: 'ready',
-          credentialRevision: reference.revision,
-          keyPrefix: input.secret.prefix(),
-          fingerprint,
-          validationState: 'unvalidated',
-          validationFailureCode: null,
-          rotatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(inferenceProviderConnections.id, input.connectionId),
-            eq(inferenceProviderConnections.status, existing.status),
-            eq(inferenceProviderConnections.custodyState, 'reconcile'),
-            eq(inferenceProviderConnections.credentialHandle, credentialHandle),
-            eq(inferenceProviderConnections.credentialRevision, credentialRevision),
-          ),
-        )
-        .returning();
-      if (row === undefined) throw new Error('provider credential rotation lost its fenced row');
-
-      await appendAuditEvent(tx, {
-        connectionId: row.id,
-        ownerAccountId: row.ownerAccountId,
-        environment: row.environment,
-        eventType: 'rotated',
-        actor: input.actor,
-        metadata: {
-          // Both already appear in the public DTO: a SHA-256 of a credential is
-          // not the credential, and a 12-character prefix cannot be one.
-          previousFingerprint: existing.fingerprint,
-          previousKeyPrefix: existing.keyPrefix,
-          keyPrefix: row.keyPrefix,
-          credentialRevision: reference.revision,
-        },
-      });
-
-      return toProviderConnection(row);
-    });
-  } catch {
+    return {
+      status: 'rotated',
+      connection: await applyCredentialOperation(operationId, outcome),
+    };
+  } catch (error) {
+    void error;
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
     return { status: 'custody-reconcile' };
   }
-
-  return { status: 'rotated', connection };
 }
 
 /** Outcomes of a lifecycle transition that touches no credential. */
@@ -879,8 +875,10 @@ export type RevokeProviderConnectionResult =
   | {
       readonly status: 'revoked';
       readonly connection: ProviderConnection;
-      readonly credentialRevoked: boolean;
+      readonly credentialRevoked: true;
     }
+  | { readonly status: 'custody-reconcile' }
+  | { readonly status: 'custody-manual' }
   | { readonly status: 'unknown-connection' }
   | { readonly status: 'already-revoked' };
 
@@ -901,18 +899,50 @@ export async function revokeProviderConnection(
   const existing = await getProviderConnectionRow(input.connectionId);
   if (existing === undefined) return { status: 'unknown-connection' };
   if (existing.status === 'revoked') return { status: 'already-revoked' };
+  if (
+    existing.custodyState !== 'ready' ||
+    existing.credentialHandle === null ||
+    existing.credentialRevision === null
+  ) {
+    return { status: 'custody-reconcile' };
+  }
 
-  const [fenced] = await getDb()
-    .update(inferenceProviderConnections)
-    .set({ status: 'revoked', custodyState: 'reconcile' })
-    .where(
-      and(
-        eq(inferenceProviderConnections.id, input.connectionId),
-        eq(inferenceProviderConnections.status, existing.status),
-        eq(inferenceProviderConnections.custodyState, existing.custodyState),
-      ),
-    )
-    .returning();
+  const operationId = uuidv7();
+  const operationActor = providerConnectionOperationActor(input.actor);
+  const credentialHandle = existing.credentialHandle;
+  const credentialRevision = existing.credentialRevision;
+  const fenced = await getDb().transaction(async (tx) => {
+    const [row] = await tx
+      .update(inferenceProviderConnections)
+      .set({ status: 'revoked', custodyState: 'reconcile' })
+      .where(
+        and(
+          eq(inferenceProviderConnections.id, input.connectionId),
+          eq(inferenceProviderConnections.status, existing.status),
+          eq(inferenceProviderConnections.custodyState, 'ready'),
+          eq(inferenceProviderConnections.credentialHandle, credentialHandle),
+          eq(inferenceProviderConnections.credentialRevision, credentialRevision),
+        ),
+      )
+      .returning();
+    if (row === undefined) return undefined;
+    await tx.insert(inferenceProviderCredentialOperations).values({
+      id: operationId,
+      connectionId: existing.id,
+      action: 'revoke',
+      provider: existing.provider,
+      ownerAccountId: existing.ownerAccountId,
+      environment: existing.environment,
+      operationActor,
+      credentialHandle,
+      expectedRevision: credentialRevision,
+      secretSha256: null,
+      keyPrefix: null,
+      previousConnectionStatus: existing.status,
+      state: 'pending',
+    });
+    return row;
+  });
 
   if (fenced === undefined) {
     const current = await getProviderConnectionRow(input.connectionId);
@@ -921,74 +951,118 @@ export async function revokeProviderConnection(
       : { status: 'unknown-connection' };
   }
 
-  const credentialHandle = fenced?.credentialHandle;
-  const credentialRevision = fenced?.credentialRevision;
-  let reference: Awaited<ReturnType<KaanaCredentialControl['revoke']>> | undefined;
-  if (
-    control !== undefined &&
-    fenced !== undefined &&
-    credentialHandle !== null &&
-    credentialHandle !== undefined &&
-    credentialRevision !== null &&
-    credentialRevision !== undefined
-  ) {
-    try {
-      const acknowledged = await control.revoke({
-        provider: fenced.provider,
-        ownerAccountId: fenced.ownerAccountId,
-        connectionId: fenced.id,
-        environment: fenced.environment,
-        credentialHandle,
-        revision: credentialRevision,
-        actor: input.actor,
-      });
-      if (
-        acknowledged.credentialHandle === credentialHandle &&
-        acknowledged.revision === credentialRevision + 1
-      ) {
-        reference = acknowledged;
-      }
-    } catch {
-      reference = undefined;
-    }
+  if (control === undefined) {
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
   }
 
-  const connection = await getDb().transaction(async (tx) => {
-    const [row] = await tx
-      .update(inferenceProviderConnections)
-      .set(
-        reference === undefined
-          ? { status: 'revoked', custodyState: 'reconcile' }
-          : {
-              status: 'revoked',
-              custodyState: 'revoked',
-              credentialRevision: reference.revision,
-            },
-      )
-      .where(eq(inferenceProviderConnections.id, input.connectionId))
-      .returning();
-
-    await appendAuditEvent(tx, {
-      connectionId: row.id,
-      ownerAccountId: row.ownerAccountId,
-      environment: row.environment,
-      eventType: 'revoked',
-      actor: input.actor,
-      metadata: {
-        previousStatus: existing.status,
-        credentialRevoked: reference !== undefined,
-        credentialRevision: reference?.revision ?? existing.credentialRevision,
-      },
+  let outcome: KaanaCredentialOutcome;
+  try {
+    outcome = await control.revoke({
+      operationId,
+      provider: existing.provider,
+      ownerAccountId: existing.ownerAccountId,
+      connectionId: existing.id,
+      environment: existing.environment,
+      operationActor,
+      credentialHandle,
+      expectedRevision: credentialRevision,
     });
+  } catch (error) {
+    if (error instanceof KaanaCredentialConflictError) {
+      await markCredentialOperation(existing.id, operationId, 'manual');
+      return { status: 'custody-manual' };
+    }
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
+  }
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
+  }
 
-    return toProviderConnection(row);
-  });
+  try {
+    return {
+      status: 'revoked',
+      connection: await applyCredentialOperation(operationId, outcome),
+      credentialRevoked: true,
+    };
+  } catch (error) {
+    void error;
+    await markCredentialOperation(existing.id, operationId, 'reconciliation');
+    return { status: 'custody-reconcile' };
+  }
+}
 
-  return {
-    status: 'revoked',
-    connection,
-    credentialRevoked: reference !== undefined,
-  };
+export type ReconcileProviderConnectionResult =
+  | {
+      readonly status: 'reconciled';
+      readonly action: InferenceProviderCredentialOperationRow['action'];
+      readonly connection: ProviderConnection;
+    }
+  | { readonly status: 'reconciliation-required' }
+  | { readonly status: 'manual-required' }
+  | { readonly status: 'no-unresolved-operation' }
+  | { readonly status: 'unknown-connection' };
+
+/**
+ * Resolve one quarantined connection from Kaana's signed durable outcome.
+ *
+ * This sends no secret and never resubmits a mutation. A missing operation,
+ * network failure or mismatched answer remains quarantined under the same id;
+ * a recorded conflict becomes an explicit manual state.
+ */
+export async function reconcileProviderConnection(
+  connectionId: string,
+  control: KaanaCredentialControl,
+): Promise<ReconcileProviderConnectionResult> {
+  const existing = await getProviderConnectionRow(connectionId);
+  if (existing === undefined) return { status: 'unknown-connection' };
+
+  const [operation] = await getDb()
+    .select()
+    .from(inferenceProviderCredentialOperations)
+    .where(
+      and(
+        eq(inferenceProviderCredentialOperations.connectionId, connectionId),
+        inArray(inferenceProviderCredentialOperations.state, [
+          'pending',
+          'reconciliation',
+          'manual',
+        ]),
+      ),
+    )
+    .limit(1);
+  if (operation === undefined) return { status: 'no-unresolved-operation' };
+  if (operation.state === 'manual') return { status: 'manual-required' };
+
+  let outcome: KaanaCredentialOutcome;
+  try {
+    outcome = await control.outcome(outcomeRequestForOperation(operation));
+  } catch (error) {
+    if (error instanceof KaanaCredentialConflictError) {
+      await markCredentialOperation(connectionId, operation.id, 'manual');
+      return { status: 'manual-required' };
+    }
+    await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+    return { status: 'reconciliation-required' };
+  }
+  if (outcome.status !== 'applied') {
+    await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+    return { status: 'reconciliation-required' };
+  }
+
+  try {
+    return {
+      status: 'reconciled',
+      action: operation.action,
+      connection: await applyCredentialOperation(operation.id, outcome),
+    };
+  } catch (error) {
+    void error;
+    await markCredentialOperation(connectionId, operation.id, 'reconciliation');
+    return { status: 'reconciliation-required' };
+  }
 }
 
 /** Outcomes of recording a validation verdict. */
@@ -1078,12 +1152,298 @@ export async function recordProviderConnectionValidation(input: {
 /*  Internals                                                                 */
 /* -------------------------------------------------------------------------- */
 
-/** Fence an uncertain cross-service result out of all routing. */
-async function markCustodyReconcile(connectionId: string): Promise<void> {
-  await getDb()
-    .update(inferenceProviderConnections)
-    .set({ custodyState: 'reconcile' })
-    .where(eq(inferenceProviderConnections.id, connectionId));
+function providerConnectionOperationActor(actor: ProviderConnectionActor): string {
+  return actor.kind === 'user' ? `user:${actor.userId}` : actor.kind;
+}
+
+function providerConnectionActorFromOperation(operationActor: string): ProviderConnectionActor {
+  if (operationActor === 'service') return { kind: 'service' };
+  if (operationActor === 'platform') return { kind: 'platform' };
+  if (operationActor.startsWith('user:') && operationActor.length > 'user:'.length) {
+    return { kind: 'user', userId: operationActor.slice('user:'.length) };
+  }
+  throw new Error('provider credential operation has an invalid Oxy actor');
+}
+
+function outcomeRequestForOperation(
+  operation: InferenceProviderCredentialOperationRow,
+): KaanaCredentialOutcomeRequest {
+  const identity = {
+    schemaVersion: 1 as const,
+    operationId: operation.id,
+    provider: operation.provider,
+    ownerAccountId: operation.ownerAccountId,
+    connectionId: operation.connectionId,
+    environment: operation.environment,
+  };
+  switch (operation.action) {
+    case 'create':
+      return kaanaCredentialOutcomeRequestSchema.parse({
+        ...identity,
+        action: 'create',
+        secretSha256: operation.secretSha256,
+      });
+    case 'rotate':
+      return kaanaCredentialOutcomeRequestSchema.parse({
+        ...identity,
+        action: 'rotate',
+        secretSha256: operation.secretSha256,
+        credentialHandle: operation.credentialHandle,
+        expectedRevision: operation.expectedRevision,
+      });
+    case 'revoke':
+      return kaanaCredentialOutcomeRequestSchema.parse({
+        ...identity,
+        action: 'revoke',
+        credentialHandle: operation.credentialHandle,
+        expectedRevision: operation.expectedRevision,
+      });
+  }
+}
+
+function credentialOutcomeMatchesOperation(
+  operation: InferenceProviderCredentialOperationRow,
+  outcome: KaanaCredentialOutcome,
+): outcome is Extract<KaanaCredentialOutcome, { status: 'applied' }> {
+  if (
+    outcome.status !== 'applied' ||
+    outcome.operationId !== operation.id ||
+    outcome.action !== operation.action
+  ) {
+    return false;
+  }
+  if (operation.action === 'create') {
+    return outcome.revision === 1;
+  }
+  return (
+    operation.credentialHandle !== null &&
+    operation.expectedRevision !== null &&
+    outcome.credentialHandle === operation.credentialHandle &&
+    outcome.revision === operation.expectedRevision + 1
+  );
+}
+
+/** Atomically commit one exact applied Kaana outcome and its customer audit. */
+async function applyCredentialOperation(
+  operationId: string,
+  outcome: KaanaCredentialOutcome,
+): Promise<ProviderConnection> {
+  return getDb().transaction(async (tx) => {
+    const [operation] = await tx
+      .select()
+      .from(inferenceProviderCredentialOperations)
+      .where(
+        and(
+          eq(inferenceProviderCredentialOperations.id, operationId),
+          inArray(inferenceProviderCredentialOperations.state, ['pending', 'reconciliation']),
+        ),
+      )
+      .limit(1);
+    if (operation === undefined || !credentialOutcomeMatchesOperation(operation, outcome)) {
+      throw new Error('provider credential outcome does not match its durable operation');
+    }
+
+    const [before] = await tx
+      .select()
+      .from(inferenceProviderConnections)
+      .where(
+        and(
+          eq(inferenceProviderConnections.id, operation.connectionId),
+          eq(inferenceProviderConnections.provider, operation.provider),
+          eq(inferenceProviderConnections.ownerAccountId, operation.ownerAccountId),
+          eq(inferenceProviderConnections.environment, operation.environment),
+        ),
+      )
+      .limit(1);
+    if (before === undefined) {
+      throw new Error('provider credential operation lost its exact connection identity');
+    }
+
+    let row: InferenceProviderConnectionRow | undefined;
+    switch (operation.action) {
+      case 'create': {
+        if (operation.secretSha256 === null || operation.keyPrefix === null) {
+          throw new Error('provider credential create operation lost recognition metadata');
+        }
+        [row] = await tx
+          .update(inferenceProviderConnections)
+          .set({
+            custodyState: 'ready',
+            credentialHandle: outcome.credentialHandle,
+            credentialRevision: outcome.revision,
+            fingerprint: operation.secretSha256,
+            keyPrefix: operation.keyPrefix,
+          })
+          .where(
+            and(
+              eq(inferenceProviderConnections.id, operation.connectionId),
+              inArray(inferenceProviderConnections.custodyState, ['pending', 'reconcile']),
+              isNull(inferenceProviderConnections.credentialHandle),
+              isNull(inferenceProviderConnections.credentialRevision),
+            ),
+          )
+          .returning();
+        break;
+      }
+      case 'rotate': {
+        if (
+          operation.secretSha256 === null ||
+          operation.keyPrefix === null ||
+          operation.credentialHandle === null ||
+          operation.expectedRevision === null
+        ) {
+          throw new Error('provider credential rotate operation lost exact selectors');
+        }
+        [row] = await tx
+          .update(inferenceProviderConnections)
+          .set({
+            custodyState: 'ready',
+            credentialRevision: outcome.revision,
+            keyPrefix: operation.keyPrefix,
+            fingerprint: operation.secretSha256,
+            validationState: 'unvalidated',
+            validationFailureCode: null,
+            rotatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(inferenceProviderConnections.id, operation.connectionId),
+              eq(inferenceProviderConnections.custodyState, 'reconcile'),
+              eq(inferenceProviderConnections.credentialHandle, operation.credentialHandle),
+              eq(inferenceProviderConnections.credentialRevision, operation.expectedRevision),
+            ),
+          )
+          .returning();
+        break;
+      }
+      case 'revoke': {
+        if (operation.credentialHandle === null || operation.expectedRevision === null) {
+          throw new Error('provider credential revoke operation lost exact selectors');
+        }
+        [row] = await tx
+          .update(inferenceProviderConnections)
+          .set({
+            status: 'revoked',
+            custodyState: 'revoked',
+            credentialRevision: outcome.revision,
+          })
+          .where(
+            and(
+              eq(inferenceProviderConnections.id, operation.connectionId),
+              eq(inferenceProviderConnections.status, 'revoked'),
+              eq(inferenceProviderConnections.custodyState, 'reconcile'),
+              eq(inferenceProviderConnections.credentialHandle, operation.credentialHandle),
+              eq(inferenceProviderConnections.credentialRevision, operation.expectedRevision),
+            ),
+          )
+          .returning();
+        break;
+      }
+    }
+    if (row === undefined) {
+      throw new Error('provider credential operation lost its fenced connection row');
+    }
+
+    const [applied] = await tx
+      .update(inferenceProviderCredentialOperations)
+      .set({
+        state: 'applied',
+        outcomeCredentialHandle: outcome.credentialHandle,
+        outcomeRevision: outcome.revision,
+      })
+      .where(
+        and(
+          eq(inferenceProviderCredentialOperations.id, operation.id),
+          inArray(inferenceProviderCredentialOperations.state, ['pending', 'reconciliation']),
+        ),
+      )
+      .returning({ id: inferenceProviderCredentialOperations.id });
+    if (applied === undefined) {
+      throw new Error('provider credential operation lost its unresolved ledger row');
+    }
+
+    const actor = providerConnectionActorFromOperation(operation.operationActor);
+    switch (operation.action) {
+      case 'create':
+        await appendAuditEvent(tx, {
+          connectionId: row.id,
+          ownerAccountId: row.ownerAccountId,
+          environment: row.environment,
+          eventType: 'created',
+          actor,
+          metadata: {
+            provider: row.provider,
+            scopeKind: row.scopeKind,
+            keyPrefix: row.keyPrefix,
+            credentialRevision: outcome.revision,
+            termsAcknowledged: row.providerTermsAcknowledgementRequired,
+          },
+        });
+        break;
+      case 'rotate':
+        await appendAuditEvent(tx, {
+          connectionId: row.id,
+          ownerAccountId: row.ownerAccountId,
+          environment: row.environment,
+          eventType: 'rotated',
+          actor,
+          metadata: {
+            previousFingerprint: before.fingerprint,
+            previousKeyPrefix: before.keyPrefix,
+            keyPrefix: row.keyPrefix,
+            credentialRevision: outcome.revision,
+          },
+        });
+        break;
+      case 'revoke':
+        await appendAuditEvent(tx, {
+          connectionId: row.id,
+          ownerAccountId: row.ownerAccountId,
+          environment: row.environment,
+          eventType: 'revoked',
+          actor,
+          metadata: {
+            previousStatus: operation.previousConnectionStatus,
+            credentialRevoked: true,
+            credentialRevision: outcome.revision,
+          },
+        });
+        break;
+    }
+
+    return toProviderConnection(row);
+  });
+}
+
+/** Fence an uncertain or conflicting cross-service result out of all routing. */
+async function markCredentialOperation(
+  connectionId: string,
+  operationId: string,
+  state: Extract<ProviderCredentialOperationState, 'reconciliation' | 'manual'>,
+): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    const [operation] = await tx
+      .update(inferenceProviderCredentialOperations)
+      .set({ state })
+      .where(
+        and(
+          eq(inferenceProviderCredentialOperations.id, operationId),
+          eq(inferenceProviderCredentialOperations.connectionId, connectionId),
+          inArray(
+            inferenceProviderCredentialOperations.state,
+            state === 'manual'
+              ? ['pending', 'reconciliation', 'manual']
+              : ['pending', 'reconciliation'],
+          ),
+        ),
+      )
+      .returning({ id: inferenceProviderCredentialOperations.id });
+    if (operation === undefined) return;
+    await tx
+      .update(inferenceProviderConnections)
+      .set({ custodyState: 'reconcile' })
+      .where(eq(inferenceProviderConnections.id, connectionId));
+  });
 }
 
 /**

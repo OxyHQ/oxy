@@ -1,5 +1,5 @@
 {
-  "id": "588d16bc-e8f3-4604-9499-1089b098aaaf",
+  "id": "7d88727e-93bb-4bdc-b862-cead083210d4",
   "prevId": "5a352b8e-975d-4123-8a0d-62a6662d768e",
   "version": "7",
   "dialect": "postgresql",
@@ -13405,6 +13405,16 @@
           "columns": [
             "credential_handle"
           ]
+        },
+        "inference_provider_connections_operation_identity_key": {
+          "name": "inference_provider_connections_operation_identity_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "provider",
+            "owner_account_id",
+            "environment"
+          ]
         }
       },
       "policies": {},
@@ -13476,6 +13486,258 @@
         "inference_provider_connections_fingerprint_format": {
           "name": "inference_provider_connections_fingerprint_format",
           "value": "\"inference_provider_connections\".\"fingerprint\" ~ '^[a-f0-9]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inference_provider_credential_operations": {
+      "name": "inference_provider_credential_operations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "connection_id": {
+          "name": "connection_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_account_id": {
+          "name": "owner_account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_actor": {
+          "name": "operation_actor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "credential_handle": {
+          "name": "credential_handle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expected_revision": {
+          "name": "expected_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "secret_sha256": {
+          "name": "secret_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key_prefix": {
+          "name": "key_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previous_connection_status": {
+          "name": "previous_connection_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outcome_credential_handle": {
+          "name": "outcome_credential_handle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "outcome_revision": {
+          "name": "outcome_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "date_trunc('milliseconds', now())"
+        }
+      },
+      "indexes": {
+        "inference_provider_credential_operations_unresolved_key": {
+          "name": "inference_provider_credential_operations_unresolved_key",
+          "columns": [
+            {
+              "expression": "connection_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inference_provider_credential_operations\".\"state\" in ('pending', 'reconciliation', 'manual')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inference_provider_credential_operations_connection_id_created_at_idx": {
+          "name": "inference_provider_credential_operations_connection_id_created_at_idx",
+          "columns": [
+            {
+              "expression": "connection_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inference_provider_credential_operations_identity_fk": {
+          "name": "inference_provider_credential_operations_identity_fk",
+          "tableFrom": "inference_provider_credential_operations",
+          "tableTo": "inference_provider_connections",
+          "columnsFrom": [
+            "connection_id",
+            "provider",
+            "owner_account_id",
+            "environment"
+          ],
+          "columnsTo": [
+            "id",
+            "provider",
+            "owner_account_id",
+            "environment"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inference_provider_credential_operations_action_check": {
+          "name": "inference_provider_credential_operations_action_check",
+          "value": "\"inference_provider_credential_operations\".\"action\" in ('create', 'rotate', 'revoke')"
+        },
+        "inference_provider_credential_operations_state_check": {
+          "name": "inference_provider_credential_operations_state_check",
+          "value": "\"inference_provider_credential_operations\".\"state\" in ('pending', 'reconciliation', 'manual', 'applied')"
+        },
+        "inference_provider_credential_operations_id_format": {
+          "name": "inference_provider_credential_operations_id_format",
+          "value": "\"inference_provider_credential_operations\".\"id\" ~ '^[A-Za-z0-9_-]{1,128}$'"
+        },
+        "inference_provider_credential_operations_actor_format": {
+          "name": "inference_provider_credential_operations_actor_format",
+          "value": "length(\"inference_provider_credential_operations\".\"operation_actor\") between 1 and 256 and \"inference_provider_credential_operations\".\"operation_actor\" = btrim(\"inference_provider_credential_operations\".\"operation_actor\") and \"inference_provider_credential_operations\".\"operation_actor\" !~ E'[\\r\\n]'"
+        },
+        "inference_provider_credential_operations_reference_format": {
+          "name": "inference_provider_credential_operations_reference_format",
+          "value": "\"inference_provider_credential_operations\".\"credential_handle\" is null or \"inference_provider_credential_operations\".\"credential_handle\" ~ '^kcred_[a-z2-7]{26}$'"
+        },
+        "inference_provider_credential_operations_reference_pair": {
+          "name": "inference_provider_credential_operations_reference_pair",
+          "value": "(\"inference_provider_credential_operations\".\"credential_handle\" is null) = (\"inference_provider_credential_operations\".\"expected_revision\" is null)"
+        },
+        "inference_provider_credential_operations_reference_action": {
+          "name": "inference_provider_credential_operations_reference_action",
+          "value": "(\"inference_provider_credential_operations\".\"action\" = 'create') = (\"inference_provider_credential_operations\".\"credential_handle\" is null)"
+        },
+        "inference_provider_credential_operations_expected_revision_positive": {
+          "name": "inference_provider_credential_operations_expected_revision_positive",
+          "value": "\"inference_provider_credential_operations\".\"expected_revision\" is null or \"inference_provider_credential_operations\".\"expected_revision\" > 0"
+        },
+        "inference_provider_credential_operations_secret_fingerprint_action": {
+          "name": "inference_provider_credential_operations_secret_fingerprint_action",
+          "value": "(\"inference_provider_credential_operations\".\"action\" in ('create', 'rotate')) = (\"inference_provider_credential_operations\".\"secret_sha256\" is not null)"
+        },
+        "inference_provider_credential_operations_secret_fingerprint_format": {
+          "name": "inference_provider_credential_operations_secret_fingerprint_format",
+          "value": "\"inference_provider_credential_operations\".\"secret_sha256\" is null or \"inference_provider_credential_operations\".\"secret_sha256\" ~ '^[a-f0-9]{64}$'"
+        },
+        "inference_provider_credential_operations_key_prefix_action": {
+          "name": "inference_provider_credential_operations_key_prefix_action",
+          "value": "(\"inference_provider_credential_operations\".\"action\" in ('create', 'rotate')) = (\"inference_provider_credential_operations\".\"key_prefix\" is not null)"
+        },
+        "inference_provider_credential_operations_key_prefix_length": {
+          "name": "inference_provider_credential_operations_key_prefix_length",
+          "value": "\"inference_provider_credential_operations\".\"key_prefix\" is null or length(\"inference_provider_credential_operations\".\"key_prefix\") between 1 and 12"
+        },
+        "inference_provider_credential_operations_previous_status_action": {
+          "name": "inference_provider_credential_operations_previous_status_action",
+          "value": "(\"inference_provider_credential_operations\".\"action\" = 'revoke') = (\"inference_provider_credential_operations\".\"previous_connection_status\" is not null)"
+        },
+        "inference_provider_credential_operations_previous_status_check": {
+          "name": "inference_provider_credential_operations_previous_status_check",
+          "value": "\"inference_provider_credential_operations\".\"previous_connection_status\" is null or \"inference_provider_credential_operations\".\"previous_connection_status\" in ('pending_validation', 'active', 'disabled', 'revoked')"
+        },
+        "inference_provider_credential_operations_outcome_pair": {
+          "name": "inference_provider_credential_operations_outcome_pair",
+          "value": "(\"inference_provider_credential_operations\".\"outcome_credential_handle\" is null) = (\"inference_provider_credential_operations\".\"outcome_revision\" is null)"
+        },
+        "inference_provider_credential_operations_outcome_format": {
+          "name": "inference_provider_credential_operations_outcome_format",
+          "value": "\"inference_provider_credential_operations\".\"outcome_credential_handle\" is null or \"inference_provider_credential_operations\".\"outcome_credential_handle\" ~ '^kcred_[a-z2-7]{26}$'"
+        },
+        "inference_provider_credential_operations_applied_outcome": {
+          "name": "inference_provider_credential_operations_applied_outcome",
+          "value": "(\"inference_provider_credential_operations\".\"state\" = 'applied') = (\"inference_provider_credential_operations\".\"outcome_credential_handle\" is not null)"
+        },
+        "inference_provider_credential_operations_outcome_identity": {
+          "name": "inference_provider_credential_operations_outcome_identity",
+          "value": "\"inference_provider_credential_operations\".\"outcome_credential_handle\" is null or \"inference_provider_credential_operations\".\"action\" = 'create' or \"inference_provider_credential_operations\".\"outcome_credential_handle\" = \"inference_provider_credential_operations\".\"credential_handle\""
+        },
+        "inference_provider_credential_operations_outcome_revision": {
+          "name": "inference_provider_credential_operations_outcome_revision",
+          "value": "\"inference_provider_credential_operations\".\"outcome_revision\" is null or (\"inference_provider_credential_operations\".\"action\" = 'create' and \"inference_provider_credential_operations\".\"outcome_revision\" = 1) or (\"inference_provider_credential_operations\".\"action\" <> 'create' and \"inference_provider_credential_operations\".\"outcome_revision\" = \"inference_provider_credential_operations\".\"expected_revision\" + 1)"
         }
       },
       "isRLSEnabled": false
