@@ -6,20 +6,20 @@ on:
   push:
     branches: [main]
     paths:
-      - 'packages/api/**'
-      - 'packages/core/**'
-      - 'packages/contracts/**'
-      - 'packages/protocol/**'
-      - 'packages/federation/**'
-      - 'packages/db/**'
-      - 'Dockerfile'
-      - 'bun.lock'
-      - 'package.json'
-      - '.github/workflows/deploy-aws.yml'
+      - "packages/api/**"
+      - "packages/core/**"
+      - "packages/contracts/**"
+      - "packages/protocol/**"
+      - "packages/federation/**"
+      - "packages/db/**"
+      - "Dockerfile"
+      - "bun.lock"
+      - "package.json"
+      - ".github/workflows/deploy-aws.yml"
       # The rollout logic now lives in a script. Without this, editing it
       # would change how every deploy behaves and trigger no deploy to
       # exercise the change.
-      - '.github/scripts/deploy-ecs-image.sh'
+      - ".github/scripts/deploy-ecs-image.sh"
   workflow_dispatch:
 
 permissions:
@@ -213,8 +213,14 @@ jobs:
           # ledger, and every cheaper proxy is a silent-skip machine. Concretely,
           # "skip when this push changed no migration file" would have skipped the
           # deploy AFTER the one that stranded 0013 and left production broken.
-          RUN_MIGRATIONS: 'true'
+          RUN_MIGRATIONS: "true"
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.post_migrations.outputs.command }}
+          # The deploy script renders from the task definition the service is
+          # currently running, not from Terraform's latest registered revision.
+          # Re-assert new bindings here so capability authority cannot disappear
+          # on the following image rollout.
+          TASK_SECRET_OVERRIDES_JSON: >-
+            {"CAPABILITY_TICKET_SIGNING_PRIVATE_KEY":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_PRIVATE_KEY","CAPABILITY_TICKET_SIGNING_KEY_ID":"arn:aws:ssm:us-west-2:237343248947:parameter/oxy/oxy-api/CAPABILITY_TICKET_SIGNING_KEY_ID"}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
