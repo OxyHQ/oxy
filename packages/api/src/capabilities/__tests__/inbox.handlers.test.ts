@@ -3,6 +3,14 @@ import type { CatalogInvocationContext } from '@oxyhq/mcp';
 const mockSearchMessages = jest.fn();
 const mockSendMessage = jest.fn();
 const mockGetMessage = jest.fn();
+const mockEnsureMailboxes = jest.fn();
+const mockGetQuotaUsage = jest.fn();
+const mockGetThread = jest.fn();
+const mockListLabels = jest.fn();
+const mockListMailboxes = jest.fn();
+const mockListMessages = jest.fn();
+const mockMoveMessage = jest.fn();
+const mockUpdateMessageFlags = jest.fn();
 const mockReserveEffect = jest.fn();
 const mockFinalizeEffect = jest.fn();
 
@@ -12,15 +20,15 @@ jest.mock('../../controllers/email.controller', () => ({
 }));
 jest.mock('../../services/email.service', () => ({
   emailService: {
-    ensureMailboxes: jest.fn(),
+    ensureMailboxes: (...args: unknown[]) => mockEnsureMailboxes(...args),
     getMessage: (...args: unknown[]) => mockGetMessage(...args),
-    getQuotaUsage: jest.fn(),
-    getThread: jest.fn(),
-    listLabels: jest.fn(),
-    listMailboxes: jest.fn(),
-    listMessages: jest.fn(),
-    moveMessage: jest.fn(),
-    updateMessageFlags: jest.fn(),
+    getQuotaUsage: (...args: unknown[]) => mockGetQuotaUsage(...args),
+    getThread: (...args: unknown[]) => mockGetThread(...args),
+    listLabels: (...args: unknown[]) => mockListLabels(...args),
+    listMailboxes: (...args: unknown[]) => mockListMailboxes(...args),
+    listMessages: (...args: unknown[]) => mockListMessages(...args),
+    moveMessage: (...args: unknown[]) => mockMoveMessage(...args),
+    updateMessageFlags: (...args: unknown[]) => mockUpdateMessageFlags(...args),
   },
 }));
 jest.mock('../../services/capabilityRuntimeStore.service', () => ({
@@ -74,6 +82,114 @@ describe('Inbox MCP handlers', () => {
     expect(mockGetMessage).toHaveBeenCalledWith('account-1', 'message-1');
   });
 
+  it('rejects a missing or unknown message', async () => {
+    await expect(INBOX_MCP_HANDLERS.readEmail?.(
+      {},
+      context('readEmail'),
+    )).rejects.toMatchObject({ statusCode: 400 });
+
+    mockGetMessage.mockResolvedValue(null);
+    await expect(INBOX_MCP_HANDLERS.readEmail?.(
+      { messageId: 'missing' },
+      context('readEmail'),
+    )).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('searches and reads threads within the selected account', async () => {
+    const search = { data: [{ id: 'message-1' }], pagination: { total: 1 } };
+    const thread = [{ id: 'message-1' }, { id: 'message-2' }];
+    mockSearchMessages.mockResolvedValue(search);
+    mockGetThread.mockResolvedValue(thread);
+
+    await expect(INBOX_MCP_HANDLERS.searchEmails?.(
+      { q: 'invoice', limit: 10 },
+      context('searchEmails'),
+    )).resolves.toEqual({ structuredContent: search });
+    expect(mockSearchMessages).toHaveBeenCalledWith('account-1', { q: 'invoice', limit: 10 });
+
+    await expect(INBOX_MCP_HANDLERS.getEmailThread?.(
+      { messageId: 'message-1' },
+      context('getEmailThread'),
+    )).resolves.toEqual({ structuredContent: { data: thread } });
+    expect(mockGetThread).toHaveBeenCalledWith('account-1', 'message-1');
+  });
+
+  it('lists unread mail with bounded pagination and cursor metadata', async () => {
+    mockListMessages
+      .mockResolvedValueOnce({
+        data: [{ id: 'message-1' }],
+        total: 2,
+        limit: 100,
+        offset: 0,
+        nextCursor: 'cursor-2',
+      })
+      .mockResolvedValueOnce({
+        data: [],
+        total: 0,
+        limit: 50,
+        offset: 0,
+      });
+
+    await expect(INBOX_MCP_HANDLERS.getUnreadEmails?.(
+      { limit: 500, offset: -10 },
+      context('getUnreadEmails'),
+    )).resolves.toEqual({
+      structuredContent: {
+        data: [{ id: 'message-1' }],
+        pagination: {
+          total: 2,
+          limit: 100,
+          offset: 0,
+          hasMore: true,
+          nextCursor: 'cursor-2',
+        },
+      },
+    });
+    expect(mockListMessages).toHaveBeenCalledWith('account-1', null, {
+      limit: 100,
+      offset: 0,
+      unseenOnly: true,
+    });
+
+    await expect(INBOX_MCP_HANDLERS.getUnreadEmails?.(
+      { limit: 'invalid' },
+      context('getUnreadEmails'),
+    )).resolves.toEqual({
+      structuredContent: {
+        data: [],
+        pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
+      },
+    });
+  });
+
+  it('lists mailboxes, labels, and quota for only the selected account', async () => {
+    const mailboxes = [{ id: 'inbox' }];
+    const labels = [{ id: 'important' }];
+    const quota = { used: 10, limit: 100 };
+    mockListMailboxes.mockResolvedValue(mailboxes);
+    mockListLabels.mockResolvedValue(labels);
+    mockGetQuotaUsage.mockResolvedValue(quota);
+
+    await expect(INBOX_MCP_HANDLERS.listMailboxes?.(
+      {},
+      context('listMailboxes'),
+    )).resolves.toEqual({ structuredContent: { data: mailboxes } });
+    expect(mockEnsureMailboxes).toHaveBeenCalledWith('account-1');
+    expect(mockListMailboxes).toHaveBeenCalledWith('account-1');
+
+    await expect(INBOX_MCP_HANDLERS.listLabels?.(
+      {},
+      context('listLabels'),
+    )).resolves.toEqual({ structuredContent: { data: labels } });
+    expect(mockListLabels).toHaveBeenCalledWith('account-1');
+
+    await expect(INBOX_MCP_HANDLERS.getEmailQuota?.(
+      {},
+      context('getEmailQuota'),
+    )).resolves.toEqual({ structuredContent: { data: quota } });
+    expect(mockGetQuotaUsage).toHaveBeenCalledWith('account-1');
+  });
+
   it('reserves and finalizes a durable idempotency key around a send', async () => {
     mockSendMessage.mockResolvedValue({ data: { id: 'sent-1' } });
     const input = {
@@ -119,5 +235,70 @@ describe('Inbox MCP handlers', () => {
     )).rejects.toMatchObject({ statusCode: 409 });
 
     expect(mockFinalizeEffect).not.toHaveBeenCalled();
+  });
+
+  it('moves mail and updates flags through durable effects', async () => {
+    const moved = { id: 'message-1', mailboxId: 'archive' };
+    const flagged = { id: 'message-1', flags: { seen: true } };
+    mockMoveMessage.mockResolvedValue(moved);
+    mockUpdateMessageFlags.mockResolvedValue(flagged);
+
+    await expect(INBOX_MCP_HANDLERS.moveEmail?.(
+      {
+        messageId: 'message-1',
+        mailboxId: 'archive',
+        idempotencyKey: 'run-1:move-2',
+      },
+      context('moveEmail'),
+    )).resolves.toEqual({ structuredContent: { data: moved } });
+    expect(mockMoveMessage).toHaveBeenCalledWith('account-1', 'message-1', 'archive');
+
+    await expect(INBOX_MCP_HANDLERS.updateEmailFlags?.(
+      {
+        messageId: 'message-1',
+        flags: { seen: true },
+        idempotencyKey: 'run-1:flags-1',
+      },
+      context('updateEmailFlags'),
+    )).resolves.toEqual({ structuredContent: { data: flagged } });
+    expect(mockUpdateMessageFlags).toHaveBeenCalledWith(
+      'account-1',
+      'message-1',
+      { seen: true },
+    );
+  });
+
+  it('validates write inputs at the direct domain boundary', async () => {
+    await expect(INBOX_MCP_HANDLERS.sendEmail?.(
+      { idempotencyKey: 'run-1:send-invalid' },
+      context('sendEmail'),
+    )).rejects.toMatchObject({ statusCode: 400 });
+
+    await expect(INBOX_MCP_HANDLERS.updateEmailFlags?.(
+      {
+        messageId: 'message-1',
+        flags: [],
+        idempotencyKey: 'run-1:flags-invalid',
+      },
+      context('updateEmailFlags'),
+    )).rejects.toMatchObject({ statusCode: 400 });
+  });
+
+  it('records a failed domain effect before returning its error', async () => {
+    mockMoveMessage.mockRejectedValue(new Error('mail store unavailable'));
+
+    await expect(INBOX_MCP_HANDLERS.moveEmail?.(
+      {
+        messageId: 'message-1',
+        mailboxId: 'archive',
+        idempotencyKey: 'run-1:move-failed',
+      },
+      context('moveEmail'),
+    )).rejects.toThrow('mail store unavailable');
+
+    expect(mockFinalizeEffect).toHaveBeenCalledWith(expect.objectContaining({
+      tool: 'moveEmail',
+      statusCode: 500,
+    }));
   });
 });
