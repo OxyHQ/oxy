@@ -23,16 +23,16 @@
  *
  * **The proxy itself is untouched and still reachable at `/alia/chat/completions`**
  * — the same router, the same `#981` first-party gate, the same behaviour — so
- * every platform-trusted caller it serves today keeps a working path, one base
- * URL apart. `/v1/voice/token` and `/v1/voice/transcribe` still fall through to
+ * platform-trusted callers keep a separate product path, one base URL apart.
+ * `/v1/voice/token` and `/v1/voice/transcribe` still fall through to
  * it unchanged: ADR 0010 says explicitly that those are Alia product endpoints
  * which happen to live under `/v1`, that they are not part of the inference edge,
  * and that where they end up is workstream 14's decision rather than this one's.
  *
- * The visible consequence is honest and intended: a trusted caller that posts to
- * `/v1/chat/completions` now reaches an edge with no data plane behind it and
- * receives a typed `service_unavailable`, instead of being silently proxied to
- * Alia on one shared upstream key with no reservation and no attribution. The
+ * The visible consequence is honest and intended: a caller that posts to
+ * `/v1/chat/completions` reaches the inference edge. Without a complete, enabled
+ * Kaana binding it receives a typed `service_unavailable`; it is never silently
+ * proxied to Alia on one shared upstream key with no reservation or attribution. The
  * epic's own invariant is that generic inference is served through the Oxy edge,
  * not through Alia as infrastructure; keeping the old behaviour on the new path
  * would be the fallback that makes the invariant untrue.
@@ -71,7 +71,7 @@ import type {
   UsageQuantity,
   UsageUnit,
 } from '@oxyhq/contracts';
-import { admitToInferenceEdge } from '../config/rolloutFlags';
+import { admitToInferenceEdge, isKaanaExecutionEnabled } from '../config/rolloutFlags';
 import {
   machineApplicationLimiter,
   machineCredentialLimiter,
@@ -92,8 +92,8 @@ import {
   type EdgeStreamFrame,
   type EdgeStreamHead,
 } from '../services/inferenceEdge.service';
-import { createHttpRelayClient } from '../services/httpRelayClient';
-import type { RelayClient } from '../services/relayClient';
+import { createHttpKaanaClient } from '../services/httpKaanaClient';
+import type { KaanaClient } from '../services/kaanaClient';
 import {
   chatCompletionResponseSchema,
   chatCompletionsRequestSchema,
@@ -298,10 +298,10 @@ function idempotencyKey(req: Request): IdempotencyKey {
 /**
  * A signal that fires when the client goes away.
  *
- * Cancellation is propagated to the data plane the moment there is one to
- * propagate it to — `RelayClient.execute` takes this signal. It cannot be
- * exercised end to end today, and it costs one parameter, which is the whole
- * reason it is here rather than in a follow-up.
+ * Cancellation is propagated to the data plane immediately —
+ * `KaanaClient.execute` takes this signal and the signed streaming tests verify
+ * the transport path. A production provider probe remains a deployment gate,
+ * not a different implementation.
  */
 function connectionSignal(res: Response): AbortSignal {
   const controller = new AbortController();
@@ -740,7 +740,7 @@ export interface InferenceEdgeRouterOptions {
    * invoke then answers a typed `service_unavailable` while `stream: true` is
    * refused. A fake belongs only in a test.
    */
-  readonly relayClient?: RelayClient;
+  readonly kaanaClient?: KaanaClient;
 }
 
 export function createInferenceEdgeRouter(
@@ -826,7 +826,7 @@ export function createInferenceEdgeRouter(
         apiFormat: 'responses',
         endpoint: '/v1/responses',
         signal: connectionSignal(res),
-        ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
+        ...(options.kaanaClient === undefined ? {} : { kaanaClient: options.kaanaClient }),
       };
 
       if (normalized.stream) {
@@ -939,7 +939,7 @@ export function createInferenceEdgeRouter(
         apiFormat: 'chat_completions',
         endpoint: '/v1/chat/completions',
         signal: connectionSignal(res),
-        ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
+        ...(options.kaanaClient === undefined ? {} : { kaanaClient: options.kaanaClient }),
       };
 
       if (normalized.stream) {
@@ -997,11 +997,10 @@ export function createInferenceEdgeRouter(
    * `speechRequestSchema`. A duration-priced route fails to quote and is refused
    * through the existing `no_route_available` path rather than a new branch.
    *
-   * Nothing serves this today: the catalogue is empty and no data plane is
-   * configured, so every call answers `service_unavailable`. The point of landing
-   * it now is that the CEILING is sound before the route exists — the alternative
-   * is somebody adding this endpoint later under delivery pressure and reaching
-   * for a duration guess.
+   * Serving requires an eligible speech route in the catalogue and an enabled
+   * Kaana binding; otherwise the edge returns the ordinary typed refusal. The
+   * ceiling is sound independently of live inventory, avoiding a duration guess
+   * when a route is added.
    *
    * The success body is BYTES, and the `Content-Type` is the media type the data
    * plane reported — which follows `response_format` and is therefore not fixed at
@@ -1048,7 +1047,7 @@ export function createInferenceEdgeRouter(
         apiFormat: 'audio_speech',
         endpoint: '/v1/audio/speech',
         signal: connectionSignal(res),
-        ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
+        ...(options.kaanaClient === undefined ? {} : { kaanaClient: options.kaanaClient }),
       });
 
       if (execution.status === 'refused') {
@@ -1105,8 +1104,9 @@ export function createInferenceEdgeRouter(
    * size/quality class in the catalogue — see `imageGenerationsRequestSchema` for
    * why that is a catalogue decision rather than a contracts one.
    *
-   * As with speech, nothing serves this today; the value is a sound ceiling
-   * before the endpoint exists.
+   * As with speech, serving is conditional on eligible catalogue inventory and
+   * an enabled Kaana binding; the value remains a sound ceiling when no route is
+   * available.
    *
    * @requestBody imageGenerationsRequestSchema
    * @response 200 imageGenerationsResponseSchema The generated images, each as a URL or inline base64.
@@ -1146,7 +1146,7 @@ export function createInferenceEdgeRouter(
         apiFormat: 'images_generations',
         endpoint: '/v1/images/generations',
         signal: connectionSignal(res),
-        ...(options.relayClient === undefined ? {} : { relayClient: options.relayClient }),
+        ...(options.kaanaClient === undefined ? {} : { kaanaClient: options.kaanaClient }),
       });
 
       if (execution.status === 'refused') {
@@ -1254,8 +1254,8 @@ export function createInferenceEdgeRouter(
  * The router `server.ts` mounts, wired to whatever data plane this deployment
  * configured.
  *
- * `createHttpRelayClient()` returns `undefined` unless `RELAY_BASE_URL`,
- * `RELAY_EDGE_SIGNING_KEY_ID` and `RELAY_EDGE_SIGNING_PRIVATE_KEY` are all set,
+ * `createHttpKaanaClient()` returns `undefined` unless `KAANA_BASE_URL`,
+ * `KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` are all set,
  * so a deployment that has configured none behaves exactly as it did before this
  * existed: every invoke answers a typed `service_unavailable` and `stream: true`
  * is refused.
@@ -1264,10 +1264,10 @@ export function createInferenceEdgeRouter(
  * that constructs a router gets exactly the client it passed and never one the
  * ambient environment supplied.
  */
-const configuredRelayClient = createHttpRelayClient();
+const configuredKaanaClient = isKaanaExecutionEnabled() ? createHttpKaanaClient() : undefined;
 
 export default createInferenceEdgeRouter(
-  configuredRelayClient === undefined ? {} : { relayClient: configuredRelayClient }
+  configuredKaanaClient === undefined ? {} : { kaanaClient: configuredKaanaClient }
 );
 
 /* -------------------------------------------------------------------------- */
@@ -1320,7 +1320,7 @@ export default createInferenceEdgeRouter(
  * a rule for a container that lies about its own duration), or have the
  * catalogue declare a per-route maximum duration and hold at
  * `min(byte-derived worst case, route max)` — which needs an additive field on
- * `modelCapabilitiesSchema` and is therefore a two-repo release, since Relay
+ * `modelCapabilitiesSchema` and is therefore a two-repo release, since Kaana
  * derives its contract from the published package and gates on drift.
  *
  * It is also blocked upstream of the ceiling: the request is

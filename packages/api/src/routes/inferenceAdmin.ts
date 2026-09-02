@@ -44,6 +44,7 @@ import { getDb } from '../config/postgres';
 import { describeRolloutFlags } from '../config/rolloutFlags';
 import {
   inferenceTokenAnomalies,
+  inferenceDeploymentRoutingScores,
   inferenceDeployments,
   inferenceModelRevisions,
   inferenceModels,
@@ -55,11 +56,14 @@ import { requireStaff, requireStaffCapability } from '../middleware/requireStaff
 import { validate } from '../middleware/validate';
 import {
   deploymentParams,
+  kaanaDeploymentParams,
   legalReviewBody,
   metricsQuery,
   permissionActionBody,
   permissionActionParams,
   revisionParams,
+  routingScorecardResponse,
+  routingScoresBody,
   spendAnomalyQuery,
   tokenAnomalyQuery,
 } from '../schemas/inferenceAdmin.schemas';
@@ -68,6 +72,7 @@ import {
   DeploymentNotFoundError,
   DeploymentPermissionRefused,
   recordLegalReview,
+  setDeploymentRoutingScores,
 } from '../services/inferenceCatalogueAdmin.service';
 import {
   ingestModelRelease,
@@ -151,6 +156,34 @@ const DEPLOYMENT_ADMIN_COLUMNS = {
   dedicatedCapacity: inferenceDeployments.dedicatedCapacity,
   priceVersionId: inferenceDeployments.priceVersionId,
   internalRouteId: inferenceDeployments.internalRouteId,
+  routingPriceScore: inferenceDeploymentRoutingScores.priceScore,
+  routingPriceSource: inferenceDeploymentRoutingScores.priceSource,
+  routingPriceEvidenceRef: inferenceDeploymentRoutingScores.priceEvidenceRef,
+  routingPriceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
+  routingLatencyScore: inferenceDeploymentRoutingScores.latencyScore,
+  routingLatencySource: inferenceDeploymentRoutingScores.latencySource,
+  routingLatencyEvidenceRef: inferenceDeploymentRoutingScores.latencyEvidenceRef,
+  routingLatencyMeasurementWindowStart:
+    inferenceDeploymentRoutingScores.latencyMeasurementWindowStart,
+  routingLatencyMeasurementWindowEnd:
+    inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
+  routingLatencyValidUntil: inferenceDeploymentRoutingScores.latencyValidUntil,
+  routingThroughputScore: inferenceDeploymentRoutingScores.throughputScore,
+  routingThroughputSource: inferenceDeploymentRoutingScores.throughputSource,
+  routingThroughputEvidenceRef: inferenceDeploymentRoutingScores.throughputEvidenceRef,
+  routingThroughputMeasurementWindowStart:
+    inferenceDeploymentRoutingScores.throughputMeasurementWindowStart,
+  routingThroughputMeasurementWindowEnd:
+    inferenceDeploymentRoutingScores.throughputMeasurementWindowEnd,
+  routingThroughputValidUntil: inferenceDeploymentRoutingScores.throughputValidUntil,
+  routingBalancedScore: inferenceDeploymentRoutingScores.balancedScore,
+  routingBalancedSource: inferenceDeploymentRoutingScores.balancedSource,
+  routingBalancedEvidenceRef: inferenceDeploymentRoutingScores.balancedEvidenceRef,
+  routingBalancedFormulaRef: inferenceDeploymentRoutingScores.balancedFormulaRef,
+  routingBalancedValidUntil: inferenceDeploymentRoutingScores.balancedValidUntil,
+  routingScoreReason: inferenceDeploymentRoutingScores.reason,
+  routingScoreChangedByUserId: inferenceDeploymentRoutingScores.changedByUserId,
+  routingScoreChangedAt: inferenceDeploymentRoutingScores.changedAt,
   upstreamWholesaleCostAmount: inferenceDeployments.upstreamWholesaleCostAmount,
   upstreamWholesaleCostCurrency: inferenceDeployments.upstreamWholesaleCostCurrency,
   upstreamWholesaleCostUnit: inferenceDeployments.upstreamWholesaleCostUnit,
@@ -277,10 +310,10 @@ router.get(
  * arrives.
  *
  * The reason names the MEASURED absence, not a cause — the edge streams both
- * dialects and forwards both figures when a report carries them. `dataPlane` on the
- * payload is what supplies the cause: `absent` means nothing can have streamed, so
- * the pending needs no investigation, while the same pending with `configured`
- * means the data plane is not reporting what it should.
+ * dialects and forwards both figures when a report carries them. `dataPlane` and
+ * `dataPlaneExecution` supply the cause: absent configuration or disabled
+ * execution means nothing can have streamed; configured plus enabled makes the
+ * same pending a reporting fault.
  *
  * Staff-only, like everything on this router: request counts per application are
  * customer data, and a settlement-lag distribution is Oxy's own operational
@@ -322,6 +355,10 @@ router.get(
         eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
       )
       .innerJoin(inferenceModels, eq(inferenceModelRevisions.modelId, inferenceModels.id))
+      .leftJoin(
+        inferenceDeploymentRoutingScores,
+        eq(inferenceDeployments.internalRouteId, inferenceDeploymentRoutingScores.deploymentId)
+      )
       .orderBy(desc(inferenceDeployments.createdAt));
 
     res.json({ data: rows, count: rows.length });
@@ -357,9 +394,40 @@ router.post(
 );
 
 /**
+ * Replace the routing scorecard for one exact Kaana deployment identity.
+ * This is a complete scorecard PUT with provenance per dimension: omitted keys are
+ * invalid, while NULL deliberately withdraws a signal rather than inventing a
+ * value. The Kaana id in this path is not an Oxy catalogue row id or provider
+ * slug.
+ *
+ * @response 200 routingScorecardResponse The complete scorecard stored for this exact Kaana deployment.
+ * @response 409 Error The scorecard conflicts with the exact Kaana deployment state or would make an approved serving route unsafe.
+ */
+router.put(
+  '/kaana-deployments/:kaanaDeploymentId/routing-scorecard',
+  requireCataloguePublish,
+  validate({ params: kaanaDeploymentParams, body: routingScoresBody }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const scores = routingScoresBody.parse(req.body);
+    try {
+      const result = await setDeploymentRoutingScores({
+        deploymentId: req.params.kaanaDeploymentId,
+        scorecard: scores,
+        staffUserId: staffUserId(req),
+      });
+      res.json(routingScorecardResponse.parse({ data: result }));
+    } catch (error) {
+      throw translate(error);
+    }
+  })
+);
+
+/**
  * `POST /inference/admin/deployments/:deploymentId/:action`
  *
  * `approve` | `restrict` | `suspend` | `retire`.
+ *
+ * @response 409 Error The permission transition conflicts with catalogue state, routing evidence or an already approved Kaana identity.
  */
 router.post(
   '/deployments/:deploymentId/:action',

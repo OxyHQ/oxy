@@ -78,9 +78,11 @@ executing a route requires:
   `modelDeploymentSchema` enforces. An unpinned entry would leave the data plane
   choosing a revision, which is a substitution nobody authorized.
 - **`regions` is plural**, matching `modelDeploymentSchema.regions`. A deployment
-  declares every region it MAY serve from and choosing among them is routing
-  execution (ADR 0006); Oxy checked the whole set against the customer's
+  declares every ATTESTED region it MAY serve from and choosing among them is
+  routing execution (ADR 0006); Oxy checked a non-empty set against the customer's
   residency controls as a SUBSET, so any region here is one the policy permits.
+  An empty set means location is unattested and is authorized only when the
+  request has no explicit regional control; it never means global.
 - **`{routingPolicyId, policyVersion}` stays.** It is provenance: a settled
   receipt must still record the exact revision of the customer's own
   configuration that produced the charge.

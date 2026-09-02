@@ -4,7 +4,7 @@
 # plan, where an organisation Actions secret cannot reach a PRIVATE repository —
 # it arrives as an empty string with no error. oxy-infra is private, so the same
 # workflow there read CLOUDFLARE_API_TOKEN as "" and exited. This is the same
-# reason `cloudflare-dns-relay.yml` sits beside it.
+# reason the legacy data-plane DNS workflow had to live beside it.
 #
 # WHAT `check` IS FOR, AND WHY IT RUNS FIRST. The token is shared with the Pages
 # deployments and may be scoped to them: whether it can edit the kaana.ai zone
@@ -17,11 +17,10 @@
 #     answers with its own addresses, so a proxied validation record breaks
 #     issuance outright — the certificate sits in PENDING_VALIDATION and the
 #     reason is invisible from AWS.
-#   - `api.kaana.ai` itself, pointing at the SHARED `oxy-alb`, because the
-#     customer-facing API is the Oxy edge — `/v1/chat/completions`, which
-#     authenticates the caller and reserves their spend. It is deliberately NOT
-#     `oxy-relay`: that load balancer fronts the inference data plane, which
-#     accepts only envelopes the edge has signed and has no customer surface.
+#   - the exact apex `kaana.ai`, pointing at Kaana's DEDICATED load balancer.
+#     This is the signed Oxy -> Kaana data-plane hop, not Oxy's customer-facing
+#     API and never the shared `oxy-alb`. The apex is deliberately left absent
+#     until the parked Kaana service has a healthy canary target.
 name: Cloudflare DNS (Kaana)
 
 on:
@@ -41,8 +40,8 @@ on:
         description: 'ACM validation CNAME value.'
         type: string
         required: false
-      alb_dns:
-        description: "Shared ALB DNS name. Empty skips the api.kaana.ai record."
+      kaana_alb_dns:
+        description: "Dedicated Kaana ALB DNS name. Empty skips the kaana.ai apex record."
         type: string
         required: false
 
@@ -56,7 +55,7 @@ jobs:
           ACTION: ${{ inputs.action }}
           VAL_NAME: ${{ inputs.validation_name }}
           VAL_VALUE: ${{ inputs.validation_value }}
-          ALB_DNS: ${{ inputs.alb_dns }}
+          KAANA_ALB_DNS: ${{ inputs.kaana_alb_dns }}
         run: |
           python3 - <<'PY'
           import json, os, sys, urllib.request, urllib.error
@@ -100,27 +99,56 @@ jobs:
               # DNS-only, deliberately. See the header.
               wanted.append(("CNAME", os.environ["VAL_NAME"].rstrip("."),
                              os.environ["VAL_VALUE"].rstrip("."), False))
-          if os.environ.get("ALB_DNS"):
-              wanted.append(("CNAME", f"api.{ZONE}", os.environ["ALB_DNS"].rstrip("."), False))
+          if os.environ.get("KAANA_ALB_DNS"):
+              wanted.append(("CNAME", ZONE, os.environ["KAANA_ALB_DNS"].rstrip("."), False))
 
           if not wanted:
               print("no records requested; nothing to reconcile")
               sys.exit(0)
 
-          existing = {r["name"]: r for r in call("GET", f"/zones/{zone_id}/dns_records?per_page=200")["result"]}
+          existing = call("GET", f"/zones/{zone_id}/dns_records?per_page=200")["result"]
+          failed = False
           for kind, name, value, proxied in wanted:
-              current = existing.get(name)
-              if current and current.get("content") == value and current.get("proxied") is proxied:
+              same_name = [r for r in existing if r["name"].rstrip(".") == name]
+              same_kind = [r for r in same_name if r["type"] == kind]
+              blockers = [r for r in same_name if r["type"] in {"A", "AAAA", "CNAME"} and r["type"] != kind]
+              if blockers:
+                  print(f"CONFLICT {name} has address/alias records of type "
+                        f"{sorted({r['type'] for r in blockers})}; nothing touched")
+                  failed = True
+                  continue
+              if len(same_kind) > 1:
+                  print(f"CONFLICT {name} has {len(same_kind)} {kind} records; nothing touched")
+                  failed = True
+                  continue
+              current = same_kind[0] if same_kind else None
+              if (current and current.get("content", "").rstrip(".") == value
+                      and current.get("proxied") is proxied):
                   print(f"ok      {name} -> {value}")
                   continue
-              verb = "would set" if os.environ["ACTION"] != "apply" else "setting"
-              print(f"{verb} {name} -> {value} (proxied={proxied})")
+              if current:
+                  print(f"CONFLICT {kind} {name} is {current.get('content')!r} "
+                        f"(proxied={current.get('proxied')!r}), wanted {value!r} "
+                        f"(proxied={proxied!r}); nothing touched")
+                  failed = True
+                  continue
+              verb = "would create" if os.environ["ACTION"] != "apply" else "creating"
+              print(f"{verb} {kind} {name} -> {value} (proxied={proxied})")
               if os.environ["ACTION"] != "apply":
                   continue
               body = {"type": kind, "name": name, "content": value, "ttl": 1, "proxied": proxied}
-              if current:
-                  call("PUT", f"/zones/{zone_id}/dns_records/{current['id']}", body)
-              else:
-                  call("POST", f"/zones/{zone_id}/dns_records", body)
-              print(f"set     {name}")
+              created = call("POST", f"/zones/{zone_id}/dns_records", body)
+              if not created.get("success"):
+                  print(f"FAILED  {kind} {name}: {created.get('errors')}")
+                  failed = True
+                  continue
+              readback = call("GET", f"/zones/{zone_id}/dns_records?type={kind}&name={name}")["result"]
+              exact = [r for r in readback if r.get("content", "").rstrip(".") == value
+                       and r.get("proxied") is proxied]
+              if len(exact) != 1:
+                  print(f"FAILED  read-back for {kind} {name}: {readback!r}")
+                  failed = True
+                  continue
+              print(f"set     {kind} {name}")
+          sys.exit(1 if failed else 0)
           PY

@@ -79,6 +79,7 @@ export * from './followEvents';
 export * from './identityBackups';
 export * from './identityBindings';
 export * from './inferenceDeployments';
+export * from './inferenceDeploymentRoutingScores';
 export * from './inferenceModelEvaluations';
 export * from './inferenceModelGpaiDocumentation';
 export * from './inferenceModelReleaseArtifacts';

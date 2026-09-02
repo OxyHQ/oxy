@@ -1,10 +1,10 @@
 /**
  * The inference platform's rollout flags (issue #972 workstream 16, "Rollout").
  *
- * FIVE switches, declared here and nowhere else: the new authentication lane,
- * the public API edge, the ledger, the catalogue, and the privacy/security
+ * SIX switches, declared here and nowhere else: the new authentication lane,
+ * the public API edge, the Kaana execution hop, the ledger, the catalogue, and the privacy/security
  * review a public launch is gated on. {@link describeRolloutFlags} renders all
- * five at once, so "what is on in production" is one call rather than a grep —
+ * six at once, so "what is on in production" is one call rather than a grep —
  * and `GET /inference/admin/rollout` is that call over HTTP.
  *
  * ## Every one of them defaults to the state that does nothing
@@ -23,9 +23,9 @@
  *
  * ## An unreadable value resolves to the SAFE state, loudly
  *
- * Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
- * dangerous switch, and the shape {@link resolveInferenceCharging} copies —
- * makes a malformed value a hard boot failure. That is proportionate for a data
+ * A prior high-risk failover switch in this ecosystem established the precedent
+ * that a dangerous control must never interpret an arbitrary truthy value as
+ * authorization. Its malformed values caused a hard boot failure. That is proportionate for a data
  * plane whose entire job is the thing being gated. It is not proportionate here:
  * `oxy-api` also serves authentication, email, storage and federation, so a typo
  * in an inference rollout flag must not take those down. So a value this module
@@ -316,7 +316,38 @@ export function isMachineCredentialLaneEnabled(): boolean {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  3. The ledger — charging, and the shadow metering that precedes it        */
+/*  3. The Kaana execution hop                                                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `INFERENCE_KAANA_EXECUTION` is an independent kill switch for constructing
+ * the production Kaana client. Explicitly injected clients remain available to
+ * tests; ambient production wiring is inert unless this says `enabled`.
+ */
+export const KAANA_EXECUTION_VARIABLE = 'INFERENCE_KAANA_EXECUTION';
+
+export type KaanaExecutionState =
+  | { readonly status: 'enabled' }
+  | { readonly status: 'disabled'; readonly reason: 'not_configured' | 'disabled' | 'unreadable' };
+
+export function resolveKaanaExecution(): KaanaExecutionState {
+  const configured = process.env[KAANA_EXECUTION_VARIABLE]?.trim();
+  if (configured === undefined || configured.length === 0) {
+    return { status: 'disabled', reason: 'not_configured' };
+  }
+  if (configured === 'enabled') return { status: 'enabled' };
+  if (configured === 'disabled') return { status: 'disabled', reason: 'disabled' };
+
+  reportUnreadable(KAANA_EXECUTION_VARIABLE, configured, 'enabled | disabled');
+  return { status: 'disabled', reason: 'unreadable' };
+}
+
+export function isKaanaExecutionEnabled(): boolean {
+  return resolveKaanaExecution().status === 'enabled';
+}
+
+/* -------------------------------------------------------------------------- */
+/*  4. The ledger — charging, and the shadow metering that precedes it        */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -333,8 +364,8 @@ export function isMachineCredentialLaneEnabled(): boolean {
  *
  * ## Why a bare `true` is refused
  *
- * The shape is Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` and it is refused for
- * the same reason: `true` is the value that arrives by accident. It is what a
+ * The dated-attestation shape follows that established failover precedent and
+ * refuses a bare `true`: that is the value that arrives by accident. It is what a
  * copied task definition carries, what a `.env` picks up, and what somebody
  * types to see whether a flag does anything. `commercial-launch:2026-08-16` is
  * not typed by accident, and it records the two things an auditor asks about a
@@ -342,7 +373,7 @@ export function isMachineCredentialLaneEnabled(): boolean {
  *
  * ## It does not expire, and that is argued rather than inherited
  *
- * Relay's does not either. Expiry would be wrong here in both directions: at
+ * That precedent did not expire automatically either. Expiry would be wrong here in both directions: at
  * public scale an expired authorization either serves the world for free or
  * refuses every request, and both are expensive. What the date buys instead is
  * an age reported beside the flag in {@link describeRolloutFlags}, which is the
@@ -619,6 +650,11 @@ export interface RolloutFlagReport {
     readonly enabled: boolean;
     readonly disabledReason: 'not_configured' | 'disabled' | 'unreadable' | null;
   };
+  readonly kaanaExecution: {
+    readonly variable: string;
+    readonly enabled: boolean;
+    readonly disabledReason: 'not_configured' | 'disabled' | 'unreadable' | null;
+  };
   readonly charging: {
     readonly variable: string;
     readonly authorized: boolean;
@@ -650,7 +686,7 @@ export interface RolloutFlagReport {
  * Every rollout flag, resolved, in one object.
  *
  * The point of the module: "what is on in production" is answerable without
- * knowing which five variables to grep for, and every arm carries WHY, so a flag
+ * knowing which six variables to grep for, and every arm carries WHY, so a flag
  * that is off because it was mistyped is distinguishable from one that is off
  * because nobody set it.
  *
@@ -661,6 +697,7 @@ export interface RolloutFlagReport {
 export function describeRolloutFlags(): RolloutFlagReport {
   const edge = resolveEdgeAudience();
   const lane = resolveMachineCredentialLane();
+  const kaanaExecution = resolveKaanaExecution();
   const charging = resolveInferenceCharging();
   const catalogue = resolveCatalogueAudience();
   const privacyReview = resolveInferencePrivacyReview();
@@ -677,6 +714,11 @@ export function describeRolloutFlags(): RolloutFlagReport {
       variable: MACHINE_CREDENTIAL_AUTH_VARIABLE,
       enabled: lane.status === 'enabled',
       disabledReason: lane.status === 'disabled' ? lane.reason : null,
+    },
+    kaanaExecution: {
+      variable: KAANA_EXECUTION_VARIABLE,
+      enabled: kaanaExecution.status === 'enabled',
+      disabledReason: kaanaExecution.status === 'disabled' ? kaanaExecution.reason : null,
     },
     charging: {
       variable: CHARGING_AUTHORIZED_VARIABLE,

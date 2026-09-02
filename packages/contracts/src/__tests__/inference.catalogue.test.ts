@@ -242,6 +242,11 @@ describe('modelRevisionSchema', () => {
 });
 
 describe('modelDeploymentSchema', () => {
+  it('accepts an empty region set as unattested, never as a fabricated region', () => {
+    const parsed = modelDeploymentSchema.parse({ ...deployment, regions: [] });
+    expect(parsed.regions).toEqual([]);
+  });
+
   it('requires a revision-pinned model reference', () => {
     expect(
       modelDeploymentSchema.safeParse({ ...deployment, modelReference: 'meta/llama-4-70b' })

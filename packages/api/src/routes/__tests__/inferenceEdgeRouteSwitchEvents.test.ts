@@ -54,10 +54,14 @@ import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import {
   inferenceDeployments,
+  inferenceDeploymentRoutingScores,
   inferenceModelRevisions,
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  inferenceRoutingProfileCandidates,
+  inferenceRoutingProfiles,
+  usageReservations,
 } from '../../db/schema';
 import { inferenceRouteSwitchEvents } from '../../db/schema/inferenceRouteSwitchEvents';
 import { priceVersions, priceVersionUnitPrices } from '../../db/schema/priceVersions';
@@ -70,13 +74,17 @@ import {
   type RoutingPolicyControls,
 } from '../../services/inferenceRoutingPolicy.service';
 import type {
-  RelayClient,
-  RelayCompletion,
-  RelayStreamFrame,
-} from '../../services/relayClient';
+  KaanaClient,
+  KaanaCompletion,
+  KaanaStreamFrame,
+} from '../../services/kaanaClient';
 import { generateMachineCredentialToken } from '../../utils/machineCredentialToken';
 import { logger } from '../../utils/logger';
 import { createInferenceEdgeRouter } from '../inferenceEdge';
+import {
+  attestFixtureDeployments,
+  insertValidRoutingScorecard,
+} from '../__fixtures__/kaanaRuntimeFixtures';
 
 const mockedLogger = logger as jest.Mocked<typeof logger>;
 
@@ -97,7 +105,7 @@ function json(response: RawResponse): Record<string, unknown> {
 }
 
 async function withServer(
-  relayClient: RelayClient,
+  kaanaClient: KaanaClient,
   run: (
     request: (
       path: string,
@@ -108,7 +116,7 @@ async function withServer(
 ): Promise<void> {
   const app = express();
   app.use(express.json({ limit: '1mb' }));
-  app.use('/v1', createInferenceEdgeRouter({ relayClient }));
+  app.use('/v1', createInferenceEdgeRouter({ kaanaClient }));
 
   const server = await new Promise<http.Server>((resolve) => {
     const created = app.listen(0, '127.0.0.1', () => resolve(created));
@@ -172,6 +180,7 @@ interface Fixture {
   readonly token: string;
   readonly modelReference: string;
   readonly pinnedModelReference: string;
+  readonly modelRowId: string;
   readonly provider: string;
   /**
    * A SECOND model in the catalogue, so a cross-model switch has a real
@@ -181,6 +190,11 @@ interface Fixture {
    */
   readonly otherModelReference: string;
   readonly otherPinnedModelReference: string;
+  readonly otherModelRowId: string;
+  /** Exact Kaana identity of the highest-scoring survivor on the primary model. */
+  readonly primaryDeploymentId: string;
+  /** Exact Kaana identity of the highest-scoring survivor on the other model. */
+  readonly otherPrimaryDeploymentId: string;
 }
 
 const suffix = (): string => randomUUID().replace(/-/g, '').slice(0, 10);
@@ -230,8 +244,22 @@ async function makeFixture(): Promise<Fixture> {
     trainsOnCustomerData: false,
     zeroDataRetentionAvailable: true,
   });
+  await db
+    .insert(inferenceProviders)
+    .values(
+      [FAILOVER_PROVIDER, SECOND_FAILOVER_PROVIDER].map((slug) => ({
+        slug,
+        displayName: slug,
+        kind: 'third_party' as const,
+        retainsPayloads: false,
+        retentionDays: 0,
+        trainsOnCustomerData: false,
+        zeroDataRetentionAvailable: true,
+      }))
+    )
+    .onConflictDoNothing();
 
-  const publishModel = async (slug: string): Promise<void> => {
+  const publishModel = async (slug: string): Promise<string> => {
     const [model] = await db
       .insert(inferenceModels)
       .values({
@@ -262,54 +290,87 @@ async function makeFixture(): Promise<Fixture> {
       .values({ modelId: model.id, revision: REVISION, releasedAt: new Date(), isCurrent: true })
       .returning({ id: inferenceModelRevisions.id });
 
-    const [priceVersion] = await db
-      .insert(priceVersions)
-      .values({
-        modelReference: `${publisherSlug}/${slug}@${REVISION}`,
-        provider: providerSlug,
+    for (const [routeProvider, score] of [
+      [providerSlug, 100],
+      [FAILOVER_PROVIDER, 90],
+      [SECOND_FAILOVER_PROVIDER, 80],
+    ] as const) {
+      const kaanaDeploymentId = `kaana-switch-${routeProvider}-${slug}`;
+      const [priceVersion] = await db
+        .insert(priceVersions)
+        .values({
+          modelReference: `${publisherSlug}/${slug}@${REVISION}`,
+          provider: routeProvider,
+          status: 'active',
+          effectiveFrom: new Date(Date.now() - 60_000),
+        })
+        .returning({ id: priceVersions.id });
+
+      await db.insert(priceVersionUnitPrices).values([
+        {
+          priceVersionId: priceVersion.id,
+          unit: 'requests',
+          amount: '0.000000000000',
+          per: 1,
+        },
+        {
+          priceVersionId: priceVersion.id,
+          unit: 'input_tokens',
+          amount: '3.000000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: priceVersion.id,
+          unit: 'cached_input_tokens',
+          amount: '3.000000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: priceVersion.id,
+          unit: 'output_tokens',
+          amount: '15.000000000000',
+          per: 1_000_000,
+        },
+        {
+          priceVersionId: priceVersion.id,
+          unit: 'reasoning_tokens',
+          amount: '15.000000000000',
+          per: 1_000_000,
+        },
+      ]);
+
+      await db.insert(inferenceDeployments).values({
+        modelRevisionId: revision.id,
+        providerSlug: routeProvider,
+        internalRouteId: kaanaDeploymentId,
+        regions: ['us-west-2'],
+        retainsPayloads: false,
+        retentionDays: 0,
+        trainsOnCustomerData: false,
+        zeroDataRetentionAvailable: true,
+        availabilityScope: 'public_payg',
+        commercialPermission: 'public_resale_approved',
         status: 'active',
-        effectiveFrom: new Date(Date.now() - 60_000),
-      })
-      .returning({ id: priceVersions.id });
-
-    await db.insert(priceVersionUnitPrices).values([
-      {
+        legalReviewStatus: 'approved',
+        legalReviewedAt: new Date(),
+        legalReviewEvidenceRef: `contract-register/${tag}/${routeProvider}`,
+        permissionState: 'approved',
         priceVersionId: priceVersion.id,
-        unit: 'input_tokens',
-        amount: '3.000000000000',
-        per: 1_000_000,
-      },
-      {
+      });
+      await insertValidRoutingScorecard({
+        deploymentId: kaanaDeploymentId,
         priceVersionId: priceVersion.id,
-        unit: 'output_tokens',
-        amount: '15.000000000000',
-        per: 1_000_000,
-      },
-    ]);
-
-    await db.insert(inferenceDeployments).values({
-      modelRevisionId: revision.id,
-      providerSlug,
-      regions: ['us-west-2'],
-      retainsPayloads: false,
-      retentionDays: 0,
-      trainsOnCustomerData: false,
-      zeroDataRetentionAvailable: true,
-      availabilityScope: 'public_payg',
-      commercialPermission: 'public_resale_approved',
-      status: 'active',
-      legalReviewStatus: 'approved',
-      legalReviewedAt: new Date(),
-      legalReviewEvidenceRef: `contract-register/${tag}`,
-      permissionState: 'approved',
-      priceVersionId: priceVersion.id,
-    });
+        changedByUserId: account.id,
+        score,
+      });
+    }
+    return model.id;
   };
 
   const modelSlug = `model-${tag}`;
   const otherSlug = `other-${tag}`;
-  await publishModel(modelSlug);
-  await publishModel(otherSlug);
+  const modelRowId = await publishModel(modelSlug);
+  const otherModelRowId = await publishModel(otherSlug);
 
   await provisionBillingProfile({ accountId: account.id });
   await recordTopUp({
@@ -326,9 +387,13 @@ async function makeFixture(): Promise<Fixture> {
     token: minted.token,
     modelReference: `${publisherSlug}/${modelSlug}`,
     pinnedModelReference: `${publisherSlug}/${modelSlug}@${REVISION}`,
+    modelRowId,
     provider: providerSlug,
     otherModelReference: `${publisherSlug}/${otherSlug}`,
     otherPinnedModelReference: `${publisherSlug}/${otherSlug}@${REVISION}`,
+    otherModelRowId,
+    primaryDeploymentId: `kaana-switch-${providerSlug}-${modelSlug}`,
+    otherPrimaryDeploymentId: `kaana-switch-${providerSlug}-${otherSlug}`,
   };
 }
 
@@ -445,7 +510,8 @@ function modelSwitch(
   };
 }
 
-const FAILOVER_PROVIDER = 'failover-provider';
+const FAILOVER_PROVIDER = 'kaana-switch-failover-provider';
+const SECOND_FAILOVER_PROVIDER = 'kaana-switch-second-failover';
 
 /**
  * A non-streaming fake whose completion carries the switches the fold collected.
@@ -453,21 +519,43 @@ const FAILOVER_PROVIDER = 'failover-provider';
  * `stream` throws: a case that streams has its own fake below, and a throw is what
  * makes a case taking the wrong one fail loudly instead of silently.
  */
-function foldedRelay(
+function foldedKaana(
   switches: (envelope: InferenceRequest) => readonly InferenceStreamRouteSwitchEvent[],
-  servingProvider = FAILOVER_PROVIDER
-): RelayClient {
+  servingProvider = FAILOVER_PROVIDER,
+  followModelSwitch = true
+): KaanaClient {
   return {
-    execute: async (envelope): Promise<RelayCompletion> => {
+    attestDeployments: attestFixtureDeployments,
+    execute: async (envelope): Promise<KaanaCompletion> => {
       const now = new Date().toISOString();
+      const requestedModelReference =
+        envelope.target.kind === 'model'
+          ? envelope.target.modelReference
+          : envelope.authorizedRoutes[0]?.modelReference ?? 'unknown/unknown';
+      const routeSwitchEvents = switches(envelope);
+      const lastModelSwitch = followModelSwitch
+        ? [...routeSwitchEvents].reverse().find((event) => event.detail.scope === 'model')
+        : undefined;
       const modelReference =
-        envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
+        lastModelSwitch?.detail.scope === 'model'
+          ? lastModelSwitch.detail.toModelReference
+          : envelope.authorizedRoutes.find(
+              (route) =>
+                route.provider === servingProvider &&
+                route.modelReference.startsWith(requestedModelReference.split('@')[0])
+            )?.modelReference ?? requestedModelReference;
+      const servedRoute = envelope.authorizedRoutes.find(
+        (route) => route.provider === servingProvider && route.modelReference === modelReference
+      );
+      if (servedRoute === undefined) {
+        throw new Error('fixture selected a route outside the exact authorization list');
+      }
       return {
         generationId: `gen-${randomUUID()}`,
         output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
         finishReason: 'stop',
         usage: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           requestId: envelope.attribution.requestId,
           attribution: envelope.attribution,
           outcome: 'completed',
@@ -478,11 +566,12 @@ function foldedRelay(
           usageSource: 'provider_reported',
           resolvedModelReference: modelReference,
           servingProvider,
-          routeSwitches: switches(envelope).length,
+          deploymentId: servedRoute.deploymentId,
+          routeSwitches: routeSwitchEvents.length,
           startedAt: now,
           completedAt: now,
         },
-        routeSwitchEvents: switches(envelope),
+        routeSwitchEvents,
       };
     },
     stream: () => {
@@ -492,18 +581,25 @@ function foldedRelay(
 }
 
 /** A streaming fake: a start, a delta, the switches, a usage event, a done, a report. */
-function streamingRelay(
+function streamingKaana(
   switches: (envelope: InferenceRequest) => readonly InferenceStreamRouteSwitchEvent[]
-): RelayClient {
+): KaanaClient {
   return {
+    attestDeployments: attestFixtureDeployments,
     execute: () => {
       throw new Error('this fake serves only streaming requests');
     },
-    stream: async function* (envelope): AsyncGenerator<RelayStreamFrame> {
+    stream: async function* (envelope): AsyncGenerator<KaanaStreamFrame> {
       const requestId = envelope.attribution.requestId;
       const now = new Date().toISOString();
       const modelReference =
         envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
+      const servedRoute = envelope.authorizedRoutes.find(
+        (route) => route.provider === FAILOVER_PROVIDER && route.modelReference === modelReference
+      );
+      if (servedRoute === undefined) {
+        throw new Error('stream fixture selected a route outside the exact authorization list');
+      }
       const generationId = `gen-${randomUUID()}`;
       const units = [
         { unit: 'input_tokens' as const, quantity: 12 },
@@ -532,10 +628,11 @@ function streamingRelay(
           text: 'Hello.',
         },
         {
-          schemaVersion: 1,
+          schemaVersion: 2,
           type: 'usage',
           requestId,
           sequence: 91,
+          deploymentId: servedRoute.deploymentId,
           units,
           usageSource: 'provider_reported',
         },
@@ -555,7 +652,7 @@ function streamingRelay(
       yield {
         kind: 'usage',
         usage: {
-          schemaVersion: 1,
+          schemaVersion: 2,
           requestId,
           generationId,
           attribution: envelope.attribution,
@@ -564,6 +661,7 @@ function streamingRelay(
           usageSource: 'provider_reported',
           resolvedModelReference: modelReference,
           servingProvider: FAILOVER_PROVIDER,
+          deploymentId: servedRoute.deploymentId,
           routeSwitches: switches(envelope).length,
           startedAt: now,
           completedAt: now,
@@ -578,8 +676,9 @@ function streamingRelay(
 /* -------------------------------------------------------------------------- */
 
 /**
- * All four flags default to serving and charging nobody, so every assertion here
- * would otherwise pass for the wrong reason. The two dated attestations are
+ * The four rollout controls this suite depends on default closed, so every
+ * assertion here would otherwise pass for the wrong reason. The independent
+ * Kaana-execution switch is irrelevant because the client is injected. The two dated attestations are
  * comfortably in the past because the flags refuse a FUTURE date, and midnight UTC
  * on a runner an hour behind local time is one.
  *
@@ -637,6 +736,71 @@ async function switchesOf(applicationId: string) {
     .orderBy(inferenceRouteSwitchEvents.sequence);
 }
 
+describe('a routing-profile target', () => {
+  it('keeps explicit priority ahead of a larger score on a lower-priority candidate', async () => {
+    const fixture = await makeFixture();
+    await givePolicy(fixture);
+    const tag = suffix();
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug: `switch-profile-${tag}`,
+        displayName: `Switch profile ${tag}`,
+        optimiseFor: 'balanced',
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
+    await getDb().insert(inferenceRoutingProfileCandidates).values([
+      { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 0 },
+      { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 1 },
+    ]);
+    await getDb()
+      .update(inferenceDeploymentRoutingScores)
+      .set({ balancedScore: 10_000 })
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.primaryDeploymentId));
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      foldedKaana(
+        (envelope) => {
+          seen.push(envelope);
+          return [];
+        },
+        fixture.provider
+      ),
+      async (request) => {
+        const response = await request(
+          '/v1/responses',
+          {
+            routingProfile: profile.slug,
+            input: 'Say hello.',
+            maxOutputTokens: 100,
+          },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes).toHaveLength(6);
+    expect(seen[0].authorizedRoutes[0]).toMatchObject({
+      deploymentId: fixture.otherPrimaryDeploymentId,
+      modelReference: fixture.otherPinnedModelReference,
+    });
+    expect(
+      seen[0].authorizedRoutes.slice(0, 3).every(
+        (route) => route.modelReference === fixture.otherPinnedModelReference
+      )
+    ).toBe(true);
+    expect(
+      seen[0].authorizedRoutes.slice(3).every(
+        (route) => route.modelReference === fixture.pinnedModelReference
+      )
+    ).toBe(true);
+  });
+});
+
 /* -------------------------------------------------------------------------- */
 /*  A deployment switch, on both transports                                   */
 /* -------------------------------------------------------------------------- */
@@ -647,7 +811,7 @@ describe('a same-model deployment failover', () => {
     const versionId = await givePolicy(fixture);
 
     await withServer(
-      foldedRelay((envelope) => [
+      foldedKaana((envelope) => [
         deploymentSwitch(
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
@@ -697,7 +861,7 @@ describe('a same-model deployment failover', () => {
     const versionId = await givePolicy(fixture);
 
     await withServer(
-      streamingRelay((envelope) => [
+      streamingKaana((envelope) => [
         deploymentSwitch(
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
@@ -737,7 +901,7 @@ describe('a same-model deployment failover', () => {
     // is what a retried hop looks like from here. The unique key makes it a no-op;
     // no second idempotency mechanism is introduced for it.
     await withServer(
-      foldedRelay((envelope) => [
+      foldedKaana((envelope) => [
         deploymentSwitch(
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
@@ -773,7 +937,7 @@ describe('a same-model deployment failover', () => {
     await givePolicy(fixture);
 
     await withServer(
-      foldedRelay((envelope) => [
+      foldedKaana((envelope) => [
         deploymentSwitch(
           envelope.attribution.requestId,
           fixture.pinnedModelReference,
@@ -823,7 +987,7 @@ describe('a cross-model substitution', () => {
     });
 
     await withServer(
-      foldedRelay((envelope) => [
+      foldedKaana((envelope) => [
         modelSwitch(envelope.attribution.requestId, {
           requestedModelId: fixture.modelReference,
           fromModelReference: fixture.pinnedModelReference,
@@ -857,6 +1021,185 @@ describe('a cross-model substitution', () => {
     expect(rows[0].authorizationId).toEqual(expect.any(String));
   });
 
+  it('fails before reservation and Kaana when any authorised cross-model survivor lacks a score', async () => {
+    const fixture = await makeFixture();
+    await givePolicy(fixture, {
+      fallback: {
+        disabled: false,
+        sameModelDeployment: true,
+        authorizedCrossModel: [fixture.otherModelReference],
+      },
+    });
+    await getDb()
+      .delete(inferenceDeploymentRoutingScores)
+      .where(
+        eq(
+          inferenceDeploymentRoutingScores.deploymentId,
+          fixture.otherPrimaryDeploymentId
+        )
+      );
+
+    let kaanaCalls = 0;
+    await withServer(
+      foldedKaana(() => {
+        kaanaCalls += 1;
+        return [];
+      }),
+      async (request) => {
+        const response = await request(
+          '/v1/responses',
+          responsesBody(fixture),
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(503);
+        expect(json(response)).toMatchObject({
+          code: 'no_route_available',
+          message: 'No route is currently available.',
+        });
+      }
+    );
+
+    expect(kaanaCalls).toBe(0);
+    const reservations = await getDb()
+      .select({ id: usageReservations.id })
+      .from(usageReservations)
+      .where(eq(usageReservations.accountId, fixture.accountId));
+    expect(reservations).toHaveLength(0);
+  });
+
+  it('ordinarily skips a capacity-incompatible cross-model fallback before evidence validation', async () => {
+    const fixture = await makeFixture();
+    await givePolicy(fixture, {
+      fallback: {
+        disabled: false,
+        sameModelDeployment: true,
+        authorizedCrossModel: [fixture.otherModelReference],
+      },
+    });
+    await getDb()
+      .update(inferenceModels)
+      .set({ maxOutputTokens: 50 })
+      .where(eq(inferenceModels.id, fixture.otherModelRowId));
+    await getDb()
+      .delete(inferenceDeploymentRoutingScores)
+      .where(
+        eq(
+          inferenceDeploymentRoutingScores.deploymentId,
+          fixture.otherPrimaryDeploymentId
+        )
+      );
+
+    let kaanaCalls = 0;
+    await withServer(
+      foldedKaana(() => {
+        kaanaCalls += 1;
+        return [];
+      }),
+      async (request) => {
+        const response = await request(
+          '/v1/responses',
+          responsesBody(fixture, { maxOutputTokens: 100 }),
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+    expect(kaanaCalls).toBe(1);
+  });
+
+  it('uses the implicit primary ceiling before validating a lower-priority model fallback', async () => {
+    const fixture = await makeFixture();
+    await givePolicy(fixture, {
+      fallback: {
+        disabled: false,
+        sameModelDeployment: true,
+        authorizedCrossModel: [fixture.otherModelReference],
+      },
+    });
+    await getDb()
+      .update(inferenceModels)
+      .set({ maxOutputTokens: 50 })
+      .where(eq(inferenceModels.id, fixture.otherModelRowId));
+    await getDb()
+      .delete(inferenceDeploymentRoutingScores)
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.otherPrimaryDeploymentId));
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      foldedKaana((envelope) => {
+        seen.push(envelope);
+        return [];
+      }, fixture.provider),
+      async (request) => {
+        const response = await request(
+          '/v1/responses',
+          responsesBody(fixture, { maxOutputTokens: undefined }),
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes).toHaveLength(3);
+    expect(
+      seen[0].authorizedRoutes.every(
+        (route) => route.modelReference === fixture.pinnedModelReference
+      )
+    ).toBe(true);
+  });
+
+  it('uses the implicit primary-priority ceiling before validating a lower profile priority', async () => {
+    const fixture = await makeFixture();
+    await givePolicy(fixture);
+    await getDb()
+      .update(inferenceModels)
+      .set({ maxOutputTokens: 50 })
+      .where(eq(inferenceModels.id, fixture.otherModelRowId));
+    await getDb()
+      .delete(inferenceDeploymentRoutingScores)
+      .where(eq(inferenceDeploymentRoutingScores.deploymentId, fixture.otherPrimaryDeploymentId));
+
+    const tag = suffix();
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug: `implicit-ceiling-${tag}`,
+        displayName: `Implicit ceiling ${tag}`,
+        optimiseFor: 'balanced',
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
+    await getDb().insert(inferenceRoutingProfileCandidates).values([
+      { routingProfileId: profile.id, modelId: fixture.modelRowId, priority: 0 },
+      { routingProfileId: profile.id, modelId: fixture.otherModelRowId, priority: 1 },
+    ]);
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      foldedKaana((envelope) => {
+        seen.push(envelope);
+        return [];
+      }, fixture.provider),
+      async (request) => {
+        const response = await request(
+          '/v1/responses',
+          { routingProfile: profile.slug, input: 'Say hello.' },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes).toHaveLength(3);
+    expect(
+      seen[0].authorizedRoutes.every(
+        (route) => route.modelReference === fixture.pinnedModelReference
+      )
+    ).toBe(true);
+  });
+
   it('is NOT recorded when the customer authorised no such destination', async () => {
     const fixture = await makeFixture();
     // A policy with fallback enabled and an EMPTY authorisation list: same-model
@@ -864,14 +1207,18 @@ describe('a cross-model substitution', () => {
     await givePolicy(fixture);
 
     await withServer(
-      foldedRelay((envelope) => [
-        modelSwitch(envelope.attribution.requestId, {
-          requestedModelId: fixture.modelReference,
-          fromModelReference: fixture.pinnedModelReference,
-          toModelReference: fixture.otherPinnedModelReference,
-          toProvider: FAILOVER_PROVIDER,
-        }),
-      ]),
+      foldedKaana(
+        (envelope) => [
+          modelSwitch(envelope.attribution.requestId, {
+            requestedModelId: fixture.modelReference,
+            fromModelReference: fixture.pinnedModelReference,
+            toModelReference: fixture.otherPinnedModelReference,
+            toProvider: FAILOVER_PROVIDER,
+          }),
+        ],
+        fixture.provider,
+        false
+      ),
       async (request) => {
         // The request itself is unaffected — this is a notice, not an
         // authorization check, and the edge has already served the customer.
@@ -900,45 +1247,32 @@ describe('a cross-model substitution', () => {
 /*  The one configuration that cannot be recorded                             */
 /* -------------------------------------------------------------------------- */
 
-describe('an application served under the platform default', () => {
-  it('records no notice, and says so rather than inventing an authority', async () => {
-    // No routing policy at all, so `resolveEffectiveRoutingPolicy` answers `none`
-    // and the request runs under `PLATFORM_DEFAULT_ROUTING_POLICY` — which has no
-    // version ROW, deliberately, because that absence is how a reader tells the
-    // platform default from a configured policy.
+describe('an application with no versioned routing policy', () => {
+  it('fails before Kaana rather than inventing an optimisation default', async () => {
     const fixture = await makeFixture();
+    let calls = 0;
 
     await withServer(
-      foldedRelay((envelope) => [
-        deploymentSwitch(
-          envelope.attribution.requestId,
-          fixture.pinnedModelReference,
-          FAILOVER_PROVIDER
-        ),
-      ]),
+      foldedKaana(() => {
+        calls += 1;
+        return [];
+      }, fixture.provider),
       async (request) => {
         const response = await request(
           '/v1/responses',
           responsesBody(fixture),
           bearer(fixture.token)
         );
-        expect(response.status).toBe(200);
-        // The failover still reaches the receipt and the customer's body through
-        // the serving provider — only the NOTICE is missing.
-        expect(json(response).servingProvider).toBe(FAILOVER_PROVIDER);
+        expect(response.status).toBe(503);
+        expect(json(response)).toMatchObject({
+          code: 'no_route_available',
+          message: 'No route is currently available.',
+        });
       }
     );
 
+    expect(calls).toBe(0);
     await expect(switchesOf(fixture.applicationId)).resolves.toEqual([]);
-
-    const skipped = mockedLogger.warn.mock.calls.filter(
-      (call) => call[0] === 'inference.edge.route_switch_unrecordable'
-    );
-    expect(skipped).toHaveLength(1);
-    expect(skipped[0][1]).toMatchObject({
-      scope: 'deployment',
-      reason: 'platform_default_policy_has_no_version_row',
-    });
   });
 });
 
@@ -952,7 +1286,7 @@ describe('a switch reported for another request', () => {
     await givePolicy(fixture);
 
     await withServer(
-      foldedRelay(() => [
+      foldedKaana(() => [
         // A well-formed event naming somebody else's request. Storing it under
         // this one's id would attach a stranger's notice to this customer's
         // receipt — the same reasoning `validateUsageReport` applies to units.
@@ -995,14 +1329,17 @@ describe('a completion carrying no routeSwitchEvents field', () => {
     // arrived from a PR written in parallel and `main` went red.
     //
     // So the object below deliberately does NOT set the field, and is typed
-    // `RelayCompletion` so this stays a statement about the published shape rather
+    // `KaanaCompletion` so this stays a statement about the published shape rather
     // than about an untyped literal.
     const fixture = await makeFixture();
     await givePolicy(fixture);
 
-    const withoutTheField: RelayClient = {
-      execute: async (envelope): Promise<RelayCompletion> => {
+    const withoutTheField: KaanaClient = {
+      attestDeployments: attestFixtureDeployments,
+      execute: async (envelope): Promise<KaanaCompletion> => {
         const now = new Date().toISOString();
+        const servedRoute = envelope.authorizedRoutes[0];
+        if (servedRoute === undefined) throw new Error('fixture received no authorized route');
         const modelReference =
           envelope.target.kind === 'model' ? envelope.target.modelReference : 'unknown/unknown';
         return {
@@ -1010,7 +1347,7 @@ describe('a completion carrying no routeSwitchEvents field', () => {
           output: [{ role: 'assistant', content: [{ type: 'text', text: 'Hello.' }] }],
           finishReason: 'stop',
           usage: {
-            schemaVersion: 1,
+            schemaVersion: 2,
             requestId: envelope.attribution.requestId,
             attribution: envelope.attribution,
             outcome: 'completed',
@@ -1021,6 +1358,7 @@ describe('a completion carrying no routeSwitchEvents field', () => {
             usageSource: 'provider_reported',
             resolvedModelReference: modelReference,
             servingProvider: fixture.provider,
+            deploymentId: servedRoute.deploymentId,
             routeSwitches: 0,
             startedAt: now,
             completedAt: now,
