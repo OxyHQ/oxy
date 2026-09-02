@@ -19736,6 +19736,341 @@
         "operationId": "postInferenceProviderConnectionsConnectionIdEnable"
       }
     },
+    "/inference/provider-connections/{connectionId}/reconcile": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`POST /inference/provider-connections/:connectionId/reconcile`",
+        "description": "Retry only Kaana's signed exact-outcome lookup for the operation Oxy already\npersisted. It sends no provider secret and never mints or substitutes an id.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exact applied operation and its metadata-only connection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "schemaVersion": {
+                          "type": "number",
+                          "enum": [
+                            1
+                          ]
+                        },
+                        "connectionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "provider": {
+                          "type": "string",
+                          "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+                          "maxLength": 64
+                        },
+                        "ownerAccountId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 64
+                        },
+                        "scope": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "account"
+                                  ]
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "accountId"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "project"
+                                  ]
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "accountId"
+                              ]
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "application"
+                                  ]
+                                },
+                                "accountId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                },
+                                "applicationId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 64
+                                }
+                              },
+                              "required": [
+                                "kind",
+                                "accountId",
+                                "applicationId"
+                              ]
+                            }
+                          ],
+                          "discriminator": {
+                            "propertyName": "kind"
+                          }
+                        },
+                        "environment": {
+                          "type": "string",
+                          "enum": [
+                            "development",
+                            "staging",
+                            "production"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending_validation",
+                            "active",
+                            "disabled",
+                            "revoked"
+                          ]
+                        },
+                        "custodyState": {
+                          "type": "string",
+                          "enum": [
+                            "pending",
+                            "ready",
+                            "reconcile",
+                            "revoked"
+                          ]
+                        },
+                        "credentialHandle": {
+                          "type": "string",
+                          "pattern": "^kcred_[a-z2-7]{26}$"
+                        },
+                        "credentialRevision": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "keyPrefix": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 12
+                        },
+                        "fingerprint": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "validation": {
+                          "type": "object",
+                          "properties": {
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "unvalidated",
+                                "valid",
+                                "invalid",
+                                "expired"
+                              ]
+                            },
+                            "lastValidatedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "failureCode": {
+                              "type": "string",
+                              "enum": [
+                                "unauthorized",
+                                "forbidden",
+                                "not_found",
+                                "rate_limited",
+                                "network",
+                                "unknown"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "state"
+                          ]
+                        },
+                        "upstreamBillsCustomerDirectly": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "termsAcknowledgedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "rotatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "schemaVersion",
+                        "connectionId",
+                        "provider",
+                        "ownerAccountId",
+                        "scope",
+                        "environment",
+                        "status",
+                        "custodyState",
+                        "keyPrefix",
+                        "fingerprint",
+                        "validation",
+                        "upstreamBillsCustomerDirectly",
+                        "createdAt"
+                      ]
+                    },
+                    "reconciledAction": {
+                      "type": "string",
+                      "enum": [
+                        "create",
+                        "rotate",
+                        "revoke"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "reconciledAction"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceProviderConnectionsConnectionIdReconcile"
+      }
+    },
     "/inference/provider-connections/{connectionId}/revoke": {
       "post": {
         "tags": [

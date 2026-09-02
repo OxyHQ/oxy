@@ -72,6 +72,7 @@ import {
   providerConnectionEffectiveQuery,
   providerConnectionEmptyBody,
   providerConnectionParams,
+  providerConnectionReconcileResponseSchema,
   providerConnectionRotateBody,
   providerConnectionValidationBody,
   providerCredentialBody,
@@ -827,6 +828,8 @@ router.post(
  *
  * Retry only Kaana's signed exact-outcome lookup for the operation Oxy already
  * persisted. It sends no provider secret and never mints or substitutes an id.
+ *
+ * @response 200 providerConnectionReconcileResponseSchema The exact applied operation and its metadata-only connection.
  */
 router.post(
   '/:connectionId/reconcile',
@@ -851,7 +854,12 @@ router.post(
     const result = await reconcileProviderConnection(connectionId, kaanaCredentialControlOr503());
     switch (result.status) {
       case 'reconciled':
-        res.json({ data: result.connection, reconciledAction: result.action });
+        res.json(
+          providerConnectionReconcileResponseSchema.parse({
+            data: result.connection,
+            reconciledAction: result.action,
+          }),
+        );
         return;
       case 'reconciliation-required':
         throw new ApiError(

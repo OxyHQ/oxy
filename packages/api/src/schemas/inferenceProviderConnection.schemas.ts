@@ -22,6 +22,10 @@
  * declares no field a credential could occupy.
  */
 
+import {
+  kaanaCredentialOperationActionSchema,
+  providerConnectionSchema,
+} from '@oxyhq/contracts';
 import { z } from 'zod';
 
 /** An id in a path segment. Bounded so a pathological path is refused early. */
@@ -118,3 +122,11 @@ export const providerConnectionAuditQuery = z
 
 /** An empty body, for the transitions that take no input. */
 export const providerConnectionEmptyBody = z.object({}).strict();
+
+/** Exact successful reconciliation response; metadata-only by contract. */
+export const providerConnectionReconcileResponseSchema = z
+  .object({
+    data: providerConnectionSchema,
+    reconciledAction: kaanaCredentialOperationActionSchema,
+  })
+  .strict();
