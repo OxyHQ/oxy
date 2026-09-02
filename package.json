@@ -165,6 +165,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "//@types/express": "THE CATALOG RANGE, THE ROOT devDependency AND THE `overrides` ENTRY MUST ALL NAME THE SAME RANGE, AND THAT RANGE MUST STAY ON v4. Every workspace asks for `catalog:`, so the catalog is what those packages declare -- but `@types/express-slow-down` and `@types/express-rate-limit` both request `@types/express: \"*\"`, which resolves to `latest` (v5) and lands BESIDE the v4 the runtime actually uses. tsc then sees two express type identities and fails ~200 lines later in `routes/assets.ts`, `routes/email.ts` and `server.ts` -- files nobody touched -- which reads like an application bug and is not one. The `overrides` entry is what holds the whole tree to v4; the catalog naming a DIFFERENT range was two statements of one fact, and the one that loses is silent. The Dockerfile asserts the property this buys (exactly one `@types/express` resolution in the image) so an unpinned image build fails AT the cause rather than in those three files.",
   "overrides": {
+    "browserslist": "4.28.8",
     "ioredis": "5.11.1",
     "send": "0.19.1",
     "@types/express": "^4.17.25",

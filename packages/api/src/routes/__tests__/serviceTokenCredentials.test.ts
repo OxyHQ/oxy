@@ -495,6 +495,18 @@ describe('POST /auth/service-token — the minted claims', () => {
     expect([...(claims.scopes ?? [])].sort()).toEqual(['files:read', 'user:read']);
   });
 
+  it('never lets a legacy scopeless credential inherit privileged app scopes', async () => {
+    const client = await serviceClient(
+      { scopes: [] },
+      { scopes: ['user:read', 'acting-as:offline', 'accounts:act-as-session'] },
+    );
+
+    const res = await post({ apiKey: client.apiKey, apiSecret: client.apiSecret });
+
+    const claims = decodeServiceJwt((res.body.data as { token: string }).token);
+    expect(claims.scopes).toEqual(['user:read']);
+  });
+
   /**
    * The inference escalation (#972 workstream 3), asserted at the MINT rather
    * than only on `intersectScopes`: `inference:providers:write` is staff-gated

@@ -779,7 +779,7 @@ describe('credentials', () => {
     expect(res.status).toBe(403);
   });
 
-  it('a trusted application is unaffected by the Oxy Pay carve-out (no scopes required)', async () => {
+  it('requires a trusted service credential to name at least one scope', async () => {
     const app = await seedApp({
       type: 'internal',
       isOfficial: false,
@@ -790,6 +790,22 @@ describe('credentials', () => {
       name: 'svc',
       type: 'service',
       environment: 'production',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('lets a trusted application create a service credential with explicit scopes', async () => {
+    const app = await seedApp({
+      type: 'internal',
+      isOfficial: false,
+      isInternal: false,
+      scopes: ['user:read'],
+    });
+    const res = await requestJson(server, 'POST', `/applications/${app.id}/credentials`, {
+      name: 'svc',
+      type: 'service',
+      environment: 'production',
+      scopes: ['user:read'],
     });
     expect(res.status).toBe(201);
   });
