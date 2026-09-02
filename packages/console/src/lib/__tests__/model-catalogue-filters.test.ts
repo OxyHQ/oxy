@@ -45,7 +45,7 @@ function entry(overrides: {
   };
 
   return modelCatalogueEntrySchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     modelId: overrides.modelId,
     publisher: {
       slug: publisherSlug,

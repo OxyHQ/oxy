@@ -82,11 +82,12 @@ executing a route requires:
   `modelDeploymentSchema` enforces. An unpinned entry would leave the data plane
   choosing a revision, which is a substitution nobody authorized.
 - **`regions` is plural**, matching `modelDeploymentSchema.regions`. A non-empty
-  list declares every attested region the deployment MAY serve from and Oxy
-  checks the whole set against the customer's residency controls as a SUBSET.
-  An explicit empty list means no regional attestation exists; it is eligible
-  only when the effective policy has neither `allowedRegions` nor
-  `deniedRegions`. Kaana still compares the signed list to inventory exactly.
+  list declares every attested region the deployment MAY serve from; Oxy checks
+  the complete set against the customer's residency controls as a SUBSET before
+  Kaana chooses among them during execution. An explicit empty list means
+  location is unattested, never global, and is eligible only when the effective
+  policy has neither `allowedRegions` nor `deniedRegions`. Kaana still compares
+  the signed set to inventory exactly.
 - **`{routingPolicyId, policyVersion}` stays.** It is provenance: a settled
   receipt must still record the exact revision of the customer's own
   configuration that produced the charge.

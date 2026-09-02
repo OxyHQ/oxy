@@ -25,13 +25,21 @@
  * row, and an existing row is never edited.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
+import { routingScoreValidityThreshold } from '../config/inferenceRoutingScoreValidity';
 import {
   type DeploymentLegalReviewStatus,
   type DeploymentPermissionState,
+  type BalancedRoutingScoreSource,
+  type MeasuredRoutingScoreSource,
+  type PriceRoutingScoreSource,
+  APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX,
+  inferenceDeploymentRoutingScoreEvents,
+  inferenceDeploymentRoutingScores,
   inferenceDeployments,
 } from '../db/schema';
+import { violatesUniqueIndex } from '../utils/postgresErrors';
 
 /** The four transitions this workflow offers, as the route layer names them. */
 export const DEPLOYMENT_PERMISSION_ACTIONS = [
@@ -97,6 +105,233 @@ export class DeploymentPermissionRefused extends Error {
     super(message);
     this.name = 'DeploymentPermissionRefused';
   }
+}
+
+export interface PriceRoutingScore {
+  readonly score: number | null;
+  readonly source: PriceRoutingScoreSource;
+  readonly evidenceRef: string;
+  readonly priceVersionId: string;
+}
+
+export interface MeasuredRoutingScore {
+  readonly score: number | null;
+  readonly source: MeasuredRoutingScoreSource;
+  readonly evidenceRef: string;
+  readonly measurementWindowStart: string;
+  readonly measurementWindowEnd: string;
+  readonly validUntil: string;
+}
+
+export interface BalancedRoutingScore {
+  readonly score: number | null;
+  readonly source: BalancedRoutingScoreSource;
+  readonly evidenceRef: string;
+  readonly formulaRef: string;
+  readonly validUntil: string;
+}
+
+export interface DeploymentRoutingScorecard {
+  readonly price: PriceRoutingScore;
+  readonly latency: MeasuredRoutingScore;
+  readonly throughput: MeasuredRoutingScore;
+  readonly balanced: BalancedRoutingScore;
+  readonly reason: string;
+}
+
+const SERVING_AVAILABILITY_SCOPES = ['public_payg', 'oxy_hosted', 'internal_alia'] as const;
+const APPROVED_IDENTITY_CONFLICT =
+  'This Kaana deploymentId already backs another approved catalogue row.';
+
+/**
+ * Convert only the approved-Kaana-identity unique race into the public 409.
+ * Other database failures must retain their original identity and surface as
+ * server errors rather than being mislabeled as an operator conflict.
+ */
+export function classifyDeploymentPermissionWriteError(
+  error: unknown
+): DeploymentPermissionRefused | undefined {
+  return violatesUniqueIndex(error, APPROVED_INTERNAL_ROUTE_ID_UNIQUE_INDEX)
+    ? new DeploymentPermissionRefused(APPROVED_IDENTITY_CONFLICT)
+    : undefined;
+}
+
+function unavailableScorecardReason(
+  scorecard: DeploymentRoutingScorecard,
+  priceVersionId: string | null,
+  minimumValidUntil: Date
+): string | undefined {
+  if (
+    scorecard.price.score === null ||
+    scorecard.latency.score === null ||
+    scorecard.throughput.score === null ||
+    scorecard.balanced.score === null
+  ) {
+    return 'all four routing scores must be explicit non-null values';
+  }
+  if (priceVersionId === null || scorecard.price.priceVersionId !== priceVersionId) {
+    return 'the price score must name the route current exact priceVersionId';
+  }
+  if (Date.parse(scorecard.latency.validUntil) < minimumValidUntil.getTime()) {
+    return 'the latency score evidence does not cover the configured minimum validity horizon';
+  }
+  if (Date.parse(scorecard.throughput.validUntil) < minimumValidUntil.getTime()) {
+    return 'the throughput score evidence does not cover the configured minimum validity horizon';
+  }
+  if (Date.parse(scorecard.balanced.validUntil) < minimumValidUntil.getTime()) {
+    return 'the balanced score evidence does not cover the configured minimum validity horizon';
+  }
+  return undefined;
+}
+
+/**
+ * Replace every routing score for one exact Kaana deployment identity.
+ *
+ * This intentionally looks up `internal_route_id`, not the catalogue row id or
+ * provider slug. A partial update is not offered: the four values are one
+ * reviewed scorecard, and NULL explicitly withdraws a signal so routing fails
+ * closed rather than continuing on stale data. Each signal carries its own
+ * evidence and validity contract; changing one still means reviewing and
+ * resubmitting the complete scorecard.
+ */
+export async function setDeploymentRoutingScores(input: {
+  readonly deploymentId: string;
+  readonly scorecard: DeploymentRoutingScorecard;
+  readonly staffUserId: string;
+}): Promise<{ readonly deploymentId: string; readonly scorecard: DeploymentRoutingScorecard }> {
+  const changedAt = new Date();
+  const scorecard: DeploymentRoutingScorecard = {
+    price: {
+      ...input.scorecard.price,
+      evidenceRef: input.scorecard.price.evidenceRef.trim(),
+      priceVersionId: input.scorecard.price.priceVersionId.trim(),
+    },
+    latency: {
+      ...input.scorecard.latency,
+      evidenceRef: input.scorecard.latency.evidenceRef.trim(),
+    },
+    throughput: {
+      ...input.scorecard.throughput,
+      evidenceRef: input.scorecard.throughput.evidenceRef.trim(),
+    },
+    balanced: {
+      ...input.scorecard.balanced,
+      evidenceRef: input.scorecard.balanced.evidenceRef.trim(),
+      formulaRef: input.scorecard.balanced.formulaRef.trim(),
+    },
+    reason: input.scorecard.reason.trim(),
+  };
+
+  return getDb().transaction(async (tx) => {
+    const mapped = await tx
+      .select({
+        deploymentId: inferenceDeployments.internalRouteId,
+        priceVersionId: inferenceDeployments.priceVersionId,
+        status: inferenceDeployments.status,
+        permissionState: inferenceDeployments.permissionState,
+        availabilityScope: inferenceDeployments.availabilityScope,
+      })
+      .from(inferenceDeployments)
+      .where(eq(inferenceDeployments.internalRouteId, input.deploymentId))
+      .for('update');
+    if (mapped.length === 0) throw new DeploymentNotFoundError(input.deploymentId);
+    if (mapped.length !== 1) {
+      throw new DeploymentPermissionRefused(
+        'This Kaana deploymentId maps to more than one catalogue row; authoring is refused until the identity collision is resolved.'
+      );
+    }
+    if (mapped[0].priceVersionId !== scorecard.price.priceVersionId) {
+      throw new DeploymentPermissionRefused(
+        'The price score priceVersionId is not assigned to this exact Kaana deployment.'
+      );
+    }
+    if (
+      Date.parse(scorecard.latency.measurementWindowEnd) > changedAt.getTime() ||
+      Date.parse(scorecard.throughput.measurementWindowEnd) > changedAt.getTime()
+    ) {
+      throw new DeploymentPermissionRefused(
+        'A routing measurement window cannot end in the future.'
+      );
+    }
+    if (
+      Date.parse(scorecard.latency.validUntil) <= changedAt.getTime() ||
+      Date.parse(scorecard.throughput.validUntil) <= changedAt.getTime() ||
+      Date.parse(scorecard.balanced.validUntil) <= changedAt.getTime()
+    ) {
+      throw new DeploymentPermissionRefused('Routing evidence must still be valid when it is written.');
+    }
+    const approvedServing = mapped.filter(
+      (deployment) =>
+        deployment.permissionState === 'approved' &&
+        SERVING_AVAILABILITY_SCOPES.includes(
+          deployment.availabilityScope as (typeof SERVING_AVAILABILITY_SCOPES)[number]
+        )
+    );
+    const minimumValidUntil =
+      approvedServing.length === 0 ? changedAt : routingScoreValidityThreshold(changedAt);
+    for (const deployment of approvedServing) {
+      const unavailable = unavailableScorecardReason(
+        scorecard,
+        deployment.priceVersionId,
+        minimumValidUntil
+      );
+      if (unavailable !== undefined) {
+        throw new DeploymentPermissionRefused(
+          `Suspend or restrict this approved serving-scope route before withdrawing its routing evidence: ${unavailable}.`
+        );
+      }
+    }
+
+    const values = {
+      deploymentId: input.deploymentId,
+      priceScore: scorecard.price.score,
+      priceSource: scorecard.price.source,
+      priceEvidenceRef: scorecard.price.evidenceRef,
+      priceVersionId: scorecard.price.priceVersionId,
+      latencyScore: scorecard.latency.score,
+      latencySource: scorecard.latency.source,
+      latencyEvidenceRef: scorecard.latency.evidenceRef,
+      latencyMeasurementWindowStart: new Date(scorecard.latency.measurementWindowStart),
+      latencyMeasurementWindowEnd: new Date(scorecard.latency.measurementWindowEnd),
+      latencyValidUntil: new Date(scorecard.latency.validUntil),
+      throughputScore: scorecard.throughput.score,
+      throughputSource: scorecard.throughput.source,
+      throughputEvidenceRef: scorecard.throughput.evidenceRef,
+      throughputMeasurementWindowStart: new Date(scorecard.throughput.measurementWindowStart),
+      throughputMeasurementWindowEnd: new Date(scorecard.throughput.measurementWindowEnd),
+      throughputValidUntil: new Date(scorecard.throughput.validUntil),
+      balancedScore: scorecard.balanced.score,
+      balancedSource: scorecard.balanced.source,
+      balancedEvidenceRef: scorecard.balanced.evidenceRef,
+      balancedFormulaRef: scorecard.balanced.formulaRef,
+      balancedValidUntil: new Date(scorecard.balanced.validUntil),
+      reason: scorecard.reason,
+      changedByUserId: input.staffUserId,
+    };
+    const [row] = await tx
+      .insert(inferenceDeploymentRoutingScores)
+      .values({ ...values, changedAt })
+      .onConflictDoUpdate({
+        target: inferenceDeploymentRoutingScores.deploymentId,
+        set: {
+          ...values,
+          changedByUserId: input.staffUserId,
+          changedAt,
+          updatedAt: changedAt,
+        },
+      })
+      .returning({
+        deploymentId: inferenceDeploymentRoutingScores.deploymentId,
+      });
+    if (row === undefined) throw new DeploymentNotFoundError(input.deploymentId);
+
+    await tx.insert(inferenceDeploymentRoutingScoreEvents).values({ ...values, createdAt: changedAt });
+
+    return {
+      deploymentId: row.deploymentId,
+      scorecard,
+    };
+  });
 }
 
 export interface RecordLegalReviewInput {
@@ -182,65 +417,160 @@ export interface PermissionActionInput {
 export async function applyPermissionAction(
   input: PermissionActionInput
 ): Promise<DeploymentPermissionResult> {
-  const db = getDb();
+  return getDb().transaction(async (tx) => {
+    const [existing] = await tx
+      .select({
+        id: inferenceDeployments.id,
+        permissionState: inferenceDeployments.permissionState,
+        legalReviewStatus: inferenceDeployments.legalReviewStatus,
+        internalRouteId: inferenceDeployments.internalRouteId,
+        priceVersionId: inferenceDeployments.priceVersionId,
+        availabilityScope: inferenceDeployments.availabilityScope,
+      })
+      .from(inferenceDeployments)
+      .where(eq(inferenceDeployments.id, input.deploymentId))
+      .for('update');
 
-  const [existing] = await db
-    .select({
-      id: inferenceDeployments.id,
-      permissionState: inferenceDeployments.permissionState,
-      legalReviewStatus: inferenceDeployments.legalReviewStatus,
-    })
-    .from(inferenceDeployments)
-    .where(eq(inferenceDeployments.id, input.deploymentId));
+    if (existing === undefined) throw new DeploymentNotFoundError(input.deploymentId);
 
-  if (existing === undefined) throw new DeploymentNotFoundError(input.deploymentId);
+    if (existing.permissionState === 'retired') {
+      throw new DeploymentPermissionRefused(
+        'A retired route stays retired. Re-offering the same model on the same provider is a new deployment, so the decision is visible and reviewable.'
+      );
+    }
 
-  if (existing.permissionState === 'retired') {
-    throw new DeploymentPermissionRefused(
-      'A retired route stays retired. Re-offering the same model on the same provider is a new deployment, so the decision is visible and reviewable.'
-    );
-  }
+    if (input.action === 'approve') {
+      if (existing.legalReviewStatus !== 'approved') {
+        throw new DeploymentPermissionRefused(
+          'This route cannot be approved until its contract/legal review is approved and its evidence reference recorded.'
+        );
+      }
+      const requiresRoutingReadiness = SERVING_AVAILABILITY_SCOPES.includes(
+        existing.availabilityScope as (typeof SERVING_AVAILABILITY_SCOPES)[number]
+      );
+      if (requiresRoutingReadiness && existing.internalRouteId === null) {
+        throw new DeploymentPermissionRefused(
+          'This route cannot be approved until it maps to one exact Kaana deploymentId.'
+        );
+      }
+      if (requiresRoutingReadiness) {
+        // Narrowed by the refusal immediately above.
+        const internalRouteId = existing.internalRouteId as string;
+        const [scorecard] = await tx
+          .select({
+            priceScore: inferenceDeploymentRoutingScores.priceScore,
+            priceVersionId: inferenceDeploymentRoutingScores.priceVersionId,
+            latencyScore: inferenceDeploymentRoutingScores.latencyScore,
+            latencyMeasurementWindowEnd:
+              inferenceDeploymentRoutingScores.latencyMeasurementWindowEnd,
+            latencyValidUntil: inferenceDeploymentRoutingScores.latencyValidUntil,
+            throughputScore: inferenceDeploymentRoutingScores.throughputScore,
+            throughputMeasurementWindowEnd:
+              inferenceDeploymentRoutingScores.throughputMeasurementWindowEnd,
+            throughputValidUntil: inferenceDeploymentRoutingScores.throughputValidUntil,
+            balancedScore: inferenceDeploymentRoutingScores.balancedScore,
+            balancedValidUntil: inferenceDeploymentRoutingScores.balancedValidUntil,
+          })
+          .from(inferenceDeploymentRoutingScores)
+          .where(eq(inferenceDeploymentRoutingScores.deploymentId, internalRouteId))
+          .for('update');
+        const now = new Date();
+        const minimumValidUntil = routingScoreValidityThreshold(now);
+        if (scorecard === undefined) {
+          throw new DeploymentPermissionRefused(
+            'This route cannot be approved until its exact Kaana deployment has a complete routing scorecard.'
+          );
+        }
+        if (
+          scorecard.priceScore === null ||
+          scorecard.latencyScore === null ||
+          scorecard.throughputScore === null ||
+          scorecard.balancedScore === null
+        ) {
+          throw new DeploymentPermissionRefused(
+            'This route cannot be approved until all four routing scores are explicit non-null values.'
+          );
+        }
+        if (
+          existing.priceVersionId === null ||
+          scorecard.priceVersionId !== existing.priceVersionId
+        ) {
+          throw new DeploymentPermissionRefused(
+            'This route cannot be approved until its price score names the current exact priceVersionId.'
+          );
+        }
+        if (
+          scorecard.latencyMeasurementWindowEnd > now ||
+          scorecard.throughputMeasurementWindowEnd > now
+        ) {
+          throw new DeploymentPermissionRefused(
+            'This route cannot be approved with a routing measurement window that ends in the future.'
+          );
+        }
+        if (
+          scorecard.latencyValidUntil < minimumValidUntil ||
+          scorecard.throughputValidUntil < minimumValidUntil ||
+          scorecard.balancedValidUntil < minimumValidUntil
+        ) {
+          throw new DeploymentPermissionRefused(
+            'This route cannot be approved unless all routing evidence covers the configured minimum validity horizon.'
+          );
+        }
+      }
+      if (existing.internalRouteId !== null) {
+        const [duplicate] = await tx
+          .select({ id: inferenceDeployments.id })
+          .from(inferenceDeployments)
+          .where(
+            and(
+              ne(inferenceDeployments.id, existing.id),
+              eq(inferenceDeployments.internalRouteId, existing.internalRouteId),
+              eq(inferenceDeployments.permissionState, 'approved')
+            )
+          )
+          .limit(1);
+        if (duplicate !== undefined) {
+          throw new DeploymentPermissionRefused(APPROVED_IDENTITY_CONFLICT);
+        }
+      }
+    }
 
-  if (input.action === 'approve' && existing.legalReviewStatus !== 'approved') {
-    throw new DeploymentPermissionRefused(
-      'This route cannot be approved until its contract/legal review is approved and its evidence reference recorded.'
-    );
-  }
-
-  const changedAt = new Date();
-  const [row] = await db
-    .update(inferenceDeployments)
-    .set({
-      permissionState: ACTION_TARGET_STATE[input.action],
-      permissionStateChangedAt: changedAt,
-      permissionStateChangedByUserId: input.staffUserId,
-      permissionStateNote: input.note?.trim() ?? null,
-    })
-    // Re-asserted in the WHERE so a concurrent retire cannot be overwritten by
-    // an approve that read the row a moment earlier. The read above is for the
-    // message; this is the atomicity.
-    .where(
-      and(
-        eq(inferenceDeployments.id, input.deploymentId),
-        eq(inferenceDeployments.permissionState, existing.permissionState)
+    const changedAt = new Date();
+    const [row] = await tx
+      .update(inferenceDeployments)
+      .set({
+        permissionState: ACTION_TARGET_STATE[input.action],
+        permissionStateChangedAt: changedAt,
+        permissionStateChangedByUserId: input.staffUserId,
+        permissionStateNote: input.note?.trim() ?? null,
+      })
+      .where(
+        and(
+          eq(inferenceDeployments.id, input.deploymentId),
+          eq(inferenceDeployments.permissionState, existing.permissionState)
+        )
       )
-    )
-    .returning({
-      deploymentId: inferenceDeployments.id,
-      permissionState: inferenceDeployments.permissionState,
-      legalReviewStatus: inferenceDeployments.legalReviewStatus,
-    });
+      .returning({
+        deploymentId: inferenceDeployments.id,
+        permissionState: inferenceDeployments.permissionState,
+        legalReviewStatus: inferenceDeployments.legalReviewStatus,
+      });
 
-  if (row === undefined) {
-    throw new DeploymentPermissionRefused(
-      'The route changed state while this request was in flight. Re-read it and decide again.'
-    );
-  }
+    if (row === undefined) {
+      throw new DeploymentPermissionRefused(
+        'The route changed state while this request was in flight. Re-read it and decide again.'
+      );
+    }
 
-  return {
-    deploymentId: row.deploymentId,
-    permissionState: row.permissionState,
-    legalReviewStatus: row.legalReviewStatus,
-    changedAt,
-  };
+    return {
+      deploymentId: row.deploymentId,
+      permissionState: row.permissionState,
+      legalReviewStatus: row.legalReviewStatus,
+      changedAt,
+    };
+  }).catch((error: unknown) => {
+    const conflict = classifyDeploymentPermissionWriteError(error);
+    if (conflict !== undefined) throw conflict;
+    throw error;
+  });
 }

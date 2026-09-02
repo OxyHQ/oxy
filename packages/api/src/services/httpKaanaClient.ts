@@ -1,38 +1,38 @@
 /**
- * The production {@link RelayClient}: a signed HTTP hop to `OxyHQ/Relay`
+ * The production {@link KaanaClient}: a signed HTTP hop to `OxyHQ/Kaana`
  * (issue #972 workstream 4, ADR 0006, ADR 0010, ADR 0015).
  *
  * ```text
- * POST <RELAY_BASE_URL>/internal/v1/inference
- *   X-Oxy-Relay-Key-Id      the signing key's id
- *   X-Oxy-Relay-Timestamp   unix milliseconds
- *   X-Oxy-Relay-Signature   v1=<base64 Ed25519 signature>
+ * POST <KAANA_BASE_URL>/internal/v1/inference
+ *   X-Oxy-Kaana-Key-Id      the signing key's id
+ *   X-Oxy-Kaana-Timestamp   unix milliseconds
+ *   X-Oxy-Kaana-Signature   v1=<base64 Ed25519 signature>
  *   <the exact serialized envelope>
  * ->  200 + text/event-stream:  event: stream_event | usage_report
  * ```
  *
  * ## The signature covers the EXACT bytes that are sent
  *
- * {@link relaySigningInput} hashes the serialized body and signs the hash inside
+ * {@link kaanaSigningInput} hashes the serialized body and signs the hash inside
  * a domain-separated preamble, and the same `Buffer` that was hashed is the
  * request body. Re-serializing the envelope between signing and sending — two
  * `JSON.stringify` calls, or a fetch implementation given an object to encode
  * itself — would authenticate something other than what gets executed, which is
  * the classic way a signature check becomes decorative. ADR 0015 states the
- * scheme; Relay's `internal/edgeauth` is the other implementation of it.
+ * scheme; Kaana's `internal/edgeauth` is the other implementation of it.
  *
  * ## A status code answers exactly one question
  *
- * Relay's own rule, and the edge has to speak it: `200` means "this was a
+ * Kaana's own rule, and the edge has to speak it: `200` means "this was a
  * well-formed signed envelope", and every outcome after that — including a
  * refusal — arrives as the stream's terminal `error` event. So a `4xx` here is
- * never about the customer's request (see {@link RelayEnvelopeRejectedError}) and
+ * never about the customer's request (see {@link KaanaEnvelopeRejectedError}) and
  * the interesting failures are all inside a `200`.
  *
  * ## Nothing is buffered, in either direction
  *
  * The body is decoded frame by frame off `Response.body` and yielded as it
- * arrives. {@link HttpRelayClient.execute} folds those frames into a completion
+ * arrives. {@link HttpKaanaClient.execute} folds those frames into a completion
  * because a non-streaming caller wants one value — but it is the same call, the
  * same decoder and the same signature, so there is one wire path and no second
  * place a frame can be misread.
@@ -41,7 +41,7 @@
  *
  * The bound on this hop is the CLIENT's own patience: when a customer's HTTP
  * client gives up, `res` closes, `connectionSignal` aborts, this request aborts
- * and Relay propagates the cancellation upstream. A deadline of Oxy's own would
+ * and Kaana propagates the cancellation upstream. A deadline of Oxy's own would
  * be a second number that has to be larger than the slowest legitimate
  * generation and smaller than `RESERVATION_TTL_SECONDS`, and getting it wrong in
  * the first direction kills requests a customer paid for. A client that never
@@ -57,7 +57,11 @@
 
 import { createHash, sign, type KeyObject } from 'node:crypto';
 import {
+  deploymentIdSchema,
+  inferenceProviderSlugSchema,
+  inferenceRegionSchema,
   inferenceStreamEventSchema,
+  modelReferenceSchema,
   normalizedUsageReportSchema,
   type InferenceError,
   type InferenceFinishReason,
@@ -69,72 +73,94 @@ import {
   type UsageQuantity,
   type UsageSource,
 } from '@oxyhq/contracts';
+import { z } from 'zod';
 import {
-  relayPublicKeyBase64,
-  resolveRelayDataPlane,
-  type RelayDataPlaneConfig,
-} from '../config/relayDataPlane';
+  kaanaPublicKeyBase64,
+  resolveKaanaDataPlane,
+  type KaanaDataPlaneConfig,
+} from '../config/kaanaDataPlane';
 import { logger } from '../utils/logger';
 import {
-  RelayEnvelopeRejectedError,
-  RelayIncompleteError,
-  RelayProtocolError,
-  type RelayClient,
-  type RelayCompletion,
-  type RelayExecuteOptions,
-  type RelayStreamFrame,
-  type RelayUsageEvidence,
-} from './relayClient';
+  KaanaEnvelopeRejectedError,
+  KaanaIncompleteError,
+  KaanaProtocolError,
+  type KaanaClient,
+  type KaanaCompletion,
+  type KaanaDeploymentAttestation,
+  type KaanaExecuteOptions,
+  type KaanaStreamFrame,
+  type KaanaUsageEvidence,
+} from './kaanaClient';
 
 /* -------------------------------------------------------------------------- */
 /*  The wire                                                                  */
 /* -------------------------------------------------------------------------- */
 
 /** The one route the edge calls. */
-export const RELAY_INFERENCE_PATH = '/internal/v1/inference';
+export const KAANA_INFERENCE_PATH = '/internal/v1/inference';
+export const KAANA_DEPLOYMENTS_QUERY_PATH = '/internal/v1/deployments/query';
 
-export const RELAY_KEY_ID_HEADER = 'X-Oxy-Relay-Key-Id';
-export const RELAY_TIMESTAMP_HEADER = 'X-Oxy-Relay-Timestamp';
-export const RELAY_SIGNATURE_HEADER = 'X-Oxy-Relay-Signature';
+export const KAANA_KEY_ID_HEADER = 'X-Oxy-Kaana-Key-Id';
+export const KAANA_TIMESTAMP_HEADER = 'X-Oxy-Kaana-Timestamp';
+export const KAANA_SIGNATURE_HEADER = 'X-Oxy-Kaana-Signature';
 
 /**
  * The signature's own version, carried in the header value rather than the
  * header name so the scheme can change without a new header having to be allowed
  * through every proxy on the path.
  */
-const RELAY_SIGNATURE_VERSION = 'v1';
+const KAANA_SIGNATURE_VERSION = 'v1';
 
 /**
  * The domain separator. A signature minted for any other Oxy purpose cannot be
  * replayed as an inference envelope, because no other purpose signs a payload
  * that starts with this line.
  */
-const RELAY_SIGNATURE_DOMAIN = 'oxy-relay-envelope:v1';
+const KAANA_SIGNATURE_DOMAIN = 'oxy-kaana-envelope:v1';
 
-/** Relay's own SSE frame names — transport framing, not part of the contract. */
+/** Kaana's own SSE frame names — transport framing, not part of the contract. */
 const FRAME_STREAM_EVENT = 'stream_event';
 const FRAME_USAGE_REPORT = 'usage_report';
 
 /**
  * The largest single SSE event this client will accumulate, in characters.
  *
- * Matches the bound Relay's own decoder applies to what it reads from a provider,
+ * Matches the bound Kaana's own decoder applies to what it reads from a provider,
  * and exists for the same reason: a producer that never emits a frame boundary
  * would otherwise grow this buffer until the process dies, which is a denial of
  * service that arrives looking like a memory leak. Generous — the largest frame
- * Relay emits is a usage report, which is under a kilobyte.
+ * Kaana emits is a usage report, which is under a kilobyte.
  */
-const MAX_RELAY_EVENT_CHARACTERS = 8 * 1024 * 1024;
+const MAX_KAANA_EVENT_CHARACTERS = 8 * 1024 * 1024;
 
 /**
  * The most of a non-`200` body this client reads before giving up on it.
  *
- * Relay's own rejections are a few hundred bytes of JSON. The cap is here for
+ * Kaana's own rejections are a few hundred bytes of JSON. The cap is here for
  * what sits BETWEEN the two — a load balancer or service mesh returning an HTML
  * error page — because the error path is exactly where an unbounded read is least
  * likely to be noticed.
  */
-const MAX_RELAY_REJECTION_BYTES = 64 * 1024;
+const MAX_KAANA_REJECTION_BYTES = 64 * 1024;
+const MAX_KAANA_ATTESTATION_IDS = 64;
+
+const kaanaDeploymentAttestationSchema = z
+  .object({
+    snapshotId: z.string().min(1).max(256),
+    deployments: z
+      .array(
+        z
+          .object({
+            deploymentId: deploymentIdSchema,
+            modelReference: modelReferenceSchema,
+            provider: inferenceProviderSlugSchema,
+            regions: z.array(inferenceRegionSchema),
+          })
+          .strict()
+      )
+      .max(MAX_KAANA_ATTESTATION_IDS),
+  })
+  .strict();
 
 /* -------------------------------------------------------------------------- */
 /*  Signing                                                                   */
@@ -144,32 +170,32 @@ const MAX_RELAY_REJECTION_BYTES = 64 * 1024;
  * The exact bytes both sides sign:
  *
  * ```text
- * oxy-relay-envelope:v1
+ * oxy-kaana-envelope:v1
  * <key id>
  * <unix milliseconds>
  * <lowercase hex sha256 of the exact request body>
  * ```
  *
  * `\n` separated, with NO trailing newline. Exported because it IS the
- * specification: the test's stub Relay verifies with this function rather than
- * with a second copy that could drift, and Relay's Go `edgeauth.SigningInput` is
+ * specification: the test's stub Kaana verifies with this function rather than
+ * with a second copy that could drift, and Kaana's Go `edgeauth.SigningInput` is
  * the same four lines. A body hash rather than the body itself so the signed
  * material is a fixed 32 bytes whatever the prompt weighs — and so the signature
  * covers the envelope rather than merely accompanying it.
  */
-export function relaySigningInput(
+export function kaanaSigningInput(
   keyId: string,
   timestampMillis: number,
   body: Buffer
 ): Buffer {
   const digest = createHash('sha256').update(body).digest('hex');
   return Buffer.from(
-    [RELAY_SIGNATURE_DOMAIN, keyId, String(timestampMillis), digest].join('\n'),
+    [KAANA_SIGNATURE_DOMAIN, keyId, String(timestampMillis), digest].join('\n'),
     'utf8'
   );
 }
 
-/** `v1=<base64 Ed25519 signature>` over {@link relaySigningInput}. */
+/** `v1=<base64 Ed25519 signature>` over {@link kaanaSigningInput}. */
 function signEnvelope(
   privateKey: KeyObject,
   keyId: string,
@@ -178,8 +204,8 @@ function signEnvelope(
 ): string {
   // `null` is the algorithm for Ed25519 in Node: the curve fixes the digest, and
   // naming one here is an error rather than a preference.
-  const signature = sign(null, relaySigningInput(keyId, timestampMillis, body), privateKey);
-  return `${RELAY_SIGNATURE_VERSION}=${signature.toString('base64')}`;
+  const signature = sign(null, kaanaSigningInput(keyId, timestampMillis, body), privateKey);
+  return `${KAANA_SIGNATURE_VERSION}=${signature.toString('base64')}`;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -190,35 +216,103 @@ function signEnvelope(
  * The data plane this deployment configured, or `undefined` when it configured
  * none.
  *
- * `undefined` is what every deployment gets today, and it is what keeps this
- * change inert until an operator sets three variables: the router is built with
- * no client, and the edge answers a typed `service_unavailable` exactly as it did
- * before. A PARTIAL configuration also resolves to `undefined`, loudly — see
- * `config/relayDataPlane.ts`.
+ * `undefined` is the fail-closed result for any task without all three bindings:
+ * the router is built with no client and the edge answers a typed
+ * `service_unavailable`. A PARTIAL configuration also resolves to `undefined`, loudly — see
+ * `config/kaanaDataPlane.ts`.
  *
  * The public key is logged at startup, once, because it is the value an operator
- * has to paste into Relay's `RELAY_EDGE_PUBLIC_KEYS` and it is not a secret.
+ * has to paste into Kaana's `KAANA_EDGE_PUBLIC_KEYS` and it is not a secret.
  * Confirming both sides hold the same pair is otherwise a guess.
  */
-export function createHttpRelayClient(): RelayClient | undefined {
-  const resolution = resolveRelayDataPlane();
+export function createHttpKaanaClient(): KaanaClient | undefined {
+  const resolution = resolveKaanaDataPlane();
   if (resolution.status !== 'configured') return undefined;
 
   const { config } = resolution;
-  logger.info('inference.relay.configured', {
-    component: 'inference-relay',
+  logger.info('inference.kaana.configured', {
+    component: 'inference-kaana',
     baseUrl: config.baseUrl,
     keyId: config.keyId,
-    publicKey: relayPublicKeyBase64(config),
+    publicKey: kaanaPublicKeyBase64(config),
   });
-  return new HttpRelayClient(config);
+  return new HttpKaanaClient(config);
 }
 
-class HttpRelayClient implements RelayClient {
-  private readonly config: RelayDataPlaneConfig;
+class HttpKaanaClient implements KaanaClient {
+  private readonly config: KaanaDataPlaneConfig;
 
-  constructor(config: RelayDataPlaneConfig) {
+  constructor(config: KaanaDataPlaneConfig) {
     this.config = config;
+  }
+
+  async attestDeployments(
+    deploymentIds: readonly string[],
+    options: KaanaExecuteOptions
+  ): Promise<KaanaDeploymentAttestation> {
+    if (
+      deploymentIds.length === 0 ||
+      deploymentIds.length > MAX_KAANA_ATTESTATION_IDS ||
+      new Set(deploymentIds).size !== deploymentIds.length
+    ) {
+      throw new KaanaProtocolError(
+        `The edge attempted an invalid deployment attestation batch; expected 1..${MAX_KAANA_ATTESTATION_IDS} unique exact ids.`
+      );
+    }
+
+    const body = Buffer.from(JSON.stringify({ deploymentIds: [...deploymentIds] }), 'utf8');
+    const timestamp = Date.now();
+    const response = await fetch(
+      `${this.config.baseUrl}${KAANA_DEPLOYMENTS_QUERY_PATH}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'Cache-Control': 'no-store',
+          [KAANA_KEY_ID_HEADER]: this.config.keyId,
+          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+          [KAANA_SIGNATURE_HEADER]: signEnvelope(
+            this.config.privateKey,
+            this.config.keyId,
+            timestamp,
+            body
+          ),
+        },
+        body,
+        cache: 'no-store',
+        signal: options.signal,
+      }
+    );
+
+    if (!response.ok) {
+      await readBounded(response);
+      throw new KaanaProtocolError(
+        `The inference data plane refused deployment attestation with HTTP ${response.status}.`
+      );
+    }
+    if (!response.headers.get('Cache-Control')?.toLowerCase().includes('no-store')) {
+      throw new KaanaProtocolError(
+        'The inference data plane returned cacheable deployment identity evidence.'
+      );
+    }
+
+    const raw = await readBounded(response);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      throw new KaanaProtocolError(
+        'The inference data plane returned deployment identity evidence that is not JSON.'
+      );
+    }
+    const parsed = kaanaDeploymentAttestationSchema.safeParse(payload);
+    if (!parsed.success) {
+      throw new KaanaProtocolError(
+        `The inference data plane returned deployment identity evidence Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
+      );
+    }
+    return parsed.data;
   }
 
   /**
@@ -228,28 +322,28 @@ class HttpRelayClient implements RelayClient {
    * a transport failure, or a consumer that stopped consuming because its own
    * client went away. That last case is the one worth stating: abandoning a
    * `for await` runs the generator's cleanup, so "the customer left" propagates
-   * to Relay and from there to the provider without the caller having to
+   * to Kaana and from there to the provider without the caller having to
    * remember to say so.
    */
   async *stream(
     envelope: InferenceRequest,
-    options: RelayExecuteOptions
-  ): AsyncGenerator<RelayStreamFrame> {
+    options: KaanaExecuteOptions
+  ): AsyncGenerator<KaanaStreamFrame> {
     const body = Buffer.from(JSON.stringify(envelope), 'utf8');
     const timestamp = Date.now();
     const hop = new AbortController();
-    const relayCancellation = (): void => hop.abort();
-    options.signal.addEventListener('abort', relayCancellation, { once: true });
+    const kaanaCancellation = (): void => hop.abort();
+    options.signal.addEventListener('abort', kaanaCancellation, { once: true });
 
     try {
-      const response = await fetch(`${this.config.baseUrl}${RELAY_INFERENCE_PATH}`, {
+      const response = await fetch(`${this.config.baseUrl}${KAANA_INFERENCE_PATH}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'text/event-stream',
-          [RELAY_KEY_ID_HEADER]: this.config.keyId,
-          [RELAY_TIMESTAMP_HEADER]: String(timestamp),
-          [RELAY_SIGNATURE_HEADER]: signEnvelope(
+          [KAANA_KEY_ID_HEADER]: this.config.keyId,
+          [KAANA_TIMESTAMP_HEADER]: String(timestamp),
+          [KAANA_SIGNATURE_HEADER]: signEnvelope(
             this.config.privateKey,
             this.config.keyId,
             timestamp,
@@ -266,7 +360,7 @@ class HttpRelayClient implements RelayClient {
         throw await rejection(response, envelope.attribution.requestId);
       }
       if (response.body === null) {
-        throw new RelayProtocolError(
+        throw new KaanaProtocolError(
           'The inference data plane answered 200 with no body, so no event stream could be read.'
         );
       }
@@ -276,7 +370,7 @@ class HttpRelayClient implements RelayClient {
         if (decoded !== undefined) yield decoded;
       }
     } finally {
-      options.signal.removeEventListener('abort', relayCancellation);
+      options.signal.removeEventListener('abort', kaanaCancellation);
       hop.abort();
     }
   }
@@ -284,14 +378,14 @@ class HttpRelayClient implements RelayClient {
   /**
    * One non-streaming request, folded out of the same event stream.
    *
-   * Relay streams whatever the envelope's `stream` flag says, because its status
+   * Kaana streams whatever the envelope's `stream` flag says, because its status
    * code has to be chosen before the failure exists. So this is not a second
    * request shape — it is the same bytes, accumulated.
    */
   async execute(
     envelope: InferenceRequest,
-    options: RelayExecuteOptions
-  ): Promise<RelayCompletion> {
+    options: KaanaExecuteOptions
+  ): Promise<KaanaCompletion> {
     return foldStream(this.stream(envelope, options));
   }
 }
@@ -322,14 +416,21 @@ class HttpRelayClient implements RelayClient {
  * `toolCallId` and no output index, so there is no value to distribute them by.
  */
 async function foldStream(
-  frames: AsyncIterable<RelayStreamFrame>
-): Promise<RelayCompletion> {
+  frames: AsyncIterable<KaanaStreamFrame>
+): Promise<KaanaCompletion> {
   const texts = new Map<number, string>();
   const toolCalls = new Map<string, { name: string; args: string }>();
   let generationId: string | undefined;
   let finishReason: InferenceFinishReason | undefined;
   let report: NormalizedUsageReport | undefined;
-  let partial: { units: readonly UsageQuantity[]; usageSource: UsageSource } | undefined;
+  let partial:
+    | {
+        requestId: string;
+        deploymentId: string;
+        units: readonly UsageQuantity[];
+        usageSource: UsageSource;
+      }
+    | undefined;
   let terminalFailure: InferenceError | undefined;
   const routeSwitchEvents: InferenceStreamRouteSwitchEvent[] = [];
 
@@ -339,7 +440,7 @@ async function foldStream(
   // the stack — so a customer's charge would depend on whether the connection
   // happened to close cleanly.
   //
-  // A `RelayProtocolError` or `RelayEnvelopeRejectedError` is rethrown unchanged:
+  // A `KaanaProtocolError` or `KaanaEnvelopeRejectedError` is rethrown unchanged:
   // those are framing or signing faults on Oxy's own side of the wire, where the
   // units read so far are as suspect as the frame that failed to parse, so the
   // conservative direction is the full refund.
@@ -369,7 +470,12 @@ async function foldStream(
           break;
         }
         case 'usage':
-          partial = { units: event.units, usageSource: event.usageSource };
+          partial = {
+            requestId: event.requestId,
+            deploymentId: event.deploymentId,
+            units: event.units,
+            usageSource: event.usageSource,
+          };
           break;
         case 'route_switch':
           // KEPT, not counted. `usage.routeSwitches` is the metric; this is the
@@ -384,7 +490,7 @@ async function foldStream(
           break;
         case 'error':
           // Terminal. Kept rather than thrown here so a usage report that follows
-          // it — Relay writes the report after the executor returns — is still
+          // it — Kaana writes the report after the executor returns — is still
           // collected and can be settled exactly.
           terminalFailure = event.error;
           break;
@@ -395,11 +501,11 @@ async function foldStream(
       }
     }
   } catch (error) {
-    if (error instanceof RelayProtocolError || error instanceof RelayEnvelopeRejectedError) {
+    if (error instanceof KaanaProtocolError || error instanceof KaanaEnvelopeRejectedError) {
       throw error;
     }
     const cut = usageEvidence(report, partial);
-    throw new RelayIncompleteError(
+    throw new KaanaIncompleteError(
       'stream_truncated',
       'The inference data plane stopped responding before the request completed.',
       cut === undefined ? {} : { usage: cut }
@@ -409,7 +515,7 @@ async function foldStream(
   const evidence = usageEvidence(report, partial);
 
   if (terminalFailure !== undefined) {
-    throw new RelayIncompleteError(
+    throw new KaanaIncompleteError(
       'terminal_error',
       'The inference data plane ended the request with an error.',
       {
@@ -420,7 +526,7 @@ async function foldStream(
   }
 
   if (finishReason === undefined) {
-    throw new RelayIncompleteError(
+    throw new KaanaIncompleteError(
       'stream_truncated',
       'The inference data plane ended the stream without a terminal event.',
       evidence === undefined ? {} : { usage: evidence }
@@ -429,10 +535,10 @@ async function foldStream(
 
   if (report === undefined) {
     // The generation finished and cannot be charged exactly. Refused rather than
-    // served for free-and-silently: `RelayCompletion.usage` is the record the
+    // served for free-and-silently: `KaanaCompletion.usage` is the record the
     // ledger settles from, and the only way to return one here would be to
     // fabricate it.
-    throw new RelayIncompleteError(
+    throw new KaanaIncompleteError(
       'usage_missing',
       'The inference data plane completed the request without a usage report.',
       evidence === undefined ? {} : { usage: evidence }
@@ -451,11 +557,18 @@ async function foldStream(
 /** The report when there is one, else the units the stream did report. */
 function usageEvidence(
   report: NormalizedUsageReport | undefined,
-  partial: { units: readonly UsageQuantity[]; usageSource: UsageSource } | undefined
-): RelayUsageEvidence | undefined {
+  partial:
+    | {
+        requestId: string;
+        deploymentId: string;
+        units: readonly UsageQuantity[];
+        usageSource: UsageSource;
+      }
+    | undefined
+): KaanaUsageEvidence | undefined {
   if (report !== undefined) return { kind: 'report', report };
   if (partial !== undefined) {
-    return { kind: 'partial', units: partial.units, usageSource: partial.usageSource };
+    return { kind: 'partial', ...partial };
   }
   return undefined;
 }
@@ -504,13 +617,13 @@ interface RawFrame {
 /**
  * Read one frame into the shape it declares itself to be.
  *
- * An unknown frame NAME is ignored: the name is Relay's transport framing rather
+ * An unknown frame NAME is ignored: the name is Kaana's transport framing rather
  * than part of the contract, so a future frame carrying something this build does
  * not consume is additive. A known frame whose payload the published schema
- * rejects is a {@link RelayProtocolError} — that is the contract's versioning
+ * rejects is a {@link KaanaProtocolError} — that is the contract's versioning
  * rule, and for a usage report the stake is a charge.
  */
-function readFrame(frame: RawFrame): RelayStreamFrame | undefined {
+function readFrame(frame: RawFrame): KaanaStreamFrame | undefined {
   if (frame.name !== FRAME_STREAM_EVENT && frame.name !== FRAME_USAGE_REPORT) {
     return undefined;
   }
@@ -519,7 +632,7 @@ function readFrame(frame: RawFrame): RelayStreamFrame | undefined {
   try {
     payload = JSON.parse(frame.data);
   } catch {
-    throw new RelayProtocolError(
+    throw new KaanaProtocolError(
       `The inference data plane sent a ${frame.name} frame that is not JSON.`
     );
   }
@@ -527,7 +640,7 @@ function readFrame(frame: RawFrame): RelayStreamFrame | undefined {
   if (frame.name === FRAME_USAGE_REPORT) {
     const parsed = normalizedUsageReportSchema.safeParse(payload);
     if (!parsed.success) {
-      throw new RelayProtocolError(
+      throw new KaanaProtocolError(
         `The inference data plane sent a usage report Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
       );
     }
@@ -536,7 +649,7 @@ function readFrame(frame: RawFrame): RelayStreamFrame | undefined {
 
   const parsed = inferenceStreamEventSchema.safeParse(payload);
   if (!parsed.success) {
-    throw new RelayProtocolError(
+    throw new KaanaProtocolError(
       `The inference data plane sent a stream event Oxy could not read: ${issuePath(parsed.error.issues[0]?.path)}.`
     );
   }
@@ -550,10 +663,10 @@ function issuePath(path: readonly (string | number)[] | undefined): string {
 /**
  * Decode an SSE body into frames as they arrive.
  *
- * Written to the SSE specification rather than to Relay's exact output —
+ * Written to the SSE specification rather than to Kaana's exact output —
  * multiple `data:` lines in one event concatenate, comment lines are ignored, a
  * trailing event with no blank line still counts — because the thing on the other
- * end of this stream may one day be a proxy that reframes rather than Relay
+ * end of this stream may one day be a proxy that reframes rather than Kaana
  * itself. The last of those three matters most: an upstream cut off mid-stream
  * has usually already sent output worth counting, and discarding an unterminated
  * frame would lose the usage a partial settlement depends on.
@@ -586,9 +699,9 @@ async function* decodeEventStream(
       const value = line.slice('data:'.length);
       const text = value.startsWith(' ') ? value.slice(1) : value;
       accumulated += text.length;
-      if (accumulated > MAX_RELAY_EVENT_CHARACTERS) {
-        throw new RelayProtocolError(
-          `The inference data plane sent an event over ${MAX_RELAY_EVENT_CHARACTERS} characters.`
+      if (accumulated > MAX_KAANA_EVENT_CHARACTERS) {
+        throw new KaanaProtocolError(
+          `The inference data plane sent an event over ${MAX_KAANA_EVENT_CHARACTERS} characters.`
         );
       }
       data.push(text);
@@ -606,9 +719,9 @@ async function* decodeEventStream(
     const chunk = await reader.read();
     if (chunk.done) break;
     pending += decoder.decode(chunk.value, { stream: true });
-    if (pending.length > MAX_RELAY_EVENT_CHARACTERS) {
-      throw new RelayProtocolError(
-        `The inference data plane sent a line over ${MAX_RELAY_EVENT_CHARACTERS} characters with no frame boundary.`
+    if (pending.length > MAX_KAANA_EVENT_CHARACTERS) {
+      throw new KaanaProtocolError(
+        `The inference data plane sent a line over ${MAX_KAANA_EVENT_CHARACTERS} characters with no frame boundary.`
       );
     }
 
@@ -634,11 +747,11 @@ async function* decodeEventStream(
  * What a non-`200` means, read from a bounded prefix of its body.
  *
  * A `4xx` is Oxy's own envelope being refused and becomes
- * {@link RelayEnvelopeRejectedError}; a `5xx` is the data plane or something in
+ * {@link KaanaEnvelopeRejectedError}; a `5xx` is the data plane or something in
  * front of it being unavailable, which is a transport failure and retryable, so
  * it stays an ordinary `Error` and lands in the edge's `provider_error` arm.
  *
- * Relay's error body is the contract's own error shape, so `code` is read when it
+ * Kaana's error body is the contract's own error shape, so `code` is read when it
  * is there — for the LOG only. It never becomes the customer's code: telling a
  * customer `authentication_failed` because Oxy's signing key was rejected would
  * point them at their own API key.
@@ -648,25 +761,25 @@ async function rejection(response: Response, requestId: string): Promise<Error> 
   const upstreamCode = upstreamErrorCode(body);
 
   logger.error(
-    'inference.relay.rejected_envelope',
+    'inference.kaana.rejected_envelope',
     new Error(`the inference data plane answered HTTP ${response.status}`),
     {
-      component: 'inference-relay',
+      component: 'inference-kaana',
       requestId,
       status: response.status,
       ...(upstreamCode === undefined ? {} : { upstreamCode }),
-      // Relay mints its own id for a request it rejected before trusting the
+      // Kaana mints its own id for a request it rejected before trusting the
       // body, so this is the id in ITS logs and the only way to join the two.
       ...(response.headers.get('X-Oxy-Request-Id') === null
         ? {}
-        : { relayRequestId: response.headers.get('X-Oxy-Request-Id') }),
+        : { kaanaRequestId: response.headers.get('X-Oxy-Request-Id') }),
     }
   );
 
   if (response.status >= 500) {
     return new Error(`The inference data plane is unavailable (HTTP ${response.status}).`);
   }
-  return new RelayEnvelopeRejectedError(response.status, upstreamCode);
+  return new KaanaEnvelopeRejectedError(response.status, upstreamCode);
 }
 
 /** The `code` of a contract error body, when the body is one. */
@@ -682,7 +795,7 @@ function upstreamErrorCode(body: string): string | undefined {
   return typeof code === 'string' ? code : undefined;
 }
 
-/** At most {@link MAX_RELAY_REJECTION_BYTES} of a response body, as text. */
+/** At most {@link MAX_KAANA_REJECTION_BYTES} of a response body, as text. */
 async function readBounded(response: Response): Promise<string> {
   if (response.body === null) return '';
   const reader = response.body.getReader();
@@ -692,9 +805,9 @@ async function readBounded(response: Response): Promise<string> {
     const chunk = await reader.read();
     if (chunk.done) break;
     text += decoder.decode(chunk.value, { stream: true });
-    if (text.length >= MAX_RELAY_REJECTION_BYTES) {
+    if (text.length >= MAX_KAANA_REJECTION_BYTES) {
       await reader.cancel();
-      return text.slice(0, MAX_RELAY_REJECTION_BYTES);
+      return text.slice(0, MAX_KAANA_REJECTION_BYTES);
     }
   }
   return text + decoder.decode();

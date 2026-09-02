@@ -222,10 +222,11 @@ describe('terminal events', () => {
 
 describe('inferenceStreamUsageEventSchema', () => {
   const usageEvent = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     type: 'usage' as const,
     requestId: 'req_1',
     sequence: 2,
+    deploymentId: 'dep_openai_gpt5_usw2',
     units: [{ unit: 'output_tokens', quantity: 204 }],
     usageSource: 'provider_reported' as const,
   };
@@ -264,5 +265,10 @@ describe('inferenceStreamUsageEventSchema', () => {
         expect(missing.has(field)).toBe(true);
       }
     }
+  });
+
+  it('refuses partial metering without an exact deployment identity', () => {
+    const { deploymentId: _omitted, ...withoutDeployment } = usageEvent;
+    expect(inferenceStreamUsageEventSchema.safeParse(withoutDeployment).success).toBe(false);
   });
 });

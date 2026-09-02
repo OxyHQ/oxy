@@ -401,6 +401,27 @@ export const appCapabilityCatalogSchema = z.object({
     }),
     /** Account-scoped resource used for native Alia bindings without app-specific code. */
     accountResourceType: identifierSchema,
+    /** Canonical protected-resource URI when this catalog is also exposed as an external MCP server. */
+    externalMcp: z.object({
+        resource: z.string().url().superRefine((value, context) => {
+            const url = new URL(value);
+            const localDevelopment = url.hostname === 'localhost'
+                || url.hostname === '127.0.0.1'
+                || url.hostname === '[::1]';
+            if (url.protocol !== 'https:' && !(localDevelopment && url.protocol === 'http:')) {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'externalMcp.resource must use HTTPS outside local development',
+                });
+            }
+            if (url.username || url.password || url.search || url.hash) {
+                context.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: 'externalMcp.resource cannot contain credentials, query or fragment',
+                });
+            }
+        }),
+    }).strict().optional(),
     tools: z.array(catalogToolSchema),
     events: z.array(catalogEventSchema),
 }).strict().superRefine((catalog, context) => {

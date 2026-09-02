@@ -22,6 +22,10 @@ import { extname, join } from 'node:path';
 import { getTableColumns, getTableName } from 'drizzle-orm';
 import { findImplicitWholeRowReads, publicColumns } from '@oxyhq/db/assert';
 import { blocks } from '../blocks';
+import {
+  inferenceDeploymentRoutingScoreEvents,
+  inferenceDeploymentRoutingScores,
+} from '../inferenceDeploymentRoutingScores';
 import { PROTECTED_COLUMNS, PROTECTED_COLUMNS_BY_TABLE } from '../protectedColumns';
 import { users } from '../users';
 
@@ -104,6 +108,15 @@ describe('protected columns — the registry', () => {
     ).map((entry) => `${getTableName(entry.table)}.${entry.column.name}`);
 
     expect(stale).toEqual([]);
+  });
+
+  it.each([
+    ['inference_deployment_routing_scores', inferenceDeploymentRoutingScores],
+    ['inference_deployment_routing_score_events', inferenceDeploymentRoutingScoreEvents],
+  ] as const)('protects every column of the internal table %s', (tableName, table) => {
+    expect([...PROTECTED_COLUMNS_BY_TABLE[tableName]].sort()).toEqual(
+      Object.keys(getTableColumns(table)).sort()
+    );
   });
 });
 
