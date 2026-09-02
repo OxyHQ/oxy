@@ -1,7 +1,7 @@
 # Runbooks
 
-Rotation and break-glass procedures for the credential classes **Oxy itself
-issues**. One file per credential, and each one states the same five things
+Rotation and break-glass procedures for the credential classes **Oxy issues or
+operates**. One file per credential, and each one states the same five things
 because the fifth is the one nobody writes down:
 
 1. **The trigger** — what makes you run this, including the difference between a
@@ -24,37 +24,17 @@ because the fifth is the one nobody writes down:
 |---|---|---|
 | Application credential secret (`oxy_dk_…` + secret) | Oxy | [application-credential-rotation.md](./application-credential-rotation.md) |
 | Machine API key (`oxy_sk_…`) | Oxy | [machine-credential-rotation.md](./machine-credential-rotation.md) |
-| A customer's BYOK provider credential | the customer, held in managed secret storage | [byok-provider-connection-rotation.md](./byok-provider-connection-rotation.md) |
+| A customer's BYOK provider credential | the customer owns the upstream account; Kaana holds KMS ciphertext in PostgreSQL | [byok-provider-connection-rotation.md](./byok-provider-connection-rotation.md) |
 | Service-token signing key, and `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` | Oxy | [service-token-signing-key-rotation.md](./service-token-signing-key-rotation.md) |
-| The Oxy→Relay edge signing key | Oxy | [relay-edge-signing-key-rotation.md](./relay-edge-signing-key-rotation.md) |
+| The Oxy→Kaana edge signing key | Oxy | [kaana-edge-signing-key-rotation.md](./kaana-edge-signing-key-rotation.md) |
 | AWS access keys, RDS credentials, the ECS task role, the ALB certificate, KMS keys | infra | **`~/Oxy/oxy-infra`**, `docs/runbooks/` there |
-| `ALIA_API_KEY` — the shared upstream key the Alia proxy forwards on | **Alia**, not Oxy | no runbook here, deliberately — see below |
+| `ALIA_API_KEY` — legacy Oxy→Alia product-proxy credential | **Alia**, not provider custody | no runbook here; it remains only as a cutover/rollback credential for the legacy product routes |
 
-**`ALIA_API_KEY` gets no rotation procedure in this repository, because Oxy cannot
-perform one.** It is issued inside the Alia product; Oxy holds a copy in SSM and
-forwards it. There is no grace window and no key id to resolve by, so the
-"two sides overlap" property below does not apply and cannot be made to — Alia
-issuing a new value and Oxy's SSM parameter changing are two events with no
-mechanism tying them together. Writing a procedure that reads as Oxy's would be
-inventing an authority Oxy does not have.
-
-What *is* worth writing down, and is the only part this repository can answer, is
-**who stops working when that value changes**. Five consumers, all server-side:
-
-- three proxy routes, every one of them behind `requireFirstPartyInferenceCaller`
-  since #972 workstream 2.3 — `POST /alia/chat/completions`, `POST /v1/voice/token`,
-  `POST /v1/voice/transcribe` (`packages/api/src/routes/alia.ts`);
-- two internal services that call Alia directly and are not customer-reachable —
-  `packages/api/src/services/aiLabeling.service.ts` and
-  `packages/api/src/services/cardExtraction.service.ts`.
-
-All five read `process.env.ALIA_API_KEY` at module load, so a changed value takes
-effect on the next task launch and not before. The routes fail loudly (`500`,
-`ALIA_API_KEY not configured on server`) when it is absent; **the two services fail
-SILENTLY** — each returns early when the key is unset, so a bad rotation degrades
-AI labelling and card extraction with no error surfaced anywhere. That asymmetry is
-the thing to check after any change to the parameter, and it is why this row exists
-even though the procedure does not belong here.
+`ALIA_API_KEY` is not a provider key and must not be described as an alternate
+inference data plane. It authenticates only the explicitly legacy Alia product
+proxy while the named Oxy→Kaana and Alia→Oxy→Kaana cutover gates remain open.
+Alia owns its rotation; retiring the Oxy copy waits for the live product-route
+cutover and rollback decision in [the Alia integration guide](../inference/alia.md).
 
 **The infra half is deliberately not duplicated here.** `oxy-infra` owns the
 terraform, the task definitions, the IAM policies and the AWS procedures, and a
@@ -85,11 +65,12 @@ the tokens signed under the retired key cannot be re-signed.
 - Application and machine credentials: `packages/api/src/db/schema/applicationCredentials.ts`
   (the lifecycle and both CHECK biconditionals), `packages/api/src/utils/credentialUsability.ts`
   (the single usability predicate), `packages/api/src/routes/applications.ts`.
-- BYOK: [ADR 0013](../adr/0013-byok-secret-custody.md),
-  `packages/api/src/services/inferenceProviderConnection.service.ts`,
-  `packages/api/src/services/providerSecretStore.ts`.
+- BYOK: [ADR 0019](../adr/0019-kaana-byok-custody.md),
+  [the BYOK guide](../inference/byok.md), and Kaana's merged customer-credential
+  control boundary. The coordinated Oxy cut and live rollout remain pending;
+  ADR 0013 remains the historical fail-closed refusal.
 - Service tokens: [ADR 0012](../adr/0012-service-token-signing-key-model.md).
-- The Oxy→Relay boundary: [ADR 0006](../adr/0006-oxy-relay-boundary.md) and
+- The Oxy→Kaana boundary: [ADR 0006](../adr/0006-oxy-kaana-boundary.md) and
   ADR 0015.
 - Platform secret delivery: `.github/workflows/deploy-aws.yml` and
   `scripts/check-deploy-secrets-sync.mjs`.

@@ -2,15 +2,15 @@
 
 Workstream 16 of [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972).
 
-**Nothing in this document describes something that has happened.** The
-mechanisms below exist and are tested; every stage they can express is still
-ahead of us, and the flags that would express one are unset in every deployment.
-Read [README.md](./README.md) for what is built, and
+**This document defines stages; it does not assert which one production is in.**
+The mechanisms below exist and are tested. Determine the current stage from the
+live staff readout and task configuration, not from an older empty/unset
+observation. Read [README.md](./README.md) for what is built, and
 [billing.md](./billing.md) for the ledger this rollout is careful about.
 
 ---
 
-## The five flags
+## The six flags
 
 They live in one module — `packages/api/src/config/rolloutFlags.ts` — and they
 are readable in one call: `GET /inference/admin/rollout` (staff only) returns
@@ -20,11 +20,12 @@ every flag, its resolved state, and the reason for that state.
 |---|---|---|---|
 | `INFERENCE_EDGE_AUDIENCE` | `closed` · `internal` · `first_party` · `allowlist:<appId>,…` · `public` | **closed — nobody** | Who may reach `POST /v1/responses`, `POST /v1/chat/completions`, `GET /v1/generations/:id` |
 | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `enabled` · `disabled` | **disabled** | Whether an `oxy_sk_…` machine credential authenticates at all |
+| `INFERENCE_KAANA_EXECUTION` | `enabled` · `disabled` | **disabled** | Whether ambient production wiring may construct the signed Kaana client; tests may still inject an explicit client |
 | `INFERENCE_CHARGING_AUTHORIZED` | `<reason>:<YYYY-MM-DD>` | **shadow metering — nobody is charged** | Whether the edge reserves, settles and moves money |
 | `INFERENCE_CATALOGUE_AUDIENCE` | `internal` · `public` | **internal** | Whether a public viewer is served the published catalogue |
 | `INFERENCE_PRIVACY_REVIEW` | `<reviewer>:<YYYY-MM-DD>` | **no review recorded — a public audience stays closed** | Whether the privacy and security review a public launch is gated on has been recorded |
 
-None of them is a secret — each names a deployment STATE — so all five belong in
+None of them is a secret — each names a deployment STATE — so all six belong in
 the ECS task definition's plain environment and never in SSM.
 
 ### Every default is the state that does nothing
@@ -46,7 +47,7 @@ also report. Flipping any default in the module turns that file red.
 never opens anything, and the readout reports `unreadable` rather than echoing an
 operator's text back over HTTP.
 
-Relay's `RELAY_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
+Kaana's `KAANA_ASSUME_FAILOVER_AUTHORIZED` — this ecosystem's precedent for a
 dangerous switch — makes a malformed value a hard boot failure instead. That is
 proportionate for a data plane whose whole job is the thing being gated; it is
 not proportionate for `oxy-api`, which also serves authentication, email, storage
@@ -61,7 +62,7 @@ picks up, and what somebody types to see whether a flag does anything.
 `commercial-launch:2026-08-16` is not typed by accident, and it records the two
 things an auditor asks about a charge — who accepted it, and when.
 
-It does not expire, and Relay's does not either. Expiry would be wrong in both
+It does not expire, and Kaana's does not either. Expiry would be wrong in both
 directions here: at public scale an expired authorization either serves the world
 for free or refuses every request, and both are expensive. What the date buys
 instead is an age reported beside the flag in the readout, which is the question
@@ -126,15 +127,15 @@ this repository, so the review is a re-check rather than a survey:
 
 | What | Where it stands today |
 |---|---|
-| Debug payload retention: opt-in, time-limited, encrypted, audited | **Not built, and there is nothing to opt into** — no table in this schema carries a prompt or a completion. [data-policy.md](./data-policy.md) states it. "Encrypted" blocks on the same absent KMS backend as the secret store, so building it before that would be a half-control. |
+| Debug payload retention: opt-in, time-limited, encrypted, audited | **Not built, and there is nothing to opt into** — no table carries a prompt or completion. Kaana's narrow provider-credential KMS boundary is not a payload vault and must not be reused as one; [ADR 0016](../adr/0016-no-inference-payload-persistence.md) keeps all four controls as preconditions. |
 | PII redaction for opted-in traces | No traces exist to redact. The adjacent control that DOES exist is the credential refusal in free error text (`@oxyhq/contracts`' `safeErrorTextSchema`, enforced at `utils/inferenceEdgeErrors.ts`). |
 | Deletion and export preserve legally required financial records | `DELETE /users/me` refuses a live subscription, a held reservation and a live BYOK connection, then erases everything optional and ARCHIVES rather than deletes when financial history blocks. `GET /users/me/export` carries the account's own receipts, ledger entries and holds. **Open: an archived account is not anonymised** — it keeps its username, email and display name, and that is an owner decision, not a code gap. |
-| No upstream provider key in logs, traces, metrics, errors or responses | Structural for the keys Oxy HOLDS: `ProviderSecretValue`'s runtime-private `#value` plus three overridden serialisers, and a logger-level `redact` FLOOR (`utils/logger.ts`) as defence in depth, covering one level of nesting only. The key Oxy SPENDS was the gap: the legacy Alia proxy relayed an upstream error body verbatim, and an OpenAI-family body answers a rejected key by quoting it. `routes/alia.ts` now offers the whole upstream body to `safeErrorTextSchema` and replaces it whole when refused (`relayableUpstreamMessage`), which is the same last-resort refusal the metered edge applies. |
-| Secret scanning and accidental-serialization tests | Serialization tests exist and are strong. Secret scanning in CI is a separate workstream. |
-| Rotation runbooks and break-glass | The flag-side break-glass is [The rollback plan](#the-rollback-plan) below. Store-side rotation cannot be written truthfully until a secret store exists; it belongs in `oxy-infra`'s `docs/runbooks/`. |
+| No upstream provider key in logs, traces, metrics, errors or responses | The target boundary is structural: all provider plaintext, including BYOK, exists only inside Kaana's credential-control/inference paths and ciphertext is in Kaana PostgreSQL/KMS. Oxy stores only an opaque handle. The legacy Alia proxy is a clearly transitional product route, not alternate provider custody; its error-body refusal remains defence in depth until the live cutover retires it. |
+| Secret scanning and accidental-serialization tests | Both exist: the CI secret scanner has mutation-tested signatures and vacuity floors, while serialization tests prove provider material cannot escape through common string/JSON/logger paths. |
+| Rotation runbooks and break-glass | [The BYOK runbook](../runbooks/byok-provider-connection-rotation.md) records the exact opaque-handle/KMS procedure and labels it pending until the Oxy cut and live gates pass. The general inference rollback remains [below](#the-rollback-plan). |
 | Least-privilege admin roles | Graded staff capabilities (`users.staff_capabilities`) on the highest-value writes: catalogue publication, balance adjustment, cost centres. Read-only staff surfaces stay on the plain `is_staff` flag. |
 | Rate limits and fraud controls | See [Fraud controls](#fraud-controls-and-what-is-deliberately-left-open) below. |
-| Provider secrets in Vault/KMS, not Postgres | Done for everything in Oxy's control — only a locator is stored, and every path that would accept a credential refuses with `503` because no store backend ships in this build. |
+| Provider-key custody | Accepted architecture, not production proof: every provider credential, including BYOK, is KMS ciphertext in Kaana PostgreSQL; Oxy stores only metadata plus an opaque handle/revision. Kaana #48 is merged in Kaana source, but the coordinated Oxy cut remains draft, so merged Oxy still refuses BYOK writes. |
 
 ### Ordering
 
@@ -271,13 +272,13 @@ with.
 These are operational states. The code does not decide when to enter one; it
 decides that each is expressible, enforceable, and answerable from one endpoint.
 
-| Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` | `INFERENCE_PRIVACY_REVIEW` |
-|---|---|---|---|---|---|
-| Today, every deployment | unset | unset | unset | unset | unset |
-| Internal Alia canary | `internal` | unset | unset | unset | unset |
-| Oxy first-party canary | `first_party` | `enabled` | unset | unset | unset |
-| Closed external beta | `allowlist:<appId>,…` | `enabled` | unset | `public` | unset |
-| Prepaid public launch | `public` | `enabled` | `<reason>:<date>` | `public` | `<reviewer>:<date>` |
+| Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_KAANA_EXECUTION` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` | `INFERENCE_PRIVACY_REVIEW` |
+|---|---|---|---|---|---|---|
+| Parked deployment | unset | unset | unset | unset | unset | unset |
+| Internal Alia canary | `internal` | unset | `enabled` | unset | unset | unset |
+| Oxy first-party canary | `first_party` | `enabled` | `enabled` | unset | unset | unset |
+| Closed external beta | `allowlist:<appId>,…` | `enabled` | `enabled` | unset | `public` | unset |
+| Prepaid public launch | `public` | `enabled` | `enabled` | `<reason>:<date>` | `public` | `<reviewer>:<date>` |
 
 The review is required only for `public`, exactly as charging is: a bounded,
 named audience runs without either.
@@ -292,8 +293,52 @@ audience — a self-service application cannot promote its own tier.
 **A stage is not reached by setting a variable.** Every stage above is also
 gated on things this repository cannot switch: a data plane to forward to, a
 catalogue with contents, anomaly and fraud controls, and the reconciliation the
-shadow period exists to produce. [README.md](./README.md#what-is-not-built) is
+shadow period exists to produce. [README.md](./README.md#cutover-dependent-status) is
 the list.
+
+### Financial and protocol readiness before advancing a stage
+
+The readiness decision stays closed until all of these are demonstrated for the
+exact deployment set the stage would authorize:
+
+- **Explicit request pricing.** Kaana emits `requests: 1` for every attempted
+  request. Every price version attached to a servable deployment declares a
+  `requests` row; an explicit zero amount is valid, an absent row is not. One
+  missing row fails readiness for the complete route set before reservation or
+  an inference POST. A live identity attestation may already have completed when
+  the final quote discovers the missing unit, and that read-only preflight must
+  still leave zero reservations and receipts.
+- **Complete request-cap qualification.** With `maxPricePerRequest` configured,
+  prove that the catalogue can prefilter an excessive flat request fee and that
+  the edge still quotes the complete request maximum at each priority. A
+  higher-score over-cap route must lose to an affordable same-priority route;
+  an all-over-cap set must return 403 with no reservation and no Kaana call. With
+  omitted output, prove that the first priority's score/ID winner fixes the
+  implicit ceiling before lower priorities are capacity-checked.
+- **A covering hold.** The reservation quote includes `requests: 1` in every
+  operation and every completion partition, uses the price row's exact
+  `amount / per` arithmetic, and covers the most expensive authorized route.
+  A canary must prove the terminal charge is less than or equal to that hold and
+  that the remainder is released once.
+- **One-snapshot deployment attestation.** Immediately before the hold, one
+  signed `POST /internal/v1/deployments/query` must return exactly the complete
+  authorized ID set from one inventory snapshot, with matching pinned model,
+  provider and region set. Exercise missing, extra, duplicate and mismatched
+  answers and prove each produces zero reservations, zero receipts and zero
+  inference POSTs. The executor's exact-route revalidation remains required for
+  the inventory-change window after the preflight.
+- **Protocol-negative settlement.** Feed a valid v2 partial `usage` event and
+  then a known Kaana frame that is malformed or fails its schema — explicitly a
+  v1 terminal `usage_report`. The request must not settle from the earlier
+  partial. Any known-frame schema failure invalidates the whole measurement
+  record.
+- **Positive v2 settlement.** A valid partial and terminal report both name the
+  exact signed `deploymentId`, carry `requests: 1`, and settle against that
+  route's pinned price version exactly once.
+
+These are preconditions, not claims about a live deployment. Source tests prove
+the mechanism; advancing a stage still requires the corresponding canary and
+ledger readback in the target environment.
 
 ---
 
@@ -423,7 +468,7 @@ rest on the rollback being done carefully:
 
 ### What to check after a rollback
 
-1. `GET /inference/admin/rollout` — the resolved state of all five flags, with
+1. `GET /inference/admin/rollout` — the resolved state of all six flags, with
    the reason for each. `charging.shadowMetering: true` is the assertion that the
    flow has stopped.
 2. `inference.edge.shadow_metered` log lines appearing again, which is what

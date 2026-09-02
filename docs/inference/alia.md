@@ -248,10 +248,10 @@ never register a GitHub secret with a placeholder value.
   still forwards to `api.alia.onl` on one static `ALIA_API_KEY`, over three
   routes: `POST /alia/chat/completions` (the edge now owns `/v1/chat/completions`),
   `POST /v1/voice/token` and `POST /v1/voice/transcribe`. #972 conditions the
-  removal on "Oxy→Relay and Alia→Relay being live"; the `OxyHQ/Relay` repository
-  exists (public since 2026-08-16) but nothing Oxy can reach is live — no
-  deployment, no endpoint, no routing execution Oxy invokes — so the condition
-  cannot be met and the proxy is the only thing serving those paths. It
+  removal on the Oxy→Kaana and Alia→Oxy→Kaana paths passing their live cutover
+  gates. Repository code or a registered task definition does not satisfy that
+  condition; verify the running tasks, signed request, settlement and negative
+  policy tests described in [request-routing.md](./request-routing.md). The proxy
   is already closed to every credential an external developer can obtain
   (`requireFirstPartyInferenceCaller`).
 - **Where the two voice routes end up.** `server.ts` records this as workstream
@@ -271,7 +271,8 @@ never register a GitHub secret with a placeholder value.
   by them are Alia-side surfaces whose registration belongs with whoever ships
   them. Registering four more applications now would mint four sets of
   credentials nobody has asked for.
-- **Alia actually invoking Oxy inference.** There is no public inference edge and
-  the model catalogue is empty (see [README.md](./README.md)). The registration,
-  the scopes, the credentials, the cost centres and the entitlement interface are
-  all in place ahead of a data plane to call.
+- **Alia actually invoking Oxy inference.** The edge and Kaana runtime exist in
+  merged source, but no model bootstrap is merged and live audience/execution
+  gates still require a real signed canary (see [README.md](./README.md)). The
+  registration, scopes, credentials, cost centres and entitlement interface do
+  not prove that Alia has made that production call.

@@ -81,7 +81,8 @@ needs its own.
 | `allowedRegions` / `deniedRegions` | data residency. Empty allowed list means "no constraint" |
 | `requireZeroDataRetention` | only routes that retain no payloads |
 | `prohibitTrainingOnCustomerData` | only routes that do not train on your data |
-| `maxPricePerUnit`, `maxPricePerRequest` | ceilings on what a route may cost you |
+| `maxPricePerUnit` | ceilings on published rates for named units |
+| `maxPricePerRequest` | ceiling on the complete maximum quote for this request |
 | `optimiseFor` | `price`, `latency`, `throughput` or `balanced`, among the routes that qualify |
 | `oxyHostedOnly` | only Oxy's own hosting of open-weight models |
 | `allowedLicenseIds`, `requireCommercialUseRights` | licence and usage-right constraints |
@@ -183,10 +184,11 @@ This is the part to read twice.
   switches" above. A hold is sized against the most expensive route in that list,
   so failing over to a dearer deployment can never cost more than the request was
   admitted for.
-- **A routing-profile target is refused** at the edge, with `no_route_available`
-  and `param: routingProfile`. Choosing among a profile's candidates is routing
-  EXECUTION, which belongs to the data plane; the control plane picking one
-  would be inventing a routing decision it has no way to test.
+- **Routing-profile targets.** Oxy expands the profile's ordered candidates,
+  applies the same viewer, modality, policy and pricing checks to each, and sends
+  only the surviving revision-pinned deployments in `authorizedRoutes`. Kaana
+  executes within that signed list and cannot invent a destination. With
+  fallback disabled the list contains only the admitted primary.
 
 ### Enforced against the candidate routes
 
@@ -219,7 +221,15 @@ Two readings worth stating outright, because the alternatives look reasonable:
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it may serve from, and which one it picks is the data plane's — so
   a route that MAY run outside your allowed set cannot honour a residency
-  requirement and does not qualify.
+  requirement and does not qualify. An empty deployment set means no regional
+  attestation, not “everywhere”; it fails both an allow-list and a deny-list and
+  is eligible only when neither regional control is present.
+- **The signed route descriptor is an exact Kaana inventory identity.** Oxy
+  copies `internal_route_id` into `deploymentId` and the deployment's complete
+  `regions` set without aliases, inferred infrastructure regions or
+  normalization. A row with no internal route id is refused before reservation;
+  Kaana independently refuses any provider, model-reference or region-set drift
+  against that inventory id.
 - **`requireZeroDataRetention` needs the route to actually not retain**, not
   merely to be capable of it. `zeroDataRetentionAvailable` is a capability; a
   route carrying it while still retaining payloads by default is excluded.
@@ -238,9 +248,11 @@ whichever version happens to be `active` for that model and provider now.
   that same unit. Rates are compared as rates, so a ceiling of `$0.000004` per
   one token bounds a price of `$3.00` per a million; a price exactly AT the
   ceiling is admitted.
-- **`maxPricePerRequest`** — the route's flat `requests` fee, which is charged
-  once per request whatever the token counts turn out to be, so a route whose fee
-  alone exceeds your ceiling can never serve a request within it.
+- **`maxPricePerRequest`** — the complete maximum quote for this concrete
+  request: its flat `requests: 1` fee plus the input ceiling and the applicable
+  maximum output partitions. The catalogue may prefilter a route whose flat fee
+  alone already exceeds the cap; the edge makes the authoritative full-quote
+  comparison before selecting, reserving or forwarding.
 
 Three edges, decided rather than left to whichever branch was written first:
 
@@ -256,24 +268,68 @@ Three edges, decided rather than left to whichever branch was written first:
   A published version states what a route charges for completely, so a ceiling on
   something it never bills is trivially kept — capping `video_milliseconds` does
   not withhold every text model.
+- **`requests` is not an optional unit.** Kaana emits `{ unit: 'requests',
+  quantity: 1 }` once per attempted request. Every servable price version must
+  therefore publish an explicit `requests` row; zero is valid, absence is not an
+  implicit zero and fails readiness before reservation or Kaana.
 
-**`maxPricePerRequest` is not yet a complete spend control.** What is enforced is
-the candidate-level floor above; comparing the ESTIMATED cost of one particular
-request against the same limit belongs at the edge, beside the quote, and is not
-implemented. What bounds spend is the reservation, the account balance and the
-spending limits — see [billing.md](./billing.md#spending-limits).
+The full request-cap decision is priority-aware:
 
-### Not enforced
+1. resolve the candidates at the lowest explicit priority still under
+   consideration;
+2. quote each candidate's complete maximum for this request from its pinned
+   price version, using exact `amount × quantity / per` arithmetic;
+3. exclude any quote above `maxPricePerRequest` or in a different currency;
+4. among that priority's survivors, choose score descending and then exact
+   `deploymentId` UTF-16 code-unit order;
+5. if the caller omitted `maxOutputTokens`, let that first survivor fix the
+   implicit output ceiling before resolving lower priorities for capacity.
 
-One, named in code beside the filter, in `UNFILTERED_ROUTING_CONTROLS`, with its
-reason. A control that ends up in neither list fails `tsc` by name, so this list
-cannot silently grow.
+An all-over-cap priority fixes no implicit output; the next priority is allowed
+to qualify against its own candidates and their maxima. Once a survivor fixes
+the output ceiling, a lower-priority route too small for that ceiling is not an
+eligible survivor and its incomplete routing evidence cannot invalidate the
+already resolvable request. If no route survives the cap and currency checks,
+the edge returns `policy_violation` (403) before it creates a reservation and
+before it calls Kaana.
 
-- **`optimiseFor`** — a RANKING among the routes that already qualify, which is
-  routing execution and therefore the data plane's (ADR 0006). It can never
-  exclude a candidate, and enforcing it in the control plane would mean inventing
-  a routing decision with no way to test the choice. Nothing ranks today, because
-  there is no data plane.
+The cap is a complete per-request ADMISSION control, not an aggregate budget.
+The exact post-execution charge still comes from measured usage, while account
+balance and spending limits control available funds and spend across requests —
+see [billing.md](./billing.md#spending-limits).
+
+### Ranking after qualification
+
+`optimiseFor` ranks only routes that already passed every qualification control.
+Oxy applies it from complete reviewed scorecards before it signs
+`authorizedRoutes`; Kaana executes that signed preference order and receives no
+policy value to reinterpret.
+
+The order is exact and deliberately independent of names:
+
+1. an explicit routing-profile candidate `priority` comes first;
+2. within one priority, the selected score is descending;
+3. lexicographic comparison of the exact `deploymentId` by ECMAScript UTF-16
+   code units is the only equal-score tie-break.
+
+Provider slug, provider display name, model name, insertion order, locale
+collation and database return order never participate. The ID is an identity and
+the last-resort deterministic tie-break, not a proxy for quality.
+
+`maxPricePerRequest` qualification happens inside each priority before its
+score/ID winner is admitted. Priority never loses to a higher score from a lower
+priority, and a route excluded by the complete request quote cannot become the
+winner or enter `authorizedRoutes`.
+
+Every otherwise eligible route must have one exact deployment ID, one price
+version and a current scorecard for that same ID and price version. A missing ID,
+price or score; stale score; price-version mismatch; duplicate ID; or colliding
+approved mapping refuses the complete route set before reservation and before an
+inference POST. Once the complete set has been selected, Oxy additionally asks
+Kaana to attest all exact IDs from one live inventory snapshot before any hold;
+cardinality, identity or region-set drift refuses with zero reservation and zero
+inference POST. The resolver never hides incomplete evidence by dropping only
+the bad survivor.
 
 Enforcement of eleven controls landed in
 [#1012](https://github.com/OxyHQ/oxy/pull/1012), closing
@@ -288,29 +344,28 @@ inert while it filters is the next reader's bug.
 
 `GET /applications/:applicationId/route-switches` is served, and
 `recordRouteSwitch` — which looks an authorisation up rather than trusting a
-claim — has no production caller. Route switches are reported BY the data plane,
-and there is no data plane. An empty list is the correct answer; it is not
-evidence that no switch happened.
+claim — is fed by Kaana reports only after the live signed path is enabled. The
+source mechanism exists; an empty production list before a verified canary is
+not evidence that no switch happened.
 
 ---
 
-## How to use this today
+## How to apply these controls
 
 Configure the policy you actually want. Thirteen of its controls decide which
 routes qualify, and a request none of them satisfies fails loudly rather than
 being served by something you forbade.
 
-Two caveats that matter more than they look:
+Two boundaries matter more than they look:
 
-- **A price ceiling is not a complete spend control.** It bounds the RATE a route
-  may charge you at, and for a whole request only the flat per-request fee — not
-  what a particular request adds up to. Use a spending limit and the account
-  balance for that — see [billing.md](./billing.md#spending-limits).
-- **You cannot observe any of it yet.** The catalogue is empty, so no candidate
-  is ever filtered in practice; every model you name answers `model_not_found`
-  first. The enforcement is real and tested against fixtures that supply their
-  own candidates, which is the only way it could be tested over an empty
-  catalogue.
+- **A per-request ceiling is not an aggregate budget.** The edge admits only a
+  route whose complete maximum quote fits `maxPricePerRequest`; spending limits
+  and the account balance remain the controls across requests. See
+  [billing.md](./billing.md#spending-limits).
+- **Source behaviour is not a production-status claim.** Verify the deployed
+  catalogue, the exact selected deployment, a deliberately over-cap request that
+  returns 403 with no hold, and the signed Kaana/ledger path in the target
+  environment before treating the control as live.
 
 If a residency or retention requirement is contractual, a routing policy now
 expresses it AND is enforced. Reading the chosen route's own `dataPolicy` and

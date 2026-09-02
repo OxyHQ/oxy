@@ -13,6 +13,10 @@
   assigns the data plane "failover within the destinations the policy authorized"
   and the envelope named none of them; ADR 0017 names them, and states the edge
   step and envelope lines it replaces.
+- Amended by contract v2: Oxy completes route ranking before signing
+  `authorizedRoutes`; terminal and partial usage evidence both require the exact
+  Kaana `deploymentId`. The shape-specific versioning consequences are recorded
+  below.
 - Issue: #972
 
 ## Context
@@ -115,7 +119,7 @@ rejected where a secret is required.
 5. resolve the routing policy, pin its version, and SELECT the route
                                                refuse `policy_violation` if no candidate qualifies
 6. reserve spend                                (ADR 0009) — reject here, before the data plane
-7. forward the internal envelope to Relay
+7. forward the internal envelope to Kaana
 8. stream through without buffering; propagate client cancellation upstream
 9. settle and refund against the returned receipt
 ```
@@ -125,7 +129,7 @@ provider credentials never enter ordinary access logs.
 
 ### The internal envelope
 
-Oxy forwards one canonical shape to Relay, independent of which public endpoint
+Oxy forwards one canonical shape to Kaana, independent of which public endpoint
 the customer used. Both public endpoints normalize into it, which is what keeps
 the compatibility surface from becoming a second data path.
 
@@ -158,12 +162,20 @@ or forwarded. The reference exists so the receipt can be explained against the
 exact revision of the customer's own configuration that produced it; it is
 provenance, and nothing downstream is expected to act on it.
 
-What the data plane is left to decide is RANKING among routes that already
-qualify — `optimiseFor` (price / latency / throughput / balanced), plus failover
-within the destinations the policy authorized. That is routing execution and it
-is the data plane's by ADR 0006. It can never admit a route the control plane
-excluded, which is what makes "the control plane enforces, the data plane
-executes" a division rather than a duplication.
+Oxy also completes price qualification and the preference order before
+forwarding. The catalogue may prefilter the flat fee because Kaana emits
+`requests: 1`; the edge then quotes the complete request maximum from each
+candidate's pinned price version. At each explicit routing-profile priority it
+excludes cap and currency failures, then orders the survivors by the reviewed
+`optimiseFor` score descending and exact `deploymentId` by ECMAScript UTF-16 code
+units as the sole tie-break. If output is implicit, that first survivor fixes
+the output ceiling before lower priorities are resolved for capacity. No price
+survivor means `policy_violation` before reserve or execution. The data plane
+executes and fails over only within the signed order. It cannot re-rank by
+provider/model name, health score, locale or inventory order, and it can never
+admit a route the control plane excluded. That is what makes "the control plane
+authorizes and orders; the data plane executes" a division rather than a
+duplication.
 
 The classification is held in code rather than in prose: every control of
 `routingPolicySchema` is either enforced by
@@ -175,7 +187,7 @@ list fails `tsc`.
 plane's own record and the data plane has no use for its id: what bounds a
 request's cost upstream is `maxOutputTokens`, which the envelope carries. What
 bounds its duration is the transport — the edge propagates client cancellation
-into `RelayClient.execute` — and the hold's own TTL, after which the expiry
+into `KaanaClient.execute` — and the hold's own TTL, after which the expiry
 sweeper releases it. An explicit `deadline` would be a defensible addition, and
 under the versioning rule below it is additive within v1; it is left out until a
 producer sets it and a consumer honours it, because a field the envelope
@@ -186,19 +198,34 @@ required, never inferred from the presence of a field, and it versions THIS
 shape rather than the contract set as a whole — pinning a request to the set's
 version would make an unrelated additive change to, say, the catalogue reject
 every in-flight inference request (`packages/contracts/src/inference/version.ts`).
-Relay refuses an envelope
+Kaana refuses an envelope
 version it does not implement rather than interpreting it optimistically — an
 unrecognized version is a hard error, because a partially-understood envelope is
 how a routing constraint gets silently dropped. Adding an optional field is a
 minor change within a version; changing the meaning, type or requiredness of an
 existing field is a new version. Both sides run the compatibility tests of
-workstream 0's contract package, which prove Oxy and Relay agree on the version
+workstream 0's contract package, which prove Oxy and Kaana agree on the version
 in use — a test that must be able to fail, so it asserts version identity rather
 than merely that both sides parse.
 
 The same rule applies to every externally consumed event and response shape
 (normalized stream events, usage receipts, refunds, catalogue descriptors, price
 versions), not only to this envelope.
+
+Contract v2 applies the requiredness rule rather than weakening identity:
+`normalizedUsageReportSchema` v2 and streamed `usage` event v2 both require the
+exact `deploymentId`; `modelCatalogueEntrySchema` v2 makes availability scope
+and commercial permission optional when visible deployments do not all agree,
+while the projection publishes its already-optional singular pricing only on the
+same unanimous basis. A v1 usage shape cannot be treated as v2 by guessing its
+route, and an unsupported version fails closed.
+
+Failing closed applies to the whole measurement record, not only to the frame
+that failed. If a known `stream_event` or `usage_report` frame is malformed or
+fails its per-shape schema, every terminal and partial measurement accumulated
+for that request is invalidated. A v1 or malformed terminal usage report is not
+“no terminal report”: the edge may not reuse a preceding valid partial event for
+settlement.
 
 **Which shapes reject an unknown field follows from that rule, and the split is
 deliberate.** The shapes exchanged with the data plane — this envelope, the
@@ -298,7 +325,7 @@ be forgotten, and only one of them would be well covered.
   pages all currently teach a request that cannot work. Correcting them is part
   of this workstream's output, not a documentation follow-up.
 - Streaming must stay unbuffered end to end, and client disconnect must propagate
-  to Relay and to the upstream provider. A cancelled stream is a settlement case
+  to Kaana and to the upstream provider. A cancelled stream is a settlement case
   (ADR 0009), so the cancellation path is a billing path and is tested as one.
 - Idempotency keys are supported on non-streaming and batch-safe operations;
   request-size, context-size and output-token limits are explicit at the edge
