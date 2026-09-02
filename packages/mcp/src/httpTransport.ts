@@ -29,24 +29,40 @@ export interface CatalogMcpHttpLogger {
   error(message: string, error: unknown): void;
 }
 
-export interface CatalogMcpHttpServiceOptions {
+interface CatalogMcpHttpServiceBaseOptions {
   catalog: AppCapabilityCatalog;
   handlers: CatalogToolHandlers;
   authorizationServer: string;
-  getServiceToken: () => Promise<string>;
-  invalidateServiceToken?: () => void | Promise<void>;
   authorize: (
     input: Readonly<Record<string, unknown>>,
     context: CatalogInvocationContext,
   ) => Promise<CatalogMcpAuthorizationDecision>;
   allowedOrigins?: readonly string[];
-  introspectionEndpoint?: string;
   maxBodyBytes?: number;
   maxTokenTtlSeconds?: number;
   fetch?: typeof fetch;
   logger?: CatalogMcpHttpLogger;
   serverName?: string;
 }
+
+type CatalogMcpTokenIntrospection =
+  | {
+      /** Efficient path for a resource server colocated with Oxy authority. */
+      introspectToken: (token: string) => Promise<McpAccessTokenClaims | null>;
+      getServiceToken?: never;
+      invalidateServiceToken?: never;
+      introspectionEndpoint?: never;
+    }
+  | {
+      /** Remote apps authenticate their live introspection request as a service. */
+      introspectToken?: never;
+      getServiceToken: () => Promise<string>;
+      invalidateServiceToken?: () => void | Promise<void>;
+      introspectionEndpoint?: string;
+    };
+
+export type CatalogMcpHttpServiceOptions = CatalogMcpHttpServiceBaseOptions
+  & CatalogMcpTokenIntrospection;
 
 export interface CatalogMcpHttpService {
   readonly mcpPath: '/mcp';
@@ -260,13 +276,15 @@ export function createCatalogMcpHttpService(
 
     let claims: McpAccessTokenClaims | null;
     try {
-      claims = await introspectOxyMcpAccessToken(token, {
-        endpoint: options.introspectionEndpoint
-          ?? `${authorizationServer}/auth/mcp/oauth/introspect`,
-        getServiceToken: options.getServiceToken,
-        invalidateServiceToken: options.invalidateServiceToken,
-        fetch: options.fetch,
-      });
+      claims = options.introspectToken
+        ? await options.introspectToken(token)
+        : await introspectOxyMcpAccessToken(token, {
+            endpoint: options.introspectionEndpoint
+              ?? `${authorizationServer}/auth/mcp/oauth/introspect`,
+            getServiceToken: options.getServiceToken,
+            invalidateServiceToken: options.invalidateServiceToken,
+            fetch: options.fetch,
+          });
     } catch (error) {
       options.logger?.error('MCP token introspection failed', error);
       sendJsonRpcError(response, 503, -32000, 'Authorization service unavailable.');

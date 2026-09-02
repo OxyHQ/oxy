@@ -1,6 +1,6 @@
 {
   "name": "@oxyhq/mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Canonical Oxy app catalog to MCP transport and OAuth resource validation",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
