@@ -411,7 +411,7 @@
     },
     "packages/contracts": {
       "name": "@oxyhq/contracts",
-      "version": "0.37.0",
+      "version": "0.37.1",
       "dependencies": {
         "zod": "^3.25.64",
       },
@@ -625,7 +625,7 @@
     },
     "packages/services": {
       "name": "@oxyhq/services",
-      "version": "30.2.2",
+      "version": "30.2.3",
       "dependencies": {
         "@oxyhq/contracts": "workspace:*",
         "@simplewebauthn/browser": "^13.3.0",

@@ -8,6 +8,10 @@ const limitKeySchema = z.string().regex(
 ).max(255);
 const auditCodeSchema = z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/);
 const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const invocationPathSchema = z.string().regex(
+    /^\/(?!\/)[^\\?#]*$/,
+    'invocation paths must be absolute app-local paths without backslashes, query or fragment',
+);
 
 /** Autonomy is ordered from least to most permissive. */
 export const AUTONOMY_LEVELS = [
@@ -269,7 +273,7 @@ export const catalogToolSchema = z.object({
     }).strict()).default([]),
     invocation: z.object({
         method: z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']),
-        path: nonEmptyStringSchema,
+        path: invocationPathSchema,
     }).strict(),
 }).strict().superRefine((tool, context) => {
     const requireUnique = (values: readonly string[], path: string): void => {
