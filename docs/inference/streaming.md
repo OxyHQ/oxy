@@ -16,7 +16,7 @@ Status of the whole platform: [README.md](./README.md).
 
 ## Streaming
 
-### The edge streams; the typed SDK decoder is a draft
+### The edge streams; the typed SDK decoder is published
 
 ADR 0010 requires streaming to be **unbuffered end to end** — an edge that
 collected a whole completion and then re-emitted it as SSE would have the shape
@@ -24,15 +24,13 @@ of streaming and none of its point. The Oxy route and data-plane client implemen
 the validated SSE path when Kaana execution is configured. An unconfigured path
 refuses before opening a stream and keeps no charge.
 
-`OxyInferenceClient.stream()` is implemented in draft
-[#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
+`OxyInferenceClient.stream()` is merged and published in `@oxyhq/core@23.1.0`
+by [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
 runtime v2 source. It requests `stream: true`, decodes frames incrementally
 against the shared event contract, forwards `AbortSignal`, and exposes protocol
-failures as typed errors. The draft decoder and a green PR do not prove that an
-installed SDK contains the method or that a live audience can reach Kaana.
-Verify the published package and then run the production proof below; do not
-hand-roll a second event contract while the typed implementation is pending
-release.
+failures as typed errors. A published decoder does not prove that a live
+audience can reach Kaana. Run the production proof below before calling the
+end-to-end path ready, and do not hand-roll a second event contract.
 
 ### The event union exists, and is worth reading now
 

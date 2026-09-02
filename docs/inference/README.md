@@ -50,7 +50,7 @@ claims, so use the live cutover gates before calling the end-to-end path ready.
 | Account billing profile, Stripe boundary, entitlements | `packages/api/src/routes/accountBilling.ts` | Yes |
 | Inference usage telemetry + daily rollups | `packages/api/src/db/schema/inferenceUsageEvents.ts` | Yes — written by the edge, read by the reporting API |
 | Oxy↔data-plane contracts (Zod) | `packages/contracts/src/inference/` | Published as `@oxyhq/contracts` |
-| The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Catalogue, `respond()` and generation reads exist; typed `stream()` is draft [#1145](https://github.com/OxyHQ/oxy/pull/1145), not yet a published or deployed capability — [sdk.md](./sdk.md) |
+| The TypeScript SDK | `packages/core/src/inference/OxyInferenceClient.ts` | Catalogue, `respond()`, typed `stream()` and generation reads are merged and published in `@oxyhq/core@23.1.0` by [#1145](https://github.com/OxyHQ/oxy/pull/1145). Publication proves the client surface, not a live Kaana route — [sdk.md](./sdk.md) |
 | Console: models, usage, billing, routing policy, BYOK | `packages/console` | Yes |
 | Rollout flags + the staff readout | `packages/api/src/config/rolloutFlags.ts`, `GET /inference/admin/rollout` | Yes — [rollout.md](./rollout.md) |
 
@@ -139,10 +139,10 @@ contract, current refusal and live rollout gates.
 ### Streaming and observable cancellation — workstream 4
 
 The stream-event union, Oxy forwarding client and Kaana emitter exist in source.
-Typed `OxyInferenceClient.stream()` is implemented in draft #1145 but is not
-merged or published. Production readiness still requires a real streamed request
-plus an explicit client-disconnect test proving cancellation reaches the
-provider and settlement occurs exactly once.
+Typed `OxyInferenceClient.stream()` is merged and published in
+`@oxyhq/core@23.1.0` by #1145. Production readiness still requires a real
+streamed request plus an explicit client-disconnect test proving cancellation
+reaches the provider and settlement occurs exactly once.
 [streaming.md](./streaming.md) documents the contract.
 
 ### Later modalities — workstream 4

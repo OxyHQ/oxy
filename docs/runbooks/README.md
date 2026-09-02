@@ -66,8 +66,9 @@ the tokens signed under the retired key cannot be re-signed.
   (the lifecycle and both CHECK biconditionals), `packages/api/src/utils/credentialUsability.ts`
   (the single usability predicate), `packages/api/src/routes/applications.ts`.
 - BYOK: [ADR 0019](../adr/0019-kaana-byok-custody.md),
-  [the BYOK guide](../inference/byok.md), and Kaana's draft customer-credential
-  control boundary. ADR 0013 remains the historical fail-closed refusal.
+  [the BYOK guide](../inference/byok.md), and Kaana's merged customer-credential
+  control boundary. The coordinated Oxy cut and live rollout remain pending;
+  ADR 0013 remains the historical fail-closed refusal.
 - Service tokens: [ADR 0012](../adr/0012-service-token-signing-key-model.md).
 - The Oxy→Kaana boundary: [ADR 0006](../adr/0006-oxy-kaana-boundary.md) and
   ADR 0015.

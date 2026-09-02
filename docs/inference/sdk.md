@@ -67,14 +67,15 @@ life.
 | `getModel(modelId)` | `GET /v1/models/:publisher/:model` |
 | `listRoutingProfiles()` | `GET /v1/models/routing-profiles` |
 | `respond(request, options?)` | `POST /v1/responses` |
+| `stream(request, options?)` | `POST /v1/responses` with validated SSE |
 | `getGeneration(id)` | `GET /v1/generations/:id` |
 
-`stream(request, options?)` is implemented in draft
+`stream(request, options?)` is merged and published in `@oxyhq/core@23.1.0` by
 [#1145](https://github.com/OxyHQ/oxy/pull/1145), stacked on the merged Kaana
 runtime v2 source. It sends `stream: true`, propagates cancellation and
-validates the versioned SSE event union. It is not merged, published or production-verified,
-so check the installed `@oxyhq/core` package before using that method. Embeddings
-and images remain outside this client. See [streaming.md](./streaming.md).
+validates the versioned SSE event union. That package publication does not prove
+that the live Oxy audience and Kaana execution gates are open. Embeddings and
+images remain outside this client. See [streaming.md](./streaming.md).
 
 ```typescript
 const answer = await inference.respond({
@@ -181,8 +182,8 @@ Four compatibility rules matter, and all four are deliberate:
   silently having no effect on a request you were billed for.
 - **`stream: true` uses OpenAI-compatible SSE** when the deployed Kaana path is
   configured and enabled. An unavailable data plane is refused before opening a
-  stream. The typed `@oxyhq/core` decoder is implemented in draft #1145 but is
-  not yet a published SDK capability.
+  stream. The typed `@oxyhq/core` decoder is published in `@oxyhq/core@23.1.0`;
+  live reachability remains a separate rollout gate.
 - **Oxy-specific response metadata rides in headers**, so the body stays exactly
   what a stock client parses.
 
