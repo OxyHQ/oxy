@@ -41,6 +41,9 @@ import {
   type NativeProductBootstrapPlan,
 } from "../src/scripts/nativeProductAgentsBootstrapPlan";
 import {
+  classifyNativeProductAgentDisplayName,
+} from "../src/scripts/nativeProductAgentAccountPlan";
+import {
   NATIVE_PRODUCT_AGENT_DRIFT_FIELDS,
   type NativeProductAgentBoundApplication,
   type NativeProductAgentDriftField,
@@ -73,6 +76,7 @@ interface AccountSpec {
 interface AccountObservation {
   spec: AccountSpec;
   exists: boolean;
+  normalizesLegacyDisplayName: boolean;
 }
 
 interface CostCenterSpec {
@@ -234,6 +238,8 @@ async function observeAccount(
       id: users.id,
       username: users.username,
       nameDisplay: users.nameDisplay,
+      nameFirst: users.nameFirst,
+      nameLast: users.nameLast,
       kind: users.kind,
       type: users.type,
       parentAccountId: users.parentAccountId,
@@ -289,12 +295,13 @@ async function observeAccount(
       boundApplication,
     );
   }
-  if (!row) return { spec, exists: false };
+  if (!row) {
+    return { spec, exists: false, normalizesLegacyDisplayName: false };
+  }
 
   assertExact(accountDriftTarget(spec.id, false), `Account ${spec.id}`, row, {
     id: spec.id,
     username: spec.username,
-    nameDisplay: spec.displayName,
     kind: spec.kind,
     type: spec.kind === "bot" ? "automated" : "local",
     parentAccountId: spec.parentAccountId,
@@ -302,6 +309,20 @@ async function observeAccount(
     accountStatus: "active",
     privacyIsPrivateAccount: spec.kind === "bot",
   });
+  const displayNameDisposition = classifyNativeProductAgentDisplayName({
+    adoptedLegacyAccount:
+      spec.id === NATIVE_PRODUCT_AGENTS.products.homiio.project.id,
+    expectedDisplayName: spec.displayName,
+    storedDisplayName: row.nameDisplay,
+    storedFirstName: row.nameFirst,
+    storedLastName: row.nameLast,
+  });
+  if (displayNameDisposition === "drift") {
+    throw new NativeProductAgentStateDriftError(
+      accountDriftTarget(spec.id, false),
+      "nameDisplay",
+    );
+  }
   const path = await tx
     .select({
       depth: userAncestors.depth,
@@ -318,15 +339,28 @@ async function observeAccount(
       path: spec.ancestors.map((ancestorId, depth) => ({ depth, ancestorId })),
     },
   );
-  return { spec, exists: true };
+  return {
+    spec,
+    exists: true,
+    normalizesLegacyDisplayName:
+      displayNameDisposition === "normalize_legacy",
+  };
 }
 
-async function insertAccount(
+async function applyAccount(
   tx: Transaction,
   observation: AccountObservation,
 ): Promise<void> {
-  if (observation.exists) return;
   const spec = observation.spec;
+  if (observation.exists) {
+    if (observation.normalizesLegacyDisplayName) {
+      await tx
+        .update(users)
+        .set({ nameDisplay: spec.displayName })
+        .where(eq(users.id, spec.id));
+    }
+    return;
+  }
   await tx.insert(users).values({
     id: spec.id,
     username: spec.username,
@@ -828,9 +862,12 @@ async function observeBootstrap(
 function bootstrapOperations(observed: BootstrapObservations): string[] {
   const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
   return [
-    ...observed.accounts.map(
-      (item) => `${item.exists ? "assert" : "insert"} account ${item.spec.id}`,
-    ),
+    ...observed.accounts.flatMap((item) => [
+      `${item.exists ? "assert" : "insert"} account ${item.spec.id}`,
+      ...(item.normalizesLegacyDisplayName
+        ? [`normalize legacy-display-name account ${item.spec.id}`]
+        : []),
+    ]),
     ...observed.costCenters.map(
       (item) =>
         `${item.exists ? "assert" : "insert"} cost-center ${item.spec.accountId}`,
@@ -874,7 +911,7 @@ async function applyBootstrap(
   serviceSecretHashes: ServiceSecretHashes,
 ): Promise<void> {
   const { homiio, clarity } = NATIVE_PRODUCT_AGENTS.products;
-  for (const account of observed.accounts) await insertAccount(tx, account);
+  for (const account of observed.accounts) await applyAccount(tx, account);
   for (const costCenter of observed.costCenters)
     await insertCostCenter(tx, costCenter);
   if (observed.homiioOwnerAccountId !== homiio.project.id) {
