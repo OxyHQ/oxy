@@ -5,6 +5,7 @@ set -euo pipefail
 repository_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 subject="$repository_root/packages/api/scripts/run-native-product-agent-bootstrap.sh"
 test_root=$(mktemp -d)
+real_mktemp=$(command -v mktemp)
 trap 'rm -rf -- "$test_root"' EXIT
 
 mkdir -p "$test_root/bin"
@@ -48,6 +49,18 @@ esac
 EOF
 chmod 0700 "$test_root/bin/bun"
 
+cat >"$test_root/bin/mktemp" <<'EOF'
+#!/bin/sh
+set -eu
+if [ "${TEST_MKTEMP_FAIL:-0}" = '1' ]; then
+  printf '%s\n' "${TEST_UNSAFE_MARKER:-unsafe-mktemp-output}" >&2
+  exit 1
+fi
+exec "$TEST_REAL_MKTEMP" "$@"
+EOF
+chmod 0700 "$test_root/bin/mktemp"
+export TEST_REAL_MKTEMP="$real_mktemp"
+
 homiio_secret=$(printf 'a%.0s' {1..64})
 clarity_secret=$(printf 'b%.0s' {1..64})
 file_list="$test_root/materialized-files"
@@ -72,36 +85,42 @@ PATH="$test_root/bin:$PATH" APPLY=0 ROLLBACK=0 sh "$subject"
 PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=1 sh "$subject"
 
 set +e
-PATH="$test_root/bin:$PATH" \
+invalid_output=$(PATH="$test_root/bin:$PATH" \
   APPLY=1 \
   ROLLBACK=0 \
   HOMIIO_SINDI_SERVICE_SECRET_VALUE="${homiio_secret}A" \
   CLARITY_BACKEND_SERVICE_SECRET_VALUE="$clarity_secret" \
-  sh "$subject" >"$test_root/invalid.log" 2>&1
+  sh "$subject" 2>&1)
 invalid_exit=$?
 set -e
-if [ "$invalid_exit" -eq 0 ]; then
-  echo 'uppercase or wrong-length secrets must fail closed' >&2
-  exit 1
-fi
+[ "$invalid_exit" -eq 64 ]
+[ "$invalid_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 
-if grep -Fq "$clarity_secret" "$test_root/invalid.log"; then
+if grep -Fq "$clarity_secret" <<<"$invalid_output"; then
   echo 'a service secret leaked to wrapper output' >&2
   exit 1
 fi
 
 unsafe_marker='must-not-cross-the-wrapper-boundary'
 set +e
+missing_output=$(PATH="$test_root/bin:$PATH" APPLY=1 ROLLBACK=0 sh "$subject" 2>&1)
+missing_exit=$?
+mktemp_output=$(PATH="$test_root/bin:$PATH" APPLY=0 ROLLBACK=0 TEST_MKTEMP_FAIL=1 TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
+mktemp_exit=$?
 classified_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=classified-failure TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
 classified_exit=$?
 process_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=process-failure TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
 process_exit=$?
 set -e
+[ "$missing_exit" -eq 64 ]
+[ "$missing_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
+[ "$mktemp_exit" -eq 70 ]
+[ "$mktemp_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
 [ "$classified_exit" -eq 1 ]
 [ "$classified_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift"}' ]
 [ "$process_exit" -eq 1 ]
 [ "$process_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
-case "$classified_output$process_output" in
+case "$invalid_output$missing_output$mktemp_output$classified_output$process_output" in
   *"$unsafe_marker"*)
     echo 'free-form bootstrap output crossed the wrapper boundary' >&2
     exit 1
