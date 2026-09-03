@@ -204,16 +204,18 @@ row. The only supported APPLY path during the bridge is the
 definitions are deliberately **different**: the one-shot has narrower S3 and
 database authority and must not inherit the live API's credential environment.
 
-The workflow and `.github/scripts/attest-kaana-catalogue-rollout.sh` enforce all
-of the following rather than trusting an operator-pasted ARN:
+The workflow, `.github/scripts/attest-kaana-catalogue-rollout.sh` and the
+dedicated task's own live ECS reader enforce all of the following rather than
+trusting an operator-pasted ARN:
 
 - `oxy-api` is ACTIVE at the reviewed task definition, has positive desired
   count, running equals desired, pending is zero and the PRIMARY rollout is
   uniquely COMPLETED;
 - every concrete RUNNING task uses that definition and every old deployment has
   zero running and pending tasks;
-- two complete observations separated in time agree, closing a rollout TOCTOU
-  window before `RunTask`;
+- two complete observations separated in time agree before `RunTask`; the
+  one-shot independently repeats that proof before PostgreSQL access and again
+  inside the transaction immediately before commit;
 - the live and dedicated definitions both name the exact reviewed immutable
   image digest;
 - the workflow shares the `deploy-oxy-api` concurrency lock with production
@@ -226,7 +228,19 @@ of the following rather than trusting an operator-pasted ARN:
   API service's broader network identity;
 - APPLY receives a timestamped attestation that expires after ten minutes. The
   process derives its own dedicated definition, cluster and image from the ECS
-  v4 metadata endpoint and refuses any mismatch before inventory or PostgreSQL.
+  v4 metadata endpoint, but never accepts that self-description as rollout
+  proof: its task role must also read the live service and exact RUNNING task
+  set using only `ecs:DescribeServices`, `ecs:ListTasks` and
+  `ecs:DescribeTasks`;
+- if the final live proof observes an old task, task-set change, incomplete
+  PRIMARY rollout or image mismatch, it throws before transaction return and
+  PostgreSQL rolls back every catalogue write.
+
+Production APPLY is therefore blocked until oxy-infra PR #125 is merged,
+applied, and live IAM readback proves those three ECS read actions on the
+dedicated `oxy-kaana-catalogue-bootstrap` task role. No
+`ecs:DescribeTaskDefinition` grant is required. Repository source or a merged
+Terraform change alone is not evidence that the running task has the authority.
 
 Dry runs remain available outside ECS because they write nothing. Direct/manual
 APPLY is unsupported: copied environment values cannot replace the serialized
@@ -235,12 +249,14 @@ AWS checks, production approval and post-run readback in the workflow.
 This makes the mixed-version boundary explicit: until the old task count is
 zero there are no new-scope writes, and rollback during the rolling deployment
 continues to read the untouched legacy rows. The shared workflow lock prevents
-the supported deploy/rollback path from racing APPLY. Once APPLY has created a
-new-scope row, rollback must target this bridge-capable release (or a newer one),
-never the pre-bridge image; an out-of-band ECS mutation during the locked job is
-an incident and the post-run attestation fails visibly. The bootstrap also
-rejects coexistence of legacy and current rows for one logical deployment
-instead of selecting whichever row PostgreSQL happens to return first.
+the supported deploy/rollback path from racing APPLY; an out-of-band mutation
+that races the one-shot is also caught by its final live proof and aborts the
+transaction. Once APPLY has created a new-scope row, rollback must target this
+bridge-capable release (or a newer one), never the pre-bridge image. A later
+out-of-band ECS mutation remains an incident and the workflow's post-run
+attestation fails visibly. The bootstrap also rejects coexistence of legacy and
+current rows for one logical deployment instead of selecting whichever row
+PostgreSQL happens to return first.
 
 ---
 
