@@ -476,27 +476,42 @@ async function expectSuccess(config, fetchImpl, schemaVersion, target, route) {
   const start = events[0];
   const terminal = events.at(-1);
   const report = reports[0];
-  if (
-    start?.type !== 'start' ||
-    start?.deploymentId !== route.deploymentId ||
-    start?.resolvedModelReference !== route.modelReference ||
-    start?.servingProvider !== route.provider ||
-    terminal?.type !== 'done' ||
-    events.filter((event) => event?.type === 'start').length !== 1 ||
-    events.filter((event) => event?.type === 'done').length !== 1 ||
-    events.some((event) => event?.type === 'error') ||
-    terminal?.receiptId !== undefined ||
-    reports.length !== 1 ||
-    report?.schemaVersion !== 2 ||
-    report?.requestId !== probe.requestId ||
-    report?.outcome !== 'completed' ||
-    report?.deploymentId !== route.deploymentId ||
-    report?.resolvedModelReference !== route.modelReference ||
-    report?.servingProvider !== route.provider ||
-    !Array.isArray(report?.units) ||
-    report.units.length === 0
-  ) {
-    fail(`${label}_did_not_complete_exact_route`);
+  if (events.some((event) => event?.type === 'error')) {
+    fail(`${label}_execution_error_event_present`);
+  }
+  if (events.filter((event) => event?.type === 'start').length !== 1) {
+    fail(`${label}_start_event_count_mismatch`);
+  }
+  if (start?.type !== 'start') fail(`${label}_start_event_not_first`);
+  if (start.deploymentId !== route.deploymentId) {
+    fail(`${label}_start_deployment_mismatch`);
+  }
+  if (start.resolvedModelReference !== route.modelReference) {
+    fail(`${label}_start_model_mismatch`);
+  }
+  if (start.servingProvider !== route.provider) {
+    fail(`${label}_start_provider_mismatch`);
+  }
+  if (events.filter((event) => event?.type === 'done').length !== 1) {
+    fail(`${label}_done_event_count_mismatch`);
+  }
+  if (terminal?.type !== 'done') fail(`${label}_done_event_not_terminal`);
+  if (terminal.receiptId !== undefined) fail(`${label}_terminal_receipt_present`);
+  if (reports.length !== 1) fail(`${label}_usage_report_count_mismatch`);
+  if (report.schemaVersion !== 2) fail(`${label}_usage_schema_mismatch`);
+  if (report.requestId !== probe.requestId) fail(`${label}_usage_request_mismatch`);
+  if (report.outcome !== 'completed') fail(`${label}_usage_outcome_mismatch`);
+  if (report.deploymentId !== route.deploymentId) {
+    fail(`${label}_usage_deployment_mismatch`);
+  }
+  if (report.resolvedModelReference !== route.modelReference) {
+    fail(`${label}_usage_model_mismatch`);
+  }
+  if (report.servingProvider !== route.provider) {
+    fail(`${label}_usage_provider_mismatch`);
+  }
+  if (!Array.isArray(report.units) || report.units.length === 0) {
+    fail(`${label}_usage_units_missing`);
   }
   return {
     name: label,
