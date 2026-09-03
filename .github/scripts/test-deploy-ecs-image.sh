@@ -32,6 +32,11 @@ export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 export DEPLOY_TEST_DEPLOYMENT_ID=ecs-deploy-test-2
 export DEPLOY_TEST_ROLLBACK_DEPLOYMENT_ID=ecs-deploy-test-rollback
 export DEPLOY_TEST_MISSING_PRIMARY_DEPLOYMENT=false
+export DEPLOY_TEST_RUN_TASK_CAPACITY_FAILURES=0
+FARGATE_VCPU_QUOTA_REASON="You've reached the limit on the number of vCPUs you can run concurrently"
+export DEPLOY_TEST_RUN_TASK_FAILURE_REASON="$FARGATE_VCPU_QUOTA_REASON"
+export DEPLOY_TEST_SCALE_IN_DESIRED_COUNT=""
+export DEPLOY_TEST_RETRY_SERVICE_TASK_DEFINITION=""
 
 aws() {
   local service_json='{
@@ -71,6 +76,27 @@ aws() {
     --argjson desired "$DEPLOY_TEST_SERVICE_DESIRED_COUNT" \
     '.services[0].desiredCount = $desired' \
     <<<"$service_json")"
+  local service_task_file="${DEPLOY_TEST_LOG}.service-task"
+  if [[ -f "$service_task_file" ]]; then
+    service_json="$(jq \
+      --arg task "$(<"$service_task_file")" \
+      '.services[0].taskDefinition = $task' \
+      <<<"$service_json")"
+  fi
+  if [[ -n "$DEPLOY_TEST_SCALE_IN_DESIRED_COUNT" &&
+        -f "${DEPLOY_TEST_LOG}.run-task-count" ]]; then
+    service_json="$(jq \
+      --argjson desired "$DEPLOY_TEST_SCALE_IN_DESIRED_COUNT" \
+      '.services[0].desiredCount = $desired | .services[0].runningCount = $desired' \
+      <<<"$service_json")"
+  fi
+  if [[ -n "$DEPLOY_TEST_RETRY_SERVICE_TASK_DEFINITION" &&
+        -f "${DEPLOY_TEST_LOG}.run-task-count" ]]; then
+    service_json="$(jq \
+      --arg task "$DEPLOY_TEST_RETRY_SERVICE_TASK_DEFINITION" \
+      '.services[0].taskDefinition = $task' \
+      <<<"$service_json")"
+  fi
 
   case "$1 $2" in
     "ecs describe-services")
@@ -350,6 +376,7 @@ aws() {
         "$task_definition" \
         "$desired_count" \
         >>"$DEPLOY_TEST_LOG"
+      printf '%s\n' "$task_definition" >"$service_task_file"
       if [[ "$*" == *"--output json"* ]]; then
         printf '%s\n' "$output_json"
       else
@@ -367,6 +394,19 @@ aws() {
         fi
         previous_argument="$argument"
       done
+      local run_task_count_file="${DEPLOY_TEST_LOG}.run-task-count"
+      local run_task_count=0
+      if [[ -f "$run_task_count_file" ]]; then
+        run_task_count="$(<"$run_task_count_file")"
+      fi
+      run_task_count=$((run_task_count + 1))
+      printf '%s\n' "$run_task_count" >"$run_task_count_file"
+      if (( run_task_count <= DEPLOY_TEST_RUN_TASK_CAPACITY_FAILURES )); then
+        printf 'run-task-refused:%s\n' "$DEPLOY_TEST_RUN_TASK_FAILURE_REASON" >>"$DEPLOY_TEST_LOG"
+        jq -n --arg reason "$DEPLOY_TEST_RUN_TASK_FAILURE_REASON" \
+          '{failures: [{reason: $reason}], tasks: []}'
+        return 0
+      fi
       if jq -e '.containerOverrides[0].command | index("packages/api/dist/db/migrate.js") != null' \
         <<<"$overrides" >/dev/null; then
         printf 'migration\n' >>"$DEPLOY_TEST_LOG"
@@ -428,6 +468,11 @@ run_release() {
   local task_environment_overrides="${11:-}"
   local task_remove_names="${12:-}"
   local post_deploy_tasks_json="${13:-}"
+  local run_task_capacity_failures="${14:-0}"
+  local scale_in_desired_count="${15:-}"
+  local run_task_failure_reason="${16:-$FARGATE_VCPU_QUOTA_REASON}"
+  local one_shot_start_max_wait_secs="${17:-3}"
+  local retry_service_task_definition="${18:-}"
   local case_directory="$test_directory/$case_name"
   local output_file="$case_directory/output.log"
   local smoke_script="$case_directory/smoke.sh"
@@ -447,6 +492,10 @@ run_release() {
   fi
   DEPLOY_TEST_SERVICE_DESIRED_COUNT="$service_desired_count"
   DEPLOY_TEST_ROLLOUT_SCENARIO="$rollout_scenario"
+  DEPLOY_TEST_RUN_TASK_CAPACITY_FAILURES="$run_task_capacity_failures"
+  DEPLOY_TEST_RUN_TASK_FAILURE_REASON="$run_task_failure_reason"
+  DEPLOY_TEST_SCALE_IN_DESIRED_COUNT="$scale_in_desired_count"
+  DEPLOY_TEST_RETRY_SERVICE_TASK_DEFINITION="$retry_service_task_definition"
   export DEPLOY_TEST_LOG DEPLOY_TEST_EXPECT_METRICS_ARN
   export DEPLOY_TEST_TASK_EXIT_CODE
   export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN
@@ -454,6 +503,10 @@ run_release() {
   export DEPLOY_TEST_EXPECT_TASK_REMOVE
   export DEPLOY_TEST_SERVICE_DESIRED_COUNT
   export DEPLOY_TEST_ROLLOUT_SCENARIO
+  export DEPLOY_TEST_RUN_TASK_CAPACITY_FAILURES
+  export DEPLOY_TEST_RUN_TASK_FAILURE_REASON
+  export DEPLOY_TEST_SCALE_IN_DESIRED_COUNT
+  export DEPLOY_TEST_RETRY_SERVICE_TASK_DEFINITION
   export DEPLOY_TEST_DEPLOYMENT_ID
   export DEPLOY_TEST_ROLLBACK_DEPLOYMENT_ID
 
@@ -476,6 +529,7 @@ run_release() {
     IMAGE_URI="example.invalid/deploy-test@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     MAX_WAIT_SECS=5
     POLL_INTERVAL=1
+    ONE_SHOT_START_MAX_WAIT_SECS="$one_shot_start_max_wait_secs"
     RUN_MIGRATIONS="$run_migrations"
     POST_DEPLOY_SMOKE_SCRIPT="$smoke_script"
     PRE_DEPLOY_TASK_COMMAND_JSON="$pre_deploy_command"
@@ -536,6 +590,76 @@ printf '%s\n' \
 diff -u \
   "$test_directory/ordered-post-deploy-tasks/expected.log" \
   "$test_directory/ordered-post-deploy-tasks/aws.log"
+
+run_release post-task-capacity-retry true false false 0 false 2 healthy 0 '' '' '' '' 2 1
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=2' \
+  smoke \
+  "run-task-refused:You've reached the limit on the number of vCPUs you can run concurrently" \
+  "run-task-refused:You've reached the limit on the number of vCPUs you can run concurrently" \
+  reconcile \
+  >"$test_directory/post-task-capacity-retry/expected.log"
+diff -u \
+  "$test_directory/post-task-capacity-retry/expected.log" \
+  "$test_directory/post-task-capacity-retry/aws.log"
+grep -F 'waiting 1s before the next bounded retry' \
+  "$test_directory/post-task-capacity-retry/output.log" >/dev/null
+grep -F 'after confirming deploy-test is ACTIVE at the deployed task definition with desired=1' \
+  "$test_directory/post-task-capacity-retry/output.log" >/dev/null
+
+run_release post-task-resource-cpu-retry true false false 0 false 2 healthy 0 '' '' '' '' 1 1 RESOURCE:CPU
+grep -F 'waiting 1s before the next bounded retry' \
+  "$test_directory/post-task-resource-cpu-retry/output.log" >/dev/null
+
+run_release post-task-capacity-then-failure false false false 1 false 2 healthy 0 '' '' '' '' 1 1
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=2' \
+  smoke \
+  "run-task-refused:You've reached the limit on the number of vCPUs you can run concurrently" \
+  reconcile \
+  tasklogs \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
+  >"$test_directory/post-task-capacity-then-failure/expected.log"
+diff -u \
+  "$test_directory/post-task-capacity-then-failure/expected.log" \
+  "$test_directory/post-task-capacity-then-failure/aws.log"
+grep -F 'preserving current desiredCount=1' \
+  "$test_directory/post-task-capacity-then-failure/output.log" >/dev/null
+
+run_release post-task-non-capacity-refusal false false false 0 false 1 healthy 0 '' '' '' '' 1 '' AccessDeniedException
+if [[ "$(<"$test_directory/post-task-non-capacity-refusal/aws.log.run-task-count")" != "1" ]]; then
+  echo "A non-capacity RunTask refusal was retried." >&2
+  exit 1
+fi
+if grep -F 'before the next bounded retry' \
+  "$test_directory/post-task-non-capacity-refusal/output.log" >/dev/null; then
+  echo "A non-capacity RunTask refusal entered the capacity retry path." >&2
+  exit 1
+fi
+
+run_release post-task-capacity-timeout false false false 0 false 1 healthy 0 '' '' '' '' 99 '' \
+  "You've reached the limit on the number of vCPUs you can run concurrently" 2
+grep -F 'after waiting 2s for Fargate vCPU capacity' \
+  "$test_directory/post-task-capacity-timeout/output.log" >/dev/null
+
+run_release post-task-service-superseded false false false 0 false 1 healthy 0 '' '' '' '' 1 '' '' 3 \
+  arn:aws:ecs:test:task-definition/deploy-test:99
+if [[ "$(<"$test_directory/post-task-service-superseded/aws.log.run-task-count")" != "1" ]]; then
+  echo "A post-deploy task was retried after the service task definition changed." >&2
+  exit 1
+fi
+grep -F 'no longer has the deployed task definition active' \
+  "$test_directory/post-task-service-superseded/output.log" >/dev/null
+
+run_release pre-task-capacity-is-fail-fast false true false 0 false 1 healthy 0 '' '' '' '' 1
+if [[ "$(<"$test_directory/pre-task-capacity-is-fail-fast/aws.log.run-task-count")" != "1" ]]; then
+  echo "A pre-deploy migration RunTask refusal was retried." >&2
+  exit 1
+fi
+if grep -q '^service:' "$test_directory/pre-task-capacity-is-fail-fast/aws.log"; then
+  echo "A refused pre-deploy migration reached update-service." >&2
+  exit 1
+fi
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a
