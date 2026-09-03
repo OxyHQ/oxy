@@ -1195,7 +1195,7 @@ function buildCatalogueEntry(
     });
 
   const entry = {
-    schemaVersion: 2 as const,
+    schemaVersion: 3 as const,
     modelId: model.modelId,
     publisher: {
       slug: model.publisherSlug,

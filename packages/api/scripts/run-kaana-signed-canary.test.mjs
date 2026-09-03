@@ -24,7 +24,7 @@ function runtime() {
     KAANA_BASE_URL: 'https://kaana.ai',
     KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
     KAANA_EDGE_SIGNING_PRIVATE_KEY: pem,
-    CANARY_CONTRACT_VERSION: '2.0.0',
+    CANARY_CONTRACT_VERSION: '3.0.0',
     CANARY_EXPECTED_SNAPSHOT_ID: 'snap-live-exact',
     CANARY_DEPLOYMENT_ID: DEPLOYMENT_ID,
     CANARY_ROUTING_PROFILE_ID: ROUTING_PROFILE_ID,
@@ -166,7 +166,7 @@ async function assertFirstPositiveFailure(expectedCode, mutateResponse) {
   const fetchImpl = async (url, init) => {
     const body = readAndVerifyRequest(publicKey, url, init);
     const path = new URL(url).pathname;
-    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     if (path === '/internal/v1/deployments/query') {
       return json({
         snapshotId: 'snap-live-exact',
@@ -205,7 +205,7 @@ test('runs every closed negative before exactly two one-token positive probes', 
     if (path === '/internal/v1/health') {
       assert.equal(init.method, 'GET');
       assert.equal(body, undefined);
-      return json({ contractVersion: '2.0.0' });
+      return json({ contractVersion: '3.0.0' });
     }
     if (path === '/internal/v1/deployments/query') {
       assert.deepEqual(body, { deploymentIds: [DEPLOYMENT_ID] });
@@ -279,7 +279,7 @@ test('stops before either provider probe if a slug arm is unexpectedly accepted'
     const body = readAndVerifyRequest(publicKey, url, init);
     calls += 1;
     const path = new URL(url).pathname;
-    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     if (path === '/internal/v1/deployments/query') {
       return json({
         snapshotId: 'snap-live-exact',
@@ -309,7 +309,7 @@ test('refuses noncanonical origins, enabled ambient execution and fuzzy exact ID
     KAANA_BASE_URL: 'https://kaana.ai',
     KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
     KAANA_EDGE_SIGNING_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
-    CANARY_CONTRACT_VERSION: '2.0.0',
+    CANARY_CONTRACT_VERSION: '3.0.0',
     CANARY_EXPECTED_SNAPSHOT_ID: 'snap-live-exact',
     CANARY_DEPLOYMENT_ID: DEPLOYMENT_ID,
     CANARY_ROUTING_PROFILE_ID: ROUTING_PROFILE_ID,
@@ -340,7 +340,7 @@ test('does not reinterpret a provider-credential UUID as a deployment identity',
     readAndVerifyRequest(publicKey, url, init);
     calls += 1;
     const path = new URL(url).pathname;
-    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     assert.equal(path, '/internal/v1/deployments/query');
     // The signed snapshot is the only authority and returns its actual opaque
     // deployment id, never the credential-shaped selector the operator passed.
@@ -635,7 +635,7 @@ test('lists the complete signed safe deployment projection without selecting or 
     paths.push(path);
     if (path === '/internal/v1/health') {
       assert.equal(body, undefined);
-      return json({ contractVersion: '2.0.0' });
+      return json({ contractVersion: '3.0.0' });
     }
     assert.equal(path, '/internal/v1/deployments/query');
     assert.deepEqual(body, {});
@@ -672,7 +672,7 @@ test('refuses a readback descriptor that exposes any field outside the safe proj
   const fetchImpl = async (url, init) => {
     readAndVerifyRequest(publicKey, url, init);
     const path = new URL(url).pathname;
-    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     return json({
       snapshotId: 'snap-live-exact',
       deployments: [{
@@ -699,7 +699,7 @@ test('refuses a changed serving snapshot before any inference probe', async () =
     readAndVerifyRequest(publicKey, url, init);
     calls += 1;
     const path = new URL(url).pathname;
-    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/health') return json({ contractVersion: '3.0.0' });
     assert.equal(path, '/internal/v1/deployments/query');
     return json({
       snapshotId: 'snap-changed-after-readback',

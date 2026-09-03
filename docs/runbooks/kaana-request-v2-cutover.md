@@ -25,7 +25,7 @@ This is a two-producer rolling cutover, not one deploy. Follow this order:
    `schemaVersion: 2` for model or exact `routing_profile_id`. Both versions must
    reject `routing_profile`/`routingProfile`; Kaana must never translate a slug.
 3. Deploy Kaana first. Verify the deployed image digest and `/health`
-   `contractVersion=2.0.0`, then run signed canaries proving v1 model requests
+   `contractVersion=3.0.0`, then run signed canaries proving v1 model requests
    still work during the rolling window, v2 envelopes propagate the exact opaque
    profile id while executing only a signed exact deployment, an unknown or
    whitespace-modified deployment id fails closed, and either-version slug

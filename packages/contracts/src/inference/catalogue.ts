@@ -375,7 +375,7 @@ export const inferenceProviderSchema = z.object({
 export const modelDeploymentSchema = z
   .object({
     /** See `version.ts`: exchanged with the data plane on its own. */
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     deploymentId: deploymentIdSchema,
     provider: inferenceProviderSlugSchema,
     /** Always revision-pinned: a deployment serves specific weights. */
@@ -512,7 +512,7 @@ export const catalogueServingProviderSummarySchema = z
  */
 export const modelCatalogueEntrySchema = z.object({
   /** See `version.ts`: this is the public catalogue response shape. */
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   modelId: modelIdSchema,
   publisher: cataloguePublisherSummarySchema,
   displayName: z.string().min(1).max(200),

@@ -302,8 +302,8 @@ export const inferenceDeployments = pgTable(
      * Region is deliberately not part of the key: the contract models a
      * deployment as covering several regions, so two rows differing only by
      * region would be two names for one route. Audience IS part of it, because
-     * the same revision on the same provider is legitimately offered to Alia
-     * internally and to public customers under different commercial terms —
+     * the same revision on the same provider is legitimately offered to Oxy
+     * products internally and to public customers under different commercial terms —
      * those are two decisions and must be two rows.
      */
     unique('inference_deployments_revision_provider_scope_key').on(
@@ -356,7 +356,7 @@ export const inferenceDeployments = pgTable(
 
     /**
      * A public pay-as-you-go route requires an approved resale permission.
-     * Availability inside Alia never implies the right to resell the same
+     * Availability to Oxy products never implies the right to resell the same
      * provider/model publicly — this is that invariant, in the database.
      */
     check(

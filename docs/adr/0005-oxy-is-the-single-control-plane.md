@@ -105,7 +105,7 @@ The epic's non-negotiable invariants, each with what it forbids in this repo:
    through Alia as an infrastructure proxy.** Forbids the retired
    `packages/api/src/routes/alia.ts` shape surviving the migration: a shared
    static upstream key with no per-customer attribution.
-8. **Availability inside Alia does not imply permission to resell publicly.**
+8. **Availability to Oxy products does not imply permission to resell publicly.**
    Forbids deriving the public catalogue from "what a provider adapter can
    technically reach" (ADR 0008, and the `availabilityScope` /
    `commercialPermission` fields of workstream 11).
