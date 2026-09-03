@@ -49,7 +49,7 @@ function readTool(input: ReadToolInput): CatalogTool {
 export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
   schemaVersion: '1',
   appId: 'inbox',
-  version: '1.2.0',
+  version: '1.3.0',
   audience: 'oxy-inbox-api',
   internalBaseUrl: 'https://api.oxy.so',
   externalMcp: { resource: 'https://mcp.inbox.oxy.so' },
@@ -241,7 +241,7 @@ export const INBOX_CAPABILITY_CATALOG: AppCapabilityCatalog = {
       resourceTypes: ['mailbox'],
     },
     {
-      type: 'email_needs_response', version: '1.0.0', description: 'A message is likely to need a response.',
+      type: 'email_needs_reply', version: '1.0.0', description: 'A message is likely to need a reply.',
       dataSchema: {
         type: 'object',
         properties: { messageId: { type: 'string' }, mailboxId: { type: 'string' }, reason: { type: 'string' } },
