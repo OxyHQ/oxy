@@ -16,9 +16,20 @@
  * AWS authentication must come from the dedicated ECS task role in production,
  * or an operator's named AWS profile locally. Static AWS keys in env are refused.
  *   INFERENCE_ROUTING_SCORE_MIN_VALIDITY_SECONDS
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ARN
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER
+ *   KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE
+ *     fresh output from the serialized production workflow after two complete
+ *     ECS old-task-zero observations; APPLY binds the dedicated one-shot and
+ *     immutable image to local ECS metadata before any inventory or DB access
  *
- * Apply:
- *   APPLY=1 bun run packages/api/scripts/bootstrap-kaana-catalogue.ts
+ * Production apply:
+ *   dispatch `.github/workflows/bootstrap-kaana-catalogue.yml` from `main`.
+ *   Direct APPLY is unsupported during the rolling scope bridge because the
+ *   workflow owns the deploy lock, double ECS observation and final readback.
  *
  * If no reviewer exists yet, first follow
  * docs/runbooks/bootstrap-catalogue-reviewer.md. This script never grants its
@@ -26,7 +37,7 @@
  */
 
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import {
   KAANA_INITIAL_BALANCED_FORMULA_REF,
   KAANA_INITIAL_MODEL,
@@ -50,6 +61,8 @@ import {
   type KaanaInitialInventoryAttestation,
 } from "../src/config/kaanaInitialInventory";
 import { routingScoreValidityThreshold } from "../src/config/inferenceRoutingScoreValidity";
+import { requireSingleLogicalDeployment } from "../src/config/kaanaBootstrapDeploymentSelection";
+import { assertPlatformScopeWriteRolloutComplete } from "../src/config/inferencePlatformScopeWriteGate";
 import { closePostgres, connectPostgres, getDb } from "../src/config/postgres";
 import {
   inferenceDeploymentRoutingScoreEvents,
@@ -61,6 +74,8 @@ import {
   inferencePublishers,
   inferenceRoutingProfileCandidates,
   inferenceRoutingProfiles,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
+  normalizeInferenceDeploymentAvailabilityScope,
   priceVersionUnitPrices,
   priceVersions,
   users,
@@ -439,23 +454,37 @@ async function ensureDeployment(
     upstreamWholesaleCostUnit: null,
     upstreamWholesaleCostPer: null,
   };
-  let [row] = await tx
-    .select()
-    .from(inferenceDeployments)
-    .where(
-      and(
-        eq(inferenceDeployments.modelRevisionId, revisionId),
-        eq(inferenceDeployments.providerSlug, provider.slug),
-        eq(inferenceDeployments.availabilityScope, "platform_internal"),
-      ),
-    );
-  if (row === undefined) {
-    [row] = await tx.insert(inferenceDeployments).values(expected).returning();
+  const readLogicalDeploymentRows = () =>
+    tx
+      .select()
+      .from(inferenceDeployments)
+      .where(
+        and(
+          eq(inferenceDeployments.modelRevisionId, revisionId),
+          eq(inferenceDeployments.providerSlug, provider.slug),
+          or(
+            eq(inferenceDeployments.availabilityScope, "platform_internal"),
+            sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`,
+          ),
+        ),
+      );
+  let rows = await readLogicalDeploymentRows();
+  if (rows.length === 0) {
+    await tx.insert(inferenceDeployments).values(expected);
     inserted.push(`deployment:${provider.deploymentId}`);
+    rows = await readLogicalDeploymentRows();
   }
-  if (row === undefined)
-    throw new Error(`Deployment ${provider.deploymentId} was not created`);
-  assertFields(`deployment:${provider.deploymentId}`, row, expected);
+  const row = requireSingleLogicalDeployment(rows, provider.deploymentId);
+  assertFields(
+    `deployment:${provider.deploymentId}`,
+    {
+      ...row,
+      availabilityScope: normalizeInferenceDeploymentAvailabilityScope(
+        row.availabilityScope,
+      ),
+    },
+    expected,
+  );
 }
 
 async function ensureScorecard(
@@ -618,6 +647,7 @@ async function ensureProfiles(
 }
 
 async function bootstrap(): Promise<BootstrapSummary> {
+  await assertPlatformScopeWriteRolloutComplete(APPLY, process.env);
   const inventory = await requireLiveInventory();
   await connectPostgres();
   const inserted: string[] = [];

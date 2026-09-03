@@ -40,7 +40,7 @@
  * retired `models-stats.ts` did with its literal `isHealthy: true`.
  */
 
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import type {
   AuthorizedRoute,
   AvailabilityScope,
@@ -72,6 +72,9 @@ import {
   inferenceRoutingProfiles,
   priceVersions,
   priceVersionUnitPrices,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
+  NORMALIZED_INFERENCE_DEPLOYMENT_AVAILABILITY_SCOPE,
+  normalizeInferenceDeploymentAvailabilityScope,
   SELECTABLE_PERMISSION_STATE,
 } from '../db/schema';
 import type { InferenceModalityValue } from '../db/schema/inferenceModels';
@@ -204,8 +207,15 @@ const OFFERABLE_STATUSES = ['active', 'degraded'] as const;
  * platform route and buys a gate with no branch in it.
  */
 function selectableDeploymentWhere(viewer: CatalogueViewer) {
+  const availability = viewer.scopes.includes('platform_internal')
+    ? or(
+        inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]),
+        sql`${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}`
+      )
+    : inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]);
+
   return and(
-    inArray(inferenceDeployments.availabilityScope, [...viewer.scopes]),
+    availability,
     eq(inferenceDeployments.permissionState, SELECTABLE_PERMISSION_STATE),
     inArray(inferenceDeployments.status, [...OFFERABLE_STATUSES])
   );
@@ -411,7 +421,7 @@ export interface ConstrainedCandidate {
  */
 const CONSTRAINT_COLUMNS = {
   providerSlug: inferenceDeployments.providerSlug,
-  availabilityScope: inferenceDeployments.availabilityScope,
+  availabilityScope: NORMALIZED_INFERENCE_DEPLOYMENT_AVAILABILITY_SCOPE,
   regions: inferenceDeployments.regions,
   retainsPayloads: inferenceDeployments.retainsPayloads,
   retentionDays: inferenceDeployments.retentionDays,
@@ -1306,7 +1316,7 @@ export async function listCatalogueForViewer(
 
   const db = getDb();
 
-  const deploymentRows = await db
+  const storedDeploymentRows = await db
     .select({
       ...CUSTOMER_SAFE_DEPLOYMENT_COLUMNS,
       // Join keys, not part of the customer shape — see the serializer, whose
@@ -1323,6 +1333,16 @@ export async function listCatalogueForViewer(
       eq(inferenceDeployments.modelRevisionId, inferenceModelRevisions.id)
     )
     .where(selectableDeploymentWhere(viewer));
+
+  // During the rolling storage rename the database may still contain the
+  // legacy value written by an older pod. Normalize immediately after the
+  // read, before catalogue policy or any customer-facing serializer sees it.
+  // The typed Drizzle column remains on the allow-list so its structural
+  // protection continues to be checked by SelectedRow without a cast.
+  const deploymentRows = storedDeploymentRows.map((row) => ({
+    ...row,
+    availabilityScope: normalizeInferenceDeploymentAvailabilityScope(row.availabilityScope),
+  }));
 
   if (deploymentRows.length === 0) return [];
 
@@ -2122,7 +2142,7 @@ export async function resolveEdgeRoute(
     modelReference: composeModelReference(resolvedModelId, row.revision),
     provider: row.providerSlug,
     regions: row.regions,
-    availabilityScope: row.availabilityScope as AvailabilityScope,
+    availabilityScope: row.availabilityScope,
     priceVersionId,
     ...(row.customerProviderCredential === undefined
       ? {}

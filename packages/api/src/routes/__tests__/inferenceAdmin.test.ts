@@ -65,7 +65,7 @@ jest.mock('../../utils/logger', () => ({
   logger: { warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
 }));
 
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
   inferenceDeploymentRoutingScores,
@@ -74,6 +74,7 @@ import {
   inferenceModels,
   inferenceProviders,
   inferencePublishers,
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
   priceVersionUnitPrices,
   priceVersions,
 } from '../../db/schema';
@@ -957,6 +958,23 @@ describe('the Kaana routing scorecard endpoint is a full, attributed replacement
 /* -------------------------------------------------------------------------- */
 
 describe('the staff listing returns what the customer projection withholds', () => {
+  it('normalizes a legacy storage scope before the admin wire response', async () => {
+    const fixture = await insertPendingDeployment();
+    await getDb().execute(sql`
+      update ${inferenceDeployments}
+      set availability_scope = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}
+      where ${inferenceDeployments.id} = ${fixture.deploymentId}
+    `);
+
+    const admin = await request('GET', `${ADMIN}/deployments`);
+    expect(admin.status).toBe(200);
+    const row = adminRowFor(admin.body, fixture.deploymentId) as
+      | { availabilityScope?: unknown }
+      | undefined;
+    expect(row?.availabilityScope).toBe('platform_internal');
+    expect(admin.raw).not.toContain(LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE);
+  });
+
   it('shows the internal route id and the wholesale cost here and nowhere else', async () => {
     const fixture = await insertPendingDeployment();
     // Approved, so the same route is also visible on the customer surface —

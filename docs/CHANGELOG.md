@@ -23,6 +23,22 @@ wire version 2, `modelCatalogueEntrySchema` to version 3, and the Oxy-Kaana
 contract-set handshake to `3.0.0`. Publishing the package, regenerating Kaana's
 descriptor and deploying either service remain separate release steps.
 
+The database rename uses a mandatory three-release expand/contract sequence.
+This release's PRE migration accepts both storage spellings without rewriting;
+new readers normalize legacy rows and new writers emit only `platform_internal`.
+The only production writer in this release, the exact catalogue bootstrap, now
+refuses `APPLY=1` until a fresh, double old-task-zero ECS attestation binds the
+dedicated bootstrap task and live API task definition to the same immutable
+image. The production workflow shares the deploy lock, repeats the readback
+after the one-shot, and the bootstrap rejects duplicate legacy/current rows for
+one logical deployment. This prevents new-scope rows during a mixed old/new API
+rollout without falsely requiring two deliberately different task definitions
+to have the same ARN.
+A later PR must backfill and contract the CHECK after deployed readback, while
+retaining the bridge; a final PR must remove the bridge only after a zero-legacy
+readback. Combining those stages would make the rolling deployment and automatic
+rollback incompatible with one side of the CHECK.
+
 ## `@oxyhq/contracts` 0.40.0 — Kaana BYOK custody clean cut
 
 Version `0.40.0` is the breaking wire-contract release for customer provider

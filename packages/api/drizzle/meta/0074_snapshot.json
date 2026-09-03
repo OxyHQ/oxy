@@ -11472,7 +11472,7 @@
       "checkConstraints": {
         "inference_deployments_availability_scope_check": {
           "name": "inference_deployments_availability_scope_check",
-          "value": "\"inference_deployments\".\"availability_scope\" in ('platform_internal', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
+          "value": "\"inference_deployments\".\"availability_scope\" in ('internal_alia', 'platform_internal', 'public_payg', 'enterprise', 'byok_only', 'oxy_hosted')"
         },
         "inference_deployments_commercial_permission_check": {
           "name": "inference_deployments_commercial_permission_check",

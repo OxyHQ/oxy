@@ -62,6 +62,7 @@ import {
   availabilityScopeSchema,
   commercialPermissionSchema,
   INFERENCE_MONEY_SCALE,
+  type AvailabilityScope,
   USAGE_UNITS,
 } from '@oxyhq/contracts';
 import { createdAt, generatedId, inList, textArrayLiteral, timestamptz, updatedAt } from '@oxyhq/db';
@@ -71,11 +72,35 @@ import { priceVersions } from './priceVersions';
 import { users } from './users';
 
 /**
- * Who a route may be served to. Taken from the contract's own zod enum rather
- * than restated, so the column type, the CHECK and the wire cannot disagree —
- * a value added or renamed upstream changes all three at once.
+ * Values current code may write or emit. Taken from the contract's own Zod enum
+ * rather than restated. The temporary storage superset immediately below is the
+ * only deliberate exception while the rolling rename is expanded.
  */
 export const AVAILABILITY_SCOPES = availabilityScopeSchema.options;
+
+/**
+ * Storage-only compatibility for the first half of the rolling rename.
+ *
+ * `internal_alia` is not a contract member and no new-code writer accepts it.
+ * The database temporarily keeps accepting the old bytes so the previous image
+ * can continue serving while this image rolls out. PR2 backfills the rows and
+ * contracts the CHECK; PR3 removes this bridge only after a zero-legacy
+ * production readback. See `docs/inference/catalogue.md`.
+ */
+export const LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE = 'internal_alia' as const;
+export const INFERENCE_DEPLOYMENT_STORAGE_AVAILABILITY_SCOPES = [
+  LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE,
+  ...AVAILABILITY_SCOPES,
+] as const;
+
+/** Translate storage compatibility into the current wire vocabulary. */
+export function normalizeInferenceDeploymentAvailabilityScope(
+  value: string
+): AvailabilityScope {
+  return value === LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE
+    ? 'platform_internal'
+    : availabilityScopeSchema.parse(value);
+}
 
 /** The commercial basis on which Oxy may serve a route. Same derivation. */
 export const COMMERCIAL_PERMISSIONS = commercialPermissionSchema.options;
@@ -322,7 +347,7 @@ export const inferenceDeployments = pgTable(
 
     check(
       'inference_deployments_availability_scope_check',
-      sql`${t.availabilityScope} in (${sql.raw(inList(AVAILABILITY_SCOPES))})`
+      sql`${t.availabilityScope} in (${sql.raw(inList(INFERENCE_DEPLOYMENT_STORAGE_AVAILABILITY_SCOPES))})`
     ),
     check(
       'inference_deployments_commercial_permission_check',
@@ -454,3 +479,14 @@ export const inferenceDeployments = pgTable(
 );
 
 export type InferenceDeploymentRow = typeof inferenceDeployments.$inferSelect;
+
+/**
+ * Use for every selection that may cross a service or wire boundary. The raw
+ * legacy value is accepted only in storage during the expand/contract bridge;
+ * callers always observe the current contract member.
+ */
+export const NORMALIZED_INFERENCE_DEPLOYMENT_AVAILABILITY_SCOPE = sql<AvailabilityScope>`case
+  when ${inferenceDeployments.availabilityScope} = ${LEGACY_INTERNAL_ALIA_AVAILABILITY_SCOPE}
+    then ${'platform_internal'}
+  else ${inferenceDeployments.availabilityScope}
+end`;

@@ -1,0 +1,202 @@
+name: Bootstrap Kaana catalogue
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Write the reviewed catalogue (false is a transactional dry run)
+        required: true
+        default: false
+        type: boolean
+      expected_live_task_definition_arn:
+        description: Exact fully deployed oxy-api task-definition ARN
+        required: true
+        type: string
+      expected_bootstrap_task_definition_arn:
+        description: Exact dedicated catalogue-bootstrap task-definition ARN
+        required: true
+        type: string
+      expected_image:
+        description: Exact immutable oxy-api image URI including @sha256 digest
+        required: true
+        type: string
+      reviewer_user_id:
+        description: Exact staff reviewer user ID
+        required: true
+        type: string
+      reason:
+        description: Auditable reason (required for apply)
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  # This is the same cross-workflow lock as deploy-aws.yml. It closes the normal
+  # rollback/deploy race from the first ECS read until the one-shot has stopped.
+  group: deploy-oxy-api
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCOUNT_ID: "237343248947"
+  CLUSTER: oxy-cluster
+  SERVICE: oxy-api
+  SERVICE_CONTAINER: oxy-api
+  BOOTSTRAP_CONTAINER: kaana-catalogue-bootstrap
+  NETWORK_SERVICE: kaana-publisher
+
+jobs:
+  bootstrap:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-kaana-catalogue-bootstrap
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Attest rollout and run exact catalogue task
+        env:
+          APPLY_INPUT: ${{ inputs.apply }}
+          EXPECTED_LIVE_TASK_DEFINITION_ARN: ${{ inputs.expected_live_task_definition_arn }}
+          EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN: ${{ inputs.expected_bootstrap_task_definition_arn }}
+          EXPECTED_IMAGE: ${{ inputs.expected_image }}
+          REVIEWER_USER_ID: ${{ inputs.reviewer_user_id }}
+          REASON_INPUT: ${{ inputs.reason }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          [[ "$EXPECTED_LIVE_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:${AWS_REGION}:${AWS_ACCOUNT_ID}:task-definition/oxy-oxy-api:[1-9][0-9]*$ ]] || {
+            echo '::error::expected live task definition is not the exact production oxy-api ARN'
+            exit 64
+          }
+          [[ "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" =~ ^arn:aws:ecs:${AWS_REGION}:${AWS_ACCOUNT_ID}:task-definition/oxy-kaana-catalogue-bootstrap:[1-9][0-9]*$ ]] || {
+            echo '::error::expected bootstrap task definition is not the dedicated production ARN'
+            exit 64
+          }
+          [[ "$EXPECTED_IMAGE" =~ ^${AWS_ACCOUNT_ID}\.dkr\.ecr\.${AWS_REGION}\.amazonaws\.com/oxy/oxy-api@sha256:[a-f0-9]{64}$ ]] || {
+            echo '::error::expected image is not the exact immutable production oxy-api image'
+            exit 64
+          }
+          [[ "$REVIEWER_USER_ID" =~ ^[a-f0-9]{24}$ ]] || {
+            echo '::error::reviewer_user_id must be an exact Oxy user ID'
+            exit 64
+          }
+          if [ "$APPLY_INPUT" = true ]; then
+            if [ -z "$REASON_INPUT" ] || [ "$REASON_INPUT" != "${REASON_INPUT# }" ] || [ "$REASON_INPUT" != "${REASON_INPUT% }" ]; then
+              echo '::error::apply requires a non-empty reason without edge whitespace'
+              exit 64
+            fi
+            apply=1
+          else
+            apply=0
+          fi
+
+          # Two complete observations, separated in time, verify ACTIVE,
+          # COMPLETED, desired/running parity, zero pending/old tasks, every
+          # concrete RUNNING task ARN, and both definitions' immutable image.
+          attestation=$(.github/scripts/attest-kaana-catalogue-rollout.sh \
+            "$CLUSTER" "$SERVICE" \
+            "$EXPECTED_LIVE_TASK_DEFINITION_ARN" "$SERVICE_CONTAINER" \
+            "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" "$BOOTSTRAP_CONTAINER" \
+            "$EXPECTED_IMAGE")
+
+          service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$SERVICE" --output json)
+          [ "$(jq -r '.services[0].taskDefinition // ""' <<<"$service_json")" = "$EXPECTED_LIVE_TASK_DEFINITION_ARN" ] || {
+            echo '::error::service changed after rollout attestation'
+            exit 1
+          }
+          network_service_json=$(aws ecs describe-services \
+            --cluster "$CLUSTER" --services "$NETWORK_SERVICE" --output json)
+          [ "$(jq '(.failures // []) | length' <<<"$network_service_json")" -eq 0 ] \
+            && [ "$(jq -r '.services[0].status // ""' <<<"$network_service_json")" = ACTIVE ] || {
+              echo '::error::Kaana publisher network authority is unavailable'
+              exit 1
+            }
+          # The dedicated bootstrap reuses Kaana publisher's egress-only SG,
+          # public subnets and assignPublicIp value. It never borrows oxy-api's
+          # broader network identity.
+          network=$(jq -ec '.services[0].networkConfiguration' <<<"$network_service_json")
+
+          overrides=$(jq -nc \
+            --arg container "$BOOTSTRAP_CONTAINER" \
+            --arg apply "$apply" \
+            --arg reviewer "$REVIEWER_USER_ID" \
+            --arg serviceTask "$(jq -r '.serviceTaskDefinitionArn' <<<"$attestation")" \
+            --arg bootstrapTask "$(jq -r '.bootstrapTaskDefinitionArn' <<<"$attestation")" \
+            --arg image "$(jq -r '.image' <<<"$attestation")" \
+            --arg attestedAt "$(jq -r '.attestedAt' <<<"$attestation")" \
+            --arg cluster "$CLUSTER" \
+            --arg service "$SERVICE" '
+              {containerOverrides:[{name:$container,environment:[
+                {name:"APPLY",value:$apply},
+                {name:"KAANA_CATALOGUE_REVIEWER_USER_ID",value:$reviewer},
+                {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE_TASK_DEFINITION_ARN",value:$serviceTask},
+                {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_BOOTSTRAP_TASK_DEFINITION_ARN",value:$bootstrapTask},
+                {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_IMAGE",value:$image},
+                {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_ATTESTED_AT",value:$attestedAt},
+                {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_CLUSTER",value:$cluster},
+                {name:"KAANA_CATALOGUE_PLATFORM_SCOPE_SERVICE",value:$service}
+              ]}]}'
+          )
+
+          run_error=$(mktemp)
+          if ! run_json=$(aws ecs run-task \
+              --cluster "$CLUSTER" \
+              --task-definition "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" \
+              --launch-type FARGATE \
+              --network-configuration "$network" \
+              --overrides "$overrides" \
+              --started-by "gh-kaana-cat-${GITHUB_RUN_ID}" \
+              --output json 2>"$run_error"); then
+            echo '::error::dedicated catalogue task could not start; verify exact RunTask and iam:PassRole authority'
+            sed 's/^/AWS: /' "$run_error" >&2
+            rm -f "$run_error"
+            exit 1
+          fi
+          rm -f "$run_error"
+          [ "$(jq '(.failures // []) | length' <<<"$run_json")" -eq 0 ] || {
+            echo '::error::ECS refused the catalogue bootstrap task'
+            exit 1
+          }
+          task_arn=$(jq -er '.tasks[0].taskArn' <<<"$run_json")
+          echo "catalogue task: $task_arn"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+          task_json=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --output json)
+          [ "$(jq '(.failures // []) | length' <<<"$task_json")" -eq 0 ] || {
+            echo '::error::catalogue task read returned failures'
+            exit 1
+          }
+          exit_code=$(jq -er --arg container "$BOOTSTRAP_CONTAINER" '
+            [.tasks[0].containers[] | select(.name == $container) | .exitCode] |
+            if length == 1 then .[0] else error("missing exact bootstrap container") end
+          ' <<<"$task_json")
+          [ "$exit_code" -eq 0 ] || {
+            echo "::error::catalogue bootstrap task exited $exit_code"
+            exit 1
+          }
+
+          # Detect any out-of-band service mutation that bypassed the shared
+          # deployment concurrency while the task ran. APPLY has already failed
+          # closed against a fresh metadata-bound attestation; a failure here is
+          # an explicit incident rather than a silent rollback window.
+          post_attestation=$(.github/scripts/attest-kaana-catalogue-rollout.sh \
+            "$CLUSTER" "$SERVICE" \
+            "$EXPECTED_LIVE_TASK_DEFINITION_ARN" "$SERVICE_CONTAINER" \
+            "$EXPECTED_BOOTSTRAP_TASK_DEFINITION_ARN" "$BOOTSTRAP_CONTAINER" \
+            "$EXPECTED_IMAGE")
+          [ "$(jq -r '.serviceTaskDefinitionArn' <<<"$post_attestation")" = "$EXPECTED_LIVE_TASK_DEFINITION_ARN" ]
+          echo "catalogue bootstrap completed at immutable image $EXPECTED_IMAGE (apply=$apply)"
