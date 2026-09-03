@@ -18,8 +18,54 @@ describe('native product-agent bootstrap failure projection', () => {
     nameDisplay: unsafeMarker,
     secretHash: unsafeMarker,
   };
+  const boundApplication = {
+    id: '6a2f851751b784a86fd0e922',
+    ownerAccountId: holder.id,
+    type: 'first_party' as const,
+    status: 'active' as const,
+    isOfficial: true,
+    isInternal: false,
+    createdByUserId: '69b2d3df5d12f58c9800d651',
+    name: unsafeMarker,
+    webhookSecret: unsafeMarker,
+  };
 
   it('returns only the reviewed holder projection and explicit expected account id', () => {
+    const result = nativeProductAgentBootstrapFailureResult(
+      new NativeProductAgentUsernameCollisionError(
+        expectedAccountId,
+        holder,
+        boundApplication,
+      ),
+    );
+
+    expect(result).toEqual({
+      status: 'failed',
+      code: 'username_collision',
+      expectedAccountId,
+      holder: {
+        id: '6a50444ce8026582b949089d',
+        kind: 'project',
+        type: 'local',
+        parentAccountId: '69b2d3df5d12f58c9800d651',
+        rootAccountId: '69b2d3df5d12f58c9800d651',
+        accountStatus: 'active',
+        privacyIsPrivateAccount: false,
+      },
+      boundApplication: {
+        id: '6a2f851751b784a86fd0e922',
+        ownerAccountId: holder.id,
+        type: 'first_party',
+        status: 'active',
+        isOfficial: true,
+        isInternal: false,
+        createdByUserId: '69b2d3df5d12f58c9800d651',
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain(unsafeMarker);
+  });
+
+  it('reports an absent bound application without inferring one', () => {
     const result = nativeProductAgentBootstrapFailureResult(
       new NativeProductAgentUsernameCollisionError(expectedAccountId, holder),
     );
@@ -37,6 +83,7 @@ describe('native product-agent bootstrap failure projection', () => {
         accountStatus: 'active',
         privacyIsPrivateAccount: false,
       },
+      boundApplication: null,
     });
     expect(JSON.stringify(result)).not.toContain(unsafeMarker);
   });
