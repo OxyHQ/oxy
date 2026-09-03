@@ -1,14 +1,14 @@
-# ADR 0011 — the former inference name is superseded by Kaana
+# ADR 0011 — Kaana is the canonical inference data-plane name
 
-- Status: superseded
-- Original date: 2026-08-15
-- Superseded: 2026-09-02
+- Status: accepted
+- Original decision: 2026-08-15
+- Clean-cut rename: 2026-09-02
 - Issue: #972
 
-> **Historical record only.** This ADR originally approved a different public
-> name for the inference data plane. That decision no longer authorizes any
-> current product, repository, package, environment variable, header, log event,
-> workflow, DNS record, hostname or documentation surface.
+> This ADR records the clean-cut retirement of the former public name. That
+> identity no longer authorizes any current product, repository, package,
+> environment variable, header, log event, workflow, DNS record, hostname or
+> documentation surface.
 
 ## Current decision
 

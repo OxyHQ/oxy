@@ -295,7 +295,9 @@ never register a GitHub secret with a placeholder value.
   by them are Alia-side surfaces whose registration belongs with whoever ships
   them. Registering four more applications now would mint four sets of
   credentials nobody has asked for.
-- **Alia actually invoking Oxy inference.** There is no public inference edge and
-  the model catalogue is empty (see [README.md](./README.md)). The registration,
-  the scopes, the credentials, the cost centres and the entitlement interface are
-  all in place ahead of a data plane to call.
+- **Alia actually invoking Oxy inference.** The edge, Kaana runtime and reviewed
+  bootstrap exist in merged source, but bootstrap application, live
+  audience/execution gates and a real signed canary still require production
+  evidence (see [README.md](./README.md)). The
+  registration, scopes, credentials, cost centres and entitlement interface do
+  not prove that Alia has made that production call.

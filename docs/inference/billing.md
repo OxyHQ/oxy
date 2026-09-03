@@ -9,10 +9,10 @@ decision record.
 **The edge calls this on every request.** It reserves before anything is
 forwarded and settles on every path out, including the path where there is
 nothing to forward to: a request that cannot be served releases its hold before
-the refusal returns, so a refused request costs nothing. What has never happened
-is a settlement against a REAL usage report, because no data plane has ever
-produced one — every settlement so far is the zero-unit kind that records a
-failure.
+the refusal returns, so a refused request costs nothing. A successful Kaana path
+settles against the normalized usage report and pinned price version; proving
+that this happened in production requires a live request and ledger readback,
+not this source contract.
 
 Your own numbers are readable at `/inference/reporting` — balance, usage, spend,
 pending reservations, settled charges, an export, and budgets. See
@@ -24,7 +24,8 @@ pending reservations, settled charges, an export, and budgets. See
 
 ```text
 1. RESERVE   at the Oxy edge, before anything reaches the data plane
-             ceiling = f(input units, max output units, allowed route price ceiling)
+             ceiling = requests:1 + f(input units, max output units,
+                                       every authorized route's price version)
              insufficient balance or credit limit → reject; nothing is forwarded
 2. EXECUTE   the data plane runs the request and returns a normalized usage receipt
 3. SETTLE    exact charge, derived from the receipt and the pinned price version
@@ -38,6 +39,31 @@ the remainder of its reservation is an incomplete write, not a partial success.
 Two properties hold across every path, and they are what the tests must be able
 to falsify rather than confirm: **no path may charge twice, and no path may
 execute unreserved.**
+
+`maxPricePerRequest` is checked before this protocol begins. The catalogue may
+prefilter the unavoidable flat `requests: 1` fee, but the edge decides the cap
+from the complete maximum quote for this request at each routing priority. Only
+cap- and currency-matching candidates can become the selected route or enter the
+signed authorized set. If none survives, the edge returns `policy_violation`
+(403) with no reservation and no Kaana call.
+
+### Exact deployment identity on every usage shape
+
+The v2 terminal normalized usage report and the v2 partial streamed `usage`
+event both require the exact Kaana `deploymentId`. Oxy accepts either form only
+when the ID resolves to exactly one route in the request's signed
+`authorizedRoutes`; a terminal report must also match that route's
+revision-pinned model and provider. Oxy never fills a missing ID from the
+admitted route and never resolves usage by provider name, model name or list
+position.
+
+Missing, unauthorized, ambiguous or contradictory identity fails closed. A
+present terminal report that fails validation invalidates the metering evidence.
+The same rule applies before identity can be read: if any known Kaana frame is
+malformed or fails its per-shape schema — including a v1 `usage_report` where v2
+is required — every terminal and partial measurement accumulated for the request
+is discarded. The edge must not reinterpret that protocol failure as “no report
+arrived” and fall back to an earlier partial event.
 
 ### Refuse, never estimate (#972 §7.3)
 
@@ -101,6 +127,13 @@ it can never strand money the way a sub-balance can.
 ## Every unit is counted once
 
 **The units on your receipt partition your request: nothing is counted twice.**
+Kaana reports `{ unit: 'requests', quantity: 1 }` for every attempted request;
+that unit is orthogonal to the token partitions below and is charged exactly
+once. Every servable price version must therefore declare an explicit
+`requests` price. Its amount may be zero, but the row may not be absent: absence
+means the price version cannot price the units Kaana emits, not that the fee is
+implicitly zero.
+
 `cached_input_tokens` is not part of `input_tokens`, and `reasoning_tokens` is
 not part of `output_tokens` — they are separate lines, each with its own price.
 A 10 000-token prompt of which 9 000 came from cache is billed as 1 000 input
@@ -129,6 +162,21 @@ Every priced route carries a price version, and every settled receipt stores a
 differently. A price change publishes a new version and never edits an old one:
 `draft` may be quoted in a preview and can never price a receipt, `active` prices
 live requests, `superseded` keeps resolving for the receipts it priced, forever.
+
+The mandatory `requests` row is also part of the reservation proof. Every hold
+scenario includes `requests: 1`, including all four completion extrema that put
+the prompt ceiling on either `input_tokens` or `cached_input_tokens` and the
+generation ceiling on either `output_tokens` or `reasoning_tokens`. The edge
+quotes each authorized route with the ledger's exact `NUMERIC`
+`amount × quantity / per` arithmetic and reserves the largest result. Equivalently,
+for each completion route the covering amount is the `requests: 1` fee plus
+`promptCeiling × max(input rate, cached-input rate)` plus
+`outputCeiling × max(output rate, reasoning rate)`, compared without converting
+the decimal amounts to JavaScript `Number`. Both parent and child rates must be
+present; an absent `cached_input_tokens` or `reasoning_tokens` price fails the
+final quote even when the other rate would have been larger. Readiness also
+fails closed for the complete route set if any servable price version omits the
+`requests` row, even when its intended fee was zero.
 
 A receipt must stay reproducible after the price it was computed under has been
 withdrawn, and after a model revision has been retired from the catalogue. That

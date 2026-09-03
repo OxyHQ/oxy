@@ -10,21 +10,15 @@ Status of the whole platform: [README.md](./README.md).
 
 ---
 
-## Why there is no date yet
+## Why this policy does not invent a date
 
-Two facts, both checkable:
-
-1. **Nothing an external developer can reach has been deprecated.** The things
-   retired so far were retired because they never did anything — see
-   [what has been retired](#what-has-been-retired-and-why-none-of-it-needed-a-date).
-   A name nothing checked has no users to give notice to.
-2. **A sunset date is meaningless before a launch date.** The public inference
-   edge exists and refuses every invoke for want of a data plane, so no external
-   developer depends on it. The first real deprecation notice is owed when the
-   first thing anybody depends on ships, and it is owed by whoever ships it.
-
-A date written now would be a date chosen without knowing the launch it is
-relative to, published to an audience of nobody, and stale before it applied.
+A dated sunset belongs to a named compatibility surface and a measured audience,
+not to the platform in the abstract. Before removing one, read live usage,
+identify its callers and publish the notice required below. The identifiers
+retired so far never authorized or selected anything; see
+[what has been retired](#what-has-been-retired-and-why-none-of-it-needed-a-date).
+A current launch or reachability claim must come from live rollout evidence, not
+from this policy document.
 
 ---
 

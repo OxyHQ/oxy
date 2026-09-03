@@ -8,6 +8,11 @@
   and a *reservation ceiling*. It consumes neither: a policy REFERENCE as
   provenance, plus an ordered list of the ROUTES that policy authorized. The
   boundary itself is unchanged; ADR 0017 says exactly what it replaces.
+- Superseded in part: [ADR 0019](0019-kaana-byok-custody.md) — the BYOK
+  responsibility row and the claim that customer-shaped Kaana storage is
+  limited to request-time attribution. Every provider credential, including
+  BYOK, is KMS ciphertext in Kaana PostgreSQL; Oxy retains only metadata plus an
+  opaque Kaana handle and revision.
 - Issue: #972
 
 ## Context
@@ -53,7 +58,7 @@ the value; only the owner may write it.
 | Customer balance, ledger, subscriptions, payments, invoices | **Oxy** | none |
 | Customer-visible usage and spend | **Oxy** | supplies technical usage; does not decide the charge |
 | Public API edge and developer experience | **Oxy** | none |
-| Routing *policy* (what a customer configured) | **Oxy** | consumes a versioned policy snapshot |
+| Routing *policy* (what a customer configured) | **Oxy** | consumes the pinned policy reference plus Oxy's ordered exact `authorizedRoutes`, never a policy snapshot |
 | Routing *execution* (which deployment served it) | **Kaana** | owns; reports the resolved route back |
 | Provider adapters, request translation, streaming, cancellation | **Kaana** | owns |
 | Provider health, circuit breakers, deployment inventory | **Kaana** | owns; exposes a customer-safe projection to Oxy |
@@ -72,7 +77,8 @@ each item lives in and whether it exists today — is
 
 ### What Kaana may store about a customer
 
-Exactly three shapes, all immutable after write:
+The execution path stores exactly three customer-attribution shapes, all
+immutable after write:
 
 ```text
 attribution   { accountId, applicationId, credentialId, userId? }  — opaque, copied from the envelope
@@ -87,11 +93,23 @@ never parses, joins against a local entity, or writes**. There is no
 Oxy entity and is forbidden; a Kaana table whose *foreign* column is an Oxy id,
 written once at request time and never updated, is the intended shape.
 
+ADR 0019 adds one deliberately separate control-plane shape: a Kaana-owned
+provider credential addressed by an opaque `credentialHandle`, exact revision
+and immutable Oxy identity tuple. Its KMS ciphertext is not an Oxy entity copy,
+and Oxy stores no locator that can resolve it to provider material.
+
 ### What crosses the boundary
 
-- **Oxy → Kaana**, per request: the versioned internal envelope (ADR 0010),
-  carrying attribution (ADR 0007), the normalized request, the resolved routing
-  policy snapshot and its version, and the reservation ceiling (ADR 0009).
+- **Oxy → Kaana**, per request: `InferenceEnvelope v2` (ADR 0010), carrying
+  attribution (ADR 0007), the normalized request, an exact model or
+  `routing_profile_id` target, the pinned routing-policy reference and the
+  ordered exact `authorizedRoutes`. No policy snapshot or reservation ceiling
+  crosses the boundary.
+- **Oxy → Kaana**, on a BYOK control mutation: the signed exact connection
+  identity, opaque handle/revision precondition and customer-supplied credential
+  bytes. Kaana encrypts those bytes with KMS before storing ciphertext; Oxy does
+  not persist them. The control path is implemented, but normal inference
+  execution remains disabled until the production rollout gates pass.
 - **Kaana → Oxy**, per request: `requestId`, `generationId` where applicable, the
   resolved route in customer-safe form, normalized unit counts, a terminal
   status, and a typed error with a retryability classification.

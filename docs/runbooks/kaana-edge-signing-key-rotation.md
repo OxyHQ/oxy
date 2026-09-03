@@ -7,7 +7,7 @@
 > 0015](../adr/0015-oxy-kaana-envelope-signing.md) remains the authority for
 > *why*; this file is the authority for *how*.
 
-## What exists today
+## Pre-rotation inspection
 
 **The scheme and deployment bindings are implemented; live serving is not
 proven.** Those are different facts and the difference decides what you do:

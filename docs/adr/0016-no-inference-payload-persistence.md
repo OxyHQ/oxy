@@ -35,13 +35,13 @@ refused one — refusals being where a body is most tempting to log — sweeps e
 was called at all) and a positive control on the search itself (something that IS
 logged is found by the same pass).
 
-**Why Kaana's credential store does not satisfy the encryption property.**
-[ADR 0013](./0013-byok-secret-custody.md) gives Kaana a KMS role and encrypted
-PostgreSQL store scoped to customer provider credentials. That is not a generic
-Oxy payload-retention backend, and widening its IAM context or schema to hold
-prompts would collapse two separate data classes and authorities. A payload
-capture design still needs its own key boundary, access policy, retention store
-and deletion proof before it can write one row.
+**Why provider-key custody does not authorize payload capture.**
+[ADR 0019](./0019-kaana-byok-custody.md) gives provider credentials a narrow KMS
+boundary inside Kaana. That control task can encrypt provider-key bytes into
+Kaana PostgreSQL; it is not a general payload vault, and Kaana intentionally
+persists no prompt or completion. A payload capture design still needs its own
+key boundary, access policy, retention store and deletion proof before it can
+write one row.
 
 Composed: building capture now would produce a table of customer prompts and model
 outputs, encrypted with a key reachable from the process that holds the
@@ -70,11 +70,11 @@ The four, stated as preconditions:
    nothing runs reads exactly like one that runs, so the registration is asserted
    against the entrypoint itself. A capture table joins that registry in the same
    change that creates it.
-3. **Encrypted with a key Oxy does not hold in PostgreSQL.** This is the blocking
-   one. Kaana's customer-BYOK KMS key is purpose-limited to provider credentials
-   and must not be reused. Until payload capture has a separate reviewed key,
-   role, encryption context and storage/expiry path, this precondition cannot be
-   met and therefore neither can the decision be revisited.
+3. **Encrypted with a dedicated key Oxy does not hold in PostgreSQL.** This is
+   the blocking one. ADR 0019's Kaana KMS path is scoped only to provider
+   credentials and authorizes no payload storage. A capture design needs its own
+   reviewed key, role, encryption context, storage/expiry path and read boundary;
+   until all exist, this precondition cannot be met.
 4. **Audited, and PII-redacted at the point of capture.** The audit pattern exists
    (`application_credential_audit_events`,
    `inference_provider_connection_audit_events`, both with database-level
@@ -145,7 +145,8 @@ a second field, then the request body, none of it a decision anybody made.
   them, in `DECLARED_FREE_SHAPED_COLUMNS`. That is a maintenance cost on adding a
   `jsonb` column, paid deliberately: it is the one shape that can hold an entire
   request without anyone choosing to make it possible.
-- **This ADR is revisitable, and the condition is explicit:** a managed secret
-  backend wired per ADR 0013's three steps. Until then, a capture mechanism cannot
-  satisfy precondition 3, and an ADR that superseded this one without it would be
-  overruling a measurement rather than making a decision.
+- **This ADR is revisitable, and the condition is explicit:** a dedicated payload
+  capture design must satisfy all four preconditions with its own externally
+  controlled key and audited lifecycle. Kaana's provider-credential KMS path is
+  not that design, and an ADR that treated it as one would overrule the boundary
+  rather than satisfy it.

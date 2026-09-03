@@ -54,12 +54,16 @@ import { eq } from 'drizzle-orm';
 import jwt from 'jsonwebtoken';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
+import { appGrants } from '../../db/schema/appGrants';
 import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
 import { sessions } from '../../db/schema/sessions';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import { revokeServiceActingAs } from '../../services/serviceActingAs.service';
+import {
+  revokeServiceActingAs,
+  SERVICE_ACTING_AS_SCOPE,
+} from '../../services/serviceActingAs.service';
 import { SERVICE_ACCOUNT_SWITCH_SCOPE } from '../../utils/applicationScopes';
 import { deriveServiceDeviceId } from '../../utils/deviceUtils';
 import internalRouter from '../internal';
@@ -218,6 +222,28 @@ function serviceSwitch(
   });
 }
 
+/**
+ * Explicit consent is independent from both platform trust and the managed
+ * account membership. Keep the insert visible in this suite so no success can
+ * accidentally regress to an implicit first-party bypass.
+ */
+async function grantOffline(app: SeededApp, operatorId: string): Promise<void> {
+  await getDb().insert(appGrants).values({
+    userId: operatorId,
+    applicationId: app.appId,
+    scopes: [SERVICE_ACTING_AS_SCOPE],
+  });
+}
+
+async function grantedServiceSwitch(
+  accountId: string,
+  app: SeededApp,
+  operatorId: string
+): Promise<SwitchResponse> {
+  await grantOffline(app, operatorId);
+  return serviceSwitch(accountId, serviceToken(app), operatorId);
+}
+
 /** The v2 access-token claims the mint asserts. Read with the real verifier. */
 function claims(accessToken: string): { sub?: string; act?: { sub?: string }; sid?: string } {
   const decoded = jwt.verify(accessToken, ACCESS_TOKEN_SECRET);
@@ -303,7 +329,7 @@ describe('router gates', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.status).toBe(403);
     expect(res.body.data).toBeUndefined();
@@ -325,7 +351,7 @@ describe('the service-account-switch scope', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.status).toBe(403);
     expect(res.body.data).toBeUndefined();
@@ -371,7 +397,7 @@ describe('the operator header', () => {
     const operator = await human();
     await member(bot, operator, 'viewer');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.status).toBe(403);
     expect(res.body.data).toBeUndefined();
@@ -383,19 +409,31 @@ describe('the operator header', () => {
     const bot = await account('bot');
     const stranger = await human();
 
-    expect((await serviceSwitch(bot, serviceToken(app), stranger)).status).toBe(403);
+    expect((await grantedServiceSwitch(bot, app, stranger)).status).toBe(403);
   });
 
-  it('refuses an operator the app was revoked by (403)', async () => {
-    // Automatic first-party delegation must not mean unrevocable. The human
-    // holds `account:act_as` and everything else is in order; the refusal is
-    // theirs alone.
+  it('refuses a trusted app with no explicit operator grant (403)', async () => {
     const app = await seedApp();
     const bot = await account('bot');
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const before = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await serviceSwitch(bot, serviceToken(app), operator);
+
+    expect(res.status).toBe(403);
+    expect(res.body.data).toBeUndefined();
+    expect(await sessionRowsFor(bot)).toHaveLength(0);
+  });
+
+  it('refuses an operator the app grant was revoked by (403)', async () => {
+    // The human explicitly consents and holds `account:act_as`; after revoke,
+    // the refusal marker wins even if a stale grant row were recreated.
+    const app = await seedApp();
+    const bot = await account('bot');
+    const operator = await human();
+    await member(bot, operator, 'admin');
+
+    const before = await grantedServiceSwitch(bot, app, operator);
     expect(before.status).toBe(200);
 
     await revokeServiceActingAs(operator, app.appId);
@@ -421,7 +459,7 @@ describe('the target account', () => {
     const operator = await human();
     await member(person, operator, 'admin');
 
-    const res = await serviceSwitch(person, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(person, app, operator);
 
     expect(res.status).toBe(403);
     expect(res.body.data).toBeUndefined();
@@ -438,7 +476,7 @@ describe('the target account', () => {
     const operator = await human();
     await member(channel, operator, 'admin');
 
-    const res = await serviceSwitch(channel, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(channel, app, operator);
 
     expect(res.status).toBe(403);
     expect(await sessionRowsFor(channel)).toHaveLength(0);
@@ -448,7 +486,7 @@ describe('the target account', () => {
     const app = await seedApp();
     const operator = await human();
 
-    const res = await serviceSwitch(randomUUID(), serviceToken(app), operator);
+    const res = await grantedServiceSwitch(randomUUID(), app, operator);
 
     expect(res.status).toBe(404);
     expect(res.body.data).toBeUndefined();
@@ -460,7 +498,7 @@ describe('the target account', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    expect((await serviceSwitch(bot, serviceToken(app), operator)).status).toBe(404);
+    expect((await grantedServiceSwitch(bot, app, operator)).status).toBe(404);
   });
 
   /**
@@ -479,7 +517,7 @@ describe('the target account', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.status).toBe(200);
     expect(claims(res.body.data?.accessToken ?? '').sub).toBe(bot);
@@ -494,7 +532,7 @@ describe('the target account', () => {
       const operator = await human();
       await member(target, operator, 'admin');
 
-      const res = await serviceSwitch(target, serviceToken(app), operator);
+      const res = await grantedServiceSwitch(target, app, operator);
 
       expect(res.status).toBe(200);
       expect(claims(res.body.data?.accessToken ?? '').sub).toBe(target);
@@ -513,7 +551,7 @@ describe('a successful mint', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.status).toBe(200);
     const accessToken = res.body.data?.accessToken;
@@ -557,7 +595,7 @@ describe('a successful mint', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
     const payload = claims(res.body.data?.accessToken ?? '') as Record<string, unknown>;
 
     expect('azp' in payload).toBe(false);
@@ -582,7 +620,7 @@ describe('a successful mint', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.body.data?.user?.id).toBe(bot);
     expect(res.body.data?.user?.id).not.toBe(operator);
@@ -606,6 +644,7 @@ describe('device attribution', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
+    await grantOffline(app, operator);
     const first = await serviceSwitch(bot, serviceToken(app), operator);
     const second = await serviceSwitch(bot, serviceToken(app), operator);
 
@@ -627,7 +666,7 @@ describe('device attribution', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const res = await serviceSwitch(bot, serviceToken(app), operator);
+    const res = await grantedServiceSwitch(bot, app, operator);
 
     expect(res.body.data?.deviceId).toBe(
       deriveServiceDeviceId(bot, `service:${app.appId}:${bot}`)
@@ -647,8 +686,8 @@ describe('device attribution', () => {
     const operator = await human();
     await member(bot, operator, 'admin');
 
-    const fromAlia = await serviceSwitch(bot, serviceToken(alia), operator);
-    const fromOther = await serviceSwitch(bot, serviceToken(other), operator);
+    const fromAlia = await grantedServiceSwitch(bot, alia, operator);
+    const fromOther = await grantedServiceSwitch(bot, other, operator);
 
     expect(fromAlia.body.data?.deviceId).not.toBe(fromOther.body.data?.deviceId);
     expect(await sessionRowsFor(bot)).toHaveLength(2);
@@ -667,8 +706,8 @@ describe('device attribution', () => {
     await member(bot, first, 'admin');
     await member(bot, second, 'admin');
 
-    const one = await serviceSwitch(bot, serviceToken(app), first);
-    const two = await serviceSwitch(bot, serviceToken(app), second);
+    const one = await grantedServiceSwitch(bot, app, first);
+    const two = await grantedServiceSwitch(bot, app, second);
 
     expect(one.body.data?.deviceId).toBe(two.body.data?.deviceId);
     expect(one.body.data?.sessionId).not.toBe(two.body.data?.sessionId);

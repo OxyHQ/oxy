@@ -24,6 +24,7 @@ import { computeIdentityTag, fnv1a32 } from './utils/cacheKey';
 import { redactUrlQuery } from './utils/redactUrl';
 import type { OxyConfig } from './models/interfaces';
 import type { DeviceSecretMintOutcome } from './session/refresh';
+import { OxyAuthenticationError } from './OxyServices.errors';
 
 /**
  * Check if we're running in a native app environment (React Native, not web)
@@ -42,6 +43,20 @@ interface JwtPayload {
 export type AuthRefreshReason = 'preflight' | 'response-401';
 export type AuthRefreshHandler = (reason: AuthRefreshReason) => Promise<string | null>;
 export type AccessTokenProvider = () => string | null;
+
+/**
+ * A low-level authenticated request whose response body remains unread.
+ *
+ * This is intended for streaming protocols such as SSE. The body must already
+ * be serialised so it can be replayed once after an access-token refresh.
+ */
+export interface AuthenticatedResponseRequest {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  url: string;
+  body?: string;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+}
 
 /**
  * Structural type that captures the multipart-write surface every supported
@@ -1283,6 +1298,77 @@ export class HttpService {
     const alpha = 0.1;
     this.requestMetrics.averageResponseTime =
       this.requestMetrics.averageResponseTime * (1 - alpha) + duration * alpha;
+  }
+
+  /**
+   * Send an authenticated request without consuming its response body.
+   *
+   * Regular {@link request} calls parse the body before returning. Streaming
+   * consumers instead need the original `Response`, while retaining the same
+   * token ownership and one-time 401 refresh behaviour as every SDK request.
+   * No SDK timeout is installed after the connection opens: the caller-owned
+   * abort signal defines the lifetime of a healthy stream.
+   */
+  async requestAuthenticatedResponse(config: AuthenticatedResponseRequest): Promise<Response> {
+    const authHeader = await this.getAuthHeader();
+    if (!authHeader) {
+      throw new OxyAuthenticationError(
+        'An active Oxy session is required for this request',
+        'AUTH_REQUIRED',
+      );
+    }
+
+    return this.requestAuthenticatedResponseAttempt(config, authHeader, false);
+  }
+
+  private async requestAuthenticatedResponseAttempt(
+    config: AuthenticatedResponseRequest,
+    authHeader: string,
+    isAuthRetry: boolean,
+  ): Promise<Response> {
+    const startTime = Date.now();
+    const headers = new Headers(config.headers);
+    if (!headers.has('Accept')) {
+      headers.set('Accept', 'application/json');
+    }
+    // Authentication is owned by this SDK instance. A caller cannot replace
+    // the bearer with a different session or leak one across linked apps.
+    headers.set('Authorization', authHeader);
+
+    try {
+      const fullUrl = this.buildURL(config.url);
+      const response = await fetch(fullUrl, {
+        method: config.method,
+        headers,
+        body: config.method === 'GET' ? undefined : config.body,
+        signal: config.signal,
+        credentials: this.getCredentialsMode(fullUrl),
+      });
+
+      if (response.status === 401 && !isAuthRetry) {
+        const refreshed = await this.refreshAccessToken('response-401');
+        if (refreshed) {
+          await response.body?.cancel();
+          return this.requestAuthenticatedResponseAttempt(config, `Bearer ${refreshed}`, true);
+        }
+
+        this.tokenStore.clearTokens();
+        this.tokenStore.clearCsrfToken();
+        this.notifyTokenChange();
+      }
+
+      const duration = Date.now() - startTime;
+      this.updateMetrics(response.ok, duration);
+      this.config.onRequestEnd?.(config.url, config.method, duration, response.ok);
+      return response;
+    } catch (error: unknown) {
+      const duration = Date.now() - startTime;
+      this.updateMetrics(false, duration);
+      this.config.onRequestEnd?.(config.url, config.method, duration, false);
+      const normalizedError = error instanceof Error ? error : new Error(String(error));
+      this.config.onRequestError?.(config.url, config.method, normalizedError);
+      throw handleHttpError(normalizedError);
+    }
   }
 
   // Convenience methods

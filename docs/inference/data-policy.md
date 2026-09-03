@@ -174,8 +174,12 @@ a route that retains nothing cannot train on customer data. A route claiming
 either is reporting one of its own fields wrongly, and a customer constraint
 would then be enforced against a value that is not true.
 
-**The catalogue is empty**, so there is no route whose data policy you can read
-today. When there is, `oxy.inference().getModel(id)` returns it.
+Merged source contains the reviewed exact-route bootstrap, but its presence does
+not prove an operator applied it. The last recorded production readback was
+empty on 2026-08-17. For any entry visible to the caller now,
+`oxy.inference().getModel(id)` returns its conservative policy projection. Query
+the live audience rather than assuming either the dated empty state or source
+bootstrap reflects current production.
 
 ---
 
@@ -191,9 +195,10 @@ plane.
 
 ### Where a request would run
 
-A deployment declares its `regions`, and a catalogue entry reports them to you.
-That is the serving side, and it is the data plane's — Oxy publishes the fact,
-the data plane owns the placement.
+A deployment declares its attested `regions`, and a catalogue entry reports
+them to you. An empty list is an explicit absence of regional attestation, not
+an invented global region. That is the serving side, and it is the data plane's
+— Oxy publishes the fact, the data plane owns the placement.
 
 ### The residency and retention controls are enforced
 
@@ -208,7 +213,9 @@ Two readings decided in the implementation, both the stricter one:
 
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it MAY serve from, and which it picks is the data plane's — so a
-  route that may run outside your allowed set does not qualify.
+  route that may run outside your allowed set does not qualify. A deployment
+  with no attested regions fails both an allow-list and a deny-list; it can be
+  selected only when neither regional control is configured.
 - **`requireZeroDataRetention` needs the route to actually not retain.**
   `zeroDataRetentionAvailable` is a capability; a route that has it and still
   retains by default is excluded.
@@ -223,13 +230,15 @@ state: the constraints were stored, versioned and read by nothing, so every
 visible signal said they were in force. Measured on `main` at `da404475`,
 2026-08-16.
 
-**You cannot observe it yet.** The catalogue is empty, so no candidate is ever
-filtered in practice — every model you name answers `model_not_found` first. Once
-there is a catalogue, verify by reading the chosen route's own `dataPolicy` and
+Do not infer enforcement from an empty catalogue or a parked serving task. Verify
+the deployed path with an eligible route and a deliberately excluded route, then
+read the chosen deployment's own `dataPolicy`, exact `deploymentId` and attested
 `regions` back rather than trusting the policy alone.
 
-The two price ceilings and `optimiseFor` are the exceptions and are NOT
-enforced — see [routing.md](./routing.md#not-enforced).
+Both price ceilings are enforced during qualification and `optimiseFor` ranks
+the survivors from reviewed deployment scorecards — see
+[the price ceilings](./routing.md#the-price-ceilings) and
+[ranking after qualification](./routing.md#ranking-after-qualification).
 
 ---
 

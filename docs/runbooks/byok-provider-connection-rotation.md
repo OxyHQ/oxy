@@ -6,7 +6,7 @@ in Kaana PostgreSQL. Oxy stores control-plane metadata, a Kaana-minted opaque
 handle and an exact revision; it never stores provider credential plaintext or
 ciphertext and never returns a fingerprint or digest.
 
-[ADR 0013](../adr/0013-byok-secret-custody.md) is the binding decision and
+[ADR 0019](../adr/0019-kaana-byok-custody.md) is the binding decision and
 [the BYOK mechanism doc](../inference/byok.md) describes the cross-service state
 machine. The only signed Kaana origin is `https://kaana.ai`.
 
@@ -16,7 +16,7 @@ reports validation. Do not execute customer BYOK changes until every launch gate
 in [the mechanism doc](../inference/byok.md#launch-gates) is verified against the
 deployed Oxy and Kaana revisions.
 
-## Trigger
+## Triggers
 
 - **The upstream key leaked or was rotated at the provider.** Rotate the
   connection to the replacement value. If spend is leaking, disable first.

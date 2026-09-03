@@ -6,14 +6,17 @@ developer-facing reading of
 [ADR 0008](../adr/0008-catalogue-concept-separation.md), which is the decision
 record.
 
-**The catalogue is empty today.** The tables and the read API exist; what they
-hold does not. `packages/api/scripts/seed-inference-catalogue.ts` seeds five
-publisher slugs and **no models**, because the repository does not record which
-weights Oxy can actually serve, under which contract, at what price. Every read
-returns nothing.
+**Merged source publishes no model rows merely by deploying the API.** The
+tables and read API exist; `seed-inference-catalogue.ts` seeds publisher slugs,
+while `bootstrap-kaana-catalogue.ts` is the separate reviewed, safe-by-default
+command for exact model, revision, deployment, pricing, score and routing-profile
+rows. It requires a fresh signed Kaana inventory and `APPLY=1`. The last
+production readback recorded here (2026-08-17) was empty; that is dated evidence,
+not a permanent assertion. Query the live audience before claiming that the
+catalogue is empty or available.
 
-There are therefore no example model ids on this page that you can call. The
-ones below illustrate the grammar and are not claims that Oxy serves them.
+No example model id on this page is a callability claim. The values below
+illustrate grammar; discover actual entries from the live audience-scoped read.
 
 ---
 
@@ -74,13 +77,12 @@ Two features, two switches, and conflating them is what the platform's
 A request that named a concrete revision is never subject to cross-model
 fallback, whatever the policy says.
 
-**Neither is executed.** A switch between routes happens mid-request, and that
-is routing EXECUTION, which belongs to the data plane — and there is no data
-plane. What does exist is the authorisation: a cross-model substitution is
-refused unless the destination is named in the policy version's own
-authorisation rows, so the first implementation cannot quietly collapse the
-distinction. [routing.md](./routing.md#fallback-two-features-two-switches) is the
-detail.
+Both mechanisms exist in merged Oxy and Kaana source. Runtime execution walks
+only the signed exact-ID order; a cross-model substitution is refused unless the
+destination is named in the policy version's own authorization rows. That source
+fact is not a production canary: verify the live audience, inventory, signed
+request and customer-visible route switch before calling failover deployed.
+[routing.md](./routing.md#fallback-two-features-two-switches) has the detail.
 
 ---
 
@@ -113,18 +115,19 @@ const one: ModelCatalogueEntry = await inference.getModel('acme/some-model');
 const profiles: RoutingProfile[] = await inference.listRoutingProfiles();
 ```
 
-Run that today and `models` is `[]` and `getModel('acme/some-model')` throws a
-404 — `acme/some-model` is written there to show the id GRAMMAR, not because Oxy
-serves it. Nothing is wrong with your credential. The client is
-[sdk.md](./sdk.md).
+`acme/some-model` is written there to show the id GRAMMAR, not because Oxy serves
+it, and `getModel('acme/some-model')` therefore throws 404. `models` is `[]`
+whenever the caller's live audience has no published entries; that answer alone
+does not distinguish an empty catalogue from a deliberately withheld audience.
+The client is [sdk.md](./sdk.md).
 
 Types come from `@oxyhq/contracts` directly — `@oxyhq/services` does not
 re-export them, and neither does `@oxyhq/core`.
 
 Three behaviours to code against:
 
-- **`[]` is a normal answer**, and is the only answer today. Render "no models
-  available"; do not treat it as an error.
+- **`[]` is a normal answer.** Render "no models available"; do not treat it as
+  a retryable error or infer production rollout state from it.
 - **`getModel` takes a model id, not a model reference.** A pinned
   `<publisher>/<model>@<revision>` is rejected client-side rather than sent,
   because the catalogue is keyed on models and a pinned reference would 404
@@ -163,15 +166,17 @@ wholesale cost can reach you by being nested one level deeper than anyone looked
   and whether attribution is required.
 - **Provenance** — `first_party_original`, `first_party_derived`, `open_weight`
   or `third_party_hosted`, plus the base model where there is one.
-- **Data policy** — whether payloads are retained and for how long, whether the
-  route trains on customer data, whether zero data retention is available, and
-  the named subprocessors. Structured rather than prose, because your routing
-  policy is enforced against these fields — see "A route that your policy forbids
-  is a refusal" below.
-- **Regions** and the customer-safe **serving providers**.
-- **Pricing** — a price snapshot, absent for routes you cannot buy per-unit
-  (BYOK-only, internal).
-- **Availability scope** and **commercial permission** — see below.
+- **Data policy** — the conservative guarantee across every visible deployment:
+  any retention or training applies, the longest retention applies, zero-data-
+  retention availability requires every route, subprocessors are the union, and
+  a policy URL appears only when all routes agree. Structured rather than prose,
+  because your routing policy is enforced against route-level fields — see "A
+  route that your policy forbids is a refusal" below.
+- **Regions** and the customer-safe **serving providers**, aggregated as unions.
+- **Pricing** — one price snapshot only when every visible route names the same
+  resolvable price version; otherwise absent.
+- **Availability scope** and **commercial permission** — each present only when
+  every visible route agrees; see below.
 - **Deprecation** — status plus the replacement to migrate to. An `active` model
   has no sunset date; the deprecation must be announced first.
 - **Evaluations, safety metadata and model-card URL** — these hang off a
@@ -195,6 +200,13 @@ empty rather than merely unpopulated: default-deny is the starting state, and a
 route becomes public when somebody reviews the right to resell it, not when it
 starts answering.
 
+The catalogue never chooses a "primary" deployment to fill these singular
+fields. In particular, it never sorts by availability scope, provider slug,
+display name or database order and then presents that row's commercial terms as
+the model's terms. Disagreement is represented conservatively by aggregation or
+by omitting the singular field. The execution route is selected later under the
+priority-score-exact-ID contract in [routing.md](./routing.md#ranking-after-qualification).
+
 ## A route that your policy forbids is a refusal
 
 Your routing policy is resolved on every request and its version is recorded on
@@ -216,7 +228,9 @@ reasonable:
 - **`allowedRegions` is a subset test, not an overlap.** A deployment declares
   every region it may serve from, and which one it picks is the data plane's
   decision — so a route that may run outside your allowed set cannot honour a
-  residency requirement and does not qualify.
+  residency requirement and does not qualify. Empty means no regional
+  attestation, so the route fails closed under either an allow-list or a
+  deny-list and is eligible only when neither is configured.
 - **`requireZeroDataRetention` needs the route to actually not retain**, not
   merely to be capable of zero retention. `zeroDataRetentionAvailable` is a
   capability; a route carrying it while still retaining payloads by default is
@@ -233,15 +247,31 @@ are kept distinct because only one of them is yours to fix.
 the route is actually charged at: a rate above your ceiling, a price in a
 currency your ceiling is not quoted in, and a route with no published price at
 all are all excluded. A unit the route's price does not charge for is not.
-`maxPricePerRequest` bounds the route's flat per-request fee here; the estimated
-cost of one particular request is the edge's check and is not implemented, so it
-is not yet a complete spend control. Full rules:
+Kaana reports `requests: 1` exactly once per attempted request, so every servable
+price version declares that unit explicitly; zero is valid and absence is
+incomplete pricing. The catalogue can cheaply prefilter a route whose flat
+`requests` fee alone breaks `maxPricePerRequest`, because no possible token count
+can make that route affordable.
+
+That prefilter is not the final decision. For each explicit profile priority,
+the edge quotes the complete maximum cost of this request against every
+candidate's pinned price version, including `requests: 1`, the input ceiling and
+the applicable maximum output partitions. It excludes totals above the cap and
+currencies that do not match. Within the first priority that retains a route,
+score descending and exact deployment ID choose the first survivor. If the
+caller omitted an output ceiling, that survivor's maximum fixes the implicit
+output ceiling before lower priorities are resolved for capacity. A priority
+whose routes all exceed the cap fixes nothing, so the next priority is evaluated
+against its own candidates. If no route survives the full price check, the edge
+returns `policy_violation` (403) before reservation and before Kaana. Full rules:
 [routing.md](./routing.md#the-price-ceilings).
 
-`optimiseFor` is the one control that is not enforced: it ranks the routes that
-already qualify, and ranking belongs to the data plane (ADR 0006). The
-classification is kept in code, beside the filter, in
-`UNFILTERED_ROUTING_CONTROLS`, and a control in neither list fails the build.
+`optimiseFor` is not a qualification predicate: after every applicable control
+has filtered the candidates, Oxy ranks them by explicit routing-profile
+priority, then the selected score descending, then exact deployment ID by
+ECMAScript UTF-16 code units. Kaana executes that signed order and does not
+derive another from names or inventory order. Full rule:
+[routing.md](./routing.md#ranking-after-qualification).
 
 ## What Oxy never exposes
 

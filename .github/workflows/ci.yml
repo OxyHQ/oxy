@@ -23,6 +23,7 @@ jobs:
           bash .github/scripts/test-verify-reused-service-credential.sh
           bash .github/scripts/test-put-secure-parameter.sh
           bash .github/scripts/test-run-native-product-agent-bootstrap.sh
+          bash .github/scripts/test-smoke-inbox-mcp.sh
           node scripts/test-check-kaana-dns-boundary.mjs
           node scripts/check-kaana-dns-boundary.mjs
           node scripts/test-service-credential-workflow-ids.mjs

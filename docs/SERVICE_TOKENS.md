@@ -161,10 +161,11 @@ is not a failure — it means the service acts as itself, and `req.userId` is
 
 ### Who may be acted for
 
-**First-party Oxy applications are automatic.** The platform does not ask a user
-to authorize one Oxy app to act for them in another — from the user's side it is
-one product. This is the same stance `app_grants` already takes, auto-approving
-trusted applications on the consent path and recording no grant row for them.
+**Every application needs explicit user consent.** Platform trust permits an
+application to hold a service credential; it does not permit that credential to
+borrow an arbitrary person's identity. The user must approve the
+consent-required `acting-as:offline` scope, which writes a per-(user,
+application) `app_grants` row.
 
 Resolution order, and the order is the security property:
 
@@ -173,38 +174,21 @@ Resolution order, and the order is the security property:
 | 1 | the user revoked this application | no |
 | 2 | the application is missing or not `active` | no |
 | 3 | the user granted it `acting-as:offline` | yes, with the **grant's** scopes |
-| 4 | the application is platform-**trusted** | yes, with the **application's** scopes |
-| 5 | otherwise | no |
+| 4 | otherwise | no |
 
-Revocation is checked **first**, so it wins over everything after it, trust
-included — a revocation consulted only for non-trusted applications would do
-nothing for exactly the applications that need it. Trust is checked **last**
-because it is the weakest claim on the list: it says the platform vouches for the
-application, not that this user did.
-
-A user who has never interacted with a first-party application is authorized.
-That is the default now, not an oversight.
-
-**The cost, stated rather than implied: a leaked first-party service credential
-can act as any user who has not explicitly revoked that application.** The gate
-is a platform fact ("is this app trusted") instead of a per-user one ("did this
-user agree"), so one stolen credential reaches the whole user base rather than
-the set of people who opted in. That is the price of automatic; it was accepted
-deliberately, and it is what makes credential rotation and the `credentialId`
-claim's revocation story load-bearing rather than nice to have.
+Revocation is checked **first**, so it wins over a stale or concurrently
+recreated grant. Trust is deliberately absent from this resolution: it is a
+credential-mint decision, not a per-user consent decision. A user who has never
+approved `acting-as:offline` is refused, including for an official application.
+This bounds a leaked first-party credential to users who explicitly opted in.
 
 ### Revocation
 
 `DELETE /auth/grants/:applicationId` is the one user action. It deletes the
 `app_grants` row if there is one **and** writes a marker to
-`service_acting_as_revocations`, so the user need not know whether what they had
-was an OAuth grant or an automatic first-party delegation.
-
-The marker exists because for an automatic application there is no grant row to
-delete. Absence cannot carry the answer in either direction: a user who never
-connected anything has no row and must not read as refusing, and absence cannot
-mean authorized on its own either — the trusted+active check decides that,
-separately.
+`service_acting_as_revocations`. The marker makes an explicit refusal win even
+if a stale or racing writer recreates the grant; absence of a grant always means
+unauthorized.
 
 It is a marker table rather than a column on `app_grants` because a revocation
 row living in the grant table would be a row whose presence means the opposite of
@@ -218,8 +202,8 @@ authorize names `acting-as:offline` — a scope that is privileged (staff-only o
 application's ceiling) and consent-required (never auto-approved, whoever the
 application is), so a request carrying it always reaches a consent screen.
 Clearing on any successful authorize would have made revocation worthless: a
-first-party application is auto-approved, so its next sign-in would silently undo
-a deliberate refusal.
+a weaker authorize can still be auto-approved for a first-party application and
+must not silently undo a deliberate refusal.
 
 ### Non-trusted applications
 
@@ -234,7 +218,7 @@ agreed to.
 | | source | says |
 |---|---|---|
 | `req.serviceApp.scopes` | credential ∩ application ceiling, at mint | what the PLATFORM allows this app to do |
-| `req.serviceActingAs.scopes` | the grant row, or the application's ceiling | what the USER allows it to do |
+| `req.serviceActingAs.scopes` | the explicit grant row | what the USER allows it to do |
 
 `oxy.requireScope(s)` requires `s` in **both** for a delegated request, and in
 `serviceApp.scopes` alone for a request acting as itself. The intersection is
@@ -242,12 +226,8 @@ the point: only the app scope would let an app do to a user what that user never
 consented to; only the grant would let a user hand an app authority staff never
 gave it.
 
-Note what the second row means on the **automatic** path: with no per-user
-decision to narrow by, the verify endpoint returns the application's own ceiling,
-so the intersection narrows nothing and the effective authority is the token's
-scopes. That is the honest consequence of automatic consent rather than an
-oversight. On the **grant** path it returns the grant's scopes, which do narrow,
-because there the user chose them.
+There is no automatic path. The verify endpoint returns the grant's scopes, so
+the user's decision always narrows the token.
 
 ### Who may call the verify endpoint
 

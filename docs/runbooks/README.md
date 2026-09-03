@@ -69,7 +69,7 @@ the tokens signed under the retired key cannot be re-signed.
 - Application and machine credentials: `packages/api/src/db/schema/applicationCredentials.ts`
   (the lifecycle and both CHECK biconditionals), `packages/api/src/utils/credentialUsability.ts`
   (the single usability predicate), `packages/api/src/routes/applications.ts`.
-- BYOK: [ADR 0013](../adr/0013-byok-secret-custody.md),
+- BYOK: [ADR 0019](../adr/0019-kaana-byok-custody.md),
   `packages/api/src/services/inferenceProviderConnection.service.ts`,
   `packages/api/src/services/kaanaCredentialControl.ts`.
 - Oxy → Kaana edge signing: [ADR 0015](../adr/0015-oxy-kaana-envelope-signing.md),

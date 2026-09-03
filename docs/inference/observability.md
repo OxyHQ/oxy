@@ -106,12 +106,13 @@ metric surface that is correctly zero. The edge now fills them:
 - **`time_to_first_token_ms`** — forwarded from the data plane's usage report
   when it reports one, and left NULL when it does not. Never imputed: the first
   token is produced upstream, and a fabricated number here would enter every
-  dashboard as a fact. It is NULL on every row today because **no deployment
-  configures a data plane**, not because the edge cannot stream — it can, on both
-  public dialects, since the signed Kaana hop landed.
+  dashboard as a fact. The 2026-08-17 production readback recorded by this
+  workstream found it NULL; verify live rows before repeating that claim. The
+  edge can stream on both public dialects when the signed Kaana path is
+  configured.
 - **`route_switches`** — forwarded from the same report, and surfaced as a
-  `route_switch` frame on both dialects. This is the fallback metric; it is `0` on
-  every row today for the same reason.
+  `route_switch` frame on both dialects. This is the fallback metric; a zero means
+  no switch was recorded for that row, not that production cannot fail over.
 
 ### What each named metric is derivable from, today
 
@@ -122,7 +123,7 @@ metric surface that is correctly zero. The edge now fills them:
 | Cancellation | `outcome = 'cancelled'` on the event and the rollup | Yes |
 | Total latency | `inference_usage_events.latency_ms` | Yes, per event — the rollup carries no latency column, and adding one is a migration |
 | Time to first token | `inference_usage_events.time_to_first_token_ms` | Column ready, edge streams; NULL until a data plane is CONFIGURED and reports one |
-| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready, edge forwards it; `0` until a configured data plane switches a route. **The `serving_provider` column is NOT updated alongside it** — see below |
+| Fallback | `inference_usage_events.route_switches`, and `inference_route_switch_events` for the customer-visible receipt | Column ready, edge forwards it; `0` until a configured data plane switches a route. A serving-provider dimension is valid only from v2 usage evidence whose exact `deploymentId` resolves to one signed route — see below |
 | Reserve failures | `inference_usage_events` rows with `status_code = 402` (`insufficient_balance`, `spending_limit_exceeded`), plus the `inference.edge.reservation_refused` log line | Yes |
 | Settlement lag | `usage_receipts.settled_at − usage_reservations.created_at`, joined on `usage_receipts.reservation_id` | Yes |
 | Reconciliation drift | `billing_reconciliation_runs` / `_discrepancies`, filled by the scheduled pass | Yes — see [Reconciliation drift is a stream](#reconciliation-drift-is-a-stream-not-a-staff-triggered-pass) |
@@ -189,11 +190,13 @@ that is correctly zero, and the second reading is the one a dashboard takes.
 was.** That claim was true and stopped being true: since the signed Kaana hop
 landed the edge streams both public dialects, forwards the data plane's own
 `timeToFirstTokenMs` and `routeSwitches` when a usage report carries them, and
-surfaces `route_switch` frames on both dialects. What is absent is a **data
-plane**. `resolveKaanaDataPlane()` answers `absent` unless `KAANA_BASE_URL`,
-`KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` are all set, and
-no deployment sets them — so nothing has ever streamed and no route has ever
-switched.
+surfaces `route_switch` frames on both dialects. What may still be absent is an
+**enabled, live data-plane lane**. `resolveKaanaDataPlane()` answers `absent` unless `KAANA_BASE_URL`,
+`KAANA_EDGE_SIGNING_KEY_ID` and `KAANA_EDGE_SIGNING_PRIVATE_KEY` are all set.
+The deployment workflow now wires those exact values but independently pins
+`INFERENCE_KAANA_EXECUTION=disabled`; source and configuration therefore do not
+prove that anything has streamed or switched. Only a live enabled canary and its
+telemetry can establish that.
 
 That distinction gets a **field, not a comment**, because it is the one that will
 matter the day Kaana is deployed: `dataPlane` on the payload reports
@@ -259,19 +262,23 @@ column would have answered wrongly rather than not at all. The window is bounded
 ninety days for the same reason: a wider one cannot yield more samples, so
 answering it would misstate the range the numbers cover.
 
-### The provider dimension is absent, and that is a known gap
+### Provider metrics use execution identity, not configuration identity
 
-No metric on this route is broken down by serving provider. The edge writes
-`route.provider` — the provider it ADMITTED — at all nine of its telemetry,
-receipt and rollup sites, and never reads `completion.usage.servingProvider`, the
-provider the data plane REPORTS. A same-model failover would therefore be billed
-and recorded against the original provider, so a per-provider error rate served
-here would be confidently wrong for exactly the traffic it exists to explain.
-Because `inference_usage_daily_rollups`' primary key includes `serving_provider`,
-that traffic also folds into the wrong rollup bucket permanently. A follow-up fixes
-the write side; this surface declines to publish the dimension until then rather
-than publish it misattributed. `inferenceReporting.service.ts` still groups the
-customer's own usage by provider and inherits the same gap.
+The v2 terminal usage report and partial streamed `usage` event both require an
+exact `deploymentId`. The edge resolves that ID to exactly one route in the
+signed `authorizedRoutes` before a measured settlement, telemetry event or
+rollup may use its provider. The terminal report must additionally match that
+route's revision-pinned model and provider. Missing, unauthorized, ambiguous or
+contradictory identity is rejected; the edge never substitutes the originally
+admitted provider for measured evidence from a route switch.
+
+Keep admission/configuration metrics and execution metrics distinct. When no
+valid usage evidence arrived, an estimated zero-unit settlement can state only
+the admitted route because no served deployment was measured; it must not be
+presented as a provider execution measurement. Production readiness of a
+provider breakdown still requires a real failover and readback proving the event,
+receipt and `inference_usage_daily_rollups.serving_provider` all name the route
+resolved from the same exact ID.
 
 ### Reconciliation drift is a stream, not a staff-triggered pass
 
@@ -388,9 +395,9 @@ rather than assuming an oversight.
   check plus balance-row serialization — so what is missing is the notification,
   not the guarantee. Shape and owner: above.
 - **Alerts for provider error and cost spikes** — the same, and additionally
-  blocked twice over: on a provider existing to have an error rate, and on the
-  reported-vs-admitted provider gap described above, which would make a
-  per-provider rate wrong before anyone alerted on it.
+  blocked on live v2 failover/readback proof that the exact deployment identity
+  feeds the event, receipt and provider rollup consistently before anyone alerts
+  on that dimension.
 - **Audit dashboards for credential and billing changes** — the tables and their
   read functions exist (`listCredentialAuditEvents`, the provider-connection
   audit read); no Console surface renders them yet, which is workstream 9's
@@ -494,8 +501,8 @@ schema change and a policy decision rather than an observability one:
   own role, because they are the ones with no compensating control: a wrongly
   approved catalogue route is retired again, a wrongly issued grant is money.
 
-Two further workstream-12 items are **out of scope here and unbuilt**: rate limits
-and fraud controls before prepaid public inference (gated on a launch that cannot
-happen — there is no data plane — and on anomaly detection, which is its own body
-of work), and the privacy/security review gate on public launch, which is a
-process decision rather than code.
+Two further workstream-12 items are **out of scope here**: end-to-end rate-limit
+verification and fraud controls before prepaid public inference (Kaana has its
+edge guardrail, while anomaly detection remains its own body of work), and the
+privacy/security review gate on public launch, which is a process decision rather
+than code.
