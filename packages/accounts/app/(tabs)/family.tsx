@@ -10,7 +10,13 @@ import type { ConnectedApp } from '@oxyhq/core';
 import { useHapticPress } from '@/hooks/use-haptic-press';
 import { useTranslation } from '@/lib/i18n';
 import { ConnectedAppRow } from '@/components/connected-apps/connected-app-row';
-import { useConnectedApps, useRevokeAppGrant } from '@/hooks/useConnectedApps';
+import { Section } from '@/components/section';
+import {
+  useConnectedApps,
+  useConnectedMcpClients,
+  useRevokeAppGrant,
+  useRevokeConnectedMcpClient,
+} from '@/hooks/useConnectedApps';
 
 /** True when the string is an absolute http(s) URL (vs. a bare Oxy file id). */
 function isAbsoluteUrl(value: string): boolean {
@@ -36,14 +42,16 @@ export default function ThirdPartyConnectionsScreen() {
   // session is guaranteed by the time this screen mounts.
   const { oxyServices } = useOxy();
   const { data, isLoading, isFetching, error, refetch } = useConnectedApps();
+  const mcpClients = useConnectedMcpClients();
   const revoke = useRevokeAppGrant();
-  const apps = data ?? [];
+  const revokeMcp = useRevokeConnectedMcpClient();
+  const apps = useMemo(() => data ?? [], [data]);
 
   const handlePressIn = useHapticPress();
 
   const handleRefresh = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await Promise.all([refetch(), mcpClients.refetch()]);
+  }, [mcpClients, refetch]);
 
   // Resolve each app's logo once: a full URL is used as-is, a bare file id is
   // turned into a download URL via the canonical media chokepoint.
@@ -87,6 +95,24 @@ export default function ThirdPartyConnectionsScreen() {
     [revoke, t],
   );
 
+  const handleRevokeMcp = useCallback((grantId: string, clientName: string) => {
+    alert(
+      t('connectedApps.revokeMcpConfirmTitle', { name: clientName }),
+      t('connectedApps.revokeMcpConfirmMessage'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('connectedApps.revokeConfirmAction'),
+          style: 'destructive',
+          onPress: () => revokeMcp.mutate(grantId, {
+            onSuccess: () => toast.success(t('connectedApps.revokeSuccess')),
+            onError: (err: unknown) => toast.error(err instanceof Error ? err.message : t('connectedApps.revokeFailed')),
+          }),
+        },
+      ],
+    );
+  }, [revokeMcp, t]);
+
   const renderList = () => {
     if (apps.length === 0) {
       return (
@@ -99,24 +125,73 @@ export default function ThirdPartyConnectionsScreen() {
     }
 
     return (
-      <AccountCard>
-        {apps.map((app, index) => (
-          <ConnectedAppRow
-            key={app.applicationId}
-            app={app}
-            logoUri={logoUris[app.applicationId]}
-            isFirst={index === 0}
-            hasDivider={index > 0}
-            isRevoking={revoke.isPending && revoke.variables === app.applicationId}
-            onRevoke={() => handleRevoke(app)}
+      <Section title={t('connectedApps.oxyApps')} isFirst>
+        <AccountCard>
+          {apps.map((app, index) => (
+            <ConnectedAppRow
+              key={app.applicationId}
+              app={app}
+              logoUri={logoUris[app.applicationId]}
+              isFirst={index === 0}
+              hasDivider={index > 0}
+              isRevoking={revoke.isPending && revoke.variables === app.applicationId}
+              onRevoke={() => handleRevoke(app)}
+            />
+          ))}
+        </AccountCard>
+      </Section>
+    );
+  };
+
+  const renderMcpClients = () => {
+    const grants = mcpClients.data ?? [];
+    return (
+      <Section title={t('connectedApps.externalMcp')}>
+        <ThemedText style={styles.sectionSubtitle}>{t('connectedApps.externalMcpHint')}</ThemedText>
+        {grants.length === 0 ? (
+          <EmptyStateCard
+            icon="connection"
+            title={t('connectedApps.noMcpClients')}
+            subtitle={t('connectedApps.noMcpClientsHint')}
           />
-        ))}
-      </AccountCard>
+        ) : (
+          <AccountCard>
+            {grants.map((grant, index) => (
+              <View
+                key={grant.id}
+                style={[
+                  styles.mcpRow,
+                  index > 0 && { borderTopColor: colors.border, borderTopWidth: StyleSheet.hairlineWidth },
+                ]}
+              >
+                <View style={styles.mcpDetails}>
+                  <ThemedText style={styles.mcpTitle}>{grant.clientName}</ThemedText>
+                  <ThemedText style={styles.mcpMeta}>{grant.appSlug} · {grant.resource}</ThemedText>
+                  <ThemedText style={styles.mcpMeta}>{grant.scopes.join(' · ')}</ThemedText>
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={t('connectedApps.revokeA11y', { name: grant.clientName })}
+                  disabled={revokeMcp.isPending && revokeMcp.variables === grant.id}
+                  onPress={() => handleRevokeMcp(grant.id, grant.clientName)}
+                  style={[styles.mcpRevoke, { borderColor: colors.error }]}
+                >
+                  {revokeMcp.isPending && revokeMcp.variables === grant.id ? (
+                    <ActivityIndicator size="small" color={colors.error} />
+                  ) : (
+                    <Text style={[styles.mcpRevokeText, { color: colors.error }]}>{t('connectedApps.revoke')}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ))}
+          </AccountCard>
+        )}
+      </Section>
     );
   };
 
   // Loading state (initial fetch only — background refetches keep the list).
-  if (isLoading) {
+  if (isLoading || mcpClients.isLoading) {
     return (
       <ScreenContentWrapper>
         <View style={[styles.container, styles.loadingContainer, { backgroundColor: colors.background }]}>
@@ -130,8 +205,9 @@ export default function ThirdPartyConnectionsScreen() {
   }
 
   // Error state with a retry affordance.
-  if (error) {
-    const message = error instanceof Error ? error.message : t('connectedApps.loadFailed');
+  if (error || mcpClients.error) {
+    const loadError = error ?? mcpClients.error;
+    const message = loadError instanceof Error ? loadError.message : t('connectedApps.loadFailed');
     return (
       <ScreenContentWrapper>
         <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -160,16 +236,18 @@ export default function ThirdPartyConnectionsScreen() {
       <>
         <ScreenHeader title={t('family.title')} subtitle={t('family.subtitle')} />
         {renderList()}
+        {renderMcpClients()}
       </>
     );
   }
 
   return (
-    <ScreenContentWrapper refreshing={isFetching && !isLoading} onRefresh={handleRefresh}>
+    <ScreenContentWrapper refreshing={(isFetching || mcpClients.isFetching) && !isLoading} onRefresh={handleRefresh}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.mobileContent}>
           <ScreenHeader title={t('family.title')} subtitle={t('family.subtitle')} />
           {renderList()}
+          {renderMcpClients()}
         </View>
       </View>
     </ScreenContentWrapper>
@@ -218,4 +296,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
+  sectionSubtitle: { fontSize: 14, opacity: 0.7 },
+  mcpRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16 },
+  mcpDetails: { flex: 1, gap: 3 },
+  mcpTitle: { fontSize: 15, fontWeight: '600' },
+  mcpMeta: { fontSize: 12, opacity: 0.7 },
+  mcpRevoke: { borderWidth: 1, borderRadius: 8, minWidth: 76, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
+  mcpRevokeText: { fontSize: 13, fontWeight: '600' },
 });

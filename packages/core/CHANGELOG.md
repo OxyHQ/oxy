@@ -1,5 +1,15 @@
 # Changelog — `@oxyhq/core`
 
+## Unreleased
+
+### Added
+
+- Native agency-authority methods for catalog discovery, resource-scoped agent
+  grants, account autonomy policies, execution-authority revocation, and the
+  correlated audit trail used by Oxy Settings.
+- Resource-bound external MCP connections can now be listed and revoked without
+  exposing access or refresh tokens to clients.
+
 ## 23.2.0
 
 ### Added
