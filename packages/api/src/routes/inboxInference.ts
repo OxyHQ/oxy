@@ -8,11 +8,13 @@ import {
   inboxSmartRepliesResponseSchema,
   inboxThreadSummaryResponseSchema,
   type InboxComposeRequest,
+  type InboxDailyBriefRequest,
 } from '@oxyhq/contracts';
 import { authMiddleware, type AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { rateLimit } from '../middleware/rateLimiter';
 import { emailService, type MessageDto } from '../services/email.service';
+import { getInboxDailyBriefCounts } from '../services/inboxDailyBrief.service';
 import {
   executeInboxPointInference,
   inboxCompletionText,
@@ -150,14 +152,12 @@ router.post('/compose', validate({ body: inboxComposeRequestSchema }), asyncHand
 }));
 
 router.post('/daily-brief', validate({ body: inboxDailyBriefRequestSchema }), asyncHandler(async (request: AuthRequest, response) => {
-  const recent = await emailService.listMessages(userId(request), null, { limit: 100, offset: 0 });
-  const counts = {
-    total: recent.total,
-    recent: recent.data.length,
-    unread: recent.data.filter((message) => !message.flags.seen).length,
-    starred: recent.data.filter((message) => message.flags.starred).length,
-    withAttachments: recent.data.filter((message) => message.attachments.length > 0).length,
-  };
+  const body = request.body as InboxDailyBriefRequest;
+  const counts = await getInboxDailyBriefCounts(
+    userId(request),
+    new Date(body.startAt),
+    new Date(body.endAt),
+  );
   const input: InboxPointInferenceInput = {
     userId: userId(request),
     feature: 'daily_brief',
@@ -169,7 +169,7 @@ router.post('/daily-brief', validate({ body: inboxDailyBriefRequestSchema }), as
     temperature: 0.7,
     signal: signalFor(response),
   };
-  if (request.body.stream === true) {
+  if (body.stream === true) {
     await streamText(response, input);
     return;
   }

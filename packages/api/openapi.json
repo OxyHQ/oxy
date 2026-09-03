@@ -11490,10 +11490,22 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "startAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "endAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
                   "stream": {
                     "type": "boolean"
                   }
-                }
+                },
+                "required": [
+                  "startAt",
+                  "endAt"
+                ]
               }
             }
           }
