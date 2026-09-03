@@ -322,15 +322,27 @@ jobs:
             [ -n "$result_line" ] && break
             sleep 3
           done
+          result=${result_line#KAANA_SIGNED_CANARY_RESULT=}
           if [ "$exit_code" != 0 ] || [ -z "$result_line" ]; then
-            echo '::group::canary scoped CloudWatch log'
-            jq -r '.events[].message | select(startswith("KAANA_SIGNED_CANARY_RESULT=") | not)' <<<"$log_json"
-            echo '::endgroup::'
+            if [ -n "$result_line" ] && jq -e '
+              (type == "object") and
+              ((keys | sort) == ["code","oxyLedgerWrites","providerRequests","schemaVersion","status"]) and
+              .schemaVersion == 1 and
+              .status == "failed" and
+              (.code | type == "string" and test("^[a-z0-9][a-z0-9_-]{0,127}$")) and
+              ((.providerRequests == 0) or (.providerRequests == "at_most_2")) and
+              .oxyLedgerWrites == 0
+            ' <<<"$result" >/dev/null; then
+              echo '──────── signed canary failure (allowlisted fields only) ────────'
+              jq -c '{schemaVersion,status,code,providerRequests,oxyLedgerWrites}' <<<"$result"
+              echo '────────────────────────────────────────────────────────────────────────'
+            elif [ -n "$result_line" ]; then
+              echo '::error::canary emitted an unsafe or invalid failure result envelope'
+            fi
             echo "::error::signed canary failed (exit=$exit_code, result_present=$([ -n "$result_line" ] && echo yes || echo no))"
             exit 1
           fi
 
-          result=${result_line#KAANA_SIGNED_CANARY_RESULT=}
           jq -e \
             --arg snapshot "$CANARY_EXPECTED_SNAPSHOT_ID" \
             --arg deployment "$CANARY_DEPLOYMENT_ID" \

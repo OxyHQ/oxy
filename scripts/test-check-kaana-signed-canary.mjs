@@ -155,6 +155,36 @@ try {
     'oxy-api:latest',
   );
   verdict(unpinnedImage, 1);
+
+  const unboundedFailureEnvelope = fixture();
+  roots.push(unboundedFailureEnvelope);
+  mutate(
+    unboundedFailureEnvelope,
+    '.github/workflows/kaana-signed-canary.yml',
+    '((keys | sort) == ["code","oxyLedgerWrites","providerRequests","schemaVersion","status"])',
+    'true',
+  );
+  verdict(unboundedFailureEnvelope, 1);
+
+  const leakedFailureRequestId = fixture();
+  roots.push(leakedFailureRequestId);
+  mutate(
+    leakedFailureRequestId,
+    '.github/workflows/kaana-signed-canary.yml',
+    "jq -c '{schemaVersion,status,code,providerRequests,oxyLedgerWrites}'",
+    "jq -c '{schemaVersion,status,code,providerRequests,oxyLedgerWrites,requestId}'",
+  );
+  verdict(leakedFailureRequestId, 1);
+
+  const freeFormFailureLogs = fixture();
+  roots.push(freeFormFailureLogs);
+  mutate(
+    freeFormFailureLogs,
+    '.github/workflows/kaana-signed-canary.yml',
+    "echo '::error::canary emitted an unsafe or invalid failure result envelope'",
+    "jq -r '.events[].message' <<<\"$log_json\"",
+  );
+  verdict(freeFormFailureLogs, 1);
 } finally {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 }

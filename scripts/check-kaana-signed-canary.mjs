@@ -78,6 +78,31 @@ requireMatch(
   'the ECS task must execute the reviewed canary from the live image',
 );
 
+const failureBranch = workflow.slice(
+  workflow.indexOf('if [ "$exit_code" != 0 ]'),
+  workflow.indexOf('\n\n          jq -e \\\n            --arg snapshot'),
+);
+requireMatch(
+  failureBranch,
+  /\(\(keys \| sort\) == \["code","oxyLedgerWrites","providerRequests","schemaVersion","status"\]\)[\s\S]*?\.schemaVersion == 1[\s\S]*?\.status == "failed"/,
+  'the failure path must reject every field outside the exact operator-safe envelope',
+);
+requireMatch(
+  failureBranch,
+  /\.code \| type == "string" and test\("\^\[a-z0-9\]\[a-z0-9_-\]\{0,127\}\$"\)[\s\S]*?\.providerRequests == 0[\s\S]*?\.providerRequests == "at_most_2"[\s\S]*?\.oxyLedgerWrites == 0/,
+  'the failure path must validate the diagnostic code and bounded write counters before display',
+);
+requireMatch(
+  failureBranch,
+  /jq -c '\{schemaVersion,status,code,providerRequests,oxyLedgerWrites\}' <<<"\$result"/,
+  'the failure path must display only the five allowlisted diagnostic fields',
+);
+forbid(
+  failureBranch,
+  /jq -r '\.events\[\]\.message|\{schemaVersion,status,code,providerRequests,oxyLedgerWrites,[^}]*\}|requestId|request_id|content|secret/i,
+  'the failure path must not dump free-form logs, request ids, content, secrets or extra result fields',
+);
+
 const minimizedTask = workflow.slice(
   workflow.indexOf('canary_task_json=$(jq'),
   workflow.indexOf("canary_task_definition=''"),
