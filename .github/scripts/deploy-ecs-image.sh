@@ -14,6 +14,7 @@ fi
 CONTAINER_NAME="${CONTAINER_NAME:-$APP}"
 MAX_WAIT_SECS="${MAX_WAIT_SECS:-1200}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
+ONE_SHOT_START_MAX_WAIT_SECS="${ONE_SHOT_START_MAX_WAIT_SECS:-300}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
@@ -43,6 +44,11 @@ if ! [[ "$MAX_WAIT_SECS" =~ ^[0-9]+$ ]] || (( MAX_WAIT_SECS < 1 )); then
 fi
 if ! [[ "$POLL_INTERVAL" =~ ^[0-9]+$ ]] || (( POLL_INTERVAL < 1 )); then
   echo "::error::POLL_INTERVAL must be a positive integer."
+  exit 1
+fi
+if ! [[ "$ONE_SHOT_START_MAX_WAIT_SECS" =~ ^[0-9]+$ ]] ||
+   (( ONE_SHOT_START_MAX_WAIT_SECS < 1 )); then
+  echo "::error::ONE_SHOT_START_MAX_WAIT_SECS must be a positive integer."
   exit 1
 fi
 if [[ "$RUN_MIGRATIONS" != "true" && "$RUN_MIGRATIONS" != "false" ]]; then
@@ -396,7 +402,11 @@ print_one_shot_logs() {
 run_one_shot_command() {
   local label="$1"
   local command_json="$2"
+  local retry_fargate_capacity="${3:-false}"
   local overrides run_json task_json exit_code stopped_reason container_reason
+  local start_wait_elapsed=0
+  local retry_sleep service_retry_json service_retry_status
+  local service_retry_task_definition service_retry_desired service_retry_running service_retry_pending
 
   overrides="$(jq -cn \
     --arg name "$CONTAINER_NAME" \
@@ -408,15 +418,61 @@ run_one_shot_command() {
       }]
     }')"
 
-  if ! run_json="$(aws "${one_shot_run_task_args[@]}" --overrides "$overrides")"; then
-    echo "::error::ECS failed to start the $label task."
-    return 1
-  fi
-  if [[ "$(jq '.failures | length' <<<"$run_json")" != "0" ]]; then
-    echo "::error::ECS refused to start the $label task."
-    jq '.failures' <<<"$run_json"
-    return 1
-  fi
+  while :; do
+    if ! run_json="$(aws "${one_shot_run_task_args[@]}" --overrides "$overrides")"; then
+      echo "::error::ECS failed to start the $label task."
+      return 1
+    fi
+    if [[ "$(jq '.failures | length' <<<"$run_json")" == "0" ]]; then
+      break
+    fi
+    if [[ "$retry_fargate_capacity" != "true" ]] ||
+       ! jq -e '
+         (.failures | type == "array" and length > 0) and
+         all(
+           .failures[];
+           (.reason // "") == "RESOURCE:CPU" or
+           ((.reason // "") | ascii_downcase | contains("limit on the number of vcpus you can run concurrently"))
+         )
+       ' <<<"$run_json" >/dev/null; then
+      echo "::error::ECS refused to start the $label task."
+      jq '.failures' <<<"$run_json"
+      return 1
+    fi
+    if (( start_wait_elapsed >= ONE_SHOT_START_MAX_WAIT_SECS )); then
+      echo "::error::ECS still could not start the $label task after waiting ${ONE_SHOT_START_MAX_WAIT_SECS}s for Fargate vCPU capacity."
+      jq '.failures' <<<"$run_json"
+      return 1
+    fi
+
+    retry_sleep="$POLL_INTERVAL"
+    if (( start_wait_elapsed + retry_sleep > ONE_SHOT_START_MAX_WAIT_SECS )); then
+      retry_sleep=$((ONE_SHOT_START_MAX_WAIT_SECS - start_wait_elapsed))
+    fi
+    echo "::warning::Fargate vCPU capacity refused $label; waiting ${retry_sleep}s before the next bounded retry."
+    sleep "$retry_sleep"
+    start_wait_elapsed=$((start_wait_elapsed + retry_sleep))
+
+    if ! service_retry_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")" ||
+       [[ "$(jq '.failures | length' <<<"$service_retry_json")" != "0" ]] ||
+       [[ "$(jq '.services | length' <<<"$service_retry_json")" != "1" ]]; then
+      echo "::error::Refusing to retry $label because the ECS service state could not be read."
+      return 1
+    fi
+    service_retry_status="$(jq -r '.services[0].status // "NONE"' <<<"$service_retry_json")"
+    service_retry_task_definition="$(jq -r '.services[0].taskDefinition // empty' <<<"$service_retry_json")"
+    service_retry_desired="$(jq -r '.services[0].desiredCount // empty' <<<"$service_retry_json")"
+    service_retry_running="$(jq -r '.services[0].runningCount // 0' <<<"$service_retry_json")"
+    service_retry_pending="$(jq -r '.services[0].pendingCount // 0' <<<"$service_retry_json")"
+    if [[ "$service_retry_status" != "ACTIVE" ||
+          "$service_retry_task_definition" != "$new_task_definition" ||
+          ! "$service_retry_desired" =~ ^[0-9]+$ ]] ||
+       (( service_retry_desired < 1 )); then
+      echo "::error::Refusing to retry $label because $APP no longer has the deployed task definition active at positive desiredCount."
+      return 1
+    fi
+    echo "::notice::Retrying $label after confirming $APP is ACTIVE at the deployed task definition with desired=$service_retry_desired running=$service_retry_running pending=$service_retry_pending."
+  done
 
   active_one_shot_task_arn="$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")"
   if [[ -z "$active_one_shot_task_arn" ]]; then
@@ -451,14 +507,27 @@ run_one_shot_command() {
 }
 
 rollback_service() {
-  local rollback_json rollback_deployment_id
+  local rollback_json rollback_deployment_id rollback_service_json rollback_desired_count
 
-  echo "::warning::Rolling $APP back to $current_task_definition."
+  if ! rollback_service_json="$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP")" ||
+     [[ "$(jq '.failures | length' <<<"$rollback_service_json")" != "0" ]] ||
+     [[ "$(jq '.services | length' <<<"$rollback_service_json")" != "1" ]]; then
+    echo "::error::ECS service state could not be read before rollback."
+    return 1
+  fi
+  rollback_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$rollback_service_json")"
+  if ! [[ "$rollback_desired_count" =~ ^[0-9]+$ ]] ||
+     (( rollback_desired_count < 1 )); then
+    echo "::error::Refusing rollback at a missing or zero desiredCount (current: ${rollback_desired_count:-missing})."
+    return 1
+  fi
+
+  echo "::warning::Rolling $APP back to $current_task_definition while preserving current desiredCount=$rollback_desired_count."
   if ! rollback_json="$(aws ecs update-service \
     --cluster "$CLUSTER" \
     --service "$APP" \
     --task-definition "$current_task_definition" \
-    --desired-count "$service_desired_count" \
+    --desired-count "$rollback_desired_count" \
     --deployment-configuration '{
       "deploymentCircuitBreaker": {"enable": true, "rollback": true},
       "minimumHealthyPercent": 100,
@@ -740,7 +809,8 @@ fi
 if [[ -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; then
   if ! run_one_shot_command \
     "Post-deploy reconciliation" \
-    "$POST_DEPLOY_TASK_COMMAND_JSON"; then
+    "$POST_DEPLOY_TASK_COMMAND_JSON" \
+    true; then
     echo "::error::Post-deploy reconciliation failed."
     if ! rollback_service; then
       echo "::error::Reconciliation and rollback both failed; manual intervention is required."
@@ -752,7 +822,7 @@ fi
 while IFS= read -r post_deploy_task; do
   post_deploy_label="$(jq -r '.label' <<<"$post_deploy_task")"
   post_deploy_command="$(jq -c '.command' <<<"$post_deploy_task")"
-  if ! run_one_shot_command "$post_deploy_label" "$post_deploy_command"; then
+  if ! run_one_shot_command "$post_deploy_label" "$post_deploy_command" true; then
     echo "::error::$post_deploy_label failed."
     if ! rollback_service; then
       echo "::error::$post_deploy_label and rollback both failed; manual intervention is required."
