@@ -293,6 +293,11 @@ const adoptionEnd = bootstrap.indexOf(
 assert.notEqual(adoptionStart, -1, 'adoption diagnostic anchor must exist');
 assert.notEqual(adoptionEnd, -1, 'adoption diagnostic end must exist');
 const adoptionBlock = bootstrap.slice(adoptionStart, adoptionEnd);
+assert.match(
+  adoptionBlock,
+  /if \(boundApplicationId !== null\) \{\s*throw new NativeProductAgentAccountAdoptionReviewError\(/,
+  'an existing exact Homiio project must stop at the fail-closed adoption review gate',
+);
 assert.match(adoptionBlock, /new NativeProductAgentAccountAdoptionReviewError\(/);
 assert.match(adoptionBlock, /await observeBoundApplication\(tx, boundApplicationId\)/);
 assert.doesNotMatch(
