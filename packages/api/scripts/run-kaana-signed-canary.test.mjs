@@ -5,6 +5,8 @@ import test from 'node:test';
 import {
   KaanaCanaryError,
   readKaanaCanaryConfig,
+  readKaanaLiveDeployments,
+  readKaanaSigningConfig,
   runKaanaSignedCanary,
 } from './run-kaana-signed-canary.mjs';
 
@@ -22,8 +24,8 @@ function runtime() {
     KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
     KAANA_EDGE_SIGNING_PRIVATE_KEY: pem,
     CANARY_CONTRACT_VERSION: '2.0.0',
+    CANARY_EXPECTED_SNAPSHOT_ID: 'snap-live-exact',
     CANARY_DEPLOYMENT_ID: DEPLOYMENT_ID,
-    CANARY_MODEL_REFERENCE: MODEL_REFERENCE,
     CANARY_ROUTING_PROFILE_ID: ROUTING_PROFILE_ID,
     CANARY_ROUTING_POLICY_ID: ROUTING_POLICY_ID,
     CANARY_ROUTING_POLICY_VERSION: '7',
@@ -31,7 +33,11 @@ function runtime() {
     CANARY_APPLICATION_ID: 'app_exact',
     CANARY_CREDENTIAL_ID: 'cred_exact',
   };
-  return { config: readKaanaCanaryConfig(env), publicKey };
+  return {
+    config: readKaanaCanaryConfig(env),
+    signingConfig: readKaanaSigningConfig(env),
+    publicKey,
+  };
 }
 
 function signingInput(keyId, timestamp, body) {
@@ -201,6 +207,7 @@ test('runs every closed negative before exactly two one-token positive probes', 
   assert.equal(result.providerRequests, 2);
   assert.equal(result.oxyLedgerWrites, 0);
   assert.equal(result.snapshotId, 'snap-live-exact');
+  assert.equal(result.modelReference, MODEL_REFERENCE);
   assert.equal(result.cases.length, 6);
 
   assert.equal(inferenceBodies[0].schemaVersion, 1);
@@ -267,8 +274,8 @@ test('refuses noncanonical origins, enabled ambient execution and fuzzy exact ID
     KAANA_EDGE_SIGNING_KEY_ID: 'oxy-edge-test',
     KAANA_EDGE_SIGNING_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
     CANARY_CONTRACT_VERSION: '2.0.0',
+    CANARY_EXPECTED_SNAPSHOT_ID: 'snap-live-exact',
     CANARY_DEPLOYMENT_ID: DEPLOYMENT_ID,
-    CANARY_MODEL_REFERENCE: MODEL_REFERENCE,
     CANARY_ROUTING_PROFILE_ID: ROUTING_PROFILE_ID,
     CANARY_ROUTING_POLICY_ID: ROUTING_POLICY_ID,
     CANARY_ROUTING_POLICY_VERSION: '1',
@@ -280,10 +287,10 @@ test('refuses noncanonical origins, enabled ambient execution and fuzzy exact ID
   for (const changed of [
     { KAANA_BASE_URL: 'https://kaana.oxy.so' },
     { INFERENCE_KAANA_EXECUTION: 'enabled' },
+    { CANARY_EXPECTED_SNAPSHOT_ID: ' snap-live-exact' },
     { CANARY_DEPLOYMENT_ID: ` ${DEPLOYMENT_ID}` },
     { CANARY_ROUTING_PROFILE_ID: `${ROUTING_PROFILE_ID} ` },
     { CANARY_ROUTING_POLICY_ID: `${ROUTING_POLICY_ID}\tcopy` },
-    { CANARY_MODEL_REFERENCE: 'openai/gpt-oss-120b' },
   ]) {
     assert.throws(() => readKaanaCanaryConfig({ ...base, ...changed }), KaanaCanaryError);
   }
@@ -351,4 +358,97 @@ test('refuses a positive whose start event disagrees with the signed exact route
       error.code === 'v1-direct-model_did_not_complete_exact_route',
   );
   assert.equal(inferenceCalls, 5);
+});
+
+test('lists the complete signed safe deployment projection without selecting or executing', async () => {
+  const { signingConfig, publicKey } = runtime();
+  const paths = [];
+  const fetchImpl = async (url, init) => {
+    const body = readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    paths.push(path);
+    if (path === '/internal/v1/health') {
+      assert.equal(body, undefined);
+      return json({ contractVersion: '2.0.0' });
+    }
+    assert.equal(path, '/internal/v1/deployments/query');
+    assert.deepEqual(body, {});
+    return json({
+      snapshotId: 'snap-live-exact',
+      deployments: [
+        {
+          deploymentId: 'dep_z_exact',
+          modelReference: 'openai/gpt-oss-120b@2026-08-05',
+          provider: 'cerebras',
+          regions: ['us-west-2'],
+        },
+        {
+          deploymentId: 'dep_a_exact',
+          modelReference: 'meta/llama-3.3-70b@2026-08-01',
+          provider: 'groq',
+          regions: [],
+        },
+      ],
+    }, 200, { 'Cache-Control': 'no-store' });
+  };
+
+  const result = await readKaanaLiveDeployments(signingConfig, fetchImpl);
+  assert.equal(result.snapshotId, 'snap-live-exact');
+  assert.deepEqual(result.deployments.map((deployment) => deployment.deploymentId), [
+    'dep_z_exact',
+    'dep_a_exact',
+  ]);
+  assert.deepEqual(paths, ['/internal/v1/health', '/internal/v1/deployments/query']);
+});
+
+test('refuses a readback descriptor that exposes any field outside the safe projection', async () => {
+  const { signingConfig, publicKey } = runtime();
+  const fetchImpl = async (url, init) => {
+    readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    return json({
+      snapshotId: 'snap-live-exact',
+      deployments: [{
+        deploymentId: DEPLOYMENT_ID,
+        modelReference: MODEL_REFERENCE,
+        provider: 'cerebras',
+        regions: [],
+        upstreamModelId: 'must-never-cross-the-operator-surface',
+      }],
+    }, 200, { 'Cache-Control': 'no-store' });
+  };
+
+  await assert.rejects(
+    () => readKaanaLiveDeployments(signingConfig, fetchImpl),
+    (error) => error instanceof KaanaCanaryError &&
+      error.code === 'invalid_deployment_descriptor',
+  );
+});
+
+test('refuses a changed serving snapshot before any inference probe', async () => {
+  const { config, publicKey } = runtime();
+  let calls = 0;
+  const fetchImpl = async (url, init) => {
+    readAndVerifyRequest(publicKey, url, init);
+    calls += 1;
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    assert.equal(path, '/internal/v1/deployments/query');
+    return json({
+      snapshotId: 'snap-changed-after-readback',
+      deployments: [{
+        deploymentId: DEPLOYMENT_ID,
+        modelReference: MODEL_REFERENCE,
+        provider: 'cerebras',
+        regions: [],
+      }],
+    }, 200, { 'Cache-Control': 'no-store' });
+  };
+
+  await assert.rejects(
+    () => runKaanaSignedCanary(config, fetchImpl),
+    (error) => error instanceof KaanaCanaryError && error.code === 'snapshot_id_mismatch',
+  );
+  assert.equal(calls, 2);
 });

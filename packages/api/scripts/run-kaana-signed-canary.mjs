@@ -28,6 +28,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 
 const MODEL_REFERENCE_PATTERN =
   /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
+const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
 
 export class KaanaCanaryError extends Error {
   constructor(code) {
@@ -85,8 +86,8 @@ function parsePrivateKey(raw) {
   }
 }
 
-/** Read and validate all operator inputs before making a network request. */
-export function readKaanaCanaryConfig(env = process.env) {
+/** Read the common signed-operator boundary before making a network request. */
+export function readKaanaSigningConfig(env = process.env) {
   if (env.INFERENCE_KAANA_EXECUTION !== 'disabled') {
     fail('ambient_kaana_execution_is_not_disabled');
   }
@@ -94,21 +95,23 @@ export function readKaanaCanaryConfig(env = process.env) {
     fail('kaana_origin_is_not_canonical');
   }
 
-  const modelReference = exactString(env, 'CANARY_MODEL_REFERENCE', 194);
-  if (!MODEL_REFERENCE_PATTERN.test(modelReference)) {
-    fail('invalid_canary_model_reference');
-  }
-
   return {
     baseUrl: CANONICAL_KAANA_ORIGIN,
     keyId: exactString(env, 'KAANA_EDGE_SIGNING_KEY_ID', 128),
     privateKey: parsePrivateKey(secretString(env, 'KAANA_EDGE_SIGNING_PRIVATE_KEY', 16_384)),
     expectedContractVersion: exactString(env, 'CANARY_CONTRACT_VERSION', 32),
+  };
+}
+
+/** Read and validate all canary-only operator inputs before network access. */
+export function readKaanaCanaryConfig(env = process.env) {
+  return {
+    ...readKaanaSigningConfig(env),
+    expectedSnapshotId: exactString(env, 'CANARY_EXPECTED_SNAPSHOT_ID', 256),
     // Deployment ids are opaque inventory identities, not UUIDs. Exactness is
     // proved by the signed live lookup below; no format heuristic selects one
     // and no trimming or normalization is ever applied.
     deploymentId: exactString(env, 'CANARY_DEPLOYMENT_ID', 128),
-    modelReference,
     // Oxy owns both identities and supports legacy ObjectIds beside UUIDv7.
     // Their exact database lookup happens in the separate edge canary.
     routingProfileId: exactString(env, 'CANARY_ROUTING_PROFILE_ID', 128),
@@ -228,15 +231,28 @@ function assertNoStore(response) {
   }
 }
 
+function hasExactKeys(value, keys) {
+  return typeof value === 'object' &&
+    value !== null &&
+    Object.keys(value).sort().join('\u0000') === [...keys].sort().join('\u0000');
+}
+
 function routeFromDescriptor(descriptor) {
   if (
-    typeof descriptor !== 'object' ||
-    descriptor === null ||
+    !hasExactKeys(descriptor, ['deploymentId', 'modelReference', 'provider', 'regions']) ||
     typeof descriptor.deploymentId !== 'string' ||
+    descriptor.deploymentId.length === 0 ||
+    descriptor.deploymentId.length > 128 ||
+    /\s/u.test(descriptor.deploymentId) ||
     typeof descriptor.modelReference !== 'string' ||
+    descriptor.modelReference.length > 194 ||
+    !MODEL_REFERENCE_PATTERN.test(descriptor.modelReference) ||
     typeof descriptor.provider !== 'string' ||
+    descriptor.provider.length > 64 ||
+    !SLUG_PATTERN.test(descriptor.provider) ||
     !Array.isArray(descriptor.regions) ||
-    !descriptor.regions.every((region) => typeof region === 'string')
+    !descriptor.regions.every((region) =>
+      typeof region === 'string' && region.length <= 64 && SLUG_PATTERN.test(region))
   ) {
     fail('invalid_deployment_descriptor');
   }
@@ -249,13 +265,58 @@ function routeFromDescriptor(descriptor) {
   };
 }
 
-async function readLiveDescriptor(config, fetchImpl) {
+function safeDescriptor(route) {
+  return {
+    deploymentId: route.deploymentId,
+    modelReference: route.modelReference,
+    provider: route.provider,
+    regions: route.regions,
+  };
+}
+
+async function requireCompatibleHealth(config, fetchImpl) {
   const health = await signedRequest(config, fetchImpl, 'GET', HEALTH_PATH, undefined, 'application/json');
   if (health.response.status !== 200) fail('health_refused');
   const healthPayload = parseJSON(health.body, 'invalid_health_json');
   if (healthPayload?.contractVersion !== config.expectedContractVersion) {
     fail('contract_version_mismatch');
   }
+}
+
+/** Read the signed serving projection without selecting by name or position. */
+export async function readKaanaLiveDeployments(config, fetchImpl = globalThis.fetch) {
+  await requireCompatibleHealth(config, fetchImpl);
+  const lookup = await signedRequest(
+    config,
+    fetchImpl,
+    'POST',
+    DEPLOYMENTS_PATH,
+    {},
+    'application/json',
+  );
+  assertNoStore(lookup.response);
+  if (lookup.response.status !== 200) fail('deployment_list_refused');
+  const payload = parseJSON(lookup.body, 'invalid_deployment_list_json');
+  if (
+    !hasExactKeys(payload, ['snapshotId', 'deployments']) ||
+    typeof payload?.snapshotId !== 'string' ||
+    payload.snapshotId.length === 0 ||
+    payload.snapshotId.length > 256 ||
+    payload.snapshotId !== payload.snapshotId.trim() ||
+    !Array.isArray(payload.deployments) ||
+    payload.deployments.length === 0
+  ) {
+    fail('invalid_deployment_list');
+  }
+  const deployments = payload.deployments.map(routeFromDescriptor).map(safeDescriptor);
+  if (new Set(deployments.map((descriptor) => descriptor.deploymentId)).size !== deployments.length) {
+    fail('ambiguous_deployment_list');
+  }
+  return { snapshotId: payload.snapshotId, deployments };
+}
+
+async function readLiveDescriptor(config, fetchImpl) {
+  await requireCompatibleHealth(config, fetchImpl);
 
   const lookup = await signedRequest(
     config,
@@ -269,6 +330,7 @@ async function readLiveDescriptor(config, fetchImpl) {
   if (lookup.response.status !== 200) fail('deployment_lookup_refused');
   const payload = parseJSON(lookup.body, 'invalid_deployment_lookup_json');
   if (
+    !hasExactKeys(payload, ['snapshotId', 'deployments']) ||
     typeof payload?.snapshotId !== 'string' ||
     payload.snapshotId.length === 0 ||
     !Array.isArray(payload.deployments) ||
@@ -276,11 +338,11 @@ async function readLiveDescriptor(config, fetchImpl) {
   ) {
     fail('invalid_deployment_lookup');
   }
+  if (payload.snapshotId !== config.expectedSnapshotId) {
+    fail('snapshot_id_mismatch');
+  }
   const route = routeFromDescriptor(payload.deployments[0]);
-  if (
-    route.deploymentId !== config.deploymentId ||
-    route.modelReference !== config.modelReference
-  ) {
+  if (route.deploymentId !== config.deploymentId) {
     fail('deployment_identity_mismatch');
   }
   return { snapshotId: payload.snapshotId, route };
@@ -416,8 +478,8 @@ async function expectSuccess(config, fetchImpl, schemaVersion, target, route) {
   const report = reports[0];
   if (
     start?.type !== 'start' ||
-    start?.deploymentId !== config.deploymentId ||
-    start?.resolvedModelReference !== config.modelReference ||
+    start?.deploymentId !== route.deploymentId ||
+    start?.resolvedModelReference !== route.modelReference ||
     start?.servingProvider !== route.provider ||
     terminal?.type !== 'done' ||
     events.filter((event) => event?.type === 'start').length !== 1 ||
@@ -428,8 +490,8 @@ async function expectSuccess(config, fetchImpl, schemaVersion, target, route) {
     report?.schemaVersion !== 2 ||
     report?.requestId !== probe.requestId ||
     report?.outcome !== 'completed' ||
-    report?.deploymentId !== config.deploymentId ||
-    report?.resolvedModelReference !== config.modelReference ||
+    report?.deploymentId !== route.deploymentId ||
+    report?.resolvedModelReference !== route.modelReference ||
     report?.servingProvider !== route.provider ||
     !Array.isArray(report?.units) ||
     report.units.length === 0
@@ -441,8 +503,8 @@ async function expectSuccess(config, fetchImpl, schemaVersion, target, route) {
     requestId: probe.requestId,
     status: 'passed',
     outcome: report.outcome,
-    deploymentId: report.deploymentId,
-    modelReference: report.resolvedModelReference,
+    deploymentId: route.deploymentId,
+    modelReference: route.modelReference,
     receiptIdPresent: false,
   };
 }
@@ -468,7 +530,7 @@ export async function runKaanaSignedCanary(config, fetchImpl = globalThis.fetch)
     config,
     fetchImpl,
     1,
-    { kind: 'model', modelReference: config.modelReference },
+    { kind: 'model', modelReference: route.modelReference },
     route,
   ));
   cases.push(await expectSuccess(
@@ -485,7 +547,7 @@ export async function runKaanaSignedCanary(config, fetchImpl = globalThis.fetch)
     contractVersion: config.expectedContractVersion,
     snapshotId,
     deploymentId: config.deploymentId,
-    modelReference: config.modelReference,
+    modelReference: route.modelReference,
     routingProfileId: config.routingProfileId,
     providerRequests: 2,
     oxyLedgerWrites: 0,
@@ -510,6 +572,41 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
   }
 }
 
+/** Emit only the signed operator-safe descriptor projection, never content. */
+export async function readbackMain(env = process.env, fetchImpl = globalThis.fetch) {
+  try {
+    const config = readKaanaSigningConfig(env);
+    const result = await readKaanaLiveDeployments(config, fetchImpl);
+    process.stdout.write(`KAANA_SIGNED_DEPLOYMENT_READBACK_RESULT=${JSON.stringify({
+      schemaVersion: 1,
+      status: 'passed',
+      contractVersion: config.expectedContractVersion,
+      snapshotId: result.snapshotId,
+      deploymentCount: result.deployments.length,
+      deployments: result.deployments,
+      providerRequests: 0,
+      oxyLedgerWrites: 0,
+    })}\n`);
+  } catch (error) {
+    const code = error instanceof KaanaCanaryError ? error.code : 'unexpected_readback_failure';
+    process.stdout.write(`KAANA_SIGNED_DEPLOYMENT_READBACK_RESULT=${JSON.stringify({
+      schemaVersion: 1,
+      status: 'failed',
+      code,
+      providerRequests: 0,
+      oxyLedgerWrites: 0,
+    })}\n`);
+    process.exitCode = 1;
+  }
+}
+
 const isEntrypoint = process.argv[1] !== undefined &&
   pathToFileURL(process.argv[1]).href === import.meta.url;
-if (isEntrypoint) await main();
+if (isEntrypoint) {
+  if (process.argv.length === 2) await main();
+  else if (process.argv.length === 3 && process.argv[2] === 'readback') await readbackMain();
+  else {
+    process.stdout.write('KAANA_SIGNED_CANARY_RESULT={"schemaVersion":1,"status":"failed","code":"invalid_operation","providerRequests":0,"oxyLedgerWrites":0}\n');
+    process.exitCode = 1;
+  }
+}

@@ -55,15 +55,27 @@ v1-only image while any Oxy v2 task may still be running.
 
 ## Signed data-plane canary
 
-Use `.github/workflows/kaana-signed-canary.yml` only after its exact live Oxy
-task-definition ARN, immutable image digest and all request identities have
-been reviewed. Every input is required and has no operational default. The
-`deployment_id` and pinned `model_reference` come from Kaana's signed live
-deployment query; the routing-profile/policy and attribution identities come
-from the exact Oxy PostgreSQL rows used for the reviewed inference credential.
-Never copy a provider-credential UUID into `deployment_id`: Kaana deployment
-identities are opaque strings, and only the live signed lookup establishes what
-one means.
+First run `.github/workflows/kaana-signed-deployment-readback.yml` with the
+exact reviewed live Oxy task-definition ARN and immutable image digest. Its
+secret-minimized ECS one-shot signs the literal `{}` body and prints only the
+serving `snapshotId` plus Kaana's operator-safe descriptors:
+`deploymentId`, pinned `modelReference`, `provider` and `regions`. It makes no
+inference request, holds no database binding and writes neither provider usage
+nor the Oxy ledger. The returned array is a projection, not a priority list;
+never select by its position, model name or provider.
+
+Choose one exact `deploymentId` from that signed projection. Then use
+`.github/workflows/kaana-signed-canary.yml` with that id and the exact
+`expected_snapshot_id` from the same readback. Every input is required and has
+no operational default. The canary sends only the exact deployment id in its
+signed lookup and derives `modelReference` from the returned descriptor; there
+is no operator-supplied or checked-in model authority. If the serving snapshot
+changed after readback, the canary fails before every inference probe and the
+operator must run readback again. The routing-profile/policy and attribution
+identities come from the exact Oxy PostgreSQL rows used for the reviewed
+inference credential. Never copy a provider-credential UUID into
+`deployment_id`: Kaana deployment identities are opaque strings, and only the
+live signed lookup establishes what one means.
 
 The workflow refuses unless the Oxy service is at one steady deployment with
 `INFERENCE_KAANA_EXECUTION=disabled`, `KAANA_BASE_URL=https://kaana.ai`, the
@@ -92,7 +104,8 @@ envelope can reach Kaana; this direct canary proves the corresponding
 Kaana's normal technical usage records, but the direct one-shot has no Oxy
 admission, reservation or settlement path and performs zero Oxy ledger writes.
 
-Merging the workflow never dispatches it and never enables ambient Kaana
-execution. Record the workflow run, Kaana snapshot id, exact task/image,
-deployment id, six case results and the zero-ledger-write assertion in the
-release evidence before opening the separate execution-enable change.
+Merging either workflow never dispatches it and never enables ambient Kaana
+execution. Record the readback run, canary run, matching Kaana snapshot id,
+exact task/image, deployment id, descriptor-derived model reference, six case
+results and the zero-ledger-write assertion in the release evidence before
+opening the separate execution-enable change.

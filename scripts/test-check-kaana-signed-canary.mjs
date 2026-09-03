@@ -10,6 +10,7 @@ const repo = process.cwd();
 const gate = join(repo, 'scripts/check-kaana-signed-canary.mjs');
 const files = [
   '.github/workflows/kaana-signed-canary.yml',
+  '.github/workflows/kaana-signed-deployment-readback.yml',
   'packages/api/scripts/run-kaana-signed-canary.mjs',
 ];
 
@@ -104,6 +105,46 @@ try {
     "[ \"$(jq '.deployments | length' <<<\"$service_json\")\" -lt 1 ] || \\",
   );
   verdict(weakenedSteadyState, 1);
+
+  const staleSnapshotAccepted = fixture();
+  roots.push(staleSnapshotAccepted);
+  mutate(
+    staleSnapshotAccepted,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    'payload.snapshotId !== config.expectedSnapshotId',
+    'false',
+  );
+  verdict(staleSnapshotAccepted, 1);
+
+  const selectedReadback = fixture();
+  roots.push(selectedReadback);
+  mutate(
+    selectedReadback,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    "DEPLOYMENTS_PATH,\n    {},\n    'application/json',",
+    "DEPLOYMENTS_PATH,\n    { deploymentId: 'dep_first' },\n    'application/json',",
+  );
+  verdict(selectedReadback, 1);
+
+  const executableReadback = fixture();
+  roots.push(executableReadback);
+  mutate(
+    executableReadback,
+    '.github/workflows/kaana-signed-deployment-readback.yml',
+    'run-kaana-signed-canary.mjs","readback"',
+    'run-kaana-signed-canary.mjs"',
+  );
+  verdict(executableReadback, 1);
+
+  const readbackDatabaseAuthority = fixture();
+  roots.push(readbackDatabaseAuthority);
+  mutate(
+    readbackDatabaseAuthority,
+    '.github/workflows/kaana-signed-deployment-readback.yml',
+    '{name:"KAANA_EDGE_SIGNING_KEY_ID", value:$key_id}',
+    '{name:"KAANA_EDGE_SIGNING_KEY_ID", value:$key_id},\n                    {name:"DATABASE_URL", value:"unsafe"}',
+  );
+  verdict(readbackDatabaseAuthority, 1);
 
   const unpinnedImage = fixture();
   roots.push(unpinnedImage);
