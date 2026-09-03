@@ -183,7 +183,7 @@ function serviceToken(app: SeededApp): string {
       scopes: app.scopes,
     },
     ACCESS_TOKEN_SECRET,
-    { expiresIn: 3600 }
+    { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' }
   );
 }
 
@@ -312,7 +312,7 @@ describe('router gates', () => {
     const userJwt = jwt.sign(
       { type: 'access', userId: operator, sessionId: 'session-1' },
       ACCESS_TOKEN_SECRET,
-      { expiresIn: 3600 }
+      { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' }
     );
 
     const res = await serviceSwitch(bot, userJwt, operator);

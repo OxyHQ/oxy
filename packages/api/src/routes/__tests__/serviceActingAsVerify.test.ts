@@ -125,7 +125,11 @@ function serviceToken(app: SeededApp, options: { expiresIn?: number; secret?: st
       scopes: ['user:read'],
     },
     options.secret ?? ACCESS_TOKEN_SECRET,
-    { expiresIn: options.expiresIn ?? 3600 }
+    {
+      expiresIn: options.expiresIn ?? 3600,
+      issuer: 'oxy-auth',
+      audience: 'oxy-api',
+    }
   );
 }
 
@@ -203,7 +207,7 @@ describe('authentication', () => {
     const userJwt = jwt.sign(
       { type: 'access', userId: subjectUser, sessionId: 'session-1' },
       ACCESS_TOKEN_SECRET,
-      { expiresIn: 3600 }
+      { expiresIn: 3600, issuer: 'oxy-auth', audience: 'oxy-api' }
     );
 
     const res = await verify({ appId: subject.appId, userId: subjectUser }, userJwt);
