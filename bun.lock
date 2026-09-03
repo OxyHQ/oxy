@@ -628,7 +628,7 @@
     },
     "packages/services": {
       "name": "@oxyhq/services",
-      "version": "30.2.4",
+      "version": "30.2.5",
       "dependencies": {
         "@oxyhq/contracts": "workspace:*",
         "@simplewebauthn/browser": "^13.3.0",
