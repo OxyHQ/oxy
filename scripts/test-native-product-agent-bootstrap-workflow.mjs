@@ -7,12 +7,17 @@ const workflow = readFileSync(
   '.github/workflows/bootstrap-native-product-agents.yml',
   'utf8',
 );
+const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
 const wrapper = readFileSync(
   'packages/api/scripts/run-native-product-agent-bootstrap.sh',
   'utf8',
 );
 const bootstrap = readFileSync(
   'packages/api/scripts/bootstrap-native-product-agents.ts',
+  'utf8',
+);
+const failureReporter = readFileSync(
+  '.github/scripts/report-native-product-agent-task-failure.sh',
   'utf8',
 );
 
@@ -62,16 +67,38 @@ assert.match(workflow, /deregister-task-definition/);
 assert.match(workflow, /EXPECTED_PLAN_SHA256/);
 assert.match(workflow, /BOOTSTRAP_ACTOR_INPUT: \$\{\{ github\.actor \}\}/);
 assert.match(workflow, /BOOTSTRAP_REASON/);
-assert.match(workflow, /::group::\$task_label scoped CloudWatch log/);
 assert.match(
   workflow,
-  /select\(startswith\("NATIVE_PRODUCT_AGENTS_RESULT="\) \| not\)/,
-  'failed task logs must be shown without echoing the authenticated result payload',
+  /printf '%s' "\$result_line" \|[\s\S]*report-native-product-agent-task-failure\.sh "\$task_label" "\$exit_code"/,
+  'a failed task must route only its structured result through the allowlisted reporter',
 );
 assert.ok(
   workflow.indexOf('log_json=$(aws logs get-log-events') <
     workflow.indexOf('if [ "$exit_code" != 0 ]'),
   'the exact task log must be fetched before a non-zero exit returns',
+);
+assert.doesNotMatch(
+  workflow,
+  /scoped CloudWatch log|select\(startswith\("NATIVE_PRODUCT_AGENTS_RESULT="\) \| not\)/,
+  'failed tasks must never print free-form CloudWatch messages',
+);
+
+assert.match(failureReporter, /\(keys \| sort\) == \["code","status"\]/);
+assert.match(failureReporter, /\(keys \| sort\) == \["code","planSha256","status"\]/);
+assert.match(
+  failureReporter,
+  /\(keys \| sort\) == \["direction","mode","planSha256","serviceCredentialState"\]/,
+);
+assert.match(failureReporter, /\{code,planSha256\}/);
+assert.doesNotMatch(
+  failureReporter,
+  /\.events|CloudWatch|\{actor|\{reason|\{name|\{secret/,
+  'the reporter must not consume logs or project personal, selector or secret fields',
+);
+assert.match(
+  ci,
+  /bash \.github\/scripts\/test-report-native-product-agent-task-failure\.sh/,
+  'CI must execute the dynamic failure-envelope allowlist and mutation tests',
 );
 
 assert.doesNotMatch(workflow, /\$GITHUB_OUTPUT|--value\b|\$\{\{\s*secrets\./);
