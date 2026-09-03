@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
 # Store one SecureString without ever putting its value in a child process's
-# argv. The value is accepted only on stdin and AWS CLI reads its complete input
-# document from stdin as well.
+# argv. AWS CLI reads the scalar value itself from stdin via its supported
+# `file://` parameter-file form. Do not combine `--cli-input-json` with the
+# stdin device: AWS CLI 2.35 rejects that stream before making the request.
 
 set -euo pipefail
 
@@ -29,16 +30,27 @@ case "$write_mode" in
     ;;
 esac
 
-jq -Rsc \
-  --arg name "$parameter_name" \
-  --arg description "$description" \
-  --argjson overwrite "$overwrite" '
-    if length == 0 then error("secure parameter value is empty") else
-      {
-        Name: $name,
-        Type: "SecureString",
-        Value: .,
-        Overwrite: $overwrite
-      } + (if $description == "" then {} else {Description: $description} end)
-    end
-  ' | aws ssm put-parameter --cli-input-json file:///dev/stdin >/dev/null
+aws_arguments=(
+  ssm put-parameter
+  --name "$parameter_name"
+  --type SecureString
+  --value file:///dev/stdin
+)
+if [ "$overwrite" = true ]; then
+  aws_arguments+=(--overwrite)
+fi
+if [ -n "$description" ]; then
+  aws_arguments+=(--description "$description")
+fi
+
+# Read only one character to reject an empty stream, then forward that character
+# plus the untouched remainder. The complete value is never stored in a shell
+# variable, argument, environment variable or intermediate file.
+if ! IFS= read -r -N 1 first_character; then
+  echo "secure parameter value is empty" >&2
+  exit 64
+fi
+{
+  printf '%s' "$first_character"
+  cat
+} | aws "${aws_arguments[@]}" >/dev/null

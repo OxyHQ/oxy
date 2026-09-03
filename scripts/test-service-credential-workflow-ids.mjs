@@ -96,8 +96,8 @@ assert.doesNotMatch(
   /aws ssm put-parameter|--value\s+"\$(?:OUTPUT_ENCRYPTION_KEY|public_key|secret)"/,
   'the workflow must not put credential values in aws argv',
 );
-assert.match(secureParameterScript, /aws ssm put-parameter --cli-input-json file:\/\/\/dev\/stdin/);
-assert.doesNotMatch(secureParameterScript, /--value/);
+assert.match(secureParameterScript, /--value file:\/\/\/dev\/stdin/);
+assert.doesNotMatch(secureParameterScript, /--cli-input-json\s+file:/);
 
 const inboxReconcile = registryArm(reconcile, canonicalInboxApplicationId);
 const homiioReconcile = registryArm(reconcile, canonicalHomiioApplicationId);
