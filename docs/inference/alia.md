@@ -71,7 +71,7 @@ display name, take the first list result or substitute a fallback.
 
 | Product agent | Project account | Bot account | Alia agent | Bound service app | Service credential |
 |---|---|---|---|---|---|
-| Sindi / Homiio | `01a0646a-078f-72ea-8759-86326484a7e0` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `01a0648e-ad3f-7608-aa8b-c07bfef6cf73` |
+| Sindi / Homiio | `6a50444ce8026582b949089d` | `01a0646a-078f-7974-9645-a5e8be237f47` | `01a0646a-078f-7514-9800-9f43ceed7df8` | `6a2f851751b784a86fd0e922` | `01a0648e-ad3f-7608-aa8b-c07bfef6cf73` |
 | Clarity | `01a0646a-078f-7f53-848d-a0f82d9f7fa6` | `01a0646a-078f-7120-a993-a03c180c81b0` | `01a0646a-078f-7642-95ef-439952f4f3f9` | `01a0648b-8d73-70ad-8e67-1c07ddc5eb6e` | `01a0648b-8d74-7240-adba-80707fdfdf9c` |
 
 Each agent's `oxyAccountId` is its exact bot-account primary key, and each
@@ -79,6 +79,11 @@ service application is owned by the corresponding project account so billing
 lands on that product. Sindi's capability grant is exactly `web`; Clarity's is
 exactly `web`, `artifacts`, and `memory`. A client cannot create or rebind these
 relationships through the public agent API.
+
+Homiio's project row predates this bootstrap and is adopted by its exact
+primary key. Bootstrap verifies its username, account kind, hierarchy, status
+and privacy fields byte for byte; it never renames or replaces the existing
+project to resolve an identity collision.
 
 Clarity's public sign-in application remains separate:
 `01a0646a-2382-74a3-a795-788924d55722`, with only `user:read`. Its agent is bound

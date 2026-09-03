@@ -6,12 +6,12 @@
  * exist only so collisions can be detected and explained.
  */
 export const NATIVE_PRODUCT_AGENTS = {
-  manifestVersion: 1,
+  manifestVersion: 2,
   oxyOrganizationId: '69b2d3df5d12f58c9800d651',
   products: {
     homiio: {
       project: {
-        id: '01a0646a-078f-72ea-8759-86326484a7e0',
+        id: '6a50444ce8026582b949089d',
         username: 'homiio',
         displayName: 'Homiio',
         costCenterSlug: 'homiio',

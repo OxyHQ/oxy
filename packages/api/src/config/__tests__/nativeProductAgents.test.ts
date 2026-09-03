@@ -7,10 +7,11 @@ import {
 describe('native product agent identities', () => {
   it('pins the approved Oxy, app, credential, bot and Alia primary keys', () => {
     expect(NATIVE_PRODUCT_AGENTS).toMatchObject({
+      manifestVersion: 2,
       oxyOrganizationId: '69b2d3df5d12f58c9800d651',
       products: {
         homiio: {
-          project: { id: '01a0646a-078f-72ea-8759-86326484a7e0' },
+          project: { id: '6a50444ce8026582b949089d' },
           bot: { id: '01a0646a-078f-7974-9645-a5e8be237f47' },
           applicationId: '6a2f851751b784a86fd0e922',
           sindiServiceCredential: {
@@ -45,7 +46,7 @@ describe('native product agent identities', () => {
         id: '01a0646a-078f-7514-9800-9f43ceed7df8',
         oxyAccountId: '01a0646a-078f-7974-9645-a5e8be237f47',
         applicationId: '6a2f851751b784a86fd0e922',
-        ownerOxyAccountId: '01a0646a-078f-72ea-8759-86326484a7e0',
+        ownerOxyAccountId: '6a50444ce8026582b949089d',
         product: 'homiio',
         visibility: 'private',
       },
