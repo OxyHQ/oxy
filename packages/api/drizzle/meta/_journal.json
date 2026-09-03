@@ -474,43 +474,43 @@
     {
       "idx": 68,
       "version": "7",
-      "when": 1788377585243,
-      "tag": "0068_natural_slapstick",
-      "breakpoints": true
-    },
-    {
-      "idx": 69,
-      "version": "7",
       "when": 1788381829118,
       "tag": "0069_dazzling_switch",
       "breakpoints": true
     },
     {
-      "idx": 70,
+      "idx": 69,
       "version": "7",
       "when": 1788383170687,
       "tag": "0070_sanitize_legacy_application_icon_urls",
       "breakpoints": true
     },
     {
-      "idx": 71,
+      "idx": 70,
       "version": "7",
       "when": 1788384140834,
       "tag": "0071_spicy_kabuki",
       "breakpoints": true
     },
     {
-      "idx": 72,
+      "idx": 71,
       "version": "7",
       "when": 1788385029811,
       "tag": "0072_powerful_zaran",
       "breakpoints": true
     },
     {
-      "idx": 73,
+      "idx": 72,
       "version": "7",
       "when": 1788385666450,
       "tag": "0073_young_lake",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1788412049466,
+      "tag": "0068_natural_slapstick",
       "breakpoints": true
     }
   ]

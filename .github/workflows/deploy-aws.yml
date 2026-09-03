@@ -20,6 +20,7 @@ on:
       # would change how every deploy behaves and trigger no deploy to
       # exercise the change.
       - ".github/scripts/deploy-ecs-image.sh"
+      - ".github/scripts/put-secure-parameter.sh"
       - ".github/scripts/smoke-inbox-mcp.sh"
   workflow_dispatch:
 
