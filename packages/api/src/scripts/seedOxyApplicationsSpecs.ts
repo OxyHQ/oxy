@@ -322,6 +322,8 @@ export const SEED_APPS: SeedAppSpec[] = [
       'federation:write',
       'signals:write',
       'catalogs:write',
+      'capabilities:read',
+      'capability-audit:write',
     ],
     capabilities: [catalogApplicationCapability('mention')],
   },
