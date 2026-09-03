@@ -57,5 +57,8 @@ dual header support. A request signed for another hostname is not a Kaana reques
 - DNS automation reconciles the `kaana.ai` zone and apex only.
 - Signed-envelope rotation uses `KAANA_EDGE_SIGNING_*` on Oxy and
   `KAANA_EDGE_PUBLIC_KEYS` on Kaana.
+- `scripts/check-kaana-identity.mjs` rejects former repository, hostname,
+  header, environment-binding, source-symbol and inference-prose identities
+  while admitting only exact deployment-removal receipts.
 - Legitimate SMTP, ATProto, device, OAuth and MCP/TNP relay terminology remains
   intact because it denotes a role rather than the retired inference product.

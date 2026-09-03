@@ -36,7 +36,7 @@ const OTHER_SECRET = 'a_secret_the_oxy_issuer_has_never_used_at_all';
 const CLAIMS = {
   type: 'service',
   appId: 'app-1',
-  appName: 'relay',
+  appName: 'kaana',
   credentialId: 'cred-1',
   ownerAccountId: 'owner-account-1',
   environment: 'production',
@@ -70,7 +70,7 @@ describe('the accepted shape', () => {
     expect(result.payload).toMatchObject({
       type: 'service',
       appId: 'app-1',
-      appName: 'relay',
+      appName: 'kaana',
       credentialId: 'cred-1',
       ownerAccountId: 'owner-account-1',
       environment: 'production',

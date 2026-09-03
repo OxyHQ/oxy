@@ -38,7 +38,8 @@ rotation runbook. Deployment explicitly removes its historical task binding.
 Inbox point inference, automatic labelling and card extraction use the metered
 Oxy-to-Kaana path; Alia agent/chat/voice clients address Alia directly. Keep the
 old name only in removal/audit records so a stale task definition cannot retain
-it accidentally.
+it accidentally. `scripts/check-kaana-identity.mjs` limits that exception to the
+exact deploy-removal receipts; a live binding or documentation alias fails CI.
 
 **The infra half is deliberately not duplicated here.** `oxy-infra` owns the
 terraform, the task definitions, the IAM policies and the AWS procedures, and a

@@ -26,6 +26,8 @@ jobs:
           bash .github/scripts/test-smoke-inbox-mcp.sh
           node scripts/test-check-kaana-dns-boundary.mjs
           node scripts/check-kaana-dns-boundary.mjs
+          node scripts/test-check-kaana-identity.mjs
+          node scripts/check-kaana-identity.mjs
           node scripts/test-service-credential-workflow-ids.mjs
           node scripts/test-native-product-agent-bootstrap-workflow.mjs
           node scripts/test-check-kaana-request-v2-rollout.mjs
