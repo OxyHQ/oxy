@@ -27,6 +27,18 @@ const router = Router();
 const JSON_FORMAT = { type: 'json_object' as const };
 const MAX_THREAD_MESSAGES = 30;
 const MAX_THREAD_BODY_CHARS = 800;
+const SMART_REPLY_SENSITIVE_WORDS = [
+  'password', 'passcode', 'one-time code', 'one time code', 'otp', '2fa', 'mfa',
+  'verification code', 'security code', 'reset', 'verify your', 'confirm your account',
+  'banking', 'transaction', 'invoice', 'payment', 'credit card', 'ssn', 'social security',
+] as const;
+const SMART_REPLY_SENSITIVE_PATTERNS = [
+  /\b\d{3}-\d{2}-\d{4}\b/,
+  /\b(?:\d[ -]*?){13,19}\b/,
+  /\b(?:code|pin|otp)\s*[:#-]?\s*\d{4,8}\b/i,
+] as const;
+const SIX_DIGIT_CODE_PATTERN = /\b\d{6}\b/;
+const SECURITY_WORD_PATTERN = /\b(?:code|pin|otp|verify|verification)\b/i;
 
 const inboxAiLimiter = rateLimit({
   prefix: 'rl:email:ai:',
@@ -232,12 +244,19 @@ function messagePrompt(message: MessageDto, bodyLimit: number): string {
   return `From: ${message.from.name || message.from.address}\nSubject: ${message.subject || '(no subject)'}\n\n${plainText(message).slice(0, bodyLimit)}`;
 }
 
+function hasSixDigitCodeBeforeSecurityWord(content: string): boolean {
+  const code = SIX_DIGIT_CODE_PATTERN.exec(content);
+  if (!code) return false;
+  return SECURITY_WORD_PATTERN.test(content.slice(code.index + code[0].length));
+}
+
 function shouldSkipSmartReplies(message: MessageDto): boolean {
   const sender = message.from.address.toLowerCase();
   const content = `${message.subject} ${plainText(message)}`.toLowerCase();
   if (['noreply', 'no-reply', 'donotreply', 'newsletter', 'marketing', 'promo'].some((word) => sender.includes(word))) return true;
-  const words = ['password', 'passcode', 'one-time code', 'one time code', 'otp', '2fa', 'mfa', 'verification code', 'security code', 'banking', 'transaction', 'invoice', 'payment', 'credit card', 'social security'];
-  return words.some((word) => content.includes(word)) || /\b(?:\d[ -]*?){13,19}\b/.test(content) || /\b(?:code|pin|otp)\s*[:#-]?\s*\d{4,8}\b/i.test(content);
+  return SMART_REPLY_SENSITIVE_WORDS.some((word) => content.includes(word))
+    || SMART_REPLY_SENSITIVE_PATTERNS.some((pattern) => pattern.test(content))
+    || hasSixDigitCodeBeforeSecurityWord(content);
 }
 
 function parseModelJson<T>(schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } }, raw: string): T | null {

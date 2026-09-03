@@ -30,16 +30,100 @@ const MODEL_REFERENCE_PATTERN =
   /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?\/[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?@[a-zA-Z0-9](?:[a-zA-Z0-9._-]*[a-zA-Z0-9])?$/;
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/;
 
+// This script runs in the secret-minimized deploy-script job before workspace
+// dependencies are installed, so it cannot import @oxyhq/contracts. The gate
+// holds this local closed set exactly equal to inference/errors.ts.
+const CANARY_INFERENCE_ERROR_CODES = [
+  'invalid_request',
+  'authentication_failed',
+  'permission_denied',
+  'insufficient_scope',
+  'model_not_found',
+  'unsupported_modality',
+  'context_length_exceeded',
+  'request_too_large',
+  'output_limit_exceeded',
+  'idempotency_conflict',
+  'insufficient_balance',
+  'spending_limit_exceeded',
+  'quota_exceeded',
+  'byok_credential_invalid',
+  'policy_violation',
+  'commercial_permission_denied',
+  'no_route_available',
+  'upstream_content_filtered',
+  'cancelled',
+  'rate_limited',
+  'deployment_unavailable',
+  'provider_error',
+  'provider_timeout',
+  'provider_overloaded',
+  'provider_credential_invalid',
+  'provider_billing_refused',
+  'service_unavailable',
+  'internal_error',
+];
+const CANARY_INFERENCE_ERROR_CODE_SET = new Set(CANARY_INFERENCE_ERROR_CODES);
+// The gate holds this wire allowlist exactly equal to the start-event contract.
+// generationId is the contract's only optional key, so both exact shapes are valid.
+const CANARY_START_EVENT_FIELDS = [
+  'schemaVersion',
+  'type',
+  'requestId',
+  'sequence',
+  'generationId',
+  'resolvedModelReference',
+  'servingProvider',
+  'startedAt',
+];
+const CANARY_START_ID_MAX_LENGTH = 128;
+const CANARY_UTC_DATETIME_PATTERN =
+  /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([01][0-9]|2[0-3]):([0-5][0-9])(?::([0-5][0-9])(?:\.([0-9]+))?)?Z$/;
+
 export class KaanaCanaryError extends Error {
-  constructor(code) {
+  constructor(code, inferenceErrorCode) {
     super(code);
     this.name = 'KaanaCanaryError';
     this.code = code;
+    if (CANARY_INFERENCE_ERROR_CODE_SET.has(inferenceErrorCode)) {
+      this.inferenceErrorCode = inferenceErrorCode;
+    }
   }
 }
 
-function fail(code) {
-  throw new KaanaCanaryError(code);
+function fail(code, inferenceErrorCode) {
+  throw new KaanaCanaryError(code, inferenceErrorCode);
+}
+
+function safeInferenceErrorCode(event) {
+  const code = event?.error?.code;
+  return typeof code === 'string' && CANARY_INFERENCE_ERROR_CODE_SET.has(code)
+    ? code
+    : undefined;
+}
+
+function hasExactStartEventFields(event) {
+  if (event === null || typeof event !== 'object' || Array.isArray(event)) return false;
+  const hasGenerationId = Object.prototype.hasOwnProperty.call(event, 'generationId');
+  const expectedFields = CANARY_START_EVENT_FIELDS.filter(
+    (field) => field !== 'generationId' || hasGenerationId,
+  );
+  const actualFields = Object.keys(event);
+  return actualFields.length === expectedFields.length &&
+    expectedFields.every((field) => Object.prototype.hasOwnProperty.call(event, field));
+}
+
+function isContractUtcTimestamp(value) {
+  if (typeof value !== 'string') return false;
+  const match = CANARY_UTC_DATETIME_PATTERN.exec(value);
+  if (match === null) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12) return false;
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day >= 1 && day <= daysInMonth[month - 1];
 }
 
 function exactString(env, name, maxLength) {
@@ -476,15 +560,37 @@ async function expectSuccess(config, fetchImpl, schemaVersion, target, route) {
   const start = events[0];
   const terminal = events.at(-1);
   const report = reports[0];
-  if (events.some((event) => event?.type === 'error')) {
-    fail(`${label}_execution_error_event_present`);
+  const executionErrorEvent = events.find((event) => event?.type === 'error');
+  if (executionErrorEvent !== undefined) {
+    fail(
+      `${label}_execution_error_event_present`,
+      safeInferenceErrorCode(executionErrorEvent),
+    );
   }
   if (events.filter((event) => event?.type === 'start').length !== 1) {
     fail(`${label}_start_event_count_mismatch`);
   }
   if (start?.type !== 'start') fail(`${label}_start_event_not_first`);
-  if (start.deploymentId !== route.deploymentId) {
-    fail(`${label}_start_deployment_mismatch`);
+  if (!hasExactStartEventFields(start)) {
+    fail(`${label}_start_route_identity_present`);
+  }
+  if (start.schemaVersion !== 1) fail(`${label}_start_schema_mismatch`);
+  if (start.requestId !== probe.requestId) fail(`${label}_start_request_mismatch`);
+  if (!Number.isSafeInteger(start.sequence) || start.sequence !== 0) {
+    fail(`${label}_start_sequence_mismatch`);
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(start, 'generationId') &&
+    (
+      typeof start.generationId !== 'string' ||
+      start.generationId.length < 1 ||
+      start.generationId.length > CANARY_START_ID_MAX_LENGTH
+    )
+  ) {
+    fail(`${label}_start_generation_mismatch`);
+  }
+  if (!isContractUtcTimestamp(start.startedAt)) {
+    fail(`${label}_start_timestamp_mismatch`);
   }
   if (start.resolvedModelReference !== route.modelReference) {
     fail(`${label}_start_model_mismatch`);
@@ -575,16 +681,29 @@ export async function main(env = process.env, fetchImpl = globalThis.fetch) {
     const result = await runKaanaSignedCanary(readKaanaCanaryConfig(env), fetchImpl);
     process.stdout.write(`KAANA_SIGNED_CANARY_RESULT=${JSON.stringify(result)}\n`);
   } catch (error) {
-    const code = error instanceof KaanaCanaryError ? error.code : 'unexpected_canary_failure';
-    process.stdout.write(`KAANA_SIGNED_CANARY_RESULT=${JSON.stringify({
-      schemaVersion: 1,
-      status: 'failed',
-      code,
-      providerRequests: 'at_most_2',
-      oxyLedgerWrites: 0,
-    })}\n`);
+    process.stdout.write(`KAANA_SIGNED_CANARY_RESULT=${JSON.stringify(canaryFailureResult(error))}\n`);
     process.exitCode = 1;
   }
+}
+
+/** Build the only operator-visible failure projection; no provider detail crosses it. */
+export function canaryFailureResult(error) {
+  const code = error instanceof KaanaCanaryError ? error.code : 'unexpected_canary_failure';
+  const result = {
+    schemaVersion: 1,
+    status: 'failed',
+    code,
+    providerRequests: 'at_most_2',
+    oxyLedgerWrites: 0,
+  };
+  if (
+    error instanceof KaanaCanaryError &&
+    code.endsWith('_execution_error_event_present') &&
+    error.inferenceErrorCode !== undefined
+  ) {
+    result.inferenceErrorCode = error.inferenceErrorCode;
+  }
+  return result;
 }
 
 /** Emit only the signed operator-safe descriptor projection, never content. */

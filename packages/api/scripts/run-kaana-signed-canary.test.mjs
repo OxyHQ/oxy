@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   KaanaCanaryError,
+  canaryFailureResult,
   readKaanaCanaryConfig,
   readKaanaLiveDeployments,
   readKaanaSigningConfig,
@@ -121,10 +122,9 @@ function successfulFrames(request) {
         requestId,
         sequence: 0,
         generationId,
-        createdAt: now,
+        startedAt: now,
         resolvedModelReference: MODEL_REFERENCE,
         servingProvider: 'cerebras',
-        deploymentId: DEPLOYMENT_ID,
       },
     },
     {
@@ -184,11 +184,16 @@ async function assertFirstPositiveFailure(expectedCode, mutateResponse) {
     return mutateResponse(successfulFrames(body), body);
   };
 
+  let capturedError;
   await assert.rejects(
     () => runKaanaSignedCanary(config, fetchImpl),
-    (error) => error instanceof KaanaCanaryError && error.code === expectedCode,
+    (error) => {
+      capturedError = error;
+      return error instanceof KaanaCanaryError && error.code === expectedCode;
+    },
   );
   assert.equal(inferenceCalls, 5);
+  return capturedError;
 }
 
 test('runs every closed negative before exactly two one-token positive probes', async () => {
@@ -357,14 +362,132 @@ test('does not reinterpret a provider-credential UUID as a deployment identity',
   assert.equal(calls, 2);
 });
 
-test('refuses a positive whose start event disagrees with the signed exact route', async () => {
-  await assertFirstPositiveFailure(
-    'v1-direct-model_start_deployment_mismatch',
-    (frames) => {
-      frames[0].payload.deploymentId = 'dep_wrong_start_identity';
-      return sse(frames);
+test('refuses every start event field outside the exact contract shape', async (t) => {
+  for (const field of ['deploymentId', 'routeId', 'providerDetail']) {
+    await t.test(field, async () => {
+      await assertFirstPositiveFailure(
+        'v1-direct-model_start_route_identity_present',
+        (frames) => {
+          frames[0].payload[field] = 'must-not-cross-start-event';
+          return sse(frames);
+        },
+      );
+    });
+  }
+});
+
+test('accepts the exact start shape when optional generationId is absent', async () => {
+  const { config, publicKey } = runtime();
+  let inferenceCalls = 0;
+  const fetchImpl = async (url, init) => {
+    const body = readAndVerifyRequest(publicKey, url, init);
+    const path = new URL(url).pathname;
+    if (path === '/internal/v1/health') return json({ contractVersion: '2.0.0' });
+    if (path === '/internal/v1/deployments/query') {
+      return json({
+        snapshotId: 'snap-live-exact',
+        deployments: [{
+          deploymentId: DEPLOYMENT_ID,
+          modelReference: MODEL_REFERENCE,
+          provider: 'cerebras',
+          regions: [],
+        }],
+      }, 200, { 'Cache-Control': 'no-store' });
+    }
+    inferenceCalls += 1;
+    if (inferenceCalls <= 2) return json({ code: 'invalid_request' }, 400);
+    if (inferenceCalls <= 4) return sse([errorEvent(body.attribution.requestId)]);
+    const frames = successfulFrames(body);
+    delete frames[0].payload.generationId;
+    frames[0].payload.startedAt = '2026-09-03T10:34Z';
+    return sse(frames);
+  };
+
+  const result = await runKaanaSignedCanary(config, fetchImpl);
+  assert.equal(result.status, 'passed');
+  assert.equal(inferenceCalls, 6);
+});
+
+test('refuses every invalid contractual start-event value', async (t) => {
+  const cases = [
+    {
+      name: 'schema version',
+      code: 'v1-direct-model_start_schema_mismatch',
+      mutate: (start) => { start.schemaVersion = 2; },
+    },
+    {
+      name: 'request identity',
+      code: 'v1-direct-model_start_request_mismatch',
+      mutate: (start) => { start.requestId = 'wrong-request'; },
+    },
+    ...[-1, 0.5, 1, Number.MAX_SAFE_INTEGER + 1].map((sequence) => ({
+      name: `sequence ${sequence}`,
+      code: 'v1-direct-model_start_sequence_mismatch',
+      mutate: (start) => { start.sequence = sequence; },
+    })),
+    ...[
+      { name: 'empty generation id', value: '' },
+      { name: 'oversized generation id', value: 'g'.repeat(129) },
+      { name: 'non-string generation id', value: 7 },
+      { name: 'null generation id', value: null },
+    ].map(({ name, value }) => ({
+      name,
+      code: 'v1-direct-model_start_generation_mismatch',
+      mutate: (start) => { start.generationId = value; },
+    })),
+    ...[
+      { name: 'offset timestamp', value: '2026-09-03T10:34:00+00:00' },
+      { name: 'impossible calendar date', value: '2026-02-30T10:34:00Z' },
+      { name: 'lowercase UTC marker', value: '2026-09-03T10:34:00z' },
+    ].map(({ name, value }) => ({
+      name,
+      code: 'v1-direct-model_start_timestamp_mismatch',
+      mutate: (start) => { start.startedAt = value; },
+    })),
+  ];
+
+  for (const fixture of cases) {
+    await t.test(fixture.name, async () => {
+      await assertFirstPositiveFailure(fixture.code, (frames) => {
+        fixture.mutate(frames[0].payload);
+        return sse(frames);
+      });
+    });
+  }
+});
+
+test('projects only a closed inference error code from execution error events', async () => {
+  const validError = await assertFirstPositiveFailure(
+    'v1-direct-model_execution_error_event_present',
+    (_frames, request) => {
+      const event = errorEvent(request.attribution.requestId, 'provider_billing_refused');
+      event.payload.error.message = 'secret provider response must never be projected';
+      event.payload.error.providerDetail = { requestId: 'upstream-secret' };
+      return sse([event]);
     },
   );
+  assert.deepEqual(canaryFailureResult(validError), {
+    schemaVersion: 1,
+    status: 'failed',
+    code: 'v1-direct-model_execution_error_event_present',
+    providerRequests: 'at_most_2',
+    oxyLedgerWrites: 0,
+    inferenceErrorCode: 'provider_billing_refused',
+  });
+
+  const unknownError = await assertFirstPositiveFailure(
+    'v1-direct-model_execution_error_event_present',
+    (_frames, request) => sse([
+      errorEvent(request.attribution.requestId, 'cerebras_uncontracted_detail'),
+    ]),
+  );
+  assert.deepEqual(canaryFailureResult(unknownError), {
+    schemaVersion: 1,
+    status: 'failed',
+    code: 'v1-direct-model_execution_error_event_present',
+    providerRequests: 'at_most_2',
+    oxyLedgerWrites: 0,
+  });
 });
 
 test('reports the exact safe stage for every positive response-contract failure', async (t) => {
