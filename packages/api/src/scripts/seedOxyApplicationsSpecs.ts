@@ -331,7 +331,11 @@ export const SEED_APPS: SeedAppSpec[] = [
     description: 'Official Oxy real estate platform.',
     websiteUrl: 'https://homiio.com',
     type: 'first_party',
-    redirectUris: ['https://homiio.com'],
+    // Web and native explicit re-consent callbacks. The custom scheme is
+    // intentionally exact: PKCE + state bind the native return, and neither the
+    // seed nor the SDK accepts a wildcard, whitespace-normalized or substitute
+    // scheme.
+    redirectUris: ['https://homiio.com', 'homiio://oauth/consent'],
     // Homiio awards Oxy Trust on lease lifecycle events via its service credential.
     // `reputation:write` is staff-gated — the seed script grants it to official apps.
     // Interactive Sindi uses Homiio's service token plus X-Oxy-User-Id. The

@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import { io } from 'socket.io-client';
 import { OxyServices, oxyClient } from '@oxyhq/core';
 import type {
@@ -38,6 +38,11 @@ import {
   type StartWebOAuthSignInOptions,
 } from '../oauth/browserAuthTransport';
 import type { WebOAuthSignInResult } from '../oauth/types';
+import {
+  requestOAuthConsent,
+  type OAuthConsentResult,
+  type RequestOAuthConsentOptions,
+} from '../oauth/explicitOAuthConsent';
 import { isWebBrowser } from '../utils/isWebBrowser';
 import { resolveDeliveryPlatform } from '../utils/deliveryPlatform';
 import { runProviderColdBoot } from '../boot/runProviderColdBoot';
@@ -706,6 +711,29 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
     [webAuthMode, oxyServices, clientId, authorizeBaseUrl, isIdentityBound],
   );
 
+  const requestOAuthConsentForContext = useCallback(
+    (options: RequestOAuthConsentOptions): Promise<OAuthConsentResult> =>
+      requestOAuthConsent(
+        {
+          platform:
+            Platform.OS === 'web'
+              ? 'web'
+              : Platform.OS === 'ios' || Platform.OS === 'android'
+                ? 'native'
+                : 'unsupported',
+          mode: webAuthMode,
+          oxyServices,
+          clientId,
+          authorizeBaseUrl,
+          identityBound: isIdentityBound,
+          expectedUserId: user?.id ?? null,
+          commitSession: (input) => commitSessionRef.current(input, { activate: true }),
+        },
+        options,
+      ),
+    [webAuthMode, oxyServices, clientId, authorizeBaseUrl, isIdentityBound, user?.id],
+  );
+
   // ── Unified account dialog ─────────────────────────────────────────────────
   // The single account-chooser + sign-in surface. Built ONCE per provider mount
   // and bound to the live `oxyServices` + `sessionClient` + this provider's
@@ -1216,6 +1244,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignIn: startWebOAuthSignInForContext,
+      requestOAuthConsent: requestOAuthConsentForContext,
       logout,
       logoutAll,
       switchSession: switchSessionForContext,
@@ -1273,6 +1302,7 @@ export const OxyRuntimeProvider: React.FC<OxyRuntimeProviderProps> = ({
       revokeSuspiciousSignIn,
       handleWebSession,
       startWebOAuthSignInForContext,
+      requestOAuthConsentForContext,
       logout,
       logoutAll,
       switchSessionForContext,

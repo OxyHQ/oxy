@@ -4,6 +4,10 @@ import type { UseFollowHook } from '../hooks/useFollow.types';
 import type { useLanguageManagement } from '../hooks/useLanguageManagement';
 import type { RouteName } from '../navigation/routes';
 import type { StartWebOAuthSignInOptions } from '../oauth/browserAuthTransport';
+import type {
+  OAuthConsentResult,
+  RequestOAuthConsentOptions,
+} from '../oauth/explicitOAuthConsent';
 import type { WebAuthMode, WebOAuthSignInResult } from '../oauth/types';
 
 export interface OxyContextState {
@@ -111,6 +115,14 @@ export interface OxyContextState {
    * resolve to `{ status: 'unsupported' }`.
    */
   startWebOAuthSignIn: (options: StartWebOAuthSignInOptions) => Promise<WebOAuthSignInResult>;
+
+  /**
+   * Ask the already-authenticated user for explicit OAuth consent to exact
+   * application scopes. Must be called from a user gesture. Works on web and
+   * native and commits only a callback bound to the same user, state, PKCE pair
+   * and byte-exact redirect URI.
+   */
+  requestOAuthConsent: (options: RequestOAuthConsentOptions) => Promise<OAuthConsentResult>;
 
   logout: (targetSessionId?: string) => Promise<void>;
   logoutAll: () => Promise<void>;
