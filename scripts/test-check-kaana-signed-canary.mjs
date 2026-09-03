@@ -185,6 +185,16 @@ try {
     "jq -r '.events[].message' <<<\"$log_json\"",
   );
   verdict(freeFormFailureLogs, 1);
+
+  const aggregatePositiveFailure = fixture();
+  roots.push(aggregatePositiveFailure);
+  mutate(
+    aggregatePositiveFailure,
+    'packages/api/scripts/run-kaana-signed-canary.mjs',
+    '`${label}_start_deployment_mismatch`',
+    '`${label}_did_not_complete_exact_route`',
+  );
+  verdict(aggregatePositiveFailure, 1);
 } finally {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 }
