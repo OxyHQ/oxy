@@ -77,7 +77,7 @@ interface RouteFixture {
  * test of "who may see what" needs something visible to somebody.
  */
 async function insertRoute(options: {
-  availabilityScope: 'public_payg' | 'internal_alia' | 'oxy_hosted' | 'byok_only';
+  availabilityScope: 'public_payg' | 'platform_internal' | 'oxy_hosted' | 'byok_only';
   commercialPermission:
     | 'public_resale_approved'
     | 'standard_application_use'
@@ -362,7 +362,7 @@ async function insertSiblingDeployment(
 describe('an internal-only route cannot be selected by a public credential', () => {
   it('withholds the internal route, serves the public one, and shows the internal viewer both', async () => {
     const internalOnly = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
     const publicRoute = await insertRoute({
@@ -390,7 +390,7 @@ describe('an internal-only route cannot be selected by a public credential', () 
 
   it('keeps the internal route out of the public catalogue listing too', async () => {
     const internalOnly = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
     const publicRoute = await insertRoute({
@@ -415,7 +415,7 @@ describe('an internal-only route cannot be selected by a public credential', () 
     // Deliberately the same answer: distinguishing them would make the detail
     // endpoint an existence oracle for what Oxy runs internally.
     const internalOnly = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
 
@@ -621,7 +621,7 @@ describe('the permission gate has no exemption', () => {
     // The exemption that does not exist. An internal route needs the same
     // approval a public one does; a branch here is where a gate silently widens.
     const pending = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
       permissionState: 'pending_review',
     });
@@ -630,7 +630,7 @@ describe('the permission gate has no exemption', () => {
     // Control: the same viewer selects an APPROVED internal route, so the case
     // above is measuring the permission state and not the audience.
     const approved = await insertRoute({
-      availabilityScope: 'internal_alia',
+      availabilityScope: 'platform_internal',
       commercialPermission: 'standard_application_use',
     });
     await expect(selectRouteForViewer(INTERNAL_VIEWER, approved.modelId, UNCONSTRAINED_ROUTING)).resolves.toBeDefined();
@@ -652,19 +652,19 @@ describe('the audience is default-deny', () => {
   it.each([
     ['no principal at all', undefined],
     ['an ordinary third-party application', { type: 'third_party', isInternal: false }],
-    ['a first-party but customer-facing application', { type: 'first_party', isInternal: false }],
   ])('resolves %s to the public viewer', (_label, principal) => {
     const viewer = resolveCatalogueViewer(principal);
-    expect(viewer.scopes).not.toContain('internal_alia');
+    expect(viewer.scopes).not.toContain('platform_internal');
     expect(viewer.label).toBe('public');
   });
 
   it.each([
+    ['a staff-controlled first-party application', { type: 'first_party', isInternal: false }],
     ['an internal application', { type: 'internal', isInternal: true }],
     ['a system application', { type: 'system', isInternal: false }],
     ['an application flagged internal', { type: 'third_party', isInternal: true }],
-  ])('resolves %s to the internal viewer', (_label, principal) => {
-    expect(resolveCatalogueViewer(principal).scopes).toContain('internal_alia');
+  ])('resolves %s to a platform viewer', (_label, principal) => {
+    expect(resolveCatalogueViewer(principal).scopes).toContain('platform_internal');
   });
 
   it('grants no viewer a scope that is not grantable yet', async () => {

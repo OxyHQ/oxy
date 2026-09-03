@@ -83,7 +83,7 @@ export async function readInferenceRoutingReadinessRows(): Promise<
         inArray(inferenceDeployments.availabilityScope, [
           'public_payg',
           'oxy_hosted',
-          'internal_alia',
+          'platform_internal',
           'byok_only',
         ]),
         isNull(inferenceModelRevisions.retiredAt)

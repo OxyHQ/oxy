@@ -266,7 +266,7 @@ describe('modelDeploymentSchema', () => {
     expect(
       modelDeploymentSchema.safeParse({
         ...deployment,
-        availabilityScope: 'internal_alia',
+        availabilityScope: 'platform_internal',
         commercialPermission: 'standard_application_use',
       }).success,
     ).toBe(true);

@@ -25837,7 +25837,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -26570,7 +26570,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -27189,7 +27189,7 @@
                         "availabilityScope": {
                           "type": "string",
                           "enum": [
-                            "internal_alia",
+                            "platform_internal",
                             "public_payg",
                             "enterprise",
                             "byok_only",
@@ -35624,7 +35624,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -36357,7 +36357,7 @@
                           "availabilityScope": {
                             "type": "string",
                             "enum": [
-                              "internal_alia",
+                              "platform_internal",
                               "public_payg",
                               "enterprise",
                               "byok_only",
@@ -36976,7 +36976,7 @@
                         "availabilityScope": {
                           "type": "string",
                           "enum": [
-                            "internal_alia",
+                            "platform_internal",
                             "public_payg",
                             "enterprise",
                             "byok_only",

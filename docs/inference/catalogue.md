@@ -187,7 +187,7 @@ wholesale cost can reach you by being nested one level deeper than anyone looked
 A technically callable route is not automatically publicly available. Two
 explicit fields decide, and they are checked rather than inferred:
 
-- **`availabilityScope`** — `internal_alia`, `public_payg`, `enterprise`,
+- **`availabilityScope`** — `platform_internal`, `public_payg`, `enterprise`,
   `byok_only`, `oxy_hosted`.
 - **`commercialPermission`** — `standard_application_use`,
   `public_resale_approved`, `wholesale_contract`, `customer_byok`,
@@ -199,6 +199,12 @@ contract refuses the combination otherwise. This is why the public catalogue is
 empty rather than merely unpopulated: default-deny is the starting state, and a
 route becomes public when somebody reviews the right to resell it, not when it
 starts answering.
+
+`platform_internal` is distinct from `oxy_hosted`: the first says that an
+official Oxy product may consume a reviewed route without public resale rights;
+the second says Oxy operates the model deployment itself. A third-party-hosted
+provider can therefore be `platform_internal`, and an Oxy-hosted open-weight
+model can be publicly offered when its separate commercial permission allows it.
 
 The catalogue never chooses a "primary" deployment to fill these singular
 fields. In particular, it never sorts by availability scope, provider slug,
