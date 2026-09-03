@@ -68,6 +68,12 @@ export const grantLimitSchema = z.object({
     value: z.union([z.number().finite(), z.boolean()]),
 }).strict();
 
+export const capabilityCatalogBindingSchema = z.object({
+    registrationId: identifierSchema,
+    version: identifierSchema,
+    digest: sha256HexSchema,
+}).strict();
+
 export const executionAuthorizationRefSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('direct_request'),
@@ -90,6 +96,7 @@ export const delegationGrantSchema = z.object({
     ownerAccountId: identifierSchema,
     actor: actorRefSchema,
     resource: resourceRefSchema,
+    catalog: capabilityCatalogBindingSchema.nullable(),
     capabilityPackages: z.array(capabilityPackageSchema),
     capabilities: z.array(identifierSchema),
     toolOverrides: z.array(toolGrantOverrideSchema).default([]),

@@ -17,6 +17,7 @@ import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import {
   accountCapabilityPolicies,
+  appCapabilityCatalogRegistrations,
   capabilityAuditEvents,
   capabilityExecutionAuthorizations,
   delegationCapabilities,
@@ -35,7 +36,6 @@ import {
 import accountService from '../services/account.service';
 import {
   evaluateCapabilityAuthority,
-  grantAllowsTool,
   mostRestrictiveAutonomy,
   reauthorizeCapabilityTicket,
 } from '../services/capabilityAuthority.service';
@@ -53,13 +53,15 @@ import {
 } from '../services/capabilityCatalog.service';
 import { persistCapabilityAuditEvent } from '../services/capabilityRuntimeStore.service';
 import { capabilityLimitError } from '../services/capabilityLimitPolicy';
+import {
+  autonomousSensitiveToolLimitError,
+  capabilityGrantError,
+  grantAllowsTool,
+} from '../services/capabilityGrantPolicy';
 
 const router = Router();
 
-const createGrantSchema = z.object({
-  ownerAccountId: z.string().min(1),
-  actorAccountId: z.string().min(1),
-  resource: resourceRefSchema,
+const mutableGrantSchema = z.object({
   capabilityPackages: z.array(capabilityPackageSchema),
   capabilities: z.array(z.string().min(1)),
   toolOverrides: z.array(toolGrantOverrideSchema).default([]),
@@ -67,6 +69,12 @@ const createGrantSchema = z.object({
   maximumAutonomy: autonomyLevelSchema,
   canRedelegate: z.boolean().default(false),
   expiresAt: z.string().datetime().nullable().default(null),
+}).strict();
+
+const createGrantSchema = mutableGrantSchema.extend({
+  ownerAccountId: z.string().min(1),
+  actorAccountId: z.string().min(1),
+  resource: resourceRefSchema,
 }).strict();
 
 const executionAuthorizationSchema = z.object({
@@ -112,6 +120,20 @@ const ticketRequestSchema = z.object({
   runId: z.string().min(1).optional(),
   stepId: z.string().min(1).optional(),
 }).strict();
+
+const accountPolicyWriteSchema = z.object({
+  accountId: z.string().min(1),
+  maximumAutonomy: autonomyLevelSchema,
+  deniedCapabilities: z.array(z.string().min(1)),
+}).strict().superRefine((value, context) => {
+  if (new Set(value.deniedCapabilities).size !== value.deniedCapabilities.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['deniedCapabilities'],
+      message: 'deniedCapabilities cannot contain duplicates',
+    });
+  }
+});
 
 async function livePrincipal(
   request: ServiceAuthRequest,
@@ -162,7 +184,7 @@ async function grantContract(
   grant: DelegationGrantRow,
   db: DatabaseOrTransaction = getDb(),
 ): Promise<DelegationGrantContract> {
-  const [capabilities, overrides, limits] = await Promise.all([
+  const [capabilities, overrides, limits, registrations] = await Promise.all([
     db.select({ capability: delegationCapabilities.capability })
       .from(delegationCapabilities)
       .where(eq(delegationCapabilities.grantId, grant.id)),
@@ -172,7 +194,17 @@ async function grantContract(
     db.select({ tool: delegationLimits.tool, key: delegationLimits.key, value: delegationLimits.value })
       .from(delegationLimits)
       .where(eq(delegationLimits.grantId, grant.id)),
+    grant.catalogRegistrationId
+      ? db.select({
+          id: appCapabilityCatalogRegistrations.id,
+          version: appCapabilityCatalogRegistrations.version,
+          digest: appCapabilityCatalogRegistrations.digest,
+        }).from(appCapabilityCatalogRegistrations)
+          .where(eq(appCapabilityCatalogRegistrations.id, grant.catalogRegistrationId))
+          .limit(1)
+      : Promise.resolve([]),
   ]);
+  const registration = registrations[0];
   return {
     id: grant.id,
     ownerAccountId: grant.ownerAccountId,
@@ -183,6 +215,11 @@ async function grantContract(
       resourceType: grant.resourceType,
       resourceId: grant.resourceKey,
     },
+    catalog: registration ? {
+      registrationId: registration.id,
+      version: registration.version,
+      digest: registration.digest,
+    } : null,
     capabilityPackages: grant.capabilityPackages,
     capabilities: capabilities.map((entry) => entry.capability),
     toolOverrides: overrides,
@@ -246,17 +283,22 @@ router.post('/grants', authMiddleware, async (request: AuthRequest, response: Re
     response.status(400).json({ error: 'redelegation_requires_access_delegate' });
     return;
   }
-  if (input.limits.length) {
-    const catalog = await activeCapabilityCatalog(input.resource.appId);
-    if (!catalog) {
-      response.status(400).json({ error: 'catalog_not_registered' });
-      return;
-    }
-    const limitError = capabilityLimitError(input.limits, catalog.catalog.tools, input.resource.resourceType);
-    if (limitError) {
-      response.status(400).json({ error: limitError });
-      return;
-    }
+  const catalog = await activeCapabilityCatalog(input.resource.appId);
+  if (!catalog) {
+    response.status(400).json({ error: 'catalog_not_registered' });
+    return;
+  }
+  const grantError = capabilityGrantError({
+    resourceType: input.resource.resourceType,
+    capabilityPackages: input.capabilityPackages,
+    capabilities: input.capabilities,
+    toolOverrides: input.toolOverrides,
+    limits: input.limits,
+    maximumAutonomy: input.maximumAutonomy,
+  }, catalog.catalog);
+  if (grantError) {
+    response.status(400).json({ error: grantError });
+    return;
   }
 
   const grant = await getDb().transaction(async (tx) => {
@@ -267,6 +309,7 @@ router.post('/grants', authMiddleware, async (request: AuthRequest, response: Re
       effectiveAccountId: input.resource.effectiveAccountId,
       resourceType: input.resource.resourceType,
       resourceKey: input.resource.resourceId,
+      catalogRegistrationId: catalog.id,
       capabilityPackages: [...new Set(input.capabilityPackages)],
       maximumAutonomy: input.maximumAutonomy,
       canRedelegate: input.canRedelegate,
@@ -294,6 +337,89 @@ router.post('/grants', authMiddleware, async (request: AuthRequest, response: Re
     return inserted;
   });
   response.status(201).json({ grant: await grantContract(grant) });
+});
+
+router.put('/grants/:grantId', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const parsed = mutableGrantSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: 'invalid_grant', details: parsed.error.flatten() });
+    return;
+  }
+  const [existing] = await getDb().select().from(delegationGrants)
+    .where(eq(delegationGrants.id, request.params.grantId)).limit(1);
+  if (!existing) {
+    response.status(404).json({ error: 'grant_not_found' });
+    return;
+  }
+  if (existing.revokedAt) {
+    response.status(409).json({ error: 'grant_revoked' });
+    return;
+  }
+  const userId = idOf(request);
+  if (!await canOperate(userId, existing.ownerAccountId)
+    || !await canOperate(userId, existing.effectiveAccountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  if (!await activeBot(existing.actorAccountId)) {
+    response.status(400).json({ error: 'actor_must_be_active_bot_account' });
+    return;
+  }
+  const input = parsed.data;
+  if (input.canRedelegate
+    && (!input.capabilityPackages.includes('delegate') || !input.capabilities.includes('access.delegate'))) {
+    response.status(400).json({ error: 'redelegation_requires_access_delegate' });
+    return;
+  }
+  const catalog = await activeCapabilityCatalog(existing.resourceApp);
+  if (!catalog) {
+    response.status(400).json({ error: 'catalog_not_registered' });
+    return;
+  }
+  const grantError = capabilityGrantError({
+    resourceType: existing.resourceType,
+    capabilityPackages: input.capabilityPackages,
+    capabilities: input.capabilities,
+    toolOverrides: input.toolOverrides,
+    limits: input.limits,
+    maximumAutonomy: input.maximumAutonomy,
+  }, catalog.catalog);
+  if (grantError) {
+    response.status(400).json({ error: grantError });
+    return;
+  }
+
+  const grant = await getDb().transaction(async (tx) => {
+    const [updated] = await tx.update(delegationGrants).set({
+      capabilityPackages: [...new Set(input.capabilityPackages)],
+      catalogRegistrationId: catalog.id,
+      maximumAutonomy: input.maximumAutonomy,
+      canRedelegate: input.canRedelegate,
+      expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+      updatedAt: new Date(),
+    }).where(eq(delegationGrants.id, existing.id)).returning();
+    if (!updated) throw new Error('Delegation grant was not updated');
+    await tx.delete(delegationCapabilities).where(eq(delegationCapabilities.grantId, existing.id));
+    await tx.delete(delegationToolOverrides).where(eq(delegationToolOverrides.grantId, existing.id));
+    await tx.delete(delegationLimits).where(eq(delegationLimits.grantId, existing.id));
+    if (input.capabilities.length) {
+      await tx.insert(delegationCapabilities).values(
+        input.capabilities.map((capability) => ({ grantId: existing.id, capability })),
+      );
+    }
+    if (input.toolOverrides.length) {
+      await tx.insert(delegationToolOverrides).values(
+        input.toolOverrides.map((override) => ({ grantId: existing.id, ...override })),
+      );
+    }
+    if (input.limits.length) {
+      await tx.insert(delegationLimits).values(
+        input.limits.map((limit) => ({ grantId: existing.id, ...limit })),
+      );
+    }
+    return updated;
+  });
+  response.json({ grant: await grantContract(grant) });
 });
 
 router.get('/grants', authMiddleware, async (request: AuthRequest, response: Response) => {
@@ -327,6 +453,90 @@ router.delete('/grants/:grantId', authMiddleware, async (request: AuthRequest, r
   }
   await getDb().update(delegationGrants).set({ revokedAt: new Date() }).where(eq(delegationGrants.id, grant.id));
   response.status(204).send();
+});
+
+router.get('/account-policies', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const userId = idOf(request);
+  const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : userId;
+  if (!await canOperate(userId, accountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  const appId = typeof request.query.appId === 'string' ? request.query.appId : null;
+  const policies = await getDb().select().from(accountCapabilityPolicies)
+    .where(appId
+      ? and(eq(accountCapabilityPolicies.accountId, accountId), eq(accountCapabilityPolicies.appSlug, appId))
+      : eq(accountCapabilityPolicies.accountId, accountId))
+    .orderBy(asc(accountCapabilityPolicies.appSlug));
+  response.json({ policies });
+});
+
+router.put('/account-policies/:appId', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const parsed = accountPolicyWriteSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: 'invalid_account_capability_policy', details: parsed.error.flatten() });
+    return;
+  }
+  if (!await canOperate(idOf(request), parsed.data.accountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  const catalog = await activeCapabilityCatalog(request.params.appId);
+  if (!catalog) {
+    response.status(400).json({ error: 'catalog_not_registered' });
+    return;
+  }
+  const availableCapabilities = new Set(catalog.catalog.tools.flatMap((tool) => tool.requiredCapabilities));
+  if (parsed.data.deniedCapabilities.some((capability) => !availableCapabilities.has(capability))) {
+    response.status(400).json({ error: 'capability_not_available_in_catalog' });
+    return;
+  }
+  const [policy] = await getDb().insert(accountCapabilityPolicies).values({
+    accountId: parsed.data.accountId,
+    appSlug: catalog.appSlug,
+    maximumAutonomy: parsed.data.maximumAutonomy,
+    deniedCapabilities: parsed.data.deniedCapabilities,
+  }).onConflictDoUpdate({
+    target: [accountCapabilityPolicies.accountId, accountCapabilityPolicies.appSlug],
+    set: {
+      maximumAutonomy: parsed.data.maximumAutonomy,
+      deniedCapabilities: parsed.data.deniedCapabilities,
+      updatedAt: new Date(),
+    },
+  }).returning();
+  if (!policy) throw new Error('Account capability policy was not persisted');
+  response.json({ policy });
+});
+
+router.delete('/account-policies/:appId', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const accountId = typeof request.query.accountId === 'string' ? request.query.accountId : idOf(request);
+  if (!await canOperate(idOf(request), accountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  const [policy] = await getDb().delete(accountCapabilityPolicies).where(and(
+    eq(accountCapabilityPolicies.accountId, accountId),
+    eq(accountCapabilityPolicies.appSlug, request.params.appId),
+  )).returning({ id: accountCapabilityPolicies.id });
+  if (!policy) {
+    response.status(404).json({ error: 'account_capability_policy_not_found' });
+    return;
+  }
+  response.status(204).send();
+});
+
+router.get('/execution-authorizations', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const userId = idOf(request);
+  const ownerAccountId = typeof request.query.ownerAccountId === 'string' ? request.query.ownerAccountId : userId;
+  if (!await canOperate(userId, ownerAccountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  const authorizations = await getDb().select().from(capabilityExecutionAuthorizations)
+    .where(eq(capabilityExecutionAuthorizations.ownerAccountId, ownerAccountId))
+    .orderBy(desc(capabilityExecutionAuthorizations.createdAt))
+    .limit(200);
+  response.json({ authorizations });
 });
 
 router.post('/execution-authorizations', authMiddleware, async (request: AuthRequest, response: Response) => {
@@ -369,6 +579,15 @@ router.post('/execution-authorizations', authMiddleware, async (request: AuthReq
   const limitError = capabilityLimitError(input.limits, [tool], input.resource.resourceType);
   if (limitError) {
     response.status(400).json({ error: limitError });
+    return;
+  }
+  const sensitiveLimitError = autonomousSensitiveToolLimitError(
+    input.maximumAutonomy,
+    tool,
+    input.limits,
+  );
+  if (sensitiveLimitError) {
+    response.status(400).json({ error: sensitiveLimitError });
     return;
   }
   if (tool.effect !== 'read' && (input.maximumAutonomy === 'read_only' || input.maximumAutonomy === 'draft')) {
@@ -419,6 +638,29 @@ router.delete('/execution-authorizations/:authorizationId', authMiddleware, asyn
   await getDb().update(capabilityExecutionAuthorizations).set({ revokedAt: new Date() })
     .where(eq(capabilityExecutionAuthorizations.id, authorization.id));
   response.status(204).send();
+});
+
+router.get('/catalogs/available', authMiddleware, async (request: AuthRequest, response: Response) => {
+  const parsed = z.object({ accountId: z.string().min(1) }).strict().safeParse(request.query);
+  if (!parsed.success) {
+    response.status(400).json({ error: 'invalid_available_catalogs_request' });
+    return;
+  }
+  if (!await canOperate(idOf(request), parsed.data.accountId)) {
+    response.status(403).json({ error: 'account_authority_required' });
+    return;
+  }
+  const registrations = await listActiveCapabilityCatalogs();
+  response.json({
+    catalogs: registrations.map((registration) => ({
+      id: registration.id,
+      appId: registration.appSlug,
+      version: registration.version,
+      digest: registration.digest,
+      audience: registration.audience,
+      catalog: registration.catalog,
+    })),
+  });
 });
 
 router.post('/catalogs/register', serviceAuthMiddleware, async (request: ServiceAuthRequest, response: Response) => {
@@ -485,8 +727,14 @@ router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAut
   const assignments = await Promise.all(grants.map(async (grant) => {
     if (!await canOperate(parsed.data.requesterAccountId, grant.effectiveAccountId)) return null;
     const db = getDb();
-    const [catalog, capabilities, overrides, limits, policyRows] = await Promise.all([
+    if (!grant.catalogRegistrationId) return null;
+    const [catalog, boundRegistrations, capabilities, overrides, limits, policyRows] = await Promise.all([
       activeCapabilityCatalog(grant.resourceApp),
+      db.select({ catalog: appCapabilityCatalogRegistrations.catalog })
+        .from(appCapabilityCatalogRegistrations).where(and(
+          eq(appCapabilityCatalogRegistrations.id, grant.catalogRegistrationId),
+          eq(appCapabilityCatalogRegistrations.appSlug, grant.resourceApp),
+        )).limit(1),
       db.select({ capability: delegationCapabilities.capability })
         .from(delegationCapabilities).where(eq(delegationCapabilities.grantId, grant.id)),
       db.select({ tool: delegationToolOverrides.tool, decision: delegationToolOverrides.decision })
@@ -498,7 +746,8 @@ router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAut
         eq(accountCapabilityPolicies.appSlug, grant.resourceApp),
       )).limit(1),
     ]);
-    if (!catalog) return null;
+    const boundRegistration = boundRegistrations[0];
+    if (!catalog || !boundRegistration) return null;
     const policy = policyRows[0];
     const capabilityNames = capabilities.map((entry) => entry.capability);
     const toolNames = catalog.catalog.tools
@@ -509,7 +758,7 @@ router.post('/capability-map', serviceAuthMiddleware, async (request: ServiceAut
         capabilities: capabilityNames,
         overrides,
         capabilityPackages: grant.capabilityPackages,
-      }))
+      }, boundRegistration.catalog.tools.find((entry) => entry.name === tool.name)))
       .map((tool) => tool.name);
     return {
       grantId: grant.id,
