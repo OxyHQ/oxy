@@ -39,6 +39,8 @@ jobs:
           node --test packages/api/scripts/run-kaana-signed-canary.test.mjs
           node scripts/test-check-inbox-routing-profile-readback.mjs
           node scripts/check-inbox-routing-profile-readback.mjs
+          node scripts/test-check-kaana-catalogue-bootstrap-workflow.mjs
+          node scripts/check-kaana-catalogue-bootstrap-workflow.mjs
 
   # API Package Tests
   api-test:

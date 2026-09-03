@@ -13,8 +13,8 @@
 
 export const KAANA_INITIAL_REVIEWED_AT = "2026-09-02T00:00:00.000Z";
 export const KAANA_INITIAL_SCORE_VALID_UNTIL = "2026-10-02T00:00:00.000Z";
-export const KAANA_INITIAL_MODEL_REFERENCE =
-  "openai/gpt-oss-120b@observed-2026-09-01";
+export const KAANA_INITIAL_MODEL_ID = "openai/gpt-oss-120b";
+export const KAANA_INITIAL_MODEL_REFERENCE = `${KAANA_INITIAL_MODEL_ID}@observed-2026-09-01`;
 /** Routing-content hash of the exact live inventory reviewed on 2026-09-02. */
 export const KAANA_INITIAL_INVENTORY_SNAPSHOT_ID = "snap_7c760c006f5ac633";
 
@@ -250,5 +250,9 @@ export function requireSingleKaanaBootstrapScoreEvent<T>(
       `Scorecard ${deploymentId} must have exactly one append-only provenance event; found ${events.length}`,
     );
   }
-  return events[0]!;
+  const event = events.at(0);
+  if (event === undefined) {
+    throw new Error(`Scorecard ${deploymentId} provenance event is absent`);
+  }
+  return event;
 }
