@@ -238,6 +238,9 @@ export const ALIA_APPLICATION_ID = '6a2f851751b784a86fd0e934';
 /** Exact opaque identity already assigned to Homiio in production. */
 export const HOMIIO_APPLICATION_ID = '6a2f851751b784a86fd0e922';
 
+/** Exact opaque identity read back from the active production Mention row. */
+export const MENTION_APPLICATION_ID = '6a2f851751b784a86fd0e916';
+
 /**
  * The official Oxy ecosystem apps that integrate Oxy auth.
  * `name` is the idempotency key (with createdByUserId=oxyId) — DO NOT rename
@@ -301,6 +304,7 @@ export const SEED_APPS: SeedAppSpec[] = [
   },
   // ── Ecosystem first-party apps ──
   {
+    id: MENTION_APPLICATION_ID,
     name: 'Mention',
     description: 'Official Oxy social media app with fediverse support.',
     websiteUrl: 'https://mention.earth',
