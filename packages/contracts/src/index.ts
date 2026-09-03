@@ -1128,6 +1128,7 @@ export {
     resourceRefSchema,
     toolGrantOverrideSchema,
     grantLimitSchema,
+    capabilityCatalogBindingSchema,
     executionAuthorizationRefSchema,
     capabilityCoordinatorSchema,
     delegationGrantSchema,

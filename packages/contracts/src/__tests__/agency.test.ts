@@ -20,6 +20,11 @@ describe('agency contracts', () => {
             ownerAccountId: 'owner-1',
             actor: { type: 'agent' as const, accountId: 'agent-1' },
             resource,
+            catalog: {
+                registrationId: 'catalog-registration-1',
+                version: '1.0.0',
+                digest: '0'.repeat(64),
+            },
             capabilityPackages: ['read' as const],
             capabilities: ['email.read'],
             toolOverrides: [],
