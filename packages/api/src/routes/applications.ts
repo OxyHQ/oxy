@@ -2,7 +2,12 @@ import express from 'express';
 import crypto from 'crypto';
 import { and, count, desc, eq, gte, inArray, ne, sql } from 'drizzle-orm';
 import { getDb } from '../config/postgres';
-import { apiKeyUsageEvents, applicationCredentials, applications } from '../db/schema';
+import {
+  apiKeyUsageEvents,
+  applicationCredentials,
+  applications,
+  inferenceProviderConnections,
+} from '../db/schema';
 import {
   type APPLICATION_SCOPES,
   type ApplicationScope,
@@ -16,6 +21,7 @@ import { validate } from '../middleware/validate';
 import { asyncHandler } from '../utils/asyncHandler';
 import {
   BadRequestError,
+  ConflictError,
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
@@ -429,7 +435,7 @@ function serializeApplication(
     websiteUrl: app.websiteUrl ?? undefined,
     privacyPolicyUrl: app.privacyPolicyUrl ?? undefined,
     termsUrl: app.termsUrl ?? undefined,
-    icon: app.icon ?? undefined,
+    icon: app.icon === null ? undefined : stripSensitiveUrlQueryParams(app.icon),
     type: app.type,
     status: app.status,
     isOfficial: app.isOfficial,
@@ -937,14 +943,46 @@ router.delete(
       throw new NotFoundError('Application not found');
     }
 
-    const [deleted] = await getDb()
-      .update(applications)
-      .set({ status: 'deleted' })
-      .where(eq(applications.id, application.id))
-      .returning({ id: applications.id });
-    if (!deleted) {
-      throw new NotFoundError('Application not found');
-    }
+    await getDb().transaction(async (tx) => {
+      // This is the serialization point shared with application-scoped BYOK
+      // creation. It closes both race directions: a connection committed first
+      // makes deletion refuse, while a deletion committed first makes creation
+      // re-read the deleted status and refuse before sending a secret to Kaana.
+      const [locked] = await tx
+        .select({ id: applications.id, status: applications.status })
+        .from(applications)
+        .where(eq(applications.id, application.id))
+        .limit(1)
+        .for('update');
+      if (!locked || locked.status === 'deleted') {
+        throw new NotFoundError('Application not found');
+      }
+
+      const [outstandingCustody] = await tx
+        .select({ id: inferenceProviderConnections.id })
+        .from(inferenceProviderConnections)
+        .where(
+          and(
+            eq(inferenceProviderConnections.applicationId, locked.id),
+            ne(inferenceProviderConnections.custodyState, 'revoked')
+          )
+        )
+        .limit(1);
+      if (outstandingCustody) {
+        throw new ConflictError(
+          'Revoke every application-scoped provider connection and wait for Kaana custody acknowledgement before deleting this application'
+        );
+      }
+
+      const [deleted] = await tx
+        .update(applications)
+        .set({ status: 'deleted' })
+        .where(eq(applications.id, locked.id))
+        .returning({ id: applications.id });
+      if (!deleted) {
+        throw new NotFoundError('Application not found');
+      }
+    });
 
     // A deleted app must immediately stop authorising federation signing.
     credentialDomainCache.invalidate(application.id);

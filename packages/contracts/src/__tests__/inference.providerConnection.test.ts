@@ -4,13 +4,15 @@ import {
   kaanaCredentialOutcomeRequestSchema,
   kaanaCredentialOutcomeSchema,
   kaanaCredentialHandleSchema,
+  kaanaCredentialValidationOutcomeSchema,
+  providerCredentialValidationOperationSchema,
   providerConnectionSchema,
   safeParseContract,
 } from '../index';
 
 const handle = `kcred_${'a'.repeat(26)}`;
 const connection = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   connectionId: 'pcx_1',
   provider: 'openai',
   ownerAccountId: 'acc_1',
@@ -24,8 +26,6 @@ const connection = {
   custodyState: 'ready' as const,
   credentialHandle: handle,
   credentialRevision: 2,
-  keyPrefix: 'sk-proj-4f',
-  fingerprint: 'b'.repeat(64),
   validation: {
     state: 'valid' as const,
     lastValidatedAt: '2026-08-15T08:00:00.000Z',
@@ -88,6 +88,18 @@ describe('Kaana provider credential contracts', () => {
         secretBase64: Buffer.from('a'.repeat(4096)).toString('base64'),
       }).success,
     ).toBe(true);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YR==' }).success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YWJ=' }).success,
+    ).toBe(false);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YQ==' }).success,
+    ).toBe(true);
+    expect(
+      kaanaCredentialMutationSchema.safeParse({ ...create, secretBase64: 'YWI=' }).success,
+    ).toBe(true);
   });
 
   it('keeps outcome queries metadata-only and conflicts reference-free', () => {
@@ -99,7 +111,6 @@ describe('Kaana provider credential contracts', () => {
       ownerAccountId: 'acc_1',
       connectionId: 'pcx_1',
       environment: 'production',
-      secretSha256: 'c'.repeat(64),
       credentialHandle: handle,
       expectedRevision: 2,
     };
@@ -140,6 +151,27 @@ describe('Kaana provider credential contracts', () => {
         false,
       );
     }
+  });
+
+  it.each(['unvalidated', 'expired'] as const)(
+    'rejects an active connection whose current generation is %s',
+    (state) => {
+      expect(
+        providerConnectionSchema.safeParse({
+          ...connection,
+          validation: { state },
+        }).success,
+      ).toBe(false);
+    },
+  );
+
+  it('rejects secret-derived metadata additions', () => {
+    expect(
+      providerConnectionSchema.safeParse({ ...connection, fingerprint: 'b'.repeat(64) }).success,
+    ).toBe(false);
+    expect(
+      providerConnectionSchema.safeParse({ ...connection, keyPrefix: 'sk-partial' }).success,
+    ).toBe(false);
   });
 
   it('requires handle and revision together for ready/revoked and neither for pending', () => {
@@ -185,5 +217,47 @@ describe('Kaana provider credential contracts', () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it('separates exact internal bootstrap binding from the customer-safe operation', () => {
+    const task = {
+      schemaVersion: 1,
+      operationId: 'operation_exact',
+      applicationId: 'app_1',
+      provider: 'openai',
+      ownerAccountId: 'acc_1',
+      connectionId: 'pcx_1',
+      environment: 'production',
+      credentialHandle: handle,
+      credentialRevision: 2,
+      deploymentId: 'kaana_deployment_exact',
+    };
+    expect(
+      kaanaCredentialValidationOutcomeSchema.safeParse({
+        ...task,
+        state: 'inconclusive',
+        failureCode: 'forbidden',
+      }).success,
+    ).toBe(true);
+    expect(
+      kaanaCredentialValidationOutcomeSchema.safeParse({
+        ...task,
+        state: 'invalid',
+        failureCode: 'forbidden',
+      }).success,
+    ).toBe(false);
+    expect(
+      providerCredentialValidationOperationSchema.safeParse({
+        schemaVersion: 1,
+        operationId: task.operationId,
+        applicationId: task.applicationId,
+        connectionId: task.connectionId,
+        deploymentId: 'oxy_catalogue_deployment_exact',
+        state: 'inconclusive',
+        failureCode: 'forbidden',
+        createdAt: '2026-09-03T00:00:00.000Z',
+        completedAt: '2026-09-03T00:00:01.000Z',
+      }).success,
+    ).toBe(true);
   });
 });

@@ -35,15 +35,13 @@ refused one — refusals being where a body is most tempting to log — sweeps e
 was called at all) and a positive control on the search itself (something that IS
 logged is found by the same pass).
 
-**Why the encryption property cannot be met today.** #972 section 10 requires
-provider secrets to live in "Vault/KMS/managed secret storage, not PostgreSQL",
-and [ADR 0013](./0013-byok-secret-custody.md) records what this deployment has:
-`PROVIDER_SECRET_STORE_BACKENDS` is an EMPTY map, and there is no Secrets Manager,
-SSM, KMS or Vault client anywhere in the tree. **This process could not encrypt a
-payload with a key it does not hold in PostgreSQL, because it has no way to reach
-such a key.** So "encrypted" would in practice mean a key in the same database as
-the ciphertext, or in the task's environment — which is the option ADR 0013
-already refused for a smaller amount of far less voluminous material.
+**Why Kaana's credential store does not satisfy the encryption property.**
+[ADR 0013](./0013-byok-secret-custody.md) gives Kaana a KMS role and encrypted
+PostgreSQL store scoped to customer provider credentials. That is not a generic
+Oxy payload-retention backend, and widening its IAM context or schema to hold
+prompts would collapse two separate data classes and authorities. A payload
+capture design still needs its own key boundary, access policy, retention store
+and deletion proof before it can write one row.
 
 Composed: building capture now would produce a table of customer prompts and model
 outputs, encrypted with a key reachable from the process that holds the
@@ -73,9 +71,9 @@ The four, stated as preconditions:
    against the entrypoint itself. A capture table joins that registry in the same
    change that creates it.
 3. **Encrypted with a key Oxy does not hold in PostgreSQL.** This is the blocking
-   one. It requires the same absent managed-secret backend as ADR 0013 — a client
-   dependency, an ECS task-role policy scoped to a partition prefix, and the store
-   named in the task definition. Until that exists, this precondition cannot be
+   one. Kaana's customer-BYOK KMS key is purpose-limited to provider credentials
+   and must not be reused. Until payload capture has a separate reviewed key,
+   role, encryption context and storage/expiry path, this precondition cannot be
    met and therefore neither can the decision be revisited.
 4. **Audited, and PII-redacted at the point of capture.** The audit pattern exists
    (`application_credential_audit_events`,
@@ -97,11 +95,11 @@ be a dependency of the one status check `main` requires.
 
 ## Alternatives rejected
 
-**Build it now with a key in PostgreSQL, or in the task environment, "for now".**
-This is the option that always looks reasonable and is the actual failure — the
-same shape ADR 0013 rejected for BYOK credentials. "For now" outlives the person
-who wrote it, and a table of prompts is a larger and more attractive target than a
-column of provider keys.
+**Build it now with a key in PostgreSQL, in the task environment, or by reusing
+Kaana's customer-BYOK key "for now".** This is the option that always looks
+reasonable and is the actual failure. "For now" outlives the person who wrote
+it, and a table of prompts is a larger and more attractive target than the
+purpose-limited provider-key store.
 
 **Build the pipeline unencrypted and add encryption later.** The row written
 before the encryption lands is written in the clear and is not retroactively

@@ -1,150 +1,172 @@
-# ADR 0013 — Oxy holds a REFERENCE to a customer's provider credential, never the credential; with no secret backend wired, BYOK writes are refused rather than degraded
+# ADR 0013 — Kaana is the sole custodian of customer provider credentials
 
-- Status: accepted (the refusal is the decision; the backend is deferred)
+- Status: accepted
 - Date: 2026-08-16
-- Amended: 2026-08-18 — the reference GRAMMAR was open where this ADR read as
-  though it were closed. `providerSecretReferenceSchema` admitted
-  `<store>:<anything from a wide charset>`, so a credential spliced in after the
-  store name satisfied it AND still ended with the partition suffix; measured
-  against a real Postgres, such a row was written and read back. Migration `0054`
-  closes the grammar to the canonical path and the contract now requires the
-  reference to name its own connection. The partition bullet below states both
-  halves.
+- Superseded custody mechanism: 2026-09-02 — the former Oxy secret-locator
+  design is replaced by Kaana PostgreSQL + KMS custody
 - Issue: #972 (workstream 10)
 
 ## Context
 
-BYOK means a customer presents their own upstream provider credential — an
-OpenAI key, a Bedrock role — and Oxy routes their requests through it. The
-upstream provider bills that customer's own account directly; Oxy charges only
-its platform fee (`usage_receipts.platform_fee_only`, ADR 0009).
+BYOK means a customer supplies a credential for their own upstream provider
+account. The provider bills that customer directly; Oxy charges only its
+platform fee (`usage_receipts.platform_fee_only`, ADR 0009).
 
-That leaves one question, and everything else in the workstream is downstream of
-it: **where does the credential live?**
+The credential must be available to the component that executes inference, but
+it must not become ordinary application configuration or control-plane data.
+Provider keys in environment variables, task definitions, product databases or
+application bundles cannot be isolated per customer, rotated transactionally or
+bound to an exact account/application route. Storing encrypted credential blobs
+in the Oxy database would still give the Oxy API both the ciphertext and the
+decryption path.
 
-The epic answers it — "Vault/KMS/managed secret storage, not PostgreSQL or
-client-visible state" — and `providerConnectionSchema` in `@oxyhq/contracts` was
-written so a secret cannot be REPRESENTED: the object is `.strict()`, so a
-producer attaching `apiKey`/`secret`/`token` fails the parse, and `keyPrefix` is
-capped at 12 characters so the one field designed to show part of a key cannot be
-widened into showing all of it.
-
-What this deployment actually has is narrower than it looks. `oxy-api` runs on
-ECS Fargate and receives its OWN secrets from SSM Parameter Store
-(`/oxy/oxy-api/*`, `/oxy/_shared/*`), injected by the task definition at LAUNCH.
-That is a launch-time read of parameters an operator created. It is not a runtime
-write path: the task role is not granted `ssm:PutParameter`, and the package's
-AWS dependencies are three S3 clients and nothing else — no Secrets Manager, SSM,
-KMS or Vault client exists in the tree. This process could not write a customer
-secret anywhere if it were asked to.
-
-So the real choice was between three options, and only the third is defensible:
-
-1. **Add a runtime secret-writing path as part of this workstream.** It needs an
-   IAM policy, a client dependency, a Dockerfile change and a rehearsal against a
-   real store — none of which can be validated from this repository, and all of
-   which are `oxy-infra`'s to own.
-2. **Store the credential in Postgres "for now", encrypted.** This is the option
-   that always looks reasonable and is the actual failure: a column full of
-   customer provider credentials is the highest-value target in the database, the
-   key to decrypt it has to live where the process can read it, and "for now"
-   outlives the person who wrote it.
-3. **Build the metadata side completely and REFUSE to accept a credential.**
+The former design stored a `secret_ref` locator in Oxy and expected a separate
+managed secret backend. No backend shipped. That refusal was safer than an Oxy
+PostgreSQL fallback, but it also made BYOK unusable and split custody from the
+inference data plane. Kaana now owns both the encrypted credential store and the
+only runtime that may decrypt it.
 
 ## Decision
 
-**Oxy stores a `secret_ref` — a `<store>:<locator>` pointer — and never
-credential material, in any table, response, error or log. With no secret
-backend configured, every path that would have to hold a credential refuses with
-a typed `503 provider_secret_store_unavailable`, BEFORE the credential is read
-out of the request body.**
+**Kaana is the only custodian of upstream provider credentials.** It encrypts
+each value with the customer-BYOK KMS key and stores the ciphertext, exact
+identity binding and durable operation outcome in **Kaana PostgreSQL**. Only
+Kaana inference receives KMS Decrypt permission. The Kaana control task may
+encrypt but cannot decrypt.
 
-Four things follow, and each is enforced rather than documented:
+The canonical signed control origin is exclusively `https://kaana.ai`.
+No Kaana hostname under `oxy.so` is valid.
 
-- **The refusal precedes the read.** The route authorises, then resolves the
-  store, then parses the body. In a deployment with no backend — which is every
-  deployment today — a customer credential is never read out of a request at all,
-  so it is not in a stack trace or an error report either. Authorisation comes
-  first so an unauthorised caller gets 403 and never learns what this deployment
-  is configured with.
-- **The reference is partitioned by account and environment, and the rest of it
-  is fixed.** `providerSecretReference` builds
-  `<store>:oxy/inference/byok/<environment>/<accountId>/<connectionId>`;
-  `inference_provider_connections_secret_ref_partition` requires the stored value
-  to END with `/<environment>/<owner_account_id>/<id>`, and
-  `inference_provider_connections_secret_ref_format` (migration `0054`) requires
-  the whole string to be that grammar and nothing else. A row naming another
-  account's or another environment's locator cannot be written — refused by the
-  database, not filtered by a query somebody must remember. The partition being
-  IN THE PATH is also what makes a per-partition IAM or Vault policy expressible
-  at the store, so Oxy does not have to be trusted to filter.
+Oxy stores only control-plane metadata:
 
-  The two CHECKs are not redundant, and one alone was not enough: the partition
-  rule pins only the END of the string, so until the format was closed a
-  credential could be spliced in at the FRONT and satisfy both it and the old
-  regex. `providerConnectionSchema` now carries the same pair on the wire — the
-  closed grammar, plus a refinement requiring the reference to name that
-  connection's own environment, account and id.
-- **Nothing can read a secret back.** The `ProviderSecretStore` interface has
-  `put` and `destroy` and deliberately no `get`. Re-validating a credential
-  therefore cannot be done by fetching it into this process; the component that
-  holds it at use time — the data plane — performs the check and reports a
-  verdict from a closed vocabulary with no free-form message field, which is
-  exactly where an upstream SDK's error string would otherwise quote a key back.
-- **A credential that transits the process is not a string.**
-  `ProviderSecretValue` overrides `toString`, `toJSON` and
-  `util.inspect.custom`, so a template literal, a `JSON.stringify` and a pino
-  field all print `[redacted]`; `reveal()` is the single greppable accessor.
+- exact `provider + ownerAccountId + connectionId + environment`;
+- exact account/project/application scope and lifecycle;
+- Kaana's opaque `kcred_…` handle and positive revision;
+- custody state and non-secret validation/terms metadata;
+- a durable mutation ledger containing exact IDs and non-secret state only.
 
-## What is NOT wired, and what would wire it
+Oxy stores no provider credential plaintext or ciphertext and exposes no
+fingerprint/hash. Credential digest validation and idempotency stay inside
+Kaana; Oxy neither persists nor exposes that digest.
 
-`PROVIDER_SECRET_STORE_BACKENDS` in `services/providerSecretStore.ts` is an
-EMPTY map. Setting `INFERENCE_PROVIDER_SECRET_STORE` moves the refusal from
-`not-configured` to `backend-missing`; it does not enable anything. Wiring one
-means, together:
+There is no provider-key fallback to an environment variable, MongoDB, Oxy
+PostgreSQL, Vault, SSM or Secrets Manager. Kaana itself is PostgreSQL-only;
+MongoDB/Mongoose are neither a fallback nor a migration destination.
 
-1. a client (`@aws-sdk/client-secrets-manager`, or a Vault client) in
-   `packages/api/package.json` and in the Dockerfile's lean workspace install;
-2. an ECS task-role policy scoped to the partition prefix above, so the process
-   can write only inside a customer's own partition;
-3. `INFERENCE_PROVIDER_SECRET_STORE` set in the task definition. It names a
-   STORE, not a credential, so it is a plain environment variable and never an
-   SSM parameter.
+## Exact signed identity and opaque IDs
 
-Nothing else changes: the metadata, the routes, the scope gate, the audit trail
-and their tests are complete and green without it.
+Oxy mints and persists one opaque operation ID before any control request. The
+signed request binds that ID to the action, actor and exact
+`provider + ownerAccountId + connectionId + environment`; rotate/revoke also
+bind the opaque handle and expected revision. No participant derives an ID from
+a name, display label, provider ordering or a first match.
 
-## Consequences, including the ones that cost something
+Kaana includes the complete binding in its PostgreSQL uniqueness/idempotency
+checks and KMS encryption context. Kaana validates the credential against its
+internal digest. Reusing an operation ID with a different action, identity,
+actor, credential, handle or revision is a conflict.
 
-- **BYOK cannot be used in production until a backend is wired.** That is the
-  point, and it is a smaller cost than the alternative: a feature that stores
-  secrets in the wrong place is worse than one that refuses.
-- **The routing preference is NOT re-modelled here.**
-  `inference_routing_policy_versions.byok_preference` (`disabled | prefer |
-  require`, workstream 6) stays the one place a customer says whether their own
-  credentials may or must be used. This workstream adds the object that
-  preference resolves AGAINST, and
-  `resolveProviderConnectionForApplication` returns a discriminated result so
-  `require` with no live connection is a nameable outcome rather than a null a
-  caller reads as "fine, use Oxy's".
-- **BYOK does not override a provider's terms and is not a licence to share a
-  credential.** Where a provider's terms require a per-customer acknowledgement,
-  `inference_providers.byok_terms_acknowledgement_required` says so and a
-  composite foreign key makes an un-acknowledged connection unwritable. Turning
-  that flag on while un-acknowledged connections exist is REFUSED — the loud
-  signal is deliberate, because flipping it silently would make every existing
-  connection retroactively non-compliant with nothing to show for it.
-- **A revoke destroys the credential first, then records the revoke, and a
-  destroy failure never blocks it.** Retiring a connection is a safety operation,
-  usually performed because a key leaked; refusing to record it because a store
-  call timed out would leave the connection resolvable. The audit row states
-  whether the secret was actually destroyed, so a failed destruction is visible
-  rather than assumed.
-- **The audit trail's immutability trigger guards `UPDATE` only, not `DELETE`,
-  unlike ADR 0009's ledger trigger.** `used` events accrue for the life of every
-  connection, so `db/expiry.ts` sweeps this table at two years and a DELETE guard
-  would fail that sweep on every run rather than make the trail safer. The
-  mutation that matters for an audit trail is the EDIT: a deleted row is absent
-  and visibly so, while an edited one is a lie that reads as a fact. A schema
-  test asserts BOTH halves, so widening the trigger later goes red before the
-  sweep starts failing in production.
+Credential input is exactly 1–4096 visible ASCII bytes (`0x21`–`0x7e`). The
+public contract and signed Kaana contract both reject empty, whitespace/control,
+non-ASCII and oversized values. Oxy persists and returns no prefix, suffix,
+fingerprint, hash or other credential-derived recognition value. Clients render
+the credential as hidden and name Kaana custody without a hint.
+
+## Cross-service state machine
+
+Oxy writes the connection/operation fence before calling Kaana. Only an exact
+signed `applied` outcome makes custody routable:
+
+- create: `pending` → `ready`, with revision 1;
+- rotate: `ready` → `reconcile` → `ready`, with the same handle and exactly the
+  next revision;
+- revoke: lifecycle becomes `revoked` and custody becomes `reconcile` before
+  the network call, then custody becomes `revoked` only after Kaana acknowledges
+  the exact next revision.
+
+Anything except `ready` custody is excluded from routing. Even with ready
+custody, the normal edge admits only `active + valid`. Pending validation,
+unvalidated, invalid, expired, disabled and every other lifecycle/validation
+combination remain excluded. A more-specific non-routable row shadows broader
+connections fail-closed; it is never bypassed by selecting a parent. A fully
+revoked row stops shadowing inheritance.
+
+Create and rotate intentionally leave the current generation
+`pending_validation + unvalidated`. The signed normal-serving route has no
+bootstrap purpose, so that generation must never be placed in its
+`authorizedRoutes`. A separate authenticated initial-validation bootstrap has
+not been implemented; it is a launch gate, not an exception in the normal
+resolver.
+
+## Lost-response recovery
+
+Recovery always looks up the signed outcome for the persisted operation first.
+A matching applied result is committed locally; a conflict becomes manual.
+Only an explicit Kaana `404` permits a replay, and that replay uses the **same
+operation ID and exact binding**.
+
+Create/rotate replay requires the customer to re-enter the original value. Oxy
+resends it only with the persisted operation's same ID, identity, actor and
+handle/revision; Kaana alone validates its internal digest/idempotency binding.
+Revoke replay accepts no credential. Network/5xx, malformed response or any
+identity, handle or revision mismatch never triggers a mutation replay.
+
+A recovery route cannot accept an operation ID from the caller, mint a
+replacement, resubmit with a new ID, or guess from current rows. Manual database
+editing is not recovery.
+
+## Closure fencing
+
+Account closure and provider-connection creation take the same exact account-row
+lock. Self-delete writes a durable `account_closure_fences` row before external
+cleanup, so a failed cleanup remains retryable by the person but cannot race a
+new BYOK connection. Archival writes the same fence atomically.
+
+Account closure requires every owned connection to have
+`custodyState = revoked`. Application deletion takes the exact application-row
+lock and likewise refuses an application-scoped connection with non-revoked
+custody. Lifecycle `status = revoked` alone is insufficient while Kaana's
+outcome is uncertain.
+
+## Validation authority
+
+Only a live trusted service principal holding the exact
+`inference:byok:validate` scope and the staff-controlled application capability
+`kaana:provider-credential-validation` may call
+`POST /inference/provider-connections/:connectionId/validation`. User sessions
+and ordinary service credentials cannot report a verdict. The request names the
+current exact handle/revision and refuses a stale generation; rate limiting is
+keyed by the live service principal's `appId:credentialId`, never an IP. The
+resulting audit actor is `platform`, because the credential check is Kaana
+machinery rather than the customer service credential that authenticated the
+report.
+
+Validation belongs inside Kaana, where the credential is decrypted. Oxy accepts
+only a closed verdict vocabulary with no free-form provider error string. A
+`valid` verdict for the exact ready generation promotes `pending_validation` to
+`active` in the same transaction; `invalid` or `expired` disables it. The Oxy
+receiver exists, but there is no dedicated authenticated path that can bootstrap
+a new pending generation without exposing it to normal serving. That bootstrap,
+the compatible Kaana callback, and their production deployment remain launch
+gates.
+
+## Consequences
+
+- Provider keys are written and rotated at runtime without becoming Oxy API
+  configuration or product data.
+- Oxy cannot read a credential back for support, validation or migration. The
+  control protocol has no plaintext read operation.
+- A control outage cannot make uncertain custody routable. Disable remains a
+  local reversible containment action; revoke fences locally before it contacts
+  Kaana.
+- BYOK does not override provider terms. A provider that requires per-customer
+  acknowledgement remains protected by the connection/catalogue foreign-key
+  invariant.
+- The former `secret_ref` column and its Oxy-side locator backend/configuration
+  are deleted. Migration `0054` remains historical evidence of the old locator
+  grammar; migrations `0067`/`0068` prove zero inventory and remove the legacy
+  column during the clean cut.
+
+Operational details and launch gates live in
+[the BYOK mechanism doc](../inference/byok.md); incident procedures live in the
+[BYOK runbook](../runbooks/byok-provider-connection-rotation.md).

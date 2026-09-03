@@ -135,9 +135,9 @@ each is the count of the four retired strings only.
 | `packages/console/src/routes/_layout/documentation/sdks.tsx` | 0 | **Cleared** |
 | `packages/console/src/routes/_layout/documentation/chat-completions.tsx` | 0 | **Cleared** |
 | `packages/console/src/routes/_layout/documentation/quickstart.tsx` | 0 | **Cleared** |
-| `packages/api/src/config/email.config.ts` | 1 | **Not a catalogue reference — leave it.** See below |
-| `packages/api/src/routes/__tests__/alia.test.ts` | 3 | Fixtures for the proxy, which still exists at `/alia/*` |
-| `packages/api/src/services/__tests__/aiLabeling.service.test.ts` | 1 | Fixture for the AI-labelling consumer below |
+| `packages/api/src/config/email.config.ts` | 0 | **Cleared.** `AI_LABELING_MODEL` was removed with the shared Alia proxy |
+| `packages/api/src/routes/__tests__/alia.test.ts` | — | **Gone.** The proxy and its fixtures were removed after the caller census |
+| `packages/api/src/services/__tests__/aiLabeling.service.test.ts` | 0 | The feature now uses the authenticated Inbox→Oxy→Kaana point-inference lane |
 | `packages/api/src/routes/models-stats.ts` | — | **Gone.** Deleted with its four static entries by [#982](https://github.com/OxyHQ/oxy/pull/982) |
 | `packages/console/src/lib/model-reference.ts`, `inferenceCatalogue.service.ts`, `seed-inference-catalogue.ts`, the ADRs and the responsibility matrix | — | Correct — these quote the names in order to retire them |
 
@@ -145,25 +145,14 @@ Console renders the real catalogue now ([#991](https://github.com/OxyHQ/oxy/pull
 so the four names are gone as model identities from every customer-facing screen.
 A count here is a fact about a commit, so re-measure before quoting it.
 
-### `AI_LABELING_MODEL` is not one of these
+### `AI_LABELING_MODEL` was removed
 
-`packages/api/src/config/email.config.ts:100` defaults `AI_LABELING_MODEL` to
-`alia-lite`, and it is **correct as it stands.** It is not a fake catalogue
-entry and never was one.
-
-The value is sent as the `model` field of a request to **Alia's own API**
-(`packages/api/src/services/aiLabeling.service.ts:31` targets
-`https://api.alia.onl/v1`, and `:152` puts the configured string in the body).
-At that boundary `alia-lite` is a real identifier of an Alia product tier — the
-thing Alia's API accepts — so it is an Alia product alias consumed by a product
-feature, not an Oxy model id.
-
-What ADR 0008 retires is the use of those four strings **as Oxy model
-identities**, in the Oxy catalogue and in Oxy's public examples. An Oxy product
-feature naming an Alia tier when calling Alia is a different act, and rewriting
-it to a canonical `<publisher>/<model>` would name something Alia's API does not
-recognise. (The labelling path is also off by default: `AI_LABELING_ENABLED`
-defaults to `false`.)
+The labelling feature no longer chooses an Alia tier or holds an Alia key. It
+uses Inbox's exact application id and an exact
+`INBOX_INFERENCE_ROUTING_PROFILE_ID` through the authenticated Oxy inference
+edge. `AI_LABELING_ENABLED` still controls whether automatic labelling runs;
+when it does, model and provider selection are owned by the referenced routing
+profile rather than an environment alias.
 
 ---
 
@@ -178,21 +167,15 @@ users to notice, `oxy_dk_…` as a bearer never worked, and the four `alia-*`
 strings never identified a model. A name nothing checked has no users to give
 notice to.
 
-### The Alia proxy has already moved, without a removal
+### The Alia proxy is retired
 
-Workstream 4 took `POST /v1/chat/completions` for the Oxy inference edge. **The
-proxy itself is unchanged and still reachable at `POST /alia/chat/completions`**
-— same router, same first-party gate, same behaviour — so every platform-trusted
-caller it served kept a working path, one base URL apart.
-`POST /v1/voice/token` and `POST /v1/voice/transcribe` still fall through to it.
+The caller census separated point inference from Alia product features. Point
+inference now enters Oxy's authenticated edge and is reserved, executed by
+Kaana, attributed and settled. Agent, chat and voice product features that
+belong to Alia call Alia directly with their own application authentication.
 
-The visible consequence is intended: a trusted caller posting to
-`/v1/chat/completions` now reaches an edge with no data plane behind it and gets
-a typed `service_unavailable`, instead of being silently proxied to Alia on one
-shared upstream key with no reservation and no attribution.
-
-**What you need to do:** if you were calling `/v1/chat/completions` as the Alia
-proxy, move to `/alia/chat/completions`. If you were calling it expecting the
-Oxy inference edge, you are already there — see [sdk.md](./sdk.md). Retiring the
-proxy is workstream 14's, and it needs a dated notice addressed to the named
-applications that can reach it.
+Oxy no longer mounts `POST /alia/chat/completions`, `POST /v1/voice/token` or
+`POST /v1/voice/transcribe`, and no Oxy runtime requires `ALIA_API_KEY`. Callers
+must not fall back from an exact routing profile to a name, tier, first row or
+implicit deployment. See [Inbox point inference](./inbox-point-inference.md)
+and [sdk.md](./sdk.md).

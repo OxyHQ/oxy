@@ -112,7 +112,14 @@ jest.mock('../../utils/logger', () => ({
 }));
 
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
-import { apiKeyUsageEvents, applicationCredentials, applications, users } from '../../db/schema';
+import {
+  apiKeyUsageEvents,
+  applicationCredentials,
+  applications,
+  inferenceProviderConnections,
+  inferenceProviders,
+  users,
+} from '../../db/schema';
 import applicationsRouter from '../applications';
 import { errorHandler } from '../../middleware/errorHandler';
 
@@ -226,6 +233,45 @@ async function seedCredential(
       type: 'confidential',
       environment: 'production',
       createdByUserId: OWNER_ID,
+      ...overrides,
+    })
+    .returning();
+  return row;
+}
+
+/** A real application-scoped BYOK row. Plaintext never enters this fixture. */
+async function seedApplicationProviderConnection(
+  application: typeof applications.$inferSelect,
+  overrides: Partial<typeof inferenceProviderConnections.$inferInsert> = {}
+): Promise<typeof inferenceProviderConnections.$inferSelect> {
+  const provider = `test-${crypto.randomBytes(8).toString('hex')}`;
+  await getDb().insert(inferenceProviders).values({
+    slug: provider,
+    displayName: provider,
+    kind: 'third_party',
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: false,
+  });
+
+  const base32 = 'abcdefghijklmnopqrstuvwxyz234567';
+  const handleSuffix = Array.from(crypto.randomBytes(26), (byte) => base32[byte % 32]).join(
+    ''
+  );
+  const [row] = await getDb()
+    .insert(inferenceProviderConnections)
+    .values({
+      provider,
+      ownerAccountId: application.ownerAccountId,
+      scopeKind: 'application',
+      applicationId: application.id,
+      environment: 'production',
+      status: 'active',
+      credentialHandle: `kcred_${handleSuffix}`,
+      credentialRevision: 1,
+      custodyState: 'ready',
+      validationState: 'valid',
       ...overrides,
     })
     .returning();
@@ -366,7 +412,11 @@ describe('POST /applications — create', () => {
    * are, and an ordinary owner must not need staff to build against inference.
    */
   it('403 when a non-staff creator self-grants an inference WRITE scope', async () => {
-    for (const scope of ['inference:providers:write', 'inference:routing:write']) {
+    for (const scope of [
+      'inference:providers:write',
+      'inference:routing:write',
+      'inference:byok:validate',
+    ]) {
       const res = await requestJson(server, 'POST', '/applications', {
         name: `Inference ${scope}`,
         scopes: ['inference:invoke', scope],
@@ -538,6 +588,26 @@ describe('GET/PATCH/DELETE /applications/:appId — account-derived RBAC', () =>
     grantAccess(OTHER_ID, ORG_ID, 'admin');
     const res = await requestJson(server, 'DELETE', `/applications/${app.id}`);
     expect(res.status).toBe(200);
+    expect((await readApp(app.id))?.status).toBe('deleted');
+  });
+
+  it('refuses deletion until Kaana has acknowledged every application BYOK revocation', async () => {
+    const app = await seedApp({ ownerAccountId: ORG_ID });
+    const connection = await seedApplicationProviderConnection(app);
+    actAs(OTHER_ID);
+    grantAccess(OTHER_ID, ORG_ID, 'admin');
+
+    const refused = await requestJson(server, 'DELETE', `/applications/${app.id}`);
+    expect(refused.status).toBe(409);
+    expect((await readApp(app.id))?.status).toBe('active');
+
+    await getDb()
+      .update(inferenceProviderConnections)
+      .set({ status: 'revoked', custodyState: 'revoked' })
+      .where(eq(inferenceProviderConnections.id, connection.id));
+
+    const deleted = await requestJson(server, 'DELETE', `/applications/${app.id}`);
+    expect(deleted.status).toBe(200);
     expect((await readApp(app.id))?.status).toBe('deleted');
   });
 

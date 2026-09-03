@@ -1,5 +1,14 @@
 # Changelog — `@oxyhq/core`
 
+## 23.2.0
+
+### Added
+
+- `OxyResponsesRequest.routingProfileId` lets trusted product integrations name
+  an exact opaque Oxy routing-profile primary key. The client serializes the ID
+  byte-for-byte; Oxy resolves it before constructing the stable Kaana envelope.
+  Existing `model` and public `routingProfile` slug selectors remain compatible.
+
 ## 23.0.1
 
 ### Added

@@ -1,194 +1,273 @@
-# Runbook — rotating, disabling or revoking a BYOK provider connection
+# Runbook — rotating, disabling, revoking or recovering a BYOK connection
 
-A BYOK connection is a **customer's own** upstream provider credential — an
-OpenAI key, a Bedrock role — that Oxy routes their inference through. Oxy does not
-hold it: the table stores a `secret_ref` locator into managed secret storage, a
-`key_prefix` capped at 12 characters, and a SHA-256 `fingerprint`.
-[ADR 0013](../adr/0013-byok-secret-custody.md) is the decision; this is what to do
-when the credential behind one has to change.
+A BYOK connection uses a customer's own upstream provider credential. Kaana is
+its sole custodian: Kaana encrypts the value with KMS and stores the ciphertext
+in Kaana PostgreSQL. Oxy stores control-plane metadata, a Kaana-minted opaque
+handle and an exact revision; it never stores provider credential plaintext or
+ciphertext and never returns a fingerprint or digest.
 
-## Read this first
+[ADR 0013](../adr/0013-byok-secret-custody.md) is the binding decision and
+[the BYOK mechanism doc](../inference/byok.md) describes the cross-service state
+machine. The only signed Kaana origin is `https://kaana.ai`.
 
-**No secret backend is wired in this deployment.**
-`PROVIDER_SECRET_STORE_BACKENDS` in
-`packages/api/src/services/providerSecretStore.ts` is an empty map, so every
-write path — create, rotate — refuses with
-`503 provider_secret_store_unavailable`, **before the credential is read out of
-the request body**. Nothing here is broken; that refusal is ADR 0013's decision.
-
-The consequence for this runbook: **the rotate procedure below cannot be executed
-in production today.** It is written because the procedure is a property of the
-API, not of the store, and because the day a store is wired is not the day to
-work out what rotation does. What *can* be executed today is
-`disable`, `enable` and `revoke`, which are pure database work and need no store
-round trip — see below, and note that this is deliberate: "immediate" must not
-depend on the availability of the thing being stopped.
+This runbook documents the intended production mechanism; it is not evidence
+that the current Kaana deployment consumes customer credential bindings or
+reports validation. Do not execute customer BYOK changes until every launch gate
+in [the mechanism doc](../inference/byok.md#launch-gates) is verified against the
+deployed Oxy and Kaana revisions.
 
 ## Trigger
 
-- **The customer's upstream key leaked, or they rotated it at the provider.** The
-  credential Oxy holds a reference to is stale; requests will fail upstream with
-  an authentication error, and the connection's validation state will be recorded
-  as `invalid` (which also disables it).
-- **The customer is leaving BYOK**, or the connection was created against the
-  wrong account or environment. Revoke; there is no move.
-- **Account deletion.** `inference_provider_connections.owner_account_id` is
-  `RESTRICT`, not `CASCADE`, so deletion cannot silently orphan a secret in the
-  store. A live connection therefore BLOCKS a hard delete, and the account is
-  archived instead — revoke the connection first, deliberately, so the stored
-  secret is destroyed rather than left behind with nothing in Oxy pointing at it.
+- **The upstream key leaked or was rotated at the provider.** Rotate the
+  connection to the replacement value. If spend is leaking, disable first.
+- **The connection must stop serving immediately but may be restored.** Disable;
+  this is the only reversible containment action.
+- **The customer is leaving BYOK, or the connection has the wrong exact owner,
+  scope or environment.** Revoke; there is no move or identity rewrite.
+- **A create, rotate or revoke returned
+  `kaana_credential_reconcile_required`.** Recover the same durable operation;
+  never create a substitute operation.
+- **Account/application closure is blocked.** Every scoped connection must have
+  `custodyState = revoked`, meaning Kaana acknowledged the exact revocation.
 
-## Rotate — replace the credential, keep the connection
+## Before any write
 
-`POST /inference/provider-connections/:connectionId/rotate` with the new
-credential in the body. Requires `app:update` or `account:update` on the owner
-plus the `inference:providers:write` scope.
-
-**The `secret_ref` does not change.** It is pinned to the connection's
-environment, owner account and id by the
-`inference_provider_connections_secret_ref_partition` CHECK, and a rotation
-touches none of those — so a data plane already holding the reference keeps
-working, and the previous credential is gone the instant the store write lands. A
-new reference would leave the old secret in the store with nothing pointing at
-it.
-
-Two refusals to expect, both `409`:
-
-- **`unchanged-credential`** — "That is the credential this connection already
-  holds; a rotation must supply a new one." Compared by `fingerprint`, so
-  re-submitting the same key is caught without Oxy reading either one back. This
-  is a real safety property: a rotation that silently accepted the same value
-  would report success and change nothing.
-- **`revoked`** — a revoked connection cannot be rotated. Revocation is terminal.
-
-`status` is deliberately NOT reset by a rotation — a working connection is not
-suspended because its key changed, or customers would avoid rotating.
-`validation` IS reset to `unvalidated`, because the previous verdict was about a
-credential that no longer exists.
+Use the connection ID returned by Oxy. IDs are opaque: do not choose a row by
+display name, list order, provider alone or a “first” match. Read the exact row
+and record at least its `connectionId`, `provider`, `ownerAccountId`, `scope`,
+`environment`, `status`, `custodyState`, `credentialHandle` and
+`credentialRevision`.
 
 ```bash
 OXY_API=https://api.oxy.so
-CONNECTION_ID=<connection id>
-TOKEN=<user access token with account:update / app:update and inference:providers:write>
+CONNECTION_ID=<exact opaque connection id>
+TOKEN=<user access token with the required account/application BYOK permission>
 
-# Do NOT paste the credential on the command line — it lands in shell history.
-# Read it from a file the editor never wrote to disk unencrypted, or from stdin.
-curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  --data-binary @- \
-  "$OXY_API/inference/provider-connections/$CONNECTION_ID/rotate" <<'JSON'
-{"secret": "<the customer's new upstream credential>"}
-JSON
+curl -fsS -H "Authorization: Bearer $TOKEN" \
+  "$OXY_API/inference/provider-connections/$CONNECTION_ID" | jq '.data'
 ```
 
-## Disable, enable, revoke — the three that work today
+The provider credential must be 1–4096 visible ASCII bytes (`0x21`–`0x7e`). Do
+not paste it on the command line or assign it to a shell variable: both can
+persist it in shell history or process inspection. Feed JSON on standard input
+from the customer's secret-handling workflow.
+
+## Rotate — replace the value, preserve the connection identity
+
+`POST /inference/provider-connections/:connectionId/rotate` accepts
+`{"secret":"…"}`. Oxy fences custody before calling Kaana, and only a signed
+outcome matching the exact handle and expected revision returns the connection
+to `ready`.
 
 ```bash
-# Immediate and REVERSIBLE. Pure database work, no store round trip.
-curl -sS -X POST -H "Authorization: Bearer $TOKEN" -d '{}' -H 'Content-Type: application/json' \
+curl -fsS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data-binary @- \
+  "$OXY_API/inference/provider-connections/$CONNECTION_ID/rotate"
+```
+
+Enter one JSON object on standard input through the approved secret source. A
+successful rotation keeps `credentialHandle`, increments
+`credentialRevision` by exactly one, resets validation to `unvalidated`, and
+moves an active connection to `pending_validation`. A concurrently disabled
+connection stays disabled; rotation must never reopen it. A revoked connection
+is terminal.
+
+No prefix, suffix, fingerprint or hash is returned after rotation. The Console
+continues to render “credential hidden” / “stored securely in Kaana”.
+
+If the response is uncertain, Oxy leaves `custodyState = reconcile` and the
+connection non-routable. Do not retry `/rotate`; follow the recovery procedure
+below.
+
+## Disable and enable — immediate, local and reversible
+
+These transitions update Oxy PostgreSQL only. They do not retrieve the provider
+credential and do not need a Kaana round trip.
+
+```bash
+# Stop resolution immediately.
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}' \
   "$OXY_API/inference/provider-connections/$CONNECTION_ID/disable"
 
-# Undo a disable.
-curl -sS -X POST -H "Authorization: Bearer $TOKEN" -d '{}' -H 'Content-Type: application/json' \
+# Undo a deliberate disable.
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}' \
   "$OXY_API/inference/provider-connections/$CONNECTION_ID/enable"
+```
 
-# TERMINAL, and it destroys the stored credential.
-curl -sS -X POST -H "Authorization: Bearer $TOKEN" -d '{}' -H 'Content-Type: application/json' \
+Prefer `disable` for uncertain incidents: it is the only reversible operation.
+It does not satisfy an account/application closure gate because Kaana still
+holds the credential.
+
+## Revoke — terminal and acknowledged by Kaana
+
+Oxy first writes `status = revoked` and `custodyState = reconcile`, making the
+connection non-routable even if the control hop is down. It then asks Kaana to
+revoke the exact handle/revision. Success returns `credentialRevoked: true` and
+`custodyState = revoked`.
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}' \
   "$OXY_API/inference/provider-connections/$CONNECTION_ID/revoke"
 ```
 
-**Prefer `disable` when you are unsure.** It stops the connection being resolved
-without destroying anything, and it is the only reversible one.
+There is deliberately no connection `DELETE`. Deleting it would remove the
+identity needed to explain historical routing and charges. A 503 after local
+fencing does not mean “nothing happened”: read the row. If custody remains
+`reconcile`, recover the existing revoke operation without a secret.
 
-**A revoke destroys the secret first, then records the revoke, and a destroy
-FAILURE DOES NOT BLOCK IT.** Retiring a connection is a safety operation, usually
-performed because a key leaked; refusing to record it because a store call timed
-out would leave the connection resolvable. So the response carries
-`secretDestroyed: true | false` and the audit row records the same field — **read
-it.** `secretDestroyed: false` means the connection is revoked in Oxy and the
-customer's credential may still be sitting in the secret store; the only correct
-next action is to destroy it at the store, or ask the customer to rotate it at
-their provider, and neither happens on its own.
+## Recover an uncertain operation — outcome first
 
-There is deliberately **no `DELETE`**: a deleted connection would make a past
-charge unexplainable and would take its own audit trail with it.
+The recovery route loads the one unresolved operation for the exact connection;
+the caller never supplies an operation ID. It always performs a signed Kaana
+outcome lookup first.
 
-## How to verify any of these took
+- Matching `applied`: Oxy commits it locally; no mutation replay occurs.
+- Explicit outcome `404`: only then may Oxy replay the **same operation ID**.
+- Network failure, 5xx, malformed response or binding mismatch: no replay; the
+  connection stays quarantined.
+- Conflict: the operation becomes `manual`; automated recovery stops.
 
-Read the connection back, and then read its audit trail — a 200 from a transition
-endpoint is not evidence on its own.
+### Recover create or rotate
+
+Re-enter the credential used by the uncertain operation, not a replacement.
+Oxy sends it only with the persisted operation's same ID, identity, actor and
+handle/revision. Kaana alone validates its internal digest and exact idempotency
+binding. A missing value is refused by Oxy; a different value becomes a Kaana
+conflict and never a replacement operation.
 
 ```bash
-curl -sS -H "Authorization: Bearer $TOKEN" \
+curl -fsS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data-binary @- \
+  "$OXY_API/inference/provider-connections/$CONNECTION_ID/reconcile"
+```
+
+Enter `{"secret":"<the exact original value>"}` on standard input through the
+approved secret source. The route uses that value only if Kaana's outcome lookup
+returned 404; it never mints a new operation or accepts an operation ID from the
+body.
+
+### Recover revoke
+
+A revoke replay contains no credential. Passing one is a `400`.
+
+```bash
+curl -fsS -X POST -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{}' \
+  "$OXY_API/inference/provider-connections/$CONNECTION_ID/reconcile"
+```
+
+Never “recover” by calling create/rotate/revoke again, changing an opaque ID,
+editing custody columns, or choosing a connection by name. Those produce a new
+fact or an unprovable database state; they do not settle the existing operation.
+
+## Verify every transition
+
+A 200 alone is not evidence. Read the connection and its audit trail:
+
+```bash
+curl -fsS -H "Authorization: Bearer $TOKEN" \
   "$OXY_API/inference/provider-connections/$CONNECTION_ID" | jq '.data'
 
-curl -sS -H "Authorization: Bearer $TOKEN" \
+curl -fsS -H "Authorization: Bearer $TOKEN" \
   "$OXY_API/inference/provider-connections/$CONNECTION_ID/audit" | jq '.data'
 ```
 
 What must be true:
 
-- **After a rotate:** `fingerprint` is DIFFERENT from the value you recorded
-  before, `keyPrefix` matches the leading characters of the new credential, and
-  `validation` is `unvalidated`. An unchanged `fingerprint` with a 200 response
-  is impossible (the `unchanged-credential` refusal covers it) but an unchanged
-  fingerprint after a 409 you did not read IS the likely story — check the status
-  code, then the field.
-- **After a disable:** `status` is `disabled`, and it went back to `active` only
-  if you called `enable`.
-- **After a revoke:** `status` is `revoked`, and the audit event carries
-  `secretDestroyed`. If that is `false`, this procedure is not finished.
-- The audit trail is **append-only in the database**, not by convention: an
-  `UPDATE` trigger refuses edits (`0042_inference_provider_connection_immutability.sql`).
-  A missing event means the write did not happen, not that the trail was tidied.
+- **Create:** `credentialRevision = 1`, custody is `ready`, lifecycle starts at
+  `pending_validation`, validation is `unvalidated`, and the exact Kaana handle
+  is present. It is not an active credential and is never returned by the
+  normal-serving resolver. Immediately open Console's **Validate** action,
+  choose an exact deployment ID, and start the durable bootstrap below.
+- **Rotate:** handle unchanged, revision exactly previous + 1, custody `ready`,
+  validation `unvalidated`; an active connection becomes `pending_validation`,
+  while a concurrently disabled one remains disabled. There is no
+  credential-derived display hint.
+- **Disable/enable:** disable sets lifecycle to `disabled`. Enable returns to
+  `active` only when the exact generation is already `valid`; otherwise it
+  returns to `pending_validation`. Custody and handle/revision do not change.
+- **Revoke:** lifecycle and custody are both `revoked`, revision is exactly
+  previous + 1, and the transition response carried `credentialRevoked: true`.
+- **Recovery:** the response names `reconciledAction`; the same exact connection
+  reaches the state expected for that action. No credential-derived value
+  appears in the connection or audit response.
 
-`secret_ref` must be unchanged by a rotate and must still be exactly
-`<store>:oxy/inference/byok/<environment>/<owner_account_id>/<id>` for one of the
-four stores. Both the grammar and the partition are database CHECKs, so a value
-that fails them cannot have been written — but reading the reference back is how
-you confirm you are looking at the connection you think you are.
+The audit trail is append-only for updates in PostgreSQL. A missing event means
+the transition was not committed; do not infer it from a provider-side change.
 
-## Rollback
+## Account and application closure
 
-- **`disable` → `enable`.** The one reversible transition.
-- **A rotate cannot be rolled back**, because Oxy never had the previous
-  credential: the `ProviderSecretStore` interface has `put` and `destroy` and
-  deliberately **no `get`**, so there is nothing to restore from. Recovery is the
-  customer supplying the previous credential again as another rotation, if their
-  provider still accepts it.
-- **A revoke cannot be rolled back.** Create a new connection; the new one gets a
-  new id and therefore a new `secret_ref` partition.
+Do not work around a `409` closure refusal. Account closure is fenced durably
+before destructive cleanup and cannot race a new BYOK create. An active user may
+retry cleanup after an external failure, but the closing account cannot create
+another connection. Application deletion takes the same exact-row lock as an
+application-scoped connection create.
 
-## Break-glass
+For every connection named by the refusal:
 
-**The secret store is unreachable.** Rotation and creation refuse with `503
-provider_secret_store_unavailable`, and `describeUnavailableStore()` reports which
-of the four arms you are in — not-configured, backend-missing, and so on — because
-the operator's next action differs in each. What still works: `disable`, `enable`
-and `revoke`, all pure database work. **So the containment path never depends on
-the store being up:** disable stops the connection being resolved immediately, and
-you can rotate later when the store returns.
+1. Disable it if containment is urgent.
+2. Revoke it by exact opaque connection ID.
+3. If custody is uncertain, recover that same revoke operation.
+4. Confirm `custodyState = revoked`.
+5. Retry account/application closure.
 
-**A revoke left `secretDestroyed: false`.** Oxy has no way to retry the destroy —
-there is no re-destroy endpoint, because the connection is already terminal and a
-retry loop over a customer's secret store is not something the API should own.
-The paths are, in order: destroy the secret directly at the store (its locator is
-the connection's `secret_ref`, which is readable through the connection endpoint
-and is not itself sensitive); or tell the customer to rotate the credential at
-their provider, which makes the surviving copy useless. Record which you did.
+Lifecycle `status = revoked` with `custodyState = reconcile` is intentionally
+still a blocker: Oxy has stopped routing, but Kaana custody is not yet proven
+revoked.
 
-**A live connection is blocking an account deletion.** That is the schema working
-as designed. Revoke the connection first (which destroys the secret), then retry
-the deletion. Do not remove the `RESTRICT`: a cascade here deletes the metadata
-and leaves the credential in the store with nothing left in Oxy that knows it
-exists.
+## Rollback and break-glass
 
-**The customer is unreachable and their key is leaking spend.** `disable` is
-yours to use — it is reversible, it needs no store, and it stops routing through
-their credential. Nothing about it destroys anything of theirs.
+- **Disable → enable** is the only direct rollback.
+- **Rotate has no automatic rollback.** The previous plaintext is not readable
+  from Oxy or Kaana's control API. If the upstream provider still accepts it,
+  the customer may supply it as a later, new rotation after the current one is
+  fully reconciled.
+- **Revoke has no rollback.** Create a new connection with a new opaque ID after
+  the old revocation is acknowledged.
+- **Kaana control unavailable:** disable for immediate containment. Revoke still
+  fences locally, then requires same-operation recovery when control returns.
+  Create and rotate must not fall back to an environment variable, Oxy database,
+  MongoDB or a second secret store.
+- **Recovery reports conflict/manual:** leave the row quarantined and escalate
+  with the exact connection and operation ledger IDs. Do not include the
+  provider credential or any derived value in a ticket, log or message.
+- **Customer unreachable while spend leaks:** disable. This stops resolution
+  without guessing ownership or destroying customer material.
 
-**What Oxy cannot do, at all:** read a customer's credential back. Not for
-re-validation, not for support, not for a migration. `ProviderSecretStore` has no
-`get`, and validation is performed by the component that holds the credential at
-use time (the data plane), reporting a verdict from a closed vocabulary with no
-free-form message field — which is exactly where an upstream SDK's error string
-would otherwise quote the key back.
+Neither Oxy nor support can read a provider credential back. Oxy's normal
+resolver returns only `ready + active + valid`; a pending or unvalidated row
+shadows broader scopes fail-closed. The authenticated edge source binds that
+exact resolved generation into the selected authorized route, but it must never
+bind a pending generation as a validation shortcut. Use
+`GET /:connectionId/validation-deployments?applicationId=…` and explicitly
+select one returned catalogue deployment ID; never derive it from provider/model
+name or choose the first row. `POST /:connectionId/validation-bootstrap` creates
+or resumes the durable operation, while `GET` on the same path shows its latest
+state. A pending result may be retried with the same selectors and operation;
+an inconclusive billing/quota result may be revalidated as a new operation over
+the same credential generation after the provider account is fixed. Do not
+rotate a cryptographically correct key merely to recover credit or quota.
+
+Kaana uses the exact pending generation and its protected mapped deployment for
+a fixed one-token probe, discards output, bypasses normal response/receipt/Oxy
+billing, and enqueues a closed outcome with no free-form upstream error text.
+Only authentication rejection is invalid; billing is inconclusive `forbidden`
+and quota is inconclusive `rate_limited`. The Oxy validation receiver
+accepts only a live trusted service principal carrying both the exact
+`inference:byok:validate` scope and the staff-controlled
+`kaana:provider-credential-validation` application capability. User sessions
+and ordinary service credentials cannot report verdicts; accepted validation
+events must name the current exact `credentialHandle + credentialRevision`,
+reject a stale generation, are rate-limited by `appId:credentialId` rather than
+IP, and are audited as actor `platform`. Do not open production until the
+dedicated bootstrap migrations and compatible releases are deployed, an exact platform-fee version has been authored,
+published and associated, migration `0069` is deployed, the compatible Kaana
+runtime/callback and required SSM parameters exist, and both deployed
+image/commit identities plus live probes have been verified.

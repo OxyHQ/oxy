@@ -4,7 +4,8 @@
  * every official Oxy app in the ecosystem, owned by the platform user `oxy`.
  *
  * For each app this UPSERTS (never duplicates on re-run):
- *   - Application      keyed by (name + createdByUserId = oxyId), owned by the
+ *   - Application      keyed by exact `spec.id` when declared, otherwise by
+ *                      (name + createdByUserId = oxyId), owned by the
  *                      root `oxy` account itself (ownerAccountId = oxyId) — app
  *                      access derives from it, with no per-app member row and no
  *                      intermediate organization account. An app declaring
@@ -55,7 +56,12 @@ import {
   computeSeedApplicationPlan,
   readSeedApplicationState,
 } from '../src/scripts/seedOxyApplicationsPlan';
-import { SEED_APPS, type SeedAppSpec, type SeedAppType } from '../src/scripts/seedOxyApplicationsSpecs';
+import {
+  SEED_APPS,
+  seedApplicationLookupIdentity,
+  type SeedAppSpec,
+  type SeedAppType,
+} from '../src/scripts/seedOxyApplicationsSpecs';
 import type { ApplicationScope } from '../src/utils/applicationScopes';
 import { logger } from '../src/utils/logger';
 
@@ -229,6 +235,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
   for (const spec of seedApps) {
     let createdApplication = false;
     let createdCredential = false;
+    const lookupIdentity = seedApplicationLookupIdentity(spec, oxyId);
 
     let application =
       (
@@ -236,10 +243,40 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
           .select()
           .from(applications)
           .where(
-            and(eq(applications.name, spec.name), eq(applications.createdByUserId, oxyId)),
+            lookupIdentity.kind === 'id'
+              ? eq(applications.id, lookupIdentity.id)
+              : and(
+                  eq(applications.name, lookupIdentity.name),
+                  eq(applications.createdByUserId, lookupIdentity.createdByUserId),
+                ),
           )
           .limit(1)
       )[0] ?? null;
+
+    if (application && spec.id !== undefined && application.createdByUserId !== oxyId) {
+      throw new Error(
+        `Exact application id ${spec.id} is already owned by another account; refusing to rebind it`,
+      );
+    }
+    if (application && application.name !== spec.name) {
+      throw new Error(
+        `Exact application id ${spec.id} is named "${application.name}", not "${spec.name}"; ` +
+          'refusing to select or rename it by display name',
+      );
+    }
+    if (!application && spec.id !== undefined) {
+      const [nameCollision] = await getDb()
+        .select({ id: applications.id })
+        .from(applications)
+        .where(and(eq(applications.name, spec.name), eq(applications.createdByUserId, oxyId)))
+        .limit(1);
+      if (nameCollision) {
+        throw new Error(
+          `Application "${spec.name}" already exists as ${nameCollision.id}, but its canonical id is ` +
+            `${spec.id}; refusing a name-based adoption`,
+        );
+      }
+    }
 
     const legacyApplications =
       spec.legacyNames && spec.legacyNames.length > 0
@@ -292,6 +329,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
         const [created] = await getDb()
           .insert(applications)
           .values({
+            ...(spec.id === undefined ? {} : { id: spec.id }),
             name: spec.name,
             createdByUserId: oxyId,
             ...plan.desired,
@@ -322,7 +360,7 @@ async function seed(seedApps: readonly SeedAppSpec[]): Promise<void> {
       legacyAppsRetired += 1;
     }
 
-    const applicationId = application?.id ?? DRY_RUN_PLACEHOLDER_ID;
+    const applicationId = application?.id ?? spec.id ?? DRY_RUN_PLACEHOLDER_ID;
 
     let credential: typeof applicationCredentials.$inferSelect | null = null;
     if (application && application.id !== DRY_RUN_PLACEHOLDER_ID) {

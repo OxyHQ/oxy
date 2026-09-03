@@ -3,7 +3,7 @@
 - Status: accepted
 - Date: 2026-08-17
 - Issue: #972 (workstreams 6 and 13)
-- Changes: [ADR 0006](0006-oxy-relay-boundary.md) (what crosses the boundary, and
+- Changes: [ADR 0006](0006-oxy-kaana-boundary.md) (what crosses the boundary, and
   one responsibility-matrix row), [ADR 0010](0010-public-api-compatibility.md)
   (the internal envelope). Neither is amended in place: neither states a
   procedure for its own amendment the way
@@ -32,12 +32,12 @@ decision over a set it was never sent.
 
 The consequence is measured, not hypothetical. The first implementation ever
 written against this contract reports it as the sharpest of nineteen findings and
-the one that blocks working code (`OxyHQ/Relay`, `README.md` §"What Oxy still has
+the one that blocks working code (`OxyHQ/Kaana`, `README.md` §"What Oxy still has
 to decide", item 11):
 
 > Every one of them governs what this repository's failover does, and the
 > envelope carries none of them — only `{routingPolicyId, policyVersion}`. So a
-> Relay that failed over by default would override, for every customer who set
+> Kaana that failed over by default would override, for every customer who set
 > it, a control the platform advertises to them. This build therefore ships
 > failover **off**, and choosing among the deployments of one model at all is
 > withheld with it.
@@ -215,11 +215,13 @@ means.
   same report: when a list is present, Oxy picked, and the entry is
   revision-pinned so the `start` event's required pinned reference is available
   without the data plane choosing one.
-- **`routingProfile` targets are unblocked without resolving the profile in the
-  envelope.** A profile target with an authorized list is servable: the customer
-  named no model, every destination is named and authorized one entry each, and
-  the data plane still never chooses a candidate Oxy did not send.
-- Nothing here gives the data plane a policy value, so a Relay-side schema review
+- **Exact `routing_profile_id` targets are unblocked without sending a profile
+  slug.** Oxy resolves any deprecated public slug to one opaque profile primary
+  key before it builds the envelope. A profile target with an authorized list is
+  servable: the customer named no model, every destination is named and authorized
+  one entry each, and the data plane still never chooses a candidate Oxy did not
+  send or resolves a name on its own.
+- Nothing here gives the data plane a policy value, so a Kaana-side schema review
   stays a boundary review: a column holding a policy CONTROL is still forbidden;
   a write-once copy of an authorized route is the intended shape.
 
@@ -229,7 +231,7 @@ means.
   **Oxy** | consumes a versioned policy snapshot"* is superseded. The data plane
   consumes a policy REFERENCE as provenance and an ordered list of ROUTES the
   policy authorized. It consumes no control value.
-- The "What crosses the boundary" bullet *"Oxy → Relay, per request: … the
+- The "What crosses the boundary" bullet *"Oxy → Kaana, per request: … the
   resolved routing policy snapshot and its version, and the reservation ceiling
   (ADR 0009)"* is superseded twice over: the snapshot is replaced by
   `authorizedRoutes` plus the reference, and no reservation travels — #1018 had
@@ -240,7 +242,7 @@ means.
 
 ## What this changes in ADR 0010
 
-- The `InferenceEnvelope v1` block gains
+- The `InferenceEnvelope v2` block gains
   `authorizedRoutes?  [{ substitution, deploymentId, modelReference, provider,
   regions, authorizedByPolicy? }]`, optional, in preference order.
 - The sentence *"The envelope carries a routing-policy REFERENCE, not a snapshot"*

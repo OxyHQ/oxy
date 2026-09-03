@@ -113,7 +113,8 @@ function resolveEdgeRoute(
     constraints,
     modality,
     TEST_OPTIMISE_FOR,
-    UNCONSTRAINED_EDGE_CAPACITY
+    UNCONSTRAINED_EDGE_CAPACITY,
+    undefined
   );
 }
 
@@ -1486,7 +1487,7 @@ describe('selectRouteForViewer applies the policy as well', () => {
 /** A policy with EVERY control set, including the two optional ones. */
 function everyControlPolicy(): RoutingPolicy {
   return routingPolicySchema.parse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     routingPolicyId: `policy-${suffix()}`,
     policyVersion: 3,
     scope: { kind: 'account', accountId: `acct-${suffix()}` },

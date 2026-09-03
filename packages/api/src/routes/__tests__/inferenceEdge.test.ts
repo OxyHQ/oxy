@@ -48,6 +48,7 @@ import {
   inferenceDeploymentRoutingScores,
   inferenceModelRevisions,
   inferenceModels,
+  inferenceProviderConnections,
   inferenceProviders,
   inferencePublishers,
   inferenceRoutingProfileCandidates,
@@ -534,6 +535,164 @@ async function addDeployment(
   });
 
   return { providerSlug, deploymentId: kaanaDeploymentId, priceVersionId: priceVersion.id };
+}
+
+async function addByokDeployment(
+  fixture: Fixture,
+  options: {
+    readonly routingScore?: number;
+    readonly feeStatus?: 'draft' | 'active' | 'superseded';
+    readonly attachFee?: boolean;
+  } = {}
+): Promise<{
+  readonly provider: string;
+  readonly deploymentId: string;
+  readonly feePriceVersionId: string;
+}> {
+  const db = getDb();
+  const tag = suffix();
+  const provider = `byok${tag}`;
+  const deploymentId = `kaana-byok-${tag}`;
+  await db.insert(inferenceProviders).values({
+    slug: provider,
+    displayName: `BYOK Provider ${tag}`,
+    kind: 'customer_byok',
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+  });
+  const [fee] = await db
+    .insert(priceVersions)
+    .values({
+      modelReference: `${fixture.modelReference}@2026-01-01`,
+      provider,
+      status: options.feeStatus ?? 'active',
+      effectiveFrom: new Date(Date.now() - 60_000),
+      ...(options.feeStatus === 'superseded'
+        ? { effectiveUntil: new Date(Date.now() - 1_000) }
+        : {}),
+    })
+    .returning({ id: priceVersions.id });
+  await db.insert(priceVersionUnitPrices).values([
+    {
+      priceVersionId: fee.id,
+      unit: 'requests',
+      amount: '0.010000000000',
+      per: 1,
+    },
+    {
+      priceVersionId: fee.id,
+      unit: 'input_tokens',
+      amount: '0.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: fee.id,
+      unit: 'cached_input_tokens',
+      amount: '0.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: fee.id,
+      unit: 'output_tokens',
+      amount: '0.000000000000',
+      per: 1_000_000,
+    },
+    {
+      priceVersionId: fee.id,
+      unit: 'reasoning_tokens',
+      amount: '0.000000000000',
+      per: 1_000_000,
+    },
+  ]);
+  await db.insert(inferenceDeployments).values({
+    modelRevisionId: fixture.revisionId,
+    providerSlug: provider,
+    internalRouteId: deploymentId,
+    regions: ['eu-central-1'],
+    retainsPayloads: false,
+    retentionDays: 0,
+    trainsOnCustomerData: false,
+    zeroDataRetentionAvailable: true,
+    availabilityScope: 'byok_only',
+    commercialPermission: 'customer_byok',
+    status: 'active',
+    legalReviewStatus: 'approved',
+    legalReviewedAt: new Date(),
+    legalReviewEvidenceRef: `byok-contract/${tag}`,
+    permissionState: 'approved',
+    ...(options.attachFee === false ? {} : { platformFeePriceVersionId: fee.id }),
+  });
+  const now = Date.now();
+  const routingScore = options.routingScore ?? 1;
+  await db.insert(inferenceDeploymentRoutingScores).values({
+    deploymentId,
+    priceScore: routingScore,
+    priceSource: 'reviewed_scorecard',
+    priceEvidenceRef: `byok-price-score/${tag}`,
+    priceVersionId: fee.id,
+    latencyScore: routingScore,
+    latencySource: 'reviewed_scorecard',
+    latencyEvidenceRef: `byok-latency-score/${tag}`,
+    latencyMeasurementWindowStart: new Date(now - 120_000),
+    latencyMeasurementWindowEnd: new Date(now - 60_000),
+    latencyValidUntil: new Date(now + 3_600_000),
+    throughputScore: routingScore,
+    throughputSource: 'reviewed_scorecard',
+    throughputEvidenceRef: `byok-throughput-score/${tag}`,
+    throughputMeasurementWindowStart: new Date(now - 120_000),
+    throughputMeasurementWindowEnd: new Date(now - 60_000),
+    throughputValidUntil: new Date(now + 3_600_000),
+    balancedScore: routingScore,
+    balancedSource: 'reviewed_scorecard',
+    balancedEvidenceRef: `byok-balanced-score/${tag}`,
+    balancedFormulaRef: 'edge-byok-test/v1',
+    balancedValidUntil: new Date(now + 3_600_000),
+    reason: 'BYOK edge test fixture',
+    changedByUserId: fixture.accountId,
+    changedAt: new Date(now),
+  });
+  return { provider, deploymentId, feePriceVersionId: fee.id };
+}
+
+async function seedByokConnection(
+  fixture: Fixture,
+  provider: string,
+  options: {
+    readonly scopeKind?: 'account' | 'application';
+    readonly status?: 'active' | 'disabled' | 'pending_validation';
+    readonly validationState?: 'valid' | 'unvalidated' | 'invalid' | 'expired';
+  } = {}
+): Promise<{
+  readonly connectionId: string;
+  readonly credentialHandle: string;
+  readonly credentialRevision: number;
+}> {
+  const scopeKind = options.scopeKind ?? 'application';
+  const validationState = options.validationState ?? 'valid';
+  const credentialHandle = `kcred_${suffix().replace(/[0189]/g, 'a')}${'a'.repeat(16)}`;
+  const [connection] = await getDb()
+    .insert(inferenceProviderConnections)
+    .values({
+      provider,
+      ownerAccountId: fixture.accountId,
+      scopeKind,
+      applicationId: scopeKind === 'application' ? fixture.applicationId : null,
+      environment: 'development',
+      status: options.status ?? 'active',
+      custodyState: 'ready',
+      credentialHandle,
+      credentialRevision: 1,
+      validationState,
+      validationFailureCode: validationState === 'invalid' ? 'unauthorized' : null,
+    })
+    .returning({ id: inferenceProviderConnections.id });
+  return {
+    connectionId: connection.id,
+    credentialHandle,
+    credentialRevision: 1,
+  };
 }
 
 async function balanceOf(accountId: string): Promise<{
@@ -1143,7 +1302,7 @@ describe('a served request', () => {
         // billing principal.
         expect(seen).toHaveLength(1);
         const envelope = seen[0];
-        expect(envelope.schemaVersion).toBe(1);
+        expect(envelope.schemaVersion).toBe(2);
         expect(envelope.attribution.principal.billing.accountId).toBe(fixture.accountId);
         expect(envelope.attribution.principal.applicationId).toBe(fixture.applicationId);
         expect(envelope.attribution.principal.credentialId).toBe(fixture.credentialId);
@@ -2139,6 +2298,347 @@ describe('routing policy', () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/*  Authenticated BYOK routing and platform-fee settlement                    */
+/* -------------------------------------------------------------------------- */
+
+describe('authenticated BYOK routing', () => {
+  it('keeps a pending unvalidated generation off the normal serving path', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      routingPolicy: { byokPreference: 'require' },
+    });
+    const byok = await addByokDeployment(fixture);
+    await seedByokConnection(fixture, byok.provider, {
+      status: 'pending_validation',
+      validationState: 'unvalidated',
+    });
+
+    await expectNoRouteBeforeReservation(fixture);
+  });
+
+  it('binds only the exact Kaana generation and settles the dedicated fee version', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      routingPolicy: { byokPreference: 'require' },
+    });
+    const byok = await addByokDeployment(fixture);
+    const connection = await seedByokConnection(fixture, byok.provider);
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 7,
+            output: 11,
+            provider: byok.provider,
+          }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].authorizedRoutes).toHaveLength(1);
+    expect(seen[0].authorizedRoutes[0]).toEqual({
+      substitution: 'same_model',
+      deploymentId: byok.deploymentId,
+      modelReference: `${fixture.modelReference}@2026-01-01`,
+      provider: byok.provider,
+      regions: ['eu-central-1'],
+      customerProviderCredential: {
+        ownerAccountId: fixture.accountId,
+        connectionId: connection.connectionId,
+        environment: 'development',
+        credentialHandle: connection.credentialHandle,
+        credentialRevision: connection.credentialRevision,
+      },
+    });
+    const serializedEnvelope = JSON.stringify(seen[0]);
+    expect(serializedEnvelope).not.toMatch(/secret|ciphertext|fingerprint|keyPrefix|tokenHash/i);
+
+    const [receipt] = await getDb()
+      .select({
+        billedAmount: usageReceipts.billedAmount,
+        priceVersionId: usageReceipts.priceVersionId,
+        servingProvider: usageReceipts.servingProvider,
+        platformFeeOnly: usageReceipts.platformFeeOnly,
+      })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipt).toEqual({
+      billedAmount: '0.010000000000',
+      priceVersionId: byok.feePriceVersionId,
+      servingProvider: byok.provider,
+      platformFeeOnly: true,
+    });
+  });
+
+  it('prefers a connected BYOK route over a higher-scored platform route', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      routingPolicy: { byokPreference: 'prefer' },
+    });
+    const byok = await addByokDeployment(fixture, { routingScore: 1 });
+    await seedByokConnection(fixture, byok.provider);
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 1,
+            output: 1,
+            provider: byok.provider,
+          }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      byok.deploymentId,
+      fixture.deploymentId,
+    ]);
+  });
+
+  it('falls back to a platform route when prefer has no usable BYOK connection', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      routingPolicy: { byokPreference: 'prefer' },
+    });
+    await addByokDeployment(fixture, { routingScore: 1 });
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 1,
+            output: 1,
+            provider: fixture.provider,
+          }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen[0].authorizedRoutes).toHaveLength(1);
+    expect(seen[0].authorizedRoutes[0]).toMatchObject({
+      deploymentId: fixture.deploymentId,
+      provider: fixture.provider,
+    });
+    expect(seen[0].authorizedRoutes[0]).not.toHaveProperty('customerProviderCredential');
+  });
+
+  it('never authorizes BYOK when the policy disables it, even with a valid connection', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const byok = await addByokDeployment(fixture, { routingScore: 1_000 });
+    await seedByokConnection(fixture, byok.provider);
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana(
+        (envelope) =>
+          completionFor(envelope, {
+            input: 1,
+            output: 1,
+            provider: fixture.provider,
+          }),
+        seen
+      ),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 10 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen[0].authorizedRoutes).toHaveLength(1);
+    expect(seen[0].authorizedRoutes[0]).toMatchObject({
+      deploymentId: fixture.deploymentId,
+      provider: fixture.provider,
+    });
+  });
+
+  it.each(['invalid', 'expired'] as const)(
+    'does not bypass an application-specific %s generation to a valid account connection',
+    async (validationState) => {
+      const fixture = await makeFixture({
+        fund: '10.000000000000',
+        routingPolicy: { byokPreference: 'require' },
+      });
+      const byok = await addByokDeployment(fixture);
+      await seedByokConnection(fixture, byok.provider, {
+        scopeKind: 'account',
+      });
+      await seedByokConnection(fixture, byok.provider, {
+        scopeKind: 'application',
+        status: 'disabled',
+        validationState,
+      });
+
+      await expectNoRouteBeforeReservation(fixture);
+    }
+  );
+
+  it.each([
+    ['has no fee pointer', 'absent'],
+    ['points at another provider price', 'mismatch'],
+    ['points at an inactive fee version', 'inactive'],
+  ] as const)('fails closed before reservation when the BYOK route %s', async (_case, fault) => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      routingPolicy: { byokPreference: 'require' },
+    });
+    const byok = await addByokDeployment(fixture, {
+      attachFee: fault !== 'absent',
+      feeStatus: fault === 'inactive' ? 'draft' : 'active',
+    });
+    await seedByokConnection(fixture, byok.provider);
+    if (fault === 'mismatch') {
+      await getDb()
+        .update(inferenceDeployments)
+        .set({ platformFeePriceVersionId: fixture.priceVersionId })
+        .where(eq(inferenceDeployments.internalRouteId, byok.deploymentId));
+    }
+
+    await expectNoRouteBeforeReservation(fixture);
+  });
+
+  it('settles a mixed failover against the route that actually served', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      routingPolicy: { byokPreference: 'prefer' },
+    });
+    const byok = await addByokDeployment(fixture, { routingScore: 1 });
+    await seedByokConnection(fixture, byok.provider);
+    const seen: InferenceRequest[] = [];
+
+    await withServer(
+      fakeKaana((envelope) => {
+        const completion = completionFor(envelope, {
+          input: 10,
+          output: 10,
+          provider: fixture.provider,
+        });
+        return {
+          ...completion,
+          usage: { ...completion.usage, routeSwitches: 1 },
+        };
+      }, seen),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    expect(seen[0].authorizedRoutes.map((route) => route.deploymentId)).toEqual([
+      byok.deploymentId,
+      fixture.deploymentId,
+    ]);
+    const [receipt] = await getDb()
+      .select({
+        priceVersionId: usageReceipts.priceVersionId,
+        servingProvider: usageReceipts.servingProvider,
+        platformFeeOnly: usageReceipts.platformFeeOnly,
+      })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipt).toEqual({
+      priceVersionId: fixture.priceVersionId,
+      servingProvider: fixture.provider,
+      platformFeeOnly: false,
+    });
+  });
+
+  it('settles partial BYOK usage against the same fee version and fee-only flag', async () => {
+    const fixture = await makeFixture({
+      fund: '10.000000000000',
+      routingPolicy: { byokPreference: 'require' },
+    });
+    const byok = await addByokDeployment(fixture);
+    await seedByokConnection(fixture, byok.provider);
+
+    await withServer(
+      fakeKaana((envelope) => {
+        throw new KaanaIncompleteError('stream_truncated', 'fixture stopped', {
+          usage: {
+            kind: 'partial',
+            requestId: envelope.attribution.requestId,
+            deploymentId: byok.deploymentId,
+            units: [{ unit: 'requests', quantity: 1 }],
+            usageSource: 'provider_reported',
+          },
+        });
+      }),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { model: fixture.modelReference, input: 'hi', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        expect(response.status).toBe(502);
+      }
+    );
+
+    const [receipt] = await getDb()
+      .select({
+        billedAmount: usageReceipts.billedAmount,
+        priceVersionId: usageReceipts.priceVersionId,
+        servingProvider: usageReceipts.servingProvider,
+        platformFeeOnly: usageReceipts.platformFeeOnly,
+        outcome: usageReceipts.outcome,
+      })
+      .from(usageReceipts)
+      .where(eq(usageReceipts.accountId, fixture.accountId));
+    expect(receipt).toEqual({
+      billedAmount: '0.010000000000',
+      priceVersionId: byok.feePriceVersionId,
+      servingProvider: byok.provider,
+      platformFeeOnly: true,
+      // Partial usage is billable, but a truncated non-streaming response is
+      // still a failed request outcome because no completion reached the caller.
+      outcome: 'failed',
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /*  Routing evidence is an all-candidate envelope                             */
 /* -------------------------------------------------------------------------- */
 
@@ -2439,6 +2939,72 @@ describe('routing evidence fail-closed before reservation and Kaana', () => {
 
     await expectNoRouteBeforeReservation(fixture, {
       routingProfile: profile.slug,
+      input: 'hi',
+      maxOutputTokens: 100,
+    });
+  });
+
+  it('resolves routingProfileId only by the exact profile primary key', async () => {
+    const fixture = await makeFixture({ fund: '10.000000000000' });
+    const tag = suffix();
+    const [profile] = await getDb()
+      .insert(inferenceRoutingProfiles)
+      .values({
+        slug: `exact-profile-${tag}`,
+        displayName: `Exact ${tag}`,
+        optimiseFor: 'balanced',
+        isProductPreset: false,
+      })
+      .returning({ id: inferenceRoutingProfiles.id, slug: inferenceRoutingProfiles.slug });
+    await getDb().insert(inferenceRoutingProfileCandidates).values({
+      routingProfileId: profile.id,
+      modelId: fixture.modelRowId,
+      priority: 0,
+    });
+
+    const seen: InferenceRequest[] = [];
+    await withServer(
+      fakeKaana((envelope) => {
+        const completion = completionFor(envelope, {
+          input: 1,
+          output: 1,
+          provider: fixture.provider,
+        });
+        return {
+          ...completion,
+          usage: {
+            ...completion.usage,
+            resolvedModelReference: `${fixture.modelReference}@2026-01-01`,
+          },
+        };
+      }, seen),
+      async (request) => {
+        const response = await request(
+          'POST',
+          '/v1/responses',
+          { routingProfileId: profile.id, input: 'hi', maxOutputTokens: 100 },
+          bearer(fixture.token)
+        );
+        if (response.status !== 200) {
+          throw new Error(`expected exact profile ID to serve: ${response.status} ${response.body}`);
+        }
+      }
+    );
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.target).toEqual({
+      kind: 'routing_profile_id',
+      routingProfileId: profile.id,
+    });
+
+    const refusalFixture = await makeFixture({ fund: '10.000000000000' });
+    await expectNoRouteBeforeReservation(refusalFixture, {
+      routingProfileId: ` ${profile.id}`,
+      input: 'hi',
+      maxOutputTokens: 100,
+    });
+    await expectNoRouteBeforeReservation(refusalFixture, {
+      routingProfileId: `unknown-${tag}`,
       input: 'hi',
       maxOutputTokens: 100,
     });

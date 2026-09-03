@@ -223,8 +223,8 @@ edit(wrongContractArray, ENV_MODULE, 'wrong-boot-contract-array', (text) =>
   text.replace(
     /const required: \(keyof RequiredEnvVars\)\[\] = \[[\s\S]*?\];/,
     "const required: (keyof RequiredEnvVars)[] = [\n" +
-    "    'STRIPE_SECRET_KEY',\n    'STRIPE_WEBHOOK_SECRET',\n    'ALIA_API_KEY',\n" +
-    "    'DKIM_PRIVATE_KEY',\n    'DEVICE_ID_SALT',\n    'OXY_PUBLIC_KEY',\n  ];",
+    "    'STRIPE_SECRET_KEY',\n    'STRIPE_WEBHOOK_SECRET',\n    'DKIM_PRIVATE_KEY',\n" +
+    "    'DEVICE_ID_SALT',\n    'OXY_PUBLIC_KEY',\n    'OXY_PRIVATE_KEY',\n  ];",
   ));
 expectVerdict('wrong-boot-contract-array', wrongContractArray, 1, 'DATABASE_URL was not among the parsed required env vars');
 

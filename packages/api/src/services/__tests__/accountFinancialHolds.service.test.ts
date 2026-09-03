@@ -29,6 +29,7 @@ import { applications } from '../../db/schema/applications';
 import { billingSubscriptions } from '../../db/schema/billingSubscriptions';
 import {
   inferenceProviderConnections,
+  type ProviderCredentialCustodyStateValue,
   type ProviderConnectionStatusValue,
 } from '../../db/schema/inferenceProviderConnections';
 import { inferenceProviders } from '../../db/schema/inferenceProviders';
@@ -149,7 +150,8 @@ describe('the blocking set is read from the catalogue', () => {
  */
 async function seedProviderConnection(
   accountId: string,
-  status: ProviderConnectionStatusValue
+  status: ProviderConnectionStatusValue,
+  custodyState: ProviderCredentialCustodyStateValue = 'ready'
 ): Promise<string> {
   const tag = randomUUID().replace(/-/g, '').slice(0, 10);
   const provider = `prv${tag}`;
@@ -175,12 +177,10 @@ async function seedProviderConnection(
       applicationId: null,
       environment,
       status,
-      custodyState: 'ready',
+      custodyState,
       credentialHandle: `kcred_${'a'.repeat(16)}${tag.replace(/[0189]/g, 'a')}`,
       credentialRevision: 1,
-      keyPrefix: 'sk-live-1234',
-      fingerprint: 'a'.repeat(64),
-      validationState: 'unvalidated',
+      validationState: status === 'active' ? 'valid' : 'unvalidated',
     });
   return id;
 }
@@ -209,10 +209,10 @@ describe('an account that has never transacted', () => {
  * the row stayed live, with its credential still in the store and the table
  * listed among the records Oxy claimed to be retaining for legal reasons.
  *
- * The status axis is the whole claim, so all three positions are asserted. A test
- * that only checked `active` would pass identically against a query reading
- * `status = 'active'`, which would let a DISABLED connection's credential — one
- * whose secret is very much still there — outlive its owner.
+ * Custody acknowledgement is the whole claim. Serving status still exercises
+ * active/disabled/pending-validation, while the critical cases pin that a local
+ * `status='revoked'` cannot bypass the hold until Kaana has acknowledged
+ * `custody_state='revoked'`.
  */
 describe('a BYOK connection whose credential is still in the secret store', () => {
   it('is reported for an ACTIVE connection, by id', async () => {
@@ -242,9 +242,25 @@ describe('a BYOK connection whose credential is still in the secret store', () =
     expect(holds.liveProviderConnections).toEqual([connectionId]);
   });
 
-  it('is NOT reported once revoked — the negative control on the status axis', async () => {
+  it('still blocks after local revoke while custody is ready', async () => {
     const accountId = await seedAccount();
-    await seedProviderConnection(accountId, 'revoked');
+    const connectionId = await seedProviderConnection(accountId, 'revoked', 'ready');
+
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.liveProviderConnections).toEqual([connectionId]);
+  });
+
+  it('still blocks while a fenced revoke awaits reconciliation', async () => {
+    const accountId = await seedAccount();
+    const connectionId = await seedProviderConnection(accountId, 'revoked', 'reconcile');
+
+    const holds = await describeAccountFinancialHolds(accountId);
+    expect(holds.liveProviderConnections).toEqual([connectionId]);
+  });
+
+  it('is NOT reported once Kaana acknowledges revoked custody', async () => {
+    const accountId = await seedAccount();
+    await seedProviderConnection(accountId, 'revoked', 'revoked');
 
     const holds = await describeAccountFinancialHolds(accountId);
     expect(holds.hasLiveProviderConnection).toBe(false);
@@ -256,6 +272,32 @@ describe('a BYOK connection whose credential is still in the secret store', () =
     expect(holds.retainedRecords.map((record) => record.table)).toContain(
       'inference_provider_connections'
     );
+  });
+
+  it('refuses archival until custody is revoked, then establishes the archive fence', async () => {
+    const accountId = await seedAccount();
+    const connectionId = await seedProviderConnection(accountId, 'active');
+
+    await expect(archiveAccountForRetention(accountId)).rejects.toMatchObject({
+      statusCode: 409,
+      details: { providerConnections: [connectionId] },
+    });
+    const [stillActive] = await getDb()
+      .select({ status: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, accountId));
+    expect(stillActive.status).toBe('active');
+
+    await getDb()
+      .update(inferenceProviderConnections)
+      .set({ status: 'revoked', custodyState: 'revoked' })
+      .where(eq(inferenceProviderConnections.id, connectionId));
+    await archiveAccountForRetention(accountId);
+    const [archived] = await getDb()
+      .select({ status: users.accountStatus })
+      .from(users)
+      .where(eq(users.id, accountId));
+    expect(archived.status).toBe('archived');
   });
 });
 

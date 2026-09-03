@@ -2,15 +2,15 @@
  * Durable Oxy side of one exact Kaana BYOK mutation.
  *
  * The operation row is committed before any network request. It contains only
- * immutable identity, an opaque Kaana reference, recognition metadata and a
- * one-way fingerprint. Provider plaintext and transport base64 have no column.
- * An uncertain response can therefore be reconciled against Kaana's signed
- * outcome route with the same operation id, never by guessing or minting a new
- * identity.
+ * immutable identity, an opaque Kaana reference and non-secret recognition
+ * metadata. Provider plaintext, transport base64 and secret-derived hashes have
+ * no column. An uncertain response can therefore be reconciled against Kaana's
+ * signed outcome route with the same operation id, never by guessing or minting
+ * a new identity.
  */
 
 import { sql } from 'drizzle-orm';
-import { check, foreignKey, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { bigint, check, foreignKey, index, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, inList, updatedAt } from '@oxyhq/db';
 import {
   inferenceProviderConnections,
@@ -51,11 +51,8 @@ export const inferenceProviderCredentialOperations = pgTable(
 
     /** Present only for rotate/revoke and never inferred from another row later. */
     credentialHandle: text(),
-    expectedRevision: integer(),
+    expectedRevision: bigint({ mode: 'number' }),
 
-    /** Present only for create/rotate; one-way recognition data, never plaintext. */
-    secretSha256: text(),
-    keyPrefix: text(),
     /** Snapshot needed to audit a revoke after a later outcome reconciliation. */
     previousConnectionStatus: text({ enum: PROVIDER_CONNECTION_STATUSES }),
 
@@ -64,7 +61,7 @@ export const inferenceProviderCredentialOperations = pgTable(
 
     /** Exact terminal applied result. A conflict carries no reference. */
     outcomeCredentialHandle: text(),
-    outcomeRevision: integer(),
+    outcomeRevision: bigint({ mode: 'number' }),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -120,23 +117,7 @@ export const inferenceProviderCredentialOperations = pgTable(
     ),
     check(
       'inference_provider_credential_operations_expected_revision_positive',
-      sql`${t.expectedRevision} is null or ${t.expectedRevision} > 0`,
-    ),
-    check(
-      'inference_provider_credential_operations_secret_fingerprint_action',
-      sql`(${t.action} in ('create', 'rotate')) = (${t.secretSha256} is not null)`,
-    ),
-    check(
-      'inference_provider_credential_operations_secret_fingerprint_format',
-      sql`${t.secretSha256} is null or ${t.secretSha256} ~ '^[a-f0-9]{64}$'`,
-    ),
-    check(
-      'inference_provider_credential_operations_key_prefix_action',
-      sql`(${t.action} in ('create', 'rotate')) = (${t.keyPrefix} is not null)`,
-    ),
-    check(
-      'inference_provider_credential_operations_key_prefix_length',
-      sql`${t.keyPrefix} is null or length(${t.keyPrefix}) between 1 and 12`,
+      sql`${t.expectedRevision} is null or ${t.expectedRevision} between 1 and 9007199254740990`,
     ),
     check(
       'inference_provider_credential_operations_previous_status_action',
@@ -164,7 +145,7 @@ export const inferenceProviderCredentialOperations = pgTable(
     ),
     check(
       'inference_provider_credential_operations_outcome_revision',
-      sql`${t.outcomeRevision} is null or (${t.action} = 'create' and ${t.outcomeRevision} = 1) or (${t.action} <> 'create' and ${t.outcomeRevision} = ${t.expectedRevision} + 1)`,
+      sql`${t.outcomeRevision} is null or (${t.outcomeRevision} between 1 and 9007199254740991 and ((${t.action} = 'create' and ${t.outcomeRevision} = 1) or (${t.action} <> 'create' and ${t.outcomeRevision} = ${t.expectedRevision} + 1)))`,
     ),
   ],
 );

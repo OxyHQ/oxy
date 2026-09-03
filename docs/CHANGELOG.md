@@ -9,6 +9,56 @@
 > [Nodes / decentralization](nodes/README.md) · [Auth & session](auth/README.md) ·
 > [Architecture](architecture/overview.md).
 
+## `@oxyhq/contracts` 0.40.0 — Kaana BYOK custody clean cut
+
+Version `0.40.0` is the breaking wire-contract release for customer provider
+credentials:
+
+- `KaanaCredentialMutation` / outcome lookup bind the same opaque operation ID
+  to exact `provider + ownerAccountId + connectionId + environment`, actor and,
+  for rotate/revoke, exact handle/revision. Recovery checks outcome first and
+  only an explicit `404` may replay that same operation ID.
+- Create/rotate credentials decode from strict canonical base64 to exactly
+  1–4096 visible ASCII bytes (`0x21`–`0x7e`). Empty, whitespace/control,
+  non-ASCII, non-canonical and oversized values are invalid.
+- `ProviderConnection` advances from wire `schemaVersion: 1` to `2` and carries
+  Kaana's opaque `credentialHandle`, exact
+  `credentialRevision` and custody state. Credential-derived fields are removed:
+  no `secretSha256`, fingerprint or prefix is part of Oxy storage or the public
+  contract.
+- Validation reports bind the current exact handle/revision; a stale generation
+  is refused. Only the trusted Kaana service principal may report them through
+  the dedicated scope and staff-controlled capability. Normal edge resolution
+  admits only `ready + active + valid`, binds that exact opaque generation to
+  the signed route, and keeps a more-specific non-routable row from falling back
+  to a parent. `pending_validation + unvalidated` is deliberately non-routable:
+  the separately authenticated initial-validation bootstrap persists and
+  dispatches an exact application/deployment/generation operation, and only its
+  matching service-authenticated `valid` outcome can promote the current
+  generation transactionally. Billing/quota outcomes remain inconclusive and
+  can be revalidated explicitly without rotating the credential.
+- BYOK deployments now have a separate nullable
+  `platform_fee_price_version_id`. The authenticated edge applies
+  `prefer`/`require`/`disabled`, refuses a missing, mismatched, inactive or
+  ineffective fee version before reservation, carries only the exact credential
+  binding to Kaana, and settles the selected fee version with
+  `platformFeeOnly = true`. This code neither authors nor approves a fee:
+  production still needs an exact immutable fee version to be published and
+  associated, migration `0069_dazzling_switch.sql` and matching releases to be
+  deployed, and the live gates to pass. The provider price is never reused.
+- Canonical routing-profile authority is now its opaque PostgreSQL primary key.
+  Signed inference requests and routing-policy snapshots advance to
+  `schemaVersion: 2` and carry only `routing_profile_id`; the deprecated public
+  `routingProfile` slug is resolved inside Oxy and cannot cross to Kaana. The
+  first Oxy merge remains dark behind explicit
+  `INFERENCE_KAANA_EXECUTION=disabled`; Kaana must deploy dual v1-model/v2-ID
+  decoding before a separate Oxy enablement change. See the
+  [request-v2 cutover runbook](runbooks/kaana-request-v2-cutover.md).
+
+The package version records the contract cut. Publishing, consumer bumps and
+production enablement remain separate verified release/deployment steps; do not
+infer them from this entry.
+
 This initiative turned **Commons by Oxy** (`packages/commons`, a native-only
 identity vault) into a citizen-identity / **"Oxy ID"** app backed by a
 server-side civic engine in `oxy-api`. The thesis: **ownership of identity,

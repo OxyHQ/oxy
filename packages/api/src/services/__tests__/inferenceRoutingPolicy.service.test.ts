@@ -128,13 +128,16 @@ async function insertModel(): Promise<ModelFixture> {
 
 async function insertProfile(): Promise<string> {
   const slug = `prof${suffix()}`;
-  await getDb().insert(inferenceRoutingProfiles).values({
-    slug,
-    displayName: 'Fixture Profile',
-    optimiseFor: 'balanced',
-    isProductPreset: false,
-  });
-  return slug;
+  const [profile] = await getDb()
+    .insert(inferenceRoutingProfiles)
+    .values({
+      slug,
+      displayName: 'Fixture Profile',
+      optimiseFor: 'balanced',
+      isProductPreset: false,
+    })
+    .returning({ id: inferenceRoutingProfiles.id });
+  return profile.id;
 }
 
 /**
@@ -270,7 +273,7 @@ describe('a policy round-trips every control it carries', () => {
      * of these assertions fails naming it.
      */
     const controls = {
-      defaultTarget: { kind: 'routing_profile', routingProfile: profile },
+      defaultTarget: { kind: 'routing_profile_id', routingProfileId: profile },
       providerAllowlist: [allowed],
       providerDenylist: [denied],
       allowedRegions: ['eu-central-1'],
@@ -309,7 +312,7 @@ describe('a policy round-trips every control it carries', () => {
 
     expect(read.policyVersion).toBe(1);
     expect(read.scope).toEqual({ kind: 'account', accountId });
-    expect(read.defaultTarget).toEqual({ kind: 'routing_profile', routingProfile: profile });
+    expect(read.defaultTarget).toEqual({ kind: 'routing_profile_id', routingProfileId: profile });
     expect(read.providerAllowlist).toEqual([allowed]);
     expect(read.providerDenylist).toEqual([denied]);
     expect(read.allowedRegions).toEqual(['eu-central-1']);

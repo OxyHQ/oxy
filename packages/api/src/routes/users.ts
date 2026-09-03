@@ -42,6 +42,7 @@ import SignatureService from '../services/signature.service';
 import { emailService } from '../services/email.service';
 import {
   archiveAccountForRetention,
+  beginAccountClosure,
   describeAccountFinancialHolds,
 } from '../services/accountFinancialHolds.service';
 import { validate } from '../middleware/validate';
@@ -1574,6 +1575,12 @@ router.delete(
       );
     }
 
+    // Establish the durable closure fence before deleting any optional data.
+    // Provider-connection creation locks this same account row and requires it
+    // to remain active, so no account/project/application BYOK row can appear
+    // after the holds check and become orphaned during this workflow.
+    await beginAccountClosure(userId);
+
     // Delete all email data (mailboxes, messages, S3 attachments)
     await emailService.deleteAllUserData(userId);
 
@@ -1611,7 +1618,6 @@ router.delete(
        * question. The boundary is stated rather than inferred.
        */
       await archiveAccountForRetention(userId);
-
       userCache.invalidate(userId);
       await graphCache.invalidate(userId);
 

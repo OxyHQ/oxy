@@ -58,6 +58,8 @@ import {
 import { inferenceModelReleaseSignatures } from './inferenceModelReleaseSignatures';
 import { inferenceModelReleases } from './inferenceModelReleases';
 import { inferenceModels } from './inferenceModels';
+import { inferenceProviderConnectionAuditEvents } from './inferenceProviderConnectionAuditEvents';
+import { inferenceProviderCredentialValidations } from './inferenceProviderCredentialValidations';
 import { inferenceRouteSwitchEvents } from './inferenceRouteSwitchEvents';
 import { inferenceUsageEvents } from './inferenceUsageEvents';
 import { messageAttachments } from './messageAttachments';
@@ -560,6 +562,22 @@ export const ID_COLUMNS_WITHOUT_FOREIGN_KEY: readonly IdColumnWithoutForeignKey[
       'correlate a catalogue row with what Kaana is running. Kaana’s id space, ' +
       'not Oxy’s, and deliberately never dereferenced here. PROTECTED: it is ' +
       'operational topology and never reaches a customer.',
+  },
+  {
+    table: inferenceProviderCredentialValidations,
+    column: inferenceProviderCredentialValidations.kaanaDeploymentId,
+    reason:
+      'The protected exact deployment identifier resolved by Kaana for this ' +
+      'credential probe. It belongs to Kaana\'s inventory, not an Oxy row, and ' +
+      'is retained as immutable cross-service evidence rather than dereferenced locally.',
+  },
+  {
+    table: inferenceProviderConnectionAuditEvents,
+    column: inferenceProviderConnectionAuditEvents.actorUserId,
+    reason:
+      'An immutable attribution snapshot kept after the acting user may be ' +
+      'deleted. A foreign key would either erase truthful authorship or block ' +
+      'account deletion; the audit row expires as a whole under its retention policy.',
   },
   {
     table: inferenceDeploymentRoutingScores,

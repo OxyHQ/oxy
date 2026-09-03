@@ -17,6 +17,9 @@ describe('provider credential leak boundary', () => {
       'ciphertext',
       'encryptedCredential',
       'providerKey',
+      'keyPrefix',
+      'fingerprint',
+      'secretSha256',
     ]) {
       expect(columns).not.toContain(forbidden);
     }
@@ -32,7 +35,7 @@ describe('provider credential leak boundary', () => {
 
   it('keeps the public DTO strict against all credential-bearing fields', () => {
     const safe = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       connectionId: 'conn_1',
       provider: 'openai',
       ownerAccountId: 'account_1',
@@ -42,8 +45,6 @@ describe('provider credential leak boundary', () => {
       custodyState: 'ready',
       credentialHandle: `kcred_${'a'.repeat(26)}`,
       credentialRevision: 1,
-      keyPrefix: 'sk-prefix',
-      fingerprint: 'a'.repeat(64),
       validation: { state: 'valid' },
       upstreamBillsCustomerDirectly: true,
       createdAt: '2026-09-02T00:00:00.000Z',
@@ -53,6 +54,9 @@ describe('provider credential leak boundary', () => {
       { secret: 'credential' },
       { apiKey: 'credential' },
       { secretRef: 'vault:anything' },
+      { keyPrefix: 'sk-prefix' },
+      { fingerprint: 'digest' },
+      { secretSha256: 'digest' },
       { ciphertext: 'encrypted' },
     ]) {
       expect(providerConnectionSchema.safeParse({ ...safe, ...extra }).success).toBe(false);

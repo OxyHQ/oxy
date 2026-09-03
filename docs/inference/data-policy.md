@@ -35,11 +35,11 @@ built, so there is no way — for you or for Oxy — to turn payload retention o
 
 [ADR 0016](../adr/0016-no-inference-payload-persistence.md) turns that state from
 a fact about today's code into a decision with a lock on it: **the four properties
-are PRECONDITIONS on introducing capture, not work to do afterwards** — and the
-third of them, a key Oxy does not hold in PostgreSQL, needs the same managed
-secret backend that [ADR 0013](../adr/0013-byok-secret-custody.md) records as
-absent. So capture cannot honestly land today, and the decision cannot be
-revisited until that backend exists.
+are PRECONDITIONS on introducing capture, not work to do afterwards**. Kaana's
+KMS role and encrypted PostgreSQL store are deliberately scoped to provider-key
+custody; they are not an Oxy payload-retention backend and must not be widened
+into one. Capture cannot honestly land until it has its own reviewed,
+time-bounded encryption and deletion design.
 
 `scripts/check-no-payload-persistence.mjs` is what makes the refusal survive the
 next person who has a reason. It is a census over the drizzle schema barrel — the
@@ -263,16 +263,16 @@ enforced — see [routing.md](./routing.md#not-enforced).
   The enterprise route is unchanged and remains a different thing: it is an
   account-billing surface with its own authorization, over an account the caller
   administers. This is the subject's own copy.
-- **A live BYOK connection now BLOCKS account deletion, loudly.**
-  `inference_provider_connections.owner_account_id` is `RESTRICT` so that deleting
-  an account can never orphan a credential in the secret store, and the schema
-  comment always promised that "account deletion must revoke these first, which is
-  a deliberate, loud step". The step now exists: `DELETE /users/me` answers `409`
-  naming every connection whose credential is still stored, and the customer
-  revokes each one — which is what destroys the stored secret.
+- **Non-revoked Kaana custody now BLOCKS account deletion, loudly.**
+  `inference_provider_connections.owner_account_id` is `RESTRICT`, and account
+  closure writes a durable fence before external cleanup so a retry cannot race
+  a new BYOK connection. `DELETE /users/me` answers `409` naming every exact
+  connection whose `custody_state` is not `revoked`; the customer revokes and,
+  if necessary, reconciles that same operation until Kaana acknowledges it.
 
   It is refused rather than revoked automatically for the same reason a live
   subscription is refused: revoking a BYOK credential is a declaration to a THIRD
   PARTY, whose own console still shows a key the customer believes is in use.
-  "Still stored" means any status other than `revoked` — `disabled` is reversible
-  and keeps its secret, so the serving statuses are the wrong test here.
+  Lifecycle `status = revoked` alone is insufficient while custody is still
+  `reconcile`. `disabled` is reversible and Kaana still holds the credential, so
+  serving status is deliberately not the closure test.

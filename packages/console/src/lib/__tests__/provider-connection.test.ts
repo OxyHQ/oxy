@@ -8,7 +8,6 @@ import {
   isKaanaCredentialControlUnavailable,
   providerConnectionAuditAttribution,
   providerConnectionScopeLabel,
-  shortFingerprint,
   toProviderConnectionView,
 } from '@/lib/provider-connection';
 
@@ -25,7 +24,7 @@ import {
  */
 function connection(overrides: Record<string, unknown> = {}): ProviderConnection {
   const fields = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     connectionId: 'conn_1',
     provider: 'example-provider',
     ownerAccountId: 'acct_1',
@@ -35,8 +34,6 @@ function connection(overrides: Record<string, unknown> = {}): ProviderConnection
     custodyState: 'ready',
     credentialHandle: `kcred_${'a'.repeat(26)}`,
     credentialRevision: 1,
-    keyPrefix: 'sk-live-abc',
-    fingerprint: 'a'.repeat(64),
     validation: { state: 'valid', lastValidatedAt: '2026-08-01T00:00:00.000Z' },
     upstreamBillsCustomerDirectly: true,
     createdAt: '2026-07-01T00:00:00.000Z',
@@ -57,11 +54,11 @@ describe('toProviderConnectionView', () => {
     expect(JSON.stringify(view)).not.toContain('kcred_');
   });
 
-  it('keeps the two fields the contract exists to make showable', () => {
+  it('keeps validation state without any credential-derived recognition field', () => {
     const view = toProviderConnectionView(connection());
 
-    expect(view.keyPrefix).toBe('sk-live-abc');
-    expect(view.fingerprint).toBe('a'.repeat(64));
+    expect(Object.hasOwn(view, 'keyPrefix')).toBe(false);
+    expect(Object.hasOwn(view, 'fingerprint')).toBe(false);
     expect(view.validation.state).toBe('valid');
   });
 
@@ -151,11 +148,6 @@ describe('presentation helpers', () => {
     expect(connectionStatusVariant('pending_validation')).toBe('secondary');
   });
 
-  it('shortens a fingerprint without ever lengthening it', () => {
-    const full = 'a'.repeat(64);
-    expect(shortFingerprint(full)).toHaveLength(12);
-    expect(full.startsWith(shortFingerprint(full))).toBe(true);
-  });
 });
 
 /**

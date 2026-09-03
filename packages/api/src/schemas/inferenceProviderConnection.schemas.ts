@@ -23,7 +23,11 @@
  */
 
 import {
+  deploymentIdSchema,
+  kaanaCredentialValidationOutcomeSchema,
+  kaanaCredentialHandleSchema,
   kaanaCredentialOperationActionSchema,
+  oxyApplicationIdSchema,
   providerConnectionSchema,
 } from '@oxyhq/contracts';
 import { z } from 'zod';
@@ -97,6 +101,8 @@ export const providerConnectionRotateBody = z
  */
 export const providerConnectionValidationBody = z
   .object({
+    credentialHandle: kaanaCredentialHandleSchema,
+    credentialRevision: z.number().int().positive().safe(),
     state: z.enum(['unvalidated', 'valid', 'invalid', 'expired']),
     failureCode: z
       .enum(['unauthorized', 'forbidden', 'not_found', 'rate_limited', 'network', 'unknown'])
@@ -111,6 +117,33 @@ export const providerConnectionValidationBody = z
         message: 'an invalid credential must record why the check failed',
       });
     }
+    if (verdict.state === 'invalid' && verdict.failureCode !== 'unauthorized') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['failureCode'],
+        message: 'only a provider authentication refusal proves invalidity',
+      });
+    }
+  });
+
+/** Explicit exact selection for a durable bootstrap or retry. */
+export const providerCredentialValidationBootstrapBody = z
+  .object({
+    applicationId: oxyApplicationIdSchema,
+    deploymentId: deploymentIdSchema,
+  })
+  .strict();
+
+/** Exact application whose operation/deployment choices are being read. */
+export const providerCredentialValidationApplicationQuery = z
+  .object({ applicationId: oxyApplicationIdSchema })
+  .strict();
+
+/** Kaana's terminal, exact-selector callback. Pending is not an outcome. */
+export const providerCredentialValidationOutcomeBody = kaanaCredentialValidationOutcomeSchema
+  .refine((outcome) => outcome.state !== 'pending', {
+    path: ['state'],
+    message: 'a callback must carry a terminal validation outcome',
   });
 
 /** The read a data plane performs before serving: which connection applies. */
@@ -128,6 +161,14 @@ export const providerConnectionAuditQuery = z
 
 /** An empty body, for the transitions that take no input. */
 export const providerConnectionEmptyBody = z.object({}).strict();
+
+/**
+ * Outcome-first recovery. Create/rotate need the original credential only when
+ * Kaana explicitly proves it has no outcome; revoke never accepts one.
+ */
+export const providerConnectionReconcileBody = z
+  .object({ secret: providerCredentialSecret.optional() })
+  .strict();
 
 /** Exact successful reconciliation response; metadata-only by contract. */
 export const providerConnectionReconcileResponseSchema = z

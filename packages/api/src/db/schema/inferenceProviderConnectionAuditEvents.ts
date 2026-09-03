@@ -74,6 +74,13 @@
  * that ambiguity is the whole defect — so the two machine-ish authors get two
  * names.
  *
+ * `actor_user_id` deliberately is an immutable opaque identifier rather than a
+ * foreign key. Audit rows are append-only, so `ON DELETE SET NULL` cannot run;
+ * a FK would make deletion of a member fail. Keeping the id also lets a custody
+ * operation that finishes after that member was deleted retain its truthful
+ * attribution without pretending the platform performed it. The retention
+ * sweep removes the whole audit row after two years.
+ *
  * **Existing rows are NOT back-filled, and cannot be.** A legacy row's
  * `actor_user_id` may be a person or an account and nothing recorded which, so
  * every possible back-fill value would be a claim the data does not support —
@@ -109,11 +116,11 @@
  * visibly so, while an edited one lies.
  */
 
-import { sql } from 'drizzle-orm';
-import { check, index, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
-import { createdAt, generatedId, inList } from '@oxyhq/db';
-import { inferenceProviderConnections } from './inferenceProviderConnections';
-import { users } from './users';
+import { sql } from "drizzle-orm";
+import { check, index, jsonb, pgTable, text } from "drizzle-orm/pg-core";
+import { createdAt, generatedId, inList } from "@oxyhq/db";
+import { inferenceProviderConnections } from "./inferenceProviderConnections";
+import { users } from "./users";
 
 /**
  * The vocabulary. The epic names create, validate, rotate, use and revoke;
@@ -121,13 +128,13 @@ import { users } from './users';
  * its own and a disable nobody can see the timing of is not one.
  */
 export const PROVIDER_CONNECTION_AUDIT_EVENT_TYPES = [
-  'created',
-  'validated',
-  'rotated',
-  'used',
-  'disabled',
-  'enabled',
-  'revoked',
+  "created",
+  "validated",
+  "rotated",
+  "used",
+  "disabled",
+  "enabled",
+  "revoked",
 ] as const;
 
 export type ProviderConnectionAuditEventType =
@@ -141,13 +148,18 @@ export type ProviderConnectionAuditEventType =
  * literal, and `check-drizzle-snapshot-sync` holds that rendering against the
  * migration the database was built from.
  */
-export const PROVIDER_CONNECTION_ACTOR_KINDS = ['user', 'service', 'platform'] as const;
+export const PROVIDER_CONNECTION_ACTOR_KINDS = [
+  "user",
+  "service",
+  "platform",
+] as const;
 
-export type ProviderConnectionActorKind = (typeof PROVIDER_CONNECTION_ACTOR_KINDS)[number];
+export type ProviderConnectionActorKind =
+  (typeof PROVIDER_CONNECTION_ACTOR_KINDS)[number];
 
 /** A named person, acting through their own session bearer. */
 export interface UserProviderConnectionActor {
-  readonly kind: 'user';
+  readonly kind: "user";
   /** `users.id`. Required BY THE TYPE — a person who is not named is unwritable. */
   readonly userId: string;
 }
@@ -157,12 +169,12 @@ export interface UserProviderConnectionActor {
  * the account it acts for is the row's own `owner_account_id`.
  */
 export interface ServiceProviderConnectionActor {
-  readonly kind: 'service';
+  readonly kind: "service";
 }
 
 /** Oxy's own machinery, with no principal: the data plane, or an automatic transition. */
 export interface PlatformProviderConnectionActor {
-  readonly kind: 'platform';
+  readonly kind: "platform";
 }
 
 /**
@@ -182,7 +194,7 @@ export type ProviderConnectionActor =
 export const PROVIDER_CONNECTION_AUDIT_RETENTION_SECONDS = 730 * 24 * 60 * 60;
 
 export const inferenceProviderConnectionAuditEvents = pgTable(
-  'inference_provider_connection_audit_events',
+  "inference_provider_connection_audit_events",
   {
     id: generatedId(),
 
@@ -195,7 +207,9 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
      */
     connectionId: text()
       .notNull()
-      .references(() => inferenceProviderConnections.id, { onDelete: 'restrict' }),
+      .references(() => inferenceProviderConnections.id, {
+        onDelete: "restrict",
+      }),
 
     /**
      * The account the connection belongs to, denormalised so the trail can be
@@ -204,7 +218,7 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
      */
     ownerAccountId: text()
       .notNull()
-      .references(() => users.id, { onDelete: 'restrict' }),
+      .references(() => users.id, { onDelete: "restrict" }),
 
     eventType: text({ enum: PROVIDER_CONNECTION_AUDIT_EVENT_TYPES }).notNull(),
 
@@ -215,10 +229,12 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
      * resolving a reference — and NULL on a `validated` verdict reported by the
      * data plane. Inventing an actor for either would turn "we do not know who"
      * into "this member did", which is the single most misleading thing an audit
-     * table can do; the CHECK below refuses it. `SET NULL` on user deletion:
-     * losing the attribution is better than losing the event.
+     * table can do; the CHECK below refuses it. The id is intentionally not a
+     * foreign key: keeping the opaque attribution lets both the member and a
+     * later custody reconciliation survive deletion of that member.
      */
-    actorUserId: text().references(() => users.id, { onDelete: 'set null' }),
+    // Not a FK: this is immutable audit attribution. See "Who acted" above.
+    actorUserId: text(),
 
     /**
      * WHAT KIND of principal acted — see "Who acted" in the header.
@@ -231,8 +247,8 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
     actorKind: text({ enum: PROVIDER_CONNECTION_ACTOR_KINDS }),
 
     /**
-     * Per-event detail — the fingerprint a rotation replaced, the validation
-     * verdict, whether a revoke managed to destroy the stored secret. Assembled
+     * Per-event detail — the validation verdict and whether a revoke managed to
+     * destroy the stored secret. Assembled
      * by the writer from ids and closed values; NEVER credential material. `{}`
      * is a VALUE ("no detail"), not a missing one.
      */
@@ -245,21 +261,22 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
   },
   (t) => [
     // "This connection's trail, newest first" — where an incident starts.
-    index('inference_provider_connection_audit_events_connection_created_idx').on(
-      t.connectionId,
-      t.createdAt.desc()
-    ),
+    index(
+      "inference_provider_connection_audit_events_connection_created_idx",
+    ).on(t.connectionId, t.createdAt.desc()),
     // …and the same question asked of a whole account.
-    index('inference_provider_connection_audit_events_owner_created_idx').on(
+    index("inference_provider_connection_audit_events_owner_created_idx").on(
       t.ownerAccountId,
-      t.createdAt.desc()
+      t.createdAt.desc(),
     ),
     // Supports the expiry sweep's bare range scan; neither compound leads with it.
-    index('inference_provider_connection_audit_events_created_at_idx').on(t.createdAt),
+    index("inference_provider_connection_audit_events_created_at_idx").on(
+      t.createdAt,
+    ),
 
     check(
-      'inference_provider_connection_audit_events_event_type_check',
-      sql`${t.eventType} in (${sql.raw(inList(PROVIDER_CONNECTION_AUDIT_EVENT_TYPES))})`
+      "inference_provider_connection_audit_events_event_type_check",
+      sql`${t.eventType} in (${sql.raw(inList(PROVIDER_CONNECTION_AUDIT_EVENT_TYPES))})`,
     ),
 
     /**
@@ -269,8 +286,8 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
      * writer's discipline is exactly what an audit table must not depend on.
      */
     check(
-      'inference_provider_connection_audit_events_no_actor_on_use',
-      sql`${t.eventType} <> 'used' or ${t.actorUserId} is null`
+      "inference_provider_connection_audit_events_no_actor_on_use",
+      sql`${t.eventType} <> 'used' or ${t.actorUserId} is null`,
     ),
 
     /**
@@ -296,13 +313,13 @@ export const inferenceProviderConnectionAuditEvents = pgTable(
      * that survived.
      */
     check(
-      'inference_provider_connection_audit_events_actor_check',
+      "inference_provider_connection_audit_events_actor_check",
       sql`${t.actorKind} is null
         or (${t.actorKind} is not distinct from 'user' and ${t.actorUserId} is not null)
         or (${t.actorKind} is not distinct from 'service' and ${t.actorUserId} is null)
-        or (${t.actorKind} is not distinct from 'platform' and ${t.actorUserId} is null)`
+        or (${t.actorKind} is not distinct from 'platform' and ${t.actorUserId} is null)`,
     ),
-  ]
+  ],
 );
 
 export type InferenceProviderConnectionAuditEventRow =

@@ -23,9 +23,9 @@
  * and this module has to ask for them by name, which is exactly the shape
  * `CONVENTIONS.md` wants an opt-in to have.
  *
- * INTENDED, not built: publishing a price version. `price_versions` is the
- * ledger's table (workstream 7) and is not in this schema barrel yet — see
- * `services/inferenceCatalogueAdmin.service.ts`.
+ * Price versions are authored and reviewed separately. This surface can attach
+ * one existing immutable version as a BYOK platform-fee pointer, but it cannot
+ * create a version or edit any monetary amount.
  *
  * Also here, and not a catalogue operation at all: `GET /rollout`, the one place
  * this deployment's rollout flags are readable, and `GET /metrics`, the
@@ -61,6 +61,8 @@ import {
   metricsQuery,
   permissionActionBody,
   permissionActionParams,
+  platformFeePriceVersionBody,
+  platformFeePriceVersionResponse,
   revisionParams,
   routingScorecardResponse,
   routingScoresBody,
@@ -72,6 +74,7 @@ import {
   DeploymentNotFoundError,
   DeploymentPermissionRefused,
   recordLegalReview,
+  setDeploymentPlatformFeePriceVersion,
   setDeploymentRoutingScores,
 } from '../services/inferenceCatalogueAdmin.service';
 import {
@@ -155,6 +158,7 @@ const DEPLOYMENT_ADMIN_COLUMNS = {
   status: inferenceDeployments.status,
   dedicatedCapacity: inferenceDeployments.dedicatedCapacity,
   priceVersionId: inferenceDeployments.priceVersionId,
+  platformFeePriceVersionId: inferenceDeployments.platformFeePriceVersionId,
   internalRouteId: inferenceDeployments.internalRouteId,
   routingPriceScore: inferenceDeploymentRoutingScores.priceScore,
   routingPriceSource: inferenceDeploymentRoutingScores.priceSource,
@@ -416,6 +420,35 @@ router.put(
         staffUserId: staffUserId(req),
       });
       res.json(routingScorecardResponse.parse({ data: result }));
+    } catch (error) {
+      throw translate(error);
+    }
+  })
+);
+
+/**
+ * `PUT /inference/admin/deployments/:deploymentId/platform-fee-price-version`
+ *
+ * Associate one existing immutable price version with a BYOK-only deployment.
+ * This endpoint writes only the exact foreign-key pointer: it cannot create a
+ * price version or edit an amount.
+ *
+ * @response 200 platformFeePriceVersionResponse The exact deployment and fee-version identities now associated.
+ * @response 409 Error The deployment is not BYOK-only or the version identity does not match it.
+ */
+router.put(
+  '/deployments/:deploymentId/platform-fee-price-version',
+  requireCataloguePublish,
+  validate({ params: deploymentParams, body: platformFeePriceVersionBody }),
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const params = deploymentParams.parse(req.params);
+    const body = platformFeePriceVersionBody.parse(req.body);
+    try {
+      const result = await setDeploymentPlatformFeePriceVersion({
+        deploymentId: params.deploymentId,
+        platformFeePriceVersionId: body.platformFeePriceVersionId,
+      });
+      res.json(platformFeePriceVersionResponse.parse({ data: result }));
     } catch (error) {
       throw translate(error);
     }

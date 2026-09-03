@@ -143,11 +143,8 @@ const PUBLIC_EMAIL_OPERATIONS = new Set(['POST /email/inbound', 'GET /email/prox
  * have a body" and "this POST's body went missing" are opposite failures and a
  * rule over the verb alone would report neither.
  *
- * `POST /v1/voice/token` and `POST /v1/voice/transcribe` are deliberately ABSENT.
- * They are opaque pass-throughs to `https://api.alia.onl` (`routes/alia.ts`), so
- * their request and response shapes belong to another vendor; writing a schema for
- * either would publish a promise Oxy does not make. That is a scope decision, and
- * it is recorded here rather than left as an unexplained gap in the list.
+ * Removed legacy product-proxy routes are deliberately absent. Alia agent and
+ * voice clients address the Alia product directly; generic inference uses Oxy.
  */
 const EXPECTED_PAYLOAD_OPERATIONS = [
   { method: 'post', path: '/v1/responses', requestBody: true },

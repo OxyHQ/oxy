@@ -88,7 +88,12 @@ tags:
       The public inference edge (/v1/*), the model catalogue, and the
       control-plane surfaces behind it — routing policies, provider
       connections (BYOK), usage reporting and the staff deployment admin.
-      Routes under /v1/*, /models/* and /inference/*.
+      Kaana is the data plane and sole BYOK credential custodian: provider
+      credentials are KMS-encrypted in Kaana PostgreSQL, never stored in Oxy
+      or environment variables. Oxy exposes exact opaque handle/revision
+      metadata and no credential-derived recognition value. The
+      canonical signed Kaana origin is exclusively https://kaana.ai. Routes
+      under /v1/*, /models/* and /inference/*.
   - name: Analytics
     description: Read-only analytics for the authenticated account.
   - name: System

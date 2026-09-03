@@ -87,6 +87,9 @@ export interface RequiredEnvVars {
   // Independent production kill switch for constructing the signed Kaana hop.
   // Unset and unreadable values are disabled.
   INFERENCE_KAANA_EXECUTION?: string;
+  // Exact primary key of the Inbox product routing profile. Empty/unset keeps
+  // every Inbox point-inference operation fail-closed.
+  INBOX_INFERENCE_ROUTING_PROFILE_ID?: string;
   //  - whether this deployment may charge customers, as `<reason>:<YYYY-MM-DD>`.
   //    A bare `true` is REFUSED. Unset means SHADOW METERING: every request is
   //    priced and the amount recorded, and no reservation, receipt or balance

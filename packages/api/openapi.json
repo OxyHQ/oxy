@@ -2416,159 +2416,6 @@
         "operationId": "getAccountsIdTree"
       }
     },
-    "/alia/chat/completions": {
-      "post": {
-        "tags": [
-          "AI"
-        ],
-        "summary": "Proxies chat completion requests to the Alia API.",
-        "description": "Supports both streaming (SSE) and non-streaming responses.\n\nRequires a service token whose credential resolves to an active,\nplatform-trusted application (issue #981); a user session bearer is refused.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postAliaChatCompletions"
-      }
-    },
-    "/alia/voice/token": {
-      "post": {
-        "tags": [
-          "AI"
-        ],
-        "summary": "POST /alia/voice/token",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postAliaVoiceToken"
-      }
-    },
-    "/alia/voice/transcribe": {
-      "post": {
-        "tags": [
-          "AI"
-        ],
-        "summary": "POST /alia/voice/transcribe",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postAliaVoiceTranscribe"
-      }
-    },
     "/analytics": {
       "get": {
         "tags": [
@@ -3155,6 +3002,7 @@
                         "inference:routing:write",
                         "inference:providers:read",
                         "inference:providers:write",
+                        "inference:byok:validate",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3420,6 +3268,7 @@
                         "inference:routing:write",
                         "inference:providers:read",
                         "inference:providers:write",
+                        "inference:byok:validate",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -3776,6 +3625,7 @@
                         "inference:routing:write",
                         "inference:providers:read",
                         "inference:providers:write",
+                        "inference:byok:validate",
                         "updates:publish",
                         "federation:write",
                         "signals:write",
@@ -11369,6 +11219,533 @@
         "operationId": "getEmailAiContext"
       }
     },
+    "/email/ai/compose": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/compose",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ]
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      },
+                      "stream": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "prompt",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "polish"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "text"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "change_tone"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      "tone": {
+                        "type": "string",
+                        "enum": [
+                          "professional",
+                          "casual",
+                          "friendly",
+                          "formal"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "text",
+                      "tone"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "adjust_length"
+                        ]
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "shorter",
+                          "longer"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "text",
+                      "direction"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "operation": {
+                        "type": "string",
+                        "enum": [
+                          "suggest_subject"
+                        ]
+                      },
+                      "body": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 20000
+                      }
+                    },
+                    "required": [
+                      "operation",
+                      "body"
+                    ]
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "operation"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAiCompose"
+      }
+    },
+    "/email/ai/daily-brief": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/daily-brief",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stream": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAiDailyBrief"
+      }
+    },
+    "/email/ai/messages/{messageId}/smart-replies": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/messages/{messageId}/smart-replies",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postEmailAiMessagesMessageIdSmartReplies"
+      }
+    },
+    "/email/ai/messages/{messageId}/thread-summary": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/messages/{messageId}/thread-summary",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "postEmailAiMessagesMessageIdThreadSummary"
+      }
+    },
+    "/email/ai/natural-search": {
+      "post": {
+        "tags": [
+          "Misc"
+        ],
+        "summary": "POST /email/ai/natural-search",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inboxInference.ts` to fill in summary, description, request/response examples.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inboxInference.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postEmailAiNaturalSearch"
+      }
+    },
     "/email/bundles": {
       "get": {
         "tags": [
@@ -17107,6 +17484,159 @@
         "operationId": "postInferenceAdminDeploymentsDeploymentIdLegalReview"
       }
     },
+    "/inference/admin/deployments/{deploymentId}/platform-fee-price-version": {
+      "put": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "`PUT /inference/admin/deployments/:deploymentId/platform-fee-price-version`",
+        "description": "Associate one existing immutable price version with a BYOK-only deployment.\nThis endpoint writes only the exact foreign-key pointer: it cannot create a\nprice version or edit an amount.",
+        "parameters": [
+          {
+            "name": "deploymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The exact deployment and fee-version identities now associated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deploymentId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        },
+                        "platformFeePriceVersionId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
+                        }
+                      },
+                      "required": [
+                        "deploymentId",
+                        "platformFeePriceVersionId"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The deployment is not BYOK-only or the version identity does not match it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "platformFeePriceVersionId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "platformFeePriceVersionId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "putInferenceAdminDeploymentsDeploymentIdPlatformFeePriceVersion"
+      }
+    },
     "/inference/admin/deployments/{deploymentId}/{action}": {
       "post": {
         "tags": [
@@ -18844,7 +19374,7 @@
           "Inference"
         ],
         "summary": "`GET /inference/provider-connections/accounts/:accountId`",
-        "description": "Every connection the account owns. Prefixes, fingerprints and validation\nstate; no credential, by construction.",
+        "description": "Every connection the account owns. Lifecycle and validation state only; no\ncredential or credential-derived recognition hint, by construction.",
         "parameters": [
           {
             "name": "accountId",
@@ -18937,7 +19467,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/accounts/:accountId`",
-        "description": "Register a credential at account or project scope. Kaana control is resolved\nbefore the body is read — see the module header.",
+        "description": "Register a credential at account or project scope. Kaana control is resolved\nbefore the parsed credential is validated, wrapped or handed to a service.",
         "parameters": [
           {
             "name": "accountId",
@@ -19744,7 +20274,7 @@
           "Inference"
         ],
         "summary": "`POST /inference/provider-connections/:connectionId/reconcile`",
-        "description": "Retry only Kaana's signed exact-outcome lookup for the operation Oxy already\npersisted. It sends no provider secret and never mints or substitutes an id.",
+        "description": "Ask for Kaana's signed exact outcome first. An explicit 404 may resume the\nSAME operation id; create/rotate then require the original credential again,\nwhile revoke retries without one. No path mints or substitutes an id.",
         "parameters": [
           {
             "name": "connectionId",
@@ -19771,7 +20301,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            1
+                            2
                           ]
                         },
                         "connectionId": {
@@ -19897,15 +20427,6 @@
                           "exclusiveMinimum": 0,
                           "maximum": 9007199254740991
                         },
-                        "keyPrefix": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 12
-                        },
-                        "fingerprint": {
-                          "type": "string",
-                          "pattern": "^[a-f0-9]{64}$"
-                        },
                         "validation": {
                           "type": "object",
                           "properties": {
@@ -19966,8 +20487,6 @@
                         "environment",
                         "status",
                         "custodyState",
-                        "keyPrefix",
-                        "fingerprint",
                         "validation",
                         "upstreamBillsCustomerDirectly",
                         "createdAt"
@@ -20065,7 +20584,14 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {}
+                "properties": {
+                  "secret": {
+                    "type": "string",
+                    "pattern": "^[\\x21-\\x7E]+$",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                }
               }
             }
           }
@@ -20394,6 +20920,15 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "credentialHandle": {
+                    "type": "string",
+                    "pattern": "^kcred_[a-z2-7]{26}$"
+                  },
+                  "credentialRevision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "state": {
                     "type": "string",
                     "enum": [
@@ -20416,6 +20951,8 @@
                   }
                 },
                 "required": [
+                  "credentialHandle",
+                  "credentialRevision",
                   "state"
                 ]
               }
@@ -20423,6 +20960,525 @@
           }
         },
         "operationId": "postInferenceProviderConnectionsConnectionIdValidation"
+      }
+    },
+    "/inference/provider-connections/{connectionId}/validation-bootstrap": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Latest exact attempt for this connection/application pair.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceProviderConnections.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "applicationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getInferenceProviderConnectionsConnectionIdValidationBootstrap"
+      },
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Create or resume one durable exact-generation bootstrap. Repeating a pending",
+        "description": "operation resends the same operation id; an inconclusive terminal attempt may\nbe followed by a new operation without rotating the credential.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "applicationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "deploymentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "applicationId",
+                  "deploymentId"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceProviderConnectionsConnectionIdValidationBootstrap"
+      }
+    },
+    "/inference/provider-connections/{connectionId}/validation-bootstrap/outcome": {
+      "post": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Service-authenticated exact terminal callback from Kaana.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceProviderConnections.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
+                    "maxLength": 64
+                  },
+                  "ownerAccountId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                  },
+                  "connectionId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "environment": {
+                    "type": "string",
+                    "enum": [
+                      "development",
+                      "staging",
+                      "production"
+                    ]
+                  },
+                  "schemaVersion": {
+                    "type": "number",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  "operationId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                  },
+                  "applicationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                  },
+                  "credentialHandle": {
+                    "type": "string",
+                    "pattern": "^kcred_[a-z2-7]{26}$"
+                  },
+                  "credentialRevision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "deploymentId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "valid",
+                      "invalid",
+                      "inconclusive"
+                    ]
+                  },
+                  "failureCode": {
+                    "type": "string",
+                    "enum": [
+                      "unauthorized",
+                      "forbidden",
+                      "not_found",
+                      "rate_limited",
+                      "network",
+                      "unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "provider",
+                  "ownerAccountId",
+                  "connectionId",
+                  "environment",
+                  "schemaVersion",
+                  "operationId",
+                  "applicationId",
+                  "credentialHandle",
+                  "credentialRevision",
+                  "deploymentId",
+                  "state"
+                ]
+              }
+            }
+          }
+        },
+        "operationId": "postInferenceProviderConnectionsConnectionIdValidationBootstrapOutcome"
+      }
+    },
+    "/inference/provider-connections/{connectionId}/validation-deployments": {
+      "get": {
+        "tags": [
+          "Inference"
+        ],
+        "summary": "Exact customer-selectable Oxy catalogue ids. No implicit route is chosen.",
+        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/inferenceProviderConnections.ts` to fill in summary, description, request/response examples.",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "applicationId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/inferenceProviderConnections.ts`, naming a Zod schema the file imports."
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient privileges",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "serviceTokenAuth": []
+          },
+          {
+            "bearerAuth": []
+          }
+        ],
+        "operationId": "getInferenceProviderConnectionsConnectionIdValidationDeployments"
       }
     },
     "/inference/reporting/accounts/{accountId}/balance": {
@@ -22505,18 +23561,18 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "routing_profile"
+                              "routing_profile_id"
                             ]
                           },
-                          "routingProfile": {
+                          "routingProfileId": {
                             "type": "string",
-                            "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
-                            "maxLength": 64
+                            "minLength": 1,
+                            "maxLength": 128
                           }
                         },
                         "required": [
                           "kind",
-                          "routingProfile"
+                          "routingProfileId"
                         ]
                       }
                     ],
@@ -22935,18 +23991,18 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "routing_profile"
+                              "routing_profile_id"
                             ]
                           },
-                          "routingProfile": {
+                          "routingProfileId": {
                             "type": "string",
-                            "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
-                            "maxLength": 64
+                            "minLength": 1,
+                            "maxLength": 128
                           }
                         },
                         "required": [
                           "kind",
-                          "routingProfile"
+                          "routingProfileId"
                         ]
                       }
                     ],
@@ -23672,18 +24728,18 @@
                           "kind": {
                             "type": "string",
                             "enum": [
-                              "routing_profile"
+                              "routing_profile_id"
                             ]
                           },
-                          "routingProfile": {
+                          "routingProfileId": {
                             "type": "string",
-                            "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
-                            "maxLength": 64
+                            "minLength": 1,
+                            "maxLength": 128
                           }
                         },
                         "required": [
                           "kind",
-                          "routingProfile"
+                          "routingProfileId"
                         ]
                       }
                     ],
@@ -37176,6 +38232,11 @@
                     "pattern": "^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$",
                     "maxLength": 64
                   },
+                  "routingProfileId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
                   "input": {
                     "oneOf": [
                       {
@@ -37701,108 +38762,6 @@
           }
         },
         "operationId": "postV1Responses"
-      }
-    },
-    "/v1/voice/token": {
-      "post": {
-        "tags": [
-          "Inference"
-        ],
-        "summary": "POST /v1/voice/token",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postV1VoiceToken"
-      }
-    },
-    "/v1/voice/transcribe": {
-      "post": {
-        "tags": [
-          "Inference"
-        ],
-        "summary": "POST /v1/voice/transcribe",
-        "description": "No long-form description. Add a JSDoc block (or `@openapi` block) above this route in `src/routes/alia.ts` to fill in summary, description, request/response examples.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success. The response body is not described — add an `@response <code> <schemaIdentifier>` line to the JSDoc above this route in `src/routes/alia.ts`, naming a Zod schema the file imports."
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Insufficient privileges",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "5XX": {
-            "description": "Server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "serviceTokenAuth": []
-          }
-        ],
-        "operationId": "postV1VoiceTranscribe"
       }
     },
     "/wallet/purchase": {
@@ -38357,7 +39316,7 @@
     },
     {
       "name": "Inference",
-      "description": "The public inference edge (/v1/*), the model catalogue, and the control-plane surfaces behind it — routing policies, provider connections (BYOK), usage reporting and the staff deployment admin. Routes under /v1/*, /models/* and /inference/*."
+      "description": "The public inference edge (/v1/*), the model catalogue, and the control-plane surfaces behind it — routing policies, provider connections (BYOK), usage reporting and the staff deployment admin. Kaana is the data plane and sole BYOK credential custodian: provider credentials are KMS-encrypted in Kaana PostgreSQL, never stored in Oxy or environment variables. Oxy exposes exact opaque handle/revision metadata and no credential-derived recognition value. The canonical signed Kaana origin is exclusively https://kaana.ai. Routes under /v1/*, /models/* and /inference/*."
     },
     {
       "name": "Analytics",

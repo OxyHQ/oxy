@@ -24,15 +24,15 @@
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */
 
-import { z } from 'zod';
-import { inferenceAttributionSchema } from './attribution';
-import { inferenceModalitySchema } from './catalogue';
-import { idempotencyKeySchema, inferenceTimestampSchema } from './identifiers';
+import { z } from "zod";
+import { inferenceAttributionSchema } from "./attribution";
+import { inferenceModalitySchema } from "./catalogue";
+import { idempotencyKeySchema, inferenceTimestampSchema } from "./identifiers";
 import {
   authorizedRouteSchema,
   routingPolicyReferenceSchema,
   routingTargetSchema,
-} from './routingPolicy';
+} from "./routingPolicy";
 
 /* -------------------------------------------------------------------------- */
 /*  Input                                                                     */
@@ -45,11 +45,13 @@ import {
  * with the request. Both are transient: neither is persisted by default, and
  * neither appears in a receipt, a log line or a telemetry event.
  */
-export const inferenceContentSourceSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('url'), url: z.string().min(1).max(4096) }).strict(),
+export const inferenceContentSourceSchema = z.discriminatedUnion("kind", [
+  z
+    .object({ kind: z.literal("url"), url: z.string().min(1).max(4096) })
+    .strict(),
   z
     .object({
-      kind: z.literal('inline'),
+      kind: z.literal("inline"),
       mediaType: z.string().min(1).max(255),
       data: z.string().min(1),
     })
@@ -88,20 +90,22 @@ export const inferenceContentSourceSchema = z.discriminatedUnion('kind', [
  * no words from the answer, while an OpenAI-compatible `refusal` does. A required
  * field would force the first provider to invent a sentence.
  */
-export const inferenceContentPartSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('text'), text: z.string() }).strict(),
+export const inferenceContentPartSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), text: z.string() }).strict(),
   z
     .object({
-      type: z.literal('image'),
+      type: z.literal("image"),
       source: inferenceContentSourceSchema,
       /** Provider-independent hint; providers that ignore it are unaffected. */
-      detail: z.enum(['auto', 'low', 'high']).optional(),
+      detail: z.enum(["auto", "low", "high"]).optional(),
     })
     .strict(),
-  z.object({ type: z.literal('audio'), source: inferenceContentSourceSchema }).strict(),
+  z
+    .object({ type: z.literal("audio"), source: inferenceContentSourceSchema })
+    .strict(),
   z
     .object({
-      type: z.literal('file'),
+      type: z.literal("file"),
       source: inferenceContentSourceSchema,
       filename: z.string().max(255).optional(),
     })
@@ -110,7 +114,7 @@ export const inferenceContentPartSchema = z.discriminatedUnion('type', [
    * A model's explanation for declining. Its own part, never a `text` one, so no
    * renderer can present a refusal as the answer that was asked for.
    */
-  z.object({ type: z.literal('refusal'), text: z.string() }).strict(),
+  z.object({ type: z.literal("refusal"), text: z.string() }).strict(),
 ]);
 
 /**
@@ -129,11 +133,11 @@ export const inferenceToolCallSchema = z
   .strict();
 
 export const inferenceMessageRoleSchema = z.enum([
-  'system',
-  'developer',
-  'user',
-  'assistant',
-  'tool',
+  "system",
+  "developer",
+  "user",
+  "assistant",
+  "tool",
 ]);
 
 /**
@@ -157,40 +161,40 @@ export const inferenceMessageSchema = z
   })
   .strict()
   .superRefine((message, ctx) => {
-    if (message.role === 'tool' && message.toolCallId === undefined) {
+    if (message.role === "tool" && message.toolCallId === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['toolCallId'],
-        message: 'a tool message must name the tool call it answers',
+        path: ["toolCallId"],
+        message: "a tool message must name the tool call it answers",
       });
     }
 
-    if (message.role !== 'tool' && message.toolCallId !== undefined) {
+    if (message.role !== "tool" && message.toolCallId !== undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['toolCallId'],
-        message: 'only a tool message answers a tool call',
+        path: ["toolCallId"],
+        message: "only a tool message answers a tool call",
       });
     }
 
-    if (message.role !== 'assistant' && message.toolCalls !== undefined) {
+    if (message.role !== "assistant" && message.toolCalls !== undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['toolCalls'],
-        message: 'only an assistant message makes tool calls',
+        path: ["toolCalls"],
+        message: "only an assistant message makes tool calls",
       });
     }
 
     // Same rule as `toolCalls`, for the same reason: only the assistant can
     // decline, so a refusal on any other role is a part every provider would
     // silently ignore — and one a renderer might not.
-    if (message.role !== 'assistant') {
+    if (message.role !== "assistant") {
       for (const [index, part] of message.content.entries()) {
-        if (part.type === 'refusal') {
+        if (part.type === "refusal") {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            path: ['content', index, 'type'],
-            message: 'only an assistant message carries a refusal',
+            path: ["content", index, "type"],
+            message: "only an assistant message carries a refusal",
           });
         }
       }
@@ -205,17 +209,17 @@ export const inferenceMessageSchema = z
  * pretending the latter is a one-message conversation loses the batch boundary
  * that both metering and provider translation depend on.
  */
-export const inferenceInputSchema = z.discriminatedUnion('format', [
+export const inferenceInputSchema = z.discriminatedUnion("format", [
   z
     .object({
-      format: z.literal('messages'),
+      format: z.literal("messages"),
       messages: z.array(inferenceMessageSchema).min(1),
     })
     .strict(),
-  z.object({ format: z.literal('text'), text: z.string() }).strict(),
+  z.object({ format: z.literal("text"), text: z.string() }).strict(),
   z
     .object({
-      format: z.literal('text_batch'),
+      format: z.literal("text_batch"),
       texts: z.array(z.string()).min(1).max(2048),
     })
     .strict(),
@@ -246,7 +250,7 @@ export const samplingParametersSchema = z
  */
 export const toolDefinitionSchema = z
   .object({
-    type: z.literal('function'),
+    type: z.literal("function"),
     name: z.string().min(1).max(128),
     description: z.string().max(2000).optional(),
     parameters: z.record(z.unknown()),
@@ -257,17 +261,19 @@ export const toolDefinitionSchema = z
 
 /** Whether, and which, tool the model must call. */
 export const toolChoiceSchema = z.union([
-  z.enum(['auto', 'none', 'required']),
-  z.object({ type: z.literal('function'), name: z.string().min(1).max(128) }).strict(),
+  z.enum(["auto", "none", "required"]),
+  z
+    .object({ type: z.literal("function"), name: z.string().min(1).max(128) })
+    .strict(),
 ]);
 
 /** Structured-output request: free text, any JSON object, or a named schema. */
-export const responseFormatSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('text') }).strict(),
-  z.object({ type: z.literal('json_object') }).strict(),
+export const responseFormatSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text") }).strict(),
+  z.object({ type: z.literal("json_object") }).strict(),
   z
     .object({
-      type: z.literal('json_schema'),
+      type: z.literal("json_schema"),
       name: z.string().min(1).max(128),
       schema: z.record(z.unknown()),
       strict: z.boolean(),
@@ -296,14 +302,14 @@ export const clientRequestMetadataSchema = z
   .object({
     /** The public dialect the customer called. The response is rendered in it. */
     apiFormat: z.enum([
-      'responses',
-      'chat_completions',
-      'embeddings',
-      'images_generations',
-      'audio_transcriptions',
-      'audio_speech',
-      'rerank',
-      'batches',
+      "responses",
+      "chat_completions",
+      "embeddings",
+      "images_generations",
+      "audio_transcriptions",
+      "audio_speech",
+      "rerank",
+      "batches",
     ]),
     /** The public path, e.g. `/v1/responses`. */
     endpoint: z.string().min(1).max(256),
@@ -326,7 +332,7 @@ export const clientRequestMetadataSchema = z
  * `resolveEdgeRoute` makes on the way in.
  */
 const modelLineOf = (reference: string): string => {
-  const at = reference.indexOf('@');
+  const at = reference.indexOf("@");
   return at === -1 ? reference : reference.slice(0, at);
 };
 
@@ -341,7 +347,7 @@ const modelLineOf = (reference: string): string => {
 export const inferenceRequestSchema = z
   .object({
     /** See `version.ts`: this is the Oxy→data-plane request envelope. */
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     attribution: inferenceAttributionSchema,
     target: routingTargetSchema,
     modality: inferenceModalitySchema,
@@ -394,8 +400,8 @@ export const inferenceRequestSchema = z
     if (request.toolChoice !== undefined && request.tools.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['toolChoice'],
-        message: 'a tool choice requires at least one tool definition',
+        path: ["toolChoice"],
+        message: "a tool choice requires at least one tool definition",
       });
     }
 
@@ -403,8 +409,8 @@ export const inferenceRequestSchema = z
     if (new Set(toolNames).size !== toolNames.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['tools'],
-        message: 'tool names must be unique within one request',
+        path: ["tools"],
+        message: "tool names must be unique within one request",
       });
     }
 
@@ -420,11 +426,12 @@ export const inferenceRequestSchema = z
     // The primary is not a substitution for itself, and every `substitution`
     // value is read RELATIVE to it. A list whose first entry claims to be a
     // cross-model substitute names no original to have substituted for.
-    if (primary.substitution !== 'same_model') {
+    if (primary.substitution !== "same_model") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['authorizedRoutes', 0, 'substitution'],
-        message: 'the first authorized route is the primary and cannot be a substitution',
+        path: ["authorizedRoutes", 0, "substitution"],
+        message:
+          "the first authorized route is the primary and cannot be a substitution",
       });
     }
 
@@ -434,33 +441,36 @@ export const inferenceRequestSchema = z
     // substituted, and one that PINNED a revision is served on exactly those
     // weights. Both checks are on the primary, because a primary that already
     // drifted makes every entry after it a substitution nobody labelled.
-    if (request.target.kind === 'model') {
+    if (request.target.kind === "model") {
       const targetReference = request.target.modelReference;
-      const targetIsPinned = targetReference.includes('@');
+      const targetIsPinned = targetReference.includes("@");
 
       if (targetIsPinned && primary.modelReference !== targetReference) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['authorizedRoutes', 0, 'modelReference'],
-          message: 'a pinned request is served on exactly the revision it pinned',
+          path: ["authorizedRoutes", 0, "modelReference"],
+          message:
+            "a pinned request is served on exactly the revision it pinned",
         });
       }
 
       if (!targetIsPinned && primaryLine !== targetReference) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['authorizedRoutes', 0, 'modelReference'],
-          message: 'the primary authorized route must serve the model the request named',
+          path: ["authorizedRoutes", 0, "modelReference"],
+          message:
+            "the primary authorized route must serve the model the request named",
         });
       }
 
       if (targetIsPinned) {
         for (const [index, route] of routes.entries()) {
-          if (route.substitution === 'cross_model') {
+          if (route.substitution === "cross_model") {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              path: ['authorizedRoutes', index, 'substitution'],
-              message: 'a request that pinned a revision authorizes no cross-model substitute',
+              path: ["authorizedRoutes", index, "substitution"],
+              message:
+                "a request that pinned a revision authorizes no cross-model substitute",
             });
           }
         }
@@ -474,18 +484,18 @@ export const inferenceRequestSchema = z
       // different model line is a substitution wearing the label that needs no
       // authorization, and `cross_model` on the same line claims an
       // authorization the customer never had to give.
-      if (route.substitution === 'same_model' && line !== primaryLine) {
+      if (route.substitution === "same_model" && line !== primaryLine) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['authorizedRoutes', index, 'substitution'],
+          path: ["authorizedRoutes", index, "substitution"],
           message: `route ${index} serves ${line}, not ${primaryLine}, so it is a cross-model substitute`,
         });
       }
 
-      if (route.substitution === 'cross_model' && line === primaryLine) {
+      if (route.substitution === "cross_model" && line === primaryLine) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['authorizedRoutes', index, 'substitution'],
+          path: ["authorizedRoutes", index, "substitution"],
           message: `route ${index} serves ${primaryLine}, so it is same-model failover`,
         });
       }
@@ -498,13 +508,16 @@ export const inferenceRequestSchema = z
     if (new Set(deployments).size !== deployments.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['authorizedRoutes'],
-        message: 'each deployment appears at most once in the authorized route list',
+        path: ["authorizedRoutes"],
+        message:
+          "each deployment appears at most once in the authorized route list",
       });
     }
   });
 
-export type InferenceContentSource = z.infer<typeof inferenceContentSourceSchema>;
+export type InferenceContentSource = z.infer<
+  typeof inferenceContentSourceSchema
+>;
 export type InferenceContentPart = z.infer<typeof inferenceContentPartSchema>;
 export type InferenceToolCall = z.infer<typeof inferenceToolCallSchema>;
 export type InferenceMessageRole = z.infer<typeof inferenceMessageRoleSchema>;

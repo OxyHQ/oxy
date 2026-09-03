@@ -75,6 +75,7 @@ import {
 import { violatesUniqueIndex } from '../utils/postgresErrors';
 import { logger } from '../utils/logger';
 import userCache from '../utils/userCache';
+import { archiveAccountForRetention } from './accountFinancialHolds.service';
 
 /**
  * The permission that authorises assuming an account's identity — what
@@ -756,11 +757,15 @@ export class AccountService {
       throw new BadRequestError('A personal account cannot be archived');
     }
 
+    await archiveAccountForRetention(accountId);
     const [archived] = await db
-      .update(users)
-      .set({ accountStatus: 'archived' })
+      .select(publicColumns(users, PROTECTED_COLUMNS_BY_TABLE))
+      .from(users)
       .where(eq(users.id, accountId))
-      .returning();
+      .limit(1);
+    if (!archived) {
+      throw new NotFoundError('Account not found');
+    }
     userCache.invalidate(accountId);
 
     logger.info('Account archived', { accountId });

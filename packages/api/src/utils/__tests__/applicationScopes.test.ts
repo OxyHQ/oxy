@@ -162,12 +162,16 @@ describe('the inference scope family (#972 workstream 3)', () => {
     'inference:providers:read',
   ] as const;
 
-  const STAFF_ONLY = ['inference:routing:write', 'inference:providers:write'] as const;
+  const STAFF_ONLY = [
+    'inference:routing:write',
+    'inference:providers:write',
+    'inference:byok:validate',
+  ] as const;
 
   /** Removed outright by this change — no alias, no grace, no sunset date. */
   const RETIRED = ['chat:completions', 'models:read'] as const;
 
-  it('recognises every one of the seven inference scopes', () => {
+  it('recognises every one of the eight inference scopes', () => {
     for (const scope of [...SELF_GRANTABLE, ...STAFF_ONLY]) {
       expect(isValidApplicationScope(scope)).toBe(true);
     }
@@ -185,7 +189,7 @@ describe('the inference scope family (#972 workstream 3)', () => {
     expect(isValidApplicationScope('inference:invoke')).toBe(true);
   });
 
-  it('staff-gates the two WRITES and leaves the reads and the invoke self-grantable', () => {
+  it('staff-gates every mutation/report scope and leaves reads/invoke self-grantable', () => {
     // The asymmetry is the decision: describing where a request would go is not
     // deciding it, and both writes reach catalogue objects the platform serves
     // every tenant from — see the doc comment on PRIVILEGED_APPLICATION_SCOPES.

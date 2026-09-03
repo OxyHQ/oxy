@@ -1,8 +1,8 @@
-import * as React from 'react';
-import {  useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@oxyhq/services';
-import { getNormalizedUserHandle } from '@oxyhq/core';
-import type {UseQueryResult} from '@tanstack/react-query';
+import * as React from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@oxyhq/services'
+import { getNormalizedUserHandle } from '@oxyhq/core'
+import type { UseQueryResult } from '@tanstack/react-query'
 import type {
   AccountKind,
   AccountMember,
@@ -14,8 +14,8 @@ import type {
   AccountSuccessResult,
   CreateAccountInput,
   UpdateAccountInput,
-} from '@oxyhq/core';
-import { hasImplicitOwnership } from '@/lib/account-access';
+} from '@oxyhq/core'
+import { hasImplicitOwnership } from '@/lib/account-access'
 
 // ===========================================================================
 // Types — re-exported from @oxyhq/core so the Console shares the single
@@ -33,7 +33,7 @@ export type {
   AccountMemberSource,
   CreateAccountInput,
   UpdateAccountInput,
-};
+}
 
 /**
  * Permission strings derived from the member's role server-side (the unified
@@ -73,62 +73,67 @@ export type AccountPermission =
   | 'inference:routing:write'
   | 'inference:providers:read'
   | 'inference:providers:write'
-  | 'inference:usage:read';
+  | 'inference:usage:read'
 
 /** Roles assignable via invite/update — everything except `owner`. */
-export type AssignableAccountRole = Exclude<AccountRole, 'owner'>;
+export type AssignableAccountRole = Exclude<AccountRole, 'owner'>
 
 interface AccountContextValue {
   // State
-  accounts: Array<AccountNode>;
-  currentAccount: AccountNode | null;
-  isLoading: boolean;
+  accounts: Array<AccountNode>
+  currentAccount: AccountNode | null
+  isLoading: boolean
 
   // Account CRUD
-  setCurrentAccount: (account: AccountNode) => Promise<void>;
-  createAccount: (data: CreateAccountInput) => Promise<AccountNode>;
-  updateAccount: (accountId: string, data: UpdateAccountInput) => Promise<AccountNode>;
-  archiveAccount: (accountId: string) => Promise<AccountSuccessResult>;
+  setCurrentAccount: (account: AccountNode) => Promise<void>
+  createAccount: (data: CreateAccountInput) => Promise<AccountNode>
+  updateAccount: (
+    accountId: string,
+    data: UpdateAccountInput,
+  ) => Promise<AccountNode>
+  archiveAccount: (accountId: string) => Promise<AccountSuccessResult>
 
   // Permissions — the node's embedded `callerMembership`, plus the implicit
   // ownership of one's own personal account (which carries no membership row).
-  canReadAccount: (account: AccountNode) => boolean;
-  canEditAccount: (account: AccountNode) => boolean;
-  canManageMembers: (account: AccountNode) => boolean;
-  canTransferOwnership: (account: AccountNode) => boolean;
-  canArchiveAccount: (account: AccountNode) => boolean;
-  canCreateApplications: (account: AccountNode) => boolean;
-  canReadBilling: (account: AccountNode) => boolean;
-  canManageBilling: (account: AccountNode) => boolean;
-  getUserRole: (account: AccountNode) => AccountRole | null;
+  canReadAccount: (account: AccountNode) => boolean
+  canEditAccount: (account: AccountNode) => boolean
+  canReadProviderConnections: (account: AccountNode) => boolean
+  canManageProviderConnections: (account: AccountNode) => boolean
+  canManageMembers: (account: AccountNode) => boolean
+  canTransferOwnership: (account: AccountNode) => boolean
+  canArchiveAccount: (account: AccountNode) => boolean
+  canCreateApplications: (account: AccountNode) => boolean
+  canReadBilling: (account: AccountNode) => boolean
+  canManageBilling: (account: AccountNode) => boolean
+  getUserRole: (account: AccountNode) => AccountRole | null
 }
 
-const AccountContext = React.createContext<AccountContextValue | null>(null);
+const AccountContext = React.createContext<AccountContextValue | null>(null)
 
-const CURRENT_ACCOUNT_KEY = 'oxy-current-account-id';
+const CURRENT_ACCOUNT_KEY = 'oxy-current-account-id'
 
 const accountQueryKeys = {
   all: ['accounts'] as const,
   members: (accountId: string) => ['account-members', accountId] as const,
   membersAll: ['account-members'] as const,
-};
+}
 
 function readStoredAccountId(): string | null {
   try {
-    return localStorage.getItem(CURRENT_ACCOUNT_KEY);
+    return localStorage.getItem(CURRENT_ACCOUNT_KEY)
   } catch {
     // localStorage can throw in privacy modes / SSR — treat as no selection.
-    return null;
+    return null
   }
 }
 
 function persistAccountId(id: string): void {
   try {
-    localStorage.setItem(CURRENT_ACCOUNT_KEY, id);
+    localStorage.setItem(CURRENT_ACCOUNT_KEY, id)
   } catch (error) {
     // Persisting the selection is best-effort; surface for diagnostics only.
     if (import.meta.env.DEV) {
-      console.warn('Failed to persist current account id', error);
+      console.warn('Failed to persist current account id', error)
     }
   }
 }
@@ -136,9 +141,9 @@ function persistAccountId(id: string): void {
 /** Pick the default account: the personal one, else the first available. */
 function pickDefaultAccount(accounts: Array<AccountNode>): AccountNode | null {
   if (accounts.length === 0) {
-    return null;
+    return null
   }
-  return accounts.find((a) => a.kind === 'personal') ?? accounts[0];
+  return accounts.find((a) => a.kind === 'personal') ?? accounts[0]
 }
 
 /**
@@ -150,7 +155,11 @@ function pickDefaultAccount(accounts: Array<AccountNode>): AccountNode | null {
  * serializer about what somebody is called.
  */
 export function accountLabel(node: AccountNode): string {
-  return node.account.name?.displayName ?? getNormalizedUserHandle(node.account) ?? 'Account';
+  return (
+    node.account.name?.displayName ??
+    getNormalizedUserHandle(node.account) ??
+    'Account'
+  )
 }
 
 /**
@@ -163,20 +172,24 @@ export function accountLabel(node: AccountNode): string {
  * is the account the Console defaults to; `hasImplicitOwnership` is the client's
  * half of the server's own short-circuit. See `lib/account-access.ts`.
  */
-function hasPermission(account: AccountNode, permissions: Array<AccountPermission>): boolean {
+function hasPermission(
+  account: AccountNode,
+  permissions: Array<AccountPermission>,
+): boolean {
   if (hasImplicitOwnership(account)) {
-    return true;
+    return true
   }
-  const granted = account.callerMembership?.permissions;
+  const granted = account.callerMembership?.permissions
   if (!granted) {
-    return false;
+    return false
   }
-  return permissions.some((p) => granted.includes(p));
+  return permissions.some((p) => granted.includes(p))
 }
 
 export function AccountProvider({ children }: { children: React.ReactNode }) {
-  const { oxyServices, switchToAccount, user, isAuthenticated, isReady } = useAuth();
-  const queryClient = useQueryClient();
+  const { oxyServices, switchToAccount, user, isAuthenticated, isReady } =
+    useAuth()
+  const queryClient = useQueryClient()
 
   const accountsQuery = useQuery({
     queryKey: accountQueryKeys.all,
@@ -184,106 +197,123 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
     enabled: isReady && isAuthenticated,
     staleTime: 1000 * 60 * 5,
     retry: 2,
-  });
+  })
 
-  const accounts = React.useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
+  const accounts = React.useMemo(
+    () => accountsQuery.data ?? [],
+    [accountsQuery.data],
+  )
 
   // Selected account id, seeded from localStorage. Updates are user-driven
   // (switcher) so a single setter + a small persistence effect is enough.
-  const [selectedId, setSelectedId] = React.useState<string | null>(() => readStoredAccountId());
+  const [selectedId, setSelectedId] = React.useState<string | null>(() =>
+    readStoredAccountId(),
+  )
 
   // Resolve the current account from the selection, falling back to the
   // default (personal-first) when the selection is missing or invalid.
   const currentAccount = React.useMemo<AccountNode | null>(() => {
     if (accounts.length === 0) {
-      return null;
+      return null
     }
-    const selected = selectedId ? accounts.find((a) => a.accountId === selectedId) : undefined;
-    return selected ?? pickDefaultAccount(accounts);
-  }, [accounts, selectedId]);
+    const selected = selectedId
+      ? accounts.find((a) => a.accountId === selectedId)
+      : undefined
+    return selected ?? pickDefaultAccount(accounts)
+  }, [accounts, selectedId])
 
   // Keep the persisted selection aligned with the resolved current account.
   // This reconciles a stale/invalid stored id to the actual default once the
   // list loads. Persistence is the only side-effect, so a small effect is fine.
   React.useEffect(() => {
     if (currentAccount && currentAccount.accountId !== selectedId) {
-      setSelectedId(currentAccount.accountId);
-      persistAccountId(currentAccount.accountId);
+      setSelectedId(currentAccount.accountId)
+      persistAccountId(currentAccount.accountId)
     }
-  }, [currentAccount, selectedId]);
+  }, [currentAccount, selectedId])
 
   const setCurrentAccount = React.useCallback(
     async (account: AccountNode): Promise<void> => {
       if (account.accountId !== currentAccount?.accountId) {
-        await switchToAccount(account.accountId);
+        await switchToAccount(account.accountId)
       }
-      setSelectedId(account.accountId);
-      persistAccountId(account.accountId);
+      setSelectedId(account.accountId)
+      persistAccountId(account.accountId)
     },
     [currentAccount?.accountId, switchToAccount],
-  );
+  )
 
   // Keep console account context aligned when the device session changes via
   // ProfileButton / OxyAccountDialog (outside the header org switcher).
   React.useEffect(() => {
     if (!user?.id || accounts.length === 0) {
-      return;
+      return
     }
-    const sessionAccount = accounts.find((a) => a.accountId === user.id);
+    const sessionAccount = accounts.find((a) => a.accountId === user.id)
     if (!sessionAccount || sessionAccount.accountId === selectedId) {
-      return;
+      return
     }
-    setSelectedId(sessionAccount.accountId);
-    persistAccountId(sessionAccount.accountId);
-  }, [accounts, selectedId, user?.id]);
+    setSelectedId(sessionAccount.accountId)
+    persistAccountId(sessionAccount.accountId)
+  }, [accounts, selectedId, user?.id])
 
   const createAccountMutation = useMutation({
-    mutationFn: (data: CreateAccountInput): Promise<AccountNode> => oxyServices.createAccount(data),
+    mutationFn: (data: CreateAccountInput): Promise<AccountNode> =>
+      oxyServices.createAccount(data),
     onSuccess: (created) => {
-      queryClient.setQueryData<Array<AccountNode>>(accountQueryKeys.all, (existing) =>
-        existing ? [...existing, created] : [created],
-      );
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
-      void setCurrentAccount(created);
+      queryClient.setQueryData<Array<AccountNode>>(
+        accountQueryKeys.all,
+        (existing) => (existing ? [...existing, created] : [created]),
+      )
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all })
+      void setCurrentAccount(created)
     },
-  });
+  })
 
   const updateAccountMutation = useMutation({
-    mutationFn: ({ accountId, data }: { accountId: string; data: UpdateAccountInput }): Promise<AccountNode> =>
-      oxyServices.updateAccount(accountId, data),
+    mutationFn: ({
+      accountId,
+      data,
+    }: {
+      accountId: string
+      data: UpdateAccountInput
+    }): Promise<AccountNode> => oxyServices.updateAccount(accountId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all })
     },
-  });
+  })
 
   const archiveAccountMutation = useMutation({
     mutationFn: (accountId: string): Promise<AccountSuccessResult> =>
       oxyServices.archiveAccount(accountId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all })
     },
-  });
+  })
 
   const createAccount = React.useCallback(
-    (data: CreateAccountInput): Promise<AccountNode> => createAccountMutation.mutateAsync(data),
-    [createAccountMutation]
-  );
+    (data: CreateAccountInput): Promise<AccountNode> =>
+      createAccountMutation.mutateAsync(data),
+    [createAccountMutation],
+  )
 
   const updateAccount = React.useCallback(
     (accountId: string, data: UpdateAccountInput): Promise<AccountNode> =>
       updateAccountMutation.mutateAsync({ accountId, data }),
-    [updateAccountMutation]
-  );
+    [updateAccountMutation],
+  )
 
   const archiveAccount = React.useCallback(
-    (accountId: string): Promise<AccountSuccessResult> => archiveAccountMutation.mutateAsync(accountId),
-    [archiveAccountMutation]
-  );
+    (accountId: string): Promise<AccountSuccessResult> =>
+      archiveAccountMutation.mutateAsync(accountId),
+    [archiveAccountMutation],
+  )
 
   const getUserRole = React.useCallback(
-    (account: AccountNode): AccountRole | null => account.callerMembership?.role ?? null,
-    []
-  );
+    (account: AccountNode): AccountRole | null =>
+      account.callerMembership?.role ?? null,
+    [],
+  )
 
   /**
    * `account:read` on one account node.
@@ -300,29 +330,48 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
    */
   const canReadAccount = React.useCallback(
     (account: AccountNode): boolean => hasPermission(account, ['account:read']),
-    []
-  );
+    [],
+  )
 
   const canEditAccount = React.useCallback(
-    (account: AccountNode): boolean => hasPermission(account, ['account:update']),
-    []
-  );
+    (account: AccountNode): boolean =>
+      hasPermission(account, ['account:update']),
+    [],
+  )
+
+  const canReadProviderConnections = React.useCallback(
+    (account: AccountNode): boolean =>
+      hasPermission(account, ['inference:providers:read']),
+    [],
+  )
+
+  const canManageProviderConnections = React.useCallback(
+    (account: AccountNode): boolean =>
+      hasPermission(account, ['inference:providers:write']),
+    [],
+  )
 
   const canManageMembers = React.useCallback(
     (account: AccountNode): boolean =>
-      hasPermission(account, ['members:invite', 'members:update', 'members:remove']),
-    []
-  );
+      hasPermission(account, [
+        'members:invite',
+        'members:update',
+        'members:remove',
+      ]),
+    [],
+  )
 
   const canTransferOwnership = React.useCallback(
-    (account: AccountNode): boolean => hasPermission(account, ['ownership:transfer']),
-    []
-  );
+    (account: AccountNode): boolean =>
+      hasPermission(account, ['ownership:transfer']),
+    [],
+  )
 
   const canArchiveAccount = React.useCallback(
-    (account: AccountNode): boolean => hasPermission(account, ['account:delete']),
-    []
-  );
+    (account: AccountNode): boolean =>
+      hasPermission(account, ['account:delete']),
+    [],
+  )
 
   /**
    * Creating an application is an ACCOUNT permission, held by owner, admin and
@@ -332,8 +381,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
    */
   const canCreateApplications = React.useCallback(
     (account: AccountNode): boolean => hasPermission(account, ['apps:create']),
-    []
-  );
+    [],
+  )
 
   /**
    * The two billing rights, read off the membership the API serves rather than
@@ -347,13 +396,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
    */
   const canReadBilling = React.useCallback(
     (account: AccountNode): boolean => hasPermission(account, ['billing:read']),
-    []
-  );
+    [],
+  )
 
   const canManageBilling = React.useCallback(
-    (account: AccountNode): boolean => hasPermission(account, ['billing:manage']),
-    []
-  );
+    (account: AccountNode): boolean =>
+      hasPermission(account, ['billing:manage']),
+    [],
+  )
 
   const value = React.useMemo<AccountContextValue>(
     () => ({
@@ -366,6 +416,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       archiveAccount,
       canReadAccount,
       canEditAccount,
+      canReadProviderConnections,
+      canManageProviderConnections,
       canManageMembers,
       canTransferOwnership,
       canArchiveAccount,
@@ -384,6 +436,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       archiveAccount,
       canReadAccount,
       canEditAccount,
+      canReadProviderConnections,
+      canManageProviderConnections,
       canManageMembers,
       canTransferOwnership,
       canArchiveAccount,
@@ -391,18 +445,20 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
       canReadBilling,
       canManageBilling,
       getUserRole,
-    ]
-  );
+    ],
+  )
 
-  return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>;
+  return (
+    <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
+  )
 }
 
 export function useAccount() {
-  const context = React.useContext(AccountContext);
+  const context = React.useContext(AccountContext)
   if (!context) {
-    throw new Error('useAccount must be used within AccountProvider');
+    throw new Error('useAccount must be used within AccountProvider')
   }
-  return context;
+  return context
 }
 
 // ===========================================================================
@@ -414,9 +470,9 @@ export function useAccount() {
 
 export function useAccountMembers(
   accountId: string | undefined,
-  enabled: boolean = true
+  enabled: boolean = true,
 ): UseQueryResult<Array<AccountMember>> {
-  const { oxyServices, isAuthenticated, isReady } = useAuth();
+  const { oxyServices, isAuthenticated, isReady } = useAuth()
 
   return useQuery({
     queryKey: accountQueryKeys.members(accountId ?? ''),
@@ -424,12 +480,12 @@ export function useAccountMembers(
     enabled: isReady && isAuthenticated && !!accountId && enabled,
     staleTime: 1000 * 60 * 2,
     retry: 1,
-  });
+  })
 }
 
 export function useInviteAccountMember() {
-  const { oxyServices } = useAuth();
-  const queryClient = useQueryClient();
+  const { oxyServices } = useAuth()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({
@@ -437,20 +493,20 @@ export function useInviteAccountMember() {
       usernameOrEmail,
       role,
     }: {
-      accountId: string;
-      usernameOrEmail: string;
-      role: AssignableAccountRole;
+      accountId: string
+      usernameOrEmail: string
+      role: AssignableAccountRole
     }): Promise<AccountMember> =>
       oxyServices.inviteAccountMember(accountId, { usernameOrEmail, role }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll })
     },
-  });
+  })
 }
 
 export function useUpdateAccountMember() {
-  const { oxyServices } = useAuth();
-  const queryClient = useQueryClient();
+  const { oxyServices } = useAuth()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({
@@ -458,53 +514,54 @@ export function useUpdateAccountMember() {
       memberId,
       role,
     }: {
-      accountId: string;
-      memberId: string;
-      role: AssignableAccountRole;
-    }): Promise<AccountMember> => oxyServices.updateAccountMember(accountId, memberId, { role }),
+      accountId: string
+      memberId: string
+      role: AssignableAccountRole
+    }): Promise<AccountMember> =>
+      oxyServices.updateAccountMember(accountId, memberId, { role }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll })
     },
-  });
+  })
 }
 
 export function useRemoveAccountMember() {
-  const { oxyServices } = useAuth();
-  const queryClient = useQueryClient();
+  const { oxyServices } = useAuth()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async ({
       accountId,
       memberId,
     }: {
-      accountId: string;
-      memberId: string;
+      accountId: string
+      memberId: string
     }): Promise<{ accountId: string; memberId: string }> => {
-      await oxyServices.removeAccountMember(accountId, memberId);
-      return { accountId, memberId };
+      await oxyServices.removeAccountMember(accountId, memberId)
+      return { accountId, memberId }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll })
     },
-  });
+  })
 }
 
 export function useTransferAccountOwnership() {
-  const { oxyServices } = useAuth();
-  const queryClient = useQueryClient();
+  const { oxyServices } = useAuth()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({
       accountId,
       userId,
     }: {
-      accountId: string;
-      userId: string;
+      accountId: string
+      userId: string
     }): Promise<AccountSuccessResult> =>
       oxyServices.transferAccountOwnership(accountId, { userId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll });
-      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all });
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.membersAll })
+      queryClient.invalidateQueries({ queryKey: accountQueryKeys.all })
     },
-  });
+  })
 }

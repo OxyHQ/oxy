@@ -35,8 +35,13 @@ import { INTERNAL_COST_CENTERS } from '../internalCostCenterSpecs';
 import { computeSeedApplicationPlan } from '../seedOxyApplicationsPlan';
 import {
   ALIA_APPLICATION_SCOPES,
+  ALIA_APPLICATION_ID,
   ALIA_OWNER_ACCOUNT_USERNAME,
+  HOMIIO_APPLICATION_ID,
+  INBOX_APPLICATION_ID,
+  KAANA_APPLICATION_ID,
   SEED_APPS,
+  seedApplicationLookupIdentity,
   type SeedAppSpec,
 } from '../seedOxyApplicationsSpecs';
 
@@ -72,7 +77,62 @@ function seededPrincipal(spec: SeedAppSpec): CatalogueApplicationPrincipal {
 }
 
 describe('the canonical official-application registry', () => {
+  describe('Kaana has one exact machine identity', () => {
+    it('pins the opaque id, origin, narrow scope and validator capability', () => {
+      const kaana = specNamed('Kaana');
+      expect(kaana).toMatchObject({
+        id: KAANA_APPLICATION_ID,
+        websiteUrl: 'https://kaana.ai',
+        type: 'internal',
+        redirectUris: [],
+        scopes: ['inference:byok:validate'],
+        capabilities: ['kaana:provider-credential-validation'],
+      });
+      expect(KAANA_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    });
+
+    it('does not infer Kaana from display-name order', () => {
+      const matches = SEED_APPS.filter((spec) => spec.id === KAANA_APPLICATION_ID);
+      expect(matches).toHaveLength(1);
+      expect(matches[0]?.name).toBe('Kaana');
+    });
+  });
+
+  describe('Homiio is reconciled by its deployed opaque identity', () => {
+    it('pins the exact id and the narrow scopes its service credential needs', () => {
+      expect(specNamed('Homiio')).toMatchObject({
+        id: HOMIIO_APPLICATION_ID,
+        scopes: [
+          'user:read',
+          'reputation:write',
+          'inference:invoke',
+          'acting-as:offline',
+        ],
+      });
+      expect(HOMIIO_APPLICATION_ID).toMatch(/^[a-f0-9]{24}$/);
+    });
+
+    it('drives the production seed lookup by id, never by the Homiio display name', () => {
+      const homiio = specNamed('Homiio');
+      expect(seedApplicationLookupIdentity(homiio, PLATFORM_OWNER_ID)).toEqual({
+        kind: 'id',
+        id: HOMIIO_APPLICATION_ID,
+      });
+      expect(SEED_APPS.filter((spec) => spec.id === HOMIIO_APPLICATION_ID)).toEqual([homiio]);
+    });
+  });
+
   describe('Alia sees the internal catalogue audience', () => {
+    it('pins the exact active production application primary key', () => {
+      const alia = specNamed('Alia');
+      expect(alia.id).toBe(ALIA_APPLICATION_ID);
+      expect(ALIA_APPLICATION_ID).toBe('6a2f851751b784a86fd0e934');
+      expect(seedApplicationLookupIdentity(alia, PLATFORM_OWNER_ID)).toEqual({
+        kind: 'id',
+        id: ALIA_APPLICATION_ID,
+      });
+    });
+
     it('is registered as an application the catalogue treats as internal', () => {
       const viewer = resolveCatalogueViewer(seededPrincipal(specNamed('Alia')));
       expect(viewer.scopes).toContain('internal_alia');
@@ -279,9 +339,15 @@ describe('the canonical official-application registry', () => {
     it('has only the scopes its deployed backend uses', () => {
       expect(specNamed('Oxy Inbox').scopes).toEqual([
         'user:read',
+        'inference:invoke',
         'catalogs:write',
         'capability-events:publish',
       ]);
+    });
+
+    it('pins the measured production application id', () => {
+      expect(specNamed('Oxy Inbox').id).toBe(INBOX_APPLICATION_ID);
+      expect(INBOX_APPLICATION_ID).toBe('6a37b3e61ddfd195b656819b');
     });
 
     it('cannot register a catalog outside the Inbox namespace', () => {

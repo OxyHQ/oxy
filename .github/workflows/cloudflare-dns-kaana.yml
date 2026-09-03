@@ -1,28 +1,31 @@
-# The DNS kaana.ai needs, in its own zone.
+# The DNS `kaana.ai` needs, in the kaana.ai zone.
 #
-# WHY THIS LIVES IN A PUBLIC REPOSITORY. The OxyHQ org is on the GitHub Free
-# plan, where an organisation Actions secret cannot reach a PRIVATE repository —
-# it arrives as an empty string with no error. oxy-infra is private, so the same
-# workflow there read CLOUDFLARE_API_TOKEN as "" and exited. This is the same
-# reason the legacy data-plane DNS workflow had to live beside it.
+# WHY THIS LIVES IN A PUBLIC REPOSITORY AND NOT IN oxy-infra, WHERE IT BELONGS.
+# The OxyHQ org is on the GitHub Free plan, where an organisation Actions
+# secret cannot reach a PRIVATE repository — it arrives as an empty string
+# with no error. oxy-infra is private, so the identical workflow there read
+# CLOUDFLARE_API_TOKEN as "" and exited. Measured, not assumed: the run failed
+# on `CLOUDFLARE_API_TOKEN is empty` while `gh secret list --org OxyHQ` shows
+# the secret present with visibility ALL. Both local token files are dead
+# (documented 2026-08-08, both answer 9109), so the org secret is the only
+# working credential and a public repository is the only place it resolves.
 #
-# WHAT `check` IS FOR, AND WHY IT RUNS FIRST. The token is shared with the Pages
-# deployments and may be scoped to them: whether it can edit the kaana.ai zone
-# at all is a MEASUREMENT, not an assumption, and `check` answers it while
-# writing nothing. Run it before believing any of the records below are possible.
+# Move this back to oxy-infra the day that repo can read the secret — either a
+# paid plan or a repository-level copy of the token.
 #
-# THE TWO RECORDS ARE NOT THE SAME KIND OF THING:
+# Two records, and they are not the same kind of thing:
 #
 #   - the ACM validation CNAME, which MUST be DNS-only. Cloudflare's proxy
 #     answers with its own addresses, so a proxied validation record breaks
-#     issuance outright — the certificate sits in PENDING_VALIDATION and the
-#     reason is invisible from AWS.
-#   - the exact apex `kaana.ai`, proxied through Cloudflare to Kaana's DEDICATED
-#     load balancer. This is the signed Oxy -> Kaana data-plane hop, not Oxy's
-#     customer-facing API and never the shared `oxy-alb`. Proxying is
-#     load-bearing: the ALB security group admits Cloudflare and the VPC only,
-#     and Cloudflare is the pre-signature request-size/rate-limit boundary. The
-#     apex is deliberately left absent until Kaana has a healthy canary target.
+#     issuance outright. This is the same reason the Allo Matrix workflow
+#     states beside its four.
+#   - `kaana.ai` itself, pointing at Kaana's OWN load balancer — not the
+#     shared one. It is DNS-only: TLS and streaming terminate at the dedicated
+#     ALB, and this workflow must not silently insert a second HTTP data plane.
+#
+# `check` reads and writes nothing, and is also how you find out whether the
+# token can edit this zone at all: CLOUDFLARE_API_TOKEN is shared with the
+# Pages deployments and may be scoped to them.
 name: Cloudflare DNS (Kaana)
 
 on:
@@ -42,8 +45,8 @@ on:
         description: 'ACM validation CNAME value.'
         type: string
         required: false
-      kaana_alb_dns:
-        description: "Dedicated Kaana ALB DNS name. Empty skips the kaana.ai apex record."
+      alb_dns:
+        description: "Kaana ALB DNS name. Empty skips the kaana.ai apex record."
         type: string
         required: false
 
@@ -57,7 +60,7 @@ jobs:
           ACTION: ${{ inputs.action }}
           VAL_NAME: ${{ inputs.validation_name }}
           VAL_VALUE: ${{ inputs.validation_value }}
-          KAANA_ALB_DNS: ${{ inputs.kaana_alb_dns }}
+          ALB_DNS: ${{ inputs.alb_dns }}
         run: |
           python3 - <<'PY'
           import json, os, sys, urllib.request, urllib.error
@@ -67,90 +70,86 @@ jobs:
           TOKEN = os.environ["CF_TOKEN"].strip()
           if not TOKEN:
               sys.exit("CLOUDFLARE_API_TOKEN is empty")
-          # Length only. This file is in a PUBLIC repository, so its Actions log
-          # is world-readable and even a four-character prefix does not belong.
-          print(f"token present, {len(TOKEN)} characters")
-
-          ZONE = "kaana.ai"
-          API = "https://api.cloudflare.com/client/v4"
+          # Length only. The Allo workflow this is modelled on prints the
+          # first four characters, which is harmless in a private repository
+          # and is not here: this file lives in a PUBLIC repo, so its Actions
+          # logs are world-readable and a prefix of a live token is a real if
+          # small disclosure. The length alone still separates "empty secret"
+          # from "wrong secret", which is the only thing this line was for.
+          print(f"token: {len(TOKEN)} chars")
+          APPLY = os.environ["ACTION"] == "apply"
+          ZONE_NAME = "kaana.ai"
 
           def call(method, path, body=None):
-              request = urllib.request.Request(
-                  API + path, method=method,
+              req = urllib.request.Request(
+                  f"https://api.cloudflare.com/client/v4{path}",
+                  method=method,
                   data=json.dumps(body).encode() if body else None,
-                  headers={"Authorization": "Bearer " + TOKEN,
+                  headers={"Authorization": f"Bearer {TOKEN}",
                            "Content-Type": "application/json"})
               try:
-                  with urllib.request.urlopen(request) as response:
-                      return json.load(response)
-              except urllib.error.HTTPError as error:
-                  payload = error.read().decode()
-                  # The body carries Cloudflare's own error code, which says
-                  # WHICH permission is missing. The status alone does not.
-                  sys.exit(f"{method} {path} -> HTTP {error.code}: {payload[:400]}")
+                  with urllib.request.urlopen(req) as r:
+                      return json.load(r)
+              except urllib.error.HTTPError as e:
+                  return json.load(e)
 
-          zones = call("GET", f"/zones?name={ZONE}")["result"]
-          if not zones:
-              sys.exit(f"the token cannot see the zone {ZONE}; it is scoped elsewhere "
-                       f"or the zone is on another account")
-          zone_id = zones[0]["id"]
-          print(f"zone {ZONE} is visible: {zone_id}")
+          z = call("GET", f"/zones?name={ZONE_NAME}")
+          if not z.get("success") or not z["result"]:
+              sys.exit(f"cannot read zone {ZONE_NAME}: {z.get('errors')}")
+          zid = z["result"][0]["id"]
+          print(f"zone {ZONE_NAME} -> {zid}")
 
           wanted = []
           if os.environ.get("VAL_NAME") and os.environ.get("VAL_VALUE"):
-              # DNS-only, deliberately. See the header.
-              wanted.append(("CNAME", os.environ["VAL_NAME"].rstrip("."),
+              wanted.append((os.environ["VAL_NAME"].rstrip("."),
                              os.environ["VAL_VALUE"].rstrip("."), False))
-          if os.environ.get("KAANA_ALB_DNS"):
-              wanted.append(("CNAME", ZONE, os.environ["KAANA_ALB_DNS"].rstrip("."), True))
-
+          if os.environ.get("ALB_DNS"):
+              # DNS-only, deliberately. Kaana's signed canonical origin is the
+              # dedicated ALB itself; this workflow only publishes its address.
+              wanted.append(("kaana.ai", os.environ["ALB_DNS"].rstrip("."), False))
           if not wanted:
-              print("no records requested; nothing to reconcile")
-              sys.exit(0)
+              sys.exit("nothing to do: pass validation_name+validation_value and/or alb_dns")
 
-          existing = call("GET", f"/zones/{zone_id}/dns_records?per_page=200")["result"]
           failed = False
-          for kind, name, value, proxied in wanted:
-              same_name = [r for r in existing if r["name"].rstrip(".") == name]
-              same_kind = [r for r in same_name if r["type"] == kind]
-              blockers = [r for r in same_name if r["type"] in {"A", "AAAA", "CNAME"} and r["type"] != kind]
-              if blockers:
-                  print(f"CONFLICT {name} has address/alias records of type "
-                        f"{sorted({r['type'] for r in blockers})}; nothing touched")
+          for name, value, proxied in wanted:
+              got = call("GET", f"/zones/{zid}/dns_records?name={name}")
+              existing = got.get("result") or []
+              if existing:
+                  cur = existing[0]
+                  if (cur["content"].rstrip(".") == value
+                          and cur.get("proxied") is proxied):
+                      print(f"OK      {name} already correct")
+                  else:
+                      # Refuse rather than overwrite: a record whose value
+                      # disagrees is someone else's decision, not drift.
+                      print(f"CONFLICT {name} is {cur['content']!r} "
+                            f"(proxied={cur.get('proxied')!r}), wanted {value!r} "
+                            f"(proxied={proxied!r}) — NOT touched")
+                      failed = True
+                  continue
+              if not APPLY:
+                  print(f"MISSING {name} -> {value} (check only)")
+                  continue
+              res = call("POST", f"/zones/{zid}/dns_records",
+                         {"type": "CNAME", "name": name, "content": value,
+                          "ttl": 120, "proxied": proxied})
+              if res.get("success"):
+                  print(f"CREATED {name} -> {value}")
+              else:
+                  print(f"FAILED  {name}: {res.get('errors')}")
                   failed = True
-                  continue
-              if len(same_kind) > 1:
-                  print(f"CONFLICT {name} has {len(same_kind)} {kind} records; nothing touched")
-                  failed = True
-                  continue
-              current = same_kind[0] if same_kind else None
-              if (current and current.get("content", "").rstrip(".") == value
-                      and current.get("proxied") is proxied):
-                  print(f"ok      {name} -> {value}")
-                  continue
-              if current:
-                  print(f"CONFLICT {kind} {name} is {current.get('content')!r} "
-                        f"(proxied={current.get('proxied')!r}), wanted {value!r} "
-                        f"(proxied={proxied!r}); nothing touched")
-                  failed = True
-                  continue
-              verb = "would create" if os.environ["ACTION"] != "apply" else "creating"
-              print(f"{verb} {kind} {name} -> {value} (proxied={proxied})")
-              if os.environ["ACTION"] != "apply":
-                  continue
-              body = {"type": kind, "name": name, "content": value, "ttl": 1, "proxied": proxied}
-              created = call("POST", f"/zones/{zone_id}/dns_records", body)
-              if not created.get("success"):
-                  print(f"FAILED  {kind} {name}: {created.get('errors')}")
-                  failed = True
-                  continue
-              readback = call("GET", f"/zones/{zone_id}/dns_records?type={kind}&name={name}")["result"]
-              exact = [r for r in readback if r.get("content", "").rstrip(".") == value
+
+          # Read every record back, so a silent no-op cannot pass as success.
+          print("--- read-back ---")
+          for name, value, _ in wanted:
+              got = call("GET", f"/zones/{zid}/dns_records?name={name}")
+              rows = got.get("result") or []
+              print(f"{name}: {[r['content'] for r in rows] or 'ABSENT'}")
+              exact = [r for r in rows
+                       if r.get("content", "").rstrip(".") == value
                        and r.get("proxied") is proxied]
-              if len(exact) != 1:
-                  print(f"FAILED  read-back for {kind} {name}: {readback!r}")
+              if APPLY and len(exact) != 1:
                   failed = True
-                  continue
-              print(f"set     {kind} {name}")
+
           sys.exit(1 if failed else 0)
           PY

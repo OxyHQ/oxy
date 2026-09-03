@@ -183,10 +183,16 @@ This is the part to read twice.
   switches" above. A hold is sized against the most expensive route in that list,
   so failing over to a dearer deployment can never cost more than the request was
   admitted for.
-- **A routing-profile target is refused** at the edge, with `no_route_available`
-  and `param: routingProfile`. Choosing among a profile's candidates is routing
-  EXECUTION, which belongs to the data plane; the control plane picking one
-  would be inventing a routing decision it has no way to test.
+- **A routing-profile target is resolved and authorized** at the edge. New and
+  trusted product integrations send the exact opaque `routingProfileId`, which
+  is matched only against `inference_routing_profiles.id`, with no trimming,
+  slug/display-name fallback, ordering, or implicit first row. The deprecated
+  public `routingProfile` slug remains an input-only compatibility field: Oxy
+  resolves its unique catalogue row immediately. A slug never appears in a
+  canonical policy snapshot, cache entry or signed Kaana envelope. Both input
+  forms therefore emit `{ kind: "routing_profile_id", routingProfileId }` plus
+  the closed authorized deployment set. Unknown and whitespace-modified IDs
+  fail before reservation or Kaana execution.
 
 ### Enforced against the candidate routes
 

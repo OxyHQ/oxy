@@ -25,7 +25,7 @@
  */
 
 import type { OxyResponsesRequest } from '@oxyhq/core';
-import { responsesRequestSchema } from '../inferenceEdge.schemas';
+import { normalizeResponsesRequest, responsesRequestSchema } from '../inferenceEdge.schemas';
 
 /**
  * Fields `responsesRequestSchema` accepts and the SDK deliberately controls at
@@ -87,6 +87,11 @@ const profileRequest: OxyResponsesRequest = {
   input: 'hello',
 };
 
+const exactProfileRequest: OxyResponsesRequest = {
+  routingProfileId: '018f25d8-9c52-7b9e-84f9-512a11c8642a',
+  input: 'hello',
+};
+
 describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
   it('accepts every field the SDK can send', () => {
     const parsed = responsesRequestSchema.safeParse(exhaustiveRequest);
@@ -96,6 +101,32 @@ describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
   it('accepts the routing-profile form the SDK can also send', () => {
     const parsed = responsesRequestSchema.safeParse(profileRequest);
     expect(parsed.success ? null : parsed.error.issues).toBeNull();
+  });
+
+  it('accepts and preserves the exact routing-profile ID form byte-for-byte', () => {
+    const parsed = responsesRequestSchema.parse(exactProfileRequest);
+    expect(normalizeResponsesRequest(parsed).target).toEqual({
+      kind: 'routing_profile_id',
+      routingProfileId: '018f25d8-9c52-7b9e-84f9-512a11c8642a',
+    });
+
+    const whitespaceModified = responsesRequestSchema.parse({
+      ...exactProfileRequest,
+      routingProfileId: ' 018f25d8-9c52-7b9e-84f9-512a11c8642a',
+    });
+    expect(normalizeResponsesRequest(whitespaceModified).target).toEqual({
+      kind: 'routing_profile_id',
+      routingProfileId: ' 018f25d8-9c52-7b9e-84f9-512a11c8642a',
+    });
+  });
+
+  it.each([
+    [{ model: 'acme/some-model', routingProfile: 'auto' }],
+    [{ model: 'acme/some-model', routingProfileId: 'profile-id' }],
+    [{ routingProfile: 'auto', routingProfileId: 'profile-id' }],
+    [{ model: 'acme/some-model', routingProfile: 'auto', routingProfileId: 'profile-id' }],
+  ])('refuses multiple target selectors: %j', (selectors) => {
+    expect(responsesRequestSchema.safeParse({ ...selectors, input: 'hello' }).success).toBe(false);
   });
 
   it('negative control: an unknown field is refused, so the two above are not vacuous', () => {
@@ -111,7 +142,11 @@ describe('OxyResponsesRequest ↔ responsesRequestSchema', () => {
     // can reach parses fine and would be invisible to the cases above.
     const schemaFields = Object.keys(responsesRequestSchema.innerType().shape).sort();
     const sdkFields = [
-      ...new Set([...Object.keys(exhaustiveRequest), ...Object.keys(profileRequest)]),
+      ...new Set([
+        ...Object.keys(exhaustiveRequest),
+        ...Object.keys(profileRequest),
+        ...Object.keys(exactProfileRequest),
+      ]),
     ].sort();
 
     expect(schemaFields).toEqual([...sdkFields, ...SDK_METHOD_CONTROLLED_FIELDS].sort());

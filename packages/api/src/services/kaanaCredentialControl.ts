@@ -1,4 +1,4 @@
-import { createHash, sign, timingSafeEqual } from 'node:crypto';
+import { createHash, sign } from 'node:crypto';
 import {
   kaanaCredentialCreateMutationSchema,
   kaanaCredentialCreateOutcomeRequestSchema,
@@ -32,22 +32,14 @@ export class ProviderCredentialValue {
   readonly #value: string;
 
   constructor(value: string) {
-    if (
-      value.trim().length === 0 ||
-      Buffer.byteLength(value, 'utf8') > 4096 ||
-      /[\r\n]/.test(value)
-    ) {
-      throw new Error('a provider credential must be one non-empty line of at most 4096 bytes');
+    if (value.length > 4096 || !/^[\x21-\x7E]+$/.test(value)) {
+      throw new Error('a provider credential must be 1-4096 visible ASCII bytes');
     }
     this.#value = value;
   }
 
   reveal(): string {
     return this.#value;
-  }
-
-  prefix(): string {
-    return this.#value.slice(0, 12);
   }
 
   toString(): string {
@@ -63,16 +55,6 @@ export class ProviderCredentialValue {
   }
 }
 
-export function fingerprintProviderCredential(secret: ProviderCredentialValue): string {
-  return createHash('sha256').update(secret.reveal(), 'utf8').digest('hex');
-}
-
-export function providerCredentialFingerprintsMatch(left: string, right: string): boolean {
-  const a = Buffer.from(left, 'utf8');
-  const b = Buffer.from(right, 'utf8');
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 interface KaanaCredentialOperationBase extends KaanaCredentialIdentity {
   readonly operationId: string;
   readonly operationActor: string;
@@ -80,7 +62,6 @@ interface KaanaCredentialOperationBase extends KaanaCredentialIdentity {
 
 export interface KaanaCredentialCreateOperation extends KaanaCredentialOperationBase {
   readonly secret: ProviderCredentialValue;
-  readonly secretSha256: string;
 }
 
 export interface KaanaCredentialRotateOperation extends KaanaCredentialCreateOperation {
@@ -112,6 +93,9 @@ export class KaanaCredentialOutcomeUnavailableError extends Error {
   readonly code = 'credential_outcome_unavailable' as const;
 }
 
+/** An explicit signed-route 404: the only outcome failure safe to replay. */
+export class KaanaCredentialOutcomeNotFoundError extends KaanaCredentialOutcomeUnavailableError {}
+
 export function requireKaanaCredentialControl(): KaanaCredentialControl {
   const resolution = resolveKaanaCredentialControl();
   if (resolution.status !== 'configured') {
@@ -126,13 +110,11 @@ export class HttpKaanaCredentialControl implements KaanaCredentialControl {
   constructor(private readonly config: KaanaCredentialControlConfig) {}
 
   async create(input: KaanaCredentialCreateOperation): Promise<KaanaCredentialOutcome> {
-    requireMatchingFingerprint(input.secret, input.secretSha256);
     const outcomeRequest = kaanaCredentialCreateOutcomeRequestSchema.parse({
       schemaVersion: 1,
       action: 'create',
       operationId: input.operationId,
       ...identityFields(input),
-      secretSha256: input.secretSha256,
     });
     return this.mutate(
       kaanaCredentialCreateMutationSchema.parse({
@@ -148,13 +130,11 @@ export class HttpKaanaCredentialControl implements KaanaCredentialControl {
   }
 
   async rotate(input: KaanaCredentialRotateOperation): Promise<KaanaCredentialOutcome> {
-    requireMatchingFingerprint(input.secret, input.secretSha256);
     const outcomeRequest = kaanaCredentialRotateOutcomeRequestSchema.parse({
       schemaVersion: 1,
       action: 'rotate',
       operationId: input.operationId,
       ...identityFields(input),
-      secretSha256: input.secretSha256,
       credentialHandle: input.credentialHandle,
       expectedRevision: input.expectedRevision,
     });
@@ -210,7 +190,7 @@ export class HttpKaanaCredentialControl implements KaanaCredentialControl {
       );
     }
     if (response.status === 404) {
-      throw new KaanaCredentialOutcomeUnavailableError(
+      throw new KaanaCredentialOutcomeNotFoundError(
         'Kaana has no outcome for that exact operation identity',
       );
     }
@@ -265,6 +245,7 @@ export class HttpKaanaCredentialControl implements KaanaCredentialControl {
       const signature = sign(null, signingInput, this.config.privateKey).toString('base64');
       const response = await fetch(`${this.config.baseUrl}${path}`, {
         method: 'POST',
+        redirect: 'error',
         headers: {
           'content-type': 'application/json',
           [KEY_ID_HEADER]: this.config.keyId,
@@ -302,12 +283,6 @@ function identityFields(input: KaanaCredentialIdentity): KaanaCredentialIdentity
     connectionId: input.connectionId,
     environment: input.environment,
   };
-}
-
-function requireMatchingFingerprint(secret: ProviderCredentialValue, expected: string): void {
-  if (!providerCredentialFingerprintsMatch(fingerprintProviderCredential(secret), expected)) {
-    throw new Error('the persisted provider credential fingerprint does not match the mutation');
-  }
 }
 
 function parseExactOutcome(

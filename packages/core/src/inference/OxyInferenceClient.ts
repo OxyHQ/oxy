@@ -106,7 +106,8 @@ export interface OxyInferenceClientOptions {
 /**
  * A request to `POST /v1/responses`.
  *
- * `model` and `routingProfile` are mutually exclusive and BOTH are optional: an
+ * `model`, `routingProfile`, and `routingProfileId` are mutually exclusive and
+ * all are optional: an
  * application whose routing policy carries a `defaultTarget` may name neither,
  * which is what "per-application default model or routing profile" means. Naming
  * both is refused by the edge with `invalid_request`.
@@ -116,6 +117,8 @@ export interface OxyResponsesRequest {
     readonly model?: string;
     /** A routing profile slug. Never contains a slash, so it is never a model id. */
     readonly routingProfile?: string;
+    /** An exact opaque routing-profile database ID; serialized byte-for-byte. */
+    readonly routingProfileId?: string;
     /** A prompt, or the message list it is shorthand for. */
     readonly input: string | readonly InferenceMessage[];
     readonly maxOutputTokens?: number;

@@ -21,8 +21,7 @@
  *
  * ## Why every case reloads the module
  *
- * `ALIA_API_KEY` is read at module load, so the service cannot be configured
- * after import. Each case therefore builds a fresh module registry — including a
+ * Each case builds a fresh module registry — including a
  * fresh `config/postgres`, which the loaded service resolves `getDb()` through.
  * Seeding and verification go through this file's OWN connection.
  */
@@ -49,27 +48,28 @@ interface Loaded {
 
 /** The `user` half of the prompt the service posted. */
 function promptOf(axiosPost: jest.Mock): string {
-  const payload = axiosPost.mock.calls[0]?.[1] as
-    | { messages?: { role: string; content: string }[] }
+  const payload = axiosPost.mock.calls[0]?.[0] as
+    | { messages?: { role: string; content: Array<{ type: string; text: string }> }[] }
     | undefined;
-  return payload?.messages?.find((entry) => entry.role === 'user')?.content ?? '';
+  return payload?.messages?.find((entry) => entry.role === 'user')?.content[0]?.text ?? '';
 }
 
 /** An upstream reply carrying `extraction` as the model's JSON answer. */
-function aiReply(extraction: unknown): { data: unknown } {
-  return { data: { choices: [{ message: { content: JSON.stringify(extraction) } }] } };
+function aiReply(extraction: unknown): { text: string } {
+  return { text: JSON.stringify(extraction) };
 }
 
 async function loadService(): Promise<Loaded> {
   jest.resetModules();
-  process.env.ALIA_API_KEY = 'test-alia-key';
-
   jest.doMock('../../utils/logger', () => ({
     logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   }));
 
   const axiosPost = jest.fn();
-  jest.doMock('axios', () => ({ __esModule: true, default: { post: axiosPost } }));
+  jest.doMock('../inboxInference.service', () => ({
+    executeInboxPointInference: axiosPost,
+    inboxCompletionText: (completion: { text: string }) => completion.text,
+  }));
 
   const postgres = await import('../../config/postgres');
   await postgres.connectPostgres();

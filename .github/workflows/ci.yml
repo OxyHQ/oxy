@@ -20,8 +20,15 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-verify-reused-service-credential.sh
+          bash .github/scripts/test-put-secure-parameter.sh
+          bash .github/scripts/test-run-native-product-agent-bootstrap.sh
           node scripts/test-check-kaana-dns-boundary.mjs
           node scripts/check-kaana-dns-boundary.mjs
+          node scripts/test-service-credential-workflow-ids.mjs
+          node scripts/test-native-product-agent-bootstrap-workflow.mjs
+          node scripts/test-check-kaana-request-v2-rollout.mjs
+          node scripts/check-kaana-request-v2-rollout.mjs
 
   # API Package Tests
   api-test:

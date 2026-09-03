@@ -69,12 +69,18 @@ import { eq } from 'drizzle-orm';
 import { uuidv7 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import { accountMembers } from '../../db/schema/accountMembers';
+import { applicationCredentials } from '../../db/schema/applicationCredentials';
 import { applications } from '../../db/schema/applications';
+import { inferenceProviderConnectionAuditEvents } from '../../db/schema/inferenceProviderConnectionAuditEvents';
 import { inferenceProviderConnections } from '../../db/schema/inferenceProviderConnections';
 import { inferenceProviders } from '../../db/schema/inferenceProviders';
 import { users } from '../../db/schema/users';
 import { errorHandler } from '../../middleware/errorHandler';
-import providerConnectionRouter from '../inferenceProviderConnections';
+import providerConnectionRouter, {
+  PROVIDER_SERVICE_READS_PER_15_MINUTES,
+  PROVIDER_VALIDATION_REPORTS_PER_15_MINUTES,
+  providerServiceRateLimitKey,
+} from '../inferenceProviderConnections';
 import { permissionsForAccountRole, type AccountRole } from '../../utils/accountRoles';
 
 interface JsonResponse {
@@ -177,15 +183,19 @@ function suffix(): string {
   return randomUUID().replace(/-/g, '').slice(0, 10);
 }
 
+const serviceCredentialByApplication = new Map<string, { id: string; environment: string }>();
+
 function serviceToken(input: { appId: string; ownerAccountId: string; scopes: string[] }): string {
+  const credential = serviceCredentialByApplication.get(input.appId);
+  if (!credential) throw new Error('serviceToken requires an application fixture credential');
   return jwt.sign(
     {
       type: 'service',
       appId: input.appId,
       appName: 'Fixture App',
-      credentialId: `cred-${suffix()}`,
+      credentialId: credential.id,
       ownerAccountId: input.ownerAccountId,
-      environment: 'production',
+      environment: credential.environment,
       scopes: input.scopes,
     },
     process.env.ACCESS_TOKEN_SECRET as string,
@@ -227,8 +237,26 @@ async function insertMemberAccount(accountId: string, role: AccountRole): Promis
 async function insertApplication(ownerAccountId: string): Promise<string> {
   const [row] = await getDb()
     .insert(applications)
-    .values({ name: `BYOKR ${suffix()}`, ownerAccountId })
+    .values({
+      name: `BYOKR ${suffix()}`,
+      ownerAccountId,
+      type: 'internal',
+      scopes: ['inference:providers:read', 'inference:providers:write'],
+    })
     .returning({ id: applications.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: row.id,
+      name: 'BYOK service fixture',
+      publicKey: `oxy_dk_${randomUUID().replace(/-/g, '')}`,
+      secretHash: 'fixture-hash',
+      type: 'service',
+      environment: 'production',
+      scopes: [],
+    })
+    .returning({ id: applicationCredentials.id, environment: applicationCredentials.environment });
+  serviceCredentialByApplication.set(row.id, credential);
   return row.id;
 }
 
@@ -253,7 +281,11 @@ async function insertProvider(): Promise<string> {
  * route refuses, which is the behaviour under test elsewhere in this file. The
  * row is built to the same partition rule the service builds it to.
  */
-async function seedConnection(ownerAccountId: string, provider: string): Promise<string> {
+async function seedConnection(
+  ownerAccountId: string,
+  provider: string,
+  overrides: Partial<typeof inferenceProviderConnections.$inferInsert> = {},
+): Promise<string> {
   const id = uuidv7();
   await getDb()
     .insert(inferenceProviderConnections)
@@ -270,14 +302,50 @@ async function seedConnection(ownerAccountId: string, provider: string): Promise
         .replace(/[0189]/g, 'a')
         .slice(0, 26)}`,
       credentialRevision: 1,
-      keyPrefix: 'sk-live-1234',
-      fingerprint: 'b'.repeat(64),
       validationState: 'unvalidated',
+      ...overrides,
     });
   return id;
 }
 
+async function validationBody(connectionId: string, state: 'valid' | 'invalid' = 'valid') {
+  const [row] = await getDb()
+    .select({
+      credentialHandle: inferenceProviderConnections.credentialHandle,
+      credentialRevision: inferenceProviderConnections.credentialRevision,
+    })
+    .from(inferenceProviderConnections)
+    .where(eq(inferenceProviderConnections.id, connectionId));
+  if (!row?.credentialHandle || row.credentialRevision === null) {
+    throw new Error('validation fixture has no exact Kaana generation');
+  }
+  return {
+    credentialHandle: row.credentialHandle,
+    credentialRevision: row.credentialRevision,
+    state,
+    ...(state === 'invalid' ? { failureCode: 'unauthorized' as const } : {}),
+  };
+}
+
 /* -------------------------------------------------------------------------- */
+
+describe('service rate-limit partitioning', () => {
+  it('uses exact app+credential buckets and service-sized budgets', () => {
+    const requestFor = (appId: string, credentialId: string) => ({
+      serviceApp: { appId, credentialId },
+    }) as unknown as Parameters<typeof providerServiceRateLimitKey>[0];
+
+    expect(providerServiceRateLimitKey(requestFor('app-a', 'cred-a'))).toBe('app-a:cred-a');
+    expect(providerServiceRateLimitKey(requestFor('app-a', 'cred-b'))).not.toBe(
+      providerServiceRateLimitKey(requestFor('app-a', 'cred-a')),
+    );
+    expect(providerServiceRateLimitKey(requestFor('app-b', 'cred-a'))).not.toBe(
+      providerServiceRateLimitKey(requestFor('app-a', 'cred-a')),
+    );
+    expect(PROVIDER_SERVICE_READS_PER_15_MINUTES).toBeGreaterThan(600);
+    expect(PROVIDER_VALIDATION_REPORTS_PER_15_MINUTES).toBeGreaterThan(60);
+  });
+});
 
 describe('the `inference:providers:write` scope gate', () => {
   it('refuses a mutation from a credential that does not carry it', async () => {
@@ -419,16 +487,6 @@ describe('a service credential may not change provider connections', () => {
     { what: 'enable', path: '/enable', body: {} },
     { what: 'revoke', path: '/revoke', body: {} },
     { what: 'reconcile', path: '/reconcile', body: {} },
-    // Inside the refusal deliberately: an `invalid` verdict DISABLES the
-    // connection, so leaving this open would leave a disable-equivalent open to
-    // exactly the credential the refusal exists to stop.
-    // The body is deliberately VALID: `validate()` runs before the handler, so a
-    // malformed verdict would 400 and the refusal below would never be reached.
-    {
-      what: 'validation',
-      path: '/validation',
-      body: { state: 'invalid', failureCode: 'unauthorized' },
-    },
   ];
 
   it.each(WRITES)('refuses $what, even carrying the staff-gated write scope', async (write) => {
@@ -540,6 +598,36 @@ describe('a service credential may not change provider connections', () => {
     }
   });
 
+  it('does not expose a pending generation or bypass it to a parent on the serving read', async () => {
+    const account = await insertAccount();
+    const application = await insertApplication(account);
+    const provider = await insertProvider();
+    await seedConnection(account, provider, {
+      status: 'active',
+      validationState: 'valid',
+    });
+    const pending = await seedConnection(account, provider, {
+      scopeKind: 'application',
+      applicationId: application,
+      credentialHandle: `kcred_${'e'.repeat(26)}`,
+    });
+    const token = serviceToken({
+      appId: application,
+      ownerAccountId: account,
+      scopes: ['inference:providers:read'],
+    });
+
+    const response = await request(
+      'GET',
+      `/inference/provider-connections/applications/${application}?provider=${provider}&environment=production`,
+      token,
+    );
+
+    expect(response.status).toBe(200);
+    expect(pending).toEqual(expect.any(String));
+    expect(response.body).toEqual({ data: null, source: null });
+  });
+
   it('closes the `developer`-role path the escalation ran through', async () => {
     const account = await insertAccount();
     const application = await insertApplication(account);
@@ -602,8 +690,7 @@ describe('a service credential may not change provider connections', () => {
   it('withholds BYOK READ from a viewer, which `account:read` used to confer', async () => {
     // The other half of the RBAC change: BYOK read was inherited from
     // `account:read`, which every role holds. It returns no credential material,
-    // but it does return the provider, a key prefix, a fingerprint and the
-    // validation failures.
+    // but it does return provider and validation metadata.
     const account = await insertAccount();
     const provider = await insertProvider();
     const connection = await seedConnection(account, provider);
@@ -627,6 +714,142 @@ describe('a service credential may not change provider connections', () => {
     expect(
       (await request('GET', `/inference/provider-connections/${connection}`, undefined)).status,
     ).toBe(200);
+  });
+});
+
+describe('Kaana credential validation principal', () => {
+  it('refuses a person and an ordinary trusted service credential', async () => {
+    const account = await insertAccount();
+    const application = await insertApplication(account);
+    const provider = await insertProvider();
+    const connection = await seedConnection(account, provider);
+    const verdict = await validationBody(connection);
+
+    currentUserId = await insertMemberAccount(account, 'admin');
+    const person = await request(
+      'POST',
+      `/inference/provider-connections/${connection}/validation`,
+      undefined,
+      verdict,
+    );
+    expect(person.status).toBe(403);
+    expect(person.body.message).toBe('Credential validation may only be reported by Kaana');
+
+    currentUserId = '';
+    const ordinaryService = await request(
+      'POST',
+      `/inference/provider-connections/${connection}/validation`,
+      serviceToken({
+        appId: application,
+        ownerAccountId: account,
+        scopes: ['inference:providers:write'],
+      }),
+      verdict,
+    );
+    expect(ordinaryService.status).toBe(403);
+    expect(ordinaryService.body.message).toContain('inference:byok:validate');
+
+    const [unchanged] = await getDb()
+      .select({ status: inferenceProviderConnections.status })
+      .from(inferenceProviderConnections)
+      .where(eq(inferenceProviderConnections.id, connection));
+    expect(unchanged.status).toBe('pending_validation');
+  });
+
+  it('requires the Kaana capability independently from the narrow scope', async () => {
+    const account = await insertAccount();
+    const application = await insertApplication(account);
+    const provider = await insertProvider();
+    const connection = await seedConnection(account, provider);
+    await getDb()
+      .update(applications)
+      .set({ scopes: ['inference:byok:validate'] })
+      .where(eq(applications.id, application));
+
+    const response = await request(
+      'POST',
+      `/inference/provider-connections/${connection}/validation`,
+      serviceToken({
+        appId: application,
+        ownerAccountId: account,
+        scopes: ['inference:byok:validate'],
+      }),
+      await validationBody(connection),
+    );
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe('This service principal is not Kaana credential validation');
+  });
+
+  it('accepts only the live trusted Kaana scope and capability pair', async () => {
+    const account = await insertAccount();
+    const application = await insertApplication(account);
+    const provider = await insertProvider();
+    const connection = await seedConnection(account, provider);
+    await getDb()
+      .update(applications)
+      .set({
+        scopes: ['inference:byok:validate'],
+        capabilities: ['kaana:provider-credential-validation'],
+      })
+      .where(eq(applications.id, application));
+
+    const response = await request(
+      'POST',
+      `/inference/provider-connections/${connection}/validation`,
+      serviceToken({
+        appId: application,
+        ownerAccountId: account,
+        scopes: ['inference:byok:validate'],
+      }),
+      await validationBody(connection),
+    );
+    expect(response.status).toBe(200);
+
+    const [row] = await getDb()
+      .select({
+        status: inferenceProviderConnections.status,
+        validationState: inferenceProviderConnections.validationState,
+      })
+      .from(inferenceProviderConnections)
+      .where(eq(inferenceProviderConnections.id, connection));
+    expect(row).toEqual({ status: 'active', validationState: 'valid' });
+
+    const [audit] = await getDb()
+      .select({
+        actorKind: inferenceProviderConnectionAuditEvents.actorKind,
+        actorUserId: inferenceProviderConnectionAuditEvents.actorUserId,
+      })
+      .from(inferenceProviderConnectionAuditEvents)
+      .where(eq(inferenceProviderConnectionAuditEvents.connectionId, connection))
+      .orderBy(inferenceProviderConnectionAuditEvents.createdAt);
+    expect(audit).toEqual({ actorKind: 'platform', actorUserId: null });
+  });
+
+  it('refuses a scope-and-capability pair once the application is no longer trusted', async () => {
+    const account = await insertAccount();
+    const application = await insertApplication(account);
+    const provider = await insertProvider();
+    const connection = await seedConnection(account, provider);
+    await getDb()
+      .update(applications)
+      .set({
+        type: 'third_party',
+        scopes: ['inference:byok:validate'],
+        capabilities: ['kaana:provider-credential-validation'],
+      })
+      .where(eq(applications.id, application));
+
+    const response = await request(
+      'POST',
+      `/inference/provider-connections/${connection}/validation`,
+      serviceToken({
+        appId: application,
+        ownerAccountId: account,
+        scopes: ['inference:byok:validate'],
+      }),
+      await validationBody(connection),
+    );
+    expect(response.status).toBe(404);
   });
 });
 
@@ -730,6 +953,93 @@ describe('cross-account isolation', () => {
       token,
     );
     expect(response.status).toBe(404);
+  });
+
+  it.each(['application', 'credential', 'owner'] as const)(
+    'invalidates an already-issued service token when its %s is no longer live',
+    async (invalidated) => {
+      const owner = await insertAccount();
+      const application = await insertApplication(owner);
+      const provider = await insertProvider();
+      const connection = await seedConnection(owner, provider);
+      const token = serviceToken({
+        appId: application,
+        ownerAccountId: owner,
+        scopes: ['inference:providers:read'],
+      });
+
+      if (invalidated === 'application') {
+        await getDb()
+          .update(applications)
+          .set({ status: 'deleted' })
+          .where(eq(applications.id, application));
+      } else if (invalidated === 'credential') {
+        await getDb()
+          .update(applicationCredentials)
+          .set({ status: 'revoked' })
+          .where(eq(applicationCredentials.id, serviceCredentialByApplication.get(application)!.id));
+      } else {
+        await getDb()
+          .update(users)
+          .set({ accountStatus: 'archived' })
+          .where(eq(users.id, owner));
+      }
+
+      const response = await request(
+        'GET',
+        `/inference/provider-connections/${connection}`,
+        token,
+      );
+      expect(response.status).toBe(404);
+    },
+  );
+
+  it('isolates service reads to the token environment and its own application', async () => {
+    const owner = await insertAccount();
+    const ownApplication = await insertApplication(owner);
+    const siblingApplication = await insertApplication(owner);
+    const provider = await insertProvider();
+    const accountProduction = await seedConnection(owner, provider);
+    const accountDevelopment = await seedConnection(owner, provider, {
+      environment: 'development',
+      credentialHandle: `kcred_${'c'.repeat(26)}`,
+    });
+    const sibling = await seedConnection(owner, provider, {
+      scopeKind: 'application',
+      applicationId: siblingApplication,
+      credentialHandle: `kcred_${'d'.repeat(26)}`,
+    });
+    const token = serviceToken({
+      appId: ownApplication,
+      ownerAccountId: owner,
+      scopes: ['inference:providers:read'],
+    });
+
+    expect(
+      (
+        await request(
+          'GET',
+          `/inference/provider-connections/applications/${ownApplication}?provider=${provider}&environment=development`,
+          token,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (await request('GET', `/inference/provider-connections/${accountDevelopment}`, token)).status,
+    ).toBe(404);
+
+    const listed = await request(
+      'GET',
+      `/inference/provider-connections/accounts/${owner}`,
+      token,
+    );
+    expect(listed.status).toBe(200);
+    const ids = (listed.body.data as Array<{ connectionId: string }>).map(
+      (connection) => connection.connectionId,
+    );
+    expect(ids).toContain(accountProduction);
+    expect(ids).not.toContain(accountDevelopment);
+    expect(ids).not.toContain(sibling);
   });
 });
 
@@ -1056,7 +1366,7 @@ describe('the response body', () => {
     expect(String(data.credentialHandle)).toMatch(/^kcred_[a-z2-7]{26}$/);
     expect(data.credentialRevision).toBe(1);
     expect(data.custodyState).toBe('ready');
-    expect(String(data.keyPrefix).length).toBeLessThanOrEqual(12);
+    expect(Object.hasOwn(data, 'keyPrefix')).toBe(false);
     expect(data.upstreamBillsCustomerDirectly).toBe(true);
   });
 });

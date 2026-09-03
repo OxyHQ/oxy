@@ -72,7 +72,7 @@ function createOxyMetroConfig(projectRoot, options = {}) {
     // Sibling git worktrees live under <monorepoRoot>/.worktrees and each carries a
     // full node_modules; leaving them watchable makes Metro's file crawler walk
     // hundreds of thousands of extra directories and time out starting watch mode.
-    /\.worktrees\/.*/,
+    blockPath(path.join(monorepoRoot, '.worktrees')),
     /\.expo\/.*/,
     /\.expo-shared\/.*/,
     /\.metro\/.*/,

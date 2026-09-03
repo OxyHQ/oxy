@@ -37,6 +37,10 @@
  *   end-user identity is never the billing principal, so an application can only
  *   ever spend the balance of the account that owns it. The two WRITES are
  *   privileged — see {@link PRIVILEGED_APPLICATION_SCOPES}.
+ *   `inference:byok:validate` is narrower still: it only lets the trusted Kaana
+ *   reporter submit a closed credential verdict. The route also requires the
+ *   staff-controlled `kaana:provider-credential-validation` application
+ *   capability, so the scope alone is never a generic service write lane.
  *
  *   This family REPLACED `chat:completions` and `models:read` outright. Those two
  *   authorised nothing: no middleware, route or service in this repository ever
@@ -133,6 +137,7 @@ export const APPLICATION_SCOPES = [
   'inference:routing:write',
   'inference:providers:read',
   'inference:providers:write',
+  'inference:byok:validate',
   'updates:publish',
   'federation:write',
   'signals:write',
@@ -229,6 +234,9 @@ export type ApplicationScope = (typeof APPLICATION_SCOPES)[number];
  *   profiles and provider connections turn out to be per-account rows rather
  *   than a shared catalogue; that, and only that, would make these two
  *   own-tenant operations.
+ * - `inference:byok:validate` reports a provider-credential verdict across
+ *   customer tenants. It is reserved for the trusted Kaana application and is
+ *   independently gated by its staff-controlled validator capability.
  *
  * - `acting-as:offline` is the scope a service token must carry before it may
  *   name a user in `X-Oxy-User-Id` at all. Privileged AND consent-required, and
@@ -275,6 +283,7 @@ export const PRIVILEGED_APPLICATION_SCOPES = [
   'chains:write',
   'inference:routing:write',
   'inference:providers:write',
+  'inference:byok:validate',
   'acting-as:offline',
   'accounts:act-as-session',
   'capabilities:read',

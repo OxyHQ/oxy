@@ -17,6 +17,7 @@
  * adding a table.
  */
 export * from './accountBalances';
+export * from './accountClosureFences';
 export * from './agency';
 export * from './accountMembers';
 export * from './apiKeyUsageEvents';
@@ -90,6 +91,7 @@ export * from './inferenceModels';
 export * from './inferenceProviderConnectionAuditEvents';
 export * from './inferenceProviderConnections';
 export * from './inferenceProviderCredentialOperations';
+export * from './inferenceProviderCredentialValidations';
 export * from './inferenceProviders';
 export * from './inferencePublishers';
 export * from './inferenceRouteSwitchEvents';

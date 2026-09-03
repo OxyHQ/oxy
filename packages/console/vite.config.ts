@@ -40,7 +40,11 @@ const appNamePlugin: Plugin = {
 const config = defineConfig(({ mode }) => ({
   plugins: [
     appNamePlugin,
-    reactNativeWeb(),
+    // The RN-web plugin deliberately pins React's production build. That is
+    // correct for application bundling but removes React.act, which jsdom hook
+    // tests require. The tested hook mocks the services/RN boundary, so it does
+    // not need the application-only transform.
+    ...(mode === 'test' ? [] : [reactNativeWeb()]),
     TanStackRouterVite(),
     tailwindcss(),
     viteReact({

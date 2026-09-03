@@ -21,10 +21,9 @@ import type { ProviderConnectionAuditEvent } from '@/hooks/use-provider-connecti
  *  - `__tests__/provider-connection.test.ts` asserts the projected object has no
  *    opaque handle/revision fields, so re-introducing them by spread fails the suite.
  *
- * `keyPrefix` and `fingerprint` are the two fields designed to be shown: the
- * contract caps the prefix at 12 characters (shorter than any usable credential)
- * and the fingerprint is a SHA-256 of the credential, which is what makes a
- * rotation verifiable without ever handling the key.
+ * No prefix or hash derived from the provider credential is rendered. For short
+ * credentials either would make offline guessing practical, so recognition is
+ * by provider/scope/environment metadata only.
  */
 export type ProviderConnectionView = Omit<
   ProviderConnection,
@@ -42,8 +41,6 @@ export function toProviderConnectionView(connection: ProviderConnection): Provid
     environment: connection.environment,
     status: connection.status,
     custodyState: connection.custodyState,
-    keyPrefix: connection.keyPrefix,
-    fingerprint: connection.fingerprint,
     validation: connection.validation,
     upstreamBillsCustomerDirectly: connection.upstreamBillsCustomerDirectly,
     termsAcknowledgedAt: connection.termsAcknowledgedAt,
@@ -57,8 +54,9 @@ export function toProviderConnectionView(connection: ProviderConnection): Provid
  * nowhere safe to put a customer credential.
  *
  * Raised by `POST …/accounts/:id`, `POST …/applications/:id` and
- * `POST …/:connectionId/rotate` BEFORE the request body is read, so an
- * unconfigured deployment never holds a customer secret at all.
+ * `POST …/:connectionId/rotate` before the parsed credential is validated,
+ * wrapped or handed to a service. The API never persists, logs or derives
+ * material from that transient request body.
  */
 export const KAANA_CREDENTIAL_CONTROL_UNAVAILABLE =
   'kaana_credential_control_unavailable';
@@ -124,16 +122,6 @@ export function connectionStatusVariant(
     return 'destructive';
   }
   return 'secondary';
-}
-
-/**
- * A fingerprint, shortened for a table cell.
- *
- * Strictly less information than the contract already permits — the point is
- * legibility, not secrecy, and a truncation can never reveal more than the whole.
- */
-export function shortFingerprint(fingerprint: string): string {
-  return fingerprint.slice(0, 12);
 }
 
 /**

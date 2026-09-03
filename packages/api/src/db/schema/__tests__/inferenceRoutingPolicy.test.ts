@@ -236,7 +236,7 @@ describe('routing policy vocabularies agree with the contract', () => {
    */
   function policyWith(overrides: Record<string, unknown>): unknown {
     return {
-      schemaVersion: 1,
+      schemaVersion: 2,
       routingPolicyId: 'policy-1',
       policyVersion: 1,
       scope: { kind: 'account', accountId: 'account-1' },

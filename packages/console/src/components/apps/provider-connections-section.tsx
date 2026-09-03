@@ -1,24 +1,24 @@
-import { useState } from 'react';
-import * as Skeleton from '@oxyhq/bloom/skeleton';
-import { toast } from '@oxyhq/bloom/toast';
-import { HugeiconsIcon } from '@hugeicons/react';
-import { CloudIcon } from '@hugeicons/core-free-icons';
-import type { InferenceEnvironment } from '@oxyhq/contracts';
-import type { Application, CallerAccess } from '@/hooks/use-applications';
-import type { ProviderConnectionView } from '@/lib/provider-connection';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useState } from 'react'
+import * as Skeleton from '@oxyhq/bloom/skeleton'
+import { toast } from '@oxyhq/bloom/toast'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { CloudIcon } from '@hugeicons/core-free-icons'
+import type { InferenceEnvironment } from '@oxyhq/contracts'
+import type { Application, CallerAccess } from '@/hooks/use-applications'
+import type { ProviderConnectionView } from '@/lib/provider-connection'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -26,7 +26,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,25 +36,28 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { useAccount } from '@/hooks/use-account';
+} from '@/components/ui/alert-dialog'
+import { useAccount } from '@/hooks/use-account'
 import {
   useAccountProviderConnections,
   useCreateApplicationProviderConnection,
   useProviderConnectionAudit,
+  useProviderCredentialValidation,
+  useProviderValidationDeployments,
+  useReconcileProviderConnection,
   useRevokeProviderConnection,
   useRotateProviderConnection,
   useSetProviderConnectionEnabled,
-} from '@/hooks/use-provider-connections';
-import { getErrorMessage } from '@/lib/api-error';
+  useStartProviderCredentialValidation,
+} from '@/hooks/use-provider-connections'
+import { getErrorMessage } from '@/lib/api-error'
 import {
   connectionAppliesToApplication,
   connectionStatusVariant,
   isKaanaCredentialControlUnavailable,
   providerConnectionAuditAttribution,
   providerConnectionScopeLabel,
-  shortFingerprint,
-} from '@/lib/provider-connection';
+} from '@/lib/provider-connection'
 
 /**
  * BYOK — the customer's own upstream provider credentials, as they apply to one
@@ -65,12 +68,11 @@ import {
  *  - **It never shows a secret or internal execution handle.**
  *    `toProviderConnectionView` drops the opaque Kaana reference in the query's
  *    `select`, so it is gone before any component sees
- *    it. What is rendered is the safe prefix and the fingerprint, which are the
- *    two fields the contract exists to make showable.
+ *    it. No prefix or digest derived from the credential is rendered.
  *  - **"Kaana custody is unavailable" is a state, not an error.** The API
- *    answers `503 kaana_credential_control_unavailable` and refuses BEFORE reading
- *    the credential out of the request, so an unconfigured deployment never
- *    holds a customer secret at all. Console renders that as a standing
+ *    answers `503 kaana_credential_control_unavailable` before the parsed
+ *    credential is validated or handed to a service. Oxy does not persist, log
+ *    or derive anything from it. Console renders that as a standing
  *    explanation with no retry, because retrying changes nothing — what changes
  *    it is an operator wiring the dedicated signed control authority.
  *  - **Disable and revoke keep working when create and rotate do not.** Those
@@ -78,53 +80,60 @@ import {
  *    credential out of service must not depend on the availability of the thing
  *    you are trying to stop using.
  *
- * Every affordance is gated on a server-supplied permission: `app:update` for a
- * connection scoped to this application, `account:update` for one inherited from
- * the account. Both go through the typed predicates (`access.can`, and
- * `useAccount`'s `canReadAccount`/`canEditAccount`) rather than comparing
+ * Every affordance is gated on the same narrow server-supplied permission its
+ * API route requires: `inference:byok:write` for an application connection and
+ * `inference:providers:write` for an account connection. Reads require
+ * `inference:providers:read`. All three go through typed predicates rather than comparing
  * `callerMembership.permissions` directly, because that field is `string[]` and a
  * misspelt literal in an inline comparison answers false forever with no
  * compile error.
  */
 interface ProviderConnectionsSectionProps {
-  application: Application;
-  access: CallerAccess;
+  application: Application
+  access: CallerAccess
 }
 
 const ENVIRONMENTS: Array<{ value: InferenceEnvironment; label: string }> = [
   { value: 'development', label: 'Development' },
   { value: 'staging', label: 'Staging' },
   { value: 'production', label: 'Production' },
-];
+]
 
 export function ProviderConnectionsSection({
   application,
   access,
 }: ProviderConnectionsSectionProps) {
-  const { accounts, canReadAccount, canEditAccount } = useAccount();
-  const ownerAccountId = application.ownerAccountId;
-  const ownerAccount = accounts.find((account) => account.accountId === ownerAccountId);
+  const { accounts, canReadProviderConnections, canManageProviderConnections } =
+    useAccount()
+  const ownerAccountId = application.ownerAccountId
+  const ownerAccount = accounts.find(
+    (account) => account.accountId === ownerAccountId,
+  )
   // Through the predicates rather than comparing the raw `permissions` array.
   // `callerMembership.permissions` is `string[]` on the wire, so an inline
   // `includes('account:updaet')` compiles, answers false forever, and is invisible
   // to `scripts/check-permission-vocabulary.mjs`, whose subject is the union
   // declarations rather than the call sites. `hasPermission` types its argument as
   // `AccountPermission`, so the same typo is a build error.
-  const canReadOwnerAccount = ownerAccount !== undefined && canReadAccount(ownerAccount);
-  const canUpdateOwnerAccount = ownerAccount !== undefined && canEditAccount(ownerAccount);
-  const canUpdateApplication = access.can('app:update');
+  const canReadOwnerAccount =
+    ownerAccount !== undefined && canReadProviderConnections(ownerAccount)
+  const canUpdateOwnerAccount =
+    ownerAccount !== undefined && canManageProviderConnections(ownerAccount)
+  const canUpdateApplication = access.can('inference:byok:write')
 
   const {
     data: connections = [],
     isLoading,
     isError,
     error,
-  } = useAccountProviderConnections(ownerAccountId, canReadOwnerAccount);
+  } = useAccountProviderConnections(ownerAccountId, canReadOwnerAccount)
 
-  const createConnection = useCreateApplicationProviderConnection();
-  const rotateConnection = useRotateProviderConnection();
-  const setEnabled = useSetProviderConnectionEnabled();
-  const revokeConnection = useRevokeProviderConnection();
+  const createConnection = useCreateApplicationProviderConnection()
+  const rotateConnection = useRotateProviderConnection()
+  const reconcileConnection = useReconcileProviderConnection()
+  const setEnabled = useSetProviderConnectionEnabled()
+  const revokeConnection = useRevokeProviderConnection()
+  const startValidation = useStartProviderCredentialValidation()
 
   /**
    * The API's own sentence explaining why this deployment cannot hold a
@@ -134,140 +143,260 @@ export function ProviderConnectionsSection({
    * whether Kaana credential control is reachable, and claiming "unavailable" without having
    * been told so would be a guess that reads exactly like a fact.
    */
-  const [storeUnavailable, setStoreUnavailable] = useState<string | null>(null);
+  const [storeUnavailable, setStoreUnavailable] = useState<string | null>(null)
 
-  const [showConnect, setShowConnect] = useState(false);
-  const [provider, setProvider] = useState('');
-  const [environment, setEnvironment] = useState<InferenceEnvironment>('development');
-  const [acknowledgeTerms, setAcknowledgeTerms] = useState(false);
-  const [secret, setSecret] = useState('');
+  const [showConnect, setShowConnect] = useState(false)
+  const [provider, setProvider] = useState('')
+  const [environment, setEnvironment] =
+    useState<InferenceEnvironment>('development')
+  const [acknowledgeTerms, setAcknowledgeTerms] = useState(false)
+  const [secret, setSecret] = useState('')
 
-  const [rotating, setRotating] = useState<ProviderConnectionView | null>(null);
-  const [rotationSecret, setRotationSecret] = useState('');
-  const [revoking, setRevoking] = useState<ProviderConnectionView | null>(null);
-  const [trailFor, setTrailFor] = useState<string | null>(null);
+  const [rotating, setRotating] = useState<ProviderConnectionView | null>(null)
+  const [rotationSecret, setRotationSecret] = useState('')
+  const [recovering, setRecovering] = useState<ProviderConnectionView | null>(
+    null,
+  )
+  const [recoverySecret, setRecoverySecret] = useState('')
+  const [revoking, setRevoking] = useState<ProviderConnectionView | null>(null)
+  const [validating, setValidating] = useState<ProviderConnectionView | null>(null)
+  const [validationDeploymentId, setValidationDeploymentId] = useState('')
+  const [trailFor, setTrailFor] = useState<string | null>(null)
+
+  const validationDeployments = useProviderValidationDeployments(
+    validating?.connectionId,
+    application._id,
+    validating !== null,
+  )
 
   const applicable = connections.filter((connection) =>
-    connectionAppliesToApplication(connection, application._id, ownerAccountId)
-  );
+    connectionAppliesToApplication(connection, application._id, ownerAccountId),
+  )
 
   /** Which permission governs this connection is decided by ITS scope, as on the server. */
   const canManage = (connection: ProviderConnectionView): boolean =>
-    connection.scope.kind === 'application' ? canUpdateApplication : canUpdateOwnerAccount;
+    connection.scope.kind === 'application'
+      ? canUpdateApplication
+      : canUpdateOwnerAccount
 
   const closeConnectDialog = () => {
-    setShowConnect(false);
-    setProvider('');
-    setEnvironment('development');
-    setAcknowledgeTerms(false);
+    setShowConnect(false)
+    setProvider('')
+    setEnvironment('development')
+    setAcknowledgeTerms(false)
     // The credential leaves component state the moment the dialog closes,
     // whatever the outcome.
-    setSecret('');
-  };
+    setSecret('')
+  }
 
   const handleConnect = async () => {
     try {
-      await createConnection.mutateAsync({
+      const created = await createConnection.mutateAsync({
         applicationId: application._id,
         ownerAccountId,
         provider: provider.trim(),
         environment,
         secret,
         acknowledgeProviderTerms: acknowledgeTerms,
-      });
-      closeConnectDialog();
-      toast.success('Provider connection created');
+      })
+      closeConnectDialog()
+      setValidationDeploymentId('')
+      setValidating(created)
+      toast.success(
+        'Provider connection created. Select its exact validation deployment.',
+      )
     } catch (connectError) {
-      setSecret('');
+      setSecret('')
       if (isKaanaCredentialControlUnavailable(connectError)) {
         setStoreUnavailable(
-          getErrorMessage(connectError, 'This deployment cannot reach signed Kaana credential custody.')
-        );
-        setShowConnect(false);
-        return;
+          getErrorMessage(
+            connectError,
+            'This deployment cannot reach signed Kaana credential custody.',
+          ),
+        )
+        setShowConnect(false)
+        return
       }
-      toast.error(getErrorMessage(connectError, 'Failed to create the provider connection'));
+      toast.error(
+        getErrorMessage(
+          connectError,
+          'Failed to create the provider connection',
+        ),
+      )
     }
-  };
+  }
 
   const handleRotate = async () => {
     if (!rotating) {
-      return;
+      return
     }
     try {
-      await rotateConnection.mutateAsync({
+      const rotated = await rotateConnection.mutateAsync({
         connectionId: rotating.connectionId,
         ownerAccountId,
         secret: rotationSecret,
-      });
-      setRotating(null);
-      setRotationSecret('');
-      toast.success('Credential rotated');
+      })
+      setRotating(null)
+      setRotationSecret('')
+      setValidationDeploymentId('')
+      setValidating(rotated)
+      toast.success(
+        'Credential rotated. Select its exact validation deployment.',
+      )
     } catch (rotateError) {
-      setRotationSecret('');
+      setRotationSecret('')
       if (isKaanaCredentialControlUnavailable(rotateError)) {
         setStoreUnavailable(
-          getErrorMessage(rotateError, 'This deployment cannot reach signed Kaana credential custody.')
-        );
-        setRotating(null);
-        return;
+          getErrorMessage(
+            rotateError,
+            'This deployment cannot reach signed Kaana credential custody.',
+          ),
+        )
+        setRotating(null)
+        return
       }
-      toast.error(getErrorMessage(rotateError, 'Failed to rotate the credential'));
+      toast.error(
+        getErrorMessage(rotateError, 'Failed to rotate the credential'),
+      )
     }
-  };
+  }
 
-  const handleSetEnabled = async (connection: ProviderConnectionView, enabled: boolean) => {
+  const handleSetEnabled = async (
+    connection: ProviderConnectionView,
+    enabled: boolean,
+  ) => {
     try {
       await setEnabled.mutateAsync({
         connectionId: connection.connectionId,
         ownerAccountId,
         enabled,
-      });
-      toast.success(enabled ? 'Connection enabled' : 'Connection disabled');
+      })
+      toast.success(enabled ? 'Connection enabled' : 'Connection disabled')
     } catch (toggleError) {
       toast.error(
-        getErrorMessage(toggleError, enabled ? 'Failed to enable' : 'Failed to disable')
-      );
+        getErrorMessage(
+          toggleError,
+          enabled ? 'Failed to enable' : 'Failed to disable',
+        ),
+      )
     }
-  };
+  }
+
+  const closeValidationDialog = () => {
+    setValidating(null)
+    setValidationDeploymentId('')
+  }
+
+  const handleValidate = async () => {
+    if (!validating || validationDeploymentId === '') return
+    try {
+      const operation = await startValidation.mutateAsync({
+        connectionId: validating.connectionId,
+        ownerAccountId,
+        applicationId: application._id,
+        deploymentId: validationDeploymentId,
+      })
+      closeValidationDialog()
+      toast.success(
+        operation.state === 'pending'
+          ? 'Validation queued. Retry resumes the same durable operation.'
+          : `Validation ${operation.state}.`,
+      )
+    } catch (validationError) {
+      toast.error(
+        getErrorMessage(
+          validationError,
+          'The exact validation attempt could not be started.',
+        ),
+      )
+    }
+  }
+
+  const closeRecoveryDialog = () => {
+    setRecovering(null)
+    setRecoverySecret('')
+  }
+
+  const handleRecover = async () => {
+    if (!recovering) return
+    try {
+      await reconcileConnection.mutateAsync({
+        connectionId: recovering.connectionId,
+        ownerAccountId,
+        secret: recoverySecret.length === 0 ? undefined : recoverySecret,
+      })
+      closeRecoveryDialog()
+      toast.success('Credential operation recovered')
+    } catch (recoveryError) {
+      setRecoverySecret('')
+      if (isKaanaCredentialControlUnavailable(recoveryError)) {
+        setStoreUnavailable(
+          getErrorMessage(
+            recoveryError,
+            'This deployment cannot reach signed Kaana credential custody.',
+          ),
+        )
+        setRecovering(null)
+        return
+      }
+      toast.error(
+        getErrorMessage(
+          recoveryError,
+          'Recovery is still pending. If Kaana asks for it, enter the original credential.',
+        ),
+      )
+    }
+  }
 
   const handleRevoke = async () => {
     if (!revoking) {
-      return;
+      return
     }
     try {
       await revokeConnection.mutateAsync({
         connectionId: revoking.connectionId,
         ownerAccountId,
-      });
-      setRevoking(null);
-      toast.success('Connection revoked');
+      })
+      setRevoking(null)
+      toast.success('Connection revoked')
     } catch (revokeError) {
-      toast.error(getErrorMessage(revokeError, 'Failed to revoke the connection'));
+      toast.error(
+        getErrorMessage(revokeError, 'Failed to revoke the connection'),
+      )
     }
-  };
+  }
 
   if (!canReadOwnerAccount) {
     return (
       <div className="py-12 text-center text-sm text-muted-foreground">
-        You do not have permission to view this application's provider connections.
+        You do not have permission to view this application's provider
+        connections.
       </div>
-    );
+    )
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Provider connections</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            Provider connections
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Your own upstream provider credentials. The provider bills your account directly and Oxy
-            charges only its platform fee. Kaana encrypts the credential in its PostgreSQL database;
-            Oxy stores only metadata and an opaque Kaana handle, never the credential.
+            Your own upstream provider credentials. The provider bills your
+            account directly. BYOK inference stays unavailable until Oxy has an
+            approved, dedicated platform-fee price; it will never reuse the
+            provider price. Kaana encrypts the credential in its PostgreSQL
+            database; Oxy stores only metadata and an opaque Kaana handle, never
+            the credential.
           </p>
         </div>
         {canUpdateApplication && storeUnavailable === null && (
-          <Button size="sm" className="shrink-0" onClick={() => setShowConnect(true)}>
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={() => setShowConnect(true)}
+          >
             Connect a provider
           </Button>
         )}
@@ -275,12 +404,15 @@ export function ProviderConnectionsSection({
 
       {storeUnavailable !== null && (
         <Alert>
-          <AlertTitle>Bring your own key is not available in this deployment</AlertTitle>
+          <AlertTitle>
+            Bring your own key is not available in this deployment
+          </AlertTitle>
           <AlertDescription>
             <span className="block">{storeUnavailable}</span>
             <span className="mt-2 block">
-              Nothing went wrong and there is nothing to retry — Oxy refused before reading your
-              credential, so it never held it. Existing connections can still be disabled and
+              Nothing went wrong and there is nothing to retry — Oxy discarded
+              the transient request without persisting or deriving anything from
+              your credential. Existing connections can still be disabled and
               revoked.
             </span>
           </AlertDescription>
@@ -290,9 +422,10 @@ export function ProviderConnectionsSection({
       <Alert>
         <AlertTitle>What connecting a provider does and does not do</AlertTitle>
         <AlertDescription>
-          Using your own credential does not change the provider's terms and does not permit sharing
-          a credential with anyone. Whether your credentials may or must be used for routing is a
-          routing-policy setting, not a property of the connection.
+          Using your own credential does not change the provider's terms and
+          does not permit sharing a credential with anyone. Whether your
+          credentials may or must be used for routing is a routing-policy
+          setting, not a property of the connection.
         </AlertDescription>
       </Alert>
 
@@ -300,18 +433,27 @@ export function ProviderConnectionsSection({
         <Alert variant="destructive">
           <AlertTitle>Provider connections could not be loaded</AlertTitle>
           <AlertDescription>
-            {getErrorMessage(error, 'The provider connection control plane did not answer.')}
+            {getErrorMessage(
+              error,
+              'The provider connection control plane did not answer.',
+            )}
           </AlertDescription>
         </Alert>
       ) : isLoading ? (
         <Skeleton.Box width="100%" height={120} borderRadius={14} />
       ) : applicable.length === 0 ? (
         <div className="rounded-lg border border-border py-10 text-center">
-          <HugeiconsIcon icon={CloudIcon} size={40} className="text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm font-medium text-foreground">No provider connection</p>
+          <HugeiconsIcon
+            icon={CloudIcon}
+            size={40}
+            className="text-muted-foreground mx-auto mb-3"
+          />
+          <p className="text-sm font-medium text-foreground">
+            No provider connection
+          </p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            This application uses Oxy's own provider accounts. Connect one of yours to have requests
-            served on it instead.
+            This application uses Oxy's own provider accounts. Connect one of
+            yours to have requests served on it instead.
           </p>
         </div>
       ) : (
@@ -320,17 +462,28 @@ export function ProviderConnectionsSection({
             <ConnectionCard
               key={connection.connectionId}
               connection={connection}
+              applicationId={application._id}
               canManage={canManage(connection)}
               storeUnavailable={storeUnavailable !== null}
               isTrailOpen={trailFor === connection.connectionId}
               onToggleTrail={() =>
                 setTrailFor((current) =>
-                  current === connection.connectionId ? null : connection.connectionId
+                  current === connection.connectionId
+                    ? null
+                    : connection.connectionId,
                 )
               }
               onRotate={() => {
-                setRotationSecret('');
-                setRotating(connection);
+                setRotationSecret('')
+                setRotating(connection)
+              }}
+              onRecover={() => {
+                setRecoverySecret('')
+                setRecovering(connection)
+              }}
+              onValidate={() => {
+                setValidationDeploymentId('')
+                setValidating(connection)
               }}
               onSetEnabled={(enabled) => handleSetEnabled(connection, enabled)}
               onRevoke={() => setRevoking(connection)}
@@ -342,15 +495,17 @@ export function ProviderConnectionsSection({
       {/* Connect */}
       <Dialog
         open={showConnect}
-        onOpenChange={(open) => (open ? setShowConnect(true) : closeConnectDialog())}
+        onOpenChange={(open) =>
+          open ? setShowConnect(true) : closeConnectDialog()
+        }
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Connect a provider</DialogTitle>
             <DialogDescription>
-              The credential is sent once to Kaana over the signed custody path, encrypted in Kaana
-              PostgreSQL with KMS, and never returned. Oxy keeps only metadata and an opaque Kaana
-              handle.
+              The credential is sent once to Kaana over the signed custody path,
+              encrypted in Kaana PostgreSQL with KMS, and never returned. Oxy
+              keeps only metadata and an opaque Kaana handle.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -361,12 +516,15 @@ export function ProviderConnectionsSection({
               <Input
                 id="byok-provider"
                 value={provider}
-                onChange={(event) => setProvider(event.target.value.toLowerCase())}
+                onChange={(event) =>
+                  setProvider(event.target.value.toLowerCase())
+                }
                 placeholder="provider-slug"
                 autoComplete="off"
               />
               <p className="text-xs text-muted-foreground">
-                The provider's slug in Oxy's catalogue. Oxy refuses a provider it does not serve.
+                The provider's slug in Oxy's catalogue. Oxy refuses a provider
+                it does not serve.
               </p>
             </div>
             <div className="space-y-2">
@@ -375,7 +533,9 @@ export function ProviderConnectionsSection({
               </Label>
               <Select
                 value={environment}
-                onValueChange={(value) => setEnvironment(value as InferenceEnvironment)}
+                onValueChange={(value) =>
+                  setEnvironment(value as InferenceEnvironment)
+                }
               >
                 <SelectTrigger id="byok-environment" className="w-full">
                   <SelectValue />
@@ -395,11 +555,14 @@ export function ProviderConnectionsSection({
                   I accept this provider's terms
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Some providers require each customer to accept their terms before a third party
-                  may present their credential.
+                  Some providers require each customer to accept their terms
+                  before a third party may present their credential.
                 </p>
               </div>
-              <Switch checked={acknowledgeTerms} onCheckedChange={setAcknowledgeTerms} />
+              <Switch
+                checked={acknowledgeTerms}
+                onCheckedChange={setAcknowledgeTerms}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="byok-secret" className="text-sm">
@@ -422,10 +585,81 @@ export function ProviderConnectionsSection({
             <Button
               onClick={handleConnect}
               disabled={
-                createConnection.isPending || provider.trim() === '' || secret.length === 0
+                createConnection.isPending ||
+                provider.trim() === '' ||
+                secret.length === 0
               }
             >
               {createConnection.isPending ? 'Connecting…' : 'Connect'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Explicit exact bootstrap/revalidation; no deployment is preselected. */}
+      <Dialog
+        open={validating !== null}
+        onOpenChange={(open) => !open && closeValidationDialog()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Validate this credential</DialogTitle>
+            <DialogDescription>
+              Choose the exact Oxy catalogue deployment to probe. Kaana makes a
+              separate one-token provider check, discards its output, and does
+              not create normal user traffic, usage receipts, or billing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="byok-validation-deployment" className="text-sm">
+              Exact deployment ID
+            </Label>
+            <Select
+              value={validationDeploymentId}
+              onValueChange={setValidationDeploymentId}
+            >
+              <SelectTrigger id="byok-validation-deployment" className="w-full">
+                <SelectValue placeholder="Select a deployment ID" />
+              </SelectTrigger>
+              <SelectContent>
+                {(validationDeployments.data ?? []).map((deployment) => (
+                  <SelectItem
+                    key={deployment.deploymentId}
+                    value={deployment.deploymentId}
+                  >
+                    {deployment.deploymentId}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {validationDeployments.isLoading && (
+              <p className="text-xs text-muted-foreground">
+                Loading exact deployments…
+              </p>
+            )}
+            {!validationDeployments.isLoading &&
+              (validationDeployments.data?.length ?? 0) === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No approved BYOK deployment is available for this provider.
+                </p>
+              )}
+            <p className="text-xs text-muted-foreground">
+              Authentication refusal marks the key invalid. Billing, quota,
+              rate-limit, or network failures remain inconclusive; after fixing
+              the provider account, revalidate this same key without rotating it.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeValidationDialog}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleValidate}
+              disabled={
+                startValidation.isPending || validationDeploymentId === ''
+              }
+            >
+              {startValidation.isPending ? 'Starting…' : 'Start validation'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -436,8 +670,8 @@ export function ProviderConnectionsSection({
         open={rotating !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setRotating(null);
-            setRotationSecret('');
+            setRotating(null)
+            setRotationSecret('')
           }
         }}
       >
@@ -445,9 +679,9 @@ export function ProviderConnectionsSection({
           <DialogHeader>
             <DialogTitle>Rotate this credential</DialogTitle>
             <DialogDescription>
-              The connection keeps its reference, so anything holding it keeps working. The previous
-              credential is gone the moment the new one lands, and a rotation must supply a
-              different credential.
+              The connection keeps its reference, so anything holding it keeps
+              working. The previous credential is gone the moment the new one
+              lands, and a rotation must supply a different credential.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
@@ -467,15 +701,17 @@ export function ProviderConnectionsSection({
             <Button
               variant="outline"
               onClick={() => {
-                setRotating(null);
-                setRotationSecret('');
+                setRotating(null)
+                setRotationSecret('')
               }}
             >
               Cancel
             </Button>
             <Button
               onClick={handleRotate}
-              disabled={rotateConnection.isPending || rotationSecret.length === 0}
+              disabled={
+                rotateConnection.isPending || rotationSecret.length === 0
+              }
             >
               {rotateConnection.isPending ? 'Rotating…' : 'Rotate'}
             </Button>
@@ -483,15 +719,65 @@ export function ProviderConnectionsSection({
         </DialogContent>
       </Dialog>
 
+      {/* Recover an outcome-uncertain create, rotate or revoke. */}
+      <Dialog
+        open={recovering !== null}
+        onOpenChange={(open) => {
+          if (!open) closeRecoveryDialog()
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recover this credential operation</DialogTitle>
+            <DialogDescription>
+              Kaana checks the exact durable outcome first. Leave the credential
+              empty on the first attempt. Only if Kaana proves that a create or
+              rotation must be replayed, enter the same original credential
+              here; a revoke never needs one.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="byok-recovery-secret" className="text-sm">
+              Original credential (only when requested)
+            </Label>
+            <Input
+              id="byok-recovery-secret"
+              type="password"
+              value={recoverySecret}
+              onChange={(event) => setRecoverySecret(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeRecoveryDialog}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRecover}
+              disabled={reconcileConnection.isPending}
+            >
+              {reconcileConnection.isPending
+                ? 'Recovering…'
+                : 'Check and recover'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Revoke */}
-      <AlertDialog open={revoking !== null} onOpenChange={(open) => !open && setRevoking(null)}>
+      <AlertDialog
+        open={revoking !== null}
+        onOpenChange={(open) => !open && setRevoking(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Revoke this connection</AlertDialogTitle>
             <AlertDialogDescription>
-              Revoking is permanent and destroys the stored credential. The connection itself stays
-              readable, along with its trail, so a charge already served on it can still be
-              explained. Requests stop using it immediately.
+              Revoking is permanent and destroys the stored credential. The
+              connection itself stays readable, along with its trail, so a
+              charge already served on it can still be explained. Requests stop
+              using it immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -507,45 +793,73 @@ export function ProviderConnectionsSection({
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
+  )
 }
 
 function ConnectionCard({
   connection,
+  applicationId,
   canManage,
   storeUnavailable,
   isTrailOpen,
   onToggleTrail,
   onRotate,
+  onRecover,
+  onValidate,
   onSetEnabled,
   onRevoke,
 }: {
-  connection: ProviderConnectionView;
-  canManage: boolean;
-  storeUnavailable: boolean;
-  isTrailOpen: boolean;
-  onToggleTrail: () => void;
-  onRotate: () => void;
-  onSetEnabled: (enabled: boolean) => void;
-  onRevoke: () => void;
+  connection: ProviderConnectionView
+  applicationId: string
+  canManage: boolean
+  storeUnavailable: boolean
+  isTrailOpen: boolean
+  onToggleTrail: () => void
+  onRotate: () => void
+  onRecover: () => void
+  onValidate: () => void
+  onSetEnabled: (enabled: boolean) => void
+  onRevoke: () => void
 }) {
-  const isRevoked = connection.status === 'revoked';
+  const isRevoked = connection.status === 'revoked'
+  const { data: validationOperation } = useProviderCredentialValidation(
+    connection.connectionId,
+    applicationId,
+  )
 
   return (
     <div className="rounded-lg border border-border">
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
         <div className="min-w-0 space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">{connection.provider}</p>
-            <Badge variant={connectionStatusVariant(connection.status)}>{connection.status}</Badge>
+            <p className="text-sm font-medium text-foreground">
+              {connection.provider}
+            </p>
+            <Badge variant={connectionStatusVariant(connection.status)}>
+              {connection.status}
+            </Badge>
             <Badge variant="outline">{connection.environment}</Badge>
             <Badge variant="ghost">{connection.validation.state}</Badge>
+            {connection.custodyState === 'reconcile' && (
+              <Badge variant="destructive">recovery needed</Badge>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {providerConnectionScopeLabel(connection.scope)}
           </p>
+          {validationOperation && (
+            <p className="text-xs text-muted-foreground">
+              Last bootstrap: {validationOperation.state} · deployment{' '}
+              <span className="font-mono">
+                {validationOperation.deploymentId}
+              </span>
+              {validationOperation.failureCode
+                ? ` · ${validationOperation.failureCode}`
+                : ''}
+            </p>
+          )}
           <p className="font-mono text-xs text-muted-foreground">
-            {connection.keyPrefix}… · fingerprint {shortFingerprint(connection.fingerprint)}
+            Credential hidden · stored securely in Kaana
           </p>
           <p className="text-xs text-muted-foreground">
             Connected {new Date(connection.createdAt).toLocaleDateString()}
@@ -562,8 +876,20 @@ function ConnectionCard({
           <Button variant="ghost" size="sm" onClick={onToggleTrail}>
             {isTrailOpen ? 'Hide trail' : 'Trail'}
           </Button>
+          {canManage &&
+            connection.custodyState === 'reconcile' &&
+            !storeUnavailable && (
+              <Button variant="outline" size="sm" onClick={onRecover}>
+                Recover
+              </Button>
+            )}
           {canManage && !isRevoked && (
             <>
+              <Button variant="outline" size="sm" onClick={onValidate}>
+                {connection.validation.state === 'valid'
+                  ? 'Revalidate'
+                  : 'Validate'}
+              </Button>
               {/* Rotation writes a credential, so it is unavailable for the same
                   reason connecting one is. Disable and revoke are not. */}
               {!storeUnavailable && (
@@ -578,7 +904,12 @@ function ConnectionCard({
               >
                 {connection.status === 'disabled' ? 'Enable' : 'Disable'}
               </Button>
-              <Button variant="ghost" size="sm" className="text-destructive" onClick={onRevoke}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                onClick={onRevoke}
+              >
                 Revoke
               </Button>
             </>
@@ -586,9 +917,11 @@ function ConnectionCard({
         </div>
       </div>
 
-      {isTrailOpen && <ConnectionTrail connectionId={connection.connectionId} />}
+      {isTrailOpen && (
+        <ConnectionTrail connectionId={connection.connectionId} />
+      )}
     </div>
-  );
+  )
 }
 
 /**
@@ -599,14 +932,15 @@ function ConnectionCard({
  * finds there is a screen whose safety depends on every future writer.
  */
 function ConnectionTrail({ connectionId }: { connectionId: string }) {
-  const { data: events = [], isLoading } = useProviderConnectionAudit(connectionId);
+  const { data: events = [], isLoading } =
+    useProviderConnectionAudit(connectionId)
 
   if (isLoading) {
     return (
       <div className="border-t border-border px-4 py-3">
         <Skeleton.Box width="100%" height={60} borderRadius={10} />
       </div>
-    );
+    )
   }
 
   if (events.length === 0) {
@@ -614,7 +948,7 @@ function ConnectionTrail({ connectionId }: { connectionId: string }) {
       <p className="border-t border-border px-4 py-3 text-sm text-muted-foreground">
         No recorded activity.
       </p>
-    );
+    )
   }
 
   return (
@@ -636,5 +970,5 @@ function ConnectionTrail({ connectionId }: { connectionId: string }) {
         </div>
       ))}
     </div>
-  );
+  )
 }

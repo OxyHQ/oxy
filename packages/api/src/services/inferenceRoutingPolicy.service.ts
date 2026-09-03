@@ -116,7 +116,7 @@ export function validateRoutingPolicy(input: {
   readonly updatedAt: Date;
 }): RoutingPolicyValidation {
   const parsed = routingPolicySchema.safeParse({
-    schemaVersion: 1,
+    schemaVersion: 2,
     routingPolicyId: input.routingPolicyId,
     policyVersion: input.policyVersion,
     scope: input.scope,
@@ -187,15 +187,15 @@ async function resolveModelReference(
   return row ? { kind: 'revision', modelRevisionId: row.id } : undefined;
 }
 
-/** Resolve a routing-profile slug to its catalogue row. */
-async function resolveRoutingProfile(
+/** Resolve a routing profile only by its exact opaque catalogue primary key. */
+async function resolveRoutingProfileById(
   db: Executor,
-  slug: string
+  routingProfileId: string
 ): Promise<string | undefined> {
   const [row] = await db
     .select({ id: inferenceRoutingProfiles.id })
     .from(inferenceRoutingProfiles)
-    .where(eq(inferenceRoutingProfiles.slug, slug))
+    .where(eq(inferenceRoutingProfiles.id, routingProfileId))
     .limit(1);
   return row?.id;
 }
@@ -371,8 +371,10 @@ async function resolveReferences(
       if (!resolvedTarget) return { status: 'unknown', reference: declared.modelReference };
       target = resolvedTarget;
     } else {
-      const profileId = await resolveRoutingProfile(tx, declared.routingProfile);
-      if (profileId === undefined) return { status: 'unknown', reference: declared.routingProfile };
+      const profileId = await resolveRoutingProfileById(tx, declared.routingProfileId);
+      if (profileId === undefined) {
+        return { status: 'unknown', reference: declared.routingProfileId };
+      }
       target = { kind: 'profile', id: profileId };
     }
   }
@@ -649,7 +651,7 @@ async function readVersion(
   const authorized = await readAuthorizedCrossModel(db, row.id);
 
   const candidate = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     routingPolicyId: row.routingPolicyId,
     policyVersion: row.version,
     scope,
@@ -693,11 +695,13 @@ async function readTarget(db: Executor, row: VersionRow): Promise<RoutingTarget 
 
   if (row.defaultTargetKind === 'routing_profile' && row.defaultRoutingProfileId !== null) {
     const [profile] = await db
-      .select({ slug: inferenceRoutingProfiles.slug })
+      .select({ id: inferenceRoutingProfiles.id })
       .from(inferenceRoutingProfiles)
       .where(eq(inferenceRoutingProfiles.id, row.defaultRoutingProfileId))
       .limit(1);
-    return profile ? { kind: 'routing_profile', routingProfile: profile.slug } : undefined;
+    return profile
+      ? { kind: 'routing_profile_id', routingProfileId: profile.id }
+      : undefined;
   }
 
   if (row.defaultModelId !== null) {

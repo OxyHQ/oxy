@@ -73,7 +73,7 @@
  * takes the newer contract, while the tolerant parse costs a misdiagnosis of a
  * cryptographic failure.
  *
- * Decided in: docs/adr/0006-oxy-relay-boundary.md,
+ * Decided in: docs/adr/0006-oxy-kaana-boundary.md,
  * docs/adr/0010-public-api-compatibility.md,
  * docs/adr/0017-authorized-routes-in-the-envelope.md.
  */

@@ -12,6 +12,7 @@ import { getEmailAgentContext } from '../controllers/emailContext.controller';
 import { asyncHandler } from '../utils/asyncHandler';
 import { validate } from '../middleware/validate';
 import { BadRequestError } from '../utils/error';
+import inboxInferenceRoutes from './inboxInference';
 import {
   createMailboxSchema,
   mailboxIdParams,
@@ -144,7 +145,11 @@ const importUploadMiddleware = (req: Request, res: Response, next: NextFunction)
   });
 };
 
-// All email routes require authentication
+// Point inference is human-session only; agent capability tickets continue to
+// address the explicit Inbox capability catalogue, not this product UI lane.
+router.use('/ai', inboxInferenceRoutes);
+
+// All remaining email routes require authentication.
 router.use(emailCapabilityAuth);
 
 router.get('/ai-context', asyncHandler(getEmailAgentContext));

@@ -39,10 +39,10 @@ function verdict(name, root, expectedCode, expectedText) {
 
 verdict('real workflow', fixture(), 0, 'Kaana DNS boundary is exact');
 verdict(
-  'unproxied apex',
-  fixture((value) => value.replace('KAANA_ALB_DNS"].rstrip("."), True', 'KAANA_ALB_DNS"].rstrip("."), False')),
+  'proxied apex',
+  fixture((value) => value.replace('ALB_DNS"].rstrip("."), False', 'ALB_DNS"].rstrip("."), True')),
   1,
-  'apex must stay Cloudflare-proxied',
+  'apex must stay DNS-only',
 );
 verdict(
   'proxied validation',

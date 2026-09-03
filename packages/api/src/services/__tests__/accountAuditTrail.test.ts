@@ -22,7 +22,7 @@
  * file's rows.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { v7 as uuidv7 } from 'uuid';
 import { closePostgres, connectPostgres, getDb } from '../../config/postgres';
 import {
@@ -140,11 +140,6 @@ async function insertConnection(ownerAccountId: string, applicationId: string): 
       custodyState: 'ready',
       credentialHandle: `kcred_${'a'.repeat(16)}${suffix().replace(/[0189]/g, 'a')}`,
       credentialRevision: 1,
-      // `key_prefix` is 1..12 chars and `fingerprint` must be 64 lowercase hex —
-      // a SHA-256 digest and nothing else. The fixture satisfies both rather than
-      // working around them.
-      keyPrefix: `sk-${suffix()}`.slice(0, 12),
-      fingerprint: createHash('sha256').update(suffix()).digest('hex'),
       status: 'active',
       validationState: 'valid',
     })

@@ -6,8 +6,8 @@
  *
  * **A provider secret never reaches this table.** Not encrypted, not hashed,
  * not "temporarily". What is stored is Kaana's opaque `credential_handle`, its
- * exact revision, a prefix short enough to be useless, a SHA-256 fingerprint,
- * and lifecycle state. `providerConnectionSchema` in `@oxyhq/contracts` is
+ * exact revision and lifecycle state.
+ * `providerConnectionSchema` in `@oxyhq/contracts` is
  * `.strict()` and carries no field a credential could occupy, and this table is
  * its storage shape column for column — so a producer that tries to attach one
  * fails the parse rather than being silently stripped.
@@ -76,10 +76,10 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  bigint,
   check,
   foreignKey,
   index,
-  integer,
   pgTable,
   text,
   unique,
@@ -119,8 +119,8 @@ export const PROVIDER_CREDENTIAL_CUSTODY_STATES = [
 export type ProviderCredentialCustodyStateValue =
   (typeof PROVIDER_CREDENTIAL_CUSTODY_STATES)[number];
 
-/** The statuses a request may be served through. The partial index reads it. */
-export const LIVE_PROVIDER_CONNECTION_STATUSES = ['pending_validation', 'active'] as const;
+/** Statuses that claim a scope key and therefore prevent a parallel replacement. */
+export const EXCLUSIVE_PROVIDER_CONNECTION_STATUSES = ['pending_validation', 'active'] as const;
 
 /** Outcome of the last credential check. */
 export const PROVIDER_CONNECTION_VALIDATION_STATES = [
@@ -201,20 +201,10 @@ export const inferenceProviderConnections = pgTable(
 
     /** Kaana-minted opaque handle; never a secret-store locator. */
     credentialHandle: text(),
-    /** Exact immutable Kaana generation paired with the handle. */
-    credentialRevision: integer(),
+    /** Exact immutable Kaana generation paired with the handle (JS safe int64 range). */
+    credentialRevision: bigint({ mode: 'number' }),
     /** Cross-service commit state. Anything except `ready` is non-routable. */
     custodyState: text({ enum: PROVIDER_CREDENTIAL_CUSTODY_STATES }).notNull().default('pending'),
-
-    /**
-     * The leading characters of the credential, for recognition only. Capped at
-     * 12 by the CHECK — long enough to tell two keys apart, far too short to be
-     * one. The cap is the contract's, restated where the write happens.
-     */
-    keyPrefix: text().notNull(),
-
-    /** SHA-256 of the credential, so a rotation is verifiable without the key. */
-    fingerprint: text().notNull(),
 
     validationState: text({
       enum: PROVIDER_CONNECTION_VALIDATION_STATES,
@@ -294,8 +284,10 @@ export const inferenceProviderConnections = pgTable(
      * be PARTIAL, which this must be. The empty string is safe as the sentinel:
      * an application id is a uuid v7 or a 24-character ObjectId hex, never `''`.
      *
-     * Partial on the live statuses so a revoked or disabled connection never
-     * blocks its own replacement.
+     * Partial on the scope-claiming statuses so a revoked or disabled connection
+     * never blocks its own replacement. `pending_validation` is deliberately in
+     * this index even though it is not routable for serving: validation must
+     * finish before a second credential may claim the same scope.
      *
      * `scope_kind` is IN the key: an account-scoped and a project-scoped
      * connection on the same account for the same provider would both apply to
@@ -309,7 +301,7 @@ export const inferenceProviderConnections = pgTable(
         t.provider,
         t.environment,
       )
-      .where(sql`${t.status} in (${sql.raw(inList(LIVE_PROVIDER_CONNECTION_STATUSES))})`),
+      .where(sql`${t.status} in (${sql.raw(inList(EXCLUSIVE_PROVIDER_CONNECTION_STATUSES))})`),
 
     // "This account's connections, newest first" — the Console list.
     index('inference_provider_connections_owner_account_id_created_at_idx').on(
@@ -369,14 +361,14 @@ export const inferenceProviderConnections = pgTable(
     ),
 
     /**
-     * A credential the provider has REJECTED cannot be the one live requests are
-     * routed through. `providerConnectionSchema` refines the same rule; leaving
-     * it to the parse alone would mean a direct write could store a row the
-     * serializer then refuses to read back.
+     * `active` means the exact current credential generation passed validation.
+     * `providerConnectionSchema` refines the same rule; leaving it to the parse
+     * alone would mean a direct write could store a row the serializer then
+     * refuses to read back.
      */
     check(
       'inference_provider_connections_active_requires_valid',
-      sql`${t.status} <> 'active' or ${t.validationState} <> 'invalid'`,
+      sql`${t.status} <> 'active' or ${t.validationState} = 'valid'`,
     ),
 
     /** Where the provider's own terms require an acknowledgement, it exists. */
@@ -395,7 +387,7 @@ export const inferenceProviderConnections = pgTable(
     ),
     check(
       'inference_provider_connections_credential_revision_positive',
-      sql`${t.credentialRevision} is null or ${t.credentialRevision} > 0`,
+      sql`${t.credentialRevision} is null or ${t.credentialRevision} between 1 and 9007199254740991`,
     ),
     check(
       'inference_provider_connections_custody_reference_required',
@@ -404,18 +396,6 @@ export const inferenceProviderConnections = pgTable(
     check(
       'inference_provider_connections_pending_has_no_reference',
       sql`${t.custodyState} <> 'pending' or ${t.credentialHandle} is null`,
-    ),
-
-    /** The contract's cap, where the write happens. */
-    check(
-      'inference_provider_connections_key_prefix_length',
-      sql`length(${t.keyPrefix}) between 1 and 12`,
-    ),
-
-    /** 64 lowercase hex characters — a SHA-256 digest and nothing else. */
-    check(
-      'inference_provider_connections_fingerprint_format',
-      sql`${t.fingerprint} ~ '^[a-f0-9]{64}$'`,
     ),
   ],
 );

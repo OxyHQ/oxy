@@ -1,6 +1,7 @@
 import { generateKeyPairSync, verify } from 'node:crypto';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import {
-  fingerprintProviderCredential,
   HttpKaanaCredentialControl,
   KaanaCredentialConflictError,
   KaanaCredentialOutcomeUnavailableError,
@@ -34,6 +35,23 @@ function applied(operationId: string, action: 'create' | 'rotate' | 'revoke', re
   };
 }
 
+function listen(server: Server): Promise<string> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', reject);
+      const address = server.address() as AddressInfo;
+      resolve(`http://127.0.0.1:${address.port}`);
+    });
+  });
+}
+
+function close(server: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
 afterEach(() => jest.restoreAllMocks());
 
 describe('HttpKaanaCredentialControl', () => {
@@ -53,7 +71,6 @@ describe('HttpKaanaCredentialControl', () => {
       operationId: 'op_create_1',
       operationActor,
       secret,
-      secretSha256: fingerprintProviderCredential(secret),
     });
 
     if (requestBody === undefined || requestHeaders === undefined) {
@@ -101,7 +118,6 @@ describe('HttpKaanaCredentialControl', () => {
         credentialHandle: handle,
         expectedRevision: 1,
         secret,
-        secretSha256: fingerprintProviderCredential(secret),
       }),
     ).resolves.toEqual(applied('op_rotate_1', 'rotate', 2));
 
@@ -114,12 +130,49 @@ describe('HttpKaanaCredentialControl', () => {
       operationId: 'op_rotate_1',
       action: 'rotate',
       ...identity,
-      secretSha256: fingerprintProviderCredential(secret),
       credentialHandle: handle,
       expectedRevision: 1,
     });
     expect(requests[1]?.body.operationActor).toBeUndefined();
     expect(requests[1]?.body.secretBase64).toBeUndefined();
+  });
+
+  it('never forwards a signed credential body or signature through a redirect', async () => {
+    let redirectedRequests = 0;
+    const receiver = createServer((request, response) => {
+      request.resume();
+      redirectedRequests += 1;
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(applied('op_redirect', 'create', 1)));
+    });
+    const receiverUrl = await listen(receiver);
+    let canonicalRequests = 0;
+    const canonical = createServer((request, response) => {
+      request.resume();
+      canonicalRequests += 1;
+      response.writeHead(307, { location: `${receiverUrl}/stolen` });
+      response.end();
+    });
+    const canonicalUrl = await listen(canonical);
+
+    try {
+      const secret = new ProviderCredentialValue('customer-provider-key');
+      await expect(
+        new HttpKaanaCredentialControl({
+          ...config,
+          baseUrl: canonicalUrl as 'https://kaana.ai',
+        }).create({
+          ...identity,
+          operationId: 'op_redirect',
+          operationActor,
+          secret,
+        }),
+      ).rejects.toBeInstanceOf(KaanaCredentialOutcomeUnavailableError);
+      expect(canonicalRequests).toBe(2);
+      expect(redirectedRequests).toBe(0);
+    } finally {
+      await Promise.all([close(canonical), close(receiver)]);
+    }
   });
 
   it('treats only an exact confirmed 409 as a manual conflict', async () => {
@@ -154,7 +207,6 @@ describe('HttpKaanaCredentialControl', () => {
         operationId: 'op_create_404',
         action: 'create',
         ...identity,
-        secretSha256: 'a'.repeat(64),
       }),
     ).rejects.toBeInstanceOf(KaanaCredentialOutcomeUnavailableError);
 
@@ -165,7 +217,6 @@ describe('HttpKaanaCredentialControl', () => {
         operationId: 'op_create_network',
         action: 'create',
         ...identity,
-        secretSha256: 'b'.repeat(64),
       }),
     ).rejects.toBeInstanceOf(KaanaCredentialOutcomeUnavailableError);
   });
@@ -204,19 +255,21 @@ describe('HttpKaanaCredentialControl', () => {
         operationId: 'op_rotate_expected',
         action: 'rotate',
         ...identity,
-        secretSha256: 'c'.repeat(64),
         credentialHandle: handle,
         expectedRevision: 1,
       }),
     ).rejects.toBeInstanceOf(KaanaCredentialOutcomeUnavailableError);
   });
 
-  it('redacts plaintext and enforces the 4096-byte UTF-8 bound', () => {
+  it('redacts plaintext and accepts only the header-safe credential subset', () => {
     const secret = new ProviderCredentialValue('customer-provider-key');
     expect(String(secret)).not.toContain(secret.reveal());
     expect(JSON.stringify(secret)).not.toContain(secret.reveal());
-    expect(() => new ProviderCredentialValue('é'.repeat(2048))).not.toThrow();
-    expect(() => new ProviderCredentialValue('é'.repeat(2049))).toThrow(/4096 bytes/);
+    expect(() => new ProviderCredentialValue('a'.repeat(4096))).not.toThrow();
+    expect(() => new ProviderCredentialValue('a'.repeat(4097))).toThrow(/4096/);
+    for (const invalid of ['valid\0tail', 'valid\ttail', ' customer-key ', 'credencial-ñ']) {
+      expect(() => new ProviderCredentialValue(invalid)).toThrow(/visible ASCII/);
+    }
   });
 
   it('bounds both mutation and reconciliation responses without exposing their bodies', async () => {
@@ -239,7 +292,6 @@ describe('HttpKaanaCredentialControl', () => {
         operationId: 'op_create_large',
         operationActor: 'platform',
         secret,
-        secretSha256: fingerprintProviderCredential(secret),
       }),
     ).rejects.toBeInstanceOf(KaanaCredentialOutcomeUnavailableError);
     expect(globalThis.fetch).toHaveBeenCalledTimes(2);
