@@ -11,6 +11,12 @@ import {
   verifyMcpAccessTokenSignature,
   type McpAccessTokenClaims,
 } from '@oxy.so/mcp';
+import type {
+  CatalogTool,
+  McpOAuthClientApplication,
+  McpOAuthConsentResponse,
+  PublicApplicationResponse,
+} from '@oxy.so/contracts';
 import { getDb, type DatabaseOrTransaction } from '../config/postgres';
 import { capabilityTicketSigningConfig } from '../config/capabilityTicketSigning';
 import {
@@ -22,13 +28,12 @@ import {
   type McpOauthClientRow,
   type McpOauthGrantRow,
 } from '../db/schema/mcpOAuth';
+import { applications } from '../db/schema/applications';
+import { users } from '../db/schema/users';
 import accountService from './account.service';
 import { listActiveCapabilityCatalogs } from './capabilityCatalog.service';
-import {
-  resolveMcpConnectionState,
-  revokeMcpConnectionMemberships,
-  type McpConnectionState,
-} from './mcpConnection.service';
+import { composeDisplayName } from '../utils/displayName';
+import { serializePublicApplication } from '../utils/serializeApplication';
 
 export const MCP_AUTHORIZATION_CODE_TTL_SECONDS = 5 * 60;
 export const MCP_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
@@ -61,6 +66,8 @@ export interface McpResourceDescriptor {
   readonly resource: string;
   readonly scopes: readonly string[];
   readonly registeredByApplicationId: string;
+  readonly application: PublicApplicationResponse;
+  readonly tools: readonly CatalogTool[];
 }
 
 export interface McpTokenResponse {
@@ -144,10 +151,28 @@ export async function resolveMcpResource(resource: string): Promise<McpResourceD
   if (!registration?.catalog.externalMcp) {
     throw new McpOAuthError('invalid_request', 'resource is not a registered Oxy MCP server');
   }
+  const [application] = await getDb().select({
+    id: applications.id,
+    name: applications.name,
+    description: applications.description,
+    icon: applications.icon,
+    websiteUrl: applications.websiteUrl,
+    privacyPolicyUrl: applications.privacyPolicyUrl,
+    termsUrl: applications.termsUrl,
+    type: applications.type,
+    isOfficial: applications.isOfficial,
+    isInternal: applications.isInternal,
+    scopes: applications.scopes,
+  }).from(applications).where(and(
+    eq(applications.id, registration.registeredByApplicationId),
+    eq(applications.status, 'active'),
+  )).limit(1);
+  if (!application) {
+    throw new McpOAuthError('invalid_request', 'resource application is not active');
+  }
+  const tools = registration.catalog.tools.filter((tool) => tool.exposure.includes('mcp'));
   const scopes = [...new Set(
-    registration.catalog.tools
-      .filter((tool) => tool.exposure.includes('mcp'))
-      .flatMap((tool) => tool.requiredCapabilities),
+    tools.flatMap((tool) => tool.requiredCapabilities),
   )].sort();
   return {
     appSlug: registration.appSlug,
@@ -155,6 +180,8 @@ export async function resolveMcpResource(resource: string): Promise<McpResourceD
     resource: canonicalMcpResource(registration.catalog.externalMcp.resource),
     scopes,
     registeredByApplicationId: registration.registeredByApplicationId,
+    application: serializePublicApplication(application),
+    tools,
   };
 }
 
@@ -169,22 +196,10 @@ function assertScopesAllowed(requested: readonly string[], descriptor: McpResour
   }
 }
 
-/**
- * Whether the human who approved a grant can still operate its account.
- *
- * Every path that mints, refreshes, introspects or widens a connection asks
- * this again: losing `account:act_as` (an organization membership removed, an
- * account archived) must take effect on the next request, not at the next
- * consent screen.
- */
-export async function grantAccountAuthorityHolds(
-  grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>,
-): Promise<boolean> {
+async function currentAccountAuthority(grant: Pick<McpOauthGrantRow, 'principalUserId' | 'effectiveAccountId'>): Promise<boolean> {
   const access = await accountService.resolveEffectiveAccess(grant.principalUserId, grant.effectiveAccountId);
   return access?.permissions.includes('account:act_as') ?? false;
 }
-
-const currentAccountAuthority = grantAccountAuthorityHolds;
 
 export function newMcpClientId(): string {
   return `${CLIENT_ID_PREFIX}${randomBytes(24).toString('base64url')}`;
@@ -197,6 +212,22 @@ export async function findActiveMcpClient(clientId: string): Promise<McpOauthCli
     .where(and(eq(mcpOauthClients.clientId, clientId), eq(mcpOauthClients.status, 'active')))
     .limit(1);
   return client ?? null;
+}
+
+export function mcpClientApplication(
+  client: McpOauthClientRow,
+  scopes: readonly string[],
+): McpOAuthClientApplication {
+  return {
+    id: client.id,
+    clientId: client.clientId,
+    name: client.clientName,
+    ...(client.clientUri ? { websiteUrl: client.clientUri } : {}),
+    type: 'third_party',
+    isOfficial: false,
+    isInternal: false,
+    scopes: [...scopes],
+  };
 }
 
 export async function registerMcpClient(input: {
@@ -244,6 +275,74 @@ export async function mcpConsentRequired(input: {
   if (!grant) return true;
   const granted = new Set(grant.scopes);
   return input.scopes.some((scope) => !granted.has(scope));
+}
+
+export async function mcpConsentDetails(input: {
+  principalUserId: string;
+  effectiveAccountId: string;
+  client: McpOauthClientRow;
+  descriptor: McpResourceDescriptor;
+  scopes: readonly string[];
+}): Promise<McpOAuthConsentResponse> {
+  assertScopesAllowed(input.scopes, input.descriptor);
+  if (!await currentAccountAuthority({
+    principalUserId: input.principalUserId,
+    effectiveAccountId: input.effectiveAccountId,
+  })) {
+    throw new McpOAuthError('access_denied', 'The approving user can no longer operate this account', 403);
+  }
+  const [account, consentRequired] = await Promise.all([
+    getDb().select({
+      id: users.id,
+      username: users.username,
+      nameFirst: users.nameFirst,
+      nameLast: users.nameLast,
+      nameDisplay: users.nameDisplay,
+      avatar: users.avatar,
+    }).from(users).where(eq(users.id, input.effectiveAccountId)).limit(1).then((rows) => rows[0]),
+    mcpConsentRequired(input),
+  ]);
+  if (!account) {
+    throw new McpOAuthError('access_denied', 'The selected account is no longer active', 403);
+  }
+  const displayName = composeDisplayName({
+    name: {
+      first: account.nameFirst,
+      last: account.nameLast,
+      displayName: account.nameDisplay,
+    },
+    username: account.username,
+  });
+  const grantedCapabilities = new Set(input.scopes);
+  const writeActions = input.descriptor.tools
+    .filter((tool) => tool.effect !== 'read')
+    .filter((tool) => tool.requiredCapabilities.every((capability) => grantedCapabilities.has(capability)))
+    .map((tool) => ({
+      name: tool.name,
+      version: tool.version,
+      description: tool.description,
+      requiredCapabilities: tool.requiredCapabilities,
+      effect: tool.effect,
+    }));
+  return {
+    consentRequired,
+    context: {
+      client: mcpClientApplication(input.client, input.descriptor.scopes),
+      account: {
+        id: account.id,
+        ...(displayName ? { displayName } : {}),
+        ...(account.username ? { handle: account.username } : {}),
+        ...(account.avatar ? { avatar: account.avatar } : {}),
+      },
+      resource: {
+        appId: input.descriptor.appSlug,
+        uri: input.descriptor.resource,
+        application: input.descriptor.application,
+      },
+      capabilities: [...input.scopes],
+      writeActions,
+    },
+  };
 }
 
 export async function authorizeMcpConnection(input: {
@@ -438,9 +537,6 @@ export async function exchangeMcpAuthorizationCode(input: {
 async function revokeGrant(db: DatabaseOrTransaction, grantId: string, when = new Date()): Promise<void> {
   await db.update(mcpOauthGrants).set({ revokedAt: when, updatedAt: when })
     .where(and(eq(mcpOauthGrants.id, grantId), isNull(mcpOauthGrants.revokedAt)));
-  // An account that revokes its grant leaves every connection it had joined —
-  // including connections started by somebody else's assistant.
-  await revokeMcpConnectionMemberships(db, grantId, when);
   await db.update(mcpOauthAccessTokens).set({ revokedAt: when })
     .where(and(eq(mcpOauthAccessTokens.grantId, grantId), isNull(mcpOauthAccessTokens.revokedAt)));
   await db.update(mcpOauthRefreshTokens).set({ revokedAt: when })
@@ -539,24 +635,10 @@ export async function revokeMcpGrant(input: {
   return true;
 }
 
-/**
- * The live grant behind a presented MCP access token, or null.
- *
- * Split out of {@link introspectMcpAccessToken} because every connection-level
- * call a resource server makes — asking for an account-link URL, switching the
- * active account — must prove possession of exactly the same live token, under
- * exactly the same checks. Two copies of these checks would be two places for
- * one of them to be forgotten.
- */
-export async function resolveLiveMcpAccessToken(
+export async function introspectMcpAccessToken(
   token: string,
   callingApplicationId: string,
-): Promise<{
-  claims: McpAccessTokenClaims;
-  grant: McpOauthGrantRow;
-  client: McpOauthClientRow;
-  descriptor: McpResourceDescriptor;
-} | null> {
+): Promise<McpAccessTokenClaims | null> {
   try {
     const signing = capabilityTicketSigningConfig();
     const untrusted = verifyMcpAccessTokenSignature(token, {
@@ -593,31 +675,10 @@ export async function resolveLiveMcpAccessToken(
     });
     const claimScopes = normalizeMcpScopes(claims.scope);
     const storedScopes = normalizeMcpScopes(row.accessScopes);
-    if (claimScopes.length !== storedScopes.length
-      || claimScopes.some((scope, index) => scope !== storedScopes[index])) return null;
-    return { claims, grant: row.grant, client: row.client, descriptor };
-  } catch {
-    return null;
-  }
-}
-
-export interface McpIntrospectionResult {
-  claims: McpAccessTokenClaims;
-  /** The account set this connection may act as, and which one it is acting as. */
-  connection: McpConnectionState;
-}
-
-export async function introspectMcpAccessToken(
-  token: string,
-  callingApplicationId: string,
-): Promise<McpIntrospectionResult | null> {
-  const resolved = await resolveLiveMcpAccessToken(token, callingApplicationId);
-  if (!resolved) return null;
-  try {
-    return {
-      claims: resolved.claims,
-      connection: await resolveMcpConnectionState(resolved.grant),
-    };
+    return claimScopes.length === storedScopes.length
+      && claimScopes.every((scope, index) => scope === storedScopes[index])
+      ? claims
+      : null;
   } catch {
     return null;
   }

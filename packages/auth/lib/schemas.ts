@@ -18,6 +18,7 @@ import { z } from "zod"
 import {
     currentUserResponseSchema,
     deviceLinkedSessionsResponseSchema,
+    mcpOAuthConsentResponseSchema,
     oauthConsentDecisionSchema,
     publicApplicationSchema,
     sessionStatusSchema,
@@ -27,6 +28,7 @@ import type {
     PublicApplicationResponse,
     SessionStatusResponse,
     ApplicationTypeContract,
+    McpOAuthConsentResponse,
 } from "@oxy.so/contracts"
 
 // Canonical, contracts-owned schemas re-exported for local import sites.
@@ -40,6 +42,7 @@ export type {
     PublicApplicationResponse,
     SessionStatusResponse,
     ApplicationTypeContract,
+    McpOAuthConsentResponse,
 }
 
 export const lookupResponseSchema = z.object({
@@ -87,67 +90,22 @@ export function consentRequiredFromBody(body: unknown): boolean {
 }
 
 /**
- * Parse the deliberately smaller decision returned by the resource-bound MCP
- * OAuth lane. A missing, wrapped incorrectly, or non-boolean value always means
- * "show consent"; only an explicit `false` may skip the screen.
+ * Parse the server-resolved MCP consent context. The exact account, protected
+ * resource, requested capabilities and catalog-derived write actions travel as
+ * one contract so the UI cannot assemble a plausible but different consent
+ * summary from URL parameters.
  */
+export function mcpConsentFromBody(body: unknown): McpOAuthConsentResponse | null {
+    const inner =
+        body && typeof body === "object" && "data" in body
+            ? (body as { data: unknown }).data
+            : body
+    return safeParse(mcpOAuthConsentResponseSchema, inner)
+}
+
+/** Only an entirely valid server context may suppress the consent screen. */
 export function mcpConsentRequiredFromBody(body: unknown): boolean {
-    const inner =
-        body && typeof body === "object" && "data" in body
-            ? (body as { data: unknown }).data
-            : body
-    const parsed = z.object({ consentRequired: z.boolean() }).strict().safeParse(inner)
-    return parsed.success ? parsed.data.consentRequired : true
-}
-
-/**
- * The MCP account-link invitation this IdP renders before somebody approves it.
- *
- * Deliberately narrow: the client asking, the app it reaches, the scopes the
- * joining account is agreeing to, and whether the account currently signed in
- * is already a member. It never carries the connection's other members —
- * whoever opens the link is adding ONE account, their own.
- */
-const mcpLinkIntentSchema = z.object({
-    client_name: z.string().min(1),
-    client_uri: z.string().nullable().optional(),
-    logo_uri: z.string().nullable().optional(),
-    app_slug: z.string().min(1),
-    resource: z.string().min(1),
-    scopes: z.array(z.string().min(1)),
-    already_linked: z.boolean(),
-    expires_at: z.string().min(1),
-})
-
-export type McpLinkIntent = {
-    clientName: string
-    clientUri: string | null
-    logoUri: string | null
-    appSlug: string
-    resource: string
-    scopes: string[]
-    alreadyLinked: boolean
-    expiresAt: string
-}
-
-/** Parse a link-intent description; anything malformed means "unavailable". */
-export function mcpLinkIntentFromBody(body: unknown): McpLinkIntent | null {
-    const inner =
-        body && typeof body === "object" && "data" in body
-            ? (body as { data: unknown }).data
-            : body
-    const parsed = mcpLinkIntentSchema.safeParse(inner)
-    if (!parsed.success) return null
-    return {
-        clientName: parsed.data.client_name,
-        clientUri: parsed.data.client_uri ?? null,
-        logoUri: parsed.data.logo_uri ?? null,
-        appSlug: parsed.data.app_slug,
-        resource: parsed.data.resource,
-        scopes: parsed.data.scopes,
-        alreadyLinked: parsed.data.already_linked,
-        expiresAt: parsed.data.expires_at,
-    }
+    return mcpConsentFromBody(body)?.consentRequired ?? true
 }
 
 /**

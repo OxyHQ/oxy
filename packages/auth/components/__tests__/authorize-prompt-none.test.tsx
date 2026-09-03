@@ -31,6 +31,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { LocaleProvider } from "@/lib/i18n/locale-context"
 import { createServicesMock } from "@/lib/__tests__/setup-services-mock"
 import enDict from "@/lib/i18n/locales/en"
+import type { OxyConsentScreenProps } from "@oxyhq/services"
 
 const CLIENT_ID = "oxy_dk_test_client"
 /** Deliberately NOT a registered redirect target — nothing may ever bounce here. */
@@ -188,6 +189,8 @@ const SIGNED_IN: SessionState = {
 }
 
 let sessionState: SessionState = NO_SESSION
+let mcpConsentRequired = false
+let renderedConsentProps: OxyConsentScreenProps | null = null
 
 const oxyServices = {
   getAccessToken: () => sessionState.accessToken,
@@ -228,8 +231,10 @@ function installMocks(): void {
         signOutContext: async () => false,
         signOutPrincipal: async () => false,
       }),
-      OxyConsentScreen: () =>
-        React.createElement("div", { "data-testid": "consent-screen" }),
+      OxyConsentScreen: (props: OxyConsentScreenProps) => {
+        renderedConsentProps = props
+        return React.createElement("div", { "data-testid": "consent-screen" })
+      },
       OxySignInRequestSurface: () =>
         React.createElement("div", { "data-testid": "signin-request-surface" }),
     }),
@@ -254,13 +259,65 @@ const fetchMock = mock(async (input: RequestInfo | URL, _init?: RequestInit) => 
   if (url.includes("/auth/mcp/oauth/client/")) {
     return new Response(
       JSON.stringify({
-        application: { id: "mcp-client-1", name: "External MCP Client", scopes: ["posts.read"] },
+        application: {
+          id: "mcp-client-1",
+          clientId: CLIENT_ID,
+          name: "External MCP Client",
+          type: "third_party",
+          isOfficial: false,
+          isInternal: false,
+          scopes: ["posts.read", "posts.write"],
+        },
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     )
   }
   if (url.includes("/auth/mcp/oauth/consent")) {
-    return new Response(JSON.stringify({ consentRequired: false }), {
+    const requestUrl = new URL(url)
+    const capabilities = (requestUrl.searchParams.get("scope") ?? "")
+      .split(/\s+/)
+      .filter(Boolean)
+    return new Response(JSON.stringify({
+      consentRequired: mcpConsentRequired,
+      context: {
+        client: {
+          id: "mcp-client-1",
+          clientId: CLIENT_ID,
+          name: "External MCP Client",
+          type: "third_party",
+          isOfficial: false,
+          isInternal: false,
+          scopes: ["posts.read", "posts.write"],
+        },
+        account: {
+          id: requestUrl.searchParams.get("accountId"),
+          displayName: "Nate Workspace",
+          handle: "nate-workspace",
+        },
+        resource: {
+          appId: "mention",
+          uri: "https://mcp.example.test",
+          application: {
+            id: "mention-app",
+            name: "Mention",
+            type: "first_party",
+            isOfficial: true,
+            isInternal: true,
+            scopes: [],
+          },
+        },
+        capabilities,
+        writeActions: capabilities.includes("posts.write")
+          ? [{
+              name: "createPost",
+              version: "1.0.0",
+              description: "Publish a post from the selected account.",
+              requiredCapabilities: ["posts.write"],
+              effect: "write",
+            }]
+          : [],
+      },
+    }), {
       status: 200,
       headers: { "content-type": "application/json" },
     })
@@ -274,7 +331,16 @@ const fetchMock = mock(async (input: RequestInfo | URL, _init?: RequestInit) => 
   if (url.includes("/auth/oauth/client/")) {
     return new Response(
       JSON.stringify({
-        data: { application: { id: "app-1", name: "Example App", scopes: [] } },
+        data: {
+          application: {
+            id: "app-1",
+            name: "Example App",
+            type: "third_party",
+            isOfficial: false,
+            isInternal: false,
+            scopes: [],
+          },
+        },
       }),
       { status: 200, headers: { "content-type": "application/json" } },
     )
@@ -303,6 +369,8 @@ describe("AuthorizePage — resource-bound MCP OAuth", () => {
     postMessage.mockClear()
     oxyServices.startCommonsSignIn.mockClear()
     sessionState = SIGNED_IN
+    mcpConsentRequired = false
+    renderedConsentProps = null
     harness.opener = null
     harness.location = { href: "" }
     harness.closed = false
@@ -315,7 +383,7 @@ describe("AuthorizePage — resource-bound MCP OAuth", () => {
   test("keeps the resource, PKCE and active account bound to the central MCP endpoints", async () => {
     const resource = "https://mcp.example.test"
     const redirect = "http://127.0.0.1:43123/callback"
-    const { unmount } = await renderAuthorize({
+    const { container, unmount } = await renderAuthorize({
       client_id: CLIENT_ID,
       redirect_uri: redirect,
       state: STATE,
@@ -326,6 +394,16 @@ describe("AuthorizePage — resource-bound MCP OAuth", () => {
       resource,
     })
     await act(async () => {
+      await flush()
+    })
+
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/auth/mcp/oauth/consent"))).toBe(false)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/auth/mcp/oauth/authorize"))).toBe(false)
+    const accountButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("Nate"))
+    expect(accountButton).toBeDefined()
+    await act(async () => {
+      accountButton?.click()
       await flush()
     })
 
@@ -358,6 +436,68 @@ describe("AuthorizePage — resource-bound MCP OAuth", () => {
       kind: "code",
       code: "mcp-code",
       state: STATE,
+    })
+
+    unmount()
+  })
+
+  test("shows the canonical MCP app, account, capabilities and write actions before approval", async () => {
+    mcpConsentRequired = true
+    const resource = "https://mcp.example.test"
+    const redirect = "http://127.0.0.1:43123/callback"
+    const { container, unmount } = await renderAuthorize({
+      client_id: CLIENT_ID,
+      redirect_uri: redirect,
+      state: STATE,
+      response_type: "code",
+      code_challenge: CODE_CHALLENGE,
+      code_challenge_method: "S256",
+      scope: "posts.write posts.read",
+      resource,
+    })
+
+    const accountButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("Nate"))
+    expect(accountButton).toBeDefined()
+    await act(async () => {
+      accountButton?.click()
+      await flush()
+    })
+
+    expect(renderedConsentProps).toMatchObject({
+      application: { name: "External MCP Client" },
+      scopes: ["posts.write", "posts.read"],
+      user: {
+        accountId: NATE_CONTEXT.accountId,
+        displayName: "Nate Workspace",
+        handle: "nate-workspace",
+      },
+      resource: {
+        application: { name: "Mention" },
+        uri: resource,
+        writeActions: [{
+          name: "createPost",
+          description: "Publish a post from the selected account.",
+          effect: "write",
+        }],
+      },
+    })
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/auth/mcp/oauth/authorize"))).toBe(false)
+
+    const consentProps = renderedConsentProps
+    if (!consentProps) throw new Error("Expected the MCP consent surface")
+    await act(async () => {
+      await consentProps.onAllow()
+      await flush()
+    })
+    const authorizeCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes("/auth/mcp/oauth/authorize"),
+    )
+    const authorizeBody = JSON.parse(String((authorizeCall?.[1] as RequestInit | undefined)?.body)) as Record<string, unknown>
+    expect(authorizeBody).toMatchObject({
+      accountId: NATE_CONTEXT.accountId,
+      resource,
+      scope: "posts.write posts.read",
     })
 
     unmount()
