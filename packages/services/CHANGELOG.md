@@ -1,5 +1,13 @@
 # Changelog
 
+## [30.2.5] - 2026-09-03
+
+### Added
+
+- Added explicit cross-platform OAuth reconsent through
+  `requestOAuthConsent`, with exact scope validation, PKCE and state binding,
+  byte-exact redirect verification, and no grant without user interaction.
+
 ## [30.2.1] - 2026-09-02
 
 ### Changed
