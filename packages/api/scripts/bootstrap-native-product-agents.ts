@@ -40,6 +40,10 @@ import {
   requireNativeProductBootstrapApproval,
   type NativeProductBootstrapPlan,
 } from "../src/scripts/nativeProductAgentsBootstrapPlan";
+import {
+  NativeProductAgentUsernameCollisionError,
+  nativeProductAgentBootstrapFailureResult,
+} from "../src/scripts/nativeProductAgentBootstrapFailure";
 
 const APPLY = process.env.APPLY === "1";
 const ROLLBACK = process.env.ROLLBACK === "1";
@@ -200,18 +204,27 @@ async function observeAccount(
     .where(eq(users.id, spec.id))
     .for("update");
 
-  const [usernameHolder] = await tx
-    .select({ id: users.id })
+  const usernameHolders = await tx
+    .select({
+      id: users.id,
+      kind: users.kind,
+      type: users.type,
+      parentAccountId: users.parentAccountId,
+      rootAccountId: users.rootAccountId,
+      accountStatus: users.accountStatus,
+      privacyIsPrivateAccount: users.privacyIsPrivateAccount,
+    })
     .from(users)
     .where(
       sql`lower(btrim(${users.username})) = lower(btrim(${spec.username}))`,
     )
-    .limit(1)
     .for("update");
+  if (usernameHolders.length > 1) {
+    throw new Error("users_lower_username_key uniqueness is not enforced");
+  }
+  const usernameHolder = usernameHolders[0];
   if (usernameHolder && usernameHolder.id !== spec.id) {
-    throw new Error(
-      `Username collision for ${spec.username}: held by ${usernameHolder.id}, expected ${spec.id}`,
-    );
+    throw new NativeProductAgentUsernameCollisionError(spec.id, usernameHolder);
   }
   if (!row) return { spec, exists: false };
 
@@ -1090,8 +1103,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  process.stderr.write(
-    `${error instanceof Error ? error.message : String(error)}\n`,
+  process.stdout.write(
+    `NATIVE_PRODUCT_AGENTS_RESULT=${JSON.stringify(
+      nativeProductAgentBootstrapFailureResult(error),
+    )}\n`,
   );
   process.exitCode = 1;
 });

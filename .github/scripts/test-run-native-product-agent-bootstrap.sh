@@ -29,6 +29,22 @@ else
   [ -z "${HOMIIO_SINDI_SERVICE_SECRET_FILE+x}" ]
   [ -z "${CLARITY_BACKEND_SERVICE_SECRET_FILE+x}" ]
 fi
+
+case "${TEST_BUN_MODE:-success}" in
+  success) ;;
+  classified-failure)
+    printf '%s\n' "$TEST_UNSAFE_MARKER"
+    printf '%s\n' "$TEST_UNSAFE_MARKER" >&2
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift"}'
+    exit 1
+    ;;
+  process-failure)
+    printf '%s\n' "$TEST_UNSAFE_MARKER"
+    printf '%s\n' "$TEST_UNSAFE_MARKER" >&2
+    exit 1
+    ;;
+  *) exit 64 ;;
+esac
 EOF
 chmod 0700 "$test_root/bin/bun"
 
@@ -73,5 +89,23 @@ if grep -Fq "$clarity_secret" "$test_root/invalid.log"; then
   echo 'a service secret leaked to wrapper output' >&2
   exit 1
 fi
+
+unsafe_marker='must-not-cross-the-wrapper-boundary'
+set +e
+classified_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=classified-failure TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
+classified_exit=$?
+process_output=$(PATH="$test_root/bin:$PATH" TEST_BUN_MODE=process-failure TEST_UNSAFE_MARKER="$unsafe_marker" sh "$subject" 2>&1)
+process_exit=$?
+set -e
+[ "$classified_exit" -eq 1 ]
+[ "$classified_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"live_state_drift"}' ]
+[ "$process_exit" -eq 1 ]
+[ "$process_output" = 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}' ]
+case "$classified_output$process_output" in
+  *"$unsafe_marker"*)
+    echo 'free-form bootstrap output crossed the wrapper boundary' >&2
+    exit 1
+    ;;
+esac
 
 echo 'Native product agent secret-file wrapper tests passed.'

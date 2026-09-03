@@ -1,0 +1,125 @@
+import type { users } from '../db/schema';
+
+const DATABASE_ERROR_CODES = new Set([
+  '28P01',
+  '3D000',
+  'ECONNREFUSED',
+  'ENETUNREACH',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+]);
+
+type NativeProductAgentBootstrapGenericFailureCode =
+  | 'database_unavailable'
+  | 'manifest_binding_mismatch'
+  | 'bootstrap_lock_failed'
+  | 'plan_rejected'
+  | 'service_credential_invalid'
+  | 'identity_collision'
+  | 'required_record_missing'
+  | 'live_state_drift'
+  | 'bootstrap_failed';
+
+export type NativeProductAgentUsernameCollisionHolder = Pick<
+  typeof users.$inferSelect,
+  | 'id'
+  | 'kind'
+  | 'type'
+  | 'parentAccountId'
+  | 'rootAccountId'
+  | 'accountStatus'
+  | 'privacyIsPrivateAccount'
+>;
+
+export class NativeProductAgentUsernameCollisionError extends Error {
+  readonly expectedAccountId: string;
+  readonly holder: NativeProductAgentUsernameCollisionHolder;
+
+  constructor(
+    expectedAccountId: string,
+    holder: NativeProductAgentUsernameCollisionHolder,
+  ) {
+    super('native product-agent username collision');
+    this.name = 'NativeProductAgentUsernameCollisionError';
+    this.expectedAccountId = expectedAccountId;
+    this.holder = {
+      id: holder.id,
+      kind: holder.kind,
+      type: holder.type,
+      parentAccountId: holder.parentAccountId,
+      rootAccountId: holder.rootAccountId,
+      accountStatus: holder.accountStatus,
+      privacyIsPrivateAccount: holder.privacyIsPrivateAccount,
+    };
+  }
+}
+
+export type NativeProductAgentBootstrapFailureResult =
+  | Readonly<{
+      status: 'failed';
+      code: 'username_collision';
+      expectedAccountId: string;
+      holder: NativeProductAgentUsernameCollisionHolder;
+    }>
+  | Readonly<{
+      status: 'failed';
+      code: NativeProductAgentBootstrapGenericFailureCode;
+    }>;
+
+function nativeProductAgentBootstrapGenericFailureCode(
+  error: unknown,
+): NativeProductAgentBootstrapGenericFailureCode {
+  const record =
+    error !== null && typeof error === 'object'
+      ? (error as Record<string, unknown>)
+      : null;
+  const code = typeof record?.code === 'string' ? record.code : '';
+  const message = error instanceof Error ? error.message : '';
+
+  if (
+    DATABASE_ERROR_CODES.has(code) ||
+    /DATABASE_URL|PostgreSQL|connect ECONN|connection (?:refused|terminated)|timeout expired/i.test(
+      message,
+    )
+  ) {
+    return 'database_unavailable';
+  }
+  if (/EXPECTED_.*does not match this image|workflow identity/i.test(message)) {
+    return 'manifest_binding_mismatch';
+  }
+  if (/advisory lock/i.test(message)) return 'bootstrap_lock_failed';
+  if (/EXPECTED_PLAN_SHA256|BOOTSTRAP_ACTOR|BOOTSTRAP_REASON/i.test(message)) {
+    return 'plan_rejected';
+  }
+  if (/service secret|secret hash|service-secret/i.test(message)) {
+    return 'service_credential_invalid';
+  }
+  if (/collision/i.test(message)) return 'identity_collision';
+  if (/organization .*does not exist|application .*not found/i.test(message)) {
+    return 'required_record_missing';
+  }
+  if (/drifted|unexpected owner/i.test(message)) return 'live_state_drift';
+  return 'bootstrap_failed';
+}
+
+/**
+ * Project only the one reviewed collision diagnostic. Every other exception
+ * becomes an opaque stable code so database details and free-form messages
+ * never cross the task-result boundary.
+ */
+export function nativeProductAgentBootstrapFailureResult(
+  error: unknown,
+): NativeProductAgentBootstrapFailureResult {
+  if (error instanceof NativeProductAgentUsernameCollisionError) {
+    return {
+      status: 'failed',
+      code: 'username_collision',
+      expectedAccountId: error.expectedAccountId,
+      holder: error.holder,
+    };
+  }
+  return {
+    status: 'failed',
+    code: nativeProductAgentBootstrapGenericFailureCode(error),
+  };
+}

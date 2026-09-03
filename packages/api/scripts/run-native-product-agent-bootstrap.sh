@@ -9,11 +9,13 @@ umask 077
 
 homiio_secret_file=''
 clarity_secret_file=''
+bootstrap_output_file=''
 
 cleanup() {
   unset HOMIIO_SINDI_SERVICE_SECRET_VALUE CLARITY_BACKEND_SERVICE_SECRET_VALUE
   [ -z "$homiio_secret_file" ] || rm -f -- "$homiio_secret_file"
   [ -z "$clarity_secret_file" ] || rm -f -- "$clarity_secret_file"
+  [ -z "$bootstrap_output_file" ] || rm -f -- "$bootstrap_output_file"
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -47,4 +49,18 @@ if [ "${APPLY:-0}" = '1' ] && [ "${ROLLBACK:-0}" != '1' ]; then
   export CLARITY_BACKEND_SERVICE_SECRET_FILE="$clarity_secret_file"
 fi
 
-bun run packages/api/scripts/bootstrap-native-product-agents.ts
+bootstrap_output_file=$(mktemp /tmp/oxy-native-agent-bootstrap.XXXXXX)
+bootstrap_status=0
+bun run packages/api/scripts/bootstrap-native-product-agents.ts \
+  >"$bootstrap_output_file" 2>/dev/null || bootstrap_status=$?
+if [ "$bootstrap_status" -eq 0 ]; then
+  cat "$bootstrap_output_file"
+else
+  result_line=$(grep '^NATIVE_PRODUCT_AGENTS_RESULT=' "$bootstrap_output_file" | tail -1 || true)
+  if [ -n "$result_line" ]; then
+    printf '%s\n' "$result_line"
+  else
+    printf '%s\n' 'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"bootstrap_process_failed"}'
+  fi
+fi
+exit "$bootstrap_status"

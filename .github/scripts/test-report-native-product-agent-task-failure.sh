@@ -23,6 +23,13 @@ expected="::error::dry-run-bootstrap task exited 1; structured_result={\"code\":
 actual=$(run_reporter "$subject" "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"plan_rejected\",\"planSha256\":\"$plan_sha\"}")
 [ "$actual" = "$expected" ]
 
+expected_account_id='01a0646a-078f-72ea-8759-86326484a7e0'
+holder_id='6a50444ce8026582b949089d'
+valid_collision="NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":\"69b2d3df5d12f58c9800d651\",\"rootAccountId\":\"69b2d3df5d12f58c9800d651\",\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false}}"
+expected="::error::dry-run-bootstrap task exited 1; structured_result={\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":\"69b2d3df5d12f58c9800d651\",\"rootAccountId\":\"69b2d3df5d12f58c9800d651\",\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false}}"
+actual=$(run_reporter "$subject" "$valid_collision")
+[ "$actual" = "$expected" ]
+
 expected="::error::dry-run-bootstrap task exited 1; structured_result={\"code\":\"task_exited_after_valid_plan\",\"planSha256\":\"$plan_sha\"}"
 actual=$(run_reporter "$subject" "NATIVE_PRODUCT_AGENTS_RESULT={\"mode\":\"dry-run\",\"direction\":\"bootstrap\",\"planSha256\":\"$plan_sha\",\"serviceCredentialState\":{\"homiioSindiExists\":false,\"clarityBackendExists\":true}}")
 [ "$actual" = "$expected" ]
@@ -32,6 +39,12 @@ for unsafe_envelope in \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"database_unavailable\",\"secret\":\"$unsafe_marker\"}" \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"database_unavailable\",\"name\":\"$unsafe_marker\"}" \
   "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"database_unavailable\",\"actor\":\"$unsafe_marker\"}" \
+  "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false,\"email\":\"$unsafe_marker\"}}" \
+  "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false},\"name\":\"$unsafe_marker\"}" \
+  "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"not-an-id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false}}" \
+  "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$expected_account_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\",\"privacyIsPrivateAccount\":false}}" \
+  "NATIVE_PRODUCT_AGENTS_RESULT={\"status\":\"failed\",\"code\":\"username_collision\",\"expectedAccountId\":\"$expected_account_id\",\"holder\":{\"id\":\"$holder_id\",\"kind\":\"project\",\"type\":\"local\",\"parentAccountId\":null,\"rootAccountId\":null,\"accountStatus\":\"active\"}}" \
+  'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"username_collision"}' \
   'NATIVE_PRODUCT_AGENTS_RESULT={"status":"failed","code":"UPPERCASE_NOT_ALLOWED"}' \
   'NATIVE_PRODUCT_AGENTS_RESULT=not-json'
 do
