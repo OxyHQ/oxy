@@ -72,6 +72,7 @@ import {
   modelDocumentationResponse,
   routingProfileListResponse,
 } from '../schemas/inferenceCatalogue.schemas';
+import { resolveCredentialAttributionById } from '../services/attribution.service';
 import { getRevisionDocumentation } from '../services/inferenceModelDocumentation.service';
 import { machineCredentialTokenPrefix } from '../utils/machineCredentialToken';
 import {
@@ -196,10 +197,11 @@ async function viewerForRequest(req: Request): Promise<CatalogueViewer> {
  * The application a bearer identifies, or `undefined` when it identifies none.
  *
  * `undefined` covers every distinguishable failure — a plain user session token,
- * an unverifiable JWT, a revoked or expired machine credential, a machine bearer
- * presented while the lane is shut — because the caller's next move is the same
- * for all of them and the catalogue never reports which it was. Distinguishing
- * them would turn a public read into an oracle on a credential's lifecycle.
+ * an unverifiable JWT, any revoked or expired credential, a suspended
+ * application, or a machine bearer presented while the lane is shut — because
+ * the caller's next move is the same for all of them and the catalogue never
+ * reports which it was. Distinguishing them would turn a public read into an
+ * oracle on a credential's lifecycle.
  */
 async function applicationForBearer(token: string): Promise<string | undefined> {
   if (machineCredentialTokenPrefix(token) !== null) {
@@ -209,7 +211,22 @@ async function applicationForBearer(token: string): Promise<string | undefined> 
   }
 
   const verification = verifyServiceToken(token);
-  return verification.ok ? verification.payload.appId : undefined;
+  if (!verification.ok) return undefined;
+
+  // The signature proves who minted the token; the live credential row remains
+  // the authority for its application and revocation state. This is the same
+  // credential-id hop used by the inference edge, so an unexpired JWT cannot
+  // retain catalogue visibility after its credential or application is disabled.
+  const attribution = await resolveCredentialAttributionById(
+    verification.payload.credentialId,
+  );
+  if (
+    attribution.status !== 'resolved' ||
+    attribution.attribution.application.applicationStatus !== 'active'
+  ) {
+    return undefined;
+  }
+  return attribution.attribution.application.applicationId;
 }
 
 /**

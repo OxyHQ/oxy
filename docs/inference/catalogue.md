@@ -139,12 +139,14 @@ Three behaviours to code against:
 
 ### Reads are audience-scoped
 
-No principal, a plain user bearer, an `oxy_sk_…` machine credential and an
-ordinary application's service token all resolve to the **public** audience. Only
-an internal/system application's service token sees internal-only routes. The SDK
-sends no audience of its own — whatever bearer it holds is the audience — and a
-read that cannot establish a principal resolves public, which is the default-deny
-direction.
+No principal, a plain user bearer, an unresolved credential and an ordinary
+third-party application all resolve to the **public** audience. A live service
+token or `oxy_sk_…` credential resolves its exact application row:
+staff-classified `first_party`, `internal` and `system` applications also see
+`platform_internal`; a revoked credential or suspended application does not.
+The SDK sends no audience of its own — whatever bearer it holds resolves the
+audience — and a read that cannot establish a live application principal
+resolves public, which is the default-deny direction.
 
 No SCOPE is checked on a catalogue read. `inference:models:read` exists in the
 vocabulary and is consulted by nothing; see

@@ -9,6 +9,20 @@
 > [Nodes / decentralization](nodes/README.md) · [Auth & session](auth/README.md) ·
 > [Architecture](architecture/overview.md).
 
+## `@oxyhq/contracts` 0.41.0 — platform-internal catalogue scope
+
+The prepared `0.41.0` contract removes the Alia-specific availability name.
+`platform_internal` is available to live, staff-classified `first_party`,
+`internal` and `system` application credentials; third-party applications,
+plain users, revoked credentials and suspended applications remain on the
+public catalogue. This is separate from `oxy_hosted`, which describes who
+operates a deployment rather than its product audience.
+
+Because a closed enum member was replaced, `modelDeploymentSchema` advances to
+wire version 2, `modelCatalogueEntrySchema` to version 3, and the Oxy-Kaana
+contract-set handshake to `3.0.0`. Publishing the package, regenerating Kaana's
+descriptor and deploying either service remain separate release steps.
+
 ## `@oxyhq/contracts` 0.40.0 — Kaana BYOK custody clean cut
 
 Version `0.40.0` is the breaking wire-contract release for customer provider

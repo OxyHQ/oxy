@@ -222,6 +222,8 @@ async function insertRoute(options: {
 async function tokenForApplication(input: {
   type: 'internal' | 'system' | 'first_party' | 'third_party';
   isInternal?: boolean;
+  applicationStatus?: 'active' | 'suspended';
+  credentialStatus?: 'active' | 'revoked';
 }): Promise<string> {
   const [account] = await getDb()
     .insert(users)
@@ -235,10 +237,30 @@ async function tokenForApplication(input: {
       createdByUserId: account.id,
       type: input.type,
       isInternal: input.isInternal ?? false,
+      status: input.applicationStatus ?? 'active',
+      scopes: ['inference:models:read'],
     })
     .returning({ id: applications.id });
 
-  return signServiceToken({ appId: application.id, ownerAccountId: account.id });
+  const [credential] = await getDb()
+    .insert(applicationCredentials)
+    .values({
+      applicationId: application.id,
+      name: `Catalogue Service ${suffix()}`,
+      publicKey: `oxy_dk_${suffix()}`,
+      type: 'service',
+      environment: 'production',
+      scopes: ['inference:models:read'],
+      status: input.credentialStatus ?? 'active',
+      createdByUserId: account.id,
+    })
+    .returning({ id: applicationCredentials.id });
+
+  return signServiceToken({
+    appId: application.id,
+    ownerAccountId: account.id,
+    credentialId: credential.id,
+  });
 }
 
 /**
@@ -322,6 +344,7 @@ async function withMachineLane(
 function signServiceToken(input: {
   appId: string;
   ownerAccountId: string;
+  credentialId?: string;
   secret?: string;
 }): string {
   return jwt.sign(
@@ -329,7 +352,7 @@ function signServiceToken(input: {
       type: 'service',
       appId: input.appId,
       appName: 'Catalogue Fixture App',
-      credentialId: `cred-${suffix()}`,
+      credentialId: input.credentialId ?? `cred-${suffix()}`,
       ownerAccountId: input.ownerAccountId,
       environment: 'production',
       scopes: ['inference:invoke'],
@@ -444,6 +467,30 @@ describe('the audience is resolved from the request, and every branch but one is
     // cases above, this is what makes
     // the withholding a decision rather than an accident.
     expect(entryFor(response.body, 'data', internalRoute.modelId)).toBeDefined();
+  });
+});
+
+describe('service-token catalogue access follows live credential and application state', () => {
+  it.each([
+    ['a suspended first-party application', { applicationStatus: 'suspended' as const }],
+    ['a revoked first-party service credential', { credentialStatus: 'revoked' as const }],
+  ])('withholds platform_internal from %s', async (_label, state) => {
+    const publicRoute = await insertRoute({ availabilityScope: 'public_payg' });
+    const internalRoute = await insertRoute({ availabilityScope: 'platform_internal' });
+
+    // Positive control over the same audience and rows: a live first-party
+    // credential really does see the platform route. If this fails, the denial
+    // below would be green without exercising revocation at all.
+    const activeToken = await tokenForApplication({ type: 'first_party' });
+    const active = await request(MOUNT, { token: activeToken });
+    expect(entryFor(active.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(active.body, 'data', internalRoute.modelId)).toBeDefined();
+
+    const disabledToken = await tokenForApplication({ type: 'first_party', ...state });
+    const disabled = await request(MOUNT, { token: disabledToken });
+    expect(disabled.status).toBe(200);
+    expect(entryFor(disabled.body, 'data', publicRoute.modelId)).toBeDefined();
+    expect(entryFor(disabled.body, 'data', internalRoute.modelId)).toBeUndefined();
   });
 });
 
@@ -708,7 +755,7 @@ describe('GET /models/stats keeps Console’s envelope and invents nothing', () 
       expect(entry).not.toHaveProperty(invented);
     }
     // CONTROL: the object is a real entry, so the absences above are absences.
-    expect(entry.schemaVersion).toBe(2);
+    expect(entry.schemaVersion).toBe(3);
     expect(entry.displayName).toBe('Catalogue Fixture Model');
   });
 });

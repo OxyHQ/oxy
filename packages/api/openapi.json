@@ -25602,7 +25602,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -26335,7 +26335,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -26954,7 +26954,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            2
+                            3
                           ]
                         },
                         "modelId": {
@@ -35433,7 +35433,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -36166,7 +36166,7 @@
                           "schemaVersion": {
                             "type": "number",
                             "enum": [
-                              2
+                              3
                             ]
                           },
                           "modelId": {
@@ -36785,7 +36785,7 @@
                         "schemaVersion": {
                           "type": "number",
                           "enum": [
-                            2
+                            3
                           ]
                         },
                         "modelId": {

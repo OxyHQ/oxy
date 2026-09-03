@@ -203,7 +203,7 @@ jobs:
                 name:$container,
                 command:["node","packages/api/scripts/run-kaana-signed-canary.mjs","readback"],
                 environment:[
-                  {name:"CANARY_CONTRACT_VERSION",value:"2.0.0"}
+                  {name:"CANARY_CONTRACT_VERSION",value:"3.0.0"}
                 ]
               }]}
             ')
@@ -265,7 +265,7 @@ jobs:
             .deploymentCount as $count |
             .schemaVersion == 1 and
             .status == "passed" and
-            .contractVersion == "2.0.0" and
+            .contractVersion == "3.0.0" and
             (.snapshotId | type == "string" and length > 0 and length <= 256) and
             ($count | type == "number" and . > 0 and floor == .) and
             (.deployments | type == "array" and length == $count) and

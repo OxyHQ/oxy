@@ -288,7 +288,7 @@ decides that each is expressible, enforceable, and answerable from one endpoint.
 | Stage | `INFERENCE_EDGE_AUDIENCE` | `INFERENCE_MACHINE_CREDENTIAL_AUTH` | `INFERENCE_KAANA_EXECUTION` | `INFERENCE_CHARGING_AUTHORIZED` | `INFERENCE_CATALOGUE_AUDIENCE` | `INFERENCE_PRIVACY_REVIEW` |
 |---|---|---|---|---|---|---|
 | Parked deployment | unset | unset | unset | unset | unset | unset |
-| Internal Alia canary | `internal` | unset | `enabled` | unset | unset | unset |
+| Platform-internal canary | `internal` | unset | `enabled` | unset | unset | unset |
 | Oxy first-party canary | `first_party` | `enabled` | `enabled` | unset | unset | unset |
 | Closed external beta | `allowlist:<appId>,…` | `enabled` | `enabled` | unset | `public` | unset |
 | Prepaid public launch | `public` | `enabled` | `enabled` | `<reason>:<date>` | `public` | `<reviewer>:<date>` |

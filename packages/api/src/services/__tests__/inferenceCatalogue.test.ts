@@ -584,7 +584,7 @@ describe('catalogue terms are aggregates, never the terms of a name-sorted route
       (candidate) => candidate.modelId === route.modelId
     );
     expect(entry).toBeDefined();
-    expect(entry?.schemaVersion).toBe(2);
+    expect(entry?.schemaVersion).toBe(3);
 
     // Provider ordering is deterministic customer presentation only. Even
     // though this route sorts first by name, none of its singular commercial

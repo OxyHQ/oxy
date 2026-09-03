@@ -157,9 +157,9 @@ const FROZEN_SCHEMA_VERSIONS: Record<string, number> = {
   catalogueModelSchema: 1,
   modelRevisionSchema: 1,
   inferenceProviderSchema: 1,
-  modelDeploymentSchema: 1,
+  modelDeploymentSchema: 2,
   routingProfileSchema: 1,
-  modelCatalogueEntrySchema: 2,
+  modelCatalogueEntrySchema: 3,
   // Routing policy
   routingPolicySchema: 2,
   // Ledger
@@ -671,7 +671,7 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   modelDeploymentSchema: {
-    schemaVersion: 1,
+    schemaVersion: 2,
     deploymentId: "dep_anthropic_usw2_opus5",
     provider: "anthropic",
     modelReference: "anthropic/claude-opus-5@2026-05-01",
@@ -699,7 +699,7 @@ const FIXTURES: Record<string, unknown> = {
   },
 
   modelCatalogueEntrySchema: {
-    schemaVersion: 2,
+    schemaVersion: 3,
     modelId: "anthropic/claude-opus-5",
     publisher: {
       slug: "anthropic",
@@ -1278,10 +1278,10 @@ const FIXTURES: Record<string, unknown> = {
 
 describe("inference contract versioning", () => {
   it("exposes the contract-set version the two planes handshake on", () => {
-    // MAJOR: terminal reports and partial usage events now require the exact
-    // deployment identity and each message moved to schemaVersion 2. A v1
-    // producer cannot provide evidence safe enough to settle after failover.
-    expect(version.INFERENCE_CONTRACT_VERSION).toBe("2.0.0");
+    // MAJOR: the closed availability scope renamed from an Alia-specific value
+    // to a platform audience. Both wire shapes carrying it advance so an older
+    // consumer cannot silently reinterpret the new commercial boundary.
+    expect(version.INFERENCE_CONTRACT_VERSION).toBe("3.0.0");
   });
 
   it("matches the frozen schema version map exactly", () => {
@@ -1482,9 +1482,33 @@ describe("inference contract negative cases", () => {
     const entry = FIXTURES.modelCatalogueEntrySchema as Record<string, unknown>;
     const { schemaVersion, ...withoutVersion } = entry;
 
-    expect(schemaVersion).toBe(2);
+    expect(schemaVersion).toBe(3);
     expect(
       catalogue.modelCatalogueEntrySchema.safeParse(withoutVersion).success,
+    ).toBe(false);
+  });
+
+  it("rejects the retired Alia scope and both previous catalogue wire versions", () => {
+    const deployment = FIXTURES.modelDeploymentSchema as Record<string, unknown>;
+    const entry = FIXTURES.modelCatalogueEntrySchema as Record<string, unknown>;
+
+    expect(
+      catalogue.modelDeploymentSchema.safeParse({ ...deployment, schemaVersion: 1 }).success,
+    ).toBe(false);
+    expect(
+      catalogue.modelCatalogueEntrySchema.safeParse({ ...entry, schemaVersion: 2 }).success,
+    ).toBe(false);
+    expect(
+      catalogue.modelDeploymentSchema.safeParse({
+        ...deployment,
+        availabilityScope: "internal_alia",
+      }).success,
+    ).toBe(false);
+    expect(
+      catalogue.modelCatalogueEntrySchema.safeParse({
+        ...entry,
+        availabilityScope: "internal_alia",
+      }).success,
     ).toBe(false);
   });
 

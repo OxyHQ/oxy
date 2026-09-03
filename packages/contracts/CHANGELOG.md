@@ -1,5 +1,18 @@
 # Changelog: `@oxyhq/contracts`
 
+## 0.41.0
+
+### Changed
+
+- Replaced the Alia-specific `internal_alia` availability member with
+  `platform_internal`. The new name is an Oxy application audience: reviewed
+  routes are visible to staff-classified `first_party`, `internal` and `system`
+  applications, never to third-party applications or plain users.
+- `modelDeploymentSchema` advances from wire `schemaVersion: 1` to `2`, and
+  `modelCatalogueEntrySchema` from `2` to `3`. The contract-set handshake is
+  `3.0.0`; older consumers fail on the version instead of silently assigning the
+  new commercial boundary its retired Alia-only meaning.
+
 ## 0.40.0
 
 ### Added
