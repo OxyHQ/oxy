@@ -20,7 +20,13 @@
  * shape of a decorative safety net.
  */
 
-import { selectSeedEntries, type SeedEntryVocabulary } from '../seedEntrySelection';
+import {
+  selectSeedEntries,
+  selectSeedEntriesByExactIds,
+  selectSeedEntriesByLegacyNames,
+  type IdentifiedSeedEntry,
+  type SeedEntryVocabulary,
+} from '../seedEntrySelection';
 
 /** Stands in for the real SEED_APPS: only `name` is load-bearing here. */
 const ENTRIES = [
@@ -34,6 +40,15 @@ const APPS: SeedEntryVocabulary = {
   singular: 'application',
   plural: 'applications',
 };
+
+const KAANA_APPLICATION_ID = '68b7c4e19f2a6d0e3c8b5174';
+const IDENTIFIED_ENTRIES: readonly (IdentifiedSeedEntry & {
+  type: 'first_party' | 'internal';
+})[] = [
+  { id: '6a2f851751b784a86fd0e934', name: 'Alia', type: 'internal' },
+  { name: 'Oxy Accounts', type: 'first_party' },
+  { id: KAANA_APPLICATION_ID, name: 'Kaana', type: 'internal' },
+] as const;
 
 describe('selectSeedEntries', () => {
   describe('unset — the long-standing behaviour is unchanged', () => {
@@ -163,5 +178,135 @@ describe('selectSeedEntries', () => {
       expect(ENTRIES.length).toBeGreaterThan(1);
       expect(selectSeedEntries(ENTRIES, 'CrowdSource', APPS).length).toBeLessThan(ENTRIES.length);
     });
+  });
+});
+
+describe('selectSeedEntriesByExactIds', () => {
+  it('selects Kaana by its exact opaque id and nothing else', () => {
+    expect(selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, KAANA_APPLICATION_ID, APPS)).toEqual([
+      { id: KAANA_APPLICATION_ID, name: 'Kaana', type: 'internal' },
+    ]);
+  });
+
+  it('does not depend on the canonical registry order', () => {
+    const reordered = [...IDENTIFIED_ENTRIES].reverse();
+
+    expect(selectSeedEntriesByExactIds(reordered, KAANA_APPLICATION_ID, APPS)).toEqual([
+      { id: KAANA_APPLICATION_ID, name: 'Kaana', type: 'internal' },
+    ]);
+  });
+
+  it('uses each requested exact id instead of canonical or request order as a fallback', () => {
+    const selected = selectSeedEntriesByExactIds(
+      IDENTIFIED_ENTRIES,
+      `${KAANA_APPLICATION_ID},6a2f851751b784a86fd0e934`,
+      APPS
+    );
+
+    expect(selected.map((entry) => entry.id)).toEqual([
+      KAANA_APPLICATION_ID,
+      '6a2f851751b784a86fd0e934',
+    ]);
+  });
+
+  it('rejects the Kaana display name on the exact-id path', () => {
+    expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, 'Kaana', APPS)).toThrow(
+      /unknown application id\(s\): \[Kaana\]/
+    );
+  });
+
+  it('rejects an unknown opaque id instead of selecting the first entry', () => {
+    expect(() =>
+      selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, '000000000000000000000001', APPS)
+    ).toThrow(/unknown application id\(s\): \[000000000000000000000001\]/);
+  });
+
+  it('rejects an empty exact-id boundary', () => {
+    expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, '', APPS)).toThrow(
+      /names no application id/
+    );
+  });
+
+  it.each([
+    `${KAANA_APPLICATION_ID},`,
+    `,${KAANA_APPLICATION_ID}`,
+    `${KAANA_APPLICATION_ID},,6a2f851751b784a86fd0e934`,
+  ])('rejects an empty id inside a comma-separated boundary: %p', (raw) => {
+    expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, raw, APPS)).toThrow(
+      /contains an empty application id/
+    );
+  });
+
+  it.each([
+    ` ${KAANA_APPLICATION_ID}`,
+    `${KAANA_APPLICATION_ID} `,
+    `${KAANA_APPLICATION_ID}, 6a2f851751b784a86fd0e934`,
+    `\t${KAANA_APPLICATION_ID}`,
+    `${KAANA_APPLICATION_ID}\n`,
+    '   ',
+  ])('rejects leading or trailing whitespace instead of normalizing the id: %p', (raw) => {
+    expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, raw, APPS)).toThrow(
+      /Every id must byte-match the declared immutable id; values are never normalized/
+    );
+  });
+
+  it('rejects a duplicate requested id instead of silently de-duplicating it', () => {
+    expect(() =>
+      selectSeedEntriesByExactIds(
+        IDENTIFIED_ENTRIES,
+        `${KAANA_APPLICATION_ID},${KAANA_APPLICATION_ID}`,
+        APPS
+      )
+    ).toThrow(new RegExp(`repeats application id\\(s\\): \\[${KAANA_APPLICATION_ID}\\]`));
+  });
+
+  it('rejects duplicate ids in the canonical registry instead of selecting by first match', () => {
+    expect(() =>
+      selectSeedEntriesByExactIds(
+        [
+          ...IDENTIFIED_ENTRIES,
+          { id: KAANA_APPLICATION_ID, name: 'Not Kaana', type: 'internal' },
+        ],
+        KAANA_APPLICATION_ID,
+        APPS
+      )
+    ).toThrow(`Canonical application registry declares duplicate exact id ${KAANA_APPLICATION_ID}`);
+  });
+
+  it('cannot reach a spec without an id through its display name', () => {
+    expect(() => selectSeedEntriesByExactIds(IDENTIFIED_ENTRIES, 'Oxy Accounts', APPS)).toThrow(
+      /unknown application id\(s\): \[Oxy Accounts\]/
+    );
+  });
+
+  it('the fixture has unselected and id-less entries, so the negative assertions can fail', () => {
+    expect(IDENTIFIED_ENTRIES.length).toBeGreaterThan(1);
+    expect(IDENTIFIED_ENTRIES.some((entry) => !('id' in entry))).toBe(true);
+  });
+});
+
+describe('selectSeedEntriesByLegacyNames', () => {
+  it('retains explicit name selection for a spec without a declared id', () => {
+    expect(
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'Oxy Accounts', APPS, 'ONLY_APP_IDS')
+    ).toEqual([{ name: 'Oxy Accounts', type: 'first_party' }]);
+  });
+
+  it('rejects selecting Kaana by display name because it has an exact id', () => {
+    expect(() =>
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'Kaana', APPS, 'ONLY_APP_IDS')
+    ).toThrow(/cannot select application\(s\) with declared exact ids: \[Kaana\]/);
+  });
+
+  it('still rejects an unknown display name before considering exact ids', () => {
+    expect(() =>
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, 'kaana', APPS, 'ONLY_APP_IDS')
+    ).toThrow(/unknown application\(s\): \[kaana\]/);
+  });
+
+  it('preserves the unbounded local reconciliation when neither filter is set', () => {
+    expect(
+      selectSeedEntriesByLegacyNames(IDENTIFIED_ENTRIES, undefined, APPS, 'ONLY_APP_IDS')
+    ).toEqual([...IDENTIFIED_ENTRIES]);
   });
 });
